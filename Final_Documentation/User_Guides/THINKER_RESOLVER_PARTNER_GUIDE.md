@@ -1,11 +1,12 @@
 # Thinker Resolver Partner Guide
 
-Status: partner-facing guide for assigned-store Thinker/Resolver support (2026-04-29)
+Status: partner-facing guide for assigned-store Thinker/Resolver support (2026-05-01)
 
 This guide is for implementation partners supporting merchants through the Partner UI.
 
 Related guides:
 
+- [Thinker Resolver User Guide](./THINKER_RESOLVER_USER_GUIDE.md)
 - [Shopify Companion Customer Capabilities Guide](./SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md)
 - [Thinker Resolver Operator Guide](./THINKER_RESOLVER_OPERATOR_GUIDE.md)
 - [Partner Enablement Deployment Guide](../Development_Guides/PARTNER_ENABLEMENT_DEPLOYMENT_GUIDE.md)
@@ -30,6 +31,8 @@ Partner-visible data is redacted. The partner view does not expose:
 - operator raw evidence references
 - operator proposal parameters
 - secrets or runtime credentials
+
+Partners read and write the same Platform-owned support records as operators. There is no separate partner shadow database. Access is controlled by active store assignment and permission checks on every request.
 
 ---
 
@@ -56,9 +59,9 @@ Partner routes require a valid Supabase partner bearer token and an active Platf
 
 Core routes:
 
-- `GET /api/partners/stores/{storeId}/thinker/sessions`
-- `GET /api/partners/thinker/sessions/{sessionId}`
-- `POST /api/partners/thinker/sessions/{sessionId}/support-escalations`
+- `GET /api/partners/stores/{storeId}/thinker-sessions`
+- `GET /api/partners/thinker-sessions/{sessionId}`
+- `POST /api/partners/thinker-sessions/{sessionId}/escalations`
 
 The backend checks the assignment, store ownership, permissions, and assignment status on each call. A revoked assignment loses access immediately.
 
@@ -80,6 +83,8 @@ The handoff writes real Platform Partner Enablement records:
 
 It is not a placeholder or separate duplicate data store.
 
+Partner-created handoffs are not Shopify store mutations. They are support coordination records that let the assigned partner follow up with the merchant using redacted Thinker evidence.
+
 ---
 
 ## 5) What Partners Cannot Do
@@ -90,6 +95,8 @@ Partners cannot:
 - enable governed execution
 - bypass policy decisions
 - execute arbitrary writes
+- create or change billing tier
+- mutate catalog, inventory, orders, refunds, theme settings, or runtime secrets
 - view unassigned stores
 - view raw operator evidence
 - change merchant tier or product truth

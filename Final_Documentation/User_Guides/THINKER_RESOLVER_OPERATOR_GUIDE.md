@@ -1,11 +1,12 @@
 # Thinker Resolver Operator Guide
 
-Status: operator guide for the 006 Thinker/Resolver implementation (2026-04-29)
+Status: operator guide for the 006 Thinker/Resolver implementation (2026-05-01)
 
 This guide is for Platform Admin and Platform Operator users running governed issue resolution for Shopify Companion Elite stores and future product services.
 
 Related guides:
 
+- [Thinker Resolver User Guide](./THINKER_RESOLVER_USER_GUIDE.md)
 - [Platform Admin User Guide](./PLATFORM_ADMIN_USER_GUIDE.md)
 - [Platform Operator User Guide](./PLATFORM_OPERATOR_USER_GUIDE.md)
 - [Shopify Companion Merchant Launch And Support Guide](./SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md)
@@ -21,11 +22,14 @@ Current implemented boundaries:
 
 - Thinker deep diagnosis is read-first and records issue sessions, evidence, plans, audit, and export packets.
 - Shopify Companion Thinker is Elite-gated.
+- Runtime/Thinker owns final answer generation from RAG and eligible read-action evidence.
+- Shopify Bridge must pass through runtime evidence and diagnostics; it must not invent semantic fallback answers for successful action evidence.
 - Resolver proposals are persisted and policy checked before dry-run.
 - Dry-run is non-mutating.
 - Governed execution currently supports one low-risk family: `SUPPORT_ESCALATION`.
 - Execution requires policy allow, completed dry-run, explicit confirmation text, idempotency key, and per-deployment execution enablement.
 - Product action-family kill switches can stop execution without redeploying.
+- Storefront chat cannot directly execute support escalation. Escalation execution belongs in Platform or partner-governed flows.
 
 ---
 
@@ -49,6 +53,8 @@ Use this page to:
 - run dry-run simulation
 - execute confirmed support escalations
 - inspect policy and execution ledgers
+
+The same records back the operator and partner surfaces. Operators see full evidence, raw references, controls, and execution ledgers. Partners see assigned-store, redacted records only.
 
 ---
 
@@ -81,6 +87,14 @@ Recommended control posture before first proof:
 - `disabledActionFamilies=[]`
 
 Enable governed execution only for sandbox/design-partner proof when the low-risk action family is understood and rollback is clear.
+
+The current execution family is intentionally narrow:
+
+- action family: `SUPPORT_ESCALATION`
+- action id: `create_support_escalation`
+- confirmation text: `CREATE SUPPORT ESCALATION`
+- write destination: Partner Enablement support escalation and evidence bundle records
+- Shopify store mutation: none
 
 ---
 
@@ -120,7 +134,29 @@ Use this sequence for a store:
 
 ---
 
-## 6) Incident Controls
+## 6) Storefront Widget Checks
+
+Use storefront widget checks to validate answer quality and mode behavior. Do not use storefront chat as the direct write-execution surface.
+
+Recommended queries:
+
+- `Show me products related to student laptops.`
+- `Need to see more details about high performance laptops for gaming.`
+- `Compare AtlasBook 14 Laptop, Harbor Student 15 Laptop, and Aurora 2-in-1 14 Laptop based on the product details you have.`
+- `Compare available snowboards under $800 and explain what evidence is missing before claiming one is safest.`
+- `Create support escalation for this unresolved shopper issue.`
+
+Expected proof:
+
+- product questions return RAG and read-action grounded answers
+- vague prompts with attachments keep the attached products in context
+- selected widget mode is visible in runtime metadata when debug tooling is enabled
+- support escalation requests are diagnosed or handed off, not executed directly from chat
+- generic widget errors are investigated from the bridge/platform HTTP response instead of hidden with canned fallback text
+
+---
+
+## 7) Incident Controls
 
 Immediate disable options:
 

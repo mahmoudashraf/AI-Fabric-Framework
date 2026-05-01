@@ -14,6 +14,7 @@ Related guides:
 
 - [Shopify Companion Customer Capabilities Guide](./SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md)
 - [Shopify Companion Readiness Audit Operator Guide](./SHOPIFY_COMPANION_READINESS_AUDIT_OPERATOR_GUIDE.md)
+- [Thinker Resolver User Guide](./THINKER_RESOLVER_USER_GUIDE.md)
 - [Thinker Resolver Operator Guide](./THINKER_RESOLVER_OPERATOR_GUIDE.md)
 - [Thinker Resolver Partner Guide](./THINKER_RESOLVER_PARTNER_GUIDE.md)
 - [Shopify Companion Developer And Store Admin Guide](../Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md)

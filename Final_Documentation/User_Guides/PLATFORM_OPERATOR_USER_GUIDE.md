@@ -10,6 +10,8 @@ Companion guide:
 
 - `Final_Documentation/User_Guides/PLATFORM_USER_TYPES_GUIDE.md`
 - `Final_Documentation/User_Guides/MARKETPLACE_ADMIN_USER_GUIDE.md`
+- `Final_Documentation/User_Guides/THINKER_RESOLVER_USER_GUIDE.md`
+- `Final_Documentation/User_Guides/THINKER_RESOLVER_OPERATOR_GUIDE.md`
 
 ---
 

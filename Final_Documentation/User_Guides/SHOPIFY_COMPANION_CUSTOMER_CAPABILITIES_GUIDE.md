@@ -16,6 +16,7 @@ Do not use it to describe roadmap items that are not live yet.
 Related guides:
 
 - [Shopify Companion Merchant Launch And Support Guide](./SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md)
+- [Thinker Resolver User Guide](./THINKER_RESOLVER_USER_GUIDE.md)
 - [Shopify Companion Developer And Store Admin Guide](../Development_Guides/SHOPIFY_COMPANION_DEVELOPER_AND_STORE_ADMIN_GUIDE.md)
 - [Shopify Internal Development And Full Deployment Guide](../Development_Guides/SHOPIFY_INTERNAL_DEVELOPMENT_AND_FULL_DEPLOYMENT_GUIDE.md)
 
