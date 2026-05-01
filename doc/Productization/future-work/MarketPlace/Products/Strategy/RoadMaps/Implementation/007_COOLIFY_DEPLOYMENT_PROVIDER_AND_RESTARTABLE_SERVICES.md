@@ -2185,6 +2185,7 @@ Default and production profile update:
 
 - `dtp-coolify-staging` is now the runtime and restartable-services default.
 - `dtp-coolify-production` is active but explicitly non-default.
+- Live no-target default proof passed: disposable Platform deployment `dep-ac9468b9`, version `ver-76231ac5`, release `rel-e3aaf245` applied without passing `targetProfileId`; Platform selected `dtp-coolify-staging`/`COOLIFY`, reached `APPLIED_VERIFIED/PASSED`, created active `APPLICATION` and `CONNECTOR_APPLICATION` handles, reported runtime URL plus `connectorProvisioned=true`, then hard-delete `del-65ca8112` completed and provider resources returned `0`.
 - Production preflight currently fails from live Platform with `Coolify API request failed for /health` while production Coolify port `8000` remains restricted by the production allowlist. Do not open production `8000` broadly; production applies need a stable Platform control-plane egress CIDR, VPN/Tailscale, Cloudflare Access, or equivalent protected API path.
 
 Backup/restore rehearsal:

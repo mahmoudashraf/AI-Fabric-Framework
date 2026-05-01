@@ -456,8 +456,11 @@ Rules:
 
 ## 2026-05-01 Coolify 007 Default And Backup Rehearsal
 
+- Commit `3bb407a7a` pushed to `Platform-V8` with the global-default resolver fix, V79 migration, backup rehearsal runner, tests, and docs.
 - Live Platform update completed: `dtp-coolify-staging` is active and default for runtime plus restartable services; `dtp-coolify-production` is active but non-default.
 - Repo policy migration added: `V79__coolify_staging_runtime_default.sql` clears older runtime/restartable defaults, activates staging as the Coolify default, and activates production as explicit non-default.
+- Live no-target smoke passed after deploy: disposable deployment `dep-ac9468b9`, version `ver-76231ac5`, release `rel-e3aaf245` applied without a `targetProfileId`; Platform selected `targetProfileId=dtp-coolify-staging`, `providerType=COOLIFY`, reached `APPLIED_VERIFIED/PASSED`, stored `APPLICATION` plus `CONNECTOR_APPLICATION` handles as `ACTIVE`, and workspace reported a runtime URL plus `connectorProvisioned=true`.
+- No-target smoke cleanup completed: Platform hard-delete operation `del-65ca8112` reached `SUCCEEDED` and provider resources for `dep-ac9468b9` returned `0`. Earlier local script run `dep-96259cae` stopped before publish because it treated publish-ready warnings as fatal; cleanup operation `del-b2c27ab4` also reached `SUCCEEDED` with provider resources `0`.
 - Production hardening status: production host UFW keeps Coolify dashboard/API port `8000` restricted to the setup/operator CIDR while public app traffic remains on `80/443`; live Platform production preflight fails with `Coolify API request failed for /health`, so production applies remain blocked until a protected Platform-to-production Coolify API path exists.
 - Backup/restore rehearsal passed on both Hetzner hosts through `infra/coolify/hetzner/scripts/rehearse-coolify-backup-restore.sh`. Staging backup directory: `/var/backups/loom-coolify/staging-20260501T214218Z`; production backup directory: `/var/backups/loom-coolify/production-20260501T214218Z`. Each contains root-only `coolify-db.dump`, `coolify-state-files.tgz`, `SHA256SUMS`, and `restore-rehearsal-status.json`.
 - Rehearsal proof: each DB dump restored into a temporary Postgres database, each file archive extracted into a temporary directory and verified for `.env` plus SSH keys, then temporary restore targets were removed.
