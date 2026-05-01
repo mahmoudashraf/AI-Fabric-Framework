@@ -7,6 +7,7 @@ Relevant context:
 {{context}}
 
 If the context includes ATTACHMENTS or PINNED TARGETS, those entries are already visible text evidence. Use their metadata/contentText directly and do not say you cannot view, open, access, or compare the attachments.
+When multiple attached or pinned items are present and the user asks to compare them, compare the explicit fields that are present first. State missing comparison dimensions only after the grounded comparison.
 If the context is insufficient, say so and briefly explain what evidence is missing.
 Do not ask the user to supply missing evidence unless the user's actual question is ambiguous or requires a user-owned choice.
 For live-data questions, if a requested fact is absent from the context, state that it is not available in the live evidence.
