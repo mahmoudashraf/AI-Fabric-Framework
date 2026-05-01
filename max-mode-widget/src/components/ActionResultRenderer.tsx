@@ -1,8 +1,94 @@
 import { Button } from "@/ui/button";
 import { Card, CardContent } from "@/ui/card";
-import { CheckCircle2, Paperclip, Search, Sparkles, Star } from "lucide-react";
+import { CheckCircle2, ExternalLink, Paperclip, Search, Sparkles, Star } from "lucide-react";
 
 import { formatFieldName, formatFieldValue } from "@/utils";
+
+type ResultRecord = Record<string, any>;
+
+const PRIMARY_ARRAY_KEYS = ["items", "products", "results"];
+const SECONDARY_ARRAY_KEYS = ["documents", "policies"];
+const SUMMARY_FIELDS = new Set(["query", "count", "totalResults", "returnedResults"]);
+
+const isRecord = (value: unknown): value is ResultRecord =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isProductLike = (item: any) => {
+  if (!isRecord(item)) return false;
+  const hasName = item.name || item.Name || item.title || item.Title;
+  const hasCommerceSignal =
+    item.price !== undefined ||
+    item.Price !== undefined ||
+    item.imageUrl ||
+    item.ImageUrl ||
+    item.image ||
+    item.Image ||
+    item.sku ||
+    item.Sku ||
+    item.primarySku ||
+    item.PrimarySku ||
+    item.vendor ||
+    item.Vendor ||
+    item.productType ||
+    item.ProductType ||
+    item.storefrontUrl ||
+    item.StorefrontUrl ||
+    item.available !== undefined ||
+    item.Available !== undefined ||
+    item.inventoryQuantity !== undefined ||
+    item.InventoryQuantity !== undefined;
+  return Boolean(hasName && hasCommerceSignal);
+};
+
+const hasRenderableArray = (value: ResultRecord) =>
+  Object.values(value).some((entry) => Array.isArray(entry));
+
+const unwrapActionResultData = (value: any): any => {
+  if (!isRecord(value)) return value;
+
+  if (isRecord(value.actionResult)) {
+    return unwrapActionResultData(value.actionResult.data);
+  }
+
+  if (isRecord(value.data)) {
+    if (hasRenderableArray(value.data)) {
+      return value.data;
+    }
+
+    if (isRecord(value.data.data) && hasRenderableArray(value.data.data)) {
+      return value.data.data;
+    }
+  }
+
+  return value;
+};
+
+const getDisplayArrayKeys = (record: ResultRecord) => {
+  const arrayKeys = Object.keys(record).filter((key) => Array.isArray(record[key]));
+  const primaryKeys = arrayKeys.filter((key) => PRIMARY_ARRAY_KEYS.includes(key));
+  if (primaryKeys.length > 0) {
+    return primaryKeys;
+  }
+  const secondaryKeys = arrayKeys.filter((key) => SECONDARY_ARRAY_KEYS.includes(key));
+  if (secondaryKeys.length > 0) {
+    return secondaryKeys;
+  }
+  return arrayKeys.filter((key) => record[key].some((item: any) => isProductLike(item) || isRecord(item)));
+};
+
+const getSummaryEntries = (record: ResultRecord, excludedKeys: string[] = []) =>
+  Object.entries(record).filter(([key, value]) => {
+    if (excludedKeys.includes(key) || !SUMMARY_FIELDS.has(key)) return false;
+    return value === null || ["string", "number", "boolean"].includes(typeof value);
+  });
+
+const formatPrice = (price: any) => {
+  if (typeof price === "number") {
+    return `$${price.toLocaleString()}`;
+  }
+  const raw = String(price);
+  return /^[^\d-]/.test(raw) ? raw : `$${raw}`;
+};
 
 export const ActionResultRenderer = ({
   data,
@@ -19,17 +105,9 @@ export const ActionResultRenderer = ({
   onAttach?: (item: any) => void;
   isAttached?: (itemId: string) => boolean;
 }) => {
-  if (!data) return null;
+  const displayData = unwrapActionResultData(data);
 
-  // Check if item looks like a product (has name/title and price or imageUrl) - handle different casing
-  const isProductLike = (item: any) => {
-    if (typeof item !== "object" || item === null) return false;
-    const hasName = item.name || item.Name || item.title || item.Title;
-    const hasPrice = item.price !== undefined || item.Price !== undefined;
-    const hasImage = item.imageUrl || item.ImageUrl || item.image || item.Image;
-    const hasSku = item.sku || item.Sku;
-    return hasName && (hasPrice || hasImage || hasSku);
-  };
+  if (!displayData) return null;
 
   // Render a product card with image
   const renderProductCard = (item: any, idx: number) => {
@@ -37,13 +115,39 @@ export const ActionResultRenderer = ({
     const name = item.name || item.Name || item.title || item.Title || "Product";
     const price = item.price ?? item.Price;
     const imageUrl = item.imageUrl || item.ImageUrl || item.image || item.Image;
-    const category = item.category || item.Category;
-    const sku = item.sku || item.Sku;
-    const stockQty = item.inStockQty ?? item.InStockQty ?? item.stockQuantity ?? item.StockQuantity;
+    const category = item.category || item.Category || item.productType || item.ProductType;
+    const sku = item.sku || item.Sku || item.primarySku || item.PrimarySku;
+    const stockQty =
+      item.inStockQty ??
+      item.InStockQty ??
+      item.stockQuantity ??
+      item.StockQuantity ??
+      item.inventoryQuantity ??
+      item.InventoryQuantity;
     const rating = item.rating ?? item.Rating;
-    const brand = item.brand || item.Brand;
+    const brand = item.brand || item.Brand || item.vendor || item.Vendor;
+    const available = item.available ?? item.Available ?? item.availableForSale ?? item.AvailableForSale;
+    const storefrontUrl = item.storefrontUrl || item.StorefrontUrl || item.url || item.Url;
     const itemId = item.id || item.Id || sku;
     const isItemAlreadyAttached = isAttached && itemId ? isAttached(itemId) : false;
+    const stockLabel =
+      available === false
+        ? "Unavailable"
+        : stockQty !== undefined
+          ? stockQty > 0
+            ? `${stockQty} in stock`
+            : available === true
+              ? "Available"
+              : "Out"
+          : available === true
+            ? "Available"
+            : undefined;
+    const stockClass =
+      available === false || stockLabel === "Out"
+        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+        : stockQty !== undefined && stockQty <= 50
+          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+          : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
 
     return (
       <div
@@ -97,20 +201,12 @@ export const ActionResultRenderer = ({
           <div className="flex items-center justify-between">
             {price !== undefined && (
               <span className="text-base font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                ${typeof price === "number" ? price.toLocaleString() : price}
+                {formatPrice(price)}
               </span>
             )}
-            {stockQty !== undefined && (
-              <span
-                className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
-                  stockQty > 50
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                    : stockQty > 0
-                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                      : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                }`}
-              >
-                {stockQty > 0 ? `${stockQty}` : "Out"}
+            {stockLabel && (
+              <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${stockClass}`}>
+                {stockLabel}
               </span>
             )}
           </div>
@@ -124,6 +220,15 @@ export const ActionResultRenderer = ({
             )}
             {sku && <span className="text-[9px] text-gray-400 dark:text-gray-500 font-mono truncate max-w-[80px]">{sku}</span>}
           </div>
+
+          {storefrontUrl && (
+            <Button asChild size="sm" variant="outline" className="mt-2 h-7 w-full text-[11px] rounded-lg">
+              <a href={storefrontUrl} target="_blank" rel="noreferrer">
+                View product
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -194,9 +299,9 @@ export const ActionResultRenderer = ({
   };
 
   // Handle arrays
-  if (Array.isArray(data)) {
-    const visibleItems = data.slice(0, expandedCount || 6);
-    const remaining = data.length - visibleItems.length;
+  if (Array.isArray(displayData)) {
+    const visibleItems = displayData.slice(0, expandedCount || 6);
+    const remaining = displayData.length - visibleItems.length;
     const hasProducts = visibleItems.some(isProductLike);
 
     return (
@@ -208,11 +313,11 @@ export const ActionResultRenderer = ({
           </div>
           <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
             <Sparkles className="h-3 w-3" />
-            <span className="font-medium">{data.length} results found</span>
+            <span className="font-medium">{displayData.length} results found</span>
           </div>
         </div>
         {hasProducts ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {visibleItems.map((item: any, idx: number) =>
               isProductLike(item) ? renderProductCard(item, idx) : renderGenericCard(item, idx)
             )}
@@ -237,15 +342,15 @@ export const ActionResultRenderer = ({
   }
 
   // Handle objects
-  if (typeof data === "object" && data !== null) {
+  if (isRecord(displayData)) {
     // Check if object has array-like properties
-    const arrayKeys = Object.keys(data).filter((key) => Array.isArray(data[key]));
+    const arrayKeys = getDisplayArrayKeys(displayData);
 
     if (arrayKeys.length > 0) {
       return (
         <div className="mt-3 space-y-3">
           {arrayKeys.map((arrayKey) => {
-            const arrayData = data[arrayKey];
+            const arrayData = displayData[arrayKey];
             const visibleItems = arrayData.slice(0, expandedCount || 6);
             const remaining = arrayData.length - visibleItems.length;
             const hasProducts = visibleItems.some(isProductLike);
@@ -263,7 +368,7 @@ export const ActionResultRenderer = ({
                   </div>
                 </div>
                 {hasProducts ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {visibleItems.map((item: any, idx: number) =>
                       isProductLike(item) ? renderProductCard(item, idx) : renderGenericCard(item, idx)
                     )}
@@ -286,8 +391,7 @@ export const ActionResultRenderer = ({
               </div>
             );
           })}
-          {Object.entries(data)
-            .filter(([key]) => !Array.isArray(data[key]))
+          {getSummaryEntries(displayData, arrayKeys)
             .map(([key, value]) => (
               <div key={key} className="text-xs">
                 <span className="text-muted-foreground font-semibold">{formatFieldName(key)}: </span>
@@ -308,7 +412,7 @@ export const ActionResultRenderer = ({
         >
           <CardContent className="p-3">
             <div className="space-y-2">
-              {Object.entries(data).map(([key, value]) => (
+              {Object.entries(displayData).map(([key, value]) => (
                 <div key={key} className="flex items-start justify-between gap-2">
                   <span className="text-muted-foreground font-semibold min-w-[120px]">{formatFieldName(key)}:</span>
                   <span className="text-foreground text-right flex-1 font-medium">{formatFieldValue(value)}</span>
@@ -321,6 +425,5 @@ export const ActionResultRenderer = ({
     );
   }
 
-  return <p className="mt-3 text-xs text-muted-foreground">{formatFieldValue(data)}</p>;
+  return <p className="mt-3 text-xs text-muted-foreground">{formatFieldValue(displayData)}</p>;
 };
-
