@@ -1377,7 +1377,10 @@ public class DeploymentService {
         release.setStatus("APPLY_REQUESTED");
         release.setVerificationStatus("PENDING");
         release.setProvisioningStatus("QUEUED");
-        release.setProvisioningTarget(deploymentProvisioningService.selectedTarget());
+        var targetProfile = deploymentProvisioningService.selectedTargetProfile();
+        release.setProvisioningTarget(targetProfile.getProviderType().legacyTarget());
+        release.setTargetProfileId(targetProfile.getId());
+        release.setProviderType(targetProfile.getProviderType());
         release.setCurrentStepKey("queue_release");
         release.setCurrentStepDescription("Apply request accepted and queued.");
         release.setErrorMessage(null);
@@ -2449,6 +2452,10 @@ public class DeploymentService {
                 release.getVerificationStatus(),
                 release.getProvisioningStatus(),
                 release.getProvisioningTarget(),
+                release.getTargetProfileId(),
+                release.getProviderType(),
+                release.getSourceArtifactId(),
+                release.getProviderResourceHandleId(),
                 release.getCurrentStepKey(),
                 release.getCurrentStepDescription(),
                 release.getErrorMessage(),

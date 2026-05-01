@@ -218,6 +218,34 @@ Rules:
 - Decisions: backend owns package profile choices and compatibility rules; Platform UI only consumes backend options; backend validation is authoritative for package/tier/runtime/vector/inference/template/verification compatibility; no dummy records were created.
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyCompanionPackageProfileCatalogServiceTest,ShopifyCompanionPackageProfileOptionsServiceTest test`; `npm --prefix Platfrom/ui run build`; full `mvn -f Platfrom/backend/pom.xml -q test`; `git diff --check`.
 - Live verification: commit `f9cf0471` pushed to `Platform-V6`; deployed backend `GET /api/shopify/package-profiles/options` returned HTTP `200` with 4 blueprints, 4 compatibility rules, and the `ELITE` / `ELITE` default mapping `HIGH_QUALITY` / `QDRANT_SHARED` / `mkp-inference-premium-hybrid`.
+
+## 2026-05-01 Coolify 007 Slice 0 Hetzner Host Automation Baseline
+
+- Initial user instruction requested no commits to the current branch until told; this was later superseded by permission to commit normally to `Platform-V8`.
+- Implemented local Terraform-compatible Hetzner baseline under `infra/coolify/hetzner`: SSH key, firewall, private network/subnet, staging `coolify-staging-01` `cpx32`, production `coolify-prod-01` `ccx23`, optional volumes, labels, DNS record outputs, and README run/apply/destroy/rebuild guidance.
+- Added cloud-init templates for Ubuntu 24.04 SSH hardening, package updates, base tools, UFW, Coolify install, production `AUTOUPDATE=false`, and bootstrap log/status paths.
+- Added secret-safe helper scripts: `load-hcloud-token-from-private-doc.sh`, `terraform-with-hcloud-token.sh`, and `apply-hcloud-api-baseline.sh`; Terraform provider expects `HCLOUD_TOKEN` env, not committed tfvars.
+- Updated `.gitignore` for Terraform state/cache/secret var files.
+- Updated `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md` with Slice 0 baseline status, live Hetzner apply status, and Slice 1 plan for target profiles/provider registry/Railway compatibility.
+- Verification passed: `bash -n infra/coolify/hetzner/scripts/terraform-with-hcloud-token.sh`; `bash -n infra/coolify/hetzner/scripts/load-hcloud-token-from-private-doc.sh`; `bash -n infra/coolify/hetzner/cloud-init/coolify-bootstrap.sh.tftpl`; `git diff --check`; local scan of new infra/doc files found no concrete Hetzner token values.
+- Blockers: known private handoff docs did not contain a detectable Hetzner token label; `/tmp/hetzner_cloud_token.secret` was not present when checked; no authenticated Hetzner command or apply was run. Terraform was not installed; OpenTofu install failed because the local disk had about 204 MiB available, so `terraform fmt/init/validate` remain blocked until Terraform/OpenTofu is available.
+- Next handoff: operator should place the Hetzner token into `/tmp/hetzner_cloud_token.secret` with mode `0600` or into a private local doc using a supported label, free local disk or install Terraform/OpenTofu, run `terraform fmt/init/validate`, then plan/apply staging first. Slice 1 should add target profiles/provider registry/Railway compatibility without Coolify API calls.
+
+## 2026-05-01 Coolify 007 Slice 0 Live Hetzner Apply
+
+- User requested no local installs and full Hetzner/Coolify setup. Used existing local tools only (`curl`, `jq`, `ssh`) and the new Hetzner API fallback runner; no Terraform/OpenTofu/hcloud install was attempted after this instruction.
+- Normalized repo-relative `tmp/hetzner_cloud_token.secret` to `/tmp/hetzner_cloud_token.secret`; both files are mode `0600`. Token value was not printed or committed.
+- Generated local SSH key `~/.ssh/loom_coolify_hetzner_ed25519` for Hetzner host access; public key registered in Hetzner as `loom-coolify-operator`.
+- Created shared Hetzner firewall and private network in `nbg1`; SSH and Coolify port `8000` are restricted to the setup public IP, while `80/443` are public.
+- Live Hetzner resource IDs: SSH key `111657146`, firewall `10915120`, network `12181920`, staging server `128757995`, production server `128758153`. No Terraform state exists yet; import/adopt before running Terraform apply.
+- Created and bootstrapped staging `coolify-staging-01`: `cpx32`, Ubuntu 24.04, IPv4 `46.224.145.148`, IPv6 `2a01:4f8:c2c:83e2::1`.
+- Created and bootstrapped production `coolify-prod-01`: `ccx23`, Ubuntu 24.04, IPv4 `46.225.162.106`, IPv6 `2a01:4f8:1c18:c04::1`; production Coolify install used `AUTOUPDATE=false` in bootstrap.
+- Coolify installed on both hosts. Local server HTTP checks returned `302`; external dashboard URLs before DNS are `http://46.224.145.148:8000` and `http://46.225.162.106:8000`.
+- Generated Coolify root users for both instances through SSH tunnels; credentials are stored only in `/tmp/coolify_admin_credentials.env` mode `0600`. Do not paste or commit this file.
+- Verification passed: Hetzner API readback shows both servers running with requested type/region; SSH hardening readback shows root/password/KbdInteractive auth disabled; UFW active; `sudo docker ps` shows `coolify`, `coolify-db`, `coolify-redis`, and `coolify-realtime` healthy on both hosts; root setup forms are gone and login forms are present; root login POSTs returned HTTP `302`; `git diff --check` passed.
+- DNS not created: `loomai.pro` nameservers are `dns1.registrar-servers.com` and `dns2.registrar-servers.com`; need registrar/Namecheap DNS API credentials or a DNS delegation change before records can be automated.
+- Planned DNS records: `A/AAAA *.runtime-staging.loomai.pro -> 46.224.145.148 / 2a01:4f8:c2c:83e2::1`; `A/AAAA coolify.ops.loomai.pro` and `*.runtime.loomai.pro -> 46.225.162.106 / 2a01:4f8:1c18:c04::1`.
+- Remaining verification blocker: Terraform/OpenTofu validation still blocked by local disk/tool availability, but live infra was created by the repo API fallback runner and is reproducible without local installs.
 - Browser proof: local Platform UI pointed at live Railway backend loaded `Shopify Profiles`, received HTTP `200` from `/api/shopify/package-profiles/options` and `/api/shopify/package-profiles?activeOnly=false`, clicked `New profile`, and produced draft key `SHOPIFY_PROFILE_MOJFYUB5` instead of `BALANCED`. Screenshot: `/tmp/shopify-package-profiles-approved-options-smoke.png`.
 - Blockers: none locally.
 - Next handoff: no pending approved-choice work; no separate deployed Platform UI URL is defined in the private handoff, so browser proof used local UI against live backend.
@@ -295,3 +323,39 @@ Rules:
 - Commit `a95535ddd` pushed before the run: `scripts/verify-thinker-resolver-readiness.sh` now sets/restores temporary Elite billing for Thinker proof, creates/revokes temporary partner access when the Partner gate has cleaned up its assignment, and selects only active partner assignments.
 - Deployed-script proof: standalone Platform suite `thinker-resolver-readiness` run `vsr-38a309e4` passed before dispatching the full gate.
 - Local proof before release gate: patched `scripts/verify-thinker-resolver-readiness.sh` passed live against Platform backend, Partner UI, and `shopping-companion-test.myshopify.com`; cleanup restored billing to `STARTER/ACTIVE` and revoked temporary partner access.
+
+## 2026-05-01 Coolify 007 Slice 0 Coolify Control Setup
+
+- Initial no-commit instruction was later superseded by permission to commit normally to `Platform-V8`.
+- DNS remains skipped by request. Dashboard URLs before DNS: staging `http://46.224.145.148:8000`, production `http://46.225.162.106:8000`.
+- Coolify API enabled on both hosts; generated root credentials remain only in `/tmp/coolify_admin_credentials.env`, and generated API tokens remain only in `/tmp/coolify_api_tokens.env` mode `0600`. No token values should be pasted into docs or chat.
+- Coolify version readback passed on both hosts: staging `4.0.0`, production `4.0.0`.
+- Created Coolify target records: staging project/environment `id069t43frp519u5i3dg2jpr` / `h1433m09ezg882q7xmf3ae0x`; production project/environment `t1400k32bg9yd764chyt1slm` / `rn5sbycbix789i973okr9ugm`.
+- Built-in Coolify server records now use hardened SSH user `loomops` instead of root and validate as reachable/usable. Staging server/destination/private-key UUIDs: `zf25hgk9694bt7q0zwb98ado` / `xjhfu65nacrr30xax5cp0ry7` / `n117g3g8n75p6x048drc11on`; production: `kvufjk78dj4wyhjgp1mlxecr` / `r3thf2xmxcjn1tt2bclabebz` / `bmllhht0k5m0gfkuk0ovwisz`.
+- Live host hardening follow-up: UFW/fail2ban allow the local Coolify Docker address pool for self-validation while external SSH and dashboard access stay restricted by the Hetzner firewall/operator allowlist.
+- Verification passed after docs update: shell syntax checks for all `infra/coolify/hetzner/scripts/*.sh` and `cloud-init/coolify-bootstrap.sh.tftpl`; `git diff --check`; `git check-ignore -v -- tmp/hetzner_cloud_token.secret`; Coolify API version readback; Coolify server API readback `user=loomops reachable=true usable=true`.
+- Remaining blocker: Terraform/OpenTofu validation was not run because the user requested no local installs and Terraform/OpenTofu is unavailable locally. The API fallback runner is the applied source for the live Hetzner resources until Terraform state is imported/adopted.
+- Next handoff: Slice 1 should add target profiles/provider registry/Railway compatibility only; do not add Coolify app lifecycle or Platform Coolify API calls yet. Before app lifecycle, add GHCR credentials, Coolify backups/restore rehearsal, dashboard/API protection beyond IP allowlist, and DNS automation when provider credentials are available.
+
+## 2026-05-01 Coolify 007 Terraform Adoption
+
+- User approved installing Terraform after earlier no-local-install constraint. Local Homebrew/npm/pip caches were cleared, freeing about 354 MiB; Maven cache was left intact.
+- Terraform `1.6.6` was installed under `/tmp/codex-tools/bin` because the latest Terraform/OpenTofu binaries could not fit cleanly on the nearly full local disk. Use `PATH=/tmp/codex-tools/bin:$PATH` for local Terraform commands in this session.
+- Terraform init/fmt/validate now pass for `infra/coolify/hetzner`. Terraform lock file `infra/coolify/hetzner/.terraform.lock.hcl` was generated and is uncommitted.
+- Fixed Terraform validation issues: escaped shell variables in `cloud-init/coolify-bootstrap.sh.tftpl`, made DNS outputs tolerant during partial imports, added lifecycle ignores for imported server create-time fields (`network`, `public_net`, `ssh_keys`, `user_data`), and removed unnecessary sensitivity from `ssh_public_key`.
+- Imported live resources into ignored local Terraform state: SSH key `111657146`, network `12181920`, subnet `12181920-10.44.0.0/24`, firewall `10915120`, staging server `128757995`, and production server `128758153`.
+- Applied one saved Terraform firewall convergence plan: `0 added, 1 changed, 0 destroyed`. Post-apply `terraform plan -detailed-exitcode` returned `0`; servers were no-op.
+- Live checks after firewall convergence passed: SSH to both hosts as `loomops`, Coolify API version `4.0.0` on both hosts, and Coolify server readback `user=loomops reachable=true usable=true`.
+- Remaining blocker: DNS is still skipped; `loomai.pro` uses registrar nameservers and needs DNS provider credentials or delegation before automation can create records.
+
+## 2026-05-01 Coolify 007 Slice 1 Target Profiles
+
+- Rebased `Platform-V8` onto `origin/main` and resolved stash/rebase conflicts in the working-context docs, Partner Enablement docs, `PlatformVerificationSuiteProperties`, and related verification-suite tests.
+- Slice 1 implemented provider-neutral target profile groundwork without Coolify app lifecycle or Platform Coolify API calls.
+- Backend changes: added `DeploymentProviderType`, target-profile/provider-credential/source-artifact/provider-resource-handle entities and repositories, `DeploymentTargetProfileService`, `DeploymentProviderRegistry`, and release metadata fields for `targetProfileId`, `providerType`, `sourceArtifactId`, and `providerResourceHandleId`.
+- Migration is `V76__deployment_target_profiles_and_provider_handles.sql` after the rebase onto `main`, which already contains migrations through `V75`.
+- Railway compatibility: Railway API and stub providers expose provider type and still preserve legacy target strings; dispatch now resolves through the target profile registry.
+- Seed data: active Railway stub/API defaults plus inactive Coolify staging/production profiles and pending Coolify credential metadata. Coolify seed metadata contains URLs and UUIDs only; no tokens or secrets are stored.
+- Verification passed: focused Maven suite for target profiles, migration seeds, verification-suite property behavior, and rebase-conflicted verification-suite tests; Terraform `init -backend=false`, `fmt -check -recursive`, and `validate`; shell syntax checks for Hetzner helper scripts and Coolify bootstrap template.
+- Blockers: DNS is still skipped; Coolify app lifecycle, GHCR credentials, provider API calls, backups/restore rehearsal, and stronger dashboard/API protection are future slices.
+- Next handoff: Slice 2 can add a Coolify provider adapter skeleton behind the registry, but should still avoid creating application resources until source artifact and credential contracts are finalized.

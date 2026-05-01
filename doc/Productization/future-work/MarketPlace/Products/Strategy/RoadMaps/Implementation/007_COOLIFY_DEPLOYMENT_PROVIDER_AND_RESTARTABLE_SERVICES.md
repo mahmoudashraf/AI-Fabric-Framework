@@ -1777,3 +1777,113 @@ Handoff template:
 - Blockers: <none or compact blockers>.
 - Next handoff: <next concrete step>.
 ```
+
+---
+
+## 2026-05-01 Slice 0 Local Baseline
+
+Status: host automation implemented, applied to Hetzner, imported into local Terraform state, and validated with Terraform.
+
+Created a Terraform-compatible Hetzner Cloud baseline under `infra/coolify/hetzner` for:
+
+- `coolify-staging-01` on `cpx32`, Ubuntu 24.04
+- `coolify-prod-01` on `ccx23`, Ubuntu 24.04
+- `nbg1` default location, switchable to `fsn1`
+- Hetzner SSH key, shared firewall, private network/subnet, server resources, optional volumes, labels, and DNS record outputs
+- cloud-init SSH hardening, package updates, base tools, host firewall, Coolify install, production `AUTOUPDATE=false`, and bootstrap status/log files
+- secret-file based token wrapper scripts so `HCLOUD_TOKEN` can be loaded from `/tmp/hetzner_cloud_token.secret` without committing it
+- Hetzner API fallback runner for environments where Terraform/OpenTofu is unavailable locally
+
+DNS is currently output-only because no DNS provider credential was available in local context. Add a provider-specific DNS module after Cloudflare/Hetzner DNS credentials are available through the same secret-safe handling.
+
+Live resources created:
+
+- staging: `coolify-staging-01`, `cpx32`, `nbg1`, IPv4 `46.224.145.148`, IPv6 `2a01:4f8:c2c:83e2::1`
+- production: `coolify-prod-01`, `ccx23`, `nbg1`, IPv4 `46.225.162.106`, IPv6 `2a01:4f8:1c18:c04::1`
+- shared Hetzner SSH key, firewall, and private network
+- Coolify installed on both hosts; local HTTP checks returned `302`
+- generated Coolify root users created through SSH tunnels; credentials are stored only in `/tmp/coolify_admin_credentials.env`
+- Coolify API enabled on both hosts; API tokens are stored only in `/tmp/coolify_api_tokens.env`
+- Coolify version readback returned `4.0.0` for staging and production
+- Coolify projects/environments created:
+  - staging project `loom-staging` UUID `id069t43frp519u5i3dg2jpr`, environment `staging` UUID `h1433m09ezg882q7xmf3ae0x`
+  - production project `loom-production` UUID `t1400k32bg9yd764chyt1slm`, environment `production` UUID `rn5sbycbix789i973okr9ugm`
+- Coolify built-in server records now use hardened user `loomops` and validate as reachable/usable:
+  - staging server UUID `zf25hgk9694bt7q0zwb98ado`, destination UUID `xjhfu65nacrr30xax5cp0ry7`, private key UUID `n117g3g8n75p6x048drc11on`
+  - production server UUID `kvufjk78dj4wyhjgp1mlxecr`, destination UUID `r3thf2xmxcjn1tt2bclabebz`, private key UUID `bmllhht0k5m0gfkuk0ovwisz`
+- SSH root login and password login disabled; UFW active on both hosts
+- current firewall allows SSH and Coolify port `8000` only from the operator public IP used during setup, and allows public HTTP/HTTPS
+- host UFW/fail2ban allow the local Coolify Docker address pool for self-validation after root SSH was disabled
+- local ignored Terraform state now contains the live SSH key, firewall, network, subnet, staging server, and production server
+- Terraform server resources ignore imported create-time fields (`network`, `public_net`, `ssh_keys`, `user_data`) to avoid replacing adopted hosts
+
+Verification completed:
+
+- shell syntax checks for `infra/coolify/hetzner/scripts/*.sh`, including `apply-hcloud-api-baseline.sh`
+- shell syntax check for `infra/coolify/hetzner/cloud-init/coolify-bootstrap.sh.tftpl`
+- Terraform `1.6.6` installed into `/tmp/codex-tools/bin` after clearing local Homebrew/npm/pip caches for disk space
+- `terraform init -backend=false`
+- `terraform fmt -check -recursive`
+- `terraform validate`
+- Terraform import completed for SSH key `111657146`, network `12181920`, subnet `12181920-10.44.0.0/24`, firewall `10915120`, staging server `128757995`, and production server `128758153`
+- Terraform applied one saved in-place firewall convergence plan with `0 added, 1 changed, 0 destroyed`
+- post-apply `terraform plan -detailed-exitcode` returned `0`
+- `git diff --check`
+- local secret scan over the new infra files for direct token assignments
+- Hetzner API resource readback confirmed both servers running with the requested types/region
+- SSH hardening readback confirmed `PermitRootLogin no`, `PasswordAuthentication no`, and `KbdInteractiveAuthentication no`
+- `sudo docker ps` confirmed Coolify containers healthy on both hosts
+- root-user registration forms are gone; login forms are present after generated root-user creation
+- Coolify API `/api/v1/version` returned `4.0.0` on both hosts
+- Coolify API server readback confirmed `user=loomops`, `is_reachable=true`, and `is_usable=true` on both hosts
+
+Verification blocked:
+
+- DNS records were not created because `loomai.pro` currently uses registrar nameservers, not Hetzner DNS, and no registrar/DNS provider API credential was available.
+
+Slice 1 plan prepared:
+
+- current code anchor: `DeploymentProvisioningService` still selects providers by `PlatformProvisioningProperties.mode()`
+- current code anchor: `DeploymentProvisioningProvider` still exposes `supports(String mode)`
+- current code anchor: `DeploymentReleaseEntity` stores `provisioningTarget` but no target profile/provider/artifact/handle references yet
+- add `DeploymentProviderType` values `RAILWAY_API`, `RAILWAY_STUB`, and reserved `COOLIFY`
+- add `deployment_target_profiles` with seeded Railway-compatible defaults and inactive Coolify staging/prod profiles
+- add nullable release fields for target profile, provider type, source artifact, and provider handle while preserving `provisioningTarget`
+- introduce provider registry dispatch by target profile provider type
+- wrap current Railway API and stub providers through the registry without changing Railway behavior
+- add tests proving current Railway provisioning still works with target profiles present
+- do not add Coolify API calls in Slice 1
+
+---
+
+## 2026-05-01 Slice 1 Target Profiles And Provider Registry
+
+Status: implemented after rebasing `Platform-V8` onto `origin/main`; no Coolify app lifecycle or Platform Coolify API calls were added.
+
+Implemented:
+
+- `DeploymentProviderType` with `RAILWAY_API`, `RAILWAY_STUB`, and reserved `COOLIFY` values.
+- Provider-neutral persistence for target profiles, provider credentials, source artifacts, and provider resource handles.
+- Flyway migration `V76__deployment_target_profiles_and_provider_handles.sql`, numbered after the rebased `main` migrations through `V75`.
+- Seeded active Railway target profiles and inactive Coolify staging/production profiles using only non-secret Coolify URLs and UUID metadata.
+- Release metadata fields for target profile, provider type, source artifact, and provider resource handle while preserving legacy `provisioningTarget`.
+- `DeploymentTargetProfileService` and `DeploymentProviderRegistry` dispatch so current Railway providers are selected through target profiles.
+- Railway API/stub adapters now expose provider type while retaining legacy `supports(String mode)` compatibility.
+- Regression tests for target-profile dispatch, missing Coolify adapter behavior, migration seeds, and existing verification-suite property behavior.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentProvisioningServiceTargetProfileTest,DeploymentTargetProfileMigrationTest,PlatformVerificationSuitePropertiesTest,PlatformVerificationSuiteServiceTest,PlatformVerificationSuiteExecutionServiceTest,PlatformVerificationSuiteScriptContextServiceTest test`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner init -backend=false`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner fmt -check -recursive`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner validate`
+- `bash -n` for the Hetzner helper scripts and Coolify bootstrap template
+
+Blockers:
+
+- DNS remains skipped by request and because `loomai.pro` is not delegated to an API-backed provider in this repo context.
+- Coolify app lifecycle, GitHub/GHCR credential wiring, provider API calls, backups/restore rehearsal, and dashboard/API hardening beyond IP allowlisting remain future slices.
+
+Next handoff:
+
+- Slice 2 should add a Coolify provider adapter skeleton behind the registry, still without creating application resources until source artifact and credential contracts are finalized.

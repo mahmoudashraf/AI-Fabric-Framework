@@ -2,8 +2,12 @@ package com.ai.fabric.platform.backend.deployment.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 
 import java.time.Instant;
 
@@ -31,6 +35,19 @@ public class DeploymentReleaseEntity {
 
     @Column(nullable = false)
     private String provisioningTarget;
+
+    @Column(name = "target_profile_id")
+    private String targetProfileId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider_type")
+    private DeploymentProviderType providerType;
+
+    @Column(name = "source_artifact_id")
+    private String sourceArtifactId;
+
+    @Column(name = "provider_resource_handle_id")
+    private String providerResourceHandleId;
 
     private String currentStepKey;
 
@@ -107,6 +124,38 @@ public class DeploymentReleaseEntity {
 
     public void setProvisioningTarget(String provisioningTarget) {
         this.provisioningTarget = provisioningTarget;
+    }
+
+    public String getTargetProfileId() {
+        return targetProfileId;
+    }
+
+    public void setTargetProfileId(String targetProfileId) {
+        this.targetProfileId = targetProfileId;
+    }
+
+    public DeploymentProviderType getProviderType() {
+        return providerType;
+    }
+
+    public void setProviderType(DeploymentProviderType providerType) {
+        this.providerType = providerType;
+    }
+
+    public String getSourceArtifactId() {
+        return sourceArtifactId;
+    }
+
+    public void setSourceArtifactId(String sourceArtifactId) {
+        this.sourceArtifactId = sourceArtifactId;
+    }
+
+    public String getProviderResourceHandleId() {
+        return providerResourceHandleId;
+    }
+
+    public void setProviderResourceHandleId(String providerResourceHandleId) {
+        this.providerResourceHandleId = providerResourceHandleId;
     }
 
     public String getCurrentStepKey() {

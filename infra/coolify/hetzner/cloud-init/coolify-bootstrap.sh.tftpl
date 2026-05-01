@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ENVIRONMENT="${environment}"
+HOST_NAME="${host_name}"
+ADMIN_USER="${admin_user}"
+INSTALL_COOLIFY="${install_coolify}"
+COOLIFY_INSTALL_URL="${coolify_install_url}"
+COOLIFY_AUTOUPDATE="${coolify_autoupdate}"
+DOCKER_ADDRESS_POOL_BASE="${docker_address_pool_base}"
+DOCKER_ADDRESS_POOL_SIZE="${docker_address_pool_size}"
+SSH_ALLOWED_CIDRS_JSON='${ssh_allowed_cidrs}'
+DASHBOARD_ALLOWED_CIDRS_JSON='${dashboard_allowed_cidrs}'
+DASHBOARD_PORTS_JSON='${dashboard_ports}'
+BOOTSTRAP_LOG_PATH="${bootstrap_log_path}"
+BOOTSTRAP_STATUS_PATH="${bootstrap_status_path}"
+
+mkdir -p "$(dirname "$BOOTSTRAP_LOG_PATH")" "$(dirname "$BOOTSTRAP_STATUS_PATH")"
+touch "$BOOTSTRAP_LOG_PATH"
+chmod 0600 "$BOOTSTRAP_LOG_PATH"
+exec > >(tee -a "$BOOTSTRAP_LOG_PATH") 2>&1
+
+write_status() {
+  local phase="$1"
+  local status="$2"
+  local detail="$3"
+  local now
+  now="$(date -Is)"
+  jq -n \
+    --arg environment "$ENVIRONMENT" \
+    --arg host "$HOST_NAME" \
+    --arg phase "$phase" \
+    --arg status "$status" \
+    --arg detail "$detail" \
+    --arg updatedAt "$now" \
+    '{environment: $environment, host: $host, phase: $phase, status: $status, detail: $detail, updatedAt: $updatedAt}' \
+    > "$${BOOTSTRAP_STATUS_PATH}.tmp"
+  mv "$${BOOTSTRAP_STATUS_PATH}.tmp" "$BOOTSTRAP_STATUS_PATH"
+  chmod 0644 "$BOOTSTRAP_STATUS_PATH"
+}
+
+on_error() {
+  local line="$1"
+  write_status "bootstrap" "failed" "failed at line $${line}"
+}
+
+trap 'on_error "$LINENO"' ERR
+
+write_status "bootstrap" "running" "starting host bootstrap"
+
+export DEBIAN_FRONTEND=noninteractive
+
+write_status "ssh" "running" "reloading hardened ssh configuration"
+systemctl reload ssh || systemctl reload sshd || true
+
+write_status "firewall" "running" "configuring ufw host firewall"
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+
+jq -r '.[]' <<< "$SSH_ALLOWED_CIDRS_JSON" | while read -r cidr; do
+  if [[ -n "$cidr" ]]; then
+    ufw allow from "$cidr" to any port 22 proto tcp
+  fi
+done
+
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow from "$DOCKER_ADDRESS_POOL_BASE" to any port 22 proto tcp
+
+jq -r '.[]' <<< "$DASHBOARD_ALLOWED_CIDRS_JSON" | while read -r cidr; do
+  if [[ -n "$cidr" ]]; then
+    jq -r '.[]' <<< "$DASHBOARD_PORTS_JSON" | while read -r port; do
+      if [[ -n "$port" ]]; then
+        ufw allow from "$cidr" to any port "$port" proto tcp
+      fi
+    done
+  fi
+done
+
+ufw --force enable
+
+write_status "security" "running" "enabling base host security services"
+cat >/etc/fail2ban/jail.d/loom-coolify-local.conf <<EOF
+[sshd]
+ignoreip = 127.0.0.1/8 ::1 $DOCKER_ADDRESS_POOL_BASE
+EOF
+systemctl enable --now fail2ban || true
+systemctl restart fail2ban || true
+systemctl enable --now unattended-upgrades || true
+
+mkdir -p /data/coolify /var/lib/loom-coolify
+chmod 0755 /data/coolify /var/lib/loom-coolify
+
+if [[ "$INSTALL_COOLIFY" == "true" ]]; then
+  write_status "coolify" "running" "installing Coolify"
+  curl -fsSL "$COOLIFY_INSTALL_URL" -o /tmp/coolify-install.sh
+  chmod 0700 /tmp/coolify-install.sh
+  env \
+    AUTOUPDATE="$COOLIFY_AUTOUPDATE" \
+    DOCKER_ADDRESS_POOL_BASE="$DOCKER_ADDRESS_POOL_BASE" \
+    DOCKER_ADDRESS_POOL_SIZE="$DOCKER_ADDRESS_POOL_SIZE" \
+    bash /tmp/coolify-install.sh
+  rm -f /tmp/coolify-install.sh
+  if getent group docker >/dev/null; then
+    usermod -aG docker "$ADMIN_USER"
+  fi
+else
+  write_status "coolify" "skipped" "install_coolify=false"
+fi
+
+write_status "bootstrap" "completed" "host bootstrap completed"

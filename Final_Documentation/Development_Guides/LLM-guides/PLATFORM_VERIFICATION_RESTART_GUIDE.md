@@ -802,9 +802,20 @@ Partner Enablement is part of the primary `full-platform-release-readiness` rele
 - stage script: `scripts/verify-partner-enablement-live.sh`
 - strict mode is forced by the platform-owned suite
 - Platform UI URL is required for strict proof of `/partner-privileges`
-- default Partner UI URL: `https://ai-fabric-framework-production-158d.up.railway.app`
 - override config property: `platform.verification.suites.platform-ui-base-url`
 - override config property: `platform.verification.suites.partner-ui-base-url`
+
+The platform-owned suite no longer embeds live URL/domain defaults in Java.
+Set the target values through deployment env or the local env file before dispatching release-gate runs:
+
+```bash
+PLATFORM_UI_BASE_URL="https://platform-ui-production-00e3.up.railway.app"
+PARTNER_UI_BASE_URL="https://ai-fabric-framework-production-158d.up.railway.app"
+SHOPIFY_BRIDGE_BASE_URL="https://shopify-bridge-shopify-bridge-pr-production.up.railway.app"
+SHOP_DOMAIN="shopping-companion-test.myshopify.com"
+PRODUCT_SERVICE_REF="shopify-bridge-prod"
+PLATFORM_VERIFICATION_WEAVIATE_HOST="weaviate-external-verify-dev.up.railway.app"
+```
 
 The platform-owned suite requires this platform secret before the Partner Enablement stage can run:
 

@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
@@ -285,6 +286,7 @@ public class DeploymentReleaseExecutionService {
 
         release.setProvisioningStatus(provisioningResult.status());
         release.setProvisioningTarget(provisioningResult.target());
+        release.setProviderType(DeploymentProviderType.fromLegacyMode(provisioningResult.target()));
         release.setVerificationRunId(null);
         release.setUpdatedAt(Instant.now());
         releaseRepository.save(release);
