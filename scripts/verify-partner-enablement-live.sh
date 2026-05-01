@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${PLATFORM_BASE_URL:-${PARTNER_PLATFORM_BASE_URL:-}}"
+PLATFORM_UI_BASE_URL="${PLATFORM_UI_BASE_URL:-}"
 PARTNER_UI_BASE_URL="${PARTNER_UI_BASE_URL:-}"
 PARTNER_SUPABASE_JWT="${PARTNER_SUPABASE_JWT:-}"
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
@@ -13,8 +14,12 @@ STRICT="${PARTNER_LIVE_STRICT:-false}"
 TARGET_STORE_ID="${PARTNER_LIVE_STORE_ID:-}"
 TARGET_SHOP_DOMAIN="${PARTNER_LIVE_SHOP_DOMAIN:-${SHOP_DOMAIN:-}}"
 RUN_TAG="${PARTNER_LIVE_RUN_TAG:-release-gate-$(date -u +%Y%m%dT%H%M%SZ)}"
+PACKAGE_TRIAL_PRIVILEGE="PACKAGE_TRIAL_ACTIVATE"
 TEMP_ACCESS_REQUEST_ID=""
 TEMP_ACCESS_SHOP_DOMAIN=""
+PARTNER_TRIAL_MEMBER_ID=""
+PARTNER_TRIAL_MEMBER_ORIGINAL_PRIVILEGES=""
+PARTNER_TRIAL_MEMBER_PRIVILEGE_TOUCHED="false"
 TMP_DIR=""
 PLATFORM_COOKIE_JAR=""
 
@@ -84,6 +89,10 @@ platform_request() {
   fi
 }
 
+platform_auth_available() {
+  [[ -n "${PLATFORM_API_KEY}" || -n "${PLATFORM_COOKIE}" || ( -n "${PLATFORM_COOKIE_JAR}" && -s "${PLATFORM_COOKIE_JAR}" ) ]]
+}
+
 urlencode() {
   python3 - <<'PY' "$1"
 import sys
@@ -112,7 +121,29 @@ PY
 
 cleanup() {
   local exit_code=$?
-  if [[ -n "${TEMP_ACCESS_REQUEST_ID}" && -n "${TEMP_ACCESS_SHOP_DOMAIN}" && -n "${PLATFORM_API_KEY}" && -n "${TMP_DIR}" ]]; then
+  if [[ "${PARTNER_TRIAL_MEMBER_PRIVILEGE_TOUCHED}" == "true" && -n "${PARTNER_TRIAL_MEMBER_ID}" && -n "${PARTNER_TRIAL_MEMBER_ORIGINAL_PRIVILEGES}" && -n "${TMP_DIR}" ]] && platform_auth_available; then
+    local restore_payload="${TMP_DIR}/cleanup-partner-trial-privileges.json"
+    local restore_body="${TMP_DIR}/cleanup-partner-trial-privileges-response.json"
+    python3 - <<'PY' "${PARTNER_TRIAL_MEMBER_ORIGINAL_PRIVILEGES}" "${restore_payload}"
+import json
+import pathlib
+import sys
+
+privileges = json.loads(sys.argv[1])
+pathlib.Path(sys.argv[2]).write_text(json.dumps({"privileges": privileges}), encoding="utf-8")
+PY
+    local restore_status
+    restore_status="$(platform_request PATCH "${BASE_URL}/api/platform/partners/members/${PARTNER_TRIAL_MEMBER_ID}" "${restore_body}" \
+      -H "Content-Type: application/json" \
+      --data "@${restore_payload}" || true)"
+    if [[ "${restore_status}" == "200" ]]; then
+      echo "PASS: partner package-trial privilege restored during cleanup"
+      PARTNER_TRIAL_MEMBER_PRIVILEGE_TOUCHED="false"
+    else
+      echo "WARN: partner package-trial privilege cleanup returned HTTP ${restore_status:-unknown}" >&2
+    fi
+  fi
+  if [[ -n "${TEMP_ACCESS_REQUEST_ID}" && -n "${TEMP_ACCESS_SHOP_DOMAIN}" && -n "${TMP_DIR}" ]] && platform_auth_available; then
     local cleanup_body="${TMP_DIR}/cleanup-revoke.json"
     local encoded_shop
     encoded_shop="$(urlencode "${TEMP_ACCESS_SHOP_DOMAIN}")"
@@ -174,6 +205,7 @@ PLATFORM_COOKIE="$(resolve_secret_value "PLATFORM_COOKIE")"
 PLATFORM_LOGIN_EMAIL="$(resolve_secret_value "PLATFORM_LOGIN_EMAIL")"
 PLATFORM_LOGIN_PASSWORD="$(resolve_secret_value "PLATFORM_LOGIN_PASSWORD")"
 BASE_URL="${BASE_URL%/}"
+PLATFORM_UI_BASE_URL="${PLATFORM_UI_BASE_URL%/}"
 PARTNER_UI_BASE_URL="${PARTNER_UI_BASE_URL%/}"
 TMP_DIR="$(mktemp -d)"
 PLATFORM_COOKIE_JAR="${TMP_DIR}/platform-cookie.jar"
@@ -299,6 +331,10 @@ required = [
     "Partner-secured routes",
     "/notes",
     "/escalations",
+    "/package-trials",
+    "Package trial",
+    "Recent trial activity",
+    "PACKAGE_TRIAL_ACTIVATE",
 ]
 missing = [item for item in required if item not in combined]
 if missing:
@@ -325,6 +361,67 @@ else
   echo "BLOCKED: PARTNER_UI_BASE_URL is not set; deployed partner UI route was not checked."
   if [[ "${STRICT}" == "true" ]]; then
     exit 20
+  fi
+fi
+
+if [[ -n "${PLATFORM_UI_BASE_URL}" ]]; then
+  platform_ui_body="${TMP_DIR}/platform-ui-partner-privileges.html"
+  platform_ui_status="$(request GET "${PLATFORM_UI_BASE_URL}/partner-privileges" "${platform_ui_body}")"
+  cp "${platform_ui_body}" "${TMP_DIR}/last-body"
+  assert_status "${platform_ui_status}" "200" "Platform UI partner privileges route reachable"
+  python3 - <<'PY' "${platform_ui_body}" "${PLATFORM_UI_BASE_URL}"
+from html.parser import HTMLParser
+from urllib.parse import urljoin
+from urllib.request import Request, urlopen
+import pathlib
+import sys
+
+html = pathlib.Path(sys.argv[1]).read_text(errors="replace")
+base_url = sys.argv[2].rstrip("/") + "/"
+
+class ScriptParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.sources = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "script":
+            return
+        attrs = dict(attrs)
+        src = attrs.get("src")
+        if src:
+            self.sources.append(urljoin(base_url, src))
+
+parser = ScriptParser()
+parser.feed(html)
+if not parser.sources:
+    print("FAIL: Platform UI partner privileges route did not expose script assets", file=sys.stderr)
+    raise SystemExit(1)
+
+combined = ""
+for source in parser.sources:
+    request = Request(source, headers={"User-Agent": "partner-release-gate/1.0"})
+    with urlopen(request, timeout=20) as response:
+        if response.status != 200:
+            print(f"FAIL: Platform UI asset {source} returned HTTP {response.status}", file=sys.stderr)
+            raise SystemExit(1)
+        combined += response.read().decode("utf-8", errors="replace")
+
+required = [
+    "Partner Privileges",
+    "PACKAGE_TRIAL_ACTIVATE",
+    "/api/platform/partners/members",
+]
+missing = [item for item in required if item not in combined]
+if missing:
+    print(f"FAIL: Platform UI deployed assets are missing partner privilege controls: {missing}", file=sys.stderr)
+    raise SystemExit(1)
+print("PASS: Platform UI deployed assets include partner privilege controls")
+PY
+else
+  echo "BLOCKED: PLATFORM_UI_BASE_URL is not set; deployed Platform UI partner privileges route was not checked."
+  if [[ "${STRICT}" == "true" ]]; then
+    exit 22
   fi
 fi
 
@@ -680,6 +777,165 @@ restore_path.write_text(json.dumps(restore), encoding="utf-8")
 update_path.write_text(json.dumps(update), encoding="utf-8")
 print("PASS: partner product controls are scoped and secret-safe")
 PY
+
+  if [[ "${STRICT}" == "true" ]]; then
+    trial_session_before_body="${TMP_DIR}/trial-session-before.json"
+    trial_session_before_status="$(partner_request GET "${BASE_URL}/api/partners/session" "${trial_session_before_body}")"
+    cp "${trial_session_before_body}" "${TMP_DIR}/last-body"
+    assert_status "${trial_session_before_status}" "200" "partner session reachable before package-trial privilege proof"
+
+    platform_members_body="${TMP_DIR}/platform-partner-members.json"
+    platform_members_status="$(platform_request GET "${BASE_URL}/api/platform/partners/members" "${platform_members_body}")"
+    cp "${platform_members_body}" "${TMP_DIR}/last-body"
+    assert_status "${platform_members_status}" "200" "Platform partner member privilege list reachable"
+
+    original_privileges_file="${TMP_DIR}/partner-trial-original-privileges.json"
+    remove_privilege_payload="${TMP_DIR}/partner-trial-remove-privilege.json"
+    add_privilege_payload="${TMP_DIR}/partner-trial-add-privilege.json"
+    PARTNER_TRIAL_MEMBER_ID="$(python3 - <<'PY' "${trial_session_before_body}" "${platform_members_body}" "${PACKAGE_TRIAL_PRIVILEGE}" "${original_privileges_file}" "${remove_privilege_payload}" "${add_privilege_payload}"
+import json
+import pathlib
+import sys
+
+session = json.loads(pathlib.Path(sys.argv[1]).read_text())
+members = json.loads(pathlib.Path(sys.argv[2]).read_text())
+privilege = sys.argv[3]
+original_path = pathlib.Path(sys.argv[4])
+remove_path = pathlib.Path(sys.argv[5])
+add_path = pathlib.Path(sys.argv[6])
+
+member_id = ((session.get("member") or {}).get("id") or "").strip()
+if not member_id:
+    print("FAIL: partner session did not expose member id for trial privilege proof", file=sys.stderr)
+    raise SystemExit(1)
+matches = [member for member in members if member.get("id") == member_id]
+if not matches:
+    print(f"FAIL: Platform partner member list did not include current partner member {member_id}", file=sys.stderr)
+    raise SystemExit(1)
+member = matches[0]
+original = [value for value in (member.get("privileges") or []) if isinstance(value, str)]
+without = [value for value in original if value != privilege]
+with_privilege = list(without)
+if privilege not in with_privilege:
+    with_privilege.append(privilege)
+original_path.write_text(json.dumps(original), encoding="utf-8")
+remove_path.write_text(json.dumps({"privileges": without}), encoding="utf-8")
+add_path.write_text(json.dumps({"privileges": with_privilege}), encoding="utf-8")
+print(member_id)
+PY
+)"
+    PARTNER_TRIAL_MEMBER_ORIGINAL_PRIVILEGES="$(cat "${original_privileges_file}")"
+
+    remove_privilege_body="${TMP_DIR}/partner-trial-remove-privilege-response.json"
+    remove_privilege_status="$(platform_request PATCH "${BASE_URL}/api/platform/partners/members/${PARTNER_TRIAL_MEMBER_ID}" "${remove_privilege_body}" \
+      -H "Content-Type: application/json" \
+      --data "@${remove_privilege_payload}")"
+    cp "${remove_privilege_body}" "${TMP_DIR}/last-body"
+    assert_status "${remove_privilege_status}" "200" "Platform can remove partner package-trial privilege"
+    PARTNER_TRIAL_MEMBER_PRIVILEGE_TOUCHED="true"
+
+    trial_session_denied_body="${TMP_DIR}/trial-session-denied.json"
+    trial_session_denied_status="$(partner_request GET "${BASE_URL}/api/partners/session" "${trial_session_denied_body}")"
+    cp "${trial_session_denied_body}" "${TMP_DIR}/last-body"
+    assert_status "${trial_session_denied_status}" "200" "partner session reachable after package-trial privilege removal"
+    python3 - <<'PY' "${trial_session_denied_body}" "${PACKAGE_TRIAL_PRIVILEGE}"
+import json
+import pathlib
+import sys
+
+session = json.loads(pathlib.Path(sys.argv[1]).read_text())
+privilege = sys.argv[2]
+member = session.get("member") or {}
+assert privilege not in (member.get("privileges") or []), session
+assert privilege not in (member.get("effectivePermissions") or []), session
+assert privilege not in (session.get("permissions") or []), session
+print("PASS: partner session excludes package-trial privilege after Platform removal")
+PY
+
+    trial_controls_denied_body="${TMP_DIR}/trial-product-controls-denied.json"
+    trial_controls_denied_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/product-controls" "${trial_controls_denied_body}")"
+    cp "${trial_controls_denied_body}" "${TMP_DIR}/last-body"
+    assert_status "${trial_controls_denied_status}" "200" "partner product controls reachable without package-trial privilege"
+    python3 - <<'PY' "${trial_controls_denied_body}" "${PACKAGE_TRIAL_PRIVILEGE}"
+import json
+import pathlib
+import sys
+
+controls = json.loads(pathlib.Path(sys.argv[1]).read_text())
+privilege = sys.argv[2]
+assert privilege not in (controls.get("capabilities") or []), controls
+assert isinstance(controls.get("packageTrialHistory"), list), controls
+assert {"STARTER", "ELITE"}.issubset(set(controls.get("trialActivationTiers") or [])), controls
+assert isinstance(controls.get("maxTrialDays"), int) and controls["maxTrialDays"] >= 1, controls
+print("PASS: product controls expose trial schema but hide activation capability without Platform privilege")
+PY
+
+    trial_activation_denied_body="${TMP_DIR}/trial-activation-denied.json"
+    trial_activation_denied_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/package-trials" "${trial_activation_denied_body}" \
+      -H "Content-Type: application/json" \
+      -d "{\"tierKey\":\"STARTER\",\"trialDays\":1,\"reason\":\"Release gate negative package-trial privilege proof ${RUN_TAG}\"}")"
+    cp "${trial_activation_denied_body}" "${TMP_DIR}/last-body"
+    assert_status "${trial_activation_denied_status}" "403" "partner package-trial activation is denied without Platform privilege"
+
+    add_privilege_body="${TMP_DIR}/partner-trial-add-privilege-response.json"
+    add_privilege_status="$(platform_request PATCH "${BASE_URL}/api/platform/partners/members/${PARTNER_TRIAL_MEMBER_ID}" "${add_privilege_body}" \
+      -H "Content-Type: application/json" \
+      --data "@${add_privilege_payload}")"
+    cp "${add_privilege_body}" "${TMP_DIR}/last-body"
+    assert_status "${add_privilege_status}" "200" "Platform can grant partner package-trial privilege"
+
+    trial_session_allowed_body="${TMP_DIR}/trial-session-allowed.json"
+    trial_session_allowed_status="$(partner_request GET "${BASE_URL}/api/partners/session" "${trial_session_allowed_body}")"
+    cp "${trial_session_allowed_body}" "${TMP_DIR}/last-body"
+    assert_status "${trial_session_allowed_status}" "200" "partner session reachable after package-trial privilege grant"
+    python3 - <<'PY' "${trial_session_allowed_body}" "${PACKAGE_TRIAL_PRIVILEGE}"
+import json
+import pathlib
+import sys
+
+session = json.loads(pathlib.Path(sys.argv[1]).read_text())
+privilege = sys.argv[2]
+member = session.get("member") or {}
+assert privilege in (member.get("privileges") or []), session
+assert privilege in (member.get("effectivePermissions") or []), session
+assert privilege in (session.get("permissions") or []), session
+print("PASS: partner session reflects Platform-granted package-trial privilege")
+PY
+
+    trial_controls_allowed_body="${TMP_DIR}/trial-product-controls-allowed.json"
+    trial_controls_allowed_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/product-controls" "${trial_controls_allowed_body}")"
+    cp "${trial_controls_allowed_body}" "${TMP_DIR}/last-body"
+    assert_status "${trial_controls_allowed_status}" "200" "partner product controls expose granted package-trial capability"
+    python3 - <<'PY' "${trial_controls_allowed_body}" "${PACKAGE_TRIAL_PRIVILEGE}"
+import json
+import pathlib
+import sys
+
+controls = json.loads(pathlib.Path(sys.argv[1]).read_text())
+privilege = sys.argv[2]
+assert privilege in (controls.get("capabilities") or []), controls
+assert isinstance(controls.get("packageTrialHistory"), list), controls
+assert {"STARTER", "ELITE"}.issubset(set(controls.get("trialActivationTiers") or [])), controls
+assert isinstance(controls.get("maxTrialDays"), int) and controls["maxTrialDays"] >= 1, controls
+print("PASS: product controls expose package-trial capability and tracking fields after Platform grant")
+PY
+
+    restore_privilege_payload="${TMP_DIR}/partner-trial-restore-privilege.json"
+    python3 - <<'PY' "${PARTNER_TRIAL_MEMBER_ORIGINAL_PRIVILEGES}" "${restore_privilege_payload}"
+import json
+import pathlib
+import sys
+
+pathlib.Path(sys.argv[2]).write_text(json.dumps({"privileges": json.loads(sys.argv[1])}), encoding="utf-8")
+PY
+    restore_privilege_body="${TMP_DIR}/partner-trial-restore-privilege-response.json"
+    restore_privilege_status="$(platform_request PATCH "${BASE_URL}/api/platform/partners/members/${PARTNER_TRIAL_MEMBER_ID}" "${restore_privilege_body}" \
+      -H "Content-Type: application/json" \
+      --data "@${restore_privilege_payload}")"
+    cp "${restore_privilege_body}" "${TMP_DIR}/last-body"
+    assert_status "${restore_privilege_status}" "200" "Platform restores original partner package-trial privileges"
+    PARTNER_TRIAL_MEMBER_PRIVILEGE_TOUCHED="false"
+  fi
 
   max_widget_auth_body="${TMP_DIR}/max-widget-auth-context.json"
   max_widget_auth_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/max-widget/chat/me/auth-context?authPath=PLATFORM_PRIVATE" "${max_widget_auth_body}")"

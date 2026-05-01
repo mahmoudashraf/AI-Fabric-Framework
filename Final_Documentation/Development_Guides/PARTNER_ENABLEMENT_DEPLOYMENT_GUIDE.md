@@ -127,6 +127,7 @@ PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
 Strict release gate after backend and UI are deployed. Use the Railway-generated service URL until `partners.loomai.pro` is ready:
 
 ```bash
+PLATFORM_UI_BASE_URL=https://<platform-ui-service>.up.railway.app \
 PARTNER_UI_BASE_URL=https://<partner-ui-service>.up.railway.app \
 PARTNER_SUPABASE_JWT="$(cat /tmp/partner_supabase_jwt.secret)" \
 PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
@@ -140,9 +141,16 @@ Expected strict result:
 - unauthenticated partner session rejected
 - invalid partner JWT rejected
 - partner UI route reachable
+- Platform UI `/partner-privileges` route reachable
 - valid email/password Supabase JWT accepted
 - new partner sees an empty workspace
 - provisioned partner catalog and store checks pass when using a provisioned test partner
+- Platform admin member privilege API can remove and grant `PACKAGE_TRIAL_ACTIVATE`
+- partner cannot activate package trials without the Platform-granted privilege
+- partner session and product controls expose `PACKAGE_TRIAL_ACTIVATE`, trial tiers, max trial days, active trial, and trial history after the privilege is granted
+- original partner privileges are restored before the verifier exits
+
+The primary release gate intentionally does not activate a live paid/trial package. It proves the privilege gate and response contract without leaving commercial state behind. Full activation/deactivation lifecycle is covered by backend integration tests and should only be live-smoked against a disposable store with a cleanup plan.
 
 ## Platform Release Gate
 
@@ -152,6 +160,7 @@ Partner Enablement is wired into the platform-owned release gate:
 - standalone suite: `partner-enablement-verification`
 - stage script: `scripts/verify-partner-enablement-live.sh`
 - strict mode: forced by the platform suite
+- Platform UI target config: `platform.verification.suites.platform-ui-base-url`
 - Partner UI target config: `platform.verification.suites.partner-ui-base-url`
 - default Partner UI target: `https://ai-fabric-framework-production-158d.up.railway.app`
 

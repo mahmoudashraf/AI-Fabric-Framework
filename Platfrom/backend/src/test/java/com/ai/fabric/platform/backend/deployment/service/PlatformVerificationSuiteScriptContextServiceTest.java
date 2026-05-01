@@ -350,11 +350,12 @@ class PlatformVerificationSuiteScriptContextServiceTest {
 
         assertThat(context.scriptPath()).isEqualTo("scripts/verify-partner-enablement-live.sh");
         assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("PLATFORM_UI_BASE_URL", "https://platform-ui.example.test");
         assertThat(context.environment()).containsEntry("PARTNER_UI_BASE_URL", "https://partner-ui.example.test");
         assertThat(context.environment()).containsEntry("PARTNER_LIVE_STRICT", "true");
         assertThat(context.environment()).containsEntry("PARTNER_LIVE_SHOP_DOMAIN", "shop.example.test");
         assertThat(context.secretEnvironment()).containsEntry("PARTNER_SUPABASE_JWT", "partner-jwt");
-        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "product-service-key");
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
     }
 
     @Test

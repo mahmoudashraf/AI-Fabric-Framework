@@ -220,6 +220,10 @@ public class PlatformVerificationSuiteScriptContextService {
     }
 
     private PlatformVerificationScriptContextSummary buildPartnerEnablementVerification() {
+        String platformUiBaseUrl = requireValue(
+            suiteProperties.platformUiBaseUrl(),
+            "platform.verification.suites.platform-ui-base-url must be configured for Partner Enablement verification."
+        );
         String partnerUiBaseUrl = requireValue(
             suiteProperties.partnerUiBaseUrl(),
             "platform.verification.suites.partner-ui-base-url must be configured for Partner Enablement verification."
@@ -230,19 +234,14 @@ public class PlatformVerificationSuiteScriptContextService {
         );
 
         Map<String, String> environment = basePlatformEnvironment();
+        environment.put("PLATFORM_UI_BASE_URL", platformUiBaseUrl);
         environment.put("PARTNER_UI_BASE_URL", partnerUiBaseUrl);
         environment.put("PARTNER_LIVE_STRICT", "true");
         if (suiteProperties.shopifyShopDomain() != null && !suiteProperties.shopifyShopDomain().isBlank()) {
             environment.put("PARTNER_LIVE_SHOP_DOMAIN", suiteProperties.shopifyShopDomain().trim());
         }
 
-        Map<String, String> secretEnvironment = new LinkedHashMap<>();
-        String merchantAccessApiKey = resolvePartnerMerchantAccessApiKey();
-        if (merchantAccessApiKey != null) {
-            secretEnvironment.put("PLATFORM_API_KEY", merchantAccessApiKey);
-        } else {
-            secretEnvironment.putAll(basePlatformSecretEnvironment());
-        }
+        Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformAdminSecretEnvironment());
         secretEnvironment.put(PARTNER_SUPABASE_JWT_SECRET_NAME, partnerSupabaseJwt);
 
         return new PlatformVerificationScriptContextSummary(
@@ -330,12 +329,30 @@ public class PlatformVerificationSuiteScriptContextService {
         );
     }
 
-    private String resolveAutomationApiKey() {
-        String admin = trimToNull(platformAuthProperties.adminApiKey());
-        if (admin != null) {
-            return admin;
+    private Map<String, String> basePlatformAdminSecretEnvironment() {
+        Map<String, String> secretEnvironment = new LinkedHashMap<>();
+        String adminApiKey = resolvePlatformAdminApiKey();
+        if (adminApiKey != null && platformAuthProperties.apiKeyEnabled()) {
+            secretEnvironment.put("PLATFORM_API_KEY", adminApiKey);
+            return secretEnvironment;
         }
-        admin = trimToNull(platformSecretService.resolveSecret(PLATFORM_ADMIN_API_KEY_SECRET_NAME));
+        if (platformAuthProperties.bootstrapAdminEnabled()
+            && platformAuthProperties.bootstrapAdminEmail() != null
+            && !platformAuthProperties.bootstrapAdminEmail().isBlank()
+            && platformAuthProperties.bootstrapAdminPassword() != null
+            && !platformAuthProperties.bootstrapAdminPassword().isBlank()) {
+            secretEnvironment.put("PLATFORM_LOGIN_EMAIL", platformAuthProperties.bootstrapAdminEmail().trim());
+            secretEnvironment.put("PLATFORM_LOGIN_PASSWORD", platformAuthProperties.bootstrapAdminPassword().trim());
+            return secretEnvironment;
+        }
+        throw new ResponseStatusException(
+            BAD_REQUEST,
+            "Partner Enablement verification requires PLATFORM_ADMIN_API_KEY or bootstrap admin login for partner privilege proof."
+        );
+    }
+
+    private String resolveAutomationApiKey() {
+        String admin = resolvePlatformAdminApiKey();
         if (admin != null) {
             return admin;
         }
@@ -344,6 +361,13 @@ public class PlatformVerificationSuiteScriptContextService {
             return operator;
         }
         return trimToNull(platformSecretService.resolveSecret(PLATFORM_OPERATOR_API_KEY_SECRET_NAME));
+    }
+
+    private String resolvePlatformAdminApiKey() {
+        return trimToNull(firstNonBlank(
+            platformAuthProperties.adminApiKey(),
+            platformSecretService.resolveSecret(PLATFORM_ADMIN_API_KEY_SECRET_NAME)
+        ));
     }
 
     private String resolveAdminTargetDeploymentId() {
@@ -389,5 +413,18 @@ public class PlatformVerificationSuiteScriptContextService {
             return null;
         }
         return value.trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String normalized = trimToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
     }
 }

@@ -136,6 +136,9 @@ Current suite keys:
 - `managed-vector-provider-verification`
 - `marketplace-install-flow`
 - `shopify-companion-verification`
+- `shopify-first-product-readiness-audit`
+- `partner-enablement-verification`
+- `thinker-resolver-readiness`
 
 Current ordered stages for `full-platform-release-readiness`:
 
@@ -145,12 +148,20 @@ Current ordered stages for `full-platform-release-readiness`:
 4. managed vector provider verification
 5. marketplace install flow
 6. Shopify Companion verification
-7. marketplace hosted verification
-8. ecommerce hosted verification
-9. qdrant hosted verification
-10. pinecone hosted verification
-11. milvus hosted verification
-12. weaviate hosted verification
+7. Shopify first-product readiness audit
+8. Partner Enablement verification
+9. Thinker Resolver readiness
+10. marketplace hosted verification
+11. ecommerce hosted verification
+12. qdrant hosted verification
+
+Partner Enablement verification includes package-trial privilege gating:
+
+- Platform UI `/partner-privileges` route proof
+- Platform admin member privilege API proof for `PACKAGE_TRIAL_ACTIVATE`
+- negative partner activation proof without the privilege
+- positive session/product-control capability proof after Platform grant
+- privilege restoration before exit
 
 Current release-gate statuses:
 

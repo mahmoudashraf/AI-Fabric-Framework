@@ -801,7 +801,9 @@ Partner Enablement is part of the primary `full-platform-release-readiness` rele
 - suite key: `partner-enablement-verification`
 - stage script: `scripts/verify-partner-enablement-live.sh`
 - strict mode is forced by the platform-owned suite
+- Platform UI URL is required for strict proof of `/partner-privileges`
 - default Partner UI URL: `https://ai-fabric-framework-production-158d.up.railway.app`
+- override config property: `platform.verification.suites.platform-ui-base-url`
 - override config property: `platform.verification.suites.partner-ui-base-url`
 
 The platform-owned suite requires this platform secret before the Partner Enablement stage can run:
@@ -826,6 +828,7 @@ The non-strict form proves:
 For release-ready proof, run strict mode with a deployed partner UI and a valid test partner Supabase JWT:
 
 ```bash
+PLATFORM_UI_BASE_URL="https://<platform-ui-service>.up.railway.app" \
 PARTNER_UI_BASE_URL="https://partners.loomai.pro" \
 PARTNER_SUPABASE_JWT="<valid test partner JWT>" \
 PLATFORM_BASE_URL="https://ai-fabric-framework-production-324f.up.railway.app" \
@@ -841,6 +844,16 @@ If strict mode fails before authenticated API checks:
 - Missing `PARTNER_SUPABASE_JWT` means the platform release-gate stage should fail before script execution with a missing-secret error.
 - A valid JWT returning `401` means deployed Platform Supabase auth env values or issuer/audience/JWKS settings are wrong.
 - A valid JWT returning `403` for assigned-store checks usually means the test partner is not approved/assigned yet.
+
+Strict Partner Enablement now also proves the package-trial privilege gate:
+
+- Platform UI deployed assets include `/partner-privileges`.
+- Platform admin member API can remove and grant `PACKAGE_TRIAL_ACTIVATE`.
+- Partner package-trial activation returns `403` when the privilege is absent.
+- Partner session and product controls expose the privilege, allowed trial tiers, max trial days, active trial, and trial history after the privilege is granted.
+- The verifier restores the partner member's original privileges before exit.
+
+The primary release gate does not activate a live package trial, because that changes commercial store state and cannot be automatically deactivated until the trial is past due. Use a disposable store and an explicit cleanup plan for lifecycle smoke tests.
 
 ## 10. Real Failure Patterns Seen In This Session
 
