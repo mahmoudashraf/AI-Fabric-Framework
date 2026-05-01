@@ -1964,3 +1964,40 @@ Remaining gates:
 - Run a full public Git app build/start/health smoke through the Platform apply path after target-profile activation policy is set.
 - Replace temporary `sslip.io` runtime domains with real DNS before production tenant acceptance.
 - Keep GHCR/private registry auth as the hardened image-source follow-up, not as a blocker for public-repo Git-source testing.
+
+---
+
+## 2026-05-01 Target Profile Activation API
+
+Status: implemented locally and ready for deploy.
+
+Implemented:
+
+- `PATCH /api/deployment-provider/target-profiles/{targetProfileId}` for `PLATFORM_ADMIN`.
+- `PatchDeploymentTargetProfileRequest` with:
+  - `active`
+  - `defaultForRuntime`
+  - `defaultForRestartableServices`
+- `DeploymentTargetProfileService.patchProfile(...)` so operators can activate Coolify profiles through Platform instead of ad hoc database edits.
+- Guardrails that require a profile to be active before it can become a runtime or restartable-services default.
+- Default switching clears the previous default for the same provider type, preserving the target-profile registry contract.
+
+Live operations completed:
+
+- Stored `COOLIFY_STAGING_API_TOKEN` and `COOLIFY_PRODUCTION_API_TOKEN` in Platform secrets from `/tmp/coolify_api_tokens.env`.
+- Secret values were not printed, summarized, committed, or written into docs.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `git diff --check`
+
+Next live acceptance steps:
+
+- Push/deploy this endpoint to the Platform backend.
+- Activate `dtp-coolify-staging`.
+- Run `GET /api/deployment-provider/target-profiles/dtp-coolify-staging/preflight`.
+- Run a disposable Platform apply with `targetProfileId=dtp-coolify-staging`.
+- Verify Coolify resource status/log retrieval and delete cleanup through Platform provider resource APIs.
+- Keep production target profile non-default until DNS, backup/restore, dashboard/API hardening, and operator UI gates are complete.

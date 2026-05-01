@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourc
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetProfileSummary;
+import com.ai.fabric.platform.backend.deployment.model.PatchDeploymentTargetProfileRequest;
 import com.ai.fabric.platform.backend.deployment.model.PromoteDeploymentSourceArtifactRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentProviderResourceActionService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceArtifactService;
@@ -18,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,6 +55,13 @@ public class DeploymentProviderOperationsController {
     @GetMapping("/target-profiles/{targetProfileId}/preflight")
     public DeploymentProviderPreflightSummary preflight(@PathVariable String targetProfileId) {
         return providerResourceActionService.preflight(targetProfileId);
+    }
+
+    @PatchMapping("/target-profiles/{targetProfileId}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentTargetProfileSummary patchTargetProfile(@PathVariable String targetProfileId,
+                                                             @RequestBody PatchDeploymentTargetProfileRequest request) {
+        return targetProfileService.patchProfile(targetProfileId, request);
     }
 
     @GetMapping("/source-artifacts")

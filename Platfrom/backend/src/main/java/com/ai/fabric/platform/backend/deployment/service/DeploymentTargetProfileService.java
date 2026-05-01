@@ -5,11 +5,13 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetProfileSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.PatchDeploymentTargetProfileRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -89,6 +91,45 @@ public class DeploymentTargetProfileService {
             .toList();
     }
 
+    @Transactional
+    public DeploymentTargetProfileSummary patchProfile(String targetProfileId, PatchDeploymentTargetProfileRequest request) {
+        DeploymentTargetProfileEntity profile = requireProfile(targetProfileId);
+        if (request == null) {
+            return toSummary(profile);
+        }
+
+        Instant now = Instant.now();
+        if (request.active() != null) {
+            profile.setActive(request.active());
+        }
+        if (request.defaultForRuntime() != null) {
+            if (request.defaultForRuntime() && !profile.isActive()) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Deployment target profile must be active before it can be the runtime default: " + targetProfileId
+                );
+            }
+            if (request.defaultForRuntime()) {
+                unsetOtherRuntimeDefaults(profile, now);
+            }
+            profile.setDefaultForRuntime(request.defaultForRuntime());
+        }
+        if (request.defaultForRestartableServices() != null) {
+            if (request.defaultForRestartableServices() && !profile.isActive()) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Deployment target profile must be active before it can be the restartable-services default: " + targetProfileId
+                );
+            }
+            if (request.defaultForRestartableServices()) {
+                unsetOtherRestartableDefaults(profile, now);
+            }
+            profile.setDefaultForRestartableServices(request.defaultForRestartableServices());
+        }
+        profile.setUpdatedAt(now);
+        return toSummary(targetProfileRepository.save(profile));
+    }
+
     public void applyProfileToRelease(DeploymentReleaseEntity release,
                                       DeploymentTargetProfileEntity targetProfile) {
         if (release == null || targetProfile == null) {
@@ -118,6 +159,26 @@ public class DeploymentTargetProfileService {
             profile.getCreatedAt(),
             profile.getUpdatedAt()
         );
+    }
+
+    private void unsetOtherRuntimeDefaults(DeploymentTargetProfileEntity selected, Instant now) {
+        for (DeploymentTargetProfileEntity profile : targetProfileRepository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(selected.getProviderType())) {
+            if (!selected.getId().equals(profile.getId()) && profile.isDefaultForRuntime()) {
+                profile.setDefaultForRuntime(false);
+                profile.setUpdatedAt(now);
+                targetProfileRepository.save(profile);
+            }
+        }
+    }
+
+    private void unsetOtherRestartableDefaults(DeploymentTargetProfileEntity selected, Instant now) {
+        for (DeploymentTargetProfileEntity profile : targetProfileRepository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(selected.getProviderType())) {
+            if (!selected.getId().equals(profile.getId()) && profile.isDefaultForRestartableServices()) {
+                profile.setDefaultForRestartableServices(false);
+                profile.setUpdatedAt(now);
+                targetProfileRepository.save(profile);
+            }
+        }
     }
 
     private DeploymentTargetProfileEntity legacyFallbackProfile(DeploymentProviderType providerType) {

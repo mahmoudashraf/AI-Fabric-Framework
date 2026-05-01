@@ -1,17 +1,23 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.PatchDeploymentTargetProfileRequest;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,6 +91,58 @@ class DeploymentProvisioningServiceTargetProfileTest {
         assertThat(service.selectedTargetProfile().getId()).isEqualTo("dtp-railway-stub-default");
     }
 
+    @Test
+    void patchProfileActivatesProfileAndCanMakeItRuntimeDefault() {
+        DeploymentTargetProfileRepository repository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentTargetProfileEntity coolify = profile("dtp-coolify-staging", DeploymentProviderType.COOLIFY);
+        DeploymentTargetProfileEntity production = profile("dtp-coolify-production", DeploymentProviderType.COOLIFY);
+        coolify.setActive(false);
+        coolify.setDefaultForRuntime(false);
+        production.setDefaultForRuntime(true);
+        when(repository.findById("dtp-coolify-staging")).thenReturn(Optional.of(coolify));
+        when(repository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(DeploymentProviderType.COOLIFY))
+            .thenReturn(List.of(coolify, production));
+        when(repository.save(any(DeploymentTargetProfileEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeploymentTargetProfileService service = new DeploymentTargetProfileService(
+            provisioningProperties(),
+            repository,
+            new ObjectMapper()
+        );
+
+        var summary = service.patchProfile(
+            "dtp-coolify-staging",
+            new PatchDeploymentTargetProfileRequest(true, true, null)
+        );
+
+        assertThat(summary.active()).isTrue();
+        assertThat(summary.defaultForRuntime()).isTrue();
+        assertThat(production.isDefaultForRuntime()).isFalse();
+        verify(repository).save(production);
+        verify(repository).save(coolify);
+    }
+
+    @Test
+    void patchProfileRejectsDefaultWhenProfileRemainsInactive() {
+        DeploymentTargetProfileRepository repository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentTargetProfileEntity coolify = profile("dtp-coolify-staging", DeploymentProviderType.COOLIFY);
+        coolify.setActive(false);
+        coolify.setDefaultForRuntime(false);
+        when(repository.findById("dtp-coolify-staging")).thenReturn(Optional.of(coolify));
+
+        DeploymentTargetProfileService service = new DeploymentTargetProfileService(
+            provisioningProperties(),
+            repository,
+            new ObjectMapper()
+        );
+
+        assertThatThrownBy(() -> service.patchProfile(
+            "dtp-coolify-staging",
+            new PatchDeploymentTargetProfileRequest(null, true, null)
+        ))
+            .hasMessageContaining("must be active");
+    }
+
     private static DeploymentTargetProfileEntity profile(String id, DeploymentProviderType providerType) {
         DeploymentTargetProfileEntity profile = new DeploymentTargetProfileEntity();
         profile.setId(id);
@@ -102,6 +160,32 @@ class DeploymentProvisioningServiceTargetProfileTest {
         profile.setCreatedAt(Instant.parse("2026-05-01T00:00:00Z"));
         profile.setUpdatedAt(Instant.parse("2026-05-01T00:00:00Z"));
         return profile;
+    }
+
+    private static PlatformProvisioningProperties provisioningProperties() {
+        return new PlatformProvisioningProperties(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            null,
+            null,
+            false,
+            false,
+            0,
+            null,
+            null
+        );
     }
 
     private record FakeProvider(DeploymentProviderType providerType, String runtimeBaseUrl)
