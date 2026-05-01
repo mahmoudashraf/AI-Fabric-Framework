@@ -21,25 +21,27 @@ class DeploymentTargetProfileMigrationTest {
     private DeploymentProviderCredentialRepository providerCredentialRepository;
 
     @Test
-    void migrationSeedsRailwayDefaultsAndInactiveCoolifyProfiles() {
+    void migrationSeedsCoolifyStagingDefaultAndProductionExplicitProfile() {
         assertThat(targetProfileRepository.findById("dtp-railway-stub-default"))
             .hasValueSatisfying(profile -> {
                 assertThat(profile.getProviderType()).isEqualTo(DeploymentProviderType.RAILWAY_STUB);
                 assertThat(profile.isActive()).isTrue();
-                assertThat(profile.isDefaultForRuntime()).isTrue();
+                assertThat(profile.isDefaultForRuntime()).isFalse();
                 assertThat(profile.getSourceStrategy()).isEqualTo("GIT_SOURCE");
             });
         assertThat(targetProfileRepository.findById("dtp-railway-api-default"))
             .hasValueSatisfying(profile -> {
                 assertThat(profile.getProviderType()).isEqualTo(DeploymentProviderType.RAILWAY_API);
                 assertThat(profile.isActive()).isTrue();
-                assertThat(profile.isDefaultForRuntime()).isTrue();
+                assertThat(profile.isDefaultForRuntime()).isFalse();
                 assertThat(profile.getSourceStrategy()).isEqualTo("GIT_SOURCE");
             });
         assertThat(targetProfileRepository.findById("dtp-coolify-staging"))
             .hasValueSatisfying(profile -> {
                 assertThat(profile.getProviderType()).isEqualTo(DeploymentProviderType.COOLIFY);
-                assertThat(profile.isActive()).isFalse();
+                assertThat(profile.isActive()).isTrue();
+                assertThat(profile.isDefaultForRuntime()).isTrue();
+                assertThat(profile.isDefaultForRestartableServices()).isTrue();
                 assertThat(profile.isPlatformServicesAllowed()).isFalse();
                 assertThat(profile.getSourceStrategy()).isEqualTo("GIT_SOURCE");
                 assertThat(profile.getProviderConfigJson()).contains("id069t43frp519u5i3dg2jpr");
@@ -50,7 +52,9 @@ class DeploymentTargetProfileMigrationTest {
         assertThat(targetProfileRepository.findById("dtp-coolify-production"))
             .hasValueSatisfying(profile -> {
                 assertThat(profile.getProviderType()).isEqualTo(DeploymentProviderType.COOLIFY);
-                assertThat(profile.isActive()).isFalse();
+                assertThat(profile.isActive()).isTrue();
+                assertThat(profile.isDefaultForRuntime()).isFalse();
+                assertThat(profile.isDefaultForRestartableServices()).isFalse();
                 assertThat(profile.isPlatformServicesAllowed()).isFalse();
                 assertThat(profile.getSourceStrategy()).isEqualTo("GIT_SOURCE");
                 assertThat(profile.getProviderConfigJson()).contains("t1400k32bg9yd764chyt1slm");

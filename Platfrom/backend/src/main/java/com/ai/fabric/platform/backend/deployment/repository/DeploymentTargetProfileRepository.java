@@ -13,5 +13,7 @@ public interface DeploymentTargetProfileRepository extends JpaRepository<Deploym
         DeploymentProviderType providerType
     );
 
+    Optional<DeploymentTargetProfileEntity> findFirstByActiveTrueAndDefaultForRuntimeTrueOrderByUpdatedAtDesc();
+
     List<DeploymentTargetProfileEntity> findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(DeploymentProviderType providerType);
 }

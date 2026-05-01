@@ -36,7 +36,7 @@ public class DeploymentTargetProfileService {
     public DeploymentTargetProfileEntity resolveDefaultRuntimeProfile() {
         DeploymentProviderType providerType = DeploymentProviderType.fromLegacyMode(provisioningProperties.mode());
         return targetProfileRepository
-            .findFirstByProviderTypeAndActiveTrueAndDefaultForRuntimeTrueOrderByUpdatedAtDesc(providerType)
+            .findFirstByActiveTrueAndDefaultForRuntimeTrueOrderByUpdatedAtDesc()
             .orElseGet(() -> legacyFallbackProfile(providerType));
     }
 
@@ -162,7 +162,7 @@ public class DeploymentTargetProfileService {
     }
 
     private void unsetOtherRuntimeDefaults(DeploymentTargetProfileEntity selected, Instant now) {
-        for (DeploymentTargetProfileEntity profile : targetProfileRepository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(selected.getProviderType())) {
+        for (DeploymentTargetProfileEntity profile : targetProfileRepository.findAll()) {
             if (!selected.getId().equals(profile.getId()) && profile.isDefaultForRuntime()) {
                 profile.setDefaultForRuntime(false);
                 profile.setUpdatedAt(now);
@@ -172,7 +172,7 @@ public class DeploymentTargetProfileService {
     }
 
     private void unsetOtherRestartableDefaults(DeploymentTargetProfileEntity selected, Instant now) {
-        for (DeploymentTargetProfileEntity profile : targetProfileRepository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(selected.getProviderType())) {
+        for (DeploymentTargetProfileEntity profile : targetProfileRepository.findAll()) {
             if (!selected.getId().equals(profile.getId()) && profile.isDefaultForRestartableServices()) {
                 profile.setDefaultForRestartableServices(false);
                 profile.setUpdatedAt(now);

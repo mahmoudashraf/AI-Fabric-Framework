@@ -2181,11 +2181,23 @@ Live proof:
 - Platform release verification reached `APPLIED_VERIFIED/PASSED`.
 - Platform hard delete completed, provider resources returned `0`, and Coolify app matches for the disposable deployment returned `0`.
 
-Remaining production/default cutover work:
+Default and production profile update:
 
-- Keep targeted Coolify applies available through `targetProfileId=dtp-coolify-staging`; choose the default-target policy before unsetting Railway as the global runtime default.
+- `dtp-coolify-staging` is now the runtime and restartable-services default.
+- `dtp-coolify-production` is active but explicitly non-default.
+- Production preflight currently fails from live Platform with `Coolify API request failed for /health` while production Coolify port `8000` remains restricted by the production allowlist. Do not open production `8000` broadly; production applies need a stable Platform control-plane egress CIDR, VPN/Tailscale, Cloudflare Access, or equivalent protected API path.
+
+Backup/restore rehearsal:
+
+- Staging host backup/restore rehearsal passed through the reusable runner at `/var/backups/loom-coolify/staging-20260501T214218Z`.
+- Production host backup/restore rehearsal passed through the reusable runner at `/var/backups/loom-coolify/production-20260501T214218Z`.
+- Each host produced root-only `coolify-db.dump`, `coolify-state-files.tgz`, `SHA256SUMS`, and `restore-rehearsal-status.json`; DB restore was tested into a temporary database and file restore was tested into a temporary directory, then temporary restore targets were removed.
+- Reusable runner added: `infra/coolify/hetzner/scripts/rehearse-coolify-backup-restore.sh`.
+
+Remaining production/go-live cutover work:
+
 - Replace temporary `sslip.io` domains with real DNS.
-- Complete Coolify backup/restore rehearsal.
-- Harden production dashboard/API exposure before activating or defaulting `dtp-coolify-production`.
+- Solve protected production control-plane access for Coolify API preflight/provisioning without public `8000`.
+- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
 - Add operator UI wiring for target-profile selection/defaulting, preflight, provider resources, logs/actions, and cleanup.
-- Add GHCR/private registry auth before making the repo private.
+- Add GHCR/private registry auth before making the repo private or going live with private-source deployments.

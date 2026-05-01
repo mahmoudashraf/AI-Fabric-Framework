@@ -104,6 +104,27 @@ sudo tail -n 200 /var/log/loom-coolify-bootstrap.log
 
 Do not put production workloads on Coolify until dashboard/API access is protected and Coolify backups have been configured.
 
+## Backup And Restore Rehearsal
+
+Run a non-destructive rehearsal from the repo root or this directory:
+
+```bash
+COOLIFY_BACKUP_ENVIRONMENT=staging \
+infra/coolify/hetzner/scripts/rehearse-coolify-backup-restore.sh
+
+COOLIFY_BACKUP_ENVIRONMENT=production \
+infra/coolify/hetzner/scripts/rehearse-coolify-backup-restore.sh
+```
+
+The script runs on the Hetzner host over SSH. It creates a root-only backup under `/var/backups/loom-coolify/<environment>-<timestamp>` with:
+
+- `coolify-db.dump`: custom-format Coolify Postgres dump
+- `coolify-state-files.tgz`: `/data/coolify` state files, SSH keys, proxy/app/service/database directories
+- `SHA256SUMS`
+- `restore-rehearsal-status.json`
+
+The restore drill is non-destructive: it restores the DB dump into a temporary database, extracts the state archive into a temporary directory, verifies required files, then removes the temporary restore targets. The backup artifacts contain secrets and must stay root-only or be moved only to encrypted backup storage.
+
 ## Rebuild
 
 For a disposable staging rebuild:
@@ -183,6 +204,12 @@ Strict live provider smoke status:
 
 - staging disposable app create/start/status/delete now passes through `scripts/verify-coolify-provider.sh` with `COOLIFY_STRICT_APPLICATION_SMOKE=true`.
 - cleanup confirms staging returns to zero applications after the smoke app is deleted.
+
+Backup/restore rehearsal status:
+
+- 2026-05-01 staging rehearsal passed through this runner: `/var/backups/loom-coolify/staging-20260501T214218Z`
+- 2026-05-01 production rehearsal passed through this runner: `/var/backups/loom-coolify/production-20260501T214218Z`
+- Each rehearsal produced `coolify-db.dump`, `coolify-state-files.tgz`, `SHA256SUMS`, and `restore-rehearsal-status.json`, then restored the DB dump into a temporary database and verified file archive extraction.
 
 ## Slice 1 Plan
 

@@ -96,12 +96,16 @@ class DeploymentProvisioningServiceTargetProfileTest {
         DeploymentTargetProfileRepository repository = mock(DeploymentTargetProfileRepository.class);
         DeploymentTargetProfileEntity coolify = profile("dtp-coolify-staging", DeploymentProviderType.COOLIFY);
         DeploymentTargetProfileEntity production = profile("dtp-coolify-production", DeploymentProviderType.COOLIFY);
+        DeploymentTargetProfileEntity railway = profile("dtp-railway-api-default", DeploymentProviderType.RAILWAY_API);
         coolify.setActive(false);
         coolify.setDefaultForRuntime(false);
+        coolify.setDefaultForRestartableServices(false);
         production.setDefaultForRuntime(true);
+        production.setDefaultForRestartableServices(false);
+        railway.setDefaultForRuntime(true);
+        railway.setDefaultForRestartableServices(true);
         when(repository.findById("dtp-coolify-staging")).thenReturn(Optional.of(coolify));
-        when(repository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(DeploymentProviderType.COOLIFY))
-            .thenReturn(List.of(coolify, production));
+        when(repository.findAll()).thenReturn(List.of(coolify, production, railway));
         when(repository.save(any(DeploymentTargetProfileEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DeploymentTargetProfileService service = new DeploymentTargetProfileService(
@@ -118,8 +122,29 @@ class DeploymentProvisioningServiceTargetProfileTest {
         assertThat(summary.active()).isTrue();
         assertThat(summary.defaultForRuntime()).isTrue();
         assertThat(production.isDefaultForRuntime()).isFalse();
+        assertThat(railway.isDefaultForRuntime()).isFalse();
         verify(repository).save(production);
+        verify(repository).save(railway);
         verify(repository).save(coolify);
+    }
+
+    @Test
+    void defaultRuntimeProfileUsesGlobalActiveDefaultBeforeLegacyFallback() {
+        DeploymentTargetProfileRepository repository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentTargetProfileEntity coolify = profile("dtp-coolify-staging", DeploymentProviderType.COOLIFY);
+        when(repository.findFirstByActiveTrueAndDefaultForRuntimeTrueOrderByUpdatedAtDesc())
+            .thenReturn(Optional.of(coolify));
+
+        DeploymentTargetProfileService service = new DeploymentTargetProfileService(
+            provisioningProperties(),
+            repository,
+            new ObjectMapper()
+        );
+
+        DeploymentTargetProfileEntity resolved = service.resolveDefaultRuntimeProfile();
+
+        assertThat(resolved.getId()).isEqualTo("dtp-coolify-staging");
+        assertThat(resolved.getProviderType()).isEqualTo(DeploymentProviderType.COOLIFY);
     }
 
     @Test
