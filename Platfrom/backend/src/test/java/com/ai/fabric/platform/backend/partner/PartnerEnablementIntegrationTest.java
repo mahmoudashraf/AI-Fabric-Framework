@@ -48,6 +48,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
@@ -737,7 +738,8 @@ class PartnerEnablementIntegrationTest {
         String token = partnerJwt("trial-user", "trial-user@example.com");
         String sessionPayload = completeSignup(token, "Trial Partner Workspace");
         String partnerMemberId = JsonPath.read(sessionPayload, "$.member.id");
-        HttpServer bridgeServer = startBridgeAdminServer();
+        AtomicInteger bridgeBillingStateRequests = new AtomicInteger();
+        HttpServer bridgeServer = startBridgeAdminServer(bridgeBillingStateRequests);
         try {
             createShopifyStore("shopify-store-trial", "trial-client.myshopify.com", "Trial Client");
             bindShopifyBridgeBaseUrl("http://localhost:" + bridgeServer.getAddress().getPort());
@@ -868,6 +870,10 @@ class PartnerEnablementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tierKey", is("FREE")))
                 .andExpect(jsonPath("$.reason", is("Past due cleanup")));
+
+            assertThat(bridgeBillingStateRequests.get())
+                .as("Partner package trials must not synchronously call Bridge billing-state inside the Platform transaction")
+                .isZero();
         } finally {
             bridgeServer.stop(0);
         }
@@ -1167,6 +1173,10 @@ class PartnerEnablementIntegrationTest {
     }
 
     private HttpServer startBridgeAdminServer() throws IOException {
+        return startBridgeAdminServer(null);
+    }
+
+    private HttpServer startBridgeAdminServer(AtomicInteger billingStateRequests) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/admin/stores", exchange -> {
             if (!"POST".equals(exchange.getRequestMethod())
@@ -1174,6 +1184,9 @@ class PartnerEnablementIntegrationTest {
                 || !exchange.getRequestURI().getPath().endsWith("/billing-state")) {
                 writeJson(exchange, 401, "{\"success\":false,\"message\":\"Unauthorized\"}");
                 return;
+            }
+            if (billingStateRequests != null) {
+                billingStateRequests.incrementAndGet();
             }
             writeJson(exchange, 200, "{\"success\":true}");
         });

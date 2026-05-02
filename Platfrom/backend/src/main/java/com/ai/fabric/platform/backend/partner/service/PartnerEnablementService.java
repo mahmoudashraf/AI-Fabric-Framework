@@ -95,7 +95,6 @@ import com.ai.fabric.platform.backend.shopify.model.CreateShopifyStoreProvisioni
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
-import com.ai.fabric.platform.backend.shopify.service.ShopifyBridgeAdminClient;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreProvisioningService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourceSettingsService;
@@ -223,7 +222,6 @@ public class PartnerEnablementService {
     private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
     private final ShopifyStoreSupportProfileService shopifyStoreSupportProfileService;
     private final ShopifyStoreProvisioningService shopifyStoreProvisioningService;
-    private final ShopifyBridgeAdminClient shopifyBridgeAdminClient;
     private final DeploymentPocChatService deploymentPocChatService;
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -252,7 +250,6 @@ public class PartnerEnablementService {
                                     ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
                                     ShopifyStoreSupportProfileService shopifyStoreSupportProfileService,
                                     ShopifyStoreProvisioningService shopifyStoreProvisioningService,
-                                    ShopifyBridgeAdminClient shopifyBridgeAdminClient,
                                     DeploymentPocChatService deploymentPocChatService,
                                     ObjectMapper objectMapper) {
         this.authProperties = authProperties;
@@ -279,7 +276,6 @@ public class PartnerEnablementService {
         this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
         this.shopifyStoreSupportProfileService = shopifyStoreSupportProfileService;
         this.shopifyStoreProvisioningService = shopifyStoreProvisioningService;
-        this.shopifyBridgeAdminClient = shopifyBridgeAdminClient;
         this.deploymentPocChatService = deploymentPocChatService;
         this.objectMapper = objectMapper;
     }
@@ -516,7 +512,6 @@ public class PartnerEnablementService {
                 false
             )
         );
-        shopifyBridgeAdminClient.recordBillingState(store, billingRequest);
         trial.setActivationProvisioningJobId(job.id());
         trial.setUpdatedAt(Instant.now());
         packageTrialActivationRepository.save(trial);
@@ -580,7 +575,6 @@ public class PartnerEnablementService {
                 false
             )
         );
-        shopifyBridgeAdminClient.recordBillingState(store, billingRequest);
         trial.setStatus("DEACTIVATED");
         trial.setDeactivatedAt(now);
         trial.setDeactivatedByMemberId(context.member().getId());

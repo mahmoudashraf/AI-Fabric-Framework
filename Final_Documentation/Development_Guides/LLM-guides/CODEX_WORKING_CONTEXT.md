@@ -634,3 +634,17 @@ Rules:
 - Coolify staging app `shopify-bridge-staging` (`c12bjqdcyqdt7tzgr48pev3z`) is configured for `mahmoudashraf/AI-Fabric-Framework.git`, branch `Platform-V8`, and `git_commit_sha=HEAD`; it is not pinned to commit `f376676be`.
 - Forced a staging redeploy through the Coolify API. Deployment `u14d3rnjda3aip7qo1nimvtf` resolved `Platform-V8` to commit `ef90b0d52767a4351e586a4fa7034408eda4a89d` (`Record partner verification admin cleanup`) and finished successfully at `2026-05-02T15:57:08Z`.
 - Post-redeploy health proof: `https://shopify-bridge-staging.46.224.145.148.sslip.io/actuator/health` returned HTTP `200` with `UP`.
+
+## 2026-05-02 Partner Package Trial Pending Fix
+
+- User reported `POST /api/partners/stores/psa-0425b4b9-f26c-4567-8532-9116466c9409/package-trials` staying pending forever from Partner UI.
+- Live diagnosis found the assignment active with `PACKAGE_TRIAL_ACTIVATE`, no committed package-trial row, and Postgres sessions blocked on `shopify_store_connections`. Root cause was a synchronous Platform transaction updating billing state, then calling Bridge `/billing-state`; Bridge called back into Platform billing/store APIs and waited on the same store row transaction.
+- Cleared stale live DB blockers by terminating the idle-in-transaction Platform backends; follow-up readback showed `0` lock/idle-in-transaction sessions and still no committed trial activation row for that assignment.
+- Fix: partner package trial activation/deactivation now records Platform billing state and queues Platform provisioning without synchronously calling Bridge billing-state inside the same transaction. Bridge already treats Platform billing state as durable source of truth for billing/support readiness.
+- Added bounded connect/read timeouts to Platform's `ShopifyBridgeAdminClient` for other legitimate Bridge admin calls.
+- Added a Partner UI API timeout so failed/hung Partner API requests surface an error instead of leaving mutations pending indefinitely.
+- Regression test now asserts package trial activation/deactivation do not make synchronous Bridge billing-state requests from the Platform transaction.
+- Changed files: `PartnerEnablementService.java`, `ShopifyBridgeAdminClient.java`, `PartnerEnablementIntegrationTest.java`, `Platfrom/partner-ui/src/auth/apiClient.ts`, and this context file.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=PartnerEnablementIntegrationTest#packageTrialActivationRequiresPlatformGrantedPrivilegeAndManualPastDueDeactivation test`; `mvn -f Platfrom/backend/pom.xml -DskipTests compile`; `mvn -f product-services/shopify-bridge-service/pom.xml -Dtest=PlatformShopifyStoreClientTest test`; `git diff --check`; live DB blocker readback.
+- Verification blocked: `npm --prefix Platfrom/partner-ui run build` could not run because `tsc` is missing from local dependencies and local installs are not allowed in this session.
+- Next handoff: commit/push this fix, let Platform backend and Partner UI deploy, then retry activating the trial from Partner UI. If the live app is still on a pre-fix Railway deployment, manually trigger/redeploy the Platform backend/UI after the push.

@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAu
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,6 +18,7 @@ import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -30,6 +32,8 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 public class ShopifyBridgeAdminClient {
 
     private static final String BRIDGE_ADMIN_API_KEY_HEADER = "X-BRIDGE-API-KEY";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(15);
 
     private final PlatformManagedProductServiceRepository productServiceRepository;
     private final PlatformSecretService platformSecretService;
@@ -42,8 +46,17 @@ public class ShopifyBridgeAdminClient {
                                     ObjectMapper objectMapper) {
         this.productServiceRepository = productServiceRepository;
         this.platformSecretService = platformSecretService;
-        this.restClient = restClientBuilder.build();
+        this.restClient = restClientBuilder
+            .requestFactory(requestFactory())
+            .build();
         this.objectMapper = objectMapper;
+    }
+
+    private SimpleClientHttpRequestFactory requestFactory() {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
+        requestFactory.setReadTimeout(READ_TIMEOUT);
+        return requestFactory;
     }
 
     public ShopifyStoreVectorizationSourcePageSnapshot fetchPage(ShopifyStoreConnectionEntity store,
