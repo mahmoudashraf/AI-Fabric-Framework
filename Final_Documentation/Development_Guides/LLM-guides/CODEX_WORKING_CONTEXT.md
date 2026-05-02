@@ -518,3 +518,17 @@ Rules:
 - Verification passed: `npm --prefix Platfrom/ui run build`; `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentWorkspaceIntegrationTest,DeploymentReleaseVerificationServiceTest,DeploymentReleaseExecutionServiceTest,CoolifyDeploymentProviderTest,DeploymentProvisioningServiceTargetProfileTest,CoolifyTargetProfileResolverTest test`; `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`; `git diff --check`.
 - Secret scan status: changed-file secret-pattern scan printed no secret values; the only pattern hit was `Platfrom/ui/src/api/platformApi.ts` because it contains secret metadata field names. No local secret values were found or committed.
 - Next handoff: commit/push this UI abstraction tightening, then after deployment browser-check Diagnostics/Overview against a Coolify-backed deployment and confirm provider resource logs render from `APPLICATION` and `CONNECTOR_APPLICATION` handles.
+
+## 2026-05-02 Coolify 007 Loom Companion Customer Migration
+
+- User requested migrating the Loom/Shopify Companion customer deployments from Railway to Coolify and switching current customers to Coolify-backed deployments.
+- Live Platform scan found two Shopify Companion store bindings: `shopping-companion-test.myshopify.com` (`dep-8c3e7259`) and `loom-verification-20260418.myshopify.com` (`dep-3bf25c3f`).
+- `shopping-companion-test.myshopify.com` was already migrated successfully: latest release `rel-e8cee807` on version `ver-1b77bfba` is `APPLIED_VERIFIED/PASSED`, provider `COOLIFY`, target `dtp-coolify-staging`; runtime and connector handles are `RUNNING_HEALTHY`, and both public health endpoints return `200 UP`.
+- `loom-verification-20260418.myshopify.com` migration required repair: the store was restored from archived state, re-bootstrapped to the current shared Qdrant endpoint, published through `ver-ccc844b6`, and re-applied after a Coolify update-payload bug was fixed.
+- Root cause fixed in `CoolifyApiClient`: create payloads still include create-only fields, but update payloads now omit Coolify-rejected PATCH fields (`project_uuid`, `server_uuid`, `environment_name`, `environment_uuid`, `destination_uuid`, `autogenerate_domain`).
+- Code fix committed and pushed as `5643735cf` (`Fix Coolify application update payloads`); live Platform redeployed and returned `/actuator/health` `UP`.
+- Live Loom repair release `rel-75648f34` on version `ver-ccc844b6` reached `APPLIED_VERIFIED/PASSED`, provider `COOLIFY`, target `dtp-coolify-staging`; runtime and connector handles are active with `running:healthy`.
+- Final live proof: both Shopify Companion deployments are `ACTIVE` with latest verified Coolify releases, binding warnings are empty, readiness is `STOREFRONT_READY`, and all four Coolify public health endpoints (`runtime` plus `connector` for both stores) returned `200 UP`.
+- Verification run locally for the fix: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`; `git diff --check` before commit.
+- Changed files in the pushed fix: `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/CoolifyApiClient.java` and `Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/deployment/service/CoolifyApiClientTest.java`.
+- Remaining blockers before production tenant cutover stay unchanged: real DNS instead of `sslip.io`, protected production Coolify API/control-plane access, production profile preflight, and GHCR/private registry auth before private-source deployments.

@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, and provider-neutral operator UI wired 2026-05-02)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, and current Loom/Shopify Companion customer deployments migrated to Coolify staging)
 
 Owner mode: technical LLM implementation session
 
@@ -2376,3 +2376,62 @@ Remaining production/go-live cutover work:
 - Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
 - Add GHCR/private registry auth before making the repo private or using private-source deployments.
 - Later cleanup: rename backend plan/read-back internals that still carry Railway class names where they now describe the generic provider contract.
+
+---
+
+## 2026-05-02 Loom Companion Customer Migration To Coolify
+
+Status: implemented, pushed, deployed, and live verified for current staging-backed Shopify Companion customers.
+
+Scope:
+
+- Migrate the current Loom/Shopify Companion customer-bound deployments from the legacy Railway release path to Coolify staging.
+- Keep this limited to deployment/runtime cutover. Real DNS, production profile activation, private registry auth, and production protected API access remain production cutover blockers.
+
+Live deployments:
+
+| Store | Deployment | Consumer | Latest Coolify release | Runtime |
+|---|---|---|---|---|
+| `shopping-companion-test.myshopify.com` | `dep-8c3e7259` | `shopify-shopping-companion-test` | `rel-e8cee807` / `ver-1b77bfba` | `http://dep-8c3e7259.46.224.145.148.sslip.io` |
+| `loom-verification-20260418.myshopify.com` | `dep-3bf25c3f` | `shopify-loom-verification-20260418` | `rel-75648f34` / `ver-ccc844b6` | `http://dep-3bf25c3f.46.224.145.148.sslip.io` |
+
+Implemented during migration:
+
+- Restored and re-bootstrapped the Loom verification deployment after it was found archived and carrying an old Qdrant endpoint.
+- Re-published the Loom deployment through the current draft after bootstrap refreshed provider/vector configuration.
+- Fixed Coolify application update payloads so existing public Git apps can be updated idempotently after first create.
+- Re-applied Loom version `ver-ccc844b6` after the fix deployed; release `rel-75648f34` reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, and `verificationStatus=PASSED`.
+
+Code fix:
+
+- `CoolifyApiClient` now uses separate create and update bodies.
+- Create calls keep the full Coolify payload for new app placement.
+- Update calls omit create-only fields rejected by live Coolify PATCH validation:
+  - `project_uuid`
+  - `server_uuid`
+  - `environment_name`
+  - `environment_uuid`
+  - `destination_uuid`
+  - `autogenerate_domain`
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`
+- `git diff --check`
+- Live Platform health returned `UP` after commit `5643735cf` deployed.
+- Both current Shopify Companion deployments now have latest releases on `providerType=COOLIFY` and `targetProfileId=dtp-coolify-staging`.
+- Both store bindings report empty warnings.
+- Both stores report `STOREFRONT_READY`.
+- Runtime and connector public health endpoints returned `200 UP` for both stores.
+
+Current readiness:
+
+- New default runtime provisioning and the current customer-bound Loom/Shopify Companion runtime deployments are on Coolify staging.
+- This is ready for staging/customer validation through the public `sslip.io` URLs while the repo remains public.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Solve protected production Coolify API/control-plane access without exposing production dashboard/API port `8000` broadly.
+- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
