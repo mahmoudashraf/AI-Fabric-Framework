@@ -3,11 +3,14 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.config.PlatformVerificationProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderPreflightSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplaceDatasetHandleEntity;
@@ -60,6 +63,8 @@ public class DeploymentReleaseVerificationService {
     private final DeploymentConfigCompiler deploymentConfigCompiler;
     private final MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository;
     private final MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository;
+    private final DeploymentTargetProfileService deploymentTargetProfileService;
+    private final DeploymentProviderRegistry deploymentProviderRegistry;
     private final HttpClient httpClient;
 
     DeploymentReleaseVerificationService(ObjectMapper objectMapper,
@@ -83,11 +88,43 @@ public class DeploymentReleaseVerificationService {
             deploymentTenantScopedVectorService,
             deploymentVectorizationVerificationService,
             null,
+            null,
+            null,
             null
         );
     }
 
     @Autowired
+    public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
+                                                PlatformVerificationProperties verificationProperties,
+                                                PlatformSecretService platformSecretService,
+                                                DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                                DeploymentConfigCompiler deploymentConfigCompiler,
+                                                DeploymentArtifactService deploymentArtifactService,
+                                                RailwayPreflightService railwayPreflightService,
+                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                DeploymentTargetProfileService deploymentTargetProfileService,
+                                                DeploymentProviderRegistry deploymentProviderRegistry) {
+        this(
+            objectMapper,
+            verificationProperties,
+            platformSecretService,
+            deploymentProviderSecretResolutionService,
+            deploymentConfigCompiler,
+            deploymentArtifactService,
+            railwayPreflightService,
+            deploymentProviderConnectivityService,
+            deploymentTenantScopedVectorService,
+            deploymentVectorizationVerificationService,
+            null,
+            null,
+            deploymentTargetProfileService,
+            deploymentProviderRegistry
+        );
+    }
+
     public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
                                                 PlatformVerificationProperties verificationProperties,
                                                 PlatformSecretService platformSecretService,
@@ -110,6 +147,8 @@ public class DeploymentReleaseVerificationService {
             deploymentTenantScopedVectorService,
             deploymentVectorizationVerificationService,
             null,
+            null,
+            null,
             null
         );
     }
@@ -126,6 +165,38 @@ public class DeploymentReleaseVerificationService {
                                                 DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
                                                 MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository,
                                                 MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository) {
+        this(
+            objectMapper,
+            verificationProperties,
+            platformSecretService,
+            deploymentProviderSecretResolutionService,
+            deploymentConfigCompiler,
+            deploymentArtifactService,
+            railwayPreflightService,
+            deploymentProviderConnectivityService,
+            deploymentTenantScopedVectorService,
+            deploymentVectorizationVerificationService,
+            marketplaceDatasetHandleRepository,
+            marketplaceDatasetSyncRunRepository,
+            null,
+            null
+        );
+    }
+
+    public DeploymentReleaseVerificationService(ObjectMapper objectMapper,
+                                                PlatformVerificationProperties verificationProperties,
+                                                PlatformSecretService platformSecretService,
+                                                DeploymentProviderSecretResolutionService deploymentProviderSecretResolutionService,
+                                                DeploymentConfigCompiler deploymentConfigCompiler,
+                                                DeploymentArtifactService deploymentArtifactService,
+                                                RailwayPreflightService railwayPreflightService,
+                                                DeploymentProviderConnectivityService deploymentProviderConnectivityService,
+                                                DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                MarketplaceDatasetHandleRepository marketplaceDatasetHandleRepository,
+                                                MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository,
+                                                DeploymentTargetProfileService deploymentTargetProfileService,
+                                                DeploymentProviderRegistry deploymentProviderRegistry) {
         this.objectMapper = objectMapper;
         this.verificationProperties = verificationProperties;
         this.platformSecretService = platformSecretService;
@@ -138,6 +209,8 @@ public class DeploymentReleaseVerificationService {
         this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
         this.marketplaceDatasetHandleRepository = marketplaceDatasetHandleRepository;
         this.marketplaceDatasetSyncRunRepository = marketplaceDatasetSyncRunRepository;
+        this.deploymentTargetProfileService = deploymentTargetProfileService;
+        this.deploymentProviderRegistry = deploymentProviderRegistry;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -245,11 +318,23 @@ public class DeploymentReleaseVerificationService {
             hasText(release.getProvisioningTarget()),
             "Provisioning target is selected for this release."
         );
-        if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
+        DeploymentProviderType providerType = providerTypeFor(release);
+        if (providerType == null) {
+            addCheck(
+                checks,
+                "live_rollout_prerequisites",
+                "FAILED",
+                "Live deployment prerequisites cannot be verified because the release target is unsupported: "
+                    + release.getProvisioningTarget() + ".",
+                null
+            );
+            return;
+        }
+        if (!livePreApplyGateSupported(providerType)) {
             addSkippedCheck(
                 checks,
                 "live_rollout_prerequisites",
-                "Live deployment prerequisites are skipped because this release target is " + release.getProvisioningTarget() + "."
+                "Live deployment prerequisites are skipped because this release target is " + providerType.legacyTarget() + "."
             );
             return;
         }
@@ -276,7 +361,7 @@ public class DeploymentReleaseVerificationService {
         verifyVectorizationRunnerRegistration(checks, deployment, readJson(version.getEntityConfigJson()), false);
         verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
         verifyProviderConnectivity(checks, version, providerConfig);
-        verifyRailwayPreflight(checks);
+        verifyProvisioningProviderPreflight(checks, release, providerType);
     }
 
     private void verifyTenantScopedSharedStorage(ArrayNode checks,
@@ -1680,6 +1765,128 @@ public class DeploymentReleaseVerificationService {
                 details
             );
         }
+    }
+
+    private void verifyProvisioningProviderPreflight(ArrayNode checks,
+                                                     DeploymentReleaseEntity release,
+                                                     DeploymentProviderType providerType) {
+        if (providerType == DeploymentProviderType.RAILWAY_API) {
+            verifyRailwayPreflight(checks);
+            return;
+        }
+        if (providerType != DeploymentProviderType.COOLIFY) {
+            addSkippedCheck(
+                checks,
+                "provider_preflight",
+                "Provider preflight is not available for release target " + providerType.legacyTarget() + "."
+            );
+            return;
+        }
+        if (deploymentTargetProfileService == null || deploymentProviderRegistry == null) {
+            addCheck(
+                checks,
+                "provider_preflight",
+                "FAILED",
+                "Provider preflight services are not configured for release verification.",
+                null
+            );
+            return;
+        }
+        if (!hasText(release.getTargetProfileId())) {
+            addCheck(
+                checks,
+                "provider_preflight",
+                "FAILED",
+                "Coolify release gating requires a selected deployment target profile.",
+                null
+            );
+            return;
+        }
+        try {
+            DeploymentTargetProfileEntity profile = deploymentTargetProfileService.requireActiveProfile(release.getTargetProfileId());
+            if (profile.getProviderType() != providerType) {
+                ObjectNode details = objectMapper.createObjectNode();
+                details.put("targetProfileId", profile.getId());
+                details.put("profileProviderType", profile.getProviderType().name());
+                details.put("releaseProviderType", providerType.name());
+                addCheck(
+                    checks,
+                    "provider_preflight",
+                    "FAILED",
+                    "Selected target profile provider type does not match the release provider type.",
+                    details
+                );
+                return;
+            }
+            DeploymentProviderPreflightSummary preflight = deploymentProviderRegistry.require(providerType).preflight(profile);
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("targetProfileId", preflight.targetProfileId());
+            details.put("providerType", preflight.providerType().name());
+            if (hasText(preflight.baseUrl())) {
+                details.put("baseUrl", preflight.baseUrl());
+            }
+            if (hasText(preflight.version())) {
+                details.put("version", preflight.version());
+            }
+            ArrayNode providerChecks = objectMapper.createArrayNode();
+            if (preflight.checks() != null) {
+                preflight.checks().forEach(providerChecks::add);
+            }
+            details.set("checks", providerChecks);
+            if (preflight.details() != null && !preflight.details().isNull() && !preflight.details().isMissingNode()) {
+                details.set("providerDetails", preflight.details());
+            }
+            addCheck(
+                checks,
+                "provider_preflight",
+                providerPreflightGateStatus(preflight.status()),
+                hasText(preflight.message()) ? preflight.message() : "Provider preflight completed.",
+                details
+            );
+        } catch (RuntimeException ex) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("targetProfileId", release.getTargetProfileId());
+            details.put("providerType", providerType.name());
+            details.put("errorType", ex.getClass().getSimpleName());
+            if (hasText(ex.getMessage())) {
+                details.put("errorMessage", ex.getMessage());
+            }
+            addCheck(
+                checks,
+                "provider_preflight",
+                "FAILED",
+                "Provider preflight failed before release provisioning could start.",
+                details
+            );
+        }
+    }
+
+    private DeploymentProviderType providerTypeFor(DeploymentReleaseEntity release) {
+        if (release == null) {
+            return null;
+        }
+        if (release.getProviderType() != null) {
+            return release.getProviderType();
+        }
+        try {
+            return DeploymentProviderType.fromLegacyMode(release.getProvisioningTarget());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private boolean livePreApplyGateSupported(DeploymentProviderType providerType) {
+        return providerType == DeploymentProviderType.RAILWAY_API || providerType == DeploymentProviderType.COOLIFY;
+    }
+
+    private String providerPreflightGateStatus(String status) {
+        if ("PASSED".equalsIgnoreCase(status)) {
+            return "PASSED";
+        }
+        if ("WARNING".equalsIgnoreCase(status)) {
+            return "WARNING";
+        }
+        return "FAILED";
     }
 
     private void verifyPlatformAuthenticatedRuntimeTokenIssuance(ArrayNode checks,
