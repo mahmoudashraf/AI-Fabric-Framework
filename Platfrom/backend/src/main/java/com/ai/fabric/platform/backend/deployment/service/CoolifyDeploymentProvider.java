@@ -882,8 +882,16 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                               String applicationUuid,
                                                               JsonNode resourceDefaults,
                                                               CoolifyApplicationSummary fallback) {
-        Duration timeout = durationSeconds(resourceDefaults, "deploySettleTimeoutSeconds", DEFAULT_DEPLOY_SETTLE_TIMEOUT);
-        Duration pollInterval = durationSeconds(resourceDefaults, "deploySettlePollSeconds", DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL);
+        Duration timeout = durationSeconds(
+            resourceDefaults,
+            "deploySettleTimeoutSeconds",
+            positiveDurationSeconds(connection.config().deploymentTimeoutSeconds(), DEFAULT_DEPLOY_SETTLE_TIMEOUT)
+        );
+        Duration pollInterval = durationSeconds(
+            resourceDefaults,
+            "deploySettlePollSeconds",
+            positiveDurationSeconds(connection.config().deploymentPollIntervalSeconds(), DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL)
+        );
         Instant deadline = Instant.now().plus(timeout);
         CoolifyApplicationSummary latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(fallback);
         while (!applicationReady(latest) && Instant.now().isBefore(deadline)) {
@@ -907,6 +915,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             return Duration.ZERO;
         }
         return Duration.ofSeconds(seconds);
+    }
+
+    private Duration positiveDurationSeconds(int seconds, Duration fallback) {
+        return seconds > 0 ? Duration.ofSeconds(seconds) : fallback;
     }
 
     private boolean applicationReady(CoolifyApplicationSummary application) {
