@@ -616,4 +616,5 @@ Rules:
 - Root cause: backend CORS allowed methods were `GET,POST,PUT,DELETE,OPTIONS`; the Platform UI uses `PATCH` for partner-member mutations.
 - Fix: `WebConfig` now includes `PATCH` in API CORS allowed methods, and `PlatformSecurityIntegrationTest` has a regression test proving a Platform UI-style `PATCH` preflight succeeds and returns `Access-Control-Allow-Methods` containing `PATCH`.
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=PlatformSecurityIntegrationTest test`.
+- Live post-deploy proof: `OPTIONS` against the reported production member URL from origin `https://platform-ui-production-00e3.up.railway.app` now returns HTTP `200` with `Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS`.
 - Changed files: `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/config/WebConfig.java`, `Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/security/PlatformSecurityIntegrationTest.java`, and this context handoff.
