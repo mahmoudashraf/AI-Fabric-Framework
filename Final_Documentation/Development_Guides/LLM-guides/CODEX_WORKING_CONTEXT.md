@@ -677,3 +677,19 @@ Rules:
 - Remote Hetzner cleanup: pruned production Docker build cache after concurrent builds left 9 GB cache; no local installs were performed.
 - Postgres/database cutover is not complete. Coolify native database/service API records were created but did not start database containers on this 4.0.0 host; failed DB/service attempts were deleted from Coolify to keep the project clean. The migrated Coolify Platform backend currently points at the existing Railway Postgres public connection, so it is a live app clone, not a full DB migration.
 - Remaining before deleting Railway project or switching real domains: working Coolify Postgres restore/cutover for source Postgres 18.3, DNS replacing `sslip.io`, decide whether to route public Platform/Partner UI traffic to the Coolify URLs, and soak verification.
+
+## 2026-05-02 Railway Project 6d0590be Coolify Staging Clone
+
+- User requested the same one-project Railway platform clone on Coolify staging.
+- Created one staging Coolify project `railway-platform` with environment `staging` on `coolify-staging-01`.
+- Created staging apps under that project: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`, all from public Git branch `Platform-V8`.
+- Staging URLs:
+  - Platform backend: `https://railway-platform-backend.46.224.145.148.sslip.io`
+  - Platform UI: `https://railway-platform-ui.46.224.145.148.sslip.io`
+  - Partner UI: `https://railway-partner-ui.46.224.145.148.sslip.io`
+  - Ecommerce store: `https://railway-ecommerce-store.46.224.145.148.sslip.io`
+  - Runtime: `https://railway-runtime.46.224.145.148.sslip.io`
+- The complete source stack only exists in the Railway `production` environment, so the staging clone uses those source env values with staging URL rewrites. Backend bootstrap/admin/demo auto-apply flags were forced off for this staging clone to avoid startup mutations.
+- Verification passed: all five staging health endpoints returned HTTP `200` with `UP`; Platform UI and Partner UI `/runtime-config.js` point at the staging Coolify backend; Coolify readback shows backend/ecommerce `running:healthy` and UI/runtime apps `running:unknown` because container-internal health checks are disabled for images without `curl`/`wget`.
+- Remote staging cleanup: pruned `coolify-staging-01` Docker build cache after the builds; no local installs were performed.
+- Database caveat is unchanged: staging clone still uses the existing Railway Postgres public connection until a working Coolify Postgres restore/cutover path exists.

@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, lightweight customer-level Coolify project grouping live-verified on staging, and Railway project `6d0590be` application services cloned into one Coolify production project)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, lightweight customer-level Coolify project grouping live-verified on staging, and Railway project `6d0590be` application services cloned into one Coolify project on both staging and production)
 
 Owner mode: technical LLM implementation session
 
@@ -2765,3 +2765,41 @@ Current cutover posture:
 - The Coolify application clone is testable by direct `sslip.io` URLs.
 - Do not delete the Railway project or switch public Platform/Partner UI domains yet.
 - Remaining blockers are database restore/cutover, real DNS, soak verification, and an explicit routing decision for public traffic.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` Staging Coolify Clone
+
+Status: staging application clone implemented and live-verified; database cutover pending.
+
+Scope:
+
+- Source Railway project: `6d0590be-3921-49b6-9fb7-75344cad0b6c`, project name `platform`.
+- Target Coolify host: `coolify-staging-01`.
+- Target Coolify project: `railway-platform`.
+- Target Coolify environment: `staging`.
+- Shape: same one-project grouping as production, hosted on the staging Coolify server.
+
+Created Coolify staging application resources:
+
+| Service | Coolify URL | Verification |
+|---|---|---|
+| `platform-backend` | `https://railway-platform-backend.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `platform-ui` | `https://railway-platform-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the staging Coolify backend |
+| `partner-ui` | `https://railway-partner-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the staging Coolify backend |
+| `ecommerce-store` | `https://railway-ecommerce-store.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `runtime` | `https://railway-runtime.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Execution notes:
+
+- The complete application stack only exists in the Railway `production` environment; the Railway `Prod2` environment has only a partial service set.
+- The staging clone therefore uses the complete Railway `production` source/env set with staging URL rewrites.
+- Backend bootstrap/admin/demo auto-apply flags were forced off for the staging clone to avoid startup mutations while it shares the existing Railway Postgres connection.
+- Platform UI, Partner UI, and Runtime have Coolify container-internal health checks disabled because their current Docker images do not include `curl`/`wget`; external HTTP verification passed.
+- Remote Docker build cache on `coolify-staging-01` was pruned after deployment.
+
+Database status:
+
+- Same as production clone: no Coolify Postgres cutover yet.
+- The staging clone currently uses the existing Railway Postgres public connection.
+- A real staging database split requires the pending Coolify Postgres restore/cutover work.
