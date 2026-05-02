@@ -561,3 +561,13 @@ Rules:
 - Runtime and connector public health endpoints for both deployments returned HTTP `200` with `UP`.
 - A failed historical release `rel-6150ba51` remains on `dep-8c3e7259` from the pre-fix HTTP `409` attempt; later release `rel-264ea467` is the verified active release.
 - Next handoff: production blockers remain real DNS and GHCR/private registry auth before private-source deployments; production target stays non-default.
+
+## 2026-05-02 Railway Deployment Cleanup After Coolify Migration
+
+- User requested cleanup of Railway deployments after current customer-bound deployments were migrated to Coolify. Scope used: remove platform-managed tenant/runtime Railway deployment projects only; retain Railway control-plane/product-service resources.
+- Railway workspace inventory before cleanup found 12 projects. Retained `loom-product-production-shopify-` because it hosts the Shopify Bridge product service/control-plane integration.
+- Deleted 11 platform-managed Railway deployment projects, covering 28 services named only as `runtime-dep-*`, `rest-connector-dep-*`, and `vectorization-runner-dep-*`. Deleted projects included the old `shopify-companion-s-dev-8c3e7259` Railway project and verification/dev runtime projects.
+- Post-cleanup Railway readback found exactly one remaining project: `loom-product-production-shopify-`.
+- Verification passed after cleanup: Shopify Bridge health returned `UP`, Platform backend health returned `UP`, Platform UI health returned `UP`, Coolify staging/prod provider verification passed, and the four current Coolify customer runtime/connector health endpoints for `dep-8c3e7259` and `dep-3bf25c3f` returned HTTP `200` with `UP`.
+- Local audit artifacts only, not for commit: `/tmp/railway-cleanup/workspace-inventory-before.json`, `/tmp/railway-cleanup/deletion-result.json`, `/tmp/railway-cleanup/workspace-inventory-after.json`.
+- Blocker observed but not cleanup-blocking: private handoff Platform session credentials returned HTTP `401`, so the cleanup was run directly through Railway GraphQL using the private Railway token without printing or committing secret values.

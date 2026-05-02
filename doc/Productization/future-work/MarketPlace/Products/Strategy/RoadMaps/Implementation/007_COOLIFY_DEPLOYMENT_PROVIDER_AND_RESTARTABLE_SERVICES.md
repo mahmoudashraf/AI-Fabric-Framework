@@ -2551,3 +2551,42 @@ Remaining production/go-live cutover blockers stay unchanged:
 - Replace temporary `sslip.io` domains with real DNS.
 - Keep `dtp-coolify-production` non-default until a production tenant smoke passes.
 - Add GHCR/private registry auth before making the repo private or using private-source deployments.
+
+---
+
+## 2026-05-02 Railway Deployment Cleanup After Coolify Migration
+
+Status: completed.
+
+Scope:
+
+- Remove legacy Railway tenant/runtime deployment projects after the current customer-bound deployments were switched to Coolify.
+- Keep Railway control-plane/product-service resources because Platform backend/UI and Shopify Bridge still intentionally run on Railway.
+
+Execution:
+
+- Railway workspace inventory before cleanup found 12 projects.
+- Kept `loom-product-production-shopify-` because it hosts the Shopify Bridge product-service integration.
+- Deleted 11 platform-managed deployment projects, covering 28 Railway services. The deleted services matched only these platform deployment patterns:
+  - `runtime-dep-*`
+  - `rest-connector-dep-*`
+  - `vectorization-runner-dep-*`
+- The deleted set included the old Railway `shopify-companion-s-dev-8c3e7259` project after its active customer deployment had already been verified on Coolify.
+
+Verification:
+
+- Post-cleanup Railway readback found exactly one remaining project: `loom-product-production-shopify-`.
+- Retained Railway services stayed healthy:
+  - Shopify Bridge `/actuator/health` returned HTTP `200` with `UP`.
+  - Platform backend `/actuator/health` returned HTTP `200` with `UP`.
+  - Platform UI `/health` returned HTTP `200` with `UP`.
+- Coolify provider verification passed for staging and production: version `4.0.0`, health `OK`; staging has the expected active applications and production has zero applications.
+- Current customer-bound Coolify endpoints stayed healthy:
+  - `dep-8c3e7259` runtime and connector returned HTTP `200` with `UP`.
+  - `dep-3bf25c3f` runtime and connector returned HTTP `200` with `UP`.
+
+Audit notes:
+
+- Local inventory/result files were written under `/tmp/railway-cleanup/` and are intentionally not committed.
+- Secret values were loaded only from local/private sources and were not printed, committed, or summarized.
+- Platform session login from the private handoff returned HTTP `401`, so cleanup used direct Railway GraphQL with conservative platform-managed project matching.
