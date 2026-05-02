@@ -529,6 +529,7 @@ Rules:
 - Code fix committed and pushed as `5643735cf` (`Fix Coolify application update payloads`); live Platform redeployed and returned `/actuator/health` `UP`.
 - Live Loom repair release `rel-75648f34` on version `ver-ccc844b6` reached `APPLIED_VERIFIED/PASSED`, provider `COOLIFY`, target `dtp-coolify-staging`; runtime and connector handles are active with `running:healthy`.
 - Final live proof: both Shopify Companion deployments are `ACTIVE` with latest verified Coolify releases, binding warnings are empty, readiness is `STOREFRONT_READY`, and all four Coolify public health endpoints (`runtime` plus `connector` for both stores) returned `200 UP`.
+- After the verified Loom release, replayed the already-enabled widget status for `loom-verification-20260418.myshopify.com`; its onboarding status is now `LIVE`.
 - Verification run locally for the fix: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`; `git diff --check` before commit.
 - Changed files in the pushed fix: `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/CoolifyApiClient.java` and `Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/deployment/service/CoolifyApiClientTest.java`.
 - Remaining blockers before production tenant cutover stay unchanged: real DNS instead of `sslip.io`, protected production Coolify API/control-plane access, production profile preflight, and GHCR/private registry auth before private-source deployments.

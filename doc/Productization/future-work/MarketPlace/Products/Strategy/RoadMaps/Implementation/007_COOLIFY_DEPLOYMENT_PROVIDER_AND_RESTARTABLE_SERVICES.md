@@ -2422,6 +2422,7 @@ Verification completed:
 - Both current Shopify Companion deployments now have latest releases on `providerType=COOLIFY` and `targetProfileId=dtp-coolify-staging`.
 - Both store bindings report empty warnings.
 - Both stores report `STOREFRONT_READY`.
+- The Loom verification store onboarding status was advanced to `LIVE` after the verified Coolify release by replaying its existing `ENABLED` widget status.
 - Runtime and connector public health endpoints returned `200 UP` for both stores.
 
 Current readiness:
