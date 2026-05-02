@@ -14,6 +14,7 @@ public record DeploymentSourceOfTruthSummary(
     DeploymentManagedVectorStateSummary managedVector,
     DeploymentTenantScopedVectorSummary tenantScopedVector,
     DeploymentSourceOfTruthGeneratedSummary generated,
+    DeploymentRailwayLiveReadbackSummary liveProviderReadback,
     DeploymentRailwayLiveReadbackSummary liveRailwayReadback,
     String summaryMessage
 ) {

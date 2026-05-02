@@ -2328,3 +2328,51 @@ Current readiness:
 
 - Staging Coolify provisioning now has release-gate parity with Railway for pre-provisioning deployability checks, plus Coolify-specific target-profile preflight.
 - Production remains blocked until protected production Coolify API access is solved and production preflight passes from Platform.
+
+---
+
+## 2026-05-02 UI Abstraction Tightening After Release Gates
+
+Status: implemented locally.
+
+Decision:
+
+- Deployment operator UI should consume the provider abstraction directly. Railway-named frontend aliases may remain only as compatibility wrappers for older API shapes, not as the primary deployment UI contract.
+- Runtime diagnostics should use provider resource handles/logs because Coolify records `APPLICATION` and `CONNECTOR_APPLICATION` handles; the old deployment `/railway-logs` endpoint is not the correct abstraction for Coolify-backed deployments.
+
+Implemented:
+
+- Added `liveProviderReadback` to `DeploymentSourceOfTruthSummary`, populated from the same existing read-back object as `liveRailwayReadback` while backend read-back internals are still being renamed.
+- Added frontend provider-neutral live read-back types:
+  - `DeploymentProviderLiveFieldDriftSummary`
+  - `DeploymentProviderLiveEnvVarDriftSummary`
+  - `DeploymentProviderLiveServiceSummary`
+  - `DeploymentProviderLiveReadbackSummary`
+- Added frontend provider-neutral provisioning plan types instead of aliasing the primary deployment plan UI to `RailwayProvisioningPlanSummary`.
+- Changed Deployment Diagnostics provider logs to:
+  - list resources via `fetchDeploymentProviderResources({ deploymentId })`
+  - pick the requested service handle (`APPLICATION`, `CONNECTOR_APPLICATION`, or vectorization runner candidates)
+  - fetch logs through `fetchDeploymentProviderResourceLogs(handleId, 200)`
+- Changed Deployment Overview to read `liveProviderReadback` with a legacy fallback.
+
+Verification completed:
+
+- `npm --prefix Platfrom/ui run build`
+- `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentWorkspaceIntegrationTest,DeploymentReleaseVerificationServiceTest,DeploymentReleaseExecutionServiceTest,CoolifyDeploymentProviderTest,DeploymentProvisioningServiceTargetProfileTest,CoolifyTargetProfileResolverTest test`
+- `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`
+- `git diff --check`
+- Changed-file secret-pattern scan; no secret values were printed or found. The only pattern hit was frontend API secret metadata naming.
+
+Current readiness:
+
+- Coolify release gating remains verified by regression tests.
+- Deployment Diagnostics and Overview are now wired to the provider abstraction needed for Coolify runtime/connector resources.
+- After this patch is deployed, browser-check provider log rendering against a Coolify-backed deployment and confirm runtime plus connector handles show logs from provider resources.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Solve protected production Coolify API/control-plane access without exposing production dashboard/API port `8000` broadly.
+- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+- Later cleanup: rename backend plan/read-back internals that still carry Railway class names where they now describe the generic provider contract.

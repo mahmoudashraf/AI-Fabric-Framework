@@ -2132,7 +2132,7 @@ export type DeploymentSourceOfTruthGeneratedSummary = {
   vectorizationRunnerDockerfilePath: string | null
 }
 
-export type DeploymentRailwayLiveFieldDriftSummary = {
+export type DeploymentProviderLiveFieldDriftSummary = {
   key: string
   label: string
   expectedValue: string | null
@@ -2141,7 +2141,7 @@ export type DeploymentRailwayLiveFieldDriftSummary = {
   summaryMessage: string
 }
 
-export type DeploymentRailwayLiveEnvVarDriftSummary = {
+export type DeploymentProviderLiveEnvVarDriftSummary = {
   key: string
   sensitive: boolean
   driftState: string
@@ -2150,25 +2150,25 @@ export type DeploymentRailwayLiveEnvVarDriftSummary = {
   summaryMessage: string
 }
 
-export type DeploymentRailwayLiveServiceSummary = {
+export type DeploymentProviderLiveServiceSummary = {
   key: string
   label: string
   serviceId: string | null
   status: string
   summaryMessage: string
-  rootDirectory: DeploymentRailwayLiveFieldDriftSummary
-  dockerfilePath: DeploymentRailwayLiveFieldDriftSummary
-  repository: DeploymentRailwayLiveFieldDriftSummary
-  branch: DeploymentRailwayLiveFieldDriftSummary
-  publicBaseUrl: DeploymentRailwayLiveFieldDriftSummary
+  rootDirectory: DeploymentProviderLiveFieldDriftSummary
+  dockerfilePath: DeploymentProviderLiveFieldDriftSummary
+  repository: DeploymentProviderLiveFieldDriftSummary
+  branch: DeploymentProviderLiveFieldDriftSummary
+  publicBaseUrl: DeploymentProviderLiveFieldDriftSummary
   expectedEnvCount: number
   matchingEnvCount: number
   missingEnvCount: number
   mismatchedEnvCount: number
-  envVars: DeploymentRailwayLiveEnvVarDriftSummary[]
+  envVars: DeploymentProviderLiveEnvVarDriftSummary[]
 }
 
-export type DeploymentRailwayLiveReadbackSummary = {
+export type DeploymentProviderLiveReadbackSummary = {
   available: boolean
   status: string
   summaryMessage: string
@@ -2176,10 +2176,15 @@ export type DeploymentRailwayLiveReadbackSummary = {
   projectName: string | null
   environmentId: string | null
   environmentName: string | null
-  runtime: DeploymentRailwayLiveServiceSummary
-  restConnector: DeploymentRailwayLiveServiceSummary
-  vectorizationRunner: DeploymentRailwayLiveServiceSummary | null
+  runtime: DeploymentProviderLiveServiceSummary
+  restConnector: DeploymentProviderLiveServiceSummary
+  vectorizationRunner: DeploymentProviderLiveServiceSummary | null
 }
+
+export type DeploymentRailwayLiveFieldDriftSummary = DeploymentProviderLiveFieldDriftSummary
+export type DeploymentRailwayLiveEnvVarDriftSummary = DeploymentProviderLiveEnvVarDriftSummary
+export type DeploymentRailwayLiveServiceSummary = DeploymentProviderLiveServiceSummary
+export type DeploymentRailwayLiveReadbackSummary = DeploymentProviderLiveReadbackSummary
 
 export type DeploymentManagedVectorResourceSummary = {
   id: string
@@ -2271,7 +2276,8 @@ export type DeploymentSourceOfTruthSummary = {
   managedVector: DeploymentManagedVectorStateSummary
   tenantScopedVector: DeploymentTenantScopedVectorSummary
   generated: DeploymentSourceOfTruthGeneratedSummary
-  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary
+  liveProviderReadback?: DeploymentProviderLiveReadbackSummary | null
+  liveRailwayReadback: DeploymentProviderLiveReadbackSummary
   summaryMessage: string
 }
 
@@ -2608,24 +2614,64 @@ export type DeploymentVersionSummary = {
   publishedAt: string
 }
 
-export type RailwayEnvVarSummary = {
+export type DeploymentPlanEnvVarSummary = {
   key: string
   value: string
 }
 
-export type RailwayServicePlanSummary = {
+export type DeploymentServicePlanSummary = {
   serviceName: string
   rootDir: string | null
   dockerfilePath?: string | null
   baseUrl: string
-  env: RailwayEnvVarSummary[]
+  env: DeploymentPlanEnvVarSummary[]
 }
 
-export type RailwayProvisioningStepSummary = {
+export type DeploymentProvisioningStepSummary = {
   order: number
   key: string
   description: string
 }
+
+export type DeploymentProvisioningArtifactUrlsSummary = {
+  actions: string
+  entities: string
+  routing: string
+  prompts: string
+  knowledgeSources?: string | null
+  shell?: string | null
+  manifest: string
+}
+
+export type DeploymentProvisioningServicesSummary = {
+  runtime: DeploymentServicePlanSummary
+  restConnector: DeploymentServicePlanSummary
+  vectorizationRunner?: DeploymentServicePlanSummary | null
+  embeddingWorker?: DeploymentServicePlanSummary | null
+}
+
+export type DeploymentProvisioningPlanSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  templateId: string
+  versionId: string
+  versionLabel: string
+  configHash: string
+  mode: string
+  projectName: string
+  repository: string
+  branch: string
+  workspaceId: string | null
+  artifactStrategy: string
+  artifactUrls: DeploymentProvisioningArtifactUrlsSummary
+  services: DeploymentProvisioningServicesSummary
+  steps: DeploymentProvisioningStepSummary[]
+}
+
+export type RailwayEnvVarSummary = DeploymentPlanEnvVarSummary
+export type RailwayServicePlanSummary = DeploymentServicePlanSummary
+export type RailwayProvisioningStepSummary = DeploymentProvisioningStepSummary
 
 export type RailwayPreflightCheckSummary = {
   key: string
@@ -2701,38 +2747,7 @@ export type RailwayWorkspaceCleanupExecutionSummary = {
   skippedIds: string[]
 }
 
-export type RailwayProvisioningPlanSummary = {
-  deploymentId: string
-  deploymentName: string
-  environment: string
-  templateId: string
-  versionId: string
-  versionLabel: string
-  configHash: string
-  mode: string
-  projectName: string
-  repository: string
-  branch: string
-  workspaceId: string | null
-  artifactStrategy: string
-  artifactUrls: {
-    actions: string
-    entities: string
-    routing: string
-    prompts: string
-    manifest: string
-  }
-  services: {
-    runtime: RailwayServicePlanSummary
-    restConnector: RailwayServicePlanSummary
-  }
-  steps: RailwayProvisioningStepSummary[]
-}
-
-export type DeploymentPlanEnvVarSummary = RailwayEnvVarSummary
-export type DeploymentServicePlanSummary = RailwayServicePlanSummary
-export type DeploymentProvisioningStepSummary = RailwayProvisioningStepSummary
-export type DeploymentProvisioningPlanSummary = RailwayProvisioningPlanSummary
+export type RailwayProvisioningPlanSummary = DeploymentProvisioningPlanSummary
 
 export type DeploymentReleaseSummary = {
   id: string

@@ -13,7 +13,8 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  type DeploymentRailwayLiveServiceSummary,
+  type DeploymentProviderLiveReadbackSummary,
+  type DeploymentProviderLiveServiceSummary,
   fetchDeploymentDraft,
   fetchDeploymentIntegrationSummary,
   fetchDeploymentPocPromptSession,
@@ -157,13 +158,20 @@ function deletionChipColor(
 }
 
 function summarizeEnvDrift(
-  service: DeploymentRailwayLiveServiceSummary,
+  service: DeploymentProviderLiveServiceSummary,
   state: 'MISSING' | 'MISMATCHED',
 ): string {
   const keys = service.envVars
     .filter((item) => item.driftState === state)
     .map((item) => item.key)
   return keys.length > 0 ? keys.join(', ') : 'None'
+}
+
+function readLiveProviderReadback(sourceOfTruth: {
+  liveProviderReadback?: DeploymentProviderLiveReadbackSummary | null
+  liveRailwayReadback?: DeploymentProviderLiveReadbackSummary | null
+} | null | undefined): DeploymentProviderLiveReadbackSummary | null {
+  return sourceOfTruth?.liveProviderReadback ?? sourceOfTruth?.liveRailwayReadback ?? null
 }
 
 function surfaceTypeLabel(surfaceType: string): string {
@@ -338,6 +346,7 @@ export function OverviewPage() {
   const totalVectors = pocWorkspace?.indexing.totalVectors ?? 0
   const recentImportCount = pocWorkspace?.recentImports.length ?? 0
   const sourceOfTruth = sourceOfTruthQuery.data
+  const liveProviderReadback = readLiveProviderReadback(sourceOfTruth)
   const integrationSummary = integrationSummaryQuery.data
   const runtimeAuthOverview = integrationSummary?.preferredAuthOverviewUrl
     ?? (workspace.deployment.runtimeBaseUrl
@@ -1045,38 +1054,45 @@ export function OverviewPage() {
                         </Typography>
                       </Box>
 
-                      <Alert
-                        severity={alertSeverityForStatus(
-                          sourceOfTruth.liveRailwayReadback.status,
-                          sourceOfTruth.liveRailwayReadback.available,
-                        )}
-                      >
-                        {sourceOfTruth.liveRailwayReadback.summaryMessage}
-                      </Alert>
+                      {liveProviderReadback ? (
+                        <>
+                          <Alert
+                            severity={alertSeverityForStatus(
+                              liveProviderReadback.status,
+                              liveProviderReadback.available,
+                            )}
+                          >
+                            {liveProviderReadback.summaryMessage}
+                          </Alert>
 
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Chip
-                          label={`Project: ${sourceOfTruth.liveRailwayReadback.projectName ?? 'Unavailable'}`}
-                          variant="outlined"
-                        />
-                        <Chip
-                          label={`Environment: ${sourceOfTruth.liveRailwayReadback.environmentName ?? 'Unavailable'}`}
-                          variant="outlined"
-                        />
-                        <Chip
-                          label={`Status: ${sourceOfTruth.liveRailwayReadback.status}`}
-                          color={serviceStatusColor(sourceOfTruth.liveRailwayReadback.status)}
-                        />
-                      </Stack>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              label={`Project: ${liveProviderReadback.projectName ?? 'Unavailable'}`}
+                              variant="outlined"
+                            />
+                            <Chip
+                              label={`Environment: ${liveProviderReadback.environmentName ?? 'Unavailable'}`}
+                              variant="outlined"
+                            />
+                            <Chip
+                              label={`Status: ${liveProviderReadback.status}`}
+                              color={serviceStatusColor(liveProviderReadback.status)}
+                            />
+                          </Stack>
+                        </>
+                      ) : (
+                        <Alert severity="info">No provider live read-back is available yet.</Alert>
+                      )}
 
-                      <Grid container spacing={2}>
-                        {[
-                          sourceOfTruth.liveRailwayReadback.runtime,
-                          sourceOfTruth.liveRailwayReadback.restConnector,
-                          sourceOfTruth.liveRailwayReadback.vectorizationRunner,
-                        ]
-                          .filter((service): service is NonNullable<typeof sourceOfTruth.liveRailwayReadback.vectorizationRunner> => Boolean(service))
-                          .map((service) => (
+                      {liveProviderReadback ? (
+                        <Grid container spacing={2}>
+                          {[
+                            liveProviderReadback.runtime,
+                            liveProviderReadback.restConnector,
+                            liveProviderReadback.vectorizationRunner,
+                          ]
+                            .filter((service): service is DeploymentProviderLiveServiceSummary => Boolean(service))
+                            .map((service) => (
                           <Grid item xs={12} md={6} key={service.key}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
                               <CardContent>
@@ -1124,7 +1140,8 @@ export function OverviewPage() {
                             </Card>
                           </Grid>
                         ))}
-                      </Grid>
+                        </Grid>
+                      ) : null}
                     </Stack>
                   </CardContent>
                 </Card>

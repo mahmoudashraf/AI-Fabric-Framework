@@ -35,16 +35,18 @@ import {
   executeDeploymentRemediation,
   fetchDeploymentRemediation,
   fetchDeploymentReleases,
-  fetchDeploymentRailwayLogs,
+  fetchDeploymentProviderResourceLogs,
+  fetchDeploymentProviderResources,
   fetchDeploymentSourceOfTruth,
   fetchDeploymentTargetProfilePreflight,
   fetchDeploymentTargetProfiles,
   fetchDeploymentVerificationRuns,
+  type DeploymentProviderResourceHandleSummary,
+  type DeploymentProviderResourceLogsSummary,
   type DeploymentProviderPreflightSummary,
   type DeploymentRemediationActionSummary,
-  type DeploymentRailwayLiveReadbackSummary,
-  type DeploymentRailwayLiveServiceSummary,
-  type DeploymentRailwayLogsResponse,
+  type DeploymentProviderLiveReadbackSummary,
+  type DeploymentProviderLiveServiceSummary,
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
   type DeploymentTargetProfileSummary,
@@ -86,9 +88,11 @@ type RecoveryHint = {
   severity: 'info' | 'warning' | 'error'
   title: string
   message: string
-  service: 'runtime' | 'restConnector' | 'vectorizationRunner'
+  service: ProviderLogService
   source: 'deployment' | 'build' | 'http'
 }
+
+type ProviderLogService = 'runtime' | 'restConnector' | 'vectorizationRunner'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -131,6 +135,16 @@ function joinUrl(baseUrl: string | null | undefined, path: string): string | nul
     return null
   }
   return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+function normalizeProviderUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://')
+    ? trimmed
+    : `https://${trimmed}`
 }
 
 function summarizeProvisioningDetails(value: unknown) {
@@ -179,12 +193,19 @@ function summarizeProvisioningDetails(value: unknown) {
         ? value.railway.projectId
         : null,
     projectUrl:
-      typeof value.projectId === 'string'
-        ? `https://railway.com/project/${value.projectId}`
-        : isRecord(value.railway) && typeof value.railway.projectId === 'string'
-          ? `https://railway.com/project/${value.railway.projectId}`
-          : null,
-    projectName: typeof value.projectName === 'string' ? value.projectName : 'Unknown',
+      normalizeProviderUrl(value.consoleUrl)
+        ?? normalizeProviderUrl(value.runtimeFqdn)
+        ?? normalizeProviderUrl(value.fqdn)
+        ?? (typeof value.projectId === 'string'
+          ? `https://railway.com/project/${value.projectId}`
+          : isRecord(value.railway) && typeof value.railway.projectId === 'string'
+            ? `https://railway.com/project/${value.railway.projectId}`
+            : null),
+    projectName: typeof value.projectName === 'string'
+      ? value.projectName
+      : typeof value.applicationName === 'string'
+        ? value.applicationName
+        : 'Unknown',
     repository: typeof value.repository === 'string' ? value.repository : 'Unknown',
     branch: typeof value.branch === 'string' ? value.branch : 'Unknown',
     artifactStrategy: typeof value.artifactStrategy === 'string' ? value.artifactStrategy : 'Unknown',
@@ -369,7 +390,7 @@ function driftChipColor(state: string): 'success' | 'warning' | 'error' | 'defau
 }
 
 function summarizeEnvDrift(
-  service: DeploymentRailwayLiveServiceSummary,
+  service: DeploymentProviderLiveServiceSummary,
   state: 'MISSING' | 'MISMATCHED',
 ): string {
   const keys = service.envVars
@@ -378,12 +399,12 @@ function summarizeEnvDrift(
   return keys.length > 0 ? keys.join(', ') : 'None'
 }
 
-function driftedServices(readback: DeploymentRailwayLiveReadbackSummary | null | undefined): DeploymentRailwayLiveServiceSummary[] {
+function driftedServices(readback: DeploymentProviderLiveReadbackSummary | null | undefined): DeploymentProviderLiveServiceSummary[] {
   if (!readback?.available) {
     return []
   }
   return [readback.runtime, readback.restConnector, readback.vectorizationRunner]
-    .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+    .filter((service): service is DeploymentProviderLiveServiceSummary => Boolean(service))
     .filter((service) => service.status === 'WARNING')
 }
 
@@ -404,13 +425,38 @@ function summarizeAuditDetails(value: unknown): string {
   }
 }
 
-function summarizeLogAttributes(attributes: DeploymentRailwayLogsResponse['entries'][number]['attributes']): string {
-  if (!Array.isArray(attributes) || attributes.length === 0) {
-    return '—'
+function providerResourceKindCandidates(service: ProviderLogService): string[] {
+  switch (service) {
+    case 'restConnector':
+      return ['CONNECTOR_APPLICATION', 'REST_CONNECTOR', 'CONNECTOR']
+    case 'vectorizationRunner':
+      return ['VECTORIZATION_RUNNER', 'VECTORIZATION_RUNNER_APPLICATION']
+    case 'runtime':
+    default:
+      return ['APPLICATION', 'RUNTIME_APPLICATION', 'RUNTIME']
   }
-  return attributes
-    .map((attribute) => `${attribute.key ?? 'unknown'}=${attribute.value ?? ''}`)
-    .join(', ')
+}
+
+function selectProviderLogResource(
+  resources: DeploymentProviderResourceHandleSummary[],
+  service: ProviderLogService,
+  releaseId: string | null | undefined,
+): DeploymentProviderResourceHandleSummary | null {
+  const candidates = providerResourceKindCandidates(service)
+  const matchingResources = resources
+    .filter((resource) => resource.status !== 'DELETED' && resource.status !== 'DELETE_REQUESTED')
+    .filter((resource) => candidates.includes(resource.resourceKind))
+
+  return matchingResources.find((resource) => releaseId && resource.releaseId === releaseId)
+    ?? matchingResources[0]
+    ?? null
+}
+
+function readLiveProviderReadback(sourceOfTruth: {
+  liveProviderReadback?: DeploymentProviderLiveReadbackSummary | null
+  liveRailwayReadback?: DeploymentProviderLiveReadbackSummary | null
+} | null | undefined): DeploymentProviderLiveReadbackSummary | null {
+  return sourceOfTruth?.liveProviderReadback ?? sourceOfTruth?.liveRailwayReadback ?? null
 }
 
 function deriveFailureAnalysis(
@@ -418,7 +464,7 @@ function deriveFailureAnalysis(
   provisioningSummary: ReturnType<typeof summarizeProvisioningDetails>,
   selectedRun: { status?: string; summaryMessage?: string } | null,
   selectedRunChecks: VerificationCheck[],
-  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
+  liveProviderReadback: DeploymentProviderLiveReadbackSummary | null,
 ): FailureAnalysis {
   const verificationRun = selectedRun
   const failedProvisioningStep = provisioningSummary.progress.steps.find((step) => step.status === 'FAILED')
@@ -475,14 +521,14 @@ function deriveFailureAnalysis(
     }
   }
 
-  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
-    const drifted = driftedServices(liveRailwayReadback)
+  if (liveProviderReadback?.available && liveProviderReadback.status === 'WARNING') {
+    const drifted = driftedServices(liveProviderReadback)
     const driftedLabels = drifted.map((service) => service.label).join(' and ')
     return {
       severity: 'warning',
       stage: 'Provider drift',
       headline: 'Provider live state has drifted away from the platform-managed deployment.',
-      reason: liveRailwayReadback.summaryMessage,
+      reason: liveProviderReadback.summaryMessage,
       currentStep: driftedLabels.length > 0 ? driftedLabels : 'Provider live read-back',
       recommendation: 'Redeploy the active version before using provider-side restarts or runtime data resets.',
     }
@@ -549,13 +595,13 @@ function recoveryRecommendation(reason: string): string {
 function deriveRecoveryHints(
   analysis: FailureAnalysis,
   latestRelease: DeploymentReleaseSummary | null,
-  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
+  liveProviderReadback: DeploymentProviderLiveReadbackSummary | null,
 ): RecoveryHint[] {
   const text = `${analysis.reason} ${analysis.currentStep} ${latestRelease?.status ?? ''}`.toLowerCase()
   const hints: RecoveryHint[] = []
 
-  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
-    driftedServices(liveRailwayReadback).forEach((service) => {
+  if (liveProviderReadback?.available && liveProviderReadback.status === 'WARNING') {
+    driftedServices(liveProviderReadback).forEach((service) => {
       hints.push({
         key: `provider-drift-${service.key}`,
         severity: 'warning',
@@ -640,8 +686,7 @@ export function DiagnosticsPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [selectedRunId, setSelectedRunId] = useState('')
-  const [selectedLogService, setSelectedLogService] = useState<'runtime' | 'restConnector' | 'vectorizationRunner'>('runtime')
-  const [selectedLogSource, setSelectedLogSource] = useState('deployment')
+  const [selectedLogService, setSelectedLogService] = useState<ProviderLogService>('runtime')
   const [selectedRemediationAction, setSelectedRemediationAction] = useState<DeploymentRemediationActionSummary | null>(null)
   const [remediationConfirmed, setRemediationConfirmed] = useState(false)
   const [remediationReason, setRemediationReason] = useState('')
@@ -696,21 +741,22 @@ export function DiagnosticsPage() {
     refetchInterval: releasesInProgress ? 3000 : false,
   })
 
-  const railwayLogsQuery = useQuery({
-    queryKey: [
-      'deployment-railway-logs',
-      selectedDeploymentId,
-      latestRelease?.id ?? null,
-      selectedLogService,
-      selectedLogSource,
-    ],
-    queryFn: () => fetchDeploymentRailwayLogs(selectedDeploymentId, {
-      releaseId: latestRelease?.id ?? undefined,
-      service: selectedLogService,
-      source: selectedLogSource,
-      limit: 150,
-    }),
+  const providerResourcesQuery = useQuery({
+    queryKey: ['deployment-provider-resources', selectedDeploymentId],
+    queryFn: () => fetchDeploymentProviderResources({ deploymentId: selectedDeploymentId }),
     enabled: selectedDeploymentId.length > 0,
+    refetchInterval: releasesInProgress ? 5000 : false,
+  })
+
+  const selectedProviderLogResource = useMemo(
+    () => selectProviderLogResource(providerResourcesQuery.data ?? [], selectedLogService, latestRelease?.id),
+    [latestRelease?.id, providerResourcesQuery.data, selectedLogService],
+  )
+
+  const providerResourceLogsQuery = useQuery({
+    queryKey: ['deployment-provider-resource-logs', selectedProviderLogResource?.id ?? null],
+    queryFn: () => fetchDeploymentProviderResourceLogs(selectedProviderLogResource!.id, 200),
+    enabled: !!selectedProviderLogResource,
     refetchInterval: releasesInProgress ? 5000 : false,
   })
 
@@ -770,21 +816,20 @@ export function DiagnosticsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-activity', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-railway-logs'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-resources', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-resource-logs'] }),
       ])
     },
   })
 
   const verificationRuns = verificationRunsQuery.data ?? []
   const provisioningSummary = summarizeProvisioningDetails(latestRelease?.provisioningDetails)
-  const railwayLogs = railwayLogsQuery.data
+  const providerResourceLogs = providerResourceLogsQuery.data as DeploymentProviderResourceLogsSummary | undefined
   const providerPreflight = providerPreflightQuery.data as DeploymentProviderPreflightSummary | undefined
-  const liveRailwayReadback = sourceOfTruthQuery.data?.liveRailwayReadback ?? null
+  const liveProviderReadback = readLiveProviderReadback(sourceOfTruthQuery.data)
   const managedVectorState = sourceOfTruthQuery.data?.managedVector ?? null
   const tenantScopedVector = sourceOfTruthQuery.data?.tenantScopedVector ?? null
-  const railwayProjectUrl = liveRailwayReadback?.projectId
-    ? `https://railway.com/project/${liveRailwayReadback.projectId}`
-    : provisioningSummary.projectUrl
+  const providerProjectUrl = provisioningSummary.projectUrl
 
   useEffect(() => {
     if (!releasesInProgress) {
@@ -822,13 +867,12 @@ export function DiagnosticsPage() {
     provisioningSummary,
     selectedRun,
     selectedRunChecks,
-    liveRailwayReadback,
+    liveProviderReadback,
   )
-  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveRailwayReadback)
+  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveProviderReadback)
 
-  const focusLogs = (service: 'runtime' | 'restConnector' | 'vectorizationRunner', source: 'deployment' | 'build' | 'http') => {
+  const focusLogs = (service: ProviderLogService, _source: 'deployment' | 'build' | 'http') => {
     setSelectedLogService(service)
-    setSelectedLogSource(source)
     window.requestAnimationFrame(() => {
       document.getElementById('provider-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -970,18 +1014,13 @@ export function DiagnosticsPage() {
               <Button
                 variant="outlined"
                 startIcon={<SyncRoundedIcon />}
-                disabled={!selectedDeploymentId || railwayLogsQuery.isFetching}
-                onClick={() => queryClient.invalidateQueries({
-                  queryKey: [
-                    'deployment-railway-logs',
-                    selectedDeploymentId,
-                    latestRelease?.id ?? null,
-                    selectedLogService,
-                    selectedLogSource,
-                  ],
-                })}
+                disabled={!selectedDeploymentId || providerResourcesQuery.isFetching || providerResourceLogsQuery.isFetching}
+                onClick={() => {
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-provider-resources', selectedDeploymentId] })
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-provider-resource-logs'] })
+                }}
               >
-                {railwayLogsQuery.isFetching ? 'Refreshing logs...' : 'Refresh logs'}
+                {providerResourcesQuery.isFetching || providerResourceLogsQuery.isFetching ? 'Refreshing logs...' : 'Refresh logs'}
               </Button>
             </Stack>
 
@@ -1084,9 +1123,9 @@ export function DiagnosticsPage() {
                         {hint.service} {hint.source} logs
                       </Button>
                     ))}
-                    {railwayProjectUrl ? (
+                    {providerProjectUrl ? (
                       <Button
-                        href={railwayProjectUrl}
+                        href={providerProjectUrl}
                         target="_blank"
                         rel="noreferrer"
                         variant="text"
@@ -1129,33 +1168,33 @@ export function DiagnosticsPage() {
                       ? sourceOfTruthQuery.error.message
                       : 'Failed to load provider live read-back.'}
                   </Alert>
-                ) : liveRailwayReadback ? (
+                ) : liveProviderReadback ? (
                   <>
-                    <Alert severity={alertSeverityForStatus(liveRailwayReadback.status, liveRailwayReadback.available)}>
-                      {liveRailwayReadback.summaryMessage}
+                    <Alert severity={alertSeverityForStatus(liveProviderReadback.status, liveProviderReadback.available)}>
+                      {liveProviderReadback.summaryMessage}
                     </Alert>
 
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Chip label={`Project: ${liveRailwayReadback.projectName ?? 'Unavailable'}`} variant="outlined" />
-                      <Chip label={`Environment: ${liveRailwayReadback.environmentName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip label={`Project: ${liveProviderReadback.projectName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip label={`Environment: ${liveProviderReadback.environmentName ?? 'Unavailable'}`} variant="outlined" />
                       <Chip
-                        label={`Status: ${liveRailwayReadback.status}`}
-                        color={serviceStatusColor(liveRailwayReadback.status)}
+                        label={`Status: ${liveProviderReadback.status}`}
+                        color={serviceStatusColor(liveProviderReadback.status)}
                       />
                     </Stack>
 
-                    {railwayProjectUrl ? (
+                    {providerProjectUrl ? (
                       <Box>
-                        <Button href={railwayProjectUrl} target="_blank" rel="noreferrer" variant="text">
+                        <Button href={providerProjectUrl} target="_blank" rel="noreferrer" variant="text">
                           Open provider project
                         </Button>
                       </Box>
                     ) : null}
 
-                    {liveRailwayReadback.available ? (
+                    {liveProviderReadback.available ? (
                       <Grid container spacing={2}>
-                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector, liveRailwayReadback.vectorizationRunner]
-                          .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+                        {[liveProviderReadback.runtime, liveProviderReadback.restConnector, liveProviderReadback.vectorizationRunner]
+                          .filter((service): service is DeploymentProviderLiveServiceSummary => Boolean(service))
                           .map((service) => (
                           <Grid item xs={12} md={6} key={`drift-${service.key}`}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
@@ -1888,104 +1927,75 @@ export function DiagnosticsPage() {
                     select
                     label="Service"
                     value={selectedLogService}
-                    onChange={(event) => setSelectedLogService(event.target.value as 'runtime' | 'restConnector' | 'vectorizationRunner')}
+                    onChange={(event) => setSelectedLogService(event.target.value as ProviderLogService)}
                     sx={{ minWidth: 180 }}
                   >
                     <MenuItem value="runtime">Runtime</MenuItem>
                     <MenuItem value="restConnector">REST connector</MenuItem>
                     <MenuItem value="vectorizationRunner">Vectorization runner</MenuItem>
                   </TextField>
-                  <TextField
-                    select
-                    label="Source"
-                    value={selectedLogSource}
-                    onChange={(event) => setSelectedLogSource(event.target.value)}
-                    sx={{ minWidth: 180 }}
-                  >
-                    <MenuItem value="deployment">Deployment</MenuItem>
-                    <MenuItem value="build">Build</MenuItem>
-                    <MenuItem value="http">HTTP</MenuItem>
-                  </TextField>
                 </Stack>
 
-                {railwayLogsQuery.isLoading ? (
+                {providerResourcesQuery.isLoading || providerResourceLogsQuery.isLoading ? (
                   <Typography color="text.secondary">Loading provider logs...</Typography>
-                ) : railwayLogsQuery.isError ? (
+                ) : providerResourcesQuery.isError ? (
                   <Alert severity="error">
-                    {railwayLogsQuery.error instanceof Error
-                      ? railwayLogsQuery.error.message
+                    {providerResourcesQuery.error instanceof Error
+                      ? providerResourcesQuery.error.message
+                      : 'Failed to load provider resources'}
+                  </Alert>
+                ) : providerResourceLogsQuery.isError ? (
+                  <Alert severity="error">
+                    {providerResourceLogsQuery.error instanceof Error
+                      ? providerResourceLogsQuery.error.message
                       : 'Failed to load provider logs'}
                   </Alert>
-                ) : railwayLogs ? (
+                ) : !selectedProviderLogResource ? (
+                  <Alert severity="info">
+                    No provider resource handle is recorded for the selected service yet. Apply a provider-backed release first.
+                  </Alert>
+                ) : providerResourceLogs ? (
                   <>
                     <Stack direction="row" spacing={1} flexWrap="wrap">
-                      <Chip
-                        label={railwayLogs.available ? 'Provider logs available' : 'Provider logs unavailable'}
-                        color={railwayLogs.available ? 'success' : 'warning'}
-                      />
-                      <Chip label={`Service: ${railwayLogs.service}`} variant="outlined" />
-                      <Chip label={`Source: ${railwayLogs.source}`} variant="outlined" />
-                      <Chip label={`Limit: ${railwayLogs.requestedLimit}`} variant="outlined" />
-                      {railwayLogs.releaseId ? (
-                        <Chip label={`Release: ${railwayLogs.releaseId}`} variant="outlined" />
-                      ) : null}
+                      <Chip label="Provider logs available" color="success" />
+                      <Chip label={`Service: ${selectedLogService}`} variant="outlined" />
+                      <Chip label={`Resource: ${selectedProviderLogResource.resourceKind}`} variant="outlined" />
+                      <Chip label={`Provider: ${providerResourceLogs.providerType}`} variant="outlined" />
+                      <Chip label={`Lines: ${providerResourceLogs.lines}`} variant="outlined" />
                     </Stack>
 
                     <Typography variant="body2" color="text.secondary">
-                      {railwayLogs.message}
+                      Logs are fetched through the provider resource abstraction for handle {providerResourceLogs.handleId}.
                     </Typography>
 
                     <Stack direction="row" spacing={1} flexWrap="wrap">
                       <Chip
-                        label={`Queried: ${formatTimestamp(railwayLogs.queriedAt)}`}
+                        label={`Fetched: ${formatTimestamp(providerResourceLogs.fetchedAt)}`}
                         variant="outlined"
                       />
-                      {railwayLogs.serviceName ? (
-                        <Chip label={`Provider service: ${railwayLogs.serviceName}`} variant="outlined" />
-                      ) : null}
-                      {railwayLogs.railwayDeploymentId ? (
-                        <Chip label={`Deployment: ${railwayLogs.railwayDeploymentId}`} variant="outlined" />
+                      {selectedProviderLogResource.fqdn ? (
+                        <Chip label={`Endpoint: ${selectedProviderLogResource.fqdn}`} variant="outlined" />
                       ) : null}
                     </Stack>
 
-                    {!railwayLogs.available ? (
-                      <Alert severity="info">{railwayLogs.message}</Alert>
-                    ) : railwayLogs.entries.length === 0 ? (
-                      <Alert severity="info">No provider log entries matched the current query.</Alert>
-                    ) : (
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Timestamp</TableCell>
-                            <TableCell>Severity</TableCell>
-                            <TableCell>Message</TableCell>
-                            <TableCell>Attributes</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {railwayLogs.entries.map((entry, index) => (
-                            <TableRow key={`${entry.timestamp ?? 'unknown'}:${index}`} hover>
-                              <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                {entry.timestamp ? formatTimestamp(entry.timestamp) : '—'}
-                              </TableCell>
-                              <TableCell>
-                                <Chip
-                                  size="small"
-                                  label={entry.severity ?? 'UNKNOWN'}
-                                  color={entry.severity === 'ERROR' ? 'error' : entry.severity === 'WARN' ? 'warning' : 'default'}
-                                />
-                              </TableCell>
-                              <TableCell sx={{ fontFamily: 'monospace', maxWidth: 520 }}>
-                                {entry.message ?? '—'}
-                              </TableCell>
-                              <TableCell sx={{ fontFamily: 'monospace', maxWidth: 360 }}>
-                                {summarizeLogAttributes(entry.attributes)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
+                    <Box
+                      component="pre"
+                      sx={{
+                        m: 0,
+                        p: 2,
+                        borderRadius: 1,
+                        bgcolor: 'grey.950',
+                        color: 'grey.100',
+                        overflow: 'auto',
+                        maxHeight: '48vh',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {providerResourceLogs.logs || 'No logs returned.'}
+                    </Box>
                   </>
                 ) : (
                   <Alert severity="info">Apply a provider-backed release first to inspect logs.</Alert>

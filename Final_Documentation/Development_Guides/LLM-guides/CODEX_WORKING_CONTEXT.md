@@ -506,3 +506,15 @@ Rules:
 - Live release proof: release reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, `verificationStatus=PASSED`; runtime and connector provider status endpoints returned `RUNNING_HEALTHY`; logs endpoints returned non-empty logs.
 - Cleanup completed: hard-delete operation `del-1c8ecd7c` reached `SUCCEEDED`, Platform resources for `dep-8be9835f` returned `0`, and direct Coolify app-name readback found `0` smoke apps.
 - Current readiness: Coolify staging provisioning now has pre-apply gate parity with Railway for the checks that matter before provisioning, plus Coolify-specific target-profile preflight.
+
+## 2026-05-02 Coolify 007 UI Abstraction Tightening
+
+- Continued on `Platform-V8` after release-gate parity: deployment UI now binds diagnostics/overview to provider-neutral read-back and provider-resource log contracts instead of deployment-specific Railway log/read-back types.
+- Backend source-of-truth response now includes `liveProviderReadback` alongside the existing legacy `liveRailwayReadback`; both currently point at the same read-back object until the backend service internals are renamed.
+- Frontend `platformApi.ts` now exposes first-class `DeploymentProviderLive*` and `DeploymentProvisioning*` types; Railway-named plan/live-readback types remain aliases only for older internal callers.
+- Deployment Diagnostics now fetches provider resources with `fetchDeploymentProviderResources(...)`, selects the runtime/connector/vectorization resource handle, and fetches logs through `fetchDeploymentProviderResourceLogs(...)`. It no longer calls the deployment `/railway-logs` endpoint.
+- Deployment Overview now reads provider live state through `liveProviderReadback` with a legacy fallback.
+- Changed files: `DeploymentSourceOfTruthSummary.java`, `DeploymentSourceOfTruthService.java`, `Platfrom/ui/src/api/platformApi.ts`, `Platfrom/ui/src/pages/DiagnosticsPage.tsx`, `Platfrom/ui/src/pages/OverviewPage.tsx`, this context file, and `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md`.
+- Verification passed: `npm --prefix Platfrom/ui run build`; `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentWorkspaceIntegrationTest,DeploymentReleaseVerificationServiceTest,DeploymentReleaseExecutionServiceTest,CoolifyDeploymentProviderTest,DeploymentProvisioningServiceTargetProfileTest,CoolifyTargetProfileResolverTest test`; `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`; `git diff --check`.
+- Secret scan status: changed-file secret-pattern scan printed no secret values; the only pattern hit was `Platfrom/ui/src/api/platformApi.ts` because it contains secret metadata field names. No local secret values were found or committed.
+- Next handoff: commit/push this UI abstraction tightening, then after deployment browser-check Diagnostics/Overview against a Coolify-backed deployment and confirm provider resource logs render from `APPLICATION` and `CONNECTOR_APPLICATION` handles.
