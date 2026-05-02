@@ -196,7 +196,13 @@ Terraform adoption status:
 - `terraform apply` was run only for the saved in-place firewall convergence plan: `0 added, 1 changed, 0 destroyed`.
 - Post-apply `terraform plan -detailed-exitcode` returned `0`.
 - The server resource ignores imported create-time fields (`network`, `public_net`, `ssh_keys`, `user_data`) so adopted hosts are not replaced by later plans.
-- A staging-only Platform API firewall was added live on 2026-05-01 as `loom-coolify-staging-platform-api-firewall` (`10916648`) and attached only to `coolify-staging-01`; staging host UFW allows port `8000/tcp` from anywhere for Railway-originated Platform preflight/provisioning until a stable control-plane egress CIDR or stronger access layer is available. Production remains behind the original shared dashboard allowlist.
+- A staging-only Platform API firewall was added live on 2026-05-01 as `loom-coolify-staging-platform-api-firewall` (`10916648`) and attached only to `coolify-staging-01`; staging host UFW allows port `8000/tcp` from anywhere for Railway-originated Platform preflight/provisioning until a stable control-plane egress CIDR or stronger access layer is available.
+- A production-only Platform API firewall was added live on 2026-05-02 as `loom-coolify-production-platform-api-firewall` (`10918233`) and attached only to `coolify-prod-01`; it allows port `8000/tcp` only from the observed live Platform egress `52.52.45.183/32`. The production host UFW has the matching `52.52.45.183 -> 8000/tcp` allow rule. Production preflight passes through this narrowed allowlist.
+- To adopt the production Platform API firewall in Terraform state, set `production_platform_api_allowed_cidrs = ["52.52.45.183/32"]` in the local ignored `terraform.tfvars` and run:
+
+```bash
+terraform import 'hcloud_firewall.coolify_production_platform_api[0]' 10918233
+```
 
 Planned DNS records still need the active DNS provider credential for `loomai.pro`, whose current nameservers are `dns1.registrar-servers.com` and `dns2.registrar-servers.com`.
 

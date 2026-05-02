@@ -98,6 +98,30 @@ resource "hcloud_firewall" "coolify_staging_platform_api" {
   }
 }
 
+resource "hcloud_firewall" "coolify_production_platform_api" {
+  count = length(var.production_platform_api_allowed_cidrs) > 0 ? 1 : 0
+
+  name = "loom-coolify-production-platform-api-firewall"
+  labels = merge(
+    local.common_labels,
+    {
+      "loom.environment" = "production"
+      "loom.purpose"     = "platform-api-access"
+    }
+  )
+
+  dynamic "rule" {
+    for_each = toset(var.coolify_dashboard_ports)
+
+    content {
+      direction  = "in"
+      protocol   = "tcp"
+      port       = rule.value
+      source_ips = var.production_platform_api_allowed_cidrs
+    }
+  }
+}
+
 resource "hcloud_server" "coolify" {
   for_each = local.hosts
 
@@ -111,6 +135,9 @@ resource "hcloud_server" "coolify" {
     [hcloud_firewall.coolify.id],
     each.key == "staging" && length(var.staging_platform_api_allowed_cidrs) > 0
     ? [hcloud_firewall.coolify_staging_platform_api[0].id]
+    : [],
+    each.key == "production" && length(var.production_platform_api_allowed_cidrs) > 0
+    ? [hcloud_firewall.coolify_production_platform_api[0].id]
     : []
   )
 
@@ -135,6 +162,8 @@ resource "hcloud_server" "coolify" {
       dashboard_allowed_cidrs = jsonencode(
         each.key == "staging"
         ? distinct(concat(var.dashboard_allowed_cidrs, var.staging_platform_api_allowed_cidrs))
+        : each.key == "production"
+        ? distinct(concat(var.dashboard_allowed_cidrs, var.production_platform_api_allowed_cidrs))
         : var.dashboard_allowed_cidrs
       )
       dashboard_ports          = jsonencode(var.coolify_dashboard_ports)

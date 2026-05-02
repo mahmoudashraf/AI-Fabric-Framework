@@ -533,3 +533,14 @@ Rules:
 - Verification run locally for the fix: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`; `git diff --check` before commit.
 - Changed files in the pushed fix: `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/deployment/service/CoolifyApiClient.java` and `Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/deployment/service/CoolifyApiClientTest.java`.
 - Remaining blockers before production tenant cutover stay unchanged: real DNS instead of `sslip.io`, protected production Coolify API/control-plane access, production profile preflight, and GHCR/private registry auth before private-source deployments.
+
+## 2026-05-02 Coolify 007 Production API Preflight Unblock
+
+- Implemented protected production Coolify API access through a production-only Hetzner firewall plus host UFW allowlist, not a broad public `8000` opening.
+- Live discovery process: temporarily attached a production-only Hetzner firewall while host UFW still blocked unknown sources, captured live Platform egress traffic to production port `8000`, then narrowed the firewall to `52.52.45.183/32`.
+- Live resources: Hetzner firewall `loom-coolify-production-platform-api-firewall` (`10918233`) attached only to `coolify-prod-01`; rule allows TCP `8000` only from `52.52.45.183/32`. Host UFW has the matching `52.52.45.183 -> 8000/tcp` allow rule.
+- Imported the staging and production Platform API firewalls into local ignored Terraform state, applied Terraform convergence (`0 added, 7 changed, 0 destroyed`) to normalize live labels/metadata, then `terraform plan -detailed-exitcode` returned no changes with the live allowlist variables.
+- Terraform module now has `production_platform_api_allowed_cidrs` and attaches a production-only API firewall when set; `terraform.tfvars.example` and `infra/coolify/hetzner/README.md` document the production allowlist/import path.
+- Live Platform production preflight now passes: `dtp-coolify-production` returned `PASSED`, Coolify version `4.0.0`; production profile remains active but non-default while staging remains the runtime/restartable default.
+- Verification passed: `terraform fmt -check -recursive`; `terraform validate`; live Hetzner firewall readback; host UFW readback; live Platform production preflight.
+- Remaining production tenant cutover blockers: real DNS instead of `sslip.io`, GHCR/private registry auth before private-source deployments, and a future stronger stable control-plane access layer if Railway egress changes.

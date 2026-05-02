@@ -77,6 +77,20 @@ variable "staging_platform_api_allowed_cidrs" {
   default     = []
 }
 
+variable "production_platform_api_allowed_cidrs" {
+  description = "Production-only CIDR allowlist for Platform control-plane access to the Coolify API port. Must be narrow; public internet CIDRs are rejected."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = (
+      !contains(var.production_platform_api_allowed_cidrs, "0.0.0.0/0")
+      && !contains(var.production_platform_api_allowed_cidrs, "::/0")
+    )
+    error_message = "production_platform_api_allowed_cidrs must not include 0.0.0.0/0 or ::/0."
+  }
+}
+
 variable "staging_server_type" {
   description = "Hetzner server type for staging."
   type        = string

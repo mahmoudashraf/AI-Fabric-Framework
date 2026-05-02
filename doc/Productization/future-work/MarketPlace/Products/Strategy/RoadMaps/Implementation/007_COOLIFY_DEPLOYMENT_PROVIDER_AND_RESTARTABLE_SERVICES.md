@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, and current Loom/Shopify Companion customer deployments migrated to Coolify staging)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, and protected production Coolify API preflight unblocked)
 
 Owner mode: technical LLM implementation session
 
@@ -2186,7 +2186,7 @@ Default and production profile update:
 - `dtp-coolify-staging` is now the runtime and restartable-services default.
 - `dtp-coolify-production` is active but explicitly non-default.
 - Live no-target default proof passed: disposable Platform deployment `dep-ac9468b9`, version `ver-76231ac5`, release `rel-e3aaf245` applied without passing `targetProfileId`; Platform selected `dtp-coolify-staging`/`COOLIFY`, reached `APPLIED_VERIFIED/PASSED`, created active `APPLICATION` and `CONNECTOR_APPLICATION` handles, reported runtime URL plus `connectorProvisioned=true`, then hard-delete `del-65ca8112` completed and provider resources returned `0`.
-- Production preflight currently fails from live Platform with `Coolify API request failed for /health` while production Coolify port `8000` remains restricted by the production allowlist. Do not open production `8000` broadly; production applies need a stable Platform control-plane egress CIDR, VPN/Tailscale, Cloudflare Access, or equivalent protected API path.
+- Superseded 2026-05-02: production preflight now passes through a production-only Hetzner firewall and host UFW allowlist for the observed Platform egress `/32`.
 
 Backup/restore rehearsal:
 
@@ -2198,8 +2198,7 @@ Backup/restore rehearsal:
 Remaining production/go-live cutover work:
 
 - Replace temporary `sslip.io` domains with real DNS.
-- Solve protected production control-plane access for Coolify API preflight/provisioning without public `8000`.
-- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
 - Add GHCR/private registry auth before making the repo private or going live with private-source deployments.
 
 ---
@@ -2234,8 +2233,7 @@ Verification completed:
 Remaining production/go-live cutover work:
 
 - Replace temporary `sslip.io` domains with real DNS.
-- Solve protected production control-plane access for Coolify API preflight/provisioning without public `8000`.
-- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
 - Add GHCR/private registry auth before making the repo private or going live with private-source deployments.
 - Later cleanup: rename backend model/service internals that still carry Railway names where they now represent a provider-neutral plan shape.
 
@@ -2279,9 +2277,64 @@ Current readiness:
 Remaining production/go-live cutover work:
 
 - Replace temporary `sslip.io` domains with real DNS.
-- Solve protected production Coolify API/control-plane access without exposing production dashboard/API port `8000` broadly.
-- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
 - Add GHCR/private registry auth before making the repo private or using private-source deployments.
+
+---
+
+## 2026-05-02 Protected Production Coolify API Access
+
+Status: implemented live, imported into local Terraform state, and verified from live Platform.
+
+Decision:
+
+- Production Coolify API access should remain protected by a narrow allowlist. Do not expose production dashboard/API port `8000` broadly.
+- The current protected path is an explicit Platform control-plane egress `/32` allowlist at both the Hetzner firewall layer and the host UFW layer.
+- If Railway egress changes, production preflight will fail closed and the allowlist must be updated or replaced with a stronger stable control-plane access layer such as Cloudflare Access, Tailscale, or static egress.
+
+Live access path:
+
+- Production host: `coolify-prod-01`
+- Hetzner production Platform API firewall: `loom-coolify-production-platform-api-firewall`
+- Hetzner firewall ID: `10918233`
+- Attached only to production server `128758153`
+- Rule: TCP `8000` from `52.52.45.183/32`
+- Host UFW: matching `52.52.45.183 -> 8000/tcp` allow rule with comment `Platform production Coolify API preflight`
+
+Implementation notes:
+
+- The source IP was discovered by temporarily letting packets reach the production host while UFW still blocked unknown sources, triggering live Platform production preflight, and capturing SYN packets on production port `8000`.
+- The temporary broad Hetzner rule was replaced immediately with the observed `/32`.
+- Terraform now models the production API firewall through `production_platform_api_allowed_cidrs`.
+- `infra/coolify/hetzner/terraform.tfvars.example` includes explicit staging/production Platform API allowlist variables.
+- `infra/coolify/hetzner/README.md` records the live firewall ID, observed egress `/32`, UFW rule, and Terraform import command.
+
+Terraform verification:
+
+- Imported live firewalls into local ignored Terraform state:
+  - `hcloud_firewall.coolify_staging_platform_api[0]` -> `10916648`
+  - `hcloud_firewall.coolify_production_platform_api[0]` -> `10918233`
+- Applied Terraform convergence with the live allowlist variables:
+  - `0 added, 7 changed, 0 destroyed`
+  - changes normalized labels/provider default metadata only
+- Follow-up `terraform plan -detailed-exitcode` returned no changes.
+- `terraform fmt -check -recursive` passed.
+- `terraform validate` passed.
+
+Live Platform verification:
+
+- `GET /api/deployment-provider/target-profiles/dtp-coolify-production/preflight` returned:
+  - `status=PASSED`
+  - Coolify `version=4.0.0`
+  - message `Coolify API is reachable and credentials are valid.`
+- `dtp-coolify-production` remains active but non-default.
+- `dtp-coolify-staging` remains the runtime/restartable-services default.
+
+Remaining production tenant cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+- Run an explicit production tenant smoke only after DNS/source-auth policy is accepted, because the production profile is now API-reachable but still non-default.
 
 ---
 
@@ -2327,7 +2380,7 @@ Live proof:
 Current readiness:
 
 - Staging Coolify provisioning now has release-gate parity with Railway for pre-provisioning deployability checks, plus Coolify-specific target-profile preflight.
-- Production remains blocked until protected production Coolify API access is solved and production preflight passes from Platform.
+- Superseded 2026-05-02: protected production Coolify API access is solved through a production-only Platform egress allowlist, and production preflight passes from live Platform.
 
 ---
 
@@ -2372,8 +2425,7 @@ Current readiness:
 Remaining production/go-live cutover work:
 
 - Replace temporary `sslip.io` domains with real DNS.
-- Solve protected production Coolify API/control-plane access without exposing production dashboard/API port `8000` broadly.
-- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
 - Add GHCR/private registry auth before making the repo private or using private-source deployments.
 - Later cleanup: rename backend plan/read-back internals that still carry Railway class names where they now describe the generic provider contract.
 
@@ -2433,6 +2485,5 @@ Current readiness:
 Remaining production/go-live cutover work:
 
 - Replace temporary `sslip.io` domains with real DNS.
-- Solve protected production Coolify API/control-plane access without exposing production dashboard/API port `8000` broadly.
-- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
 - Add GHCR/private registry auth before making the repo private or using private-source deployments.

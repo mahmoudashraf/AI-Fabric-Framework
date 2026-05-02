@@ -15,6 +15,13 @@ ssh_allowed_cidrs = [
 # Leave empty until Cloudflare Access, Tailscale, or an operator IP allowlist is ready.
 dashboard_allowed_cidrs = []
 
+# Optional Platform control-plane access to Coolify API port 8000.
+# Staging can be temporarily broad only when the provider has no stable egress IP.
+staging_platform_api_allowed_cidrs = []
+
+# Production must stay narrow, for example a single observed/static Platform egress /32.
+production_platform_api_allowed_cidrs = []
+
 enable_server_backups = false
 enable_data_volumes   = false
 
