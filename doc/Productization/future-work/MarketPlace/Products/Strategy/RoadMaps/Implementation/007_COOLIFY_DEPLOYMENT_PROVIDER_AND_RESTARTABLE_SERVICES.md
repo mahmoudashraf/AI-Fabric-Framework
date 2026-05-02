@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, and lightweight customer-level Coolify project grouping implemented locally)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, and lightweight customer-level Coolify project grouping live-verified on staging)
 
 Owner mode: technical LLM implementation session
 
@@ -2492,7 +2492,7 @@ Remaining production/go-live cutover work:
 
 ## 2026-05-02 Lightweight Customer Grouping In Coolify
 
-Status: implemented locally; pending commit, deploy, and live apply proof.
+Status: implemented, pushed, deployed, and live apply verified for current staging customer deployments.
 
 Decision:
 
@@ -2533,10 +2533,18 @@ Verification completed locally:
 - `git diff --check`
 - changed-file exact local-secret scan against Hetzner/Coolify/Platform secret files
 
-Pending verification before marking live-complete:
+Live proof:
 
-- deploy `Platform-V8`
-- re-apply the current Coolify-backed staging customer deployments so the Coolify UI shows `customer-shopping-companion-test` and `customer-loom-verification` style grouping.
+- Commit `e0f39918a` implemented customer grouping and commit `37bcb9d6f` added the stale-delete/HTTP `409` retry fix; both were pushed to `Platform-V8`.
+- Live Platform redeployed after `37bcb9d6f` and returned `UP`.
+- First Shopping Companion apply on `e0f39918a` failed as `rel-6150ba51` with Coolify HTTP `409`; this is the covered stale app conflict that `37bcb9d6f` fixed.
+- Shopping Companion re-apply `rel-264ea467` for deployment `dep-8c3e7259` / version `ver-1b77bfba` reached `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Loom verification re-apply `rel-873fdcfb` for deployment `dep-3bf25c3f` / version `ver-ccc844b6` reached `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Staging Coolify now shows customer projects:
+  - `customer-shopify-store-shopping-companion-test-myshopify`
+  - `customer-shopify-store-loom-verification-20260418-myshopi`
+- Provider handles for both deployments now point at the customer project/environment UUIDs instead of the shared `loom-staging` project.
+- Runtime and connector health endpoints for both deployments returned HTTP `200` with `UP`.
 
 Remaining production/go-live cutover blockers stay unchanged:
 
