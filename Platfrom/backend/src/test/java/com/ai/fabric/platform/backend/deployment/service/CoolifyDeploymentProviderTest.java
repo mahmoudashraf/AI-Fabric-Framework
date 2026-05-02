@@ -389,6 +389,15 @@ class CoolifyDeploymentProviderTest {
             "sha",
             objectMapper.readTree("{\"uuid\":\"new-app\",\"status\":\"running:healthy\",\"project_uuid\":\"customer-project\"}")
         );
+        CoolifyApplicationSummary conflictingOldApplication = new CoolifyApplicationSummary(
+            "old-app",
+            "ai-fabric-runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            "ghcr.io/example/runtime",
+            "sha",
+            objectMapper.readTree("{\"uuid\":\"old-app\",\"status\":\"running:healthy\",\"project_uuid\":\"default-project\"}")
+        );
 
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
@@ -407,8 +416,13 @@ class CoolifyDeploymentProviderTest {
         )).thenReturn(Optional.of(oldHandle));
         when(coolifyApiClient.delete(connection, "old-app", true, false, true, true))
             .thenReturn(new CoolifyActionResponse("Deleted.", null, objectMapper.createObjectNode()));
-        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
-        when(coolifyApiClient.createDockerImageApplication(eq(connection), any())).thenReturn("new-app");
+        when(coolifyApiClient.getApplication(connection, "old-app")).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection))
+            .thenReturn(List.of())
+            .thenReturn(List.of(conflictingOldApplication));
+        when(coolifyApiClient.createDockerImageApplication(eq(connection), any()))
+            .thenThrow(new CoolifyApiException("duplicate app", 409, "/applications/dockerimage"))
+            .thenReturn("new-app");
         when(coolifyApiClient.getApplication(connection, "new-app")).thenReturn(Optional.of(newApplication));
         when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("new-app"), any())).thenReturn(8);
         when(coolifyApiClient.start(connection, "new-app", true, true))
@@ -430,12 +444,12 @@ class CoolifyDeploymentProviderTest {
 
         provider.provision(deployment(), version(), release(), ProvisioningProgressTracker.noop());
 
-        verify(coolifyApiClient).delete(connection, "old-app", true, false, true, true);
+        verify(coolifyApiClient, times(2)).delete(connection, "old-app", true, false, true, true);
         verify(coolifyApiClient, never()).updateDockerImageApplication(eq(connection), eq("old-app"), any());
         ArgumentCaptor<CoolifyCreateDockerImageApplicationRequest> request =
             ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
-        verify(coolifyApiClient).createDockerImageApplication(eq(connection), request.capture());
-        assertThat(request.getValue().projectUuid()).isEqualTo("customer-project");
+        verify(coolifyApiClient, times(2)).createDockerImageApplication(eq(connection), request.capture());
+        assertThat(request.getAllValues().getLast().projectUuid()).isEqualTo("customer-project");
 
         ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
             ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);

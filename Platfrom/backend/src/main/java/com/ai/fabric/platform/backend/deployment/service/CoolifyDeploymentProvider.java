@@ -51,6 +51,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private static final String DEFAULT_PROMOTION_CHANNEL = "staging";
     private static final Duration DEFAULT_DEPLOY_SETTLE_TIMEOUT = Duration.ofMinutes(6);
     private static final Duration DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL = Duration.ofSeconds(10);
+    private static final Duration DEFAULT_STALE_DELETE_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration DEFAULT_STALE_DELETE_POLL_INTERVAL = Duration.ofSeconds(5);
 
     private final DeploymentTargetProfileRepository targetProfileRepository;
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
@@ -568,7 +570,30 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             updater.accept(namedApplication.uuid());
             return coolifyApiClient.getApplication(connection, namedApplication.uuid()).orElse(namedApplication);
         }
-        return creator.get();
+        return createWithConflictCleanup(connection, scope, appName, creator);
+    }
+
+    private CoolifyApplicationSummary createWithConflictCleanup(CoolifyConnection connection,
+                                                                CoolifyResourceScope scope,
+                                                                String appName,
+                                                                Supplier<CoolifyApplicationSummary> creator) {
+        try {
+            return creator.get();
+        } catch (CoolifyApiException ex) {
+            if (ex.statusCode() != 409) {
+                throw ex;
+            }
+            CoolifyApplicationSummary conflictingApplication = coolifyApiClient.listApplications(connection).stream()
+                .filter(application -> appName.equals(application.name()))
+                .filter(application -> !applicationMatchesScope(application, scope))
+                .findFirst()
+                .orElse(null);
+            if (conflictingApplication == null || !StringUtils.hasText(conflictingApplication.uuid())) {
+                throw ex;
+            }
+            deleteStaleApplication(connection, conflictingApplication.uuid());
+            return creator.get();
+        }
     }
 
     private CoolifyApplicationSummary createDockerImageApplication(CoolifyConnection connection,
@@ -1104,11 +1129,32 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private void deleteStaleApplication(CoolifyConnection connection, DeploymentProviderResourceHandleEntity handle) {
+        deleteStaleApplication(connection, handle.getProviderResourceUuid());
+    }
+
+    private void deleteStaleApplication(CoolifyConnection connection, String applicationUuid) {
         try {
-            coolifyApiClient.delete(connection, handle.getProviderResourceUuid(), true, false, true, true);
+            coolifyApiClient.delete(connection, applicationUuid, true, false, true, true);
+            waitForApplicationAbsent(connection, applicationUuid);
         } catch (CoolifyApiException ex) {
             if (ex.statusCode() != 404) {
                 throw ex;
+            }
+        }
+    }
+
+    private void waitForApplicationAbsent(CoolifyConnection connection, String applicationUuid) {
+        Instant deadline = Instant.now().plus(DEFAULT_STALE_DELETE_TIMEOUT);
+        while (Instant.now().isBefore(deadline)) {
+            Optional<CoolifyApplicationSummary> observed = coolifyApiClient.getApplication(connection, applicationUuid);
+            if (observed == null || observed.isEmpty()) {
+                return;
+            }
+            try {
+                Thread.sleep(DEFAULT_STALE_DELETE_POLL_INTERVAL.toMillis());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return;
             }
         }
     }

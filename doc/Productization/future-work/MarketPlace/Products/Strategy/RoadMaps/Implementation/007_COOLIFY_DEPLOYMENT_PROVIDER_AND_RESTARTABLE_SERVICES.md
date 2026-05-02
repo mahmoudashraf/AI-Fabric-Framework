@@ -2521,12 +2521,14 @@ Implemented:
 - Runtime and connector create requests now use the resolved customer project/environment instead of the fixed target-profile project/environment.
 - Provider resource handles persist the resolved project/environment UUIDs and metadata records the Coolify grouping details.
 - Existing handles from the previous fixed target-profile project are treated as stale on the next apply: Platform deletes the old Coolify app and creates the replacement under the customer project/environment instead of PATCH-moving, because live Coolify rejected `project_uuid` on application PATCH.
+- Live first re-apply exposed Coolify's asynchronous delete behavior: a replacement create can return HTTP `409` while the old app name/domain is still settling. The provider now waits for stale app deletion and retries one conflicting create after deleting a same-name app outside the resolved customer scope.
 - Added migration `V80__coolify_customer_project_grouping.sql` to mark seeded Coolify target profiles with customer project grouping defaults without changing DNS or production default policy.
 
 Verification completed locally:
 
 - `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`
 - `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest test` after the live HTTP `409` stale-delete retry fix
 - `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
 - `git diff --check`
 - changed-file exact local-secret scan against Hetzner/Coolify/Platform secret files
