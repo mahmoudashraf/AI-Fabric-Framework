@@ -3029,6 +3029,7 @@ Verification:
 - Fresh Management API readback returned the updated Site URL, redirect allow-list, SMTP presence, and rate limits.
 - After Brevo SMTP authorization was fixed, direct Brevo SMTP verification sent successfully.
 - Live Supabase magic-link request to the staging LoomAI Partner UI callback returned HTTP `200`.
+- Partner UI login now handles expected Supabase per-email resend cooldowns by showing a countdown and disabling resend for the affected email instead of treating `over_email_send_rate_limit` as a hard auth failure.
 
 Security handoff:
 
