@@ -2282,3 +2282,49 @@ Remaining production/go-live cutover work:
 - Solve protected production Coolify API/control-plane access without exposing production dashboard/API port `8000` broadly.
 - Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
 - Add GHCR/private registry auth before making the repo private or using private-source deployments.
+
+---
+
+## 2026-05-02 Coolify Release Gate Parity
+
+Status: implemented, pushed, deployed, and live-smoke verified for staging.
+
+Implemented:
+
+- `DeploymentReleaseVerificationService` now treats `COOLIFY` as a live pre-apply gated provider.
+- Coolify releases now run the shared pre-apply checks before provisioning:
+  - artifact URL presence and fetch probes
+  - managed secret readiness
+  - private runtime token minting
+  - authz deployability
+  - tenant-scoped vector boundary checks
+  - vectorization readiness
+  - external provider connectivity probes
+- Provider-specific preflight is now selected by provider:
+  - Railway keeps the existing Railway preflight checks.
+  - Coolify resolves the selected active target profile and runs provider preflight through `DeploymentProviderRegistry`.
+- A failed Coolify target-profile preflight now fails the `provider_preflight` check and blocks the release before provisioning.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentReleaseVerificationServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`
+- `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentReleaseVerificationServiceTest,DeploymentReleaseExecutionServiceTest,DeploymentReleaseRecoveryServiceTest,CoolifyDeploymentProviderTest,DeploymentProvisioningServiceTargetProfileTest,CoolifyTargetProfileResolverTest test`
+- `git diff --check`
+- Exact changed-file local-secret scan
+
+Live proof:
+
+- Commit `12dca128c` was pushed to `Platform-V8`; live Platform restarted and returned `UP`.
+- Disposable no-target deployment `dep-8be9835f`, version `ver-bad9ef98`, release `rel-ed09eeb8` applied without passing `targetProfileId`.
+- Platform selected `targetProfileId=dtp-coolify-staging` and `providerType=COOLIFY`.
+- PRE_APPLY verification run `vrf-2761b71c` reached `PASSED` with `24 passed, 0 failed, 8 skipped`.
+- PRE_APPLY included `provider_preflight=PASSED` and did not include any `railway_preflight_*` checks.
+- Release reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, and `verificationStatus=PASSED`.
+- Runtime and connector provider status endpoints returned `RUNNING_HEALTHY`; provider logs endpoints returned non-empty logs.
+- Cleanup completed: hard-delete operation `del-1c8ecd7c` reached `SUCCEEDED`, provider resources returned `0`, and direct Coolify app-name readback found `0` smoke apps.
+
+Current readiness:
+
+- Staging Coolify provisioning now has release-gate parity with Railway for pre-provisioning deployability checks, plus Coolify-specific target-profile preflight.
+- Production remains blocked until protected production Coolify API access is solved and production preflight passes from Platform.
