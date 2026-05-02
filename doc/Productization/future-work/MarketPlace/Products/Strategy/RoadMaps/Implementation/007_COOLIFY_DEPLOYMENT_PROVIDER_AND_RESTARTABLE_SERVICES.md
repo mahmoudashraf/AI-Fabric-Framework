@@ -3013,7 +3013,7 @@ Active hostname audit:
 
 ## 2026-05-02 Supabase Auth SMTP Production Unblock
 
-Status: Supabase Auth SMTP and rate-limit config applied; Brevo SMTP key remains blocked by IP authorization.
+Status: Supabase Auth SMTP and rate-limit config applied; magic-link email path verified.
 
 Applied Supabase Auth settings:
 
@@ -3027,9 +3027,9 @@ Verification:
 
 - Supabase Management API PATCH returned HTTP `200`.
 - Fresh Management API readback returned the updated Site URL, redirect allow-list, SMTP presence, and rate limits.
-- Live magic-link request changed from `429 Too Many Requests` to `500 Error sending magic link email`.
-- Direct Brevo SMTP verification failed with `525 Unauthorized IP address`.
+- After Brevo SMTP authorization was fixed, direct Brevo SMTP verification sent successfully.
+- Live Supabase magic-link request to the staging LoomAI Partner UI callback returned HTTP `200`.
 
-Remaining blocker:
+Security handoff:
 
-- Brevo is rejecting sends from the current/Supabase-hosted egress IPs. Rotate the pasted Brevo SMTP key, create a Supabase-usable SMTP key without the current IP allow-list rejection, verify the selected sender/domain in Brevo, reapply the new SMTP password in Supabase, then retry Partner UI magic-link login.
+- Rotate the Supabase Management API token and the pasted Supabase/Brevo keys after the session, because they were shared in chat.

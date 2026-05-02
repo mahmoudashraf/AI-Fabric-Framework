@@ -753,6 +753,6 @@ Rules:
 - User provided a Supabase Management API token and Brevo SMTP credentials; values were stored only in local `/tmp` secret files and were not printed or committed.
 - Patched hosted Supabase Auth project `xazkenhomhtpejjjqtsy`: Site URL remains the staging LoomAI Partner UI, redirect allow-list includes staging/prod LoomAI Partner UI callback URLs, Custom SMTP is enabled with Brevo, `rate_limit_email_sent=300`, `rate_limit_otp=300`, and `smtp_max_frequency=60`.
 - Readback verified SMTP fields are present and the new Auth rate limits are active.
-- Live magic-link request no longer returned `429`; it returned `500 Error sending magic link email`.
-- Direct Brevo SMTP verification failed with `525 Unauthorized IP address`, so the remaining blocker is Brevo SMTP sender/key configuration, not Supabase/Coolify/Partner UI.
-- Next handoff: in Brevo, rotate the pasted SMTP key, create a new SMTP key usable by Supabase hosted Auth without IP allow-list rejection, verify the chosen sender/domain, then reapply the new SMTP password in Supabase and retry Partner UI magic-link login.
+- After Brevo SMTP authorization was fixed, direct Brevo SMTP verification sent successfully.
+- Live Supabase magic-link request to the staging LoomAI Partner UI callback returned HTTP `200`; the Auth email path is no longer blocked by Supabase rate limits or Brevo SMTP authorization.
+- Security handoff: rotate the Supabase Management API token and the pasted Supabase/Brevo keys after the session, because they were shared in chat.
