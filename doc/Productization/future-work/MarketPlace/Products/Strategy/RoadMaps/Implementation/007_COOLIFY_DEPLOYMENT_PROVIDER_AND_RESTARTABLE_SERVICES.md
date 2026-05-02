@@ -2903,3 +2903,66 @@ Current cutover posture:
 
 - The Coolify UI/API now owns and groups the migrated Postgres resources in the `railway-platform` projects.
 - The Railway project/database should still remain until explicit traffic routing, DNS, and soak decisions are complete.
+
+---
+
+## 2026-05-02 LoomAI Coolify Naming Cutover
+
+Status: active Coolify resources renamed from `railway-*` to `loomai-*`; direct endpoint verification passed.
+
+Reason:
+
+- The platform clone originated from Railway project `6d0590be-3921-49b6-9fb7-75344cad0b6c`, but active Coolify project/app/database names and public hostnames should be LoomAI-branded while real DNS remains deferred.
+
+Live Coolify resource names:
+
+- Staging Coolify project: `loomai-platform`.
+- Production Coolify project: `loomai-platform`.
+- Staging database: `loomai-platform-postgres-staging`, UUID `m58iwvqdkfie8tykohmhyj7t`, `running:healthy`.
+- Production database: `loomai-platform-postgres-production`, UUID `nkti6x5r7ovw1xx8q0ykhweq`, `running:healthy`.
+
+Active staging application URLs:
+
+| Service | URL | Verification |
+|---|---|---|
+| `loomai-platform-backend` | `https://loomai-platform-backend.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-platform-ui` | `https://loomai-platform-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-partner-ui` | `https://loomai-partner-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-ecommerce-store` | `https://loomai-ecommerce-store.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-runtime` | `https://loomai-runtime.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Active production application URLs:
+
+| Service | URL | Verification |
+|---|---|---|
+| `loomai-platform-backend` | `https://loomai-platform-backend.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-platform-ui` | `https://loomai-platform-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-partner-ui` | `https://loomai-partner-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-ecommerce-store` | `https://loomai-ecommerce-store.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-runtime` | `https://loomai-runtime.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Env/config changes:
+
+- Platform UI and Partner UI runtime configs now point at the matching `loomai-platform-backend` domain.
+- Platform backend public URL, partner URL, and CORS origins now use `loomai-*` domains.
+- Coolify backend env readback confirms `PLATFORM_PROVISIONING_MODE=COOLIFY` in preview and non-preview env entries.
+- Native Coolify database UUID hostnames remain the backend DB connection targets:
+  - staging: `jdbc:postgresql://m58iwvqdkfie8tykohmhyj7t:5432/platform_staging`
+  - production: `jdbc:postgresql://nkti6x5r7ovw1xx8q0ykhweq:5432/platform_production`
+
+Partner Supabase auth redirect finding:
+
+- Partner UI code generates magic-link redirects from the browser origin: `window.location.origin + /auth/callback`.
+- A generated-link check with the local Supabase project secret proved Supabase still rewrites requested Coolify callback URLs to the old Partner UI Railway Site URL.
+- This is blocked on Supabase Auth URL configuration, not Coolify or partner-ui code.
+- The private handoff doc currently provides project publishable/secret keys, which are enough to diagnose/generate links, but not enough to update hosted Supabase Auth Site URL / Additional Redirect URLs.
+- Required unblock: update Supabase dashboard settings or provide a Supabase Management API personal access token for project `xazkenhomhtpejjjqtsy`.
+- Required temporary redirect allow-list while real DNS is deferred:
+  - `https://loomai-partner-ui.46.224.145.148.sslip.io/auth/callback`
+  - `https://loomai-partner-ui.46.225.162.106.sslip.io/auth/callback`
+
+Cutover posture:
+
+- Active Coolify clone naming is now LoomAI-branded.
+- Real DNS remains deferred; `sslip.io` is still the temporary hostname layer.
+- Supabase magic-link login will keep landing on the old Railway Site URL until Supabase Auth URL settings are updated.
