@@ -618,3 +618,12 @@ Rules:
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=PlatformSecurityIntegrationTest test`.
 - Live post-deploy proof: `OPTIONS` against the reported production member URL from origin `https://platform-ui-production-00e3.up.railway.app` now returns HTTP `200` with `Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS`.
 - Changed files: `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/config/WebConfig.java`, `Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/security/PlatformSecurityIntegrationTest.java`, and this context handoff.
+
+## 2026-05-02 Partner Verification Admin Cleanup
+
+- User requested cleanup of unneeded partner admins visible on the Platform UI Partner Privileges page.
+- Production cleanup kept only two active `PARTNER_ADMIN` members: the real partner admin `engmahmoudalgamal@gmail.com` and the current release-gate JWT-backed fixture `codex.partner.1777431186@loomai.test`.
+- Revoked 14 stale Codex/release-gate/live-verification partner accounts and members, cleared their configurable privileges, and downgraded the revoked members to `PARTNER_SUPPORT` so they no longer remain stale admins.
+- Revoked the one stale active store assignment owned by an old release-gate account. Live readback now shows only the `test` partner account with active access to `shopping-companion-test.myshopify.com`.
+- Verification readback: partner member role/status counts are `PARTNER_ADMIN/ACTIVE=2` and `PARTNER_SUPPORT/REVOKED=14`; active partner-admin readback matches the two intentionally retained members.
+- Local pre-cleanup snapshot is stored only at `/tmp/partner-admin-cleanup/pre-cleanup-partner-members.json` and is not committed.
