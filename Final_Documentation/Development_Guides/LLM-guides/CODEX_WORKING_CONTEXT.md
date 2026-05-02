@@ -586,3 +586,16 @@ Rules:
 - Local verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformManagedProductProvisioningServiceTest,PlatformManagedProductAdminServiceTest test`; `git diff --check`; added-line exact local-secret scan against Hetzner/Coolify/Platform/Shopify local secret files.
 - Disk note: local cache cleanup was required for Shopify CLI preflight; removable caches were cleared, no repo/source files or local secret files were intentionally deleted.
 - The old Railway `loom-product-production-shopify-` project still exists as rollback until explicit deletion after a soak period. Next cleanup should remove it only after confirming no Shopify callbacks or merchants still hit the old Railway URL.
+
+## 2026-05-02 Shopify Bridge Staging Coolify Correction
+
+- Supersedes the same-day production Bridge migration for the active Shopify staging workflow: user clarified that current work is staging, not production.
+- Active Coolify Bridge target is now staging: project `product-shopify-bridge-staging`, environment `staging`, app `shopify-bridge-staging`, UUID `c12bjqdcyqdt7tzgr48pev3z`, URL `https://shopify-bridge-staging.46.224.145.148.sslip.io`, readback `running:healthy`.
+- Platform product-service row `shopify-bridge-prod` was repointed to `providerType=COOLIFY`, `targetProfileId=dtp-coolify-staging`, and the staging Coolify app metadata. The service ref remains `shopify-bridge-prod` because existing Platform Shopify store bindings use that ref.
+- Shopify app config and all theme-extension Bridge URL defaults were changed from the accidental production Coolify URL to the staging Coolify URL.
+- Shopify CLI release `loom-companion-29` is the corrected staging release. An intermediate `loom-companion-28` was superseded because the local deploy env still carried an older Railway PR URL for app/callback/proxy fields.
+- Live staging verification passed: Bridge `/actuator/health` returned HTTP `200 UP`; Bridge admin overview returned `READY`, `environmentScope=staging`, and the staging public base URL; storefront bootstrap for `shopping-companion-test.myshopify.com` returned HTTP `200` with `available=true`; generated Shopify session JWT proof against `/api/app/session` returned HTTP `200`.
+- Directly opening the deployed merchant UI outside Shopify Admin can still show `Shopify session token is unavailable`; that is expected for production-built UI because `dev_session_token` is accepted only in local `import.meta.env.DEV`. Embedded Shopify Admin or a valid Shopify session JWT is the correct staging proof.
+- The accidental production Coolify Bridge app `shopify-bridge-prod` was stopped after staging verification; readback changed to `exited:unhealthy`. Keep it as rollback metadata only until deliberate cleanup.
+- Local verification passed: `git diff --check`; `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformManagedProductProvisioningServiceTest,PlatformManagedProductAdminServiceTest test`; Shopify deploy shell syntax check; Shopify CLI preflight with `/tmp/shopify-live-deploy-staging.env`; exact added-line local-secret scan. `npm --prefix product-services/shopify-bridge-service/ui run build` was blocked because `ui/node_modules` is missing and local installs are not allowed in this session.
+- Local secret files used for DB/Coolify/Shopify auth remained under `/tmp` and were not committed or summarized.

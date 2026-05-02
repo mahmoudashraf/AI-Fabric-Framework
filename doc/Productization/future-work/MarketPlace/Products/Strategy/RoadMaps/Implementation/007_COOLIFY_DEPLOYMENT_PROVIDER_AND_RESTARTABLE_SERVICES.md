@@ -2645,3 +2645,51 @@ Remaining product-service cleanup:
 - Do not delete `loom-product-production-shopify-` until the Coolify Bridge has soaked and Shopify callbacks/merchant traffic are confirmed off the old Railway URL.
 - Replace the temporary `sslip.io` Bridge URL with real DNS before production tenant cutover.
 - Add GHCR/private registry auth before making the repository private.
+
+---
+
+## 2026-05-02 Shopify Bridge Staging Coolify Correction
+
+Status: implemented, deployed, and live verified.
+
+Policy correction:
+
+- The same-day production Bridge migration is superseded for the active workflow. Current Shopify Bridge work is staging-only.
+- The Platform product-service ref remains `shopify-bridge-prod` for compatibility with existing store bindings, but its active provider metadata now points at the staging Coolify app.
+
+Active staging target:
+
+- Project: `product-shopify-bridge-staging`
+- Environment: `staging`
+- Application: `shopify-bridge-staging`
+- Application UUID: `c12bjqdcyqdt7tzgr48pev3z`
+- Public URL: `https://shopify-bridge-staging.46.224.145.148.sslip.io`
+- Runtime status: `running:healthy`
+
+Execution:
+
+- Updated Platform DB source-of-truth for `shopify-bridge-prod` to `providerType=COOLIFY`, `targetProfileId=dtp-coolify-staging`, and staging Coolify project/environment/application metadata.
+- Updated `shopify.app.toml`, `shopify.app.loom-companion.toml`, and all Shopify theme-extension block Bridge URL defaults to the staging Coolify URL.
+- Rendered and deployed the Shopify app through the Shopify CLI. Corrected staging release is `loom-companion-29`; `loom-companion-28` is superseded because the local deploy env still had an older Railway PR URL for app/callback/proxy fields.
+- Stopped the accidental production Coolify Bridge app after staging proof. It remains present as rollback metadata only and read back as `exited:unhealthy`.
+
+Verification:
+
+- Coolify staging app readback: `running:healthy`.
+- Bridge health: `GET /actuator/health` returned HTTP `200` with `UP`.
+- Bridge admin overview returned `READY`, `environmentScope=staging`, and the staging public base URL.
+- Storefront bootstrap for `shopping-companion-test.myshopify.com` returned HTTP `200` with `available=true`.
+- Generated Shopify session JWT proof against `GET /api/app/session` returned HTTP `200`.
+- Shopify app proxy route still redirects to the dev-store password page, which is expected while the test store is password-protected.
+- Local checks passed: `git diff --check`; backend guardrail regression tests; Shopify deploy shell syntax; Shopify CLI preflight with the staging deploy env; exact added-line local-secret scan.
+- UI build note: `npm --prefix product-services/shopify-bridge-service/ui run build` could not run because `ui/node_modules` is absent and local installs are intentionally not allowed for this session.
+
+Auth note:
+
+- Direct browser access to the deployed merchant UI outside Shopify Admin may still show `Shopify session token is unavailable`. That is expected because the built UI only accepts Shopify App Bridge `idToken()` in deployed mode; `dev_session_token` query support is local-dev only.
+
+Remaining production/go-live blockers:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Add GHCR/private registry auth before private-source deployments.
+- Keep production Bridge and production tenant cutover inactive until production smoke, backup/restore, DNS, and registry auth are complete.
