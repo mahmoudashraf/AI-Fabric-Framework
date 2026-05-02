@@ -479,3 +479,17 @@ Rules:
 - Secrets status: no local secret values found in changed files; do not print or commit any `/tmp/*secret*` values.
 - Remaining `007` blockers before production tenant cutover: real DNS replacing `sslip.io`, protected production Coolify API/control-plane access without broad public `8000`, keep `dtp-coolify-production` non-default until preflight passes from Platform, and add GHCR/private registry auth before private repo/live private-source deployments.
 - Next handoff: after this commit is deployed, browser-check Providers/Revisions/Verification/Security against live Platform, then run one no-target Coolify staging apply from the UI or API to confirm default target behavior still reaches `APPLIED_VERIFIED` and provider resource actions/logs render.
+
+## 2026-05-02 Coolify 007 Default Provider Live Proof
+
+- Commit `e1d0e173a` pushed to `Platform-V8`: `CoolifyDeploymentProvider` now honors the target profile `deploymentTimeoutSeconds` and `deploymentPollIntervalSeconds` as the default readiness-settle window before falling back to provider constants.
+- Root cause: an interrupted smoke showed the REST connector could become healthy after the old hardcoded 6-minute provider wait. The staging profile already carries a 600-second Coolify timeout, so the provider should use that profile contract.
+- Verification passed locally for the code fix: `mvn -f Platfrom/backend/pom.xml -Dtest=CoolifyDeploymentProviderTest test`; `git diff --check`; exact changed-file secret scan against local Hetzner/Coolify/Platform secret files.
+- Live Platform redeployed after the push; `/actuator/health` returned `UP`.
+- Clean no-target live smoke passed: deployment `dep-36ad13ea`, version `ver-b7e57a63`, release `rel-0d70cac1` applied without a `targetProfileId`; Platform selected `dtp-coolify-staging` with `providerType=COOLIFY`.
+- Generic plan alias proof passed through `GET /api/deployments/{deploymentId}/versions/{versionId}/provisioning-plan`; runtime service was `runtime-dep-36ad13ea`, connector service was `rest-connector-dep-36ad13ea`, branch `Platform-V8`.
+- Runtime and connector both reached `running:healthy`; Platform release reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, `verificationStatus=PASSED`.
+- Provider operations proof passed: two provider handles were present before cleanup, `APPLICATION` handle `dprh-e991febf` and `CONNECTOR_APPLICATION` handle `dprh-5728910e`; status endpoints returned `RUNNING_HEALTHY`; logs endpoints returned non-empty logs.
+- Cleanup completed: deployment archived, hard-delete operation `del-9fc8420a` reached `SUCCEEDED`, provider resources for `dep-36ad13ea` returned `0`, and direct Coolify app-name readback found `0` remaining smoke apps.
+- Interruption cleanup note: earlier helper failures created `dep-87d20fe5` and `dep-771978e9`; both Platform records were hard-deleted (`del-d7b4a53b`, `del-3b26199c`), and the only orphan Coolify connector app from `dep-87d20fe5` was directly deleted by unique smoke name.
+- Current readiness: Coolify staging is testable as the default provisioning target from the Platform API/UI abstraction. Remaining go-live blockers are real DNS, protected production Coolify API access, production preflight, and GHCR/private registry auth before private repo deployments.

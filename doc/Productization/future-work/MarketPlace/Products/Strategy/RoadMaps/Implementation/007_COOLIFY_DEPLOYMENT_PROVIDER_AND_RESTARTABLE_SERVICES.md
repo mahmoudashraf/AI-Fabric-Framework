@@ -2238,3 +2238,47 @@ Remaining production/go-live cutover work:
 - Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
 - Add GHCR/private registry auth before making the repo private or going live with private-source deployments.
 - Later cleanup: rename backend model/service internals that still carry Railway names where they now represent a provider-neutral plan shape.
+
+---
+
+## 2026-05-02 Default Coolify Provider Live Proof
+
+Status: implemented, pushed, deployed, and live-smoke verified for staging default provisioning.
+
+Implemented:
+
+- `CoolifyDeploymentProvider` now uses each Coolify target profile's `deploymentTimeoutSeconds` and `deploymentPollIntervalSeconds` as the default application readiness-settle window.
+- Resource-level `deploySettleTimeoutSeconds` and `deploySettlePollSeconds` overrides still take precedence.
+- This fixes the prior hardcoded 6-minute wait that could fail before the REST connector/runtime finished becoming healthy.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -Dtest=CoolifyDeploymentProviderTest test`
+- `git diff --check`
+- Exact changed-file secret scan against local Hetzner, Coolify, and Platform secret files
+
+Live proof:
+
+- Commit `e1d0e173a` was pushed to `Platform-V8`; live Platform restarted and `/actuator/health` returned `UP`.
+- Disposable no-target deployment `dep-36ad13ea`, version `ver-b7e57a63`, release `rel-0d70cac1` applied without passing `targetProfileId`.
+- Platform selected `targetProfileId=dtp-coolify-staging` and `providerType=COOLIFY`.
+- Generic provisioning-plan endpoint returned the expected Git-source plan for branch `Platform-V8`, runtime service `runtime-dep-36ad13ea`, and connector service `rest-connector-dep-36ad13ea`.
+- Coolify created runtime plus REST connector apps; both reached `running:healthy`.
+- Platform release reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, and `verificationStatus=PASSED`.
+- Provider operations returned two handles:
+  - `APPLICATION` handle `dprh-e991febf`
+  - `CONNECTOR_APPLICATION` handle `dprh-5728910e`
+- Provider status endpoints returned `RUNNING_HEALTHY`; provider logs endpoints returned non-empty logs.
+- Cleanup completed: hard-delete operation `del-9fc8420a` reached `SUCCEEDED`, provider resources returned `0`, and direct Coolify app-name readback found `0` remaining smoke apps.
+
+Current readiness:
+
+- Staging Coolify is ready as the Platform runtime default for provisioning new deployments while the source repo remains public.
+- Operator UI should stay coupled to provider abstractions (`target profiles`, `provider resources`, `provisioning plan`) rather than Railway-specific flow labels.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Solve protected production Coolify API/control-plane access without exposing production dashboard/API port `8000` broadly.
+- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
