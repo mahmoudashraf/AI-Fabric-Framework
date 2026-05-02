@@ -747,3 +747,12 @@ Rules:
 - Loaded the Shopify CLI Partner token from the private handoff into local secret/env files without printing or committing it, then deployed the updated Shopify app config through explicit Node 20 with `--no-build`. Latest released Shopify app version is `loom-companion-30`, message `Rename Bridge URLs to LoomAI Coolify`.
 - Note: the repo `shopify:app:deploy` script still cannot run in this local checkout because `vite` is not installed and local installs are not allowed; direct Shopify CLI config/theme-extension deploy succeeded because this change did not require rebuilding widget assets.
 - Supabase Auth cleanup used the project secret from the private handoff doc. Deleted `17` obvious test/automation users by email pattern/domain; kept `2` real-looking users. Post-cleanup readback shows `0` remaining test candidates. No Supabase token or user token values were printed or committed.
+
+## 2026-05-02 Supabase Auth SMTP Production Unblock
+
+- User provided a Supabase Management API token and Brevo SMTP credentials; values were stored only in local `/tmp` secret files and were not printed or committed.
+- Patched hosted Supabase Auth project `xazkenhomhtpejjjqtsy`: Site URL remains the staging LoomAI Partner UI, redirect allow-list includes staging/prod LoomAI Partner UI callback URLs, Custom SMTP is enabled with Brevo, `rate_limit_email_sent=300`, `rate_limit_otp=300`, and `smtp_max_frequency=60`.
+- Readback verified SMTP fields are present and the new Auth rate limits are active.
+- Live magic-link request no longer returned `429`; it returned `500 Error sending magic link email`.
+- Direct Brevo SMTP verification failed with `525 Unauthorized IP address`, so the remaining blocker is Brevo SMTP sender/key configuration, not Supabase/Coolify/Partner UI.
+- Next handoff: in Brevo, rotate the pasted SMTP key, create a new SMTP key usable by Supabase hosted Auth without IP allow-list rejection, verify the chosen sender/domain, then reapply the new SMTP password in Supabase and retry Partner UI magic-link login.

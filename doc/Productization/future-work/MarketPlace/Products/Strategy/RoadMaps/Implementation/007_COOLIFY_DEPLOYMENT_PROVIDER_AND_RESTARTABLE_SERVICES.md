@@ -3008,3 +3008,28 @@ Active hostname audit:
 
 - All active non-disposable Coolify `sslip.io` application hostnames now use `loomai-*`.
 - Disposable staging runtime/connector apps intentionally keep `dep-*` hostnames because those are deployment instance identifiers.
+
+---
+
+## 2026-05-02 Supabase Auth SMTP Production Unblock
+
+Status: Supabase Auth SMTP and rate-limit config applied; Brevo SMTP key remains blocked by IP authorization.
+
+Applied Supabase Auth settings:
+
+- Used a Supabase Management API token and Brevo SMTP credentials only through local `/tmp` secret files; no values were printed or committed.
+- Site URL remains `https://loomai-partner-ui.46.224.145.148.sslip.io`.
+- Redirect allow-list includes staging/prod LoomAI Partner UI callback URLs and the temporary `sslip.io` staging/prod hosts.
+- Custom SMTP is configured with Brevo and readback shows SMTP fields present.
+- Auth rate limits now read back as `rate_limit_email_sent=300`, `rate_limit_otp=300`, `smtp_max_frequency=60`.
+
+Verification:
+
+- Supabase Management API PATCH returned HTTP `200`.
+- Fresh Management API readback returned the updated Site URL, redirect allow-list, SMTP presence, and rate limits.
+- Live magic-link request changed from `429 Too Many Requests` to `500 Error sending magic link email`.
+- Direct Brevo SMTP verification failed with `525 Unauthorized IP address`.
+
+Remaining blocker:
+
+- Brevo is rejecting sends from the current/Supabase-hosted egress IPs. Rotate the pasted Brevo SMTP key, create a Supabase-usable SMTP key without the current IP allow-list rejection, verify the selected sender/domain in Brevo, reapply the new SMTP password in Supabase, then retry Partner UI magic-link login.
