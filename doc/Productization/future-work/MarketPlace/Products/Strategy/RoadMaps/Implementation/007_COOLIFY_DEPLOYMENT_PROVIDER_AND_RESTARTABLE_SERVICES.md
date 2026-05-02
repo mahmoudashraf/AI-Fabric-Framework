@@ -3030,6 +3030,8 @@ Verification:
 - After Brevo SMTP authorization was fixed, direct Brevo SMTP verification sent successfully.
 - Live Supabase magic-link request to the staging LoomAI Partner UI callback returned HTTP `200`.
 - Partner UI login now handles expected Supabase per-email resend cooldowns by showing a countdown and disabling resend for the affected email instead of treating `over_email_send_rate_limit` as a hard auth failure.
+- Deployed Partner UI cooldown fix commit `41fdd4fd1` to both Coolify Partner UI apps. Staging and production `/health` returned `UP`, and served bundles contain the new resend countdown text.
+- Local verification note: `git diff --check` and changed-diff secret scan passed. `npm --prefix Platfrom/partner-ui run build` is still blocked in this checkout because `tsc` is not installed and local installs are not allowed; live Coolify remote builds/deploys succeeded.
 
 Security handoff:
 
