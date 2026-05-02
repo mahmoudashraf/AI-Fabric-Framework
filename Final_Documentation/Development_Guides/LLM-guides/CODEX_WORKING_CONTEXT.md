@@ -649,3 +649,12 @@ Rules:
 - Verification blocked: `npm --prefix Platfrom/partner-ui run build` could not run because `tsc` is missing from local dependencies and local installs are not allowed in this session.
 - Pushed commit `bb11596bb` (`Fix partner package trial pending flow`) to `Platform-V8`. A direct Railway backend redeploy attempt through the saved local mutation artifacts returned `Not Authorized` for the available local Railway tokens, so live rollout depends on Railway GitHub auto-deploy or an authorized manual Railway redeploy.
 - Next handoff: after the Platform backend and Partner UI deploy, retry activating the trial from Partner UI. If the live app is still on a pre-fix Railway deployment, trigger/redeploy the Platform backend/UI with Railway credentials that can deploy service `ef0bd5e4-d124-4ade-8783-b0763de90599` in environment `b41bb8db-cfef-4f9b-b3e4-adb20b62d70c`.
+
+## 2026-05-02 Railway Project 6d0590be Coolify Migration Auth Check
+
+- User requested moving all services from Railway project `6d0590be-3921-49b6-9fb7-75344cad0b6c` in workspace `Mahmoud Elgammal's Projects` to Coolify, with all Coolify apps under one Coolify project.
+- Requirement confirmed for target shape: one Coolify project, not per-customer/per-service Coolify projects.
+- Checked existing local Railway tokens, the user-provided UUID as a bearer token, and redacted token candidates extracted from the private handoff doc into local `/tmp` secret files. All returned Railway GraphQL `Not Authorized` for the project inventory query; `me` query also returned `Not Authorized`.
+- Checked live Platform DB for tracked rows referencing that Railway project in product services, deployment provider handles, and release provisioning details; no matching source-of-truth rows were found.
+- Current blocker: cannot safely migrate because the service list and service environment variables cannot be read from Railway with available credentials, and Platform DB does not contain tracked metadata for this project.
+- Needed next credential: a current Railway API/account token or project token that can read project `6d0590be-3921-49b6-9fb7-75344cad0b6c`, its environments, services, source config, and service variables. Coolify credentials are locally available.
