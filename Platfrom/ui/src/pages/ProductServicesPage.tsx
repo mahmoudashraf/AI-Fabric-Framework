@@ -786,7 +786,7 @@ export function ProductServicesPage() {
                           Reconcile
                         </Button>
                         <Button variant="outlined" onClick={() => setDeploymentHistoryDialogOpen(true)}>
-                          Inspect Railway deployments
+                          Inspect provider deployments
                         </Button>
                         <Button
                           variant="outlined"
@@ -856,7 +856,7 @@ export function ProductServicesPage() {
                         ['Health path', selectedService.healthPath],
                         ['Service root', selectedService.serviceRoot],
                         ['Dockerfile', selectedService.dockerfilePath],
-                        ['Railway service', selectedService.railwayServiceId],
+                        ['Provider service', selectedService.railwayServiceId],
                         ['Dependents', `${selectedService.dependentStoresCount} stores`],
                       ].map(([label, value]) => (
                         <Grid item xs={12} md={4} key={label}>
@@ -892,7 +892,7 @@ export function ProductServicesPage() {
                         Shopify billing config {selectedService.shopifyBillingConfig.mode} · Starter{' '}
                         {selectedService.shopifyBillingConfig.starterEnabled ? 'enabled' : 'off'} · Elite{' '}
                         {selectedService.shopifyBillingConfig.eliteEnabled ? 'enabled' : 'off'}. Reconcile applies these values to the
-                        Railway Bridge service on create or recreate.
+                        provider-managed Bridge service on create or recreate.
                       </Alert>
                     ) : null}
                   </Stack>
@@ -1225,7 +1225,7 @@ export function ProductServicesPage() {
             <Stack spacing={1}>
               <Typography sx={{ fontWeight: 700 }}>Shopify billing</Typography>
               <Typography variant="body2" color="text.secondary">
-                Stored on the Platform service record and applied to Railway on reconcile, create, and recreate.
+                Stored on the Platform service record and applied to the managed provider on reconcile, create, and recreate.
               </Typography>
             </Stack>
             {shopifyBillingConfigFields(billingConfigOrDefault(form.shopifyBillingConfig), (patch) =>
@@ -1252,7 +1252,7 @@ export function ProductServicesPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Alert severity="info">
-              This changes the Platform-owned Bridge billing configuration. Run Reconcile after saving to update the managed Railway service
+              This changes the Platform-owned Bridge billing configuration. Run Reconcile after saving to update the managed provider service
               environment and redeploy the Bridge.
             </Alert>
             {shopifyBillingConfigFields(shopifyBillingDraft, (patch) =>
@@ -1578,17 +1578,17 @@ export function ProductServicesPage() {
       </Dialog>
 
       <Dialog open={deploymentHistoryDialogOpen} onClose={() => setDeploymentHistoryDialogOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Railway Deployment History</DialogTitle>
+        <DialogTitle>Provider Deployment History</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography variant="body2" color="text.secondary">
               Service {detailValue(selectedServiceRef)}
             </Typography>
             {deploymentHistoryQuery.isLoading ? (
-              <Alert severity="info">Loading Railway deployment history…</Alert>
+              <Alert severity="info">Loading provider deployment history…</Alert>
             ) : deploymentHistoryQuery.isError ? (
               <Alert severity="error">
-                {deploymentHistoryQuery.error instanceof Error ? deploymentHistoryQuery.error.message : 'Failed to load Railway deployment history.'}
+                {deploymentHistoryQuery.error instanceof Error ? deploymentHistoryQuery.error.message : 'Failed to load provider deployment history.'}
               </Alert>
             ) : deploymentHistoryQuery.data ? (
               <Stack spacing={1.5}>
@@ -1628,10 +1628,10 @@ export function ProductServicesPage() {
                 <Stack spacing={1.5}>
                   <Typography sx={{ fontWeight: 700 }}>Deployment logs</Typography>
                   {railwayLogsQuery.isLoading ? (
-                    <Alert severity="info">Loading Railway deployment logs…</Alert>
+                    <Alert severity="info">Loading provider deployment logs…</Alert>
                   ) : railwayLogsQuery.isError ? (
                     <Alert severity="error">
-                      {railwayLogsQuery.error instanceof Error ? railwayLogsQuery.error.message : 'Failed to load Railway deployment logs.'}
+                      {railwayLogsQuery.error instanceof Error ? railwayLogsQuery.error.message : 'Failed to load provider deployment logs.'}
                     </Alert>
                   ) : railwayLogsQuery.data ? (
                     <>
@@ -1666,12 +1666,12 @@ export function ProductServicesPage() {
                       )}
                     </>
                   ) : (
-                    <Alert severity="info">Railway logs are not available for this service yet.</Alert>
+                    <Alert severity="info">Provider logs are not available for this service yet.</Alert>
                   )}
                 </Stack>
               </Stack>
             ) : (
-              <Alert severity="info">Railway deployment history is not available for this service yet.</Alert>
+              <Alert severity="info">Provider deployment history is not available for this service yet.</Alert>
             )}
           </Stack>
         </DialogContent>
@@ -1709,7 +1709,7 @@ export function ProductServicesPage() {
         <DialogTitle>Force recreate linkage</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Type the service ref to clear Railway linkage and base URLs.
+            Type the service ref to clear provider linkage and base URLs.
           </Typography>
           <TextField
             autoFocus
@@ -1737,7 +1737,7 @@ export function ProductServicesPage() {
         <DialogTitle>Decommission service</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Type the service ref to delete the managed Railway linkage and clear the managed secret. Dependent Shopify store mappings must be removed first.
+            Type the service ref to delete the managed provider linkage and clear the managed secret. Dependent Shopify store mappings must be removed first.
           </Typography>
           {decommissionBlocked ? (
             <Alert severity="warning" sx={{ mb: 2 }}>

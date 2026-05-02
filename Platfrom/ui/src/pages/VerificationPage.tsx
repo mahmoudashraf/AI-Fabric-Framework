@@ -30,14 +30,16 @@ import {
   fetchDeploymentDraft,
   fetchDeploymentHostedVerificationRuns,
   fetchDeploymentReleases,
+  fetchDeploymentTargetProfilePreflight,
+  fetchDeploymentTargetProfiles,
   fetchDeploymentVerificationRollouts,
   fetchDeploymentVerificationRuns,
-  fetchRailwayPreflight,
   type DeploymentHostedVerificationRunSummary,
+  type DeploymentProviderPreflightSummary,
+  type DeploymentTargetProfileSummary,
   validateDeploymentDraft,
   type DeploymentReleaseSummary,
   type DeploymentVerificationRolloutSummary,
-  type RailwayPreflightCheckSummary,
 } from '../api/platformApi'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 
@@ -231,7 +233,7 @@ function buildGateSummary(args: {
       label: 'Platform preflight',
       status: args.preflightReady ? 'PASSED' : 'BLOCKED',
       message: args.preflightReady
-        ? 'Railway platform preflight is ready.'
+        ? 'Deployment provider preflight is ready.'
         : 'Platform preflight is still blocked on provisioning prerequisites.',
     },
     {
@@ -349,9 +351,21 @@ export function VerificationPage() {
     enabled: !!draftQuery.data?.id,
   })
 
-  const railwayPreflightQuery = useQuery({
-    queryKey: ['railway-preflight'],
-    queryFn: fetchRailwayPreflight,
+  const targetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles'],
+    queryFn: () => fetchDeploymentTargetProfiles(),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const runtimeDefaultTargetProfile = useMemo<DeploymentTargetProfileSummary | null>(
+    () => (targetProfilesQuery.data ?? []).find((profile) => profile.active && profile.defaultForRuntime) ?? null,
+    [targetProfilesQuery.data],
+  )
+
+  const providerPreflightQuery = useQuery({
+    queryKey: ['deployment-provider-preflight', runtimeDefaultTargetProfile?.id],
+    queryFn: () => fetchDeploymentTargetProfilePreflight(runtimeDefaultTargetProfile!.id),
+    enabled: !!runtimeDefaultTargetProfile,
   })
 
   const releasesQuery = useQuery({
@@ -443,9 +457,11 @@ export function VerificationPage() {
     () => buildServiceHealthSummaries(verificationChecks),
     [verificationChecks],
   )
-  const failedPreflightChecks = useMemo(
-    () => (railwayPreflightQuery.data?.checks ?? []).filter((check) => check.status === 'FAILED'),
-    [railwayPreflightQuery.data?.checks],
+  const providerPreflight = providerPreflightQuery.data as DeploymentProviderPreflightSummary | undefined
+  const providerPreflightReady = providerPreflight?.status === 'READY'
+  const providerPreflightChecks = useMemo(
+    () => providerPreflight?.checks ?? [],
+    [providerPreflight?.checks],
   )
   const draftIssuesWithNavigation = useMemo(
     () => (validationQuery.data?.issues ?? []).map((issue) => ({
@@ -461,13 +477,13 @@ export function VerificationPage() {
     () => buildGateSummary({
       publishReady: validationQuery.data?.publishReady ?? false,
       hasPublishedVersion: workspace?.lifecycle.hasPublishedVersion ?? false,
-      preflightReady: railwayPreflightQuery.data?.ready ?? false,
+      preflightReady: providerPreflightReady,
       applyRunning: latestRelease ? isReleaseInProgress(latestRelease) : false,
       approvalRequired: workspace?.deployment.approvalRequiredForApply ?? false,
     }),
     [
       latestRelease,
-      railwayPreflightQuery.data?.ready,
+      providerPreflightReady,
       validationQuery.data?.publishReady,
       workspace?.deployment.approvalRequiredForApply,
       workspace?.lifecycle.hasPublishedVersion,
@@ -479,7 +495,7 @@ export function VerificationPage() {
     <Stack spacing={3}>
       <Box>
         <Chip label="Verification" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0 }}>
           Release gate and rollout verification
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
@@ -521,7 +537,8 @@ export function VerificationPage() {
                 onClick={() => {
                   void queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] })
                   void queryClient.invalidateQueries({ queryKey: ['deployment-validation', draftQuery.data?.id] })
-                  void queryClient.invalidateQueries({ queryKey: ['railway-preflight'] })
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-target-profiles'] })
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-provider-preflight'] })
                   void queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] })
                   void queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] })
                   void queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] })
@@ -741,18 +758,37 @@ export function VerificationPage() {
                   </Table>
                 ) : null}
 
-                {failedPreflightChecks.length > 0 ? (
+                {targetProfilesQuery.isLoading || providerPreflightQuery.isLoading ? (
+                  <Alert severity="info">Running deployment provider preflight...</Alert>
+                ) : targetProfilesQuery.isError ? (
+                  <Alert severity="error">
+                    {targetProfilesQuery.error instanceof Error
+                      ? targetProfilesQuery.error.message
+                      : 'Failed to load deployment target profiles'}
+                  </Alert>
+                ) : providerPreflightQuery.isError ? (
+                  <Alert severity="error">
+                    {providerPreflightQuery.error instanceof Error
+                      ? providerPreflightQuery.error.message
+                      : 'Failed to run deployment provider preflight'}
+                  </Alert>
+                ) : !runtimeDefaultTargetProfile ? (
+                  <Alert severity="error">No active runtime default target profile is configured.</Alert>
+                ) : !providerPreflightReady ? (
                   <Stack spacing={1}>
-                    {failedPreflightChecks.map((check: RailwayPreflightCheckSummary) => (
-                      <Alert key={check.key} severity="error">
-                        <strong>{check.message}</strong>
-                        <br />
-                        {check.details ?? 'No extra details recorded.'}
-                      </Alert>
+                    <Alert severity="error">
+                      <strong>{providerPreflight?.message ?? 'Deployment provider preflight is blocked.'}</strong>
+                      <br />
+                      Target profile: {runtimeDefaultTargetProfile.name} ({runtimeDefaultTargetProfile.providerType})
+                    </Alert>
+                    {providerPreflightChecks.map((check) => (
+                      <Alert key={check} severity="warning">{check}</Alert>
                     ))}
                   </Stack>
                 ) : (
-                  <Alert severity="success">Railway preflight is ready for apply.</Alert>
+                  <Alert severity="success">
+                    Deployment provider preflight is ready for apply on {runtimeDefaultTargetProfile.name} ({runtimeDefaultTargetProfile.providerType}).
+                  </Alert>
                 )}
               </Stack>
             </CardContent>

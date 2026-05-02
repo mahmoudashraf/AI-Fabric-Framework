@@ -1037,10 +1037,10 @@ export function OverviewPage() {
                     <Stack spacing={2}>
                       <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          Railway live provider read-back
+                          Provider live read-back
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                          Compare the platform-managed live plan against Railway&apos;s current service instance,
+                          Compare the platform-managed live plan against the provider&apos;s current service instance,
                           repository trigger, domain, and env-var state.
                         </Typography>
                       </Box>
@@ -1142,7 +1142,7 @@ export function OverviewPage() {
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 980 }}>
                 Runtime and REST connector are platform-provisioned services. Browser, upstream, and provider
                 entries are shown alongside them so operators can govern the full deployment surface without
-                confusing external dependencies for Railway-managed services.
+                confusing external dependencies for provider-managed services.
               </Typography>
             </Box>
 
@@ -1540,7 +1540,7 @@ export function OverviewPage() {
                             Provider console
                           </Typography>
                           <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                            {navigationQuery.data.provider.projectName ?? 'Railway project pending'}
+                            {navigationQuery.data.provider.projectName ?? 'Provider project pending'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             {navigationQuery.data.provider.summaryMessage}
@@ -1561,7 +1561,7 @@ export function OverviewPage() {
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             {navigationQuery.data.provider.projectUrl ? (
                               <Button href={navigationQuery.data.provider.projectUrl} target="_blank" rel="noreferrer" variant="outlined" size="small" startIcon={<LaunchRoundedIcon />}>
-                                Railway project
+                                Provider project
                               </Button>
                             ) : null}
                             {workspace.access.canOperate && workspace.deployment.runtimeBaseUrl ? (

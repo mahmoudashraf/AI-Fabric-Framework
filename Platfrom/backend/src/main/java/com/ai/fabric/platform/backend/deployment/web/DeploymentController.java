@@ -611,6 +611,12 @@ public class DeploymentController {
         return deploymentService.previewRailwayPlan(deploymentId, versionId);
     }
 
+    @GetMapping("/deployments/{deploymentId}/versions/{versionId}/provisioning-plan")
+    public RailwayProvisioningPlanSummary previewProvisioningPlan(@PathVariable String deploymentId,
+                                                                  @PathVariable String versionId) {
+        return deploymentService.previewRailwayPlan(deploymentId, versionId);
+    }
+
     @PostMapping("/deployments/{deploymentId}/apply/{versionId}")
     @ResponseStatus(HttpStatus.CREATED)
     public DeploymentReleaseSummary applyVersion(@PathVariable String deploymentId,

@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, and runtime-plus-connector Railway parity implemented 2026-05-01)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, and provider-neutral operator UI wired 2026-05-02)
 
 Owner mode: technical LLM implementation session
 
@@ -2200,5 +2200,41 @@ Remaining production/go-live cutover work:
 - Replace temporary `sslip.io` domains with real DNS.
 - Solve protected production control-plane access for Coolify API preflight/provisioning without public `8000`.
 - Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
-- Add operator UI wiring for target-profile selection/defaulting, preflight, provider resources, logs/actions, and cleanup.
 - Add GHCR/private registry auth before making the repo private or going live with private-source deployments.
+
+---
+
+## 2026-05-02 Provider-Neutral Operator UI
+
+Status: implemented locally for the Platform UI/backend API boundary.
+
+Decision:
+
+- UI surfaces must bind to deployment-provider abstractions, not directly to Railway flow names. Coolify staging remains the runtime default; operators can still explicitly choose a target profile during apply.
+- No backward-compatibility promise is needed for old Railway-labeled UI language. Railway-specific backend internals and legacy diagnostics can remain implementation details while the operator-facing workflow uses provider terms.
+
+Implemented:
+
+- Added generic backend alias `GET /api/deployments/{deploymentId}/versions/{versionId}/provisioning-plan`; the old Railway plan model remains the internal shape for now.
+- Added frontend generic API/types for deployment target profiles, provider preflight, provider resources, provider resource status/logs/start/stop/restart/delete, and `fetchDeploymentProvisioningPlan(...)`.
+- Added `DeploymentProviderOperationsPanel` with target-profile activation/default controls, profile preflight, provider resource inventory, status/log dialogs, and provider resource actions.
+- Added the provider operations panel to the Providers page for the selected deployment.
+- Revisions page now uses generic provisioning-plan API naming, shows an apply target selector backed by active target profiles, defaults to the runtime target when no explicit target is selected, and displays release `providerType`/`targetProfileId`.
+- Verification, Security, and Diagnostics pages now use the active runtime target profile preflight instead of the Railway preflight endpoint.
+- Operator-facing UI copy across deployment, diagnostics, product-service, inference-service, and platform diagnostics pages now uses provider-neutral language for provisioning/logs/live read-back/cleanup.
+
+Verification completed:
+
+- `npm --prefix Platfrom/ui run build`
+- `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`
+- `git diff --check`
+- Changed-file exact local-secret scan against `/tmp/hetzner_cloud_token.secret`, `/tmp/coolify_api_tokens.env`, `/tmp/coolify_admin_credentials.env`, `/tmp/platform_login_email.secret`, and `/tmp/platform_login_password.secret`
+- Provider-neutral UI copy scan for old Railway-facing phrases returned no matches.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Solve protected production control-plane access for Coolify API preflight/provisioning without public `8000`.
+- Keep `dtp-coolify-production` non-default until production preflight passes from Platform.
+- Add GHCR/private registry auth before making the repo private or going live with private-source deployments.
+- Later cleanup: rename backend model/service internals that still carry Railway names where they now represent a provider-neutral plan shape.

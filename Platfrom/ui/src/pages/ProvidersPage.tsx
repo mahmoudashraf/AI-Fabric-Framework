@@ -31,6 +31,7 @@ import {
   type DeploymentSummary,
   type DeploymentSecretUsageItemSummary,
 } from '../api/platformApi'
+import { DeploymentProviderOperationsPanel } from '../components/DeploymentProviderOperationsPanel'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
@@ -1619,7 +1620,7 @@ export function ProvidersPage() {
     <Stack spacing={3}>
       <Box>
         <Chip label="Providers" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0 }}>
           Provider profile editor
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
@@ -1932,6 +1933,10 @@ export function ProvidersPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      {selectedDeploymentId ? (
+        <DeploymentProviderOperationsPanel deploymentId={selectedDeploymentId} />
+      ) : null}
 
       {selectedDeploymentId ? (
         <Grid container spacing={2.5}>

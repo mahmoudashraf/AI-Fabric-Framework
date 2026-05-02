@@ -1923,6 +1923,96 @@ export type DeploymentProviderConnectivitySummary = {
   summaryMessage: string
 }
 
+export type DeploymentProviderType = 'RAILWAY_STUB' | 'RAILWAY_API' | 'COOLIFY' | string
+
+export type DeploymentTargetProfileSummary = {
+  id: string
+  name: string
+  providerType: DeploymentProviderType
+  environmentName: string
+  region: string | null
+  active: boolean
+  defaultForRuntime: boolean
+  defaultForRestartableServices: boolean
+  platformServicesAllowed: boolean
+  sourceStrategy: string
+  credentialRefId: string | null
+  providerConfig: unknown
+  networkPolicy: unknown
+  resourceDefaults: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentProviderPreflightSummary = {
+  targetProfileId: string
+  providerType: DeploymentProviderType
+  status: string
+  message: string
+  baseUrl: string | null
+  version: string | null
+  checks: string[]
+  details: unknown
+  checkedAt: string
+}
+
+export type PatchDeploymentTargetProfileRequest = {
+  active?: boolean
+  defaultForRuntime?: boolean
+  defaultForRestartableServices?: boolean
+}
+
+export type DeploymentProviderResourceHandleSummary = {
+  id: string
+  deploymentId: string
+  releaseId: string
+  targetProfileId: string
+  providerType: DeploymentProviderType
+  resourceKind: string
+  providerResourceUuid: string
+  providerProjectUuid: string | null
+  providerEnvironmentUuid: string | null
+  providerServerUuid: string | null
+  fqdn: string | null
+  status: string
+  lastObservedStatus: string | null
+  lastObservedAt: string | null
+  metadata: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentProviderResourceStatusSummary = {
+  handleId: string
+  providerType: DeploymentProviderType
+  providerResourceUuid: string
+  status: string
+  observedStatus: string | null
+  fqdn: string | null
+  details: unknown
+  observedAt: string
+}
+
+export type DeploymentProviderResourceActionSummary = {
+  handleId: string
+  providerType: DeploymentProviderType
+  action: string
+  status: string
+  message: string
+  providerOperationId: string | null
+  details: unknown
+  requestedAt: string
+}
+
+export type DeploymentProviderResourceLogsSummary = {
+  handleId: string
+  providerType: DeploymentProviderType
+  providerResourceUuid: string
+  lines: number
+  logs: string
+  fetchedAt: string
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -2639,6 +2729,11 @@ export type RailwayProvisioningPlanSummary = {
   steps: RailwayProvisioningStepSummary[]
 }
 
+export type DeploymentPlanEnvVarSummary = RailwayEnvVarSummary
+export type DeploymentServicePlanSummary = RailwayServicePlanSummary
+export type DeploymentProvisioningStepSummary = RailwayProvisioningStepSummary
+export type DeploymentProvisioningPlanSummary = RailwayProvisioningPlanSummary
+
 export type DeploymentReleaseSummary = {
   id: string
   deploymentId: string
@@ -2647,6 +2742,10 @@ export type DeploymentReleaseSummary = {
   verificationStatus: string
   provisioningStatus: string
   provisioningTarget: string
+  targetProfileId: string | null
+  providerType: DeploymentProviderType | null
+  sourceArtifactId: string | null
+  providerResourceHandleId: string | null
   currentStepKey: string | null
   currentStepDescription: string | null
   errorMessage: string | null
@@ -4280,6 +4379,94 @@ export function fetchDeploymentProviderConnectivity(deploymentId: string) {
   )
 }
 
+export function fetchDeploymentTargetProfiles(providerType?: DeploymentProviderType) {
+  const suffix = providerType ? `?providerType=${encodeURIComponent(providerType)}` : ''
+  return request<DeploymentTargetProfileSummary[]>(`/api/deployment-provider/target-profiles${suffix}`)
+}
+
+export function patchDeploymentTargetProfile(targetProfileId: string, payload: PatchDeploymentTargetProfileRequest) {
+  return request<DeploymentTargetProfileSummary>(
+    `/api/deployment-provider/target-profiles/${encodeURIComponent(targetProfileId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function fetchDeploymentTargetProfilePreflight(targetProfileId: string) {
+  return request<DeploymentProviderPreflightSummary>(
+    `/api/deployment-provider/target-profiles/${encodeURIComponent(targetProfileId)}/preflight`,
+  )
+}
+
+export function fetchDeploymentProviderResources(filters?: {
+  providerType?: DeploymentProviderType
+  deploymentId?: string
+  targetProfileId?: string
+}) {
+  const params = new URLSearchParams()
+  if (filters?.providerType) {
+    params.set('providerType', filters.providerType)
+  }
+  if (filters?.deploymentId) {
+    params.set('deploymentId', filters.deploymentId)
+  }
+  if (filters?.targetProfileId) {
+    params.set('targetProfileId', filters.targetProfileId)
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ''
+  return request<DeploymentProviderResourceHandleSummary[]>(`/api/deployment-provider/resources${suffix}`)
+}
+
+export function fetchDeploymentProviderResourceStatus(handleId: string) {
+  return request<DeploymentProviderResourceStatusSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/status`,
+  )
+}
+
+export function fetchDeploymentProviderResourceLogs(handleId: string, lines = 200) {
+  return request<DeploymentProviderResourceLogsSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/logs?lines=${encodeURIComponent(String(lines))}`,
+  )
+}
+
+function deploymentProviderResourceAction(
+  handleId: string,
+  action: 'start' | 'stop' | 'restart',
+  reason?: string,
+) {
+  return request<DeploymentProviderResourceActionSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/${action}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    },
+  )
+}
+
+export function startDeploymentProviderResource(handleId: string, reason?: string) {
+  return deploymentProviderResourceAction(handleId, 'start', reason)
+}
+
+export function stopDeploymentProviderResource(handleId: string, reason?: string) {
+  return deploymentProviderResourceAction(handleId, 'stop', reason)
+}
+
+export function restartDeploymentProviderResource(handleId: string, reason?: string) {
+  return deploymentProviderResourceAction(handleId, 'restart', reason)
+}
+
+export function deleteDeploymentProviderResource(handleId: string, reason?: string) {
+  return request<DeploymentProviderResourceActionSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}`,
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    },
+  )
+}
+
 export function probeDeploymentProviderConnectivity(deploymentId: string, payload: {
   providerConfig: unknown
 }) {
@@ -4388,6 +4575,12 @@ export function fetchDeploymentVersions(deploymentId: string) {
 export function fetchRailwayProvisioningPlan(deploymentId: string, versionId: string) {
   return request<RailwayProvisioningPlanSummary>(
     `/api/deployments/${deploymentId}/versions/${versionId}/railway-plan`,
+  )
+}
+
+export function fetchDeploymentProvisioningPlan(deploymentId: string, versionId: string) {
+  return request<DeploymentProvisioningPlanSummary>(
+    `/api/deployments/${deploymentId}/versions/${versionId}/provisioning-plan`,
   )
 }
 
@@ -5127,14 +5320,27 @@ export function clearDeploymentProviderSecretBinding(deploymentId: string, secre
   })
 }
 
-export function applyDeploymentVersion(deploymentId: string, versionId: string) {
-  return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}`, {
+export function applyDeploymentVersion(deploymentId: string, versionId: string, targetProfileId?: string) {
+  const suffix = targetProfileId ? `?targetProfileId=${encodeURIComponent(targetProfileId)}` : ''
+  return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
   })
 }
 
-export function applyDeploymentVersionWithApproval(deploymentId: string, versionId: string, approvalId?: string) {
-  const suffix = approvalId ? `?approvalId=${encodeURIComponent(approvalId)}` : ''
+export function applyDeploymentVersionWithApproval(
+  deploymentId: string,
+  versionId: string,
+  approvalId?: string,
+  targetProfileId?: string,
+) {
+  const params = new URLSearchParams()
+  if (approvalId) {
+    params.set('approvalId', approvalId)
+  }
+  if (targetProfileId) {
+    params.set('targetProfileId', targetProfileId)
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ''
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
   })

@@ -32,8 +32,9 @@ import {
   fetchDeploymentIntegrationSummary,
   fetchPlatformUserPreferences,
   fetchDeploymentReleases,
+  fetchDeploymentTargetProfiles,
   fetchDeploymentVersions,
-  fetchRailwayProvisioningPlan,
+  fetchDeploymentProvisioningPlan,
   publishDeploymentDraft,
   reconcileDeploymentRelease,
   updatePlatformUserPreferences,
@@ -42,9 +43,10 @@ import {
   type DeploymentDraftResponse,
   type DeploymentReleaseSummary,
   type DeploymentRevisionsViewPreferences,
-  type RailwayEnvVarSummary,
-  type RailwayProvisioningPlanSummary,
-  type RailwayServicePlanSummary,
+  type DeploymentTargetProfileSummary,
+  type DeploymentPlanEnvVarSummary,
+  type DeploymentProvisioningPlanSummary,
+  type DeploymentServicePlanSummary,
 } from '../api/platformApi'
 import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import {
@@ -128,11 +130,24 @@ function joinUrl(baseUrl: string | null | undefined, path: string): string | nul
   return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
 }
 
-function readRailwayProjectUrl(provisioningDetails: unknown): string | null {
+function readProviderConsoleUrl(provisioningDetails: unknown): string | null {
   if (!isRecord(provisioningDetails)) {
     return null
   }
 
+  if (typeof provisioningDetails.consoleUrl === 'string' && provisioningDetails.consoleUrl.length > 0) {
+    return provisioningDetails.consoleUrl
+  }
+  if (typeof provisioningDetails.fqdn === 'string' && provisioningDetails.fqdn.length > 0) {
+    return provisioningDetails.fqdn.startsWith('http')
+      ? provisioningDetails.fqdn
+      : `https://${provisioningDetails.fqdn}`
+  }
+  if (typeof provisioningDetails.runtimeFqdn === 'string' && provisioningDetails.runtimeFqdn.length > 0) {
+    return provisioningDetails.runtimeFqdn.startsWith('http')
+      ? provisioningDetails.runtimeFqdn
+      : `https://${provisioningDetails.runtimeFqdn}`
+  }
   if (typeof provisioningDetails.projectId === 'string' && provisioningDetails.projectId.length > 0) {
     return `https://railway.com/project/${provisioningDetails.projectId}`
   }
@@ -145,13 +160,16 @@ function readRailwayProjectUrl(provisioningDetails: unknown): string | null {
   return null
 }
 
-function readRailwayProjectName(provisioningDetails: unknown): string | null {
+function readProviderProjectName(provisioningDetails: unknown): string | null {
   if (!isRecord(provisioningDetails)) {
     return null
   }
 
   if (typeof provisioningDetails.projectName === 'string' && provisioningDetails.projectName.length > 0) {
     return provisioningDetails.projectName
+  }
+  if (typeof provisioningDetails.applicationName === 'string' && provisioningDetails.applicationName.length > 0) {
+    return provisioningDetails.applicationName
   }
 
   const railway = isRecord(provisioningDetails.railway) ? provisioningDetails.railway : null
@@ -282,11 +300,11 @@ function isSecretReference(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('${secret:') && value.endsWith('}')
 }
 
-function envMap(entries: RailwayEnvVarSummary[] | undefined): Map<string, string> {
+function envMap(entries: DeploymentPlanEnvVarSummary[] | undefined): Map<string, string> {
   return new Map((entries ?? []).map((entry) => [entry.key, entry.value]))
 }
 
-function diffEnvImpact(currentEnv: RailwayEnvVarSummary[] | undefined, nextEnv: RailwayEnvVarSummary[]): PlanEnvImpactSummary {
+function diffEnvImpact(currentEnv: DeploymentPlanEnvVarSummary[] | undefined, nextEnv: DeploymentPlanEnvVarSummary[]): PlanEnvImpactSummary {
   const current = envMap(currentEnv)
   const next = envMap(nextEnv)
   const keys = Array.from(new Set([...current.keys(), ...next.keys()])).sort((left, right) => left.localeCompare(right))
@@ -335,8 +353,8 @@ function diffEnvImpact(currentEnv: RailwayEnvVarSummary[] | undefined, nextEnv: 
 }
 
 function buildServiceImpact(
-  currentService: RailwayServicePlanSummary | null | undefined,
-  nextService: RailwayServicePlanSummary,
+  currentService: DeploymentServicePlanSummary | null | undefined,
+  nextService: DeploymentServicePlanSummary,
 ): ServiceImpactSummary {
   const env = diffEnvImpact(currentService?.env, nextService.env)
   const rootDirChanged = (currentService?.rootDir ?? null) !== (nextService.rootDir ?? null)
@@ -356,16 +374,16 @@ function buildServiceImpact(
 }
 
 function artifactChanges(
-  currentPlan: RailwayProvisioningPlanSummary | null | undefined,
-  nextPlan: RailwayProvisioningPlanSummary,
+  currentPlan: DeploymentProvisioningPlanSummary | null | undefined,
+  nextPlan: DeploymentProvisioningPlanSummary,
 ): string[] {
-  const fields: Array<keyof RailwayProvisioningPlanSummary['artifactUrls']> = ['actions', 'entities', 'routing', 'manifest']
+  const fields: Array<keyof DeploymentProvisioningPlanSummary['artifactUrls']> = ['actions', 'entities', 'routing', 'manifest']
   return fields.filter((field) => currentPlan?.artifactUrls?.[field] !== nextPlan.artifactUrls[field])
 }
 
 function impactSummaryMessage(
-  currentPlan: RailwayProvisioningPlanSummary | null | undefined,
-  nextPlan: RailwayProvisioningPlanSummary,
+  currentPlan: DeploymentProvisioningPlanSummary | null | undefined,
+  nextPlan: DeploymentProvisioningPlanSummary,
   runtimeImpact: ServiceImpactSummary,
   connectorImpact: ServiceImpactSummary,
   changedArtifacts: string[],
@@ -416,6 +434,10 @@ function referenceChipColor(reference: DeploymentConfigDiffCenterSummary['draft'
   return reference.stage === 'DRAFT' ? 'primary' : 'success'
 }
 
+function targetProfileLabel(profile: DeploymentTargetProfileSummary): string {
+  return `${profile.name} · ${profile.providerType} · ${profile.environmentName}`
+}
+
 export function RevisionsPage() {
   const auth = usePlatformAuth()
   const navigate = useNavigate()
@@ -428,6 +450,7 @@ export function RevisionsPage() {
   const [versionStatusFilter, setVersionStatusFilter] = useState('ALL')
   const [releaseStatusFilter, setReleaseStatusFilter] = useState('ALL')
   const [reindexFilter, setReindexFilter] = useState('ALL')
+  const [applyTargetProfileId, setApplyTargetProfileId] = useState('')
   const viewInitializedRef = useRef(false)
   const viewHydrationRef = useRef(false)
 
@@ -457,6 +480,11 @@ export function RevisionsPage() {
     queryFn: () => fetchDeploymentVersions(selectedDeploymentId),
     enabled: selectedDeploymentId.length > 0,
   })
+  const targetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles'],
+    queryFn: () => fetchDeploymentTargetProfiles(),
+    enabled: selectedDeploymentId.length > 0,
+  })
   const preferencesQuery = useQuery({
     queryKey: ['platform-preferences'],
     queryFn: fetchPlatformUserPreferences,
@@ -469,6 +497,18 @@ export function RevisionsPage() {
   })
 
   const versions = versionsQuery.data ?? []
+  const activeTargetProfiles = useMemo(
+    () => (targetProfilesQuery.data ?? []).filter((profile) => profile.active),
+    [targetProfilesQuery.data],
+  )
+  const selectedApplyTargetProfile = useMemo(
+    () => activeTargetProfiles.find((profile) => profile.id === applyTargetProfileId) ?? null,
+    [activeTargetProfiles, applyTargetProfileId],
+  )
+  const defaultRuntimeTargetProfile = useMemo(
+    () => activeTargetProfiles.find((profile) => profile.defaultForRuntime) ?? null,
+    [activeTargetProfiles],
+  )
 
   useEffect(() => {
     if (viewInitializedRef.current || !preferencesQuery.isSuccess) {
@@ -583,9 +623,9 @@ export function RevisionsPage() {
     }
   }, [filteredVersions, selectedVersionId])
 
-  const railwayPlanQuery = useQuery({
-    queryKey: ['deployment-railway-plan', selectedDeploymentId, selectedVersionId],
-    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, selectedVersionId),
+  const provisioningPlanQuery = useQuery({
+    queryKey: ['deployment-provisioning-plan', selectedDeploymentId, selectedVersionId],
+    queryFn: () => fetchDeploymentProvisioningPlan(selectedDeploymentId, selectedVersionId),
     enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
   })
   const integrationSummaryQuery = useQuery({
@@ -595,16 +635,16 @@ export function RevisionsPage() {
     staleTime: 30_000,
   })
   const liveVersionId = workspace?.lifecycle.liveVersionId ?? ''
-  const liveRailwayPlanQuery = useQuery({
-    queryKey: ['deployment-railway-plan', selectedDeploymentId, liveVersionId],
-    queryFn: () => fetchRailwayProvisioningPlan(selectedDeploymentId, liveVersionId),
+  const liveProvisioningPlanQuery = useQuery({
+    queryKey: ['deployment-provisioning-plan', selectedDeploymentId, liveVersionId],
+    queryFn: () => fetchDeploymentProvisioningPlan(selectedDeploymentId, liveVersionId),
     enabled: selectedDeploymentId.length > 0 && liveVersionId.length > 0 && liveVersionId !== selectedVersionId,
   })
   const latestRelease = releaseHistory[0] ?? null
   const inProgressRelease = releaseHistory.find(isReleaseInProgress) ?? null
   const integrationSummary = integrationSummaryQuery.data
-  const latestRailwayProjectUrl = latestRelease ? readRailwayProjectUrl(latestRelease.provisioningDetails) : null
-  const latestRailwayProjectName = latestRelease ? readRailwayProjectName(latestRelease.provisioningDetails) : null
+  const latestProviderConsoleUrl = latestRelease ? readProviderConsoleUrl(latestRelease.provisioningDetails) : null
+  const latestProviderProjectName = latestRelease ? readProviderProjectName(latestRelease.provisioningDetails) : null
   const runtimeSwaggerUrl = swaggerUiUrl(selectedDeployment?.runtimeBaseUrl)
   const connectorAdminUrl = integrationSummary?.preferredConnectorOverviewUrl
     ?? (selectedDeployment?.runtimeBaseUrl
@@ -633,15 +673,22 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-validation'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-versions', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provisioning-plan', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
       ])
     },
   })
 
   const applyMutation = useMutation({
-    mutationFn: ({ deploymentId, versionId }: { deploymentId: string; versionId: string }) =>
-      applyDeploymentVersion(deploymentId, versionId),
+    mutationFn: ({
+      deploymentId,
+      versionId,
+      targetProfileId,
+    }: {
+      deploymentId: string
+      versionId: string
+      targetProfileId?: string
+    }) => applyDeploymentVersion(deploymentId, versionId, targetProfileId),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -681,7 +728,7 @@ export function RevisionsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-railway-plan', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provisioning-plan', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-config-diff-center', selectedDeploymentId] }),
       ])
     },
@@ -698,8 +745,8 @@ export function RevisionsPage() {
     [filteredVersions, selectedVersionId],
   )
 
-  const plan = railwayPlanQuery.data
-  const livePlan = selectedVersionId === liveVersionId ? plan : (liveRailwayPlanQuery.data ?? null)
+  const plan = provisioningPlanQuery.data
+  const livePlan = selectedVersionId === liveVersionId ? plan : (liveProvisioningPlanQuery.data ?? null)
   const runtimeImpact = useMemo(
     () => (plan ? buildServiceImpact(livePlan?.services.runtime, plan.services.runtime) : null),
     [livePlan, plan],
@@ -719,7 +766,7 @@ export function RevisionsPage() {
     [changedArtifacts, connectorImpact, livePlan, plan, runtimeImpact],
   )
 
-  const renderEnvTable = (entries: RailwayEnvVarSummary[]) => (
+  const renderEnvTable = (entries: DeploymentPlanEnvVarSummary[]) => (
     <Table size="small">
       <TableHead>
         <TableRow>
@@ -770,7 +817,7 @@ export function RevisionsPage() {
     <Stack spacing={3}>
       <Box>
         <Chip label="Revisions" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0 }}>
           Draft, publish, apply
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 960 }}>
@@ -820,9 +867,9 @@ export function RevisionsPage() {
                 <Box>
                   <Typography variant="h6">Deployment source</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    This controls which GitHub repo and branch Railway will deploy for this
-                    deployment. Keep this admin-only. Customers should choose templates, not raw
-                    branches.
+                    This controls which GitHub repo and branch the active deployment provider will
+                    reconcile for this deployment. Keep this admin-only. Customers should choose
+                    templates, not raw branches.
                   </Typography>
                 </Box>
 
@@ -1193,6 +1240,48 @@ export function RevisionsPage() {
                         Applying versions requires deployment operator access or higher.
                       </Alert>
                     ) : null}
+                    <Grid container spacing={1.5} alignItems="flex-start">
+                      <Grid item xs={12} md={5}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Apply target"
+                          value={applyTargetProfileId}
+                          onChange={(event) => setApplyTargetProfileId(event.target.value)}
+                          helperText={
+                            selectedApplyTargetProfile
+                              ? `Explicit target: ${targetProfileLabel(selectedApplyTargetProfile)}`
+                              : defaultRuntimeTargetProfile
+                                ? `Runtime default: ${targetProfileLabel(defaultRuntimeTargetProfile)}`
+                                : 'Runtime default will be resolved by the platform.'
+                          }
+                          disabled={targetProfilesQuery.isLoading}
+                        >
+                          <MenuItem value="">
+                            Runtime default{defaultRuntimeTargetProfile ? ` (${defaultRuntimeTargetProfile.name})` : ''}
+                          </MenuItem>
+                          {activeTargetProfiles.map((profile) => (
+                            <MenuItem key={profile.id} value={profile.id}>
+                              {targetProfileLabel(profile)}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={7}>
+                        <Alert severity={selectedApplyTargetProfile ? 'info' : 'success'}>
+                          {selectedApplyTargetProfile
+                            ? `Apply will explicitly target ${selectedApplyTargetProfile.id}.`
+                            : 'Apply will use the active runtime default target profile.'}
+                        </Alert>
+                      </Grid>
+                    </Grid>
+                    {targetProfilesQuery.isError ? (
+                      <Alert severity="warning">
+                        {targetProfilesQuery.error instanceof Error
+                          ? targetProfilesQuery.error.message
+                          : 'Failed to load target profiles. Apply can still use the backend runtime default.'}
+                      </Alert>
+                    ) : null}
                     <Grid container spacing={1.5}>
                       <Grid item xs={12} md={4}>
                         <TextField
@@ -1320,6 +1409,7 @@ export function RevisionsPage() {
                                 applyMutation.mutate({
                                   deploymentId: selectedDeployment.id,
                                   versionId: version.id,
+                                  targetProfileId: applyTargetProfileId || undefined,
                                 })
                               }}
                             >
@@ -1380,6 +1470,12 @@ export function RevisionsPage() {
                   <>
                     <Stack direction="row" spacing={1} flexWrap="wrap">
                       <Chip label={latestRelease.status} color={releaseStatusColor(latestRelease.status)} />
+                      {latestRelease.providerType ? (
+                        <Chip label={`Provider: ${latestRelease.providerType}`} variant="outlined" />
+                      ) : null}
+                      {latestRelease.targetProfileId ? (
+                        <Chip label={`Target: ${latestRelease.targetProfileId}`} variant="outlined" />
+                      ) : null}
                       <Chip
                         label={`Provisioning: ${latestRelease.provisioningStatus}`}
                         color={provisioningStatusColor(latestRelease.provisioningStatus)}
@@ -1403,6 +1499,12 @@ export function RevisionsPage() {
                           <Typography variant="body2">
                             Version: <strong>{latestRelease.deploymentVersionId}</strong>
                           </Typography>
+                          <Typography variant="body2">
+                            Target profile: <strong>{latestRelease.targetProfileId ?? 'Runtime default'}</strong>
+                          </Typography>
+                          <Typography variant="body2">
+                            Provider: <strong>{latestRelease.providerType ?? latestRelease.provisioningTarget}</strong>
+                          </Typography>
                         </Stack>
                       </Grid>
                       <Grid item xs={12} md={6}>
@@ -1417,18 +1519,18 @@ export function RevisionsPage() {
                             Verification run: <strong>{latestRelease.verificationRunId ?? 'Pending'}</strong>
                           </Typography>
                           <Typography variant="body2">
-                            Railway project:{' '}
-                            {latestRailwayProjectUrl ? (
+                            Provider project:{' '}
+                            {latestProviderConsoleUrl ? (
                               <Link
-                                href={latestRailwayProjectUrl}
+                                href={latestProviderConsoleUrl}
                                 target="_blank"
                                 rel="noreferrer"
                                 underline="hover"
                               >
-                                {latestRailwayProjectName ?? 'Open project'}
+                                {latestProviderProjectName ?? 'Open project'}
                               </Link>
                             ) : (
-                              <strong>{latestRailwayProjectName ?? 'Not available yet'}</strong>
+                              <strong>{latestProviderProjectName ?? 'Not available yet'}</strong>
                             )}
                           </Typography>
                           <Typography variant="body2">
@@ -1483,7 +1585,7 @@ export function RevisionsPage() {
                           </Button>
                         ) : undefined}
                       >
-                        Deployment activation status is not confirmed yet. Railway may still be finishing startup.
+                        Deployment activation status is not confirmed yet. The provider may still be finishing startup.
                         {latestRelease.errorMessage ? ` ${latestRelease.errorMessage}` : ''}
                       </Alert>
                     ) : latestRelease.errorMessage ? (
@@ -1501,10 +1603,11 @@ export function RevisionsPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Box>
-                  <Typography variant="h6">Railway plan preview</Typography>
+                  <Typography variant="h6">Provisioning plan preview</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    This preview shows what the platform would send to Railway for the selected version:
-                    project naming, service roots, env vars, immutable artifact URLs, and rollout steps.
+                    This preview shows what the platform would send to the selected deployment provider
+                    for the selected version: project naming, service roots, env vars, immutable artifact
+                    URLs, and rollout steps.
                   </Typography>
                 </Box>
 
@@ -1515,23 +1618,23 @@ export function RevisionsPage() {
                     <Chip label={selectedVersion.configHash.slice(0, 12)} variant="outlined" />
                   </Stack>
                 ) : (
-                  <Alert severity="info">Publish a version first to inspect the Railway plan.</Alert>
+                  <Alert severity="info">Publish a version first to inspect the provisioning plan.</Alert>
                 )}
 
-                {railwayPlanQuery.isLoading ? (
-                  <Typography color="text.secondary">Loading Railway plan...</Typography>
-                ) : railwayPlanQuery.isError ? (
+                {provisioningPlanQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading provisioning plan...</Typography>
+                ) : provisioningPlanQuery.isError ? (
                   <Alert severity="error">
-                    {railwayPlanQuery.error instanceof Error
-                      ? railwayPlanQuery.error.message
-                      : 'Failed to load Railway plan'}
+                    {provisioningPlanQuery.error instanceof Error
+                      ? provisioningPlanQuery.error.message
+                      : 'Failed to load provisioning plan'}
                   </Alert>
-                ) : liveRailwayPlanQuery.isLoading ? (
+                ) : liveProvisioningPlanQuery.isLoading ? (
                   <Typography color="text.secondary">Comparing against the current live release plan...</Typography>
-                ) : liveRailwayPlanQuery.isError ? (
+                ) : liveProvisioningPlanQuery.isError ? (
                   <Alert severity="error">
-                    {liveRailwayPlanQuery.error instanceof Error
-                      ? liveRailwayPlanQuery.error.message
+                    {liveProvisioningPlanQuery.error instanceof Error
+                      ? liveProvisioningPlanQuery.error.message
                       : 'Failed to load the current live release plan'}
                   </Alert>
                 ) : plan ? (
