@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PlatformManagedProductProvisioningServiceTest {
@@ -204,6 +205,51 @@ class PlatformManagedProductProvisioningServiceTest {
             .filteredOn(input -> "SHOPIFY_BRIDGE_BILLING_ELITE_AMOUNT".equals(input.name()))
             .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
             .containsExactly("179.00");
+    }
+
+    @Test
+    void reconcileCoolifyManagedShopifyBridgeDoesNotUseRailwayLifecycle() {
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setBaseUrl("https://shopify-bridge-prod.46.225.162.106.sslip.io");
+        service.setStatus("CREATED");
+        service.setDetailsJson("""
+            {
+              "providerType": "COOLIFY",
+              "targetProfileId": "dtp-coolify-production",
+              "coolifyApplicationUuid": "coolify-app-123"
+            }
+            """);
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(serviceService.getService("shopify-bridge-prod")).thenReturn(summary(service));
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformManagedProductProvisioningService provisioningService = new PlatformManagedProductProvisioningService(
+            new PlatformProvisioningProperties(null, null, null, null, null, null, "ws-123", null, null, null, null, null, null, 32, null, null, false, false, 60_000, Duration.ofSeconds(1), Duration.ofSeconds(5)),
+            new PlatformProductProvisioningProperties(null, null, null, null, null, null, null, null, null, Duration.ofSeconds(1), Duration.ofSeconds(5)),
+            new PlatformDeliveryProperties("https://platform.example.com", true, Duration.ofDays(1)),
+            railwayGraphqlClient,
+            platformSecretService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            serviceService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        PlatformManagedProductServiceSummary summary = provisioningService.reconcile("shopify-bridge-prod");
+
+        assertThat(summary.serviceRef()).isEqualTo("shopify-bridge-prod");
+        assertThat(service.getStatus()).isEqualTo("ACTIVE");
+        verify(serviceRepository).save(service);
+        verifyNoInteractions(railwayGraphqlClient);
     }
 
     @Test

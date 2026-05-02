@@ -2562,6 +2562,7 @@ Scope:
 
 - Remove legacy Railway tenant/runtime deployment projects after the current customer-bound deployments were switched to Coolify.
 - Keep Railway control-plane/product-service resources because Platform backend/UI and Shopify Bridge still intentionally run on Railway.
+- Superseded later on 2026-05-02: Shopify Bridge was migrated to Coolify production. Platform backend/UI remain on Railway; the old Railway Shopify Bridge project is retained only as rollback until explicit deletion after soak.
 
 Execution:
 
@@ -2590,3 +2591,57 @@ Audit notes:
 - Local inventory/result files were written under `/tmp/railway-cleanup/` and are intentionally not committed.
 - Secret values were loaded only from local/private sources and were not printed, committed, or summarized.
 - Platform session login from the private handoff returned HTTP `401`, so cleanup used direct Railway GraphQL with conservative platform-managed project matching.
+
+---
+
+## 2026-05-02 Shopify Bridge Product-Service Migration To Coolify Production
+
+Status: implemented, deployed, and live verified.
+
+Policy change:
+
+- Shopify Bridge is now a Coolify production product service instead of a Railway product service.
+- Platform backend/UI and the database still remain on Railway for now.
+- The old Railway Bridge project is rollback-only until deliberate cleanup after a short soak.
+
+Live Coolify target:
+
+- Project: `product-shopify-bridge-prod`
+- Environment: `production`
+- Application: `shopify-bridge-prod`
+- Application UUID: `wurlsp7d3bdsedy1lmn33sdc`
+- Public URL: `https://shopify-bridge-prod.46.225.162.106.sslip.io`
+- Runtime status: `running:healthy`
+
+Execution:
+
+- Created the Coolify production app from the public repo on branch `Platform-V8`, base directory `/product-services/shopify-bridge-service`, Dockerfile `/deploy/railway/Dockerfile`.
+- Migrated existing Bridge runtime variables from Railway to Coolify without printing or committing secret values.
+- Patched runtime URL, environment scope, and actuator exposure for the Coolify app.
+- Updated the Platform product-service record for `shopify-bridge-prod` to point at the Coolify app with `providerType=COOLIFY`, `targetProfileId=dtp-coolify-production`, and Coolify project/environment/application metadata.
+- Updated Shopify app config and theme-extension block defaults to use the Coolify Bridge URL.
+- Deployed the Shopify app through Shopify CLI; latest released version is `loom-companion-27`.
+
+Platform guardrails:
+
+- `PlatformManagedProductProvisioningService` now treats product services with Coolify metadata as outside the Railway lifecycle.
+- Coolify-managed product services no longer reconcile, refresh, restart, force-recreate, or decommission through Railway paths.
+- Product-service health drift accepts a Coolify binding for shared product services.
+- Railway deployment history/log endpoints return unavailable for Coolify-managed product services instead of surfacing stale Railway data.
+
+Verification:
+
+- Coolify app readback: `running:healthy`.
+- Bridge health: `GET /actuator/health` returned HTTP `200` with `UP`.
+- Bridge admin overview returned `READY`.
+- Storefront bootstrap for `shopping-companion-test.myshopify.com` returned HTTP `200` with `available=true`.
+- Shopify app proxy route exists and redirects to the dev-store password page, which is expected while the test store is password-protected.
+- Backend regression tests passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformManagedProductProvisioningServiceTest,PlatformManagedProductAdminServiceTest test`.
+- `git diff --check` passed.
+- Added-line exact local-secret scan against Hetzner, Coolify, Platform, and Shopify local secret files passed.
+
+Remaining product-service cleanup:
+
+- Do not delete `loom-product-production-shopify-` until the Coolify Bridge has soaked and Shopify callbacks/merchant traffic are confirmed off the old Railway URL.
+- Replace the temporary `sslip.io` Bridge URL with real DNS before production tenant cutover.
+- Add GHCR/private registry auth before making the repository private.

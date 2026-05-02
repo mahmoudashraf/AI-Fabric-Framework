@@ -323,6 +323,12 @@ public class PlatformManagedProductProvisioningService {
                 "Managed product service still has " + dependentStores + " dependent store mapping(s)."
             );
         }
+        if (isCoolifyManaged(service)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Coolify-managed product service decommission is not supported by the Railway lifecycle endpoint."
+            );
+        }
 
         if (hasText(service.getRailwayProjectId())) {
             railwayGraphqlClient.deleteProject(service.getRailwayProjectId());
@@ -395,7 +401,15 @@ public class PlatformManagedProductProvisioningService {
     }
 
     private boolean requiresRailwayLifecycle(PlatformManagedProductServiceEntity service) {
-        return "SHOPIFY_BRIDGE_SERVICE".equals(upper(service.getServiceKind()));
+        return "SHOPIFY_BRIDGE_SERVICE".equals(upper(service.getServiceKind()))
+            && !isCoolifyManaged(service);
+    }
+
+    private boolean isCoolifyManaged(PlatformManagedProductServiceEntity service) {
+        ObjectNode details = mutableDetails(service);
+        return "COOLIFY".equalsIgnoreCase(details.path("providerType").asText(null))
+            || hasText(details.path("coolifyApplicationUuid").asText(null))
+            || details.path("targetProfileId").asText("").startsWith("dtp-coolify-");
     }
 
     private RailwayGraphqlClient.RailwayProjectSnapshot resolveCurrentProjectSnapshot(PlatformManagedProductServiceEntity service) {

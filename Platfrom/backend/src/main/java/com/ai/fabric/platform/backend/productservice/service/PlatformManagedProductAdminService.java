@@ -234,6 +234,9 @@ public class PlatformManagedProductAdminService {
     public PlatformManagedProductServiceDeploymentHistorySummary getDeploymentHistory(String serviceRef, Integer limit) {
         PlatformManagedProductServiceEntity service = provisioningService.refreshRailwayBindingFromWorkspace(serviceRef);
         int requestedLimit = normalizeHistoryLimit(limit);
+        if (isCoolifyManaged(service)) {
+            return unavailableDeploymentHistory(service, "Coolify-managed product service deployment history is not exposed by the Railway deployment history endpoint.");
+        }
         if (!hasText(service.getRailwayServiceId())) {
             return unavailableDeploymentHistory(service, "Managed product service does not have a Railway service linkage yet.");
         }
@@ -277,6 +280,18 @@ public class PlatformManagedProductAdminService {
         PlatformManagedProductServiceEntity service = provisioningService.refreshRailwayBindingFromWorkspace(serviceRef);
         String normalizedSource = normalizeLogSource(source);
         int requestedLimit = normalizeLogLimit(limit);
+        if (isCoolifyManaged(service)) {
+            return unavailableRailwayLogs(
+                service,
+                normalizedSource,
+                trimToNull(deploymentId),
+                requestedLimit,
+                filter,
+                startDate,
+                endDate,
+                "Coolify-managed product service logs are not exposed by the Railway logs endpoint."
+            );
+        }
         if (!hasText(service.getRailwayServiceId())) {
             return unavailableRailwayLogs(
                 service,
@@ -377,10 +392,11 @@ public class PlatformManagedProductAdminService {
     public PlatformManagedProductServiceHealthSummary getHealth(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
         boolean railwayManaged = hasText(service.getRailwayServiceId()) && hasText(service.getRailwayEnvironmentId());
+        boolean providerManaged = railwayManaged || isCoolifyManaged(service);
         boolean secretConfigured = !hasText(service.getSecretName()) || platformSecretService.isSecretPresent(service.getSecretName());
 
         ProbeResult healthProbe = buildHealthProbe(service);
-        DriftResult drift = buildDrift(service, railwayManaged, secretConfigured);
+        DriftResult drift = buildDrift(service, providerManaged, secretConfigured);
         String overallStatus = summarizeStatus(healthProbe.summary.status(), drift.status);
         String overallMessage = firstNonBlank(healthProbe.summary.message(), drift.message, "Managed product service health checked.");
 
@@ -1516,18 +1532,25 @@ public class PlatformManagedProductAdminService {
     }
 
     private DriftResult buildDrift(PlatformManagedProductServiceEntity service,
-                                   boolean railwayManaged,
+                                   boolean providerManaged,
                                    boolean secretConfigured) {
         if (!secretConfigured) {
             return new DriftResult("SECRET_DRIFT", "Managed product service secret is missing.");
         }
-        if ("SHARED_PLATFORM_SERVICE".equalsIgnoreCase(service.getDeploymentMode()) && !railwayManaged) {
+        if ("SHARED_PLATFORM_SERVICE".equalsIgnoreCase(service.getDeploymentMode()) && !providerManaged) {
             return new DriftResult("RAILWAY_LINKAGE_MISSING", "Railway linkage is missing for this managed product service.");
         }
         if (!hasText(service.getBaseUrl())) {
             return new DriftResult("BASE_URL_MISSING", "Managed product service base URL is not configured.");
         }
         return new DriftResult("NO_DRIFT", "No drift detected.");
+    }
+
+    private boolean isCoolifyManaged(PlatformManagedProductServiceEntity service) {
+        JsonNode details = mutableDetails(service);
+        return "COOLIFY".equalsIgnoreCase(text(details, "providerType"))
+            || hasText(text(details, "coolifyApplicationUuid"))
+            || blankToFallback(text(details, "targetProfileId"), "").startsWith("dtp-coolify-");
     }
 
     private String summarizeStatus(String probeStatus, String driftStatus) {
