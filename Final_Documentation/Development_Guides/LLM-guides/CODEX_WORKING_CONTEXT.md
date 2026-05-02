@@ -599,3 +599,12 @@ Rules:
 - The accidental production Coolify Bridge app `shopify-bridge-prod` was stopped after staging verification; readback changed to `exited:unhealthy`. Keep it as rollback metadata only until deliberate cleanup.
 - Local verification passed: `git diff --check`; `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformManagedProductProvisioningServiceTest,PlatformManagedProductAdminServiceTest test`; Shopify deploy shell syntax check; Shopify CLI preflight with `/tmp/shopify-live-deploy-staging.env`; exact added-line local-secret scan. `npm --prefix product-services/shopify-bridge-service/ui run build` was blocked because `ui/node_modules` is missing and local installs are not allowed in this session.
 - Local secret files used for DB/Coolify/Shopify auth remained under `/tmp` and were not committed or summarized.
+
+## 2026-05-02 Loom Verification Store Cleanup
+
+- User requested deletion of `loom-verification-20260418.myshopify.com` after confirming it was only an internal/dev verification store.
+- Deleted the two staging Coolify applications for deployment `dep-3bf25c3f`: runtime UUID `yw9nm94x4cerbm9kg59lpws1` and connector UUID `m51na1cyv59gcsw6dsb0c3t0`; Coolify API readback now reports both absent and no matching `loom-verification`/`dep-3bf25c3f` applications.
+- Removed Platform records for store connection `shp-66960697`, deployment `dep-3bf25c3f`, consumer `shopify-loom-verification-20260418`, provider handles, marketplace dataset handles/sync runs, vectorization metadata, and the now-empty verification-only customer `cus-9c130451`.
+- Did not delete shared/reused Qdrant collections because this verification deployment had no vectorized data and direct Qdrant checks returned missing collections for its scoped names.
+- Verification after cleanup: Platform readback counts for the store, deployment, consumer, provider handles, and customer are all `0`; deleted runtime and connector health URLs return HTTP `404`; remaining main store `shopping-companion-test.myshopify.com` still maps to `dep-8c3e7259` and its Coolify runtime health returns HTTP `200 UP`.
+- Local pre-delete snapshot is stored only at `/tmp/loom-verification-delete/pre-delete-snapshot.json` and is not committed.

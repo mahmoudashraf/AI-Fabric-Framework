@@ -2693,3 +2693,31 @@ Remaining production/go-live blockers:
 - Replace temporary `sslip.io` domains with real DNS.
 - Add GHCR/private registry auth before private-source deployments.
 - Keep production Bridge and production tenant cutover inactive until production smoke, backup/restore, DNS, and registry auth are complete.
+
+---
+
+## 2026-05-02 Loom Verification Store Cleanup
+
+Status: completed.
+
+Scope:
+
+- Delete the internal/dev verification store `loom-verification-20260418.myshopify.com` and its staging Coolify deployment after confirming it is not the main active customer-like store.
+- Preserve the active `shopping-companion-test.myshopify.com` deployment.
+
+Execution:
+
+- Deleted staging Coolify runtime app `yw9nm94x4cerbm9kg59lpws1` and connector app `m51na1cyv59gcsw6dsb0c3t0` for deployment `dep-3bf25c3f`.
+- Removed Platform metadata for store connection `shp-66960697`, deployment `dep-3bf25c3f`, consumer `shopify-loom-verification-20260418`, provider handles, marketplace dataset handles/sync runs, vectorization metadata, and the empty verification-only customer `cus-9c130451`.
+- Skipped shared/reused Qdrant collection deletion. The deployment had no vectorized data and direct Qdrant scoped collection checks returned missing collections, so deleting reused/shared root collections would be unsafe.
+
+Verification:
+
+- Coolify API readback reports both deleted app UUIDs absent and no remaining `loom-verification` / `dep-3bf25c3f` applications.
+- Platform DB readback counts for the store, deployment, consumer, provider handles, and customer are all `0`.
+- Deleted runtime and connector public health URLs return HTTP `404`.
+- Remaining main store `shopping-companion-test.myshopify.com` still maps to `dep-8c3e7259`; its Coolify runtime health returns HTTP `200 UP`.
+
+Audit:
+
+- Local pre-delete snapshot is stored under `/tmp/loom-verification-delete/pre-delete-snapshot.json`; it is intentionally not committed.
