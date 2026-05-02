@@ -627,3 +627,10 @@ Rules:
 - Revoked the one stale active store assignment owned by an old release-gate account. Live readback now shows only the `test` partner account with active access to `shopping-companion-test.myshopify.com`.
 - Verification readback: partner member role/status counts are `PARTNER_ADMIN/ACTIVE=2` and `PARTNER_SUPPORT/REVOKED=14`; active partner-admin readback matches the two intentionally retained members.
 - Local pre-cleanup snapshot is stored only at `/tmp/partner-admin-cleanup/pre-cleanup-partner-members.json` and is not committed.
+
+## 2026-05-02 Shopify Bridge Staging Coolify Redeploy Proof
+
+- User asked whether the new Coolify Bridge was listening to the branch commit after the Coolify UI showed the older `Migrate Shopify Bridge to Coolify` commit label.
+- Coolify staging app `shopify-bridge-staging` (`c12bjqdcyqdt7tzgr48pev3z`) is configured for `mahmoudashraf/AI-Fabric-Framework.git`, branch `Platform-V8`, and `git_commit_sha=HEAD`; it is not pinned to commit `f376676be`.
+- Forced a staging redeploy through the Coolify API. Deployment `u14d3rnjda3aip7qo1nimvtf` resolved `Platform-V8` to commit `ef90b0d52767a4351e586a4fa7034408eda4a89d` (`Record partner verification admin cleanup`) and finished successfully at `2026-05-02T15:57:08Z`.
+- Post-redeploy health proof: `https://shopify-bridge-staging.46.224.145.148.sslip.io/actuator/health` returned HTTP `200` with `UP`.
