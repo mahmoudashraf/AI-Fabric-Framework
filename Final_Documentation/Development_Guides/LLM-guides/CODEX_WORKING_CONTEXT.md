@@ -658,3 +658,22 @@ Rules:
 - Checked live Platform DB for tracked rows referencing that Railway project in product services, deployment provider handles, and release provisioning details; no matching source-of-truth rows were found.
 - Current blocker: cannot safely migrate because the service list and service environment variables cannot be read from Railway with available credentials, and Platform DB does not contain tracked metadata for this project.
 - Needed next credential: a current Railway API/account token or project token that can read project `6d0590be-3921-49b6-9fb7-75344cad0b6c`, its environments, services, source config, and service variables. Coolify credentials are locally available.
+
+## 2026-05-02 Railway Project 6d0590be Coolify Application Migration
+
+- User provided a Railway workspace/project token; it was stored only at `/tmp/railway_workspace_6d0590be_api_token.secret` with mode `0600` and not printed or committed.
+- Railway GraphQL inventory for project `6d0590be-3921-49b6-9fb7-75344cad0b6c` succeeded: project name `platform`, environments `production` and `Prod2`, services `platform-Postgres`, `Platform-Backend`, `Platform-ui`, `Partner-ui`, `Ecommerce Store`, and `runtime`.
+- Saved Railway service/source/env inventory only under `/tmp/railway-migrate-6d0590be/` with secret-safe file permissions. Do not commit or paste those files.
+- Created one Coolify production project `railway-platform` with environment `production`.
+- Created Coolify applications under that single project: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`, all from public Git branch `Platform-V8`.
+- Coolify public URLs:
+  - Platform backend: `https://railway-platform-backend.46.225.162.106.sslip.io`
+  - Platform UI: `https://railway-platform-ui.46.225.162.106.sslip.io`
+  - Partner UI: `https://railway-partner-ui.46.225.162.106.sslip.io`
+  - Ecommerce store: `https://railway-ecommerce-store.46.225.162.106.sslip.io`
+  - Runtime: `https://railway-runtime.46.225.162.106.sslip.io`
+- Environment variables were mapped into Coolify without printing values. URL rewrites point Platform UI and Partner UI runtime config at the Coolify Platform backend. Runtime received the required Platform runtime-auth secrets from Platform DB secret storage.
+- Verification passed: all five Coolify health endpoints returned HTTP `200` with `UP`; Platform UI and Partner UI `/runtime-config.js` both point at the Coolify backend; Coolify readback shows backend/ecommerce `running:healthy` and UI/runtime apps `running:unknown` because container-internal health checks were disabled for images without `curl`/`wget`.
+- Remote Hetzner cleanup: pruned production Docker build cache after concurrent builds left 9 GB cache; no local installs were performed.
+- Postgres/database cutover is not complete. Coolify native database/service API records were created but did not start database containers on this 4.0.0 host; failed DB/service attempts were deleted from Coolify to keep the project clean. The migrated Coolify Platform backend currently points at the existing Railway Postgres public connection, so it is a live app clone, not a full DB migration.
+- Remaining before deleting Railway project or switching real domains: working Coolify Postgres restore/cutover for source Postgres 18.3, DNS replacing `sslip.io`, decide whether to route public Platform/Partner UI traffic to the Coolify URLs, and soak verification.

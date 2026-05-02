@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, and lightweight customer-level Coolify project grouping live-verified on staging)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, lightweight customer-level Coolify project grouping live-verified on staging, and Railway project `6d0590be` application services cloned into one Coolify production project)
 
 Owner mode: technical LLM implementation session
 
@@ -2721,3 +2721,47 @@ Verification:
 Audit:
 
 - Local pre-delete snapshot is stored under `/tmp/loom-verification-delete/pre-delete-snapshot.json`; it is intentionally not committed.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` One-Project Coolify Clone
+
+Status: application clone implemented and live-verified; database cutover pending.
+
+Scope:
+
+- Source Railway project: `6d0590be-3921-49b6-9fb7-75344cad0b6c`, project name `platform`.
+- Target Coolify project: `railway-platform`.
+- Target Coolify environment: `production`.
+- Shape: one Coolify project containing the migrated application services from the Railway production environment.
+
+Created Coolify application resources:
+
+| Service | Coolify URL | Verification |
+|---|---|---|
+| `platform-backend` | `https://railway-platform-backend.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `platform-ui` | `https://railway-platform-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the Coolify backend |
+| `partner-ui` | `https://railway-partner-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the Coolify backend |
+| `ecommerce-store` | `https://railway-ecommerce-store.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `runtime` | `https://railway-runtime.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Execution notes:
+
+- Railway service/source/env inventory is stored only under `/tmp/railway-migrate-6d0590be/` and must not be committed.
+- Coolify app envs were mapped without printing values. URL rewrites point Platform UI and Partner UI to the Coolify Platform backend.
+- Platform runtime-auth secrets used by the generic runtime were read from Platform DB secret storage and written only to local `/tmp` secret files before loading into Coolify.
+- Coolify container-internal health checks were disabled for Platform UI, Partner UI, and Runtime because these Docker images do not include `curl`/`wget`; external HTTP health checks passed.
+- Remote Docker build cache on `coolify-prod-01` was pruned after concurrent builds generated 9 GB of cache. No local installs were performed.
+
+Database status:
+
+- The application clone currently uses the existing Railway Postgres public connection from the source environment.
+- Source Postgres version was verified as `18.3`.
+- Coolify native Postgres/database and service API attempts on Coolify `4.0.0` created records but did not start database containers. Failed experimental records were deleted so the `railway-platform` project does not contain broken database resources.
+- Full DB migration remains pending until a Coolify Postgres 18 resource can be started reliably, restored from a Railway dump, and the cloned Platform backend can be repointed and reverified.
+
+Current cutover posture:
+
+- The Coolify application clone is testable by direct `sslip.io` URLs.
+- Do not delete the Railway project or switch public Platform/Partner UI domains yet.
+- Remaining blockers are database restore/cutover, real DNS, soak verification, and an explicit routing decision for public traffic.
