@@ -2971,7 +2971,7 @@ Cutover posture:
 
 ## 2026-05-02 LoomAI Shopify Bridge Hostnames And Supabase Auth Cleanup
 
-Status: remaining active Bridge hostnames renamed; Supabase test users cleaned.
+Status: remaining active Bridge hostnames renamed; Shopify app config released; Supabase test users cleaned.
 
 Bridge Coolify resource rename:
 
@@ -2993,8 +2993,9 @@ Shopify app config:
   - `product-services/shopify-bridge-service/shopify.app.toml`
   - `product-services/shopify-bridge-service/shopify.app.loom-companion.toml`
   - companion theme-extension block default Bridge URLs
-- Shopify CLI apply attempt was blocked by missing non-interactive Shopify authorization. Explicit Node 20 can run the CLI, but the current environment has no logged-in Shopify CLI session or CI credential.
-- Remaining Shopify-side apply step: deploy the updated app config from an authenticated Shopify CLI session.
+- Loaded the Shopify CLI Partner token from the private handoff into local secret/env files without printing or committing it.
+- Deployed the updated app config through explicit Node 20 with `--no-build`; latest released Shopify app version is `loom-companion-30`, message `Rename Bridge URLs to LoomAI Coolify`.
+- The repo `shopify:app:deploy` script still cannot run in this local checkout because `vite` is not installed and local installs are not allowed; direct Shopify CLI config/theme-extension deploy succeeded because this hostname/config change did not require rebuilding widget assets.
 
 Supabase cleanup:
 
