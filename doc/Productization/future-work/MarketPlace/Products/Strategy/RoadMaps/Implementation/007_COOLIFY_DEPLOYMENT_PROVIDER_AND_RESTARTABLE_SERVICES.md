@@ -2966,3 +2966,44 @@ Cutover posture:
 - Active Coolify clone naming is now LoomAI-branded.
 - Real DNS remains deferred; `sslip.io` is still the temporary hostname layer.
 - Supabase magic-link login will keep landing on the old Railway Site URL until Supabase Auth URL settings are updated.
+
+---
+
+## 2026-05-02 LoomAI Shopify Bridge Hostnames And Supabase Auth Cleanup
+
+Status: remaining active Bridge hostnames renamed; Supabase test users cleaned.
+
+Bridge Coolify resource rename:
+
+| Environment | App name | URL | Verification |
+|---|---|---|---|
+| staging | `loomai-shopify-bridge-staging` | `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP`; Coolify status `running:healthy` |
+| production | `loomai-shopify-bridge-prod` | `https://loomai-shopify-bridge-prod.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP`; Coolify status `running:healthy` |
+
+Bridge env updates:
+
+- `SHOPIFY_BRIDGE_PUBLIC_BASE_URL` now points at the matching `loomai-shopify-bridge-*` URL.
+- `SHOPIFY_BRIDGE_PLATFORM_BASE_URL` now points at the matching `loomai-platform-backend` URL.
+- Staging inherited Railway domain env values were rewritten to the new LoomAI host or blanked where private-domain semantics no longer apply.
+- `SHOPIFY_BRIDGE_SERVICE_REF` was not renamed; it is a product-service reference, not a public hostname.
+
+Shopify app config:
+
+- Updated tracked app config and theme-extension defaults to the staging LoomAI Bridge URL:
+  - `product-services/shopify-bridge-service/shopify.app.toml`
+  - `product-services/shopify-bridge-service/shopify.app.loom-companion.toml`
+  - companion theme-extension block default Bridge URLs
+- Shopify CLI apply attempt was blocked by missing non-interactive Shopify authorization. Explicit Node 20 can run the CLI, but the current environment has no logged-in Shopify CLI session or CI credential.
+- Remaining Shopify-side apply step: deploy the updated app config from an authenticated Shopify CLI session.
+
+Supabase cleanup:
+
+- Used Supabase project credentials from the private handoff doc without printing values.
+- Deleted `17` obvious test/automation Supabase Auth users.
+- Kept `2` real-looking Supabase Auth users.
+- Post-cleanup readback shows `0` remaining test candidates by the cleanup rules.
+
+Active hostname audit:
+
+- All active non-disposable Coolify `sslip.io` application hostnames now use `loomai-*`.
+- Disposable staging runtime/connector apps intentionally keep `dep-*` hostnames because those are deployment instance identifiers.

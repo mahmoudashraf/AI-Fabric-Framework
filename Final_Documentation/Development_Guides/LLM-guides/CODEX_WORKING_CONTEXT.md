@@ -734,3 +734,15 @@ Rules:
 - Supabase partner magic-link diagnosis: using the local project secret from the private handoff doc and the non-committed test account, generated-link checks proved Supabase rewrites requested Coolify callback URLs back to the old Partner UI Railway Site URL. This is Supabase Auth URL configuration, not partner-ui code: the UI builds `emailRedirectTo` from `window.location.origin`.
 - Supabase redirect blocker: the private handoff has project publishable/secret keys, enough to diagnose and generate links, but no Supabase Management API token or logged-in CLI session that can update Auth Site URL / Additional Redirect URLs. Required unblock is either a Supabase dashboard update or a Supabase Management API personal access token with access to project `xazkenhomhtpejjjqtsy`.
 - Required Supabase Auth URL settings after unblock: Site URL should point to the active Partner UI target, and Additional Redirect URLs should include at least `https://loomai-partner-ui.46.224.145.148.sslip.io/auth/callback` for staging and `https://loomai-partner-ui.46.225.162.106.sslip.io/auth/callback` for production until real DNS replaces `sslip.io`.
+
+## 2026-05-02 LoomAI Bridge Hostnames And Supabase Auth Cleanup
+
+- Continued hostname cleanup for Shopify Bridge Coolify apps.
+- Renamed staging Bridge app to `loomai-shopify-bridge-staging`, URL `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io`, status `running:healthy`.
+- Renamed production Bridge app to `loomai-shopify-bridge-prod`, URL `https://loomai-shopify-bridge-prod.46.225.162.106.sslip.io`, status `running:healthy`.
+- Updated Bridge Coolify envs without printing values: `SHOPIFY_BRIDGE_PUBLIC_BASE_URL` points at the matching `loomai-shopify-bridge-*` URL; `SHOPIFY_BRIDGE_PLATFORM_BASE_URL` points at the matching `loomai-platform-backend` URL. Staging inherited `RAILWAY_PUBLIC_DOMAIN` / `RAILWAY_STATIC_URL` values were rewritten to the new LoomAI host and `RAILWAY_PRIVATE_DOMAIN` was blanked.
+- Updated tracked Shopify app config and theme-extension defaults to the staging LoomAI Bridge URL: `shopify.app.toml`, `shopify.app.loom-companion.toml`, and the companion theme block defaults.
+- Verified both Bridge health endpoints returned HTTP `200 UP`.
+- Active Coolify hostname audit now shows zero non-`loomai-*` application hostnames except disposable `dep-*` runtime/connector apps.
+- Attempted to deploy the updated Shopify app config with the installed Shopify CLI through explicit Node 20. The CLI reached auth but failed non-interactively because no Shopify CLI session/token is available in the environment. The repo config is updated; applying the config to Shopify still needs an authenticated Shopify CLI session or CI credential.
+- Supabase Auth cleanup used the project secret from the private handoff doc. Deleted `17` obvious test/automation users by email pattern/domain; kept `2` real-looking users. Post-cleanup readback shows `0` remaining test candidates. No Supabase token or user token values were printed or committed.
