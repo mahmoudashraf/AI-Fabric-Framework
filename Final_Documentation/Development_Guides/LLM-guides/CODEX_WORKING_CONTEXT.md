@@ -608,3 +608,12 @@ Rules:
 - Did not delete shared/reused Qdrant collections because this verification deployment had no vectorized data and direct Qdrant checks returned missing collections for its scoped names.
 - Verification after cleanup: Platform readback counts for the store, deployment, consumer, provider handles, and customer are all `0`; deleted runtime and connector health URLs return HTTP `404`; remaining main store `shopping-companion-test.myshopify.com` still maps to `dep-8c3e7259` and its Coolify runtime health returns HTTP `200 UP`.
 - Local pre-delete snapshot is stored only at `/tmp/loom-verification-delete/pre-delete-snapshot.json` and is not committed.
+
+## 2026-05-02 Platform UI Partner Privileges PATCH CORS Fix
+
+- User reported the Platform UI partner privileges page calling `PATCH /api/platform/partners/members/pm-787f10e8-850c-421c-8632-37cf5381582d` from `https://platform-ui-production-00e3.up.railway.app`.
+- Live diagnosis before code change: the partner member row exists with normal `ACTIVE` state and empty configurable privileges; `GET` CORS preflight from the Platform UI origin returned `200`, but `PATCH` preflight returned `403`.
+- Root cause: backend CORS allowed methods were `GET,POST,PUT,DELETE,OPTIONS`; the Platform UI uses `PATCH` for partner-member mutations.
+- Fix: `WebConfig` now includes `PATCH` in API CORS allowed methods, and `PlatformSecurityIntegrationTest` has a regression test proving a Platform UI-style `PATCH` preflight succeeds and returns `Access-Control-Allow-Methods` containing `PATCH`.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=PlatformSecurityIntegrationTest test`.
+- Changed files: `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/config/WebConfig.java`, `Platfrom/backend/src/test/java/com/ai/fabric/platform/backend/security/PlatformSecurityIntegrationTest.java`, and this context handoff.
