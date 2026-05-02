@@ -184,7 +184,7 @@ Coolify API/control-plane bootstrap values:
 
 The built-in Coolify server records were switched from root SSH to the hardened `loomops` user. Server validation currently reports `is_reachable=true` and `is_usable=true` for both hosts. The host firewall/fail2ban configuration allows the local Coolify Docker address pool for self-validation while keeping external SSH and dashboard access restricted to the setup allowlist.
 
-The bootstrap now grants the Coolify SSH deployment user ACL access to the local `/data/coolify` resource directories and starts the bundled proxy from `/data/coolify/proxy`. The same ACL/proxy fix was applied live on staging and production on 2026-05-01; both `coolify-proxy` containers are healthy.
+The bootstrap now grants the Coolify SSH deployment user recursive and default ACL access to the local `/data/coolify/applications`, `/data/coolify/databases`, and `/data/coolify/services` directories, then starts the bundled proxy from `/data/coolify/proxy`. The same ACL/proxy fix was applied live on staging and production. On 2026-05-02 the database/service ACLs were strengthened so new Coolify-native database directories inherit `loomops` write access; native Postgres database starts now work through the Coolify API.
 
 Until DNS credentials or delegation are available, disposable staging app smoke tests use temporary `sslip.io` domains under `*.46.224.145.148.sslip.io`. Replace the seeded temporary suffixes with `*.runtime-staging.loomai.pro` and `*.runtime.loomai.pro` after DNS automation is active.
 

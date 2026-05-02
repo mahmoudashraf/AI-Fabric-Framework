@@ -2849,3 +2849,57 @@ Current cutover posture:
 - The staging and production Coolify clones no longer depend on the Railway Postgres public connection.
 - The original Railway project/database should remain as rollback/source-of-truth until explicit traffic routing, DNS, and soak decisions are made.
 - Follow-up: add a first-class Coolify-managed database path once the Coolify database/service API starts containers reliably, or formally document/adopt the direct Docker Compose database path into Platform provider metadata.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` First-Class Coolify Database Fix
+
+Status: direct Docker Compose fallback removed; staging and production now use first-class Coolify database resources.
+
+Root cause:
+
+- Coolify database/service API creation was valid, but start jobs failed under the hardened `loomops` Coolify SSH user.
+- The generated database/service directories under `/data/coolify/databases` and `/data/coolify/services` did not inherit writable ACLs for `loomops`.
+- Coolify queued the jobs, then failed while writing generated resource files such as `README.md` and `docker-compose.yml`.
+
+Fix:
+
+- Applied live ACL repair on both Coolify hosts:
+  - parent traversal ACL for `/data` and `/data/coolify`
+  - recursive `loomops:rwx` ACL for `/data/coolify/applications`, `/data/coolify/databases`, and `/data/coolify/services`
+  - default `loomops:rwx` ACL inheritance for new resource directories under those paths
+- Updated reproducible host bootstrap scripts so future hosts apply the same recursive/default ACL baseline.
+- Verified a disposable staging Coolify-native Postgres `18` resource could start as `running:healthy` with the generated Coolify compose using `/var/lib/postgresql` for the Postgres 18 volume.
+
+Final Coolify database resources:
+
+| Environment | Coolify resource | UUID | Status | Backend DB URL shape |
+|---|---|---|---|---|
+| staging | `railway-platform-postgres-staging` | `m58iwvqdkfie8tykohmhyj7t` | `running:healthy` | `jdbc:postgresql://m58iwvqdkfie8tykohmhyj7t:5432/platform_staging` |
+| production | `railway-platform-postgres-production` | `nkti6x5r7ovw1xx8q0ykhweq` | `running:healthy` | `jdbc:postgresql://nkti6x5r7ovw1xx8q0ykhweq:5432/platform_production` |
+
+Migration:
+
+- Created first-class Coolify Postgres `18` database resources in the existing `railway-platform` Coolify projects/environments.
+- Restored data from the temporary direct-host Postgres DBs into the first-class Coolify DB resources.
+- Repointed staging and production `platform-backend` envs to the Coolify DB UUID hostnames in preview and non-preview env entries.
+- Redeployed both Platform backend apps through Coolify.
+- Deleted the disposable staging native DB test resource.
+- Removed the temporary direct Docker Compose fallback containers, volumes, remote compose files, and remote env/dump files.
+
+Verification:
+
+- Staging Coolify database resource readback: `railway-platform-postgres-staging`, UUID `m58iwvqdkfie8tykohmhyj7t`, `running:healthy`.
+- Production Coolify database resource readback: `railway-platform-postgres-production`, UUID `nkti6x5r7ovw1xx8q0ykhweq`, `running:healthy`.
+- Staging native DB readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Production native DB readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Running staging backend env readback uses `jdbc:postgresql://m58iwvqdkfie8tykohmhyj7t:5432/platform_staging`.
+- Running production backend env readback uses `jdbc:postgresql://nkti6x5r7ovw1xx8q0ykhweq:5432/platform_production`.
+- All cloned staging endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+- All cloned production endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+- Shell syntax checks passed for the updated Hetzner bootstrap/API fallback scripts.
+
+Current cutover posture:
+
+- The Coolify UI/API now owns and groups the migrated Postgres resources in the `railway-platform` projects.
+- The Railway project/database should still remain until explicit traffic routing, DNS, and soak decisions are complete.

@@ -707,3 +707,16 @@ Rules:
 - Verification passed: both Postgres containers are healthy; all five staging endpoints and all five production endpoints returned HTTP `200` / `UP` after DB cutover.
 - Remote migration env files and dump files were removed from both Hetzner hosts after restore. Local secret metadata remains only under `/tmp/railway-migrate-6d0590be/db-targets/`; do not commit or paste it.
 - Remaining cutover cautions: keep the Railway project/database until explicit traffic routing, DNS, and soak decisions are made; later add a first-class Coolify-managed DB path or formal Platform metadata for direct Docker Compose DB resources.
+
+## 2026-05-02 Railway Project 6d0590be First-Class Coolify DB Fix
+
+- User requested fixing the direct Compose fallback properly so DBs are first-class Coolify resources.
+- Root cause found in Coolify `failed_jobs`: native database/service start jobs failed writing generated files under `/data/coolify/databases` and `/data/coolify/services` because the hardened `loomops` deployment user lacked inherited write ACLs for new resource directories.
+- Applied live ACL repair on staging and production: `/data` and `/data/coolify` traversal ACLs plus recursive/default `loomops:rwx` ACLs on `/data/coolify/applications`, `/data/coolify/databases`, and `/data/coolify/services`.
+- Updated reproducible Hetzner bootstrap/API fallback scripts to apply the recursive/default ACL baseline for future hosts.
+- Verified a disposable staging Coolify-native Postgres `18` resource started as `running:healthy`, then deleted that disposable resource.
+- Created first-class Coolify Postgres `18` resources in the existing `railway-platform` projects: staging `railway-platform-postgres-staging` UUID `m58iwvqdkfie8tykohmhyj7t`; production `railway-platform-postgres-production` UUID `nkti6x5r7ovw1xx8q0ykhweq`.
+- Restored data from the temporary direct-host Postgres DBs into the first-class Coolify DB resources, repointed both `platform-backend` apps to the Coolify DB UUID hostnames in preview and non-preview envs, and redeployed both backends.
+- Removed the temporary direct Compose fallback containers, volumes, remote compose dirs, and remote env/dump files. Only the Coolify-managed DB containers/volumes remain.
+- Verification passed: both Coolify DB resources are `running:healthy`; both DBs have `87` public tables, `80` Flyway rows, max Flyway version `9`; staging backend uses `jdbc:postgresql://m58iwvqdkfie8tykohmhyj7t:5432/platform_staging`; production backend uses `jdbc:postgresql://nkti6x5r7ovw1xx8q0ykhweq:5432/platform_production`; all five staging and all five production endpoints returned HTTP `200` / `UP`; bootstrap script `bash -n` passed.
+- Remaining cautions: keep the Railway project/database until explicit public routing, DNS, and soak decisions are complete. Local secret metadata remains only under `/tmp/railway-migrate-6d0590be/db-targets/`; do not commit or paste it.

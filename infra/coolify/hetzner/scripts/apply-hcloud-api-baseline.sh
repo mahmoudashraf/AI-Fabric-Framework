@@ -313,9 +313,11 @@ chmod 0755 /data/coolify /var/lib/loom-coolify
 configure_coolify_deployment_user() {
   mkdir -p /data/coolify/applications /data/coolify/databases /data/coolify/services /data/coolify/proxy
   if command -v setfacl >/dev/null 2>&1; then
-    setfacl -m "u:\${ADMIN_USER}:rx" /data/coolify
-    setfacl -m "u:\${ADMIN_USER}:rwx" /data/coolify/applications /data/coolify/databases /data/coolify/services
-    setfacl -d -m "u:\${ADMIN_USER}:rwx" /data/coolify/applications /data/coolify/databases /data/coolify/services
+    setfacl -m "u:\${ADMIN_USER}:rx" /data /data/coolify
+    for resource_dir in /data/coolify/applications /data/coolify/databases /data/coolify/services; do
+      setfacl -R -m "u:\${ADMIN_USER}:rwx" "\$resource_dir"
+      setfacl -R -m "d:u:\${ADMIN_USER}:rwx" "\$resource_dir"
+    done
   else
     chgrp "\$ADMIN_USER" /data/coolify /data/coolify/applications /data/coolify/databases /data/coolify/services
     chmod 0750 /data/coolify
