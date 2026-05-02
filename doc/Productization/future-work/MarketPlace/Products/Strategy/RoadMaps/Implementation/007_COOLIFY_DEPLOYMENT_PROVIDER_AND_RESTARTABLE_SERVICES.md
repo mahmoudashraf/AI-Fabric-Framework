@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, and protected production Coolify API preflight unblocked)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, and lightweight customer-level Coolify project grouping implemented locally)
 
 Owner mode: technical LLM implementation session
 
@@ -2486,4 +2486,58 @@ Remaining production/go-live cutover work:
 
 - Replace temporary `sslip.io` domains with real DNS.
 - Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+
+---
+
+## 2026-05-02 Lightweight Customer Grouping In Coolify
+
+Status: implemented locally; pending commit, deploy, and live apply proof.
+
+Decision:
+
+- Customers still do not access Coolify. Platform remains the source of truth for deployments, authorization, quotas, cleanup, migration, and audit.
+- Coolify grouping is an operator visibility layer only:
+
+```text
+Coolify Team
+└─ Project: customer-{platformCustomerSlug}
+   └─ Environment: staging|production
+      ├─ runtime-{deployment}
+      └─ rest-connector-{deployment}
+```
+
+Implemented:
+
+- Added Coolify API client support for native project/environment lifecycle:
+  - `GET /projects`
+  - `POST /projects`
+  - `GET /projects/{uuid}/environments`
+  - `GET /projects/{uuid}/{environment_name_or_uuid}`
+  - `POST /projects/{uuid}/environments`
+- `CoolifyDeploymentProvider` now resolves a customer resource scope before app reconciliation when `customerProjectGroupingEnabled` is true.
+- Default Platform runtime behavior enables grouping when `PlatformCustomerRepository` is available. Test-only constructors without the repository keep grouping disabled unless explicitly wired.
+- Project naming uses the Platform customer slug when available and falls back to customer ID, tenant ID, then deployment ID.
+- Runtime and connector create requests now use the resolved customer project/environment instead of the fixed target-profile project/environment.
+- Provider resource handles persist the resolved project/environment UUIDs and metadata records the Coolify grouping details.
+- Existing handles from the previous fixed target-profile project are treated as stale on the next apply: Platform deletes the old Coolify app and creates the replacement under the customer project/environment instead of PATCH-moving, because live Coolify rejected `project_uuid` on application PATCH.
+- Added migration `V80__coolify_customer_project_grouping.sql` to mark seeded Coolify target profiles with customer project grouping defaults without changing DNS or production default policy.
+
+Verification completed locally:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `git diff --check`
+- changed-file exact local-secret scan against Hetzner/Coolify/Platform secret files
+
+Pending verification before marking live-complete:
+
+- deploy `Platform-V8`
+- re-apply the current Coolify-backed staging customer deployments so the Coolify UI shows `customer-shopping-companion-test` and `customer-loom-verification` style grouping.
+
+Remaining production/go-live cutover blockers stay unchanged:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Keep `dtp-coolify-production` non-default until a production tenant smoke passes.
 - Add GHCR/private registry auth before making the repo private or using private-source deployments.

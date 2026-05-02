@@ -48,6 +48,8 @@ class DeploymentTargetProfileMigrationTest {
                 assertThat(profile.getProviderConfigJson()).contains("46.224.145.148.sslip.io");
                 assertThat(profile.getResourceDefaultsJson()).contains("GIT_SOURCE");
                 assertThat(profile.getResourceDefaultsJson()).contains("ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
+                assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectGroupingEnabled\":true");
+                assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectNamePrefix\":\"customer\"");
             });
         assertThat(targetProfileRepository.findById("dtp-coolify-production"))
             .hasValueSatisfying(profile -> {
@@ -61,6 +63,8 @@ class DeploymentTargetProfileMigrationTest {
                 assertThat(profile.getProviderConfigJson()).contains("46.225.162.106.sslip.io");
                 assertThat(profile.getResourceDefaultsJson()).contains("GIT_SOURCE");
                 assertThat(profile.getResourceDefaultsJson()).contains("ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
+                assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectGroupingEnabled\":true");
+                assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectNamePrefix\":\"customer\"");
             });
         assertThat(providerCredentialRepository.findById("dpc-coolify-staging"))
             .hasValueSatisfying(credential -> {

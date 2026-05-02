@@ -113,6 +113,40 @@ class CoolifyApiClientTest {
         }
     }
 
+    @Test
+    void projectAndEnvironmentEndpointsUseCoolifyApiShape() throws Exception {
+        AtomicReference<String> observedProjectBody = new AtomicReference<>();
+        AtomicReference<String> observedEnvironmentBody = new AtomicReference<>();
+        HttpServer server = projectEnvironmentServer(observedProjectBody, observedEnvironmentBody);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+            CoolifyConnection connection = connection(server);
+
+            assertThat(client.listProjects(connection))
+                .extracting(CoolifyProjectSummary::uuid)
+                .containsExactly("project-uuid");
+            assertThat(client.createProject(connection, "customer-acme", "Managed project"))
+                .isEqualTo("created-project-uuid");
+            JsonNode projectBody = objectMapper.readTree(observedProjectBody.get());
+            assertThat(projectBody.path("name").asText()).isEqualTo("customer-acme");
+            assertThat(projectBody.path("description").asText()).isEqualTo("Managed project");
+
+            assertThat(client.listEnvironments(connection, "project-uuid"))
+                .extracting(CoolifyEnvironmentSummary::name)
+                .containsExactly("staging");
+            assertThat(client.getEnvironment(connection, "project-uuid", "staging"))
+                .get()
+                .extracting(CoolifyEnvironmentSummary::uuid)
+                .isEqualTo("environment-uuid");
+            assertThat(client.createEnvironment(connection, "project-uuid", "production"))
+                .isEqualTo("created-environment-uuid");
+            JsonNode environmentBody = objectMapper.readTree(observedEnvironmentBody.get());
+            assertThat(environmentBody.path("name").asText()).isEqualTo("production");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private HttpServer patchServer(AtomicReference<String> observedBody) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/applications/app-uuid", exchange -> {
@@ -129,6 +163,49 @@ class CoolifyApiClientTest {
         });
         server.start();
         return server;
+    }
+
+    private HttpServer projectEnvironmentServer(AtomicReference<String> observedProjectBody,
+                                                AtomicReference<String> observedEnvironmentBody) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            String method = exchange.getRequestMethod();
+            if ("/api/v1/projects".equals(path) && "GET".equals(method)) {
+                sendJson(exchange, 200, "[{\"uuid\":\"project-uuid\",\"name\":\"customer-existing\",\"description\":\"Existing\"}]");
+                return;
+            }
+            if ("/api/v1/projects".equals(path) && "POST".equals(method)) {
+                observedProjectBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                sendJson(exchange, 201, "{\"uuid\":\"created-project-uuid\"}");
+                return;
+            }
+            if ("/api/v1/projects/project-uuid/environments".equals(path) && "GET".equals(method)) {
+                sendJson(exchange, 200, "[{\"uuid\":\"environment-uuid\",\"name\":\"staging\",\"description\":\"Main\"}]");
+                return;
+            }
+            if ("/api/v1/projects/project-uuid/staging".equals(path) && "GET".equals(method)) {
+                sendJson(exchange, 200, "{\"uuid\":\"environment-uuid\",\"name\":\"staging\",\"description\":\"Main\"}");
+                return;
+            }
+            if ("/api/v1/projects/project-uuid/environments".equals(path) && "POST".equals(method)) {
+                observedEnvironmentBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                sendJson(exchange, 201, "{\"uuid\":\"created-environment-uuid\"}");
+                return;
+            }
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private void sendJson(com.sun.net.httpserver.HttpExchange exchange, int status, String body) throws IOException {
+        byte[] response = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(status, response.length);
+        exchange.getResponseBody().write(response);
+        exchange.close();
     }
 
     private CoolifyConnection connection(HttpServer server) {

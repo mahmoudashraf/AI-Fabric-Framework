@@ -57,6 +57,71 @@ public class CoolifyApiClient {
         return applications;
     }
 
+    public List<CoolifyProjectSummary> listProjects(CoolifyConnection connection) {
+        JsonNode response = requestJson(connection, "GET", "/projects", null, true);
+        List<CoolifyProjectSummary> projects = new ArrayList<>();
+        if (response.isArray()) {
+            for (JsonNode item : response) {
+                projects.add(toProject(item));
+            }
+        }
+        return projects;
+    }
+
+    public String createProject(CoolifyConnection connection, String name, String description) {
+        ObjectNode body = objectMapper.createObjectNode();
+        put(body, "name", name);
+        put(body, "description", description);
+        JsonNode response = requestJson(connection, "POST", "/projects", body, true);
+        String uuid = textFirst(response, "uuid");
+        if (!StringUtils.hasText(uuid)) {
+            throw new CoolifyApiException("Coolify project create did not return a project UUID.", 201, "/projects");
+        }
+        return uuid;
+    }
+
+    public List<CoolifyEnvironmentSummary> listEnvironments(CoolifyConnection connection, String projectUuid) {
+        JsonNode response = requestJson(connection, "GET", "/projects/" + encodePath(projectUuid) + "/environments", null, true);
+        List<CoolifyEnvironmentSummary> environments = new ArrayList<>();
+        if (response.isArray()) {
+            for (JsonNode item : response) {
+                environments.add(toEnvironment(projectUuid, item));
+            }
+        }
+        return environments;
+    }
+
+    public Optional<CoolifyEnvironmentSummary> getEnvironment(CoolifyConnection connection,
+                                                              String projectUuid,
+                                                              String environmentNameOrUuid) {
+        JsonNode response = requestJson(
+            connection,
+            "GET",
+            "/projects/" + encodePath(projectUuid) + "/" + encodePath(environmentNameOrUuid),
+            null,
+            false
+        );
+        if (response == null || response.isMissingNode() || response.isNull()) {
+            return Optional.empty();
+        }
+        return Optional.of(toEnvironment(projectUuid, response));
+    }
+
+    public String createEnvironment(CoolifyConnection connection, String projectUuid, String name) {
+        ObjectNode body = objectMapper.createObjectNode();
+        put(body, "name", name);
+        JsonNode response = requestJson(connection, "POST", "/projects/" + encodePath(projectUuid) + "/environments", body, true);
+        String uuid = textFirst(response, "uuid");
+        if (!StringUtils.hasText(uuid)) {
+            throw new CoolifyApiException(
+                "Coolify environment create did not return an environment UUID.",
+                201,
+                "/projects/" + encodePath(projectUuid) + "/environments"
+            );
+        }
+        return uuid;
+    }
+
     public Optional<CoolifyApplicationSummary> getApplication(CoolifyConnection connection, String uuid) {
         JsonNode response = requestJson(
             connection,
@@ -333,6 +398,25 @@ public class CoolifyApiClient {
         );
     }
 
+    private CoolifyProjectSummary toProject(JsonNode node) {
+        return new CoolifyProjectSummary(
+            textFirst(node, "uuid"),
+            textFirst(node, "name"),
+            textFirst(node, "description"),
+            node
+        );
+    }
+
+    private CoolifyEnvironmentSummary toEnvironment(String projectUuid, JsonNode node) {
+        return new CoolifyEnvironmentSummary(
+            textFirst(node, "uuid"),
+            textFirst(node, "name"),
+            projectUuid,
+            textFirst(node, "description"),
+            node
+        );
+    }
+
     private JsonNode readJson(String value) {
         try {
             if (value == null || value.isBlank()) {
@@ -342,6 +426,23 @@ public class CoolifyApiClient {
         } catch (Exception ex) {
             return objectMapper.getNodeFactory().textNode(value);
         }
+    }
+
+    private String textFirst(JsonNode node, String... fields) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        for (String field : fields) {
+            JsonNode value = node.path(field);
+            if (value.isMissingNode() || value.isNull()) {
+                continue;
+            }
+            String text = value.asText(null);
+            if (StringUtils.hasText(text)) {
+                return text.trim();
+            }
+        }
+        return null;
     }
 
     private void put(ObjectNode body, String field, String value) {

@@ -17,6 +17,8 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -33,6 +35,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -56,6 +59,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final CoolifyTargetProfileResolver targetProfileResolver;
     private final CoolifyApiClient coolifyApiClient;
     private final PlatformSecretService platformSecretService;
+    private final PlatformCustomerRepository platformCustomerRepository;
     private final ObjectMapper objectMapper;
 
     @Autowired
@@ -66,6 +70,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                      CoolifyTargetProfileResolver targetProfileResolver,
                                      CoolifyApiClient coolifyApiClient,
                                      PlatformSecretService platformSecretService,
+                                     PlatformCustomerRepository platformCustomerRepository,
                                      ObjectMapper objectMapper) {
         this.targetProfileRepository = targetProfileRepository;
         this.resourceHandleRepository = resourceHandleRepository;
@@ -74,6 +79,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         this.targetProfileResolver = targetProfileResolver;
         this.coolifyApiClient = coolifyApiClient;
         this.platformSecretService = platformSecretService;
+        this.platformCustomerRepository = platformCustomerRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -91,6 +97,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             railwayProvisioningPlanService,
             targetProfileResolver,
             coolifyApiClient,
+            null,
+            null,
+            objectMapper
+        );
+    }
+
+    CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
+                              DeploymentProviderResourceHandleRepository resourceHandleRepository,
+                              DeploymentSourceArtifactService sourceArtifactService,
+                              RailwayProvisioningPlanService railwayProvisioningPlanService,
+                              CoolifyTargetProfileResolver targetProfileResolver,
+                              CoolifyApiClient coolifyApiClient,
+                              PlatformSecretService platformSecretService,
+                              ObjectMapper objectMapper) {
+        this(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
             null,
             objectMapper
         );
@@ -129,6 +157,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             "Resolve Coolify application source from target profile strategy.",
             () -> resolveProvisioningSource(profile, resourceDefaults, deployment, version, release)
         );
+        CoolifyResourceScope resourceScope = tracked(
+            progressTracker,
+            "resolve_coolify_customer_scope",
+            "Resolve the Coolify project and environment that should group this customer's resources.",
+            () -> resolveResourceScope(connection, deployment, resourceDefaults)
+        );
 
         String portsExposes = text(resourceDefaults, "portsExposes", connection.config().defaultPortsExposes());
         String healthCheckPath = text(resourceDefaults, "healthCheckPath", connection.config().defaultHealthCheckPath());
@@ -146,6 +180,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 : "Create or update the Coolify Docker-image runtime application.",
             () -> reconcileApplication(
                 connection,
+                resourceScope,
                 deployment,
                 profile,
                 RESOURCE_KIND_APPLICATION,
@@ -187,6 +222,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 "Create or update the Coolify public Git REST connector application.",
                 () -> reconcileApplication(
                     connection,
+                    resourceScope,
                     deployment,
                     profile,
                     RESOURCE_KIND_CONNECTOR_APPLICATION,
@@ -222,6 +258,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     version,
                     release,
                     profile,
+                    resourceScope,
                     source,
                     source.runtimePlan(),
                     SERVICE_ROLE_RUNTIME,
@@ -246,6 +283,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                         version,
                         release,
                         profile,
+                        resourceScope,
                         source,
                         source.connectorPlan(),
                         SERVICE_ROLE_CONNECTOR,
@@ -299,6 +337,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 deployment,
                 release,
                 profile,
+                resourceScope,
                 connection.config(),
                 RESOURCE_KIND_CONNECTOR_APPLICATION,
                 finalObservedConnector,
@@ -316,6 +355,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 deployment,
                 release,
                 profile,
+                resourceScope,
                 connection.config(),
                 RESOURCE_KIND_APPLICATION,
                 observedRuntime,
@@ -331,6 +371,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             connectorHandle,
             observedRuntime,
             finalObservedConnector,
+            resourceScope,
             source,
             runtimeEnvCount,
             finalConnectorEnvCount,
@@ -421,6 +462,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private CoolifyApplicationSummary reconcileApplication(CoolifyConnection connection,
+                                                          CoolifyResourceScope scope,
                                                           DeploymentEntity deployment,
                                                           DeploymentTargetProfileEntity profile,
                                                           String resourceKind,
@@ -438,6 +480,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         if (source.gitSource()) {
             CoolifyCreatePublicApplicationRequest request = publicApplicationRequest(
                 connection,
+                scope,
                 source,
                 servicePlan,
                 baseDirectory,
@@ -453,6 +496,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
             return reconcileApplication(
                 connection,
+                scope,
                 deployment,
                 profile,
                 resourceKind,
@@ -464,6 +508,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
         CoolifyCreateDockerImageApplicationRequest request = dockerImageApplicationRequest(
             connection,
+            scope,
             source,
             appName,
             deployment.getId(),
@@ -476,6 +521,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
         return reconcileApplication(
             connection,
+            scope,
             deployment,
             profile,
             resourceKind,
@@ -486,6 +532,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private CoolifyApplicationSummary reconcileApplication(CoolifyConnection connection,
+                                                          CoolifyResourceScope scope,
                                                           DeploymentEntity deployment,
                                                           DeploymentTargetProfileEntity profile,
                                                           String resourceKind,
@@ -500,16 +547,21 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             )
             .orElse(null);
         if (existingHandle != null) {
-            String uuid = existingHandle.getProviderResourceUuid();
-            coolifyApiClient.getApplication(connection, uuid).ifPresent(application -> {
-                updater.accept(uuid);
-            });
-            return coolifyApiClient.getApplication(connection, uuid)
-                .orElseGet(creator);
+            if (!handleMatchesScope(existingHandle, scope)) {
+                deleteStaleApplication(connection, existingHandle);
+            } else {
+                String uuid = existingHandle.getProviderResourceUuid();
+                coolifyApiClient.getApplication(connection, uuid).ifPresent(application -> {
+                    updater.accept(uuid);
+                });
+                return coolifyApiClient.getApplication(connection, uuid)
+                    .orElseGet(creator);
+            }
         }
 
         CoolifyApplicationSummary namedApplication = coolifyApiClient.listApplications(connection).stream()
             .filter(application -> appName.equals(application.name()))
+            .filter(application -> applicationMatchesScope(application, scope))
             .findFirst()
             .orElse(null);
         if (namedApplication != null) {
@@ -554,6 +606,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private CoolifyCreateDockerImageApplicationRequest dockerImageApplicationRequest(CoolifyConnection connection,
+                                                                                    CoolifyResourceScope scope,
                                                                                     CoolifyProvisioningSource source,
                                                                                     String appName,
                                                                                     String deploymentId,
@@ -565,10 +618,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                                                     String domain) {
         DeploymentSourceArtifactEntity artifact = source.sourceArtifact();
         return new CoolifyCreateDockerImageApplicationRequest(
-            connection.config().projectUuid(),
+            scope.projectUuid(),
             connection.config().serverUuid(),
-            connection.config().environmentName(),
-            connection.config().environmentUuid(),
+            scope.environmentName(),
+            scope.environmentUuid(),
             artifact.getImageRepository(),
             artifact.getImageTag(),
             portsExposes,
@@ -586,6 +639,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private CoolifyCreatePublicApplicationRequest publicApplicationRequest(CoolifyConnection connection,
+                                                                          CoolifyResourceScope scope,
                                                                           CoolifyProvisioningSource source,
                                                                           RailwayServicePlanSummary servicePlan,
                                                                           String baseDirectory,
@@ -599,10 +653,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                                           boolean autogenerateDomain,
                                                                           String domain) {
         return new CoolifyCreatePublicApplicationRequest(
-            connection.config().projectUuid(),
+            scope.projectUuid(),
             connection.config().serverUuid(),
-            connection.config().environmentName(),
-            connection.config().environmentUuid(),
+            scope.environmentName(),
+            scope.environmentUuid(),
             source.gitRepository(),
             source.gitBranch(),
             source.buildPack(),
@@ -626,6 +680,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private DeploymentProviderResourceHandleEntity upsertHandle(DeploymentEntity deployment,
                                                                DeploymentReleaseEntity release,
                                                                DeploymentTargetProfileEntity profile,
+                                                               CoolifyResourceScope scope,
                                                                CoolifyTargetProfileConfig config,
                                                                String resourceKind,
                                                                CoolifyApplicationSummary application,
@@ -652,16 +707,172 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         handle.setProviderType(DeploymentProviderType.COOLIFY);
         handle.setResourceKind(resourceKind);
         handle.setProviderResourceUuid(application.uuid());
-        handle.setProviderProjectUuid(config.projectUuid());
-        handle.setProviderEnvironmentUuid(config.environmentUuid());
+        handle.setProviderProjectUuid(scope.projectUuid());
+        handle.setProviderEnvironmentUuid(scope.environmentUuid());
         handle.setProviderServerUuid(config.serverUuid());
         handle.setFqdn(application.fqdn());
         handle.setStatus(applicationReady(application) ? "ACTIVE" : "DEPLOY_REQUESTED");
         handle.setLastObservedStatus(application.status());
         handle.setLastObservedAt(now);
-        handle.setMetadataJson(handleMetadata(application, source, serviceRole, envCount, deployResponse));
+        handle.setMetadataJson(handleMetadata(application, source, scope, serviceRole, envCount, deployResponse));
         handle.setUpdatedAt(now);
         return resourceHandleRepository.save(handle);
+    }
+
+    private CoolifyResourceScope resolveResourceScope(CoolifyConnection connection,
+                                                      DeploymentEntity deployment,
+                                                      JsonNode resourceDefaults) {
+        boolean customerGroupingEnabled = booleanValue(
+            resourceDefaults,
+            "customerProjectGroupingEnabled",
+            platformCustomerRepository != null
+        );
+        if (!customerGroupingEnabled) {
+            return defaultResourceScope(connection);
+        }
+        CoolifyTargetProfileConfig config = connection.config();
+        String projectName = resolveCustomerProjectName(deployment, resourceDefaults);
+        String projectDescription = resolveCustomerProjectDescription(deployment, projectName, config.environmentName());
+        CoolifyProjectSummary project = ensureProject(connection, projectName, projectDescription);
+        String environmentName = text(resourceDefaults, "customerProjectEnvironmentName", config.environmentName());
+        CoolifyEnvironmentSummary environment = ensureEnvironment(connection, project.uuid(), environmentName);
+        return new CoolifyResourceScope(
+            project.uuid(),
+            project.name(),
+            environment.name(),
+            environment.uuid(),
+            true
+        );
+    }
+
+    private CoolifyResourceScope defaultResourceScope(CoolifyConnection connection) {
+        CoolifyTargetProfileConfig config = connection.config();
+        return new CoolifyResourceScope(
+            config.projectUuid(),
+            null,
+            config.environmentName(),
+            config.environmentUuid(),
+            false
+        );
+    }
+
+    private CoolifyProjectSummary ensureProject(CoolifyConnection connection, String name, String description) {
+        Optional<CoolifyProjectSummary> existing = findProject(connection, name);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        try {
+            String uuid = coolifyApiClient.createProject(connection, name, description);
+            return new CoolifyProjectSummary(
+                uuid,
+                name,
+                description,
+                objectMapper.createObjectNode()
+                    .put("uuid", uuid)
+                    .put("name", name)
+                    .put("description", description)
+            );
+        } catch (CoolifyApiException ex) {
+            if (ex.statusCode() != 409 && ex.statusCode() != 422) {
+                throw ex;
+            }
+            return findProject(connection, name)
+                .orElseThrow(() -> ex);
+        }
+    }
+
+    private Optional<CoolifyProjectSummary> findProject(CoolifyConnection connection, String name) {
+        return coolifyApiClient.listProjects(connection).stream()
+            .filter(project -> name.equalsIgnoreCase(project.name()))
+            .findFirst();
+    }
+
+    private CoolifyEnvironmentSummary ensureEnvironment(CoolifyConnection connection,
+                                                        String projectUuid,
+                                                        String environmentName) {
+        Optional<CoolifyEnvironmentSummary> existing = findEnvironment(connection, projectUuid, environmentName);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        try {
+            String uuid = coolifyApiClient.createEnvironment(connection, projectUuid, environmentName);
+            return new CoolifyEnvironmentSummary(
+                uuid,
+                environmentName,
+                projectUuid,
+                null,
+                objectMapper.createObjectNode()
+                    .put("uuid", uuid)
+                    .put("name", environmentName)
+                    .put("project_uuid", projectUuid)
+            );
+        } catch (CoolifyApiException ex) {
+            if (ex.statusCode() != 409 && ex.statusCode() != 422) {
+                throw ex;
+            }
+            return findEnvironment(connection, projectUuid, environmentName)
+                .orElseThrow(() -> ex);
+        }
+    }
+
+    private Optional<CoolifyEnvironmentSummary> findEnvironment(CoolifyConnection connection,
+                                                                String projectUuid,
+                                                                String environmentName) {
+        Optional<CoolifyEnvironmentSummary> listed = coolifyApiClient.listEnvironments(connection, projectUuid).stream()
+            .filter(environment -> environmentName.equalsIgnoreCase(environment.name()))
+            .findFirst();
+        if (listed.isEmpty()) {
+            return Optional.empty();
+        }
+        if (StringUtils.hasText(listed.get().uuid())) {
+            return listed;
+        }
+        return coolifyApiClient.getEnvironment(connection, projectUuid, environmentName)
+            .or(() -> listed);
+    }
+
+    private String resolveCustomerProjectName(DeploymentEntity deployment, JsonNode resourceDefaults) {
+        String configuredPrefix = text(resourceDefaults, "customerProjectNamePrefix", "customer");
+        String prefix = normalizeScopedName(configuredPrefix, 32);
+        String configuredSlug = text(resourceDefaults, "customerProjectSlug", null);
+        String rawCustomerName = StringUtils.hasText(configuredSlug)
+            ? configuredSlug
+            : resolveCustomerSlug(deployment);
+        String slug = normalizeScopedName(rawCustomerName, 48);
+        return normalizeScopedName(prefix + "-" + slug, 80);
+    }
+
+    private String resolveCustomerSlug(DeploymentEntity deployment) {
+        String customerId = deployment.getCustomerId();
+        if (platformCustomerRepository != null && StringUtils.hasText(customerId)) {
+            Optional<PlatformCustomerEntity> customer = platformCustomerRepository.findById(customerId);
+            if (customer.isPresent()) {
+                PlatformCustomerEntity entity = customer.get();
+                if (StringUtils.hasText(entity.getSlug())) {
+                    return entity.getSlug();
+                }
+                if (StringUtils.hasText(entity.getName())) {
+                    return entity.getName();
+                }
+            }
+        }
+        if (StringUtils.hasText(customerId)) {
+            return customerId;
+        }
+        if (StringUtils.hasText(deployment.getTenantId())) {
+            return deployment.getTenantId();
+        }
+        return deployment.getId();
+    }
+
+    private String resolveCustomerProjectDescription(DeploymentEntity deployment,
+                                                     String projectName,
+                                                     String environmentName) {
+        String customerId = StringUtils.hasText(deployment.getCustomerId())
+            ? deployment.getCustomerId()
+            : "unknown";
+        return "Managed by AI Fabric for Platform customer " + customerId
+            + " (" + projectName + "), environment " + environmentName + ".";
     }
 
     private CoolifyProvisioningSource resolveProvisioningSource(DeploymentTargetProfileEntity profile,
@@ -768,6 +979,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                  DeploymentVersionEntity version,
                                                  DeploymentReleaseEntity release,
                                                  DeploymentTargetProfileEntity profile,
+                                                 CoolifyResourceScope scope,
                                                  CoolifyProvisioningSource source,
                                                  RailwayServicePlanSummary servicePlan,
                                                  String serviceRole,
@@ -789,6 +1001,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         putEnv(env, "PLATFORM_DEPLOYMENT_RELEASE_ID", release.getId());
         putEnv(env, "PLATFORM_TARGET_PROFILE_ID", profile.getId());
         putEnv(env, "PLATFORM_COOLIFY_SERVICE_ROLE", serviceRole);
+        putEnv(env, "PLATFORM_COOLIFY_PROJECT_UUID", scope.projectUuid());
+        putEnv(env, "PLATFORM_COOLIFY_PROJECT_NAME", scope.projectName());
+        putEnv(env, "PLATFORM_COOLIFY_ENVIRONMENT_NAME", scope.environmentName());
+        putEnv(env, "PLATFORM_COOLIFY_ENVIRONMENT_UUID", scope.environmentUuid());
         putEnv(env, "PLATFORM_SOURCE_STRATEGY", source.sourceStrategy());
         if (source.sourceArtifact() != null) {
             putEnv(env, "PLATFORM_SOURCE_ARTIFACT_ID", source.sourceArtifact().getId());
@@ -878,6 +1094,51 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return normalizeName("ai-fabric-" + serviceRole + "-" + deployment.getId());
     }
 
+    private boolean handleMatchesScope(DeploymentProviderResourceHandleEntity handle, CoolifyResourceScope scope) {
+        if (!sameText(handle.getProviderProjectUuid(), scope.projectUuid())) {
+            return false;
+        }
+        return !StringUtils.hasText(scope.environmentUuid())
+            || !StringUtils.hasText(handle.getProviderEnvironmentUuid())
+            || sameText(handle.getProviderEnvironmentUuid(), scope.environmentUuid());
+    }
+
+    private void deleteStaleApplication(CoolifyConnection connection, DeploymentProviderResourceHandleEntity handle) {
+        try {
+            coolifyApiClient.delete(connection, handle.getProviderResourceUuid(), true, false, true, true);
+        } catch (CoolifyApiException ex) {
+            if (ex.statusCode() != 404) {
+                throw ex;
+            }
+        }
+    }
+
+    private boolean applicationMatchesScope(CoolifyApplicationSummary application, CoolifyResourceScope scope) {
+        if (!scope.customerGrouped()) {
+            return true;
+        }
+        JsonNode raw = application.raw();
+        String projectUuid = textFirst(raw, "project_uuid", "projectUuid");
+        if (!StringUtils.hasText(projectUuid)) {
+            projectUuid = raw.path("project").path("uuid").asText(null);
+        }
+        if (!sameText(projectUuid, scope.projectUuid())) {
+            return false;
+        }
+        String environmentUuid = textFirst(raw, "environment_uuid", "environmentUuid");
+        if (!StringUtils.hasText(environmentUuid)) {
+            environmentUuid = raw.path("environment").path("uuid").asText(null);
+        }
+        if (StringUtils.hasText(scope.environmentUuid()) && StringUtils.hasText(environmentUuid)) {
+            return sameText(environmentUuid, scope.environmentUuid());
+        }
+        String environmentName = textFirst(raw, "environment_name", "environmentName");
+        if (!StringUtils.hasText(environmentName)) {
+            environmentName = raw.path("environment").path("name").asText(null);
+        }
+        return !StringUtils.hasText(environmentName) || sameText(environmentName, scope.environmentName());
+    }
+
     private CoolifyApplicationSummary waitForApplicationReady(CoolifyConnection connection,
                                                               String applicationUuid,
                                                               JsonNode resourceDefaults,
@@ -940,6 +1201,18 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         normalized = normalized.replaceAll("[^a-z0-9-]+", "-").replaceAll("-{2,}", "-");
         normalized = normalized.replaceAll("^-+", "").replaceAll("-+$", "");
         return normalized.length() > 48 ? normalized.substring(0, 48).replaceAll("-+$", "") : normalized;
+    }
+
+    private String normalizeScopedName(String value, int maxLength) {
+        String normalized = value == null ? "unknown" : value.toLowerCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[^a-z0-9-]+", "-").replaceAll("-{2,}", "-");
+        normalized = normalized.replaceAll("^-+", "").replaceAll("-+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            normalized = "unknown";
+        }
+        return normalized.length() > maxLength
+            ? normalized.substring(0, maxLength).replaceAll("-+$", "")
+            : normalized;
     }
 
     private String resolveDomain(DeploymentEntity deployment,
@@ -1036,8 +1309,15 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         copyText(raw, details, "health_check_enabled");
         copyText(raw, details, "health_check_path");
         copyText(raw, details, "health_check_port");
+        copyText(raw, details, "project_uuid");
+        copyText(raw, details, "environment_uuid");
+        copyText(raw, details, "environment_name");
         copyText(raw, details, "created_at");
         copyText(raw, details, "updated_at");
+        putIfText(details, "projectName", raw.path("project").path("name").asText(null));
+        putIfText(details, "projectUuid", raw.path("project").path("uuid").asText(null));
+        putIfText(details, "environmentName", raw.path("environment").path("name").asText(null));
+        putIfText(details, "environmentUuid", raw.path("environment").path("uuid").asText(null));
         putIfText(details, "destinationUuid", raw.path("destination").path("uuid").asText(null));
         putIfText(details, "destinationNetwork", raw.path("destination").path("network").asText(null));
         putIfText(details, "serverUuid", raw.path("destination").path("server").path("uuid").asText(null));
@@ -1062,6 +1342,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                             DeploymentProviderResourceHandleEntity connectorHandle,
                                             CoolifyApplicationSummary runtimeApplication,
                                             CoolifyApplicationSummary connectorApplication,
+                                            CoolifyResourceScope scope,
                                             CoolifyProvisioningSource source,
                                             int runtimeEnvCount,
                                             int connectorEnvCount,
@@ -1070,6 +1351,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         ObjectNode details = objectMapper.createObjectNode();
         details.put("provider", "COOLIFY");
         details.put("targetProfileId", profile.getId());
+        writeScopeDetails(details, scope);
         details.put("providerResourceHandleId", runtimeHandle.getId());
         details.put("applicationUuid", runtimeApplication.uuid());
         details.put("applicationName", runtimeApplication.name());
@@ -1102,12 +1384,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     private String handleMetadata(CoolifyApplicationSummary application,
                                   CoolifyProvisioningSource source,
+                                  CoolifyResourceScope scope,
                                   String serviceRole,
                                   int envCount,
                                   CoolifyActionResponse deployResponse) {
         ObjectNode metadata = objectMapper.createObjectNode();
         metadata.put("applicationName", application.name());
         metadata.put("serviceRole", serviceRole);
+        writeScopeDetails(metadata, scope);
         writeSourceDetails(metadata, source);
         metadata.put("environmentVariableCount", envCount);
         if (deployResponse != null) {
@@ -1140,6 +1424,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
     }
 
+    private void writeScopeDetails(ObjectNode target, CoolifyResourceScope scope) {
+        target.put("customerProjectGroupingEnabled", scope.customerGrouped());
+        putIfText(target, "projectUuid", scope.projectUuid());
+        putIfText(target, "projectName", scope.projectName());
+        putIfText(target, "environmentName", scope.environmentName());
+        putIfText(target, "environmentUuid", scope.environmentUuid());
+    }
+
     private JsonNode readJson(String json) {
         try {
             return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
@@ -1151,6 +1443,19 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private String text(JsonNode json, String field, String fallback) {
         String value = json.path(field).asText(null);
         return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
+    private String textFirst(JsonNode json, String... fields) {
+        if (json == null || json.isMissingNode() || json.isNull()) {
+            return null;
+        }
+        for (String field : fields) {
+            String value = json.path(field).asText(null);
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private boolean booleanValue(JsonNode json, String field, boolean fallback) {
@@ -1210,6 +1515,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return providerStatus.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
     }
 
+    private boolean sameText(String left, String right) {
+        if (!StringUtils.hasText(left) || !StringUtils.hasText(right)) {
+            return false;
+        }
+        return left.trim().equalsIgnoreCase(right.trim());
+    }
+
     private void copyText(JsonNode source, ObjectNode target, String field) {
         if (source == null || source.isMissingNode() || source.isNull() || !source.has(field)) {
             return;
@@ -1247,6 +1559,15 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         boolean gitSource() {
             return "GIT_SOURCE".equals(sourceStrategy);
         }
+    }
+
+    private record CoolifyResourceScope(
+        String projectUuid,
+        String projectName,
+        String environmentName,
+        String environmentUuid,
+        boolean customerGrouped
+    ) {
     }
 
     private <T> T tracked(ProvisioningProgressTracker progressTracker,

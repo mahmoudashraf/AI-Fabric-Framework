@@ -544,3 +544,14 @@ Rules:
 - Live Platform production preflight now passes: `dtp-coolify-production` returned `PASSED`, Coolify version `4.0.0`; production profile remains active but non-default while staging remains the runtime/restartable default.
 - Verification passed: `terraform fmt -check -recursive`; `terraform validate`; live Hetzner firewall readback; host UFW readback; live Platform production preflight.
 - Remaining production tenant cutover blockers: real DNS instead of `sslip.io`, GHCR/private registry auth before private-source deployments, and a future stronger stable control-plane access layer if Railway egress changes.
+
+## 2026-05-02 Coolify 007 Lightweight Customer Grouping
+
+- Implemented Platform-owned Coolify UI grouping by customer project/environment; customers still do not access Coolify and Platform remains the deployment source of truth.
+- Shape: `Project customer-{platformCustomerSlug}` with `staging|production` environment containing runtime and connector apps.
+- Backend changes: `CoolifyApiClient` now supports project/environment list/create/get; `CoolifyDeploymentProvider` resolves a customer project scope from `PlatformCustomerRepository`, creates missing Coolify project/environment records, sends runtime/connector create requests to the resolved scope, persists resolved project/environment UUIDs on provider handles, and records scope metadata/details.
+- Existing fixed-project Coolify handles are treated as stale on next apply; Platform deletes the old app and creates a replacement under the customer project/environment because live Coolify rejected moving apps by `project_uuid` PATCH.
+- Added `CoolifyProjectSummary.java`, `CoolifyEnvironmentSummary.java`, and migration `V80__coolify_customer_project_grouping.sql` to mark seeded Coolify profiles with grouping defaults.
+- Updated `007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md` with the lighter grouping contract, local verification, and pending live proof.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`; `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest test`; `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`; `git diff --check`; changed-file exact local-secret scan against `/tmp/hetzner_cloud_token.secret`, `/tmp/coolify_api_tokens.env`, `/tmp/coolify_admin_credentials.env`, `/tmp/platform_login_email.secret`, and `/tmp/platform_login_password.secret`.
+- Pending next handoff after commit/push/deploy: re-apply current staging customer deployments so Coolify UI shows customer project grouping for existing Shopify Companion deployments; production blockers remain real DNS and GHCR/private registry auth before private-source deployments.

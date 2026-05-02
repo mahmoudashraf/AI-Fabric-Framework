@@ -15,6 +15,8 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
+import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
+import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -27,8 +29,10 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
@@ -211,6 +215,234 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().dockerfileLocation()).isEqualTo("/ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
         assertThat(request.getValue().autoDeployEnabled()).isFalse();
         verifyNoInteractions(sourceArtifactService);
+    }
+
+    @Test
+    void provisionsApplicationInsideCustomerCoolifyProjectAndEnvironment() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformCustomerRepository platformCustomerRepository = mock(PlatformCustomerRepository.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setSourceStrategy("GIT_SOURCE");
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "default-project",
+                "staging",
+                "default-env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary application = new CoolifyApplicationSummary(
+            "app-uuid",
+            "runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            null,
+            null,
+            objectMapper.readTree("{\"uuid\":\"app-uuid\",\"status\":\"running:healthy\",\"project_uuid\":\"customer-project\"}")
+        );
+        PlatformCustomerEntity customer = new PlatformCustomerEntity();
+        customer.setId("customer");
+        customer.setName("Shopping Companion Test");
+        customer.setSlug("shopping-companion-test");
+        customer.setStatus("ACTIVE");
+        customer.setPlatformManaged(true);
+        customer.setCreatedAt(Instant.parse("2026-05-01T00:00:00Z"));
+        customer.setUpdatedAt(Instant.parse("2026-05-01T00:00:00Z"));
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
+        when(coolifyApiClient.listProjects(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createProject(eq(connection), eq("customer-shopping-companion-test"), anyString()))
+            .thenReturn("customer-project");
+        when(coolifyApiClient.listEnvironments(connection, "customer-project")).thenReturn(List.of());
+        when(coolifyApiClient.createEnvironment(connection, "customer-project", "staging")).thenReturn("customer-env");
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-staging"),
+            eq("APPLICATION")
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createPublicApplication(eq(connection), any())).thenReturn("app-uuid");
+        when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.of(application));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(10);
+        when(coolifyApiClient.start(connection, "app-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            null,
+            platformCustomerRepository,
+            objectMapper
+        );
+        DeploymentReleaseEntity release = release();
+        release.setSourceArtifactId(null);
+
+        ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+
+        assertThat(result.detailsJson()).contains(
+            "\"customerProjectGroupingEnabled\" : true",
+            "\"projectUuid\" : \"customer-project\"",
+            "\"projectName\" : \"customer-shopping-companion-test\"",
+            "\"environmentUuid\" : \"customer-env\""
+        );
+        ArgumentCaptor<CoolifyCreatePublicApplicationRequest> request =
+            ArgumentCaptor.forClass(CoolifyCreatePublicApplicationRequest.class);
+        verify(coolifyApiClient).createPublicApplication(eq(connection), request.capture());
+        assertThat(request.getValue().projectUuid()).isEqualTo("customer-project");
+        assertThat(request.getValue().environmentName()).isEqualTo("staging");
+        assertThat(request.getValue().environmentUuid()).isEqualTo("customer-env");
+
+        ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
+            ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
+        verify(resourceHandleRepository).save(handle.capture());
+        assertThat(handle.getValue().getProviderProjectUuid()).isEqualTo("customer-project");
+        assertThat(handle.getValue().getProviderEnvironmentUuid()).isEqualTo("customer-env");
+        assertThat(handle.getValue().getMetadataJson()).contains("customer-shopping-companion-test");
+        verifyNoInteractions(sourceArtifactService);
+    }
+
+    @Test
+    void replacesExistingHandleWhenCoolifyProjectScopeChanges() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformCustomerRepository platformCustomerRepository = mock(PlatformCustomerRepository.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "default-project",
+                "staging",
+                "default-env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        PlatformCustomerEntity customer = new PlatformCustomerEntity();
+        customer.setId("customer");
+        customer.setName("Acme");
+        customer.setSlug("acme");
+        customer.setStatus("ACTIVE");
+        customer.setPlatformManaged(true);
+        customer.setCreatedAt(Instant.parse("2026-05-01T00:00:00Z"));
+        customer.setUpdatedAt(Instant.parse("2026-05-01T00:00:00Z"));
+        DeploymentProviderResourceHandleEntity oldHandle = new DeploymentProviderResourceHandleEntity();
+        oldHandle.setId("dprh-old");
+        oldHandle.setDeploymentId("dep-123");
+        oldHandle.setTargetProfileId("dtp-coolify-staging");
+        oldHandle.setResourceKind("APPLICATION");
+        oldHandle.setProviderType(DeploymentProviderType.COOLIFY);
+        oldHandle.setProviderResourceUuid("old-app");
+        oldHandle.setProviderProjectUuid("default-project");
+        oldHandle.setProviderEnvironmentUuid("default-env");
+        oldHandle.setCreatedAt(Instant.parse("2026-05-01T00:00:00Z"));
+        CoolifyApplicationSummary newApplication = new CoolifyApplicationSummary(
+            "new-app",
+            "ai-fabric-runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            "ghcr.io/example/runtime",
+            "sha",
+            objectMapper.readTree("{\"uuid\":\"new-app\",\"status\":\"running:healthy\",\"project_uuid\":\"customer-project\"}")
+        );
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
+        when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
+        when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
+        when(coolifyApiClient.listProjects(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createProject(eq(connection), eq("customer-acme"), anyString()))
+            .thenReturn("customer-project");
+        when(coolifyApiClient.listEnvironments(connection, "customer-project")).thenReturn(List.of());
+        when(coolifyApiClient.createEnvironment(connection, "customer-project", "staging")).thenReturn("customer-env");
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-staging"),
+            eq("APPLICATION")
+        )).thenReturn(Optional.of(oldHandle));
+        when(coolifyApiClient.delete(connection, "old-app", true, false, true, true))
+            .thenReturn(new CoolifyActionResponse("Deleted.", null, objectMapper.createObjectNode()));
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createDockerImageApplication(eq(connection), any())).thenReturn("new-app");
+        when(coolifyApiClient.getApplication(connection, "new-app")).thenReturn(Optional.of(newApplication));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("new-app"), any())).thenReturn(8);
+        when(coolifyApiClient.start(connection, "new-app", true, true))
+            .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            null,
+            platformCustomerRepository,
+            objectMapper
+        );
+
+        provider.provision(deployment(), version(), release(), ProvisioningProgressTracker.noop());
+
+        verify(coolifyApiClient).delete(connection, "old-app", true, false, true, true);
+        verify(coolifyApiClient, never()).updateDockerImageApplication(eq(connection), eq("old-app"), any());
+        ArgumentCaptor<CoolifyCreateDockerImageApplicationRequest> request =
+            ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
+        verify(coolifyApiClient).createDockerImageApplication(eq(connection), request.capture());
+        assertThat(request.getValue().projectUuid()).isEqualTo("customer-project");
+
+        ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
+            ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
+        verify(resourceHandleRepository).save(handle.capture());
+        assertThat(handle.getValue().getId()).isEqualTo("dprh-old");
+        assertThat(handle.getValue().getProviderResourceUuid()).isEqualTo("new-app");
+        assertThat(handle.getValue().getProviderProjectUuid()).isEqualTo("customer-project");
     }
 
     @Test
