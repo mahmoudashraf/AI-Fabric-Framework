@@ -693,3 +693,17 @@ Rules:
 - Verification passed: all five staging health endpoints returned HTTP `200` with `UP`; Platform UI and Partner UI `/runtime-config.js` point at the staging Coolify backend; Coolify readback shows backend/ecommerce `running:healthy` and UI/runtime apps `running:unknown` because container-internal health checks are disabled for images without `curl`/`wget`.
 - Remote staging cleanup: pruned `coolify-staging-01` Docker build cache after the builds; no local installs were performed.
 - Database caveat is unchanged: staging clone still uses the existing Railway Postgres public connection until a working Coolify Postgres restore/cutover path exists.
+
+## 2026-05-02 Railway Project 6d0590be Database Migration
+
+- User requested migrating the Railway project database for both staging and production Coolify clones.
+- Coolify `/services` with base64 `docker_compose_raw` and `/databases/postgresql` were retried on staging; both created records but did not start Postgres containers on Coolify `4.0.0`. Broken experimental Coolify DB/service records were deleted; readback shows zero `railway-platform-postgres*` Coolify database/service resources.
+- Implemented the Hetzner-only fallback: direct Docker Compose Postgres `18` containers on the two Coolify hosts, attached to the existing `coolify` Docker network. These DBs are not first-class Coolify UI resources yet.
+- Targets: staging container `railway-platform-postgres-staging`, DB `platform_staging`; production container `railway-platform-postgres-production`, DB `platform_production`.
+- Postgres 18 mount fix: persistent compose volumes mount `/var/lib/postgresql`, not `/var/lib/postgresql/data`.
+- Dump/restore ran from transient `postgres:18` containers on Hetzner using the Railway public DB URL and local target URLs from secret env files. Restores completed with `87` public tables, `80` Flyway rows, and max Flyway version `9` in both staging and production.
+- Updated both Coolify `platform-backend` apps to use the host-local DB URLs in preview and non-preview env entries, then redeployed through Coolify start. Production clone bootstrap/admin/demo auto-apply flags were set to `false` before redeploy.
+- Running backend env readback now shows staging `jdbc:postgresql://railway-platform-postgres-staging:5432/platform_staging` and production `jdbc:postgresql://railway-platform-postgres-production:5432/platform_production`.
+- Verification passed: both Postgres containers are healthy; all five staging endpoints and all five production endpoints returned HTTP `200` / `UP` after DB cutover.
+- Remote migration env files and dump files were removed from both Hetzner hosts after restore. Local secret metadata remains only under `/tmp/railway-migrate-6d0590be/db-targets/`; do not commit or paste it.
+- Remaining cutover cautions: keep the Railway project/database until explicit traffic routing, DNS, and soak decisions are made; later add a first-class Coolify-managed DB path or formal Platform metadata for direct Docker Compose DB resources.

@@ -2803,3 +2803,49 @@ Database status:
 - Same as production clone: no Coolify Postgres cutover yet.
 - The staging clone currently uses the existing Railway Postgres public connection.
 - A real staging database split requires the pending Coolify Postgres restore/cutover work.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` Database Migration To Hetzner Coolify Hosts
+
+Status: staging and production database data copied and the Coolify application clones repointed.
+
+Scope:
+
+- Source Railway project: `6d0590be-3921-49b6-9fb7-75344cad0b6c`, project name `platform`.
+- Source database: Railway `platform-Postgres`, PostgreSQL `18.3`.
+- Staging target host: `coolify-staging-01`.
+- Production target host: `coolify-prod-01`.
+
+Target databases:
+
+| Environment | Host | Container | Database | App DB URL shape |
+|---|---|---|---|---|
+| staging | `46.224.145.148` | `railway-platform-postgres-staging` | `platform_staging` | `jdbc:postgresql://railway-platform-postgres-staging:5432/platform_staging` |
+| production | `46.225.162.106` | `railway-platform-postgres-production` | `platform_production` | `jdbc:postgresql://railway-platform-postgres-production:5432/platform_production` |
+
+Execution notes:
+
+- Coolify `/services` with base64 `docker_compose_raw` and `/databases/postgresql` were retried on staging. Both created Coolify records, but did not start a Postgres container on Coolify `4.0.0`. The broken experimental records were deleted, leaving zero `railway-platform-postgres*` Coolify database/service resources.
+- Fallback implementation is direct Docker Compose on each Hetzner Coolify host, attached to the existing `coolify` Docker network. This keeps runtime traffic host-local and Hetzner-only, but the DB containers are not first-class resources in the Coolify UI yet.
+- PostgreSQL `18` requires the persistent volume mounted at `/var/lib/postgresql`, not `/var/lib/postgresql/data`; the compose files use the Postgres 18-compatible mount.
+- DB target credentials and migration metadata are stored only under `/tmp/railway-migrate-6d0590be/db-targets/` with secret-safe permissions. Values were not printed or committed.
+- Remote migration env files and dump files were removed from both Hetzner hosts after restore. The persistent DB compose `.env` files remain on the hosts because the database containers require them.
+- Both Coolify `platform-backend` apps were repointed through Coolify envs for preview and non-preview entries, then redeployed through the Coolify application start endpoint.
+- Production clone bootstrap/admin/demo auto-apply flags were set to `false` before redeploy to avoid startup seed mutations against the restored database.
+
+Verification:
+
+- Staging and production Postgres containers are healthy.
+- Staging restore readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Production restore readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Running staging backend env readback uses `jdbc:postgresql://railway-platform-postgres-staging:5432/platform_staging`.
+- Running production backend env readback uses `jdbc:postgresql://railway-platform-postgres-production:5432/platform_production`.
+- All cloned staging endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+- All cloned production endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+
+Current cutover posture:
+
+- The staging and production Coolify clones no longer depend on the Railway Postgres public connection.
+- The original Railway project/database should remain as rollback/source-of-truth until explicit traffic routing, DNS, and soak decisions are made.
+- Follow-up: add a first-class Coolify-managed database path once the Coolify database/service API starts containers reliably, or formally document/adopt the direct Docker Compose database path into Platform provider metadata.
