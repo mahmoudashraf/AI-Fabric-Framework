@@ -760,3 +760,13 @@ Rules:
 - Local verification note: `git diff --check` and changed-diff secret scan passed. `npm --prefix Platfrom/partner-ui run build` is still blocked in this checkout because `tsc` is not installed and local installs are not allowed; live Coolify remote builds/deploys succeeded.
 - Follow-up SMTP sender fix: Brevo rejected `no-reply@auth.loomai.com` because the sender/domain was not validated. Updated live Supabase Auth SMTP sender to `engmahmoudalgamal@gmail.com`; Supabase readback confirmed it, direct Brevo SMTP accepted that From address, and a Supabase magic-link request returned the normal `{}` success response.
 - Security handoff: rotate the Supabase Management API token and the pasted Supabase/Brevo keys after the session, because they were shared in chat.
+
+## 2026-05-03 Staging-Only Coolify Alignment
+
+- User confirmed only staging should be used for now.
+- Used only the staging Coolify token from `/tmp/coolify_api_tokens.env`; no auth values were printed or committed.
+- Verified staging Coolify core apps point at staging URLs: Partner UI and Platform UI runtime configs point to `https://loomai-platform-backend.46.224.145.148.sslip.io`; staging Shopify Bridge points to the same Platform backend and public Bridge URL `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io`.
+- Fixed the reported Shopify/Partner mismatch for `shopping-companion-test.myshopify.com`: staging Bridge billing summary had been `FREE/ACTIVE`; recorded `ELITE/ACTIVE` through the staging Bridge admin API for Partner trial job `spj-4019ce4f`. Storefront bootstrap now returns `billingTier=ELITE`, `billingStatus=ACTIVE`, all Elite surfaces, and staging Bridge chat URLs.
+- Repointed staging ecommerce app `CONNECTOR_INDEXING_RUNTIME_BASE_URL` from an old Railway REST connector URL to `https://loomai-runtime.46.224.145.148.sslip.io`, then forced a Coolify redeploy. Readback from the running container confirms the staging runtime URL.
+- Repointed customer runtime/connector apps for deployment `dep-8c3e7259` from old Railway Platform artifact URLs and Railway UI CORS origins to staging Coolify Platform/Partner/Platform UI URLs, preserving artifact paths and signed query parameters. Forced stop/start with Docker cleanup; both customer apps are healthy and running containers read back staging URLs.
+- Final staging-host env scan across core apps, staging Bridge, ecommerce, runtime, and connector containers found no `.up.railway.app` or production `46.225.162.106` URL references in checked running app envs.
