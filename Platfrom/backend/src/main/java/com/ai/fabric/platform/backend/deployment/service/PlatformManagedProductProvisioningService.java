@@ -825,6 +825,7 @@ public class PlatformManagedProductProvisioningService {
             && coolifyApiClient != null
             && targetProfileRepository != null
             && (isCoolifyManaged(service)
+            || "SHOPIFY_BRIDGE_SERVICE".equals(upper(service.getServiceKind()))
             || "MCP_EXECUTION_GATEWAY_SERVICE".equals(upper(service.getServiceKind())));
     }
 
