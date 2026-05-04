@@ -323,13 +323,13 @@ public class ShopifyStorefrontMcpActionAdapter {
         }
 
         List<Map<String, Object>> servers = new ArrayList<>();
-        servers.add(inspectServer(
+        servers.add(inspectUcpCatalogServer(
             SERVER_REF_STOREFRONT_UCP,
             ENDPOINT_KIND_UCP_CATALOG,
             ucpEndpoint(normalizedShop),
             Set.of(TOOL_SEARCH_CATALOG, TOOL_LOOKUP_CATALOG, TOOL_GET_PRODUCT)
         ));
-        servers.add(inspectServer(
+        servers.add(inspectToolsListServer(
             SERVER_REF_STOREFRONT,
             ENDPOINT_KIND_STOREFRONT_STANDARD,
             storefrontEndpoint(normalizedShop),
@@ -348,15 +348,48 @@ public class ShopifyStorefrontMcpActionAdapter {
         return summary;
     }
 
-    private Map<String, Object> inspectServer(String serverRef,
-                                              String endpointKind,
-                                              URI endpoint,
-                                              Set<String> expectedTools) {
-        LinkedHashMap<String, Object> server = new LinkedHashMap<>();
-        server.put("serverRef", serverRef);
-        server.put("endpointKind", endpointKind);
-        server.put("endpoint", endpoint.toString());
-        server.put("expectedTools", List.copyOf(expectedTools));
+    private Map<String, Object> inspectUcpCatalogServer(String serverRef,
+                                                        String endpointKind,
+                                                        URI endpoint,
+                                                        Set<String> expectedTools) {
+        LinkedHashMap<String, Object> server = baseReadinessServer(serverRef, endpointKind, endpoint, expectedTools);
+        try {
+            JsonNode result = mcpClient.toolsCall(endpoint, TOOL_SEARCH_CATALOG, buildUcpReadinessProbeArguments());
+            boolean toolReturnedError = result != null && result.path("isError").asBoolean(false);
+            server.put("presentTools", toolReturnedError ? List.of() : List.copyOf(expectedTools));
+            server.put("missingTools", toolReturnedError ? List.copyOf(expectedTools) : List.of());
+            server.put("verificationMethod", "tools/call:" + TOOL_SEARCH_CATALOG);
+            server.put("ready", !toolReturnedError);
+            if (toolReturnedError) {
+                server.put("errorCode", "SHOPIFY_MCP_PROBE_FAILED");
+                server.put("message", "Shopify UCP catalog probe returned an MCP tool error.");
+            }
+        } catch (ResponseStatusException ex) {
+            server.put("presentTools", List.of());
+            server.put("missingTools", List.copyOf(expectedTools));
+            server.put("ready", false);
+            server.put("errorCode", "SHOPIFY_MCP_PROBE_FAILED");
+            server.put("message", ex.getReason() == null || ex.getReason().isBlank()
+                ? "Shopify UCP catalog probe failed."
+                : ex.getReason());
+        }
+        return server;
+    }
+
+    private ObjectNode buildUcpReadinessProbeArguments() {
+        ObjectNode arguments = buildUcpCatalogArguments();
+        ObjectNode catalog = (ObjectNode) arguments.path("catalog");
+        catalog.put("query", "readiness probe");
+        ObjectNode pagination = catalog.putObject("pagination");
+        pagination.put("limit", 1);
+        return arguments;
+    }
+
+    private Map<String, Object> inspectToolsListServer(String serverRef,
+                                                       String endpointKind,
+                                                       URI endpoint,
+                                                       Set<String> expectedTools) {
+        LinkedHashMap<String, Object> server = baseReadinessServer(serverRef, endpointKind, endpoint, expectedTools);
         try {
             ShopifyMcpClient.ShopifyMcpSession session = mcpClient.initialize(endpoint);
             JsonNode result = mcpClient.toolsList(session);
@@ -368,6 +401,7 @@ public class ShopifyStorefrontMcpActionAdapter {
             server.put("missingTools", missingTools);
             server.put("protocolVersion", session.protocolVersion());
             server.put("sessionEstablished", StringUtils.hasText(session.sessionId()));
+            server.put("verificationMethod", "initialize+tools/list");
             server.put("ready", missingTools.isEmpty());
         } catch (ResponseStatusException ex) {
             server.put("presentTools", List.of());
@@ -378,6 +412,18 @@ public class ShopifyStorefrontMcpActionAdapter {
                 ? "Shopify MCP tools/list failed."
                 : ex.getReason());
         }
+        return server;
+    }
+
+    private LinkedHashMap<String, Object> baseReadinessServer(String serverRef,
+                                                              String endpointKind,
+                                                              URI endpoint,
+                                                              Set<String> expectedTools) {
+        LinkedHashMap<String, Object> server = new LinkedHashMap<>();
+        server.put("serverRef", serverRef);
+        server.put("endpointKind", endpointKind);
+        server.put("endpoint", endpoint.toString());
+        server.put("expectedTools", List.copyOf(expectedTools));
         return server;
     }
 

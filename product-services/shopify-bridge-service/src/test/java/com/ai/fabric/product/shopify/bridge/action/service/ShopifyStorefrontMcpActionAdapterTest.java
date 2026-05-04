@@ -245,19 +245,22 @@ class ShopifyStorefrontMcpActionAdapterTest {
         );
         URI ucpEndpoint = URI.create("https://alpha.myshopify.com/api/ucp/mcp");
         URI storefrontEndpoint = URI.create("https://alpha.myshopify.com/api/mcp");
-        ShopifyMcpClient.ShopifyMcpSession ucpSession =
-            new ShopifyMcpClient.ShopifyMcpSession(ucpEndpoint, "2025-11-25", "ucp-session", objectMapper.createObjectNode());
         ShopifyMcpClient.ShopifyMcpSession storefrontSession =
             new ShopifyMcpClient.ShopifyMcpSession(storefrontEndpoint, "2025-11-25", "storefront-session", objectMapper.createObjectNode());
-        when(mcpClient.initialize(ucpEndpoint)).thenReturn(ucpSession);
         when(mcpClient.initialize(storefrontEndpoint)).thenReturn(storefrontSession);
-        when(mcpClient.toolsList(ucpSession)).thenReturn(objectMapper.readTree("""
+        when(mcpClient.toolsCall(
+            eq(ucpEndpoint),
+            eq("search_catalog"),
+            org.mockito.ArgumentMatchers.any(JsonNode.class)
+        )).thenReturn(objectMapper.readTree("""
             {
-              "tools": [
-                {"name": "search_catalog"},
-                {"name": "lookup_catalog"},
-                {"name": "get_product"}
-              ]
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Catalog readiness result"
+                }
+              ],
+              "isError": false
             }
             """));
         when(mcpClient.toolsList(storefrontSession)).thenReturn(objectMapper.readTree("""
@@ -273,7 +276,10 @@ class ShopifyStorefrontMcpActionAdapterTest {
         Map<String, Object> result = adapter.readiness("alpha.myshopify.com");
 
         assertThat(result).containsEntry("ready", true);
-        assertThat((List<?>) result.get("servers")).hasSize(2);
+        List<?> servers = (List<?>) result.get("servers");
+        assertThat(servers).hasSize(2);
+        assertThat(((Map<?, ?>) servers.get(0)).get("verificationMethod")).isEqualTo("tools/call:search_catalog");
+        assertThat(((Map<?, ?>) servers.get(1)).get("verificationMethod")).isEqualTo("initialize+tools/list");
     }
 
     @Test
