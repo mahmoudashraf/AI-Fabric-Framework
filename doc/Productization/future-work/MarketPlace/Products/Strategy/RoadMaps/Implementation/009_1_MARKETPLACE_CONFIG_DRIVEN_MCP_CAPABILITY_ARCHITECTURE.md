@@ -4,6 +4,8 @@ Status: architecture change plan (created 2026-05-04)
 
 Parent plan: [009 Shopify MCP-First Implementation Sequence](009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md)
 
+Follow-on extraction plan: [009.2 MCP Execution Gateway Extraction Plan](009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md)
+
 Roadmap phase: `009.1` - generalize the Shopify MCP-first execution path so new MCP servers and tools can be onboarded through Marketplace configuration instead of new product code.
 
 Priority: P0 only after the Plan 009 read-only Shopify MCP vertical slice is live-verified; otherwise P1. This plan should start before broad third-party MCP support is promised externally, but it must not replace Shopify MCP product proof.

@@ -1,0 +1,591 @@
+# 009.2 MCP Execution Gateway Extraction Plan
+
+Status: architecture change plan (created 2026-05-04)
+
+Parent plans:
+
+- [009 Shopify MCP-First Implementation Sequence](009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md)
+- [009.1 Marketplace Config-Driven MCP Capability Architecture](009_1_MARKETPLACE_CONFIG_DRIVEN_MCP_CAPABILITY_ARCHITECTURE.md)
+
+Roadmap phase: `009.2` - extract the generic MCP execution code out of Shopify Bridge so non-Shopify MCP servers can execute through Marketplace configuration without depending on the Shopify product service.
+
+Priority: P0 after 009.1 config-driven Storefront MCP is live-verified on staging. This plan should not replace Shopify MCP product proof; it turns the verified generic path into a reusable platform capability.
+
+Source strategy drafts:
+
+- [../MCP/Draft-009_SHOPIFY_CAPABILITY_EXECUTION_PLANE.md](../MCP/Draft-009_SHOPIFY_CAPABILITY_EXECUTION_PLANE.md)
+- [../MCP/Draft-011-GOVERNED_MCP_CAPABILITY_PLANE.md](../MCP/Draft-011-GOVERNED_MCP_CAPABILITY_PLANE.md)
+
+Current implementation seed:
+
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/mcp/client/McpStreamableHttpClient.java`
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/mcp/execution/McpActionExecutionGateway.java`
+- `product-services/shopify-bridge-service/src/test/java/com/ai/fabric/product/shopify/bridge/mcp/**`
+- Runtime action forwarding in `ai-infrastructure-module/ai-infrastructure-actions-connector`
+- Marketplace validation/compiler support in `Platfrom/backend`
+
+Reference protocol docs checked:
+
+- `https://modelcontextprotocol.io/specification/2025-11-25`
+- `https://modelcontextprotocol.io/specification/2025-11-25/basic/transports`
+- `https://modelcontextprotocol.io/specification/2025-11-25/server/tools`
+- `https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization`
+
+---
+
+## Purpose
+
+009.1 proved the important architecture rule:
+
+```text
+Marketplace ACTION config
+  -> runtime trace/actionConfig
+  -> generic MCP gateway code
+  -> MCP tools/call
+  -> normalized action evidence
+```
+
+But the generic gateway currently lives inside Shopify Bridge. That is acceptable for the first Shopify vertical slice, but it creates the wrong long-term product boundary:
+
+- CRM MCP should not depend on Shopify Bridge.
+- GitHub MCP should not depend on Shopify Bridge.
+- Internal operational MCP should not depend on Shopify Bridge.
+- Marketplace import/drift checks should not depend on Shopify Bridge.
+
+009.2 extracts the generic MCP client/executor into a reusable **MCP Execution Gateway**.
+
+The target is:
+
+```text
+Marketplace ACTION plugin
+  -> compiled action/server binding
+  -> MCP Execution Gateway
+  -> external MCP server
+  -> normalized governed evidence
+```
+
+Shopify Bridge remains Shopify-specific. It can call the MCP Execution Gateway for Shopify actions, but it should not become the universal execution service for every MCP provider.
+
+---
+
+## Core Decision
+
+Create a generic `MCP Execution Gateway`, not a "Generic Bridge".
+
+Bridge means product-boundary mediation. Shopify Bridge mediates Shopify install state, store binding, billing, customer sessions, theme/app context, and Shopify-specific risk posture.
+
+MCP Execution Gateway means protocol-boundary execution. It mediates MCP transport, server binding, auth profile resolution, generic policy checks, result normalization, drift evidence, and audit envelopes.
+
+Those are different responsibilities.
+
+---
+
+## Target Boundary
+
+### Shopify Bridge Keeps
+
+- Shopify app install and OAuth state.
+- Shopify store/deployment binding.
+- Shopify billing and package posture.
+- Shopify-specific storefront readiness.
+- Shopify Customer Accounts OAuth/PKCE and customer-token/session binding.
+- Checkout terminal-operation policy and Shopify-specific risk denials.
+- Shopify merchant/admin UI routes.
+- Shopify webhooks and sync infrastructure.
+
+### MCP Execution Gateway Owns
+
+- MCP Streamable HTTP client.
+- MCP session lifecycle.
+- `initialize`, `tools/list`, and `tools/call`.
+- Server binding resolution from platform metadata or signed execution envelopes.
+- Generic auth provider execution.
+- Argument template rendering.
+- Tool schema hash comparison.
+- Response mapping and normalized evidence.
+- Generic audit envelope creation.
+- Rate-limit/idempotency hooks.
+- Generic deny/error shape.
+
+### Platform Backend Remains Source Of Truth
+
+Platform owns:
+
+- Marketplace plugin review and publication.
+- Deployment install config.
+- Secret refs.
+- Compiled runtime action catalog.
+- Package/tier selection.
+- Release-time verification and drift policy.
+
+The gateway must not become a second Marketplace.
+
+---
+
+## Deployment Shape
+
+009.2 should be delivered in two steps.
+
+### Step A: Shared Java Module
+
+Extract the code into a shared module first:
+
+```text
+ai-infrastructure-module/ai-infrastructure-mcp-execution
+```
+
+This module should contain:
+
+- `McpStreamableHttpClient`
+- `McpActionExecutionService`
+- `McpServerBindingResolver`
+- `McpAuthProviderRegistry`
+- `McpArgumentTemplateRenderer`
+- `McpResultNormalizer`
+- `McpExecutionAuditEnvelope`
+- `McpSchemaHashService`
+
+Shopify Bridge depends on this module and keeps its current public action routes.
+
+This reduces risk because the already-live Shopify path can be migrated without introducing a new network hop.
+
+### Step B: Standalone Product Service
+
+Then add a deployable service:
+
+```text
+product-services/mcp-execution-gateway-service
+```
+
+This service exposes internal server-to-server APIs for Platform, runtimes, connectors, and product Bridges.
+
+It must not expose arbitrary browser-accessible tool execution.
+
+Initial endpoints:
+
+```text
+POST /api/internal/mcp/actions/execute
+POST /api/internal/mcp/servers/verify
+POST /api/internal/mcp/servers/tools/list
+GET  /actuator/health
+```
+
+Optional later endpoints:
+
+```text
+POST /api/internal/mcp/import/discover
+POST /api/internal/mcp/drift/check
+POST /api/internal/mcp/sessions/delete
+```
+
+The standalone service allows non-Shopify MCP actions to execute without Shopify Bridge.
+
+---
+
+## Execution API Contract
+
+### Execute Request
+
+The gateway should accept a signed or server-authenticated request:
+
+```json
+{
+  "deploymentId": "dep-123",
+  "tenantId": "ten-123",
+  "consumerId": "consumer-123",
+  "actionId": "crm_search_contacts",
+  "params": {
+    "query": "alex"
+  },
+  "idempotencyKey": "req-123",
+  "caller": {
+    "type": "RUNTIME",
+    "serviceRef": "runtime-dep-123"
+  },
+  "session": {
+    "shopperSessionId": "optional",
+    "customerSessionRef": "optional"
+  },
+  "actionConfig": {
+    "adapterType": "mcp-tool",
+    "execution": {
+      "mcp": {
+        "serverRef": "example-crm",
+        "toolName": "search_contacts",
+        "argumentTemplate": {
+          "query": "{{params.query}}"
+        },
+        "responseMapping": {
+          "resultPath": "$"
+        }
+      }
+    },
+    "mcpServers": {
+      "example-crm": {
+        "endpointUrl": "https://crm.example.com/mcp",
+        "auth": {
+          "mode": "API_KEY_HEADER_SECRET",
+          "headerName": "X-MCP-API-KEY",
+          "secretRef": "EXAMPLE_CRM_API_KEY"
+        }
+      }
+    }
+  },
+  "governance": {
+    "readOnly": true,
+    "requiresConfirmation": false,
+    "riskClass": "READ_ONLY_EXTERNAL"
+  }
+}
+```
+
+### Execute Response
+
+```json
+{
+  "success": true,
+  "message": "MCP tool result",
+  "data": {
+    "adapterType": "mcp-tool",
+    "evidenceType": "MCP_TOOL_RESULT",
+    "mcpServerRef": "example-crm",
+    "mcpToolName": "search_contacts",
+    "toolResult": {},
+    "normalizedEvidence": {}
+  },
+  "errorCode": null
+}
+```
+
+### Security Rule
+
+The gateway may accept `actionConfig` in the request only when the request is trusted:
+
+- signed by Platform, or
+- sent by an authenticated internal runtime/Bridge with a deployment-scoped service credential, or
+- revalidated by fetching the compiled deployment config from Platform.
+
+Long-term preference: request contains `deploymentId` and `actionId`; gateway fetches or caches the compiled config from Platform. Inline `actionConfig` is acceptable for migration and tests, but it must not become the only trust model.
+
+---
+
+## Server Binding And Secret Resolution
+
+The gateway resolves endpoint and auth from one of these sources, in order:
+
+1. Platform-fetched compiled deployment config.
+2. Signed execution envelope generated by Platform.
+3. Trusted product host envelope, such as Shopify Bridge, that has already resolved product-specific context.
+
+Secret values must never be stored in Marketplace manifests or runtime action catalogs.
+
+Secret value resolution options:
+
+- Platform secret-read API with gateway service identity.
+- Deployment-scoped secret provider mounted into the gateway.
+- Product host delegation for provider-specific tokens.
+
+Do not pass raw secret values through browser clients, runtime LLM traces, or Marketplace manifests.
+
+---
+
+## Auth Modes
+
+009.2 must preserve the 009.1 auth posture and make it reusable.
+
+Config-only in the first standalone release:
+
+- `NONE`
+- `STATIC_BEARER_SECRET`
+- `BEARER_TOKEN_SECRET_REF`
+- `API_KEY_HEADER_SECRET`
+
+Add after shared token service exists:
+
+- `OAUTH2_CLIENT_CREDENTIALS`
+
+Still product/host-assisted:
+
+- `OAUTH2_AUTH_CODE_PKCE`
+- `CUSTOMER_OAUTH_PKCE`
+- provider-specific signed session delegation
+
+Reason: generic token storage and refresh can be shared, but login UX, customer identity binding, protected-data approval, and product-specific session policy cannot be assumed from a Marketplace manifest alone.
+
+Header allowlist rules from 009.1 remain mandatory.
+
+---
+
+## Transport Compliance
+
+Initial supported transport:
+
+- `STREAMABLE_HTTP`
+
+The gateway must support:
+
+- JSON-RPC 2.0 request/response bodies.
+- HTTP `POST` to the MCP endpoint.
+- `Accept: application/json, text/event-stream`.
+- JSON and SSE response bodies.
+- `MCP-Protocol-Version`.
+- `MCP-Session-Id` capture and reuse when servers assign a session.
+- Session restart after `404` on a session-bound request.
+- Bounded SSE response consumption and request timeouts.
+
+Deferred:
+
+- Stream listening by HTTP `GET`.
+- Resumability with `Last-Event-ID`.
+- Legacy HTTP+SSE compatibility.
+- stdio for trusted local/internal servers only after sandbox design.
+
+---
+
+## Governance And Policy
+
+The gateway enforces generic policy from compiled action metadata:
+
+- action exists and is enabled
+- declared toolName matches allowed server tools
+- read/write classification
+- confirmation receipt when required
+- risk class
+- anonymous/session/customer requirements
+- rate limits
+- idempotency
+- schema drift policy
+- redaction policy
+
+The gateway cannot infer product-specific policy by itself.
+
+Product hosts may add pre-execution policy:
+
+```text
+Shopify Bridge
+  -> validate Shopify store/session/billing/customer posture
+  -> call MCP Execution Gateway
+```
+
+For simple non-Shopify read-only MCP actions:
+
+```text
+Runtime or Platform
+  -> call MCP Execution Gateway directly
+```
+
+For non-Shopify governed writes:
+
+```text
+Runtime
+  -> Platform confirmation/governance receipt
+  -> MCP Execution Gateway
+```
+
+If a product requires domain-specific session binding or legal/payment state, add a product host or policy hook. Do not force those semantics into the generic gateway.
+
+---
+
+## Marketplace Import Relationship
+
+009.2 does not replace 009.1 import/review.
+
+Import still belongs to Platform:
+
+```text
+Platform operator/admin
+  -> discover MCP server tools
+  -> create Marketplace ACTION draft
+  -> review risk/auth/tier/mapping
+  -> publish
+  -> install
+  -> compile
+```
+
+The gateway may provide technical discovery endpoints, but Platform owns the product lifecycle.
+
+`tools/list` remains discovery and drift evidence only. It must not auto-expose tools at runtime.
+
+---
+
+## Migration Plan
+
+### Phase 0: Current-State Lock
+
+Record current live behavior:
+
+- Shopify Bridge `shopify_search_catalog` live success.
+- Synthetic config-driven MCP action live success.
+- Direct Shopify MCP `initialize`, `tools/list`, and `tools/call` live success.
+
+Gate:
+
+- response captures exist under `/tmp/loomai-009-shopify-mcp-first/` or a new 009.2 evidence folder
+- current tests pass before extraction
+
+### Phase 1: Extract Shared Module
+
+Move generic code from Shopify Bridge into a shared module.
+
+Keep Shopify-specific behavior out of the shared module:
+
+- no Shopify install entities
+- no Shopify billing concepts
+- no Shopify store repository
+- no Shopify Customer Accounts assumptions
+
+Gate:
+
+- Shopify Bridge tests pass after importing the shared module
+- generic gateway unit tests move with the module
+- no behavior change in staging
+
+### Phase 2: Convert Shopify Bridge To Host Adapter
+
+Shopify Bridge should call the shared executor for config-driven MCP actions.
+
+Keep existing Shopify action routes stable:
+
+- `/api/admin/stores/{shopDomain}/actions/execute`
+- existing storefront/governed action routes
+
+Gate:
+
+- `shopify_search_catalog` still live-verifies on staging
+- synthetic config-driven action still live-verifies on staging
+
+### Phase 3: Add Standalone Gateway Service
+
+Create `product-services/mcp-execution-gateway-service`.
+
+Service responsibilities:
+
+- expose internal execution API
+- authenticate Platform/runtime/Bridge callers
+- resolve compiled config from Platform or signed envelope
+- resolve secrets
+- execute MCP
+- emit normalized evidence
+
+Gate:
+
+- service health works locally and on Coolify staging
+- one non-Shopify mock MCP action executes through the standalone service
+- no Shopify Bridge dependency exists in the standalone service
+
+### Phase 4: Runtime Direct Execution Path
+
+Add an execution route for `adapterType=mcp-tool` that calls the standalone gateway directly when the action does not require a product host.
+
+Gate:
+
+- a simple read-only third-party MCP action executes without Shopify Bridge
+- runtime action catalog remains deterministic and secret-free
+- missing gateway config fails closed
+
+### Phase 5: Platform Verification And Drift
+
+Use the standalone gateway for:
+
+- install-time `initialize` and `tools/list`
+- release-time drift checks
+- operator readiness probes
+
+Gate:
+
+- removed tool blocks/disables/warns according to policy
+- schema drift is detected by canonical hash
+- new external tools do not become runtime actions automatically
+
+### Phase 6: Coolify Staging Productization
+
+Add Coolify staging deployment for the gateway:
+
+- environment source of truth in Platform/Coolify
+- health endpoint
+- internal API key
+- Platform base URL
+- secret resolution credentials
+- logs redaction posture
+
+Gate:
+
+- staging gateway deploys from `Platform-V8`
+- Platform health, Bridge health, and gateway health all return `UP`
+- direct non-Shopify MCP execution live-verifies without Shopify Bridge
+
+---
+
+## Acceptance Criteria
+
+009.2 is complete when:
+
+- Generic MCP execution code no longer lives only under Shopify Bridge packages.
+- Shopify Bridge consumes the shared MCP executor without owning generic MCP protocol code.
+- A standalone MCP Execution Gateway service is deployable on staging.
+- A config-driven non-Shopify MCP action can execute through the standalone gateway without Shopify Bridge.
+- `shopify_search_catalog` remains live-verified through Shopify Bridge after extraction.
+- The generic gateway supports `initialize`, `tools/list`, and `tools/call` over Streamable HTTP.
+- Runtime action catalogs remain deterministic and secret-free.
+- Secret values are resolved server-side only.
+- Existing connector HTTP actions and Shopify-specific governed paths still pass tests.
+- Production is not deployed until explicitly requested.
+
+---
+
+## Non-Goals
+
+- Do not create a new Marketplace plugin type.
+- Do not let `tools/list` become runtime product truth.
+- Do not make Shopify Bridge the universal MCP service.
+- Do not expose the gateway directly to browsers.
+- Do not support arbitrary local stdio MCP servers before sandboxing.
+- Do not make custom OAuth/customer-session flows config-only when they need product UX or protected-data posture.
+- Do not move Shopify install, billing, webhook, or source-sync behavior into the generic gateway.
+
+---
+
+## Verification Commands
+
+Local:
+
+```bash
+mvn -f Platfrom/backend/pom.xml -q -Dtest=MarketplaceManifestServiceTest,DeploymentMarketplaceDraftCompilerServiceTest test
+mvn -f product-services/shopify-bridge-service/pom.xml -q test
+mvn -f ai-infrastructure-module/pom.xml -q -pl ai-infrastructure-actions-connector,ai-infrastructure-actions-registry -am -DfailIfNoTests=false test
+bash -n scripts/verify-marketplace-install-flow.sh
+bash -n scripts/verify-shopify-companion.sh
+git diff --check
+```
+
+After standalone service exists:
+
+```bash
+mvn -f product-services/mcp-execution-gateway-service/pom.xml -q test
+curl -fsS "$MCP_EXECUTION_GATEWAY_BASE_URL/actuator/health"
+```
+
+Staging:
+
+```bash
+curl -fsS https://loomai-platform-backend.46.224.145.148.sslip.io/actuator/health
+curl -fsS https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io/actuator/health
+curl -fsS "$MCP_EXECUTION_GATEWAY_STAGING_BASE_URL/actuator/health"
+```
+
+Live product proof:
+
+- Direct MCP `initialize` succeeds.
+- Direct MCP `tools/list` succeeds.
+- Direct MCP `tools/call` succeeds for a safe read-only tool.
+- Bridge `shopify_search_catalog` still succeeds.
+- Standalone gateway executes a non-Shopify config-driven MCP action without Shopify Bridge.
+
+---
+
+## Open Decisions
+
+- Whether the standalone gateway reads compiled config directly from Platform or only accepts signed execution envelopes in v1.
+- Whether gateway audit writes directly to Platform or emits events for Platform ingestion.
+- Whether `OAUTH2_CLIENT_CREDENTIALS` lands in 009.2 or remains 009.3.
+- Whether the first non-Shopify live MCP proof should use a local mock server, a public test MCP server, or a real CRM/helpdesk provider.

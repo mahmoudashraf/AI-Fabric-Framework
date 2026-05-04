@@ -854,3 +854,10 @@ Rules:
   - `shopify_search_catalog` returned HTTP `200`, `success=true`, `adapterType=mcp-tool`, `evidenceType=SHOPIFY_MCP_TOOL_RESULT`, `mcpServerRef=shopify-storefront-ucp`, `mcpToolName=search_catalog`.
   - synthetic `generic_config_driven_mcp_live_search` with `trace.actionConfig.execution.mcp` returned HTTP `200`, `success=true`, `adapterType=mcp-tool`, `evidenceType=MCP_TOOL_RESULT`, and normalized evidence.
 - Evidence and inventory note remains under `/tmp/loomai-009-shopify-mcp-first/`; response captures from this run were written under `/tmp/shopify-mcp-*.json` and `/tmp/shopify-bridge-*.json`.
+
+## 2026-05-04 Shopify MCP-First 009.2 Extraction Plan
+
+- Created `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md`.
+- 009.2 answers the boundary question raised after 009.1: today the generic MCP code is hosted inside Shopify Bridge; the next architectural step is a standalone/shared MCP Execution Gateway so non-Shopify MCP servers can execute without depending on Shopify Bridge.
+- Target sequence: shared Java module first, Shopify Bridge consumes it as a host adapter, then standalone `product-services/mcp-execution-gateway-service` with internal server-to-server APIs for execution, verification, and future import/drift checks.
+- Boundary decision: Shopify Bridge remains Shopify-specific for install, store/session, billing, Customer Accounts, Checkout, webhooks, and Shopify readiness; the extracted gateway owns MCP transport, auth providers, server binding, argument rendering, schema drift checks, result normalization, and generic governed evidence.
