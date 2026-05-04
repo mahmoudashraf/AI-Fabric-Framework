@@ -106,6 +106,8 @@ Those are different responsibilities.
 - Shopify merchant/admin UI routes.
 - Shopify webhooks and sync infrastructure.
 
+Shopify Bridge does not keep customer-facing action execution implementations as a permanent responsibility. After extraction, Bridge performs Shopify host checks and calls the generic MCP Execution Gateway with the installed Marketplace plugin action config.
+
 ### MCP Execution Gateway Owns
 
 - MCP Streamable HTTP client.
@@ -192,6 +194,8 @@ POST /api/internal/mcp/import/discover
 POST /api/internal/mcp/drift/check
 POST /api/internal/mcp/sessions/delete
 ```
+
+`/api/internal/mcp/import/discover` should move into the initial standalone release if Marketplace MCP import is being delivered in the same implementation wave. Discovery is required for 009.1 completion.
 
 The standalone service allows non-Shopify MCP actions to execute without Shopify Bridge.
 
@@ -494,7 +498,7 @@ Import still belongs to Platform:
 
 ```text
 Platform operator/admin
-  -> discover MCP server tools
+  -> request MCP discovery from MCP Execution Gateway
   -> create Marketplace ACTION draft
   -> review risk/auth/tier/mapping
   -> publish
@@ -502,7 +506,23 @@ Platform operator/admin
   -> compile
 ```
 
-The gateway may provide technical discovery endpoints, but Platform owns the product lifecycle.
+The gateway owns the technical protocol work for discovery:
+
+- resolve reviewed endpoint/auth profile
+- call `initialize`
+- call `tools/list`
+- normalize tool names, descriptions, schemas, and protocol evidence
+- compute canonical schema hashes
+- return redacted discovery evidence to Platform
+
+Platform owns the product lifecycle:
+
+- draft creation
+- action ID mapping
+- risk/session/tier classification
+- review and publication
+- install and release
+- runtime exposure decisions
 
 `tools/list` remains discovery and drift evidence only. It must not auto-expose tools at runtime.
 
@@ -549,10 +569,21 @@ Keep existing Shopify action routes stable:
 - `/api/admin/stores/{shopDomain}/actions/execute`
 - existing storefront/governed action routes
 
+Remove customer-facing legacy execution from Bridge as the generic execution path becomes available:
+
+- no `list_products`, `search_products`, `get_policy`, `check_availability`, `add_product_to_cart`, `add_to_cart`, or `update_cart_quantity` Bridge-owned behavior
+- no direct Admin GraphQL customer-facing action bodies
+- no Bridge-local action switch as product truth
+- installed Marketplace plugin config decides the action surface
+
+Bridge may retain Shopify host-policy code for store/session/billing/customer/checkout checks, then delegate to the shared executor.
+
 Gate:
 
 - `shopify_search_catalog` still live-verifies on staging
 - synthetic config-driven action still live-verifies on staging
+- legacy aliases return `ACTION_NOT_SUPPORTED` unless explicitly approved as a temporary migration shim
+- customer-facing Shopify MCP actions resolve from installed Marketplace plugin config
 
 ### Phase 3: Add Standalone Gateway Service
 
@@ -600,12 +631,15 @@ Gate:
 
 Use the standalone gateway for:
 
+- Marketplace import discovery
 - install-time `initialize` and `tools/list`
 - release-time drift checks
 - operator readiness probes
 
 Gate:
 
+- an operator can discover a supported MCP server through Platform, backed by the gateway discovery endpoint
+- discovery creates a private Marketplace `ACTION` draft without making tools live
 - removed tool blocks/disables/warns according to policy
 - schema drift is detected by canonical hash
 - new external tools do not become runtime actions automatically
@@ -647,6 +681,8 @@ Gate:
 - A config-driven non-Shopify MCP action can execute through the standalone gateway without Shopify Bridge.
 - The generic runtime/connector path can call the standalone gateway directly for hostless `adapterType=mcp-tool` actions.
 - `shopify_search_catalog` remains live-verified through Shopify Bridge after extraction.
+- Shopify Bridge no longer owns legacy customer-facing action implementation; it acts as Shopify host/governance adapter and delegates plugin-defined MCP actions to the generic gateway.
+- Marketplace can discover a supported MCP server through the generic gateway and generate a private `ACTION` plugin draft.
 - The generic gateway supports `initialize`, `tools/list`, and `tools/call` over Streamable HTTP.
 - Runtime action catalogs remain deterministic and secret-free.
 - Secret values are resolved server-side only.

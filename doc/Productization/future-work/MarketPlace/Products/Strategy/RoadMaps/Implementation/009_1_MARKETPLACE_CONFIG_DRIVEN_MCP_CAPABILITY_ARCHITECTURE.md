@@ -1,6 +1,6 @@
 # 009.1 Marketplace Config-Driven MCP Capability Architecture
 
-Status: architecture change plan (created 2026-05-04)
+Status: partially implemented architecture change plan (created 2026-05-04; config-driven manifest/compile/runtime trace path live-verified on staging; generic discovery/import and Shopify Bridge legacy-action retirement still pending)
 
 Parent plan: [009 Shopify MCP-First Implementation Sequence](009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md)
 
@@ -62,6 +62,32 @@ Adding another MCP tool should usually mean publishing or updating a Marketplace
 
 ---
 
+## Current Implementation Status
+
+As of 2026-05-04, 009.1 is not fully complete.
+
+Implemented and live-verified on staging:
+
+- Marketplace `ACTION` validation accepts `adapterType=mcp-tool`.
+- `contributions.mcpServers` and `execution.mcp` metadata compile into the runtime action catalog.
+- Runtime connector forwarding preserves `adapterType`, `execution`, `mcpServers`, and `trace.actionConfig`.
+- Shopify Bridge hosts a generic MCP execution seed for config-driven actions.
+- A synthetic config-driven MCP action executed through Bridge without adding a new provider-specific action method.
+- Direct Shopify Storefront MCP `initialize`, `tools/list`, and `tools/call search_catalog` were live-verified.
+
+Pending for 009.1 completion:
+
+- Marketplace import/discovery must call a generic MCP service to run `initialize` and `tools/list`, then generate private `ACTION` plugin drafts.
+- Schema hash canonicalization and drift verification must be wired into install/release checks.
+- Generic auth providers beyond the currently proven no-auth/static-header path must be completed.
+- Shopify Bridge must retire legacy customer-facing action aliases and Admin GraphQL action implementations.
+- Shopify Bridge must depend on plugin-defined MCP actions and the generic MCP execution service for customer-facing Shopify tool execution.
+- The generic MCP execution service must be extracted from Shopify Bridge before non-Shopify MCP support is considered complete.
+
+External Shopify auth material remains a separate blocker for fully live Customer Accounts MCP and Checkout MCP execution, but it is not the only remaining 009.1 work.
+
+---
+
 ## Core Decision
 
 Do not add a new top-level Marketplace plugin type for MCP tools.
@@ -75,6 +101,62 @@ Use existing plugin categories:
 The Marketplace manifest is the product truth.
 
 MCP `tools/list` is discovery and verification evidence only. It must never directly become shopper-visible or agent-visible runtime truth.
+
+---
+
+## Shopify Bridge End-State
+
+Shopify Bridge remains Shopify-specific only as a host boundary. It should not contain customer-facing action implementations.
+
+Final Bridge responsibilities:
+
+- Shopify app install and store credential lookup.
+- Store/deployment binding.
+- Shopify billing/package posture.
+- Shopper/customer/session binding.
+- Confirmation/governance receipt checks for cart, checkout, return, and protected-data actions.
+- Shopify-specific endpoint/context resolution that cannot be derived safely from generic install config.
+- Calling the generic MCP execution service with compiled plugin action config and host context.
+
+Final Bridge non-responsibilities:
+
+- no legacy customer-facing action aliases such as `list_products`, `search_products`, `get_policy`, `check_availability`, `add_product_to_cart`, `add_to_cart`, or `update_cart_quantity`
+- no direct customer-facing Shopify Admin GraphQL action behavior
+- no action-specific MCP argument builders when the same behavior can be expressed by `execution.mcp.argumentTemplate`
+- no product-specific MCP `tools/call` client as the permanent execution path
+- no runtime product truth outside the installed Marketplace plugin catalog
+
+The action ID source of truth is the installed Marketplace plugin, not a Bridge switch statement.
+
+Bridge may still expose stable product routes such as `/api/admin/stores/{shopDomain}/actions/execute`, but route handling should resolve the installed plugin action and delegate execution to the generic MCP execution service.
+
+---
+
+## Marketplace MCP Discovery Requirement
+
+Marketplace must discover supported MCP servers through the generic MCP execution service.
+
+Required flow:
+
+```text
+Platform operator/admin enters MCP endpoint and auth profile
+  -> Platform calls MCP Execution Gateway discovery endpoint
+  -> gateway performs initialize
+  -> gateway performs tools/list
+  -> gateway returns normalized tools, schemas, protocol evidence, and auth/transport status
+  -> Platform generates a private ACTION plugin draft
+  -> operator maps, classifies, reviews, publishes, installs, and applies
+```
+
+Discovery requirements:
+
+- discovery is service-side only; browser clients never call external MCP endpoints directly
+- discovery uses the same transport/auth client as execution, so import and runtime behavior do not drift
+- discovered tools are drafts only, never live runtime actions
+- selected tools get stable platform `actionId` values during review
+- unselected tools are ignored
+- newly discovered tools after install require a new plugin version or draft
+- discovery evidence includes protocol version, server ref, tool names, normalized schemas, schema hashes, and redacted auth posture
 
 ---
 
@@ -324,8 +406,9 @@ Default behavior:
 
 ```text
 Operator enters MCP server URL/auth profile
-  -> Platform calls initialize
-  -> Platform calls tools/list
+  -> Platform calls MCP Execution Gateway discovery endpoint
+  -> gateway calls initialize
+  -> gateway calls tools/list
   -> Platform displays tool names, descriptions, and input schemas
   -> Operator selects tools
   -> Operator maps each raw tool to a stable platform actionId
@@ -528,8 +611,9 @@ Gate:
 
 Implement operator import:
 
-- initialize
-- tools/list
+- Platform-to-gateway discovery request
+- gateway `initialize`
+- gateway `tools/list`
 - tool selection
 - action ID mapping
 - risk/auth/tier classification
@@ -548,20 +632,30 @@ Gate:
 - removed or schema-incompatible tools cannot silently remain executable
 - new tools cannot silently appear
 
-### Phase 7: Refactor Shopify To Generic Profiles
+### Phase 7: Retire Shopify Legacy Action Implementations
 
-Move Shopify Storefront/UCP, Customer Account, and Checkout MCP adapters toward generic server bindings where possible.
+Move Shopify Storefront/UCP, Customer Account, and Checkout MCP actions to plugin-defined server bindings and the generic MCP execution service.
 
 Keep provider-specific code only for:
 
 - Shopify install/store binding
 - Customer Accounts customer-token/session binding
 - Checkout terminal-operation policy
-- Shopify-specific readiness probes where the server does not support normal `tools/list`
+- Shopify-specific readiness probes where the server does not support normal gateway `tools/list`
+
+Remove or disable:
+
+- legacy action aliases
+- direct Admin GraphQL customer-facing action bodies
+- hardcoded action-specific MCP switch routing when the action is available from installed plugin config
+- permanent use of Bridge-local `tools/call` clients for customer-facing MCP actions
 
 Gate:
 
-- Shopify remains live-verified after shared gateway migration
+- Shopify remains live-verified after shared gateway migration.
+- `shopify_search_catalog`, cart, Customer Accounts, and Checkout actions resolve from installed Marketplace plugin config.
+- The Bridge action execution service delegates to the generic MCP execution service after host/governance checks.
+- Legacy aliases return `ACTION_NOT_SUPPORTED` unless a migration shim is explicitly approved for a short operational window.
 
 ### Phase 8: Resources And Prompts
 
@@ -582,6 +676,7 @@ Gate:
 009.1 is complete when:
 
 - A new Streamable HTTP MCP server with supported auth can be imported into a private Marketplace `ACTION` plugin draft.
+- Marketplace discovery/import uses the generic MCP execution service for `initialize` and `tools/list`.
 - The plugin can be reviewed, published, installed, compiled, and executed without adding provider-specific Bridge code.
 - Shared gateway execution handles endpoint resolution, auth, argument rendering, `tools/call`, result normalization, audit, rate limits, and denial states.
 - `tools/list` is used for import and drift verification, not runtime exposure.
@@ -589,6 +684,8 @@ Gate:
 - Runtime action catalogs remain deterministic and secret-free.
 - Existing non-MCP connector HTTP actions still work.
 - Existing Shopify MCP actions continue to work after genericization.
+- Shopify Bridge contains no legacy customer-facing Admin GraphQL action implementation path.
+- Shopify Bridge customer-facing actions depend on installed plugin config and the generic MCP execution service after Shopify host/governance checks.
 
 ---
 
