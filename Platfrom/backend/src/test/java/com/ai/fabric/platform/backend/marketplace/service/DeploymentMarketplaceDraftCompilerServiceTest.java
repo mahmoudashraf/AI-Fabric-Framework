@@ -159,6 +159,47 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(compiled.path("execution").path("mcp").path("toolName").asText()).isEqualTo("search_shop_policies_and_faqs");
     }
 
+    @Test
+    void stripGreenfieldShopifyLegacyActionsRemovesStaleShopifyActionsWhenMcpBundleIsEnabled() {
+        ObjectNode actionsRoot = objectMapper.createObjectNode();
+        ArrayNode actions = actionsRoot.putArray("actions");
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("adapterType", "connector-http");
+        actions.addObject()
+            .put("name", "shopify_get_product_details")
+            .put("adapterType", "connector-http");
+        actions.addObject()
+            .put("name", "operator_custom_action")
+            .put("adapterType", "connector-http");
+        DeploymentMarketplacePluginInstallEntity install = install();
+        install.setPluginId("mkp-action-shopify-storefront-read-mcp");
+
+        boolean changed = compilerService.stripGreenfieldShopifyLegacyActions(actionsRoot, java.util.List.of(install));
+
+        assertThat(changed).isTrue();
+        assertThat((ArrayNode) actionsRoot.path("actions")).extracting(node -> node.path("name").asText())
+            .containsExactly("operator_custom_action");
+    }
+
+    @Test
+    void stripGreenfieldShopifyLegacyActionsKeepsActionsWhenMcpBundleIsNotEnabled() {
+        ObjectNode actionsRoot = objectMapper.createObjectNode();
+        ArrayNode actions = actionsRoot.putArray("actions");
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("adapterType", "connector-http");
+        DeploymentMarketplacePluginInstallEntity install = install();
+        install.setPluginId("mkp-action-shopify-storefront-read-mcp");
+        install.setStatus("DISABLED");
+
+        boolean changed = compilerService.stripGreenfieldShopifyLegacyActions(actionsRoot, java.util.List.of(install));
+
+        assertThat(changed).isFalse();
+        assertThat((ArrayNode) actionsRoot.path("actions")).extracting(node -> node.path("name").asText())
+            .containsExactly("shopify_search_catalog");
+    }
+
     private DeploymentMarketplacePluginInstallEntity install() {
         DeploymentMarketplacePluginInstallEntity install = new DeploymentMarketplacePluginInstallEntity();
         install.setId("mpi-test");

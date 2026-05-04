@@ -49,6 +49,21 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String DEFAULT_MARKETPLACE_DATASET_CONTRACT_VERSION = "MARKETPLACE_DATASET_CONFIG_V1";
     private static final String DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION = "MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1";
     private static final String MARKETPLACE_INFERENCE_FIELD = "marketplaceInference";
+    private static final Set<String> GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS = Set.of(
+        "mkp-action-shopify-storefront-read-mcp",
+        "mkp-action-shopify-cart-mcp",
+        "mkp-action-shopify-customer-account-mcp",
+        "mkp-action-shopify-checkout-mcp"
+    );
+    private static final Set<String> GREENFIELD_SHOPIFY_ACTION_IDS = Set.of(
+        "shopify_search_catalog",
+        "shopify_lookup_catalog",
+        "shopify_get_product",
+        "shopify_get_product_details",
+        "shopify_search_policies",
+        "shopify_get_cart",
+        "shopify_update_cart"
+    );
 
     private final DeploymentService deploymentService;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
@@ -110,15 +125,17 @@ public class DeploymentMarketplaceDraftCompilerService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Deployment not found: " + deploymentId));
 
+        List<DeploymentMarketplacePluginInstallEntity> installs =
+            installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
+
         stripMarketplaceManagedActions(actionsRoot);
+        stripGreenfieldShopifyLegacyActions(actionsRoot, installs);
         stripMarketplaceManagedEntities(entityRoot);
         stripMarketplaceManagedKnowledgeSources(knowledgeSourceRoot);
         stripMarketplaceManagedShell(shellRoot);
         stripMarketplaceManagedDatasets(marketplaceDatasetRoot);
         stripMarketplaceManagedInference(providerRoot);
 
-        List<DeploymentMarketplacePluginInstallEntity> installs =
-            installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
         Set<String> existingEntityTypes = entityTypes(entityRoot.path("ai-entities"));
         Set<String> existingKnowledgeSourceIds = knowledgeSourceIds(knowledgeSourceRoot.path("sources"));
@@ -873,6 +890,38 @@ public class DeploymentMarketplaceDraftCompilerService {
         removeMarketplaceManagedEntries(actions);
         ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
         removeMarketplaceManagedEntries(webhookTargets);
+    }
+
+    boolean stripGreenfieldShopifyLegacyActions(ObjectNode actionsRoot,
+                                                List<DeploymentMarketplacePluginInstallEntity> installs) {
+        if (!hasEnabledGreenfieldShopifyMcpActionPlugin(installs)) {
+            return false;
+        }
+        ArrayNode actions = ensureArray(actionsRoot, "actions");
+        boolean changed = false;
+        for (int index = actions.size() - 1; index >= 0; index--) {
+            JsonNode action = actions.get(index);
+            String actionName = action == null ? "" : action.path("name").asText("").trim();
+            if (GREENFIELD_SHOPIFY_ACTION_IDS.contains(actionName)) {
+                actions.remove(index);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean hasEnabledGreenfieldShopifyMcpActionPlugin(List<DeploymentMarketplacePluginInstallEntity> installs) {
+        if (installs == null || installs.isEmpty()) {
+            return false;
+        }
+        for (DeploymentMarketplacePluginInstallEntity install : installs) {
+            if (install != null
+                && isEnabledForCompilation(install.getStatus())
+                && GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS.contains(install.getPluginId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void stripMarketplaceManagedEntities(ObjectNode entityRoot) {
