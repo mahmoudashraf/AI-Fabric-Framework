@@ -595,6 +595,12 @@ public class PlatformManagedProductProvisioningService {
                 .findFirst()
                 .orElse(null);
         }
+        if (existing == null && hasText(service.getBaseUrl())) {
+            existing = coolifyApiClient.listApplications(binding.connection()).stream()
+                .filter(app -> coolifyFqdnMatchesBaseUrl(app.fqdn(), service.getBaseUrl()))
+                .findFirst()
+                .orElse(null);
+        }
         CoolifyCreatePublicApplicationRequest request = coolifyPublicApplicationRequest(service, binding, appName);
         if (existing != null && hasText(existing.uuid())) {
             coolifyApiClient.updatePublicApplication(binding.connection(), existing.uuid(), request);
@@ -758,6 +764,32 @@ public class PlatformManagedProductProvisioningService {
             return null;
         }
         return fqdn.startsWith("http://") || fqdn.startsWith("https://") ? fqdn : "https://" + fqdn;
+    }
+
+    private boolean coolifyFqdnMatchesBaseUrl(String fqdn, String baseUrl) {
+        String expected = normalizedUrlHost(baseUrl);
+        if (!hasText(expected) || !hasText(fqdn)) {
+            return false;
+        }
+        for (String candidate : fqdn.split(",")) {
+            if (expected.equalsIgnoreCase(normalizedUrlHost(candidate))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizedUrlHost(String value) {
+        String normalized = trimToNull(value);
+        if (!hasText(normalized)) {
+            return null;
+        }
+        normalized = normalized.replaceFirst("^https?://", "");
+        int slash = normalized.indexOf('/');
+        if (slash >= 0) {
+            normalized = normalized.substring(0, slash);
+        }
+        return trimToNull(normalized);
     }
 
     private void clearCoolifyBinding(PlatformManagedProductServiceEntity service) {
