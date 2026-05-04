@@ -6,6 +6,7 @@ Parent plans:
 
 - [009 Shopify MCP-First Implementation Sequence](009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md)
 - [009.1 Marketplace Config-Driven MCP Capability Architecture](009_1_MARKETPLACE_CONFIG_DRIVEN_MCP_CAPABILITY_ARCHITECTURE.md)
+- [007 Coolify Deployment Provider And Restartable Services](007_COOLIFY_DEPLOYMENT_PROVIDER_AND_RESTARTABLE_SERVICES.md)
 
 Roadmap phase: `009.2` - extract the generic MCP execution code out of Shopify Bridge so non-Shopify MCP servers can execute through Marketplace configuration without depending on the Shopify product service.
 
@@ -23,6 +24,8 @@ Current implementation seed:
 - `product-services/shopify-bridge-service/src/test/java/com/ai/fabric/product/shopify/bridge/mcp/**`
 - Runtime action forwarding in `ai-infrastructure-module/ai-infrastructure-actions-connector`
 - Marketplace validation/compiler support in `Platfrom/backend`
+- Platform-managed product service lifecycle support in `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/productservice/**`
+- Product Services operator UI in `Platfrom/ui/src/pages/ProductServicesPage.tsx`
 
 Reference protocol docs checked:
 
@@ -62,6 +65,16 @@ Marketplace ACTION plugin
   -> MCP Execution Gateway
   -> external MCP server
   -> normalized governed evidence
+```
+
+The generic runtime/connector target is:
+
+```text
+Runtime action catalog
+  -> ActionConnectorExecutor / connector runtime
+  -> adapterType=mcp-tool direct route
+  -> MCP Execution Gateway service
+  -> external MCP server
 ```
 
 Shopify Bridge remains Shopify-specific. It can call the MCP Execution Gateway for Shopify actions, but it should not become the universal execution service for every MCP provider.
@@ -161,6 +174,8 @@ This service exposes internal server-to-server APIs for Platform, runtimes, conn
 
 It must not expose arbitrary browser-accessible tool execution.
 
+It must be deployable without Shopify Bridge. The runtime/connector stack must be able to call it directly for generic `adapterType=mcp-tool` actions whose compiled governance does not require a product host.
+
 Initial endpoints:
 
 ```text
@@ -179,6 +194,91 @@ POST /api/internal/mcp/sessions/delete
 ```
 
 The standalone service allows non-Shopify MCP actions to execute without Shopify Bridge.
+
+---
+
+## Platform-Managed Service Requirement
+
+The standalone gateway is a first-class Platform-managed reproducible service, not an ad hoc Coolify app.
+
+It must be managed through the same Product Services control-plane surface used by Shopify Bridge today:
+
+- create/register service
+- reconcile desired provider state
+- inspect provider deployments/history
+- health probe
+- logs
+- restart
+- scale desired replicas
+- rotate internal service secret
+- force recreate provider linkage
+- decommission
+
+The initial managed service identity should use these product-service fields:
+
+```text
+serviceRef: mcp-execution-gateway-staging
+displayName: MCP Execution Gateway
+productFamily: MCP
+serviceKind: MCP_EXECUTION_GATEWAY_SERVICE
+deploymentMode: SHARED_PLATFORM_SERVICE
+tenantMode: MULTI_TENANT_SHARED
+environmentScope: staging
+healthPath: /actuator/health
+serviceRoot: product-services/mcp-execution-gateway-service
+dockerfilePath: product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile
+```
+
+The Dockerfile path name can remain `deploy/railway/Dockerfile` only if the existing product-service deployment convention still expects it. The service must still be deployable to Coolify through the provider-neutral target-profile path.
+
+Platform remains the source of truth for the service definition. Coolify is the provider runtime. Operators must not have to manually recreate the gateway from the Coolify UI for normal lifecycle work.
+
+Force recreate semantics must match the existing Product Services page behavior for Bridge:
+
+- require typing the `serviceRef` before clearing linkage
+- clear provider linkage and base URL fields in Platform
+- preserve the desired service spec, secret references, scale settings, health path, root directory, Dockerfile path, branch, and target profile
+- recreate the provider app on the next reconcile/create operation
+- write an auditable operator event
+- fail closed if required target profile or provider credential material is missing
+
+Reconciliation must be idempotent. Re-running reconcile on the same desired spec should not create duplicate Coolify applications.
+
+The Product Services UI should either:
+
+- support arbitrary managed service kinds cleanly, including `MCP_EXECUTION_GATEWAY_SERVICE`, or
+- add an explicit MCP Gateway preset with the fields above.
+
+Do not put this only in deployment-provider diagnostics. Diagnostics can inspect provider resources, but day-to-day lifecycle ownership belongs in Product Services.
+
+---
+
+## Generic Runtime And Connector Use
+
+The standalone gateway is the default execution target for generic MCP actions.
+
+Connector/runtime behavior:
+
+- If `adapterType=mcp-tool` and compiled policy says `hostRequired=false`, call the standalone gateway directly.
+- If the action has a `hostServiceRef`, call that product host first. Shopify actions continue to use Shopify Bridge when store/session/billing/customer/checkout posture is required.
+- Runtime catalogs remain deterministic and secret-free.
+- Runtime/connector calls to the gateway use internal service authentication, deployment id, action id, params, idempotency key, and caller context.
+- Runtime/connector must not send raw provider secrets, browser tokens, or arbitrary unreviewed tool configs.
+
+The gateway response must preserve the normalized action result contract already used by connector actions:
+
+```text
+success
+message
+data.adapterType=mcp-tool
+data.evidenceType=MCP_TOOL_RESULT
+data.mcpServerRef
+data.mcpToolName
+data.normalizedEvidence
+errorCode
+```
+
+This is what lets the existing runtime/connector pipeline use MCP actions without Shopify Bridge.
 
 ---
 
@@ -467,9 +567,18 @@ Service responsibilities:
 - execute MCP
 - emit normalized evidence
 
+Platform-managed service responsibilities:
+
+- add an MCP Gateway Product Services preset or generic service-kind support
+- create/reconcile the service through the existing Product Services API
+- deploy to Coolify staging through the provider-neutral target profile
+- expose the same Product Services UI operations as Shopify Bridge: health, logs, deployment history, reconcile, restart, scale, rotate secret, force recreate, and decommission
+
 Gate:
 
 - service health works locally and on Coolify staging
+- service appears in Product Services UI as a managed service
+- force recreate clears linkage in Platform and reconcile recreates the Coolify app
 - one non-Shopify mock MCP action executes through the standalone service
 - no Shopify Bridge dependency exists in the standalone service
 
@@ -477,9 +586,13 @@ Gate:
 
 Add an execution route for `adapterType=mcp-tool` that calls the standalone gateway directly when the action does not require a product host.
 
+This route belongs in the generic runtime/connector path, not in Shopify Bridge.
+
 Gate:
 
 - a simple read-only third-party MCP action executes without Shopify Bridge
+- runtime/connector calls the gateway with internal service auth
+- hosted Shopify actions still route through Shopify Bridge when `hostServiceRef` or Shopify posture is required
 - runtime action catalog remains deterministic and secret-free
 - missing gateway config fails closed
 
@@ -507,11 +620,16 @@ Add Coolify staging deployment for the gateway:
 - Platform base URL
 - secret resolution credentials
 - logs redaction posture
+- Product Services managed record
+- Product Services operator UI lifecycle controls
+- force recreate, restart, scale, logs, health, and deployment history parity with Shopify Bridge
 
 Gate:
 
 - staging gateway deploys from `Platform-V8`
 - Platform health, Bridge health, and gateway health all return `UP`
+- Product Services UI shows the gateway as `ACTIVE` after reconcile
+- Product Services force recreate has been tested on staging and then reconciled back to `ACTIVE`
 - direct non-Shopify MCP execution live-verifies without Shopify Bridge
 
 ---
@@ -523,7 +641,11 @@ Gate:
 - Generic MCP execution code no longer lives only under Shopify Bridge packages.
 - Shopify Bridge consumes the shared MCP executor without owning generic MCP protocol code.
 - A standalone MCP Execution Gateway service is deployable on staging.
+- The gateway is registered as a Platform-managed product service and is reproducible from Platform state.
+- Product Services UI can health-check, inspect logs/history, reconcile, restart, scale, rotate secret, force recreate, and decommission the gateway with parity to Shopify Bridge.
+- Force recreate is live-verified on staging and does not require manual Coolify UI repair.
 - A config-driven non-Shopify MCP action can execute through the standalone gateway without Shopify Bridge.
+- The generic runtime/connector path can call the standalone gateway directly for hostless `adapterType=mcp-tool` actions.
 - `shopify_search_catalog` remains live-verified through Shopify Bridge after extraction.
 - The generic gateway supports `initialize`, `tools/list`, and `tools/call` over Streamable HTTP.
 - Runtime action catalogs remain deterministic and secret-free.
@@ -538,6 +660,7 @@ Gate:
 - Do not create a new Marketplace plugin type.
 - Do not let `tools/list` become runtime product truth.
 - Do not make Shopify Bridge the universal MCP service.
+- Do not make the MCP gateway a manually managed Coolify-only app outside Platform Product Services.
 - Do not expose the gateway directly to browsers.
 - Do not support arbitrary local stdio MCP servers before sandboxing.
 - Do not make custom OAuth/customer-session flows config-only when they need product UX or protected-data posture.
@@ -564,6 +687,16 @@ After standalone service exists:
 mvn -f product-services/mcp-execution-gateway-service/pom.xml -q test
 curl -fsS "$MCP_EXECUTION_GATEWAY_BASE_URL/actuator/health"
 ```
+
+Platform-managed service checks:
+
+```bash
+curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway-staging"
+curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway-staging/health"
+curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway-staging/railway/deployments?limit=5"
+```
+
+The deployment-history/log endpoint names are still `railway/*` in the current Product Services API even when the backing provider is Coolify. 009.2 may rename these to provider-neutral names, but it must keep existing UI behavior working during migration.
 
 Staging:
 
