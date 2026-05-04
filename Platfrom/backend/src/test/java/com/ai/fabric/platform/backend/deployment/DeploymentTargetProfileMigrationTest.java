@@ -42,7 +42,7 @@ class DeploymentTargetProfileMigrationTest {
                 assertThat(profile.isActive()).isTrue();
                 assertThat(profile.isDefaultForRuntime()).isTrue();
                 assertThat(profile.isDefaultForRestartableServices()).isTrue();
-                assertThat(profile.isPlatformServicesAllowed()).isFalse();
+                assertThat(profile.isPlatformServicesAllowed()).isTrue();
                 assertThat(profile.getSourceStrategy()).isEqualTo("GIT_SOURCE");
                 assertThat(profile.getProviderConfigJson()).contains("id069t43frp519u5i3dg2jpr");
                 assertThat(profile.getProviderConfigJson()).contains("46.224.145.148.sslip.io");

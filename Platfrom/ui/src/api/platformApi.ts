@@ -1961,6 +1961,7 @@ export type PatchDeploymentTargetProfileRequest = {
   active?: boolean
   defaultForRuntime?: boolean
   defaultForRestartableServices?: boolean
+  platformServicesAllowed?: boolean
 }
 
 export type DeploymentProviderResourceHandleSummary = {

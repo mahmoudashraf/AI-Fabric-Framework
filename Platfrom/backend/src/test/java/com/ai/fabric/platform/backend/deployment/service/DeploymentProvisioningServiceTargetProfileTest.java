@@ -116,11 +116,12 @@ class DeploymentProvisioningServiceTargetProfileTest {
 
         var summary = service.patchProfile(
             "dtp-coolify-staging",
-            new PatchDeploymentTargetProfileRequest(true, true, null)
+            new PatchDeploymentTargetProfileRequest(true, true, null, true)
         );
 
         assertThat(summary.active()).isTrue();
         assertThat(summary.defaultForRuntime()).isTrue();
+        assertThat(summary.platformServicesAllowed()).isTrue();
         assertThat(production.isDefaultForRuntime()).isFalse();
         assertThat(railway.isDefaultForRuntime()).isFalse();
         verify(repository).save(production);
@@ -163,7 +164,7 @@ class DeploymentProvisioningServiceTargetProfileTest {
 
         assertThatThrownBy(() -> service.patchProfile(
             "dtp-coolify-staging",
-            new PatchDeploymentTargetProfileRequest(null, true, null)
+            new PatchDeploymentTargetProfileRequest(null, true, null, null)
         ))
             .hasMessageContaining("must be active");
     }

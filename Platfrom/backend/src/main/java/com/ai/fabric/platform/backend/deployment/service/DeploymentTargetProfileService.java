@@ -126,6 +126,9 @@ public class DeploymentTargetProfileService {
             }
             profile.setDefaultForRestartableServices(request.defaultForRestartableServices());
         }
+        if (request.platformServicesAllowed() != null) {
+            profile.setPlatformServicesAllowed(request.platformServicesAllowed());
+        }
         profile.setUpdatedAt(now);
         return toSummary(targetProfileRepository.save(profile));
     }

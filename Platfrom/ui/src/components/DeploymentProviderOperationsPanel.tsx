@@ -246,6 +246,20 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
           >
             Service default
           </Button>
+          <Button
+            size="small"
+            variant={profile.platformServicesAllowed ? 'contained' : 'outlined'}
+            color={profile.platformServicesAllowed ? 'success' : 'inherit'}
+            startIcon={<HealthAndSafetyRoundedIcon />}
+            disabled={patchProfileMutation.isPending}
+            onClick={() =>
+              patchProfileMutation.mutate({
+                id: profile.id,
+                payload: { platformServicesAllowed: !profile.platformServicesAllowed },
+              })}
+          >
+            Platform services
+          </Button>
         </>
       ) : null}
     </Stack>
@@ -399,6 +413,7 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                           {profile.defaultForRuntime ? <Chip size="small" label="Runtime" color="success" /> : null}
                           {profile.defaultForRestartableServices ? <Chip size="small" label="Services" color="success" /> : null}
+                          {profile.platformServicesAllowed ? <Chip size="small" label="Managed services" color="info" /> : null}
                           {!profile.defaultForRuntime && !profile.defaultForRestartableServices ? (
                             <Chip size="small" label="Explicit only" variant="outlined" />
                           ) : null}
