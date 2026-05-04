@@ -415,3 +415,19 @@ PLAN-008 also re-tags certain items in this roadmap as "deferred":
 - "Pro Developer License" framework pricing → cut entirely per PLAN-006
 
 The combined effect: engineering continues on the priority order in sections 1–8, but the **commercial center of gravity** shifts to channel and product polish per PLAN-007 and PLAN-008. Stop adding platform; start adding channel.
+
+---
+
+## 10) Ecosystem Integration Plan (PLAN-010)
+
+A separate engineering plan addresses Model Context Protocol (MCP) citizenship — both consuming external MCP servers as Actions and exposing deployments as MCP servers:
+
+- [PLAN-010-MCP_CLIENT_AND_SERVER_INTEGRATION.md](./PLAN-010-MCP_CLIENT_AND_SERVER_INTEGRATION.md)
+
+Recommended sequencing:
+
+- Waves A + B (MCP Client v1 — 5 weeks) can run in parallel with PLAN-007 Wave A foundations; the unlock from "AI Fabric supports MCP" justifies the effort independently
+- Wave D (MCP Server adapter) ships before any partner-channel marketing emphasizes third-party tool integration
+- Waves E + F (Marketplace plugin type and positioning) coordinate with marketplace v1 work and PLAN-006 positioning lock-in
+
+The strategic frame: MCP support is a translation layer that lets AI Fabric absorb the entire MCP ecosystem while keeping the governance, audit, and tenant isolation that vanilla MCP servers do not standardize. Position externally as the *governed* MCP platform, not as catch-up.
