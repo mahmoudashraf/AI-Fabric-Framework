@@ -439,6 +439,19 @@ Gate:
 
 - no order, return, or customer-account action is visible or executable without the required customer session binding
 
+Pending external auth material for staging live verification:
+
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED=true`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES`
+- registered Shopify Customer Account OAuth redirect URI for the staging Bridge/customer flow
+- a staging customer OAuth/PKCE access token path or permission to complete the PKCE login flow for a staging test customer
+- confirmation that the staging store is approved for the protected customer data needed by these actions
+
+Do not paste these values into tracked docs. Store secrets in Coolify staging env or local ignored/private secret files and record only the names/paths in handoff docs.
+
 ### Phase 9: Checkout And Generic MCP Follow-On
 
 After Shopify read/cart/customer-account verticals are stable, continue with the broader Draft 011 plan.
@@ -454,6 +467,17 @@ Possible follow-ons:
 Gate:
 
 - generic MCP import does not precede the Shopify MCP customer-action vertical slice
+
+Pending external auth material for checkout live verification:
+
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED=true`
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID`
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_URL`
+- optional `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` only for explicitly approved `complete_checkout` / `cancel_checkout` staging tests
+- confirmation whether staging may test only non-terminal checkout create/get/update or also terminal checkout operations
+
+Do not enable terminal checkout operations by default. Keep them behind explicit staging approval and audit evidence.
 
 ---
 

@@ -254,6 +254,17 @@ Notes:
 - Never expose to anonymous shoppers.
 - Start as Elite or managed/enterprise only.
 
+Pending external auth material before full staging live verification:
+
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED=true`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES`
+- registered Shopify Customer Account OAuth redirect URI for staging
+- staging test customer OAuth/PKCE token acquisition path or permission to complete the PKCE login flow
+- protected customer data approval confirmation for the staging app/store
+
 ### `mkp-action-shopify-checkout-mcp`
 
 Purpose: checkout creation/continuation where Shopify approval and product risk posture allow it.
@@ -263,6 +274,15 @@ Notes:
 - Defer until cart MCP and customer-account MCP are stable.
 - Start with checkout handoff/continuation URL only.
 - Do not autonomously complete payment in the first implementation.
+
+Pending external auth material before full staging live verification:
+
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED=true`
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID`
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`
+- `SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_URL`
+- optional `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` only for explicitly approved terminal checkout tests
+- confirmation whether staging checkout verification is limited to create/get/update or may include `complete_checkout` / `cancel_checkout`
 
 ---
 
