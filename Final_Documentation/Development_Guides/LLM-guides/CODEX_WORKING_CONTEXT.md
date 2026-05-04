@@ -809,3 +809,20 @@ Rules:
 - Per owner request, the raw SSH private-key body was added only to the ignored private handoff file. Do not print it, commit it, or copy it into tracked docs; the tracked context should reference only the key path, fingerprint, hosts, login emails, local secret-file locations, and secret-safe command shapes.
 - Owner clarified the current release policy: continue development and live verification on Coolify staging only; do not move 009 or related changes to production now.
 - Added tracked non-secret administration guide: `Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md`.
+
+## 2026-05-04 Shopify MCP-First 009 Staging Implementation
+
+- Implemented and pushed commit `548321694c9fa73e8d9605ea8a8aca71898cd602` on branch `Platform-V8`.
+- Platform Marketplace now validates `ACTION` plugins using `adapterType=mcp-tool`; `execution.mcp.serverRef` and `execution.mcp.toolName` are required, and `argumentTemplate` must be an object when present.
+- Deployment marketplace draft compilation preserves top-level `adapterType` and nested `execution.mcp` metadata in `actionsConfig` without breaking existing connector HTTP actions.
+- Added Flyway `V81__shopify_mcp_search_catalog_action.sql`, seeding greenfield read-only MCP actions into `mkp-action-shopify-companion-read`: `shopify_search_catalog`, `shopify_search_policies`, and `shopify_get_product_details`.
+- Bridge now has the Shopify MCP Streamable HTTP client skeleton for `initialize`, `tools/list`, and `tools/call`, plus the governed Storefront MCP adapter for the three read-only actions.
+- Staging-only deploys completed: Platform backend and Shopify Bridge staging were redeployed from commit `548321694c9fa73e8d9605ea8a8aca71898cd602`; both health endpoints returned `UP`. Production was not deployed or modified.
+- Staging DB verification passed: Flyway version `81` succeeded, and `mkv-action-shopify-companion-read-v1` contains the three MCP action definitions with expected server refs/tool names.
+- Staging deployment `dep-8c3e7259` was resynced through the Platform marketplace install resolve endpoint, validating the Marketplace plugin to runtime action catalog path. Draft validation passed with `publishReady=true` and zero issues.
+- Published and applied staging deployment version `ver-30af4f5c`; Coolify staging release `rel-97c0aab6` reached `APPLIED_VERIFIED` with verification `PASSED`. Active deployment version is now `ver-30af4f5c`.
+- Applied runtime action catalog contains `shopify_search_catalog`, `shopify_search_policies`, and `shopify_get_product_details` with `adapterType=mcp-tool` and the expected Shopify MCP server refs/tool names. Staging runtime and connector `/actuator/health` returned `UP`.
+- Direct Shopify MCP live verification against `https://shopping-companion-test.myshopify.com/api/mcp` succeeded for `search_catalog`, `search_shop_policies_and_faqs`, and `get_product_details`.
+- Deployed Bridge staging live verification succeeded through `/api/admin/stores/shopping-companion-test.myshopify.com/actions/execute`: all three `shopify_*` actions returned HTTP `200`, `success=true`, `adapterType=mcp-tool`, and `evidenceType=SHOPIFY_MCP_TOOL_RESULT`.
+- Evidence and inventory note: `/tmp/loomai-009-shopify-mcp-first/current-action-replacement-inventory.md`; live Bridge response capture: `/tmp/loomai-009-shopify-mcp-first/live-bridge-action-responses.json`.
+- Remaining Plan 009 follow-ons: split greenfield package profiles into dedicated MCP plugin bundles, add drift/verification automation, and defer cart/customer-account/checkout MCP until confirmation, OAuth/PKCE, protected-data, and checkout risk posture are approved.
