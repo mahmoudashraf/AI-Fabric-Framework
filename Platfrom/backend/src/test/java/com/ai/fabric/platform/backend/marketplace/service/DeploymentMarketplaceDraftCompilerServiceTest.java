@@ -160,6 +160,76 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void compileActionContributionPreservesCustomerAccountMcpAuthMetadata() throws Exception {
+        JsonNode action = objectMapper.readTree("""
+            {
+              "actionId": "shopify_lookup_order",
+              "adapterType": "mcp-tool",
+              "description": "Lookup customer order",
+              "category": "shopify-companion",
+              "readOnly": true,
+              "anonymousAllowed": false,
+              "params": [
+                {"name": "order_id", "type": "STRING", "required": true}
+              ],
+              "execution": {
+                "adapterType": "mcp-tool",
+                "mcp": {
+                  "serverRef": "shopify-customer-account",
+                  "endpointKind": "CUSTOMER_ACCOUNT",
+                  "authMode": "CUSTOMER_OAUTH_PKCE",
+                  "requiredCustomerScopes": ["customer-account-mcp-api:full"],
+                  "toolName": "lookup_order"
+                }
+              }
+            }
+            """);
+
+        ObjectNode compiled = compilerService.compileActionContribution(action, install(), plugin(), version());
+
+        assertThat(compiled.path("name").asText()).isEqualTo("shopify_lookup_order");
+        assertThat(compiled.path("anonymousAllowed").asBoolean()).isFalse();
+        assertThat(compiled.path("execution").path("mcp").path("serverRef").asText()).isEqualTo("shopify-customer-account");
+        assertThat(compiled.path("execution").path("mcp").path("authMode").asText()).isEqualTo("CUSTOMER_OAUTH_PKCE");
+        assertThat(compiled.path("execution").path("mcp").path("requiredCustomerScopes").get(0).asText())
+            .isEqualTo("customer-account-mcp-api:full");
+    }
+
+    @Test
+    void compileActionContributionPreservesCheckoutMcpTerminalMetadata() throws Exception {
+        JsonNode action = objectMapper.readTree("""
+            {
+              "actionId": "shopify_complete_checkout",
+              "adapterType": "mcp-tool",
+              "description": "Complete checkout",
+              "category": "shopify-companion",
+              "readOnly": false,
+              "anonymousAllowed": false,
+              "requiresConfirmation": true,
+              "execution": {
+                "adapterType": "mcp-tool",
+                "mcp": {
+                  "serverRef": "shopify-checkout",
+                  "endpointKind": "CHECKOUT_UCP",
+                  "authMode": "SHOPIFY_AGENTIC_CLIENT_CREDENTIALS",
+                  "requiresTerminalCheckoutEnablement": true,
+                  "requiresIdempotencyKey": true,
+                  "toolName": "complete_checkout"
+                }
+              }
+            }
+            """);
+
+        ObjectNode compiled = compilerService.compileActionContribution(action, install(), plugin(), version());
+
+        assertThat(compiled.path("name").asText()).isEqualTo("shopify_complete_checkout");
+        assertThat(compiled.path("accessMode").asText()).isEqualTo("WRITE_ONLY");
+        assertThat(compiled.path("requiresConfirmation").asBoolean()).isTrue();
+        assertThat(compiled.path("execution").path("mcp").path("serverRef").asText()).isEqualTo("shopify-checkout");
+        assertThat(compiled.path("execution").path("mcp").path("requiresIdempotencyKey").asBoolean()).isTrue();
+    }
+
+    @Test
     void stripGreenfieldShopifyLegacyActionsRemovesStaleShopifyActionsWhenMcpBundleIsEnabled() {
         ObjectNode actionsRoot = objectMapper.createObjectNode();
         ArrayNode actions = actionsRoot.putArray("actions");
@@ -170,10 +240,16 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
             .put("name", "shopify_get_product_details")
             .put("adapterType", "connector-http");
         actions.addObject()
+            .put("name", "shopify_lookup_order")
+            .put("adapterType", "connector-http");
+        actions.addObject()
+            .put("name", "shopify_create_checkout")
+            .put("adapterType", "connector-http");
+        actions.addObject()
             .put("name", "operator_custom_action")
             .put("adapterType", "connector-http");
         DeploymentMarketplacePluginInstallEntity install = install();
-        install.setPluginId("mkp-action-shopify-storefront-read-mcp");
+        install.setPluginId("mkp-action-shopify-customer-account-mcp");
 
         boolean changed = compilerService.stripGreenfieldShopifyLegacyActions(actionsRoot, java.util.List.of(install));
 

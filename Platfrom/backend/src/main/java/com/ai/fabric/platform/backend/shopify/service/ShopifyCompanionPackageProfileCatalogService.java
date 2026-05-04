@@ -481,6 +481,12 @@ public class ShopifyCompanionPackageProfileCatalogService {
                 pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID);
             }
         }
+        if (detailFlag(entity, "enableCustomerAccountMcp")) {
+            pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
+        }
+        if (detailFlag(entity, "enableCheckoutMcp")) {
+            pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID);
+        }
         pluginIds.add(entity.getInferencePluginId());
         pluginIds.removeIf(pluginId -> !StringUtils.hasText(pluginId));
         return List.copyOf(pluginIds);
@@ -489,8 +495,16 @@ public class ShopifyCompanionPackageProfileCatalogService {
     private List<String> disabledPluginIds(ShopifyCompanionPackageProfileEntity entity) {
         LinkedHashSet<String> pluginIds = readPluginIdArray(entity.getDetailsJson(), "disabledPluginIds", false);
         pluginIds.add(ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID);
-        pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
-        pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID);
+        if (detailFlag(entity, "enableCustomerAccountMcp")) {
+            pluginIds.remove(ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
+        } else {
+            pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
+        }
+        if (detailFlag(entity, "enableCheckoutMcp")) {
+            pluginIds.remove(ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID);
+        } else {
+            pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID);
+        }
         if (!isEliteOrHigher(entity)) {
             pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID);
         }
@@ -520,10 +534,17 @@ public class ShopifyCompanionPackageProfileCatalogService {
         }
         try {
             JsonNode node = objectMapper.readTree(detailsJson);
-            return node != null && node.isObject() ? node : objectMapper.createObjectNode();
+        return node != null && node.isObject() ? node : objectMapper.createObjectNode();
         } catch (Exception ignored) {
             return objectMapper.createObjectNode();
         }
+    }
+
+    private boolean detailFlag(ShopifyCompanionPackageProfileEntity entity, String fieldName) {
+        if (entity == null || !StringUtils.hasText(fieldName)) {
+            return false;
+        }
+        return readDetailsNode(entity.getDetailsJson()).path(fieldName).asBoolean(false);
     }
 
     private boolean isEliteOrHigher(ShopifyCompanionPackageProfileEntity entity) {

@@ -167,6 +167,18 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_cart")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_update_cart")));
 
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-customer-account-mcp")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-customer-account-mcp")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_customer_orders")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_start_return_request")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-checkout-mcp")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-checkout-mcp")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_create_checkout")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_complete_checkout")));
+
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-companion-read")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-companion-read")))
@@ -193,7 +205,7 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(3))))
-            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(5))))
+            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(7))))
             .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(5))))
             .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(8))));
 

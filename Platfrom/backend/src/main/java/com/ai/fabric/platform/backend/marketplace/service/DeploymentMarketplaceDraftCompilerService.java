@@ -62,7 +62,17 @@ public class DeploymentMarketplaceDraftCompilerService {
         "shopify_get_product_details",
         "shopify_search_policies",
         "shopify_get_cart",
-        "shopify_update_cart"
+        "shopify_update_cart",
+        "shopify_get_customer_orders",
+        "shopify_lookup_order",
+        "shopify_get_order_status",
+        "shopify_get_return_eligibility",
+        "shopify_start_return_request",
+        "shopify_create_checkout",
+        "shopify_get_checkout",
+        "shopify_update_checkout",
+        "shopify_complete_checkout",
+        "shopify_cancel_checkout"
     );
 
     private final DeploymentService deploymentService;

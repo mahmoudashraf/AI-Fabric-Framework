@@ -71,6 +71,17 @@ public class ShopifyMcpClient {
         return toolsList(new ShopifyMcpSession(endpoint, properties.protocolVersion(), null, null));
     }
 
+    public JsonNode toolsList(URI endpoint, ShopifyMcpRequestOptions options) {
+        McpHttpResponse response = postJsonRpc(
+            endpoint,
+            jsonRpcRequest("tools/list", objectMapper.createObjectNode()),
+            new ShopifyMcpSession(endpoint, properties.protocolVersion(), null, null),
+            false,
+            options
+        );
+        return requireResult(response.message(), "tools/list");
+    }
+
     public JsonNode toolsList(ShopifyMcpSession session) {
         McpHttpResponse response = postJsonRpc(session.endpoint(), jsonRpcRequest("tools/list", objectMapper.createObjectNode()), session);
         return requireResult(response.message(), "tools/list");
@@ -80,14 +91,25 @@ public class ShopifyMcpClient {
         return toolsCall(new ShopifyMcpSession(endpoint, properties.protocolVersion(), null, null), toolName, arguments);
     }
 
+    public JsonNode toolsCall(URI endpoint, String toolName, JsonNode arguments, ShopifyMcpRequestOptions options) {
+        return toolsCall(new ShopifyMcpSession(endpoint, properties.protocolVersion(), null, null), toolName, arguments, options);
+    }
+
     public JsonNode toolsCall(ShopifyMcpSession session, String toolName, JsonNode arguments) {
+        return toolsCall(session, toolName, arguments, ShopifyMcpRequestOptions.none());
+    }
+
+    public JsonNode toolsCall(ShopifyMcpSession session,
+                              String toolName,
+                              JsonNode arguments,
+                              ShopifyMcpRequestOptions options) {
         if (!StringUtils.hasText(toolName)) {
             throw new ResponseStatusException(BAD_GATEWAY, "MCP toolName is required.");
         }
         ObjectNode params = objectMapper.createObjectNode();
         params.put("name", toolName.trim());
         params.set("arguments", arguments != null && arguments.isObject() ? arguments : objectMapper.createObjectNode());
-        McpHttpResponse response = postJsonRpc(session.endpoint(), jsonRpcRequest("tools/call", params), session);
+        McpHttpResponse response = postJsonRpc(session.endpoint(), jsonRpcRequest("tools/call", params), session, false, options);
         return requireResult(response.message(), "tools/call");
     }
 
@@ -117,6 +139,14 @@ public class ShopifyMcpClient {
                                         JsonNode body,
                                         ShopifyMcpSession session,
                                         boolean notification) {
+        return postJsonRpc(endpoint, body, session, notification, ShopifyMcpRequestOptions.none());
+    }
+
+    private McpHttpResponse postJsonRpc(URI endpoint,
+                                        JsonNode body,
+                                        ShopifyMcpSession session,
+                                        boolean notification,
+                                        ShopifyMcpRequestOptions options) {
         if (endpoint == null || !StringUtils.hasText(endpoint.toString())) {
             throw new ResponseStatusException(BAD_GATEWAY, "MCP endpoint is required.");
         }
@@ -125,7 +155,7 @@ public class ShopifyMcpClient {
                 .uri(endpoint)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
-                .headers(headers -> applyMcpHeaders(headers, session, endpoint))
+                .headers(headers -> applyMcpHeaders(headers, session, endpoint, options))
                 .body(body)
                 .retrieve()
                 .toEntity(String.class);
@@ -142,7 +172,10 @@ public class ShopifyMcpClient {
         }
     }
 
-    private void applyMcpHeaders(HttpHeaders headers, ShopifyMcpSession session, URI endpoint) {
+    private void applyMcpHeaders(HttpHeaders headers,
+                                 ShopifyMcpSession session,
+                                 URI endpoint,
+                                 ShopifyMcpRequestOptions options) {
         headers.set(MCP_PROTOCOL_VERSION_HEADER, session != null && StringUtils.hasText(session.protocolVersion())
             ? session.protocolVersion()
             : properties.protocolVersion());
@@ -152,6 +185,13 @@ public class ShopifyMcpClient {
         String cookieHeader = storefrontPasswordCookieHeader(endpoint);
         if (StringUtils.hasText(cookieHeader)) {
             headers.add(HttpHeaders.COOKIE, cookieHeader);
+        }
+        if (options != null && options.headers() != null) {
+            options.headers().forEach((name, value) -> {
+                if (StringUtils.hasText(name) && StringUtils.hasText(value)) {
+                    headers.set(name.trim(), value.trim());
+                }
+            });
         }
     }
 
@@ -284,6 +324,29 @@ public class ShopifyMcpClient {
         String sessionId,
         JsonNode initializeResult
     ) {
+    }
+
+    public record ShopifyMcpRequestOptions(Map<String, String> headers) {
+        public static ShopifyMcpRequestOptions none() {
+            return new ShopifyMcpRequestOptions(Map.of());
+        }
+
+        public static ShopifyMcpRequestOptions authorization(String authorizationHeaderValue) {
+            if (!StringUtils.hasText(authorizationHeaderValue)) {
+                return none();
+            }
+            return new ShopifyMcpRequestOptions(Map.of(HttpHeaders.AUTHORIZATION, authorizationHeaderValue.trim()));
+        }
+
+        public static ShopifyMcpRequestOptions bearer(String token) {
+            if (!StringUtils.hasText(token)) {
+                return none();
+            }
+            String normalized = token.trim();
+            return authorization(normalized.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
+                ? normalized
+                : "Bearer " + normalized);
+        }
     }
 
     private record McpHttpResponse(JsonNode message, HttpHeaders headers) {

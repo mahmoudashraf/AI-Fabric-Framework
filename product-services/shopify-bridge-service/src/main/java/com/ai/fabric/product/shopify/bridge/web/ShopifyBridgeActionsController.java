@@ -48,6 +48,11 @@ public class ShopifyBridgeActionsController {
                  "PRODUCT_SELECTION_REQUIRED",
                  "VARIANT_SELECTION_REQUIRED",
                  "SHOPPER_SESSION_REQUIRED",
+                 "CUSTOMER_SESSION_REQUIRED",
+                 "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+                 "CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED",
+                 "CHECKOUT_MCP_NOT_CONFIGURED",
+                 "CHECKOUT_TERMINAL_OPERATION_DISABLED",
                  "GOVERNED_ACTION_REJECTED" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_GATEWAY;
         };

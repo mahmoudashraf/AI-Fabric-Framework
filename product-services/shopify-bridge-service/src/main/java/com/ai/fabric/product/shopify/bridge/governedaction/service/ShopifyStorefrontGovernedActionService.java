@@ -247,6 +247,27 @@ public class ShopifyStorefrontGovernedActionService {
                                                                     boolean mutation,
                                                                     boolean confirmationAccepted,
                                                                     String message) {
+        return beginMcpTool(
+            shopDomain,
+            shopperSessionId,
+            GUIDED_COMMERCE_PACKAGE,
+            "CART",
+            actionType,
+            mutation,
+            confirmationAccepted,
+            message
+        );
+    }
+
+    @Transactional
+    public ShopifyBridgeGovernedActionAuditSummary beginMcpTool(String shopDomain,
+                                                                String shopperSessionId,
+                                                                String actionPackage,
+                                                                String pageType,
+                                                                String actionType,
+                                                                boolean mutation,
+                                                                boolean confirmationAccepted,
+                                                                String message) {
         String normalizedShop = tokenService.normalizeShopDomain(shopDomain);
         String normalizedSession = tokenService.normalizeShopperSessionId(shopperSessionId);
         platformShopifyStoreClient.getStore(normalizedShop);
@@ -262,10 +283,10 @@ public class ShopifyStorefrontGovernedActionService {
         entity.setId(nextAuditId());
         entity.setShopDomain(normalizedShop);
         entity.setShopperSessionId(normalizedSession);
-        entity.setActionType(normalizeMcpCartActionType(actionType));
-        entity.setActionPackage(GUIDED_COMMERCE_PACKAGE);
+        entity.setActionType(normalizeMcpToolActionType(actionType));
+        entity.setActionPackage(normalizeMcpActionPackage(actionPackage));
         entity.setSurfaceId("MAX_MODE");
-        entity.setPageType("CART");
+        entity.setPageType(normalizeEnumLike(pageType, "CART"));
         entity.setConfirmationRequired(confirmationRequired);
         entity.setConfirmationAccepted(confirmationAccepted);
         entity.setStatus("STARTED");
@@ -332,12 +353,28 @@ public class ShopifyStorefrontGovernedActionService {
         return value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
     }
 
-    private String normalizeMcpCartActionType(String value) {
+    private String normalizeMcpToolActionType(String value) {
         String normalized = normalizeActionType(value);
-        if (!"GET_CART".equals(normalized) && !"UPDATE_CART".equals(normalized)) {
-            throw new ResponseStatusException(CONFLICT, "Unsupported Shopify MCP cart action: " + normalized);
+        if (!List.of(
+            "GET_CART",
+            "UPDATE_CART",
+            "START_RETURN_REQUEST",
+            "CREATE_CHECKOUT",
+            "UPDATE_CHECKOUT",
+            "COMPLETE_CHECKOUT",
+            "CANCEL_CHECKOUT"
+        ).contains(normalized)) {
+            throw new ResponseStatusException(CONFLICT, "Unsupported Shopify MCP governed action: " + normalized);
         }
         return normalized;
+    }
+
+    private String normalizeMcpActionPackage(String value) {
+        String normalized = sanitizeText(value, 80);
+        if (normalized == null) {
+            return GUIDED_COMMERCE_PACKAGE;
+        }
+        return normalized.toLowerCase(Locale.ROOT).replace(' ', '-').replace('_', '-');
     }
 
     private String normalizeCompletionStatus(String value) {

@@ -83,22 +83,42 @@ public class ShopifyBridgeActionExecutionService {
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final ShopifyStorefrontGovernedActionService governedActionService;
     private final ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter;
+    private final ShopifyCustomerAccountMcpActionAdapter customerAccountMcpActionAdapter;
+    private final ShopifyCheckoutMcpActionAdapter checkoutMcpActionAdapter;
+
+    public ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
+                                               ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
+                                               ShopifyStorefrontGovernedActionService governedActionService,
+                                               ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter) {
+        this(
+            installCredentialService,
+            shopifyAdminGraphqlClient,
+            governedActionService,
+            storefrontMcpActionAdapter,
+            null,
+            null
+        );
+    }
 
     @Autowired
     public ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
                                                ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
                                                ShopifyStorefrontGovernedActionService governedActionService,
-                                               ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter) {
+                                               ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter,
+                                               ShopifyCustomerAccountMcpActionAdapter customerAccountMcpActionAdapter,
+                                               ShopifyCheckoutMcpActionAdapter checkoutMcpActionAdapter) {
         this.installCredentialService = installCredentialService;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.governedActionService = governedActionService;
         this.storefrontMcpActionAdapter = storefrontMcpActionAdapter;
+        this.customerAccountMcpActionAdapter = customerAccountMcpActionAdapter;
+        this.checkoutMcpActionAdapter = checkoutMcpActionAdapter;
     }
 
     ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
                                         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
                                         ShopifyStorefrontGovernedActionService governedActionService) {
-        this(installCredentialService, shopifyAdminGraphqlClient, governedActionService, null);
+        this(installCredentialService, shopifyAdminGraphqlClient, governedActionService, null, null, null);
     }
 
     public ShopifyBridgeActionResult execute(String shopDomain, ShopifyBridgeActionExecuteRequest request) {
@@ -127,6 +147,16 @@ public class ShopifyBridgeActionExecutionService {
             case "shopify_get_cart" -> getCartWithMcp(acquisition.get(), request);
             case "shopify_update_cart" -> updateCartWithMcp(acquisition.get(), request);
             case "shopify_get_product_details" -> getProductDetailsWithMcp(acquisition.get(), request);
+            case "shopify_get_customer_orders" -> getCustomerOrdersWithMcp(acquisition.get(), request);
+            case "shopify_lookup_order" -> lookupOrderWithMcp(acquisition.get(), request);
+            case "shopify_get_order_status" -> getOrderStatusWithMcp(acquisition.get(), request);
+            case "shopify_get_return_eligibility" -> getReturnEligibilityWithMcp(acquisition.get(), request);
+            case "shopify_start_return_request" -> startReturnRequestWithMcp(acquisition.get(), request);
+            case "shopify_create_checkout" -> createCheckoutWithMcp(acquisition.get(), request);
+            case "shopify_get_checkout" -> getCheckoutWithMcp(acquisition.get(), request);
+            case "shopify_update_checkout" -> updateCheckoutWithMcp(acquisition.get(), request);
+            case "shopify_complete_checkout" -> completeCheckoutWithMcp(acquisition.get(), request);
+            case "shopify_cancel_checkout" -> cancelCheckoutWithMcp(acquisition.get(), request);
             case "list_products" -> listProducts(acquisition.get(), request);
             case "search_products" -> searchProducts(acquisition.get(), request);
             case "get_product_details" -> getProductDetails(acquisition.get(), request);
@@ -154,7 +184,19 @@ public class ShopifyBridgeActionExecutionService {
                 "message", "Shopify MCP action adapter is not configured."
             );
         }
-        return storefrontMcpActionAdapter.readiness(normalizedShopDomain);
+        Map<String, Object> storefrontReadiness = storefrontMcpActionAdapter.readiness(normalizedShopDomain);
+        LinkedHashMap<String, Object> merged = new LinkedHashMap<>(storefrontReadiness);
+        List<Map<String, Object>> gatedServers = new ArrayList<>();
+        if (customerAccountMcpActionAdapter != null) {
+            gatedServers.add(customerAccountMcpActionAdapter.readiness(normalizedShopDomain));
+        }
+        if (checkoutMcpActionAdapter != null) {
+            gatedServers.add(checkoutMcpActionAdapter.readiness(normalizedShopDomain));
+        }
+        if (!gatedServers.isEmpty()) {
+            merged.put("gatedServers", gatedServers);
+        }
+        return merged;
     }
 
     private ShopifyBridgeActionResult searchCatalogWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
@@ -270,11 +312,176 @@ public class ShopifyBridgeActionExecutionService {
         return storefrontMcpActionAdapter.getProductDetails(acquisition, request);
     }
 
+    private ShopifyBridgeActionResult getCustomerOrdersWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                               ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = customerAccountMcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return customerAccountMcpActionAdapter.getCustomerOrders(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult lookupOrderWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                         ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = customerAccountMcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return customerAccountMcpActionAdapter.lookupOrder(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult getOrderStatusWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                            ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = customerAccountMcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return customerAccountMcpActionAdapter.getOrderStatus(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult getReturnEligibilityWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                                  ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = customerAccountMcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return customerAccountMcpActionAdapter.getReturnEligibility(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult startReturnRequestWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                                ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = customerAccountMcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        String shopperSessionId = shopperSessionId(request);
+        if (shopperSessionId == null) {
+            return ShopifyBridgeActionResult.failure(
+                "CUSTOMER_SESSION_REQUIRED",
+                "A bound shopper session is required for Customer Accounts MCP actions."
+            );
+        }
+        try {
+            ShopifyBridgeGovernedActionAuditSummary audit = governedActionService.beginMcpTool(
+                acquisition.store().shopDomain(),
+                shopperSessionId,
+                "customer-account",
+                "RETURN",
+                "START_RETURN_REQUEST",
+                true,
+                Boolean.TRUE.equals(booleanParam(request, "confirmationAccepted")),
+                "Shopify Customer Accounts MCP return request started."
+            );
+            ShopifyBridgeActionResult result = customerAccountMcpActionAdapter.startReturnRequest(acquisition, request);
+            ShopifyBridgeGovernedActionAuditSummary completed = governedActionService.completeMcpTool(
+                audit.id(),
+                result.success(),
+                result.success() ? "Shopify Customer Accounts MCP return request completed." : result.message()
+            );
+            return withGovernedAudit(result, completed);
+        } catch (ResponseStatusException ex) {
+            return governedActionRejected(ex);
+        }
+    }
+
+    private ShopifyBridgeActionResult createCheckoutWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                            ShopifyBridgeActionExecuteRequest request) {
+        return governedCheckoutTool(acquisition, request, "CREATE_CHECKOUT", "CHECKOUT", true,
+            adapter -> adapter.createCheckout(acquisition, request));
+    }
+
+    private ShopifyBridgeActionResult getCheckoutWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                         ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = checkoutMcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return checkoutMcpActionAdapter.getCheckout(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult updateCheckoutWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                            ShopifyBridgeActionExecuteRequest request) {
+        return governedCheckoutTool(acquisition, request, "UPDATE_CHECKOUT", "CHECKOUT", true,
+            adapter -> adapter.updateCheckout(acquisition, request));
+    }
+
+    private ShopifyBridgeActionResult completeCheckoutWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                              ShopifyBridgeActionExecuteRequest request) {
+        return governedCheckoutTool(acquisition, request, "COMPLETE_CHECKOUT", "CHECKOUT", true,
+            adapter -> adapter.completeCheckout(acquisition, request));
+    }
+
+    private ShopifyBridgeActionResult cancelCheckoutWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                            ShopifyBridgeActionExecuteRequest request) {
+        return governedCheckoutTool(acquisition, request, "CANCEL_CHECKOUT", "CHECKOUT", true,
+            adapter -> adapter.cancelCheckout(acquisition, request));
+    }
+
+    private ShopifyBridgeActionResult governedCheckoutTool(ShopifyBridgeCredentialAcquisition acquisition,
+                                                           ShopifyBridgeActionExecuteRequest request,
+                                                           String actionType,
+                                                           String pageType,
+                                                           boolean mutation,
+                                                           java.util.function.Function<ShopifyCheckoutMcpActionAdapter, ShopifyBridgeActionResult> operation) {
+        ShopifyBridgeActionResult unavailable = checkoutMcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        String shopperSessionId = shopperSessionId(request);
+        if (shopperSessionId == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SHOPPER_SESSION_REQUIRED",
+                "A shopper session identifier is required for governed checkout actions."
+            );
+        }
+        try {
+            ShopifyBridgeGovernedActionAuditSummary audit = governedActionService.beginMcpTool(
+                acquisition.store().shopDomain(),
+                shopperSessionId,
+                "checkout",
+                pageType,
+                actionType,
+                mutation,
+                Boolean.TRUE.equals(booleanParam(request, "confirmationAccepted")),
+                "Shopify Checkout MCP " + actionType.toLowerCase(Locale.ROOT) + " started."
+            );
+            ShopifyBridgeActionResult result = operation.apply(checkoutMcpActionAdapter);
+            ShopifyBridgeGovernedActionAuditSummary completed = governedActionService.completeMcpTool(
+                audit.id(),
+                result.success(),
+                result.success() ? "Shopify Checkout MCP " + actionType.toLowerCase(Locale.ROOT) + " completed." : result.message()
+            );
+            return withGovernedAudit(result, completed);
+        } catch (ResponseStatusException ex) {
+            return governedActionRejected(ex);
+        }
+    }
+
     private ShopifyBridgeActionResult mcpAdapterUnavailable() {
         if (storefrontMcpActionAdapter == null) {
             return ShopifyBridgeActionResult.failure(
                 "SERVICE_UNAVAILABLE",
                 "Shopify MCP action adapter is not configured."
+            );
+        }
+        return null;
+    }
+
+    private ShopifyBridgeActionResult customerAccountMcpAdapterUnavailable() {
+        if (customerAccountMcpActionAdapter == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SERVICE_UNAVAILABLE",
+                "Shopify Customer Accounts MCP action adapter is not configured."
+            );
+        }
+        return null;
+    }
+
+    private ShopifyBridgeActionResult checkoutMcpAdapterUnavailable() {
+        if (checkoutMcpActionAdapter == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SERVICE_UNAVAILABLE",
+                "Shopify Checkout MCP action adapter is not configured."
             );
         }
         return null;
