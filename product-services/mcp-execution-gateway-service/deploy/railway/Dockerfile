@@ -1,8 +1,8 @@
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
-COPY pom.xml ./
-COPY src ./src
+COPY product-services/mcp-execution-gateway-service/pom.xml ./
+COPY product-services/mcp-execution-gateway-service/src ./src
 
 RUN mvn -DskipTests package
 
