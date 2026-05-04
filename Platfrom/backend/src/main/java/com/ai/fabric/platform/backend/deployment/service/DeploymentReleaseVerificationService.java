@@ -330,6 +330,14 @@ public class DeploymentReleaseVerificationService {
             );
             return;
         }
+        if (Boolean.FALSE.equals(verificationProperties.livePreApplyGateEnabled())) {
+            addSkippedCheck(
+                checks,
+                "live_rollout_prerequisites",
+                "Live pre-apply rollout gate is disabled by platform verification configuration."
+            );
+            return;
+        }
         if (!livePreApplyGateSupported(providerType)) {
             addSkippedCheck(
                 checks,

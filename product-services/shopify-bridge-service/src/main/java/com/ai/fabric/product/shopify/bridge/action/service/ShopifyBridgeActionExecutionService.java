@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStoref
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -80,13 +81,23 @@ public class ShopifyBridgeActionExecutionService {
     private final ShopifyBridgeInstallCredentialService installCredentialService;
     private final ShopifyAdminGraphqlClient shopifyAdminGraphqlClient;
     private final ShopifyStorefrontGovernedActionService governedActionService;
+    private final ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter;
 
+    @Autowired
     public ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
                                                ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
-                                               ShopifyStorefrontGovernedActionService governedActionService) {
+                                               ShopifyStorefrontGovernedActionService governedActionService,
+                                               ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter) {
         this.installCredentialService = installCredentialService;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.governedActionService = governedActionService;
+        this.storefrontMcpActionAdapter = storefrontMcpActionAdapter;
+    }
+
+    ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
+                                        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
+                                        ShopifyStorefrontGovernedActionService governedActionService) {
+        this(installCredentialService, shopifyAdminGraphqlClient, governedActionService, null);
     }
 
     public ShopifyBridgeActionResult execute(String shopDomain, ShopifyBridgeActionExecuteRequest request) {
@@ -108,6 +119,9 @@ public class ShopifyBridgeActionExecutionService {
         }
 
         return switch (actionId) {
+            case "shopify_search_catalog" -> searchCatalogWithMcp(acquisition.get(), request);
+            case "shopify_search_policies" -> searchPoliciesWithMcp(acquisition.get(), request);
+            case "shopify_get_product_details" -> getProductDetailsWithMcp(acquisition.get(), request);
             case "list_products" -> listProducts(acquisition.get(), request);
             case "search_products" -> searchProducts(acquisition.get(), request);
             case "get_product_details" -> getProductDetails(acquisition.get(), request);
@@ -117,6 +131,39 @@ public class ShopifyBridgeActionExecutionService {
             case "update_cart_quantity" -> updateCartQuantity(acquisition.get(), request);
             default -> ShopifyBridgeActionResult.failure("ACTION_NOT_SUPPORTED", "Action is not supported.");
         };
+    }
+
+    private ShopifyBridgeActionResult searchCatalogWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                           ShopifyBridgeActionExecuteRequest request) {
+        if (storefrontMcpActionAdapter == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SERVICE_UNAVAILABLE",
+                "Shopify MCP action adapter is not configured."
+            );
+        }
+        return storefrontMcpActionAdapter.searchCatalog(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult searchPoliciesWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                            ShopifyBridgeActionExecuteRequest request) {
+        if (storefrontMcpActionAdapter == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SERVICE_UNAVAILABLE",
+                "Shopify MCP action adapter is not configured."
+            );
+        }
+        return storefrontMcpActionAdapter.searchPolicies(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult getProductDetailsWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                               ShopifyBridgeActionExecuteRequest request) {
+        if (storefrontMcpActionAdapter == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SERVICE_UNAVAILABLE",
+                "Shopify MCP action adapter is not configured."
+            );
+        }
+        return storefrontMcpActionAdapter.getProductDetails(acquisition, request);
     }
 
     private ShopifyBridgeActionResult listProducts(ShopifyBridgeCredentialAcquisition acquisition,

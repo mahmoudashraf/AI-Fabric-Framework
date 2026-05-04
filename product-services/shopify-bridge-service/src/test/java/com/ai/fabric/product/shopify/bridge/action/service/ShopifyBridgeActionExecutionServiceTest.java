@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -255,6 +256,132 @@ class ShopifyBridgeActionExecutionServiceTest {
 
         assertThat(result.success()).isFalse();
         assertThat(result.errorCode()).isEqualTo("ACTION_NOT_SUPPORTED");
+    }
+
+    @Test
+    void shopifySearchCatalogRoutesThroughMcpAdapterWithoutAdminGraphql() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyStorefrontGovernedActionService governedActionService = mock(ShopifyStorefrontGovernedActionService.class);
+        ShopifyStorefrontMcpActionAdapter mcpActionAdapter = mock(ShopifyStorefrontMcpActionAdapter.class);
+        ShopifyBridgeCredentialAcquisition acquisition = acquisition("alpha.myshopify.com");
+        ShopifyBridgeActionExecuteRequest request = new ShopifyBridgeActionExecuteRequest(
+            "shopify_search_catalog",
+            Map.of("query", "coffee"),
+            null,
+            Map.of("sessionId", "shopper-session-1")
+        );
+        ShopifyBridgeActionResult adapterResult = ShopifyBridgeActionResult.ok(
+            "Catalog search",
+            Map.of(
+                "adapterType", "mcp-tool",
+                "mcpServerRef", "shopify-storefront-ucp",
+                "mcpToolName", "search_catalog",
+                "evidenceType", "SHOPIFY_MCP_TOOL_RESULT"
+            )
+        );
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            governedActionService,
+            mcpActionAdapter
+        );
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition));
+        when(mcpActionAdapter.searchCatalog(acquisition, request)).thenReturn(adapterResult);
+
+        ShopifyBridgeActionResult result = service.execute("alpha.myshopify.com", request);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("adapterType", "mcp-tool");
+        assertThat(result.data()).containsEntry("mcpToolName", "search_catalog");
+        assertThat(result.data()).containsEntry("evidenceType", "SHOPIFY_MCP_TOOL_RESULT");
+        verify(mcpActionAdapter).searchCatalog(acquisition, request);
+        verifyNoInteractions(graphqlClient, governedActionService);
+    }
+
+    @Test
+    void shopifySearchPoliciesRoutesThroughMcpAdapterWithoutAdminGraphql() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyStorefrontGovernedActionService governedActionService = mock(ShopifyStorefrontGovernedActionService.class);
+        ShopifyStorefrontMcpActionAdapter mcpActionAdapter = mock(ShopifyStorefrontMcpActionAdapter.class);
+        ShopifyBridgeCredentialAcquisition acquisition = acquisition("alpha.myshopify.com");
+        ShopifyBridgeActionExecuteRequest request = new ShopifyBridgeActionExecuteRequest(
+            "shopify_search_policies",
+            Map.of("query", "return policy"),
+            null,
+            Map.of("sessionId", "shopper-session-1")
+        );
+        ShopifyBridgeActionResult adapterResult = ShopifyBridgeActionResult.ok(
+            "Policy search",
+            Map.of(
+                "adapterType", "mcp-tool",
+                "mcpServerRef", "shopify-storefront",
+                "mcpToolName", "search_shop_policies_and_faqs",
+                "evidenceType", "SHOPIFY_MCP_TOOL_RESULT"
+            )
+        );
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            governedActionService,
+            mcpActionAdapter
+        );
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition));
+        when(mcpActionAdapter.searchPolicies(acquisition, request)).thenReturn(adapterResult);
+
+        ShopifyBridgeActionResult result = service.execute("alpha.myshopify.com", request);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("adapterType", "mcp-tool");
+        assertThat(result.data()).containsEntry("mcpToolName", "search_shop_policies_and_faqs");
+        assertThat(result.data()).containsEntry("evidenceType", "SHOPIFY_MCP_TOOL_RESULT");
+        verify(mcpActionAdapter).searchPolicies(acquisition, request);
+        verifyNoInteractions(graphqlClient, governedActionService);
+    }
+
+    @Test
+    void shopifyGetProductDetailsRoutesThroughMcpAdapterWithoutAdminGraphql() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyStorefrontGovernedActionService governedActionService = mock(ShopifyStorefrontGovernedActionService.class);
+        ShopifyStorefrontMcpActionAdapter mcpActionAdapter = mock(ShopifyStorefrontMcpActionAdapter.class);
+        ShopifyBridgeCredentialAcquisition acquisition = acquisition("alpha.myshopify.com");
+        ShopifyBridgeActionExecuteRequest request = new ShopifyBridgeActionExecuteRequest(
+            "shopify_get_product_details",
+            Map.of("product_id", "gid://shopify/Product/123"),
+            null,
+            Map.of("sessionId", "shopper-session-1")
+        );
+        ShopifyBridgeActionResult adapterResult = ShopifyBridgeActionResult.ok(
+            "Product details",
+            Map.of(
+                "adapterType", "mcp-tool",
+                "mcpServerRef", "shopify-storefront",
+                "mcpToolName", "get_product_details",
+                "evidenceType", "SHOPIFY_MCP_TOOL_RESULT"
+            )
+        );
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            governedActionService,
+            mcpActionAdapter
+        );
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition));
+        when(mcpActionAdapter.getProductDetails(acquisition, request)).thenReturn(adapterResult);
+
+        ShopifyBridgeActionResult result = service.execute("alpha.myshopify.com", request);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("adapterType", "mcp-tool");
+        assertThat(result.data()).containsEntry("mcpToolName", "get_product_details");
+        assertThat(result.data()).containsEntry("evidenceType", "SHOPIFY_MCP_TOOL_RESULT");
+        verify(mcpActionAdapter).getProductDetails(acquisition, request);
+        verifyNoInteractions(graphqlClient, governedActionService);
     }
 
     @Test

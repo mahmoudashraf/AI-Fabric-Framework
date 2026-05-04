@@ -254,7 +254,8 @@ class RailwayApiProvisioningProviderTest {
             "/api/admin/actions/overview",
             "/api/admin/indexing/overview",
             "/api/admin/overview",
-            "/api/admin/actions/overview"
+            "/api/admin/actions/overview",
+            true
         );
         return new RailwayApiProvisioningProvider(
             provisioningProperties,

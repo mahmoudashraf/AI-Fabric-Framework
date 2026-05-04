@@ -551,58 +551,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                     "Marketplace action conflicts with an existing deployment action: " + actionName
                 );
             }
-            ObjectNode compiled = objectMapper.createObjectNode();
-            compiled.put("name", actionName);
-            copyIfText(actionEntry, compiled, "description", "description");
-            if (!StringUtils.hasText(compiled.path("description").asText(""))) {
-                compiled.put("description", plugin.getDisplayName() + " action: " + actionName);
-            }
-            copyIfText(actionEntry, compiled, "category", "category");
-            if (!StringUtils.hasText(compiled.path("category").asText(""))) {
-                compiled.put("category", "marketplace");
-            }
-            if (actionEntry.path("readOnly").isBoolean()) {
-                compiled.put("accessMode", actionEntry.path("readOnly").asBoolean() ? "READ" : "WRITE_ONLY");
-            } else if (StringUtils.hasText(actionEntry.path("accessMode").asText(""))) {
-                compiled.put("accessMode", actionEntry.path("accessMode").asText("").trim());
-            }
-            if (actionEntry.path("confirmationRequired").isBoolean()) {
-                compiled.put("requiresConfirmation", actionEntry.path("confirmationRequired").asBoolean());
-            } else if (actionEntry.path("requiresConfirmation").isBoolean()) {
-                compiled.put("requiresConfirmation", actionEntry.path("requiresConfirmation").asBoolean());
-            }
-            if (actionEntry.path("anonymousAllowed").isBoolean()) {
-                compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
-            }
-            if (actionEntry.path("groundingEligible").isBoolean()) {
-                compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
-            }
-            if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
-                compiled.put(
-                    "readActionResolutionEligible",
-                    actionEntry.path("readActionResolutionEligible").asBoolean()
-                );
-            }
-            if (actionEntry.path("confirmationMessage").isTextual()) {
-                compiled.put("confirmationMessage", actionEntry.path("confirmationMessage").asText("").trim());
-            }
-            if (actionEntry.path("params").isArray()) {
-                compiled.set("params", actionEntry.path("params").deepCopy());
-            }
-            if (actionEntry.path("requiredParameters").isArray()) {
-                compiled.set("requiredParameters", actionEntry.path("requiredParameters").deepCopy());
-            }
-            if (actionEntry.path("route").isObject()) {
-                compiled.set("route", actionEntry.path("route").deepCopy());
-            }
-            if (actionEntry.path("postPolicies").isArray()) {
-                compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
-            }
-            if (actionEntry.path("llmFacts").isObject()) {
-                compiled.set("llmFacts", actionEntry.path("llmFacts").deepCopy());
-            }
-            applyMarketplaceProvenance(compiled, install, plugin, version);
-            actions.add(compiled);
+            actions.add(compileActionContribution(actionEntry, install, plugin, version));
         }
 
         applyShellContribution(
@@ -612,6 +561,75 @@ public class DeploymentMarketplaceDraftCompilerService {
             plugin,
             version
         );
+    }
+
+    ObjectNode compileActionContribution(JsonNode actionEntry,
+                                         DeploymentMarketplacePluginInstallEntity install,
+                                         MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version) {
+        String actionName = text(actionEntry, "actionId", "id");
+        ObjectNode compiled = objectMapper.createObjectNode();
+        compiled.put("name", actionName);
+        copyIfText(actionEntry, compiled, "description", "description");
+        if (!StringUtils.hasText(compiled.path("description").asText(""))) {
+            compiled.put("description", plugin.getDisplayName() + " action: " + actionName);
+        }
+        copyIfText(actionEntry, compiled, "category", "category");
+        if (!StringUtils.hasText(compiled.path("category").asText(""))) {
+            compiled.put("category", "marketplace");
+        }
+        if (StringUtils.hasText(actionEntry.path("adapterType").asText(""))) {
+            compiled.put("adapterType", actionEntry.path("adapterType").asText("").trim());
+        }
+        if (actionEntry.path("execution").isObject()) {
+            compiled.set("execution", actionEntry.path("execution").deepCopy());
+            if (!StringUtils.hasText(compiled.path("adapterType").asText(""))
+                && StringUtils.hasText(actionEntry.path("execution").path("adapterType").asText(""))) {
+                compiled.put("adapterType", actionEntry.path("execution").path("adapterType").asText("").trim());
+            }
+        }
+        if (actionEntry.path("readOnly").isBoolean()) {
+            compiled.put("accessMode", actionEntry.path("readOnly").asBoolean() ? "READ" : "WRITE_ONLY");
+        } else if (StringUtils.hasText(actionEntry.path("accessMode").asText(""))) {
+            compiled.put("accessMode", actionEntry.path("accessMode").asText("").trim());
+        }
+        if (actionEntry.path("confirmationRequired").isBoolean()) {
+            compiled.put("requiresConfirmation", actionEntry.path("confirmationRequired").asBoolean());
+        } else if (actionEntry.path("requiresConfirmation").isBoolean()) {
+            compiled.put("requiresConfirmation", actionEntry.path("requiresConfirmation").asBoolean());
+        }
+        if (actionEntry.path("anonymousAllowed").isBoolean()) {
+            compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
+        }
+        if (actionEntry.path("groundingEligible").isBoolean()) {
+            compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
+        }
+        if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
+            compiled.put(
+                "readActionResolutionEligible",
+                actionEntry.path("readActionResolutionEligible").asBoolean()
+            );
+        }
+        if (actionEntry.path("confirmationMessage").isTextual()) {
+            compiled.put("confirmationMessage", actionEntry.path("confirmationMessage").asText("").trim());
+        }
+        if (actionEntry.path("params").isArray()) {
+            compiled.set("params", actionEntry.path("params").deepCopy());
+        }
+        if (actionEntry.path("requiredParameters").isArray()) {
+            compiled.set("requiredParameters", actionEntry.path("requiredParameters").deepCopy());
+        }
+        if (actionEntry.path("route").isObject()) {
+            compiled.set("route", actionEntry.path("route").deepCopy());
+        }
+        if (actionEntry.path("postPolicies").isArray()) {
+            compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
+        }
+        if (actionEntry.path("llmFacts").isObject()) {
+            compiled.set("llmFacts", actionEntry.path("llmFacts").deepCopy());
+        }
+        applyMarketplaceProvenance(compiled, install, plugin, version);
+        return compiled;
     }
 
     private void applyDataPlugin(ObjectNode entityRoot,

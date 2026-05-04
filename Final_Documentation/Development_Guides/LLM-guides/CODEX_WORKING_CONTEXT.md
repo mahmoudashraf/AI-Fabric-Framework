@@ -770,3 +770,42 @@ Rules:
 - Repointed staging ecommerce app `CONNECTOR_INDEXING_RUNTIME_BASE_URL` from an old Railway REST connector URL to `https://loomai-runtime.46.224.145.148.sslip.io`, then forced a Coolify redeploy. Readback from the running container confirms the staging runtime URL.
 - Repointed customer runtime/connector apps for deployment `dep-8c3e7259` from old Railway Platform artifact URLs and Railway UI CORS origins to staging Coolify Platform/Partner/Platform UI URLs, preserving artifact paths and signed query parameters. Forced stop/start with Docker cleanup; both customer apps are healthy and running containers read back staging URLs.
 - Final staging-host env scan across core apps, staging Bridge, ecommerce, runtime, and connector containers found no `.up.railway.app` or production `46.225.162.106` URL references in checked running app envs.
+
+## 2026-05-03 Controlled Design-Partner Launch 008
+
+- Created `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/008_CONTROLLED_DESIGN_PARTNER_LAUNCH_AND_MARKET_PROOF.md`.
+- Decision: after 007, the next gate is real-store market/operating proof, not another product/cloud capability.
+- 008 scope: launch path lock, DNS/auth redirects, Shopify app/extension release proof, demo/collateral, partner onboarding, merchant onboarding, real-store answer-quality audit, support/escalation evidence, weekly metrics, and final `DESIGN_PARTNER_ACTIVE` / `MARKET_READY` / `ITERATE` / `NOT_READY` decision.
+- Rule: do not start WooCommerce, broad partner recruitment, white-label, public marketplace expansion, or another product line until 008 evidence exists.
+
+## 2026-05-03 Shopify Marketplace Tier Action Catalog 009
+
+- Created the original Plan 009 Shopify capability execution draft. It was later moved/renamed into the MCP strategy draft set.
+- Rewrote 009 after architecture challenge: current Marketplace/plugin architecture is mostly clean; the missing piece is tier/package-profile inference into the correct Marketplace action plugin bundle.
+- Superseded on 2026-05-04: 009 target is now greenfield MCP-first. Tier resolves package profile, package profile resolves required/disabled Marketplace plugins, installed ACTION plugins compile runtime action catalog, and Shopify customer-facing action execution goes through Shopify MCP. Bridge remains governance/auth/session/audit/MCP-adapter authority, not custom Shopify action implementation owner.
+- Previous key cleanup was to split governed commerce actions out of `mkp-action-shopify-companion-read`; after the MCP-first rewrite, old route-backed Shopify customer action plugins should be removed from greenfield package profiles and replaced by MCP-backed plugins.
+- Non-goals: no new plugin type, no GraphQL-in-config actions, no executable Marketplace plugins, no direct Shopify customer-action implementation in generic runtime connectors, and no required separate Shopify execution workers.
+- First implementation session should start with current catalog inventory before changing public behavior.
+
+## 2026-05-04 Shopify MCP-First Plan Update
+
+- Rewrote `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/MCP/Draft-009_SHOPIFY_CAPABILITY_EXECUTION_PLANE.md` into `009 Shopify MCP-First Tier Action Catalog Alignment`.
+- Updated `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/MCP/Draft-011-GOVERNED_MCP_CAPABILITY_PLANE.md` so Shopify MCP is primary, not supplemental, for greenfield customer-facing Shopify actions.
+- User renamed the MCP strategy drafts to `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/MCP/Draft-009_SHOPIFY_CAPABILITY_EXECUTION_PLANE.md` and `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/MCP/Draft-011-GOVERNED_MCP_CAPABILITY_PLANE.md`.
+- Created `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md` as the Plan 009 implementation sequence. It references both MCP drafts instead of duplicating the full strategy.
+- Current target plugin split:
+  - `mkp-action-shopify-storefront-read-mcp` for Storefront/UCP MCP read actions.
+  - `mkp-action-shopify-cart-mcp` for governed Storefront MCP cart actions.
+  - `mkp-action-shopify-customer-account-mcp` for Customer Accounts MCP after OAuth/PKCE and protected-customer-data readiness.
+  - `mkp-action-shopify-checkout-mcp` deferred until checkout risk posture is approved.
+- Greenfield decision: do not preserve legacy Shopify action IDs/aliases such as `add_product_to_cart`; use canonical `shopify_*` action IDs.
+
+## 2026-05-04 Coolify Credential Rotation Handoff
+
+- Rotated the staging and production Coolify admin passwords directly on the Coolify hosts through SSH and `php artisan tinker` inside the `coolify` container.
+- Refreshed local secret files with mode `600`: `/tmp/coolify_admin_credentials.env` and `/tmp/coolify_api_tokens.env`.
+- Updated the ignored private handoff file `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md` with the current Coolify login/API material and the rotation runbook.
+- SSH access uses the local key `~/.ssh/loom_coolify_hetzner_ed25519`, user `loomops`, staging host `46.224.145.148`, and production host `46.225.162.106`.
+- Per owner request, the raw SSH private-key body was added only to the ignored private handoff file. Do not print it, commit it, or copy it into tracked docs; the tracked context should reference only the key path, fingerprint, hosts, login emails, local secret-file locations, and secret-safe command shapes.
+- Owner clarified the current release policy: continue development and live verification on Coolify staging only; do not move 009 or related changes to production now.
+- Added tracked non-secret administration guide: `Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md`.

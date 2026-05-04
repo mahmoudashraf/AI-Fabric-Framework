@@ -664,7 +664,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
+                    "/api/admin/connector/actions/overview",
+                    true
                 ),
                 platformSecretService,
                 new DeploymentConfigCompiler(objectMapper),
@@ -909,7 +910,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
+                    "/api/admin/connector/actions/overview",
+                    true
                 ),
                 platformSecretService,
                 new DeploymentConfigCompiler(objectMapper),
@@ -1176,7 +1178,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
+                    "/api/admin/connector/actions/overview",
+                    true
                 ),
                 platformSecretService,
                 new DeploymentConfigCompiler(objectMapper),
@@ -3044,7 +3047,8 @@ class DeploymentReleaseVerificationServiceTest {
             "/api/admin/actions/overview",
             "/api/admin/indexing/overview",
             "/api/admin/connector/overview",
-            "/api/admin/connector/actions/overview"
+            "/api/admin/connector/actions/overview",
+            true
         );
     }
 
@@ -3063,7 +3067,8 @@ class DeploymentReleaseVerificationServiceTest {
             "/api/admin/actions/overview",
             "/api/admin/indexing/overview",
             "/api/admin/connector/overview",
-            "/api/admin/connector/actions/overview"
+            "/api/admin/connector/actions/overview",
+            true
         );
     }
 

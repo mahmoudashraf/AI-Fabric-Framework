@@ -1,5 +1,15 @@
 package com.ai.fabric.platform.backend.deployment;
 
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderPreflightSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentProviderRegistry;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentProvisioningProvider;
+import com.ai.fabric.platform.backend.deployment.service.ProvisioningProgressTracker;
+import com.ai.fabric.platform.backend.deployment.service.ProvisioningResult;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformConsumerRequest;
 import com.ai.fabric.platform.backend.tenant.model.CreatePlatformCustomerRequest;
 import com.ai.fabric.platform.backend.tenant.model.UpdatePlatformConsumerBindingRequest;
@@ -8,7 +18,10 @@ import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerSer
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -17,6 +30,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -37,7 +52,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "platform.public-api.api-key-header-name=X-PLATFORM-PUBLIC-API-KEY",
     "platform.public-api.clients.shopify-dev=shopify-secret",
     "platform.bootstrap.sample-enabled=false",
-    "platform.provisioning.mode=RAILWAY_STUB"
+    "platform.provisioning.mode=COOLIFY",
+    "platform.verification.live-pre-apply-gate-enabled=false",
+    "platform.verification.timeout=100ms",
+    "platform.verification.runtime-indexing-overview-timeout=100ms",
+    "platform.verification.post-apply-consistency-timeout=100ms",
+    "platform.verification.post-apply-consistency-poll-interval=10ms"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -57,6 +77,58 @@ class PublicProvisioningApiIntegrationTest {
 
     @Autowired
     private PlatformSecretService platformSecretService;
+
+    @TestConfiguration
+    static class DeterministicCoolifyProvisioningConfig {
+        @Bean
+        @Primary
+        DeploymentProviderRegistry deterministicDeploymentProviderRegistry() {
+            return new DeploymentProviderRegistry(List.of(new PublicApiCoolifyProvider()));
+        }
+    }
+
+    private static final class PublicApiCoolifyProvider implements DeploymentProvisioningProvider {
+        @Override
+        public DeploymentProviderType providerType() {
+            return DeploymentProviderType.COOLIFY;
+        }
+
+        @Override
+        public ProvisioningResult provision(DeploymentEntity deployment,
+                                            DeploymentVersionEntity version,
+                                            DeploymentReleaseEntity release,
+                                            ProvisioningProgressTracker progressTracker) {
+            String deploymentId = deployment.getId() == null ? "deployment" : deployment.getId();
+            return new ProvisioningResult(
+                "SUCCESS",
+                DeploymentProviderType.COOLIFY.legacyTarget(),
+                "http://127.0.0.1:9/runtime/" + deploymentId,
+                "http://127.0.0.1:9/connector/" + deploymentId,
+                """
+                    {
+                      "targetProfileId": "%s",
+                      "providerType": "COOLIFY",
+                      "stubbedForPublicApiContractTest": true
+                    }
+                    """.formatted(release.getTargetProfileId())
+            );
+        }
+
+        @Override
+        public DeploymentProviderPreflightSummary preflight(DeploymentTargetProfileEntity targetProfile) {
+            return new DeploymentProviderPreflightSummary(
+                targetProfile.getId(),
+                DeploymentProviderType.COOLIFY,
+                "PASSED",
+                "Deterministic Coolify provider preflight passed.",
+                "http://127.0.0.1:9",
+                "test",
+                List.of("deterministic_coolify_provider"),
+                null,
+                Instant.now()
+            );
+        }
+    }
 
     @BeforeEach
     void clearRuntimeAuthSecrets() {

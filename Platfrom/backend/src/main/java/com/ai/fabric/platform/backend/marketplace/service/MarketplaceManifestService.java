@@ -72,6 +72,7 @@ public class MarketplaceManifestService {
     );
     private static final Set<String> SUPPORTED_DATASET_UPDATE_STRATEGIES = Set.of("UPSERT_BY_ID");
     private static final Set<String> SUPPORTED_SYNC_CONNECTOR_TYPES = Set.of("SQL_QUERY", "FILE_FOLDER");
+    private static final String ACTION_ADAPTER_TYPE_MCP_TOOL = "mcp-tool";
 
     private final ObjectMapper objectMapper;
 
@@ -206,6 +207,7 @@ public class MarketplaceManifestService {
             if (!StringUtils.hasText(actionId)) {
                 throw invalid(plugin, version, "each action contribution must declare id or actionId.");
             }
+            validateActionExecutionContribution(plugin, version, action, actionId.trim());
             JsonNode route = action.path("route");
             if (route.isObject()) {
                 String url = route.path("url").asText("").trim();
@@ -232,6 +234,52 @@ public class MarketplaceManifestService {
             List.of(),
             List.of()
         );
+    }
+
+    private void validateActionExecutionContribution(MarketplacePluginEntity plugin,
+                                                     MarketplacePluginVersionEntity version,
+                                                     JsonNode action,
+                                                     String actionId) {
+        JsonNode execution = action.path("execution");
+        if (!execution.isMissingNode() && !execution.isNull() && !execution.isObject()) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution must be an object when provided.");
+        }
+
+        String actionAdapterType = firstText(action, "adapterType");
+        String executionAdapterType = execution.isObject() ? firstText(execution, "adapterType") : null;
+        JsonNode mcp = execution.path("mcp");
+        boolean declaresMcpTool = ACTION_ADAPTER_TYPE_MCP_TOOL.equalsIgnoreCase(actionAdapterType)
+            || ACTION_ADAPTER_TYPE_MCP_TOOL.equalsIgnoreCase(executionAdapterType)
+            || mcp.isObject();
+        if (!declaresMcpTool) {
+            return;
+        }
+
+        if (!ACTION_ADAPTER_TYPE_MCP_TOOL.equalsIgnoreCase(actionAdapterType)) {
+            throw invalid(plugin, version, "action '" + actionId + "' with execution.mcp must declare adapterType=mcp-tool.");
+        }
+        if (StringUtils.hasText(executionAdapterType)
+            && !ACTION_ADAPTER_TYPE_MCP_TOOL.equalsIgnoreCase(executionAdapterType)) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution.adapterType must be mcp-tool when provided.");
+        }
+        if (!execution.isObject()) {
+            throw invalid(plugin, version, "action '" + actionId + "' with adapterType=mcp-tool must declare execution.");
+        }
+        if (!mcp.isObject()) {
+            throw invalid(plugin, version, "action '" + actionId + "' with adapterType=mcp-tool must declare execution.mcp.");
+        }
+        String serverRef = firstText(mcp, "serverRef");
+        if (!StringUtils.hasText(serverRef)) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.serverRef is required.");
+        }
+        String toolName = firstText(mcp, "toolName");
+        if (!StringUtils.hasText(toolName)) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.toolName is required.");
+        }
+        JsonNode argumentTemplate = mcp.path("argumentTemplate");
+        if (!argumentTemplate.isMissingNode() && !argumentTemplate.isNull() && !argumentTemplate.isObject()) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.argumentTemplate must be an object when provided.");
+        }
     }
 
     private Set<String> parseWebhookTargets(MarketplacePluginEntity plugin,
