@@ -200,6 +200,51 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
             .containsExactly("shopify_search_catalog");
     }
 
+    @Test
+    void replaceGreenfieldShopifyActionConflictReplacesExistingActionByName() {
+        ArrayNode actions = objectMapper.createArrayNode();
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("adapterType", "connector-http");
+        actions.addObject()
+            .put("name", "operator_custom_action")
+            .put("adapterType", "connector-http");
+        Set<String> existingActionNames = new java.util.LinkedHashSet<>(
+            java.util.List.of("shopify_search_catalog", "operator_custom_action")
+        );
+
+        boolean replaced = compilerService.replaceGreenfieldShopifyActionConflict(
+            actions,
+            existingActionNames,
+            "mkp-action-shopify-storefront-read-mcp",
+            "shopify_search_catalog"
+        );
+
+        assertThat(replaced).isTrue();
+        assertThat(actions).extracting(node -> node.path("name").asText())
+            .containsExactly("operator_custom_action");
+        assertThat(existingActionNames).contains("shopify_search_catalog", "operator_custom_action");
+    }
+
+    @Test
+    void replaceGreenfieldShopifyActionConflictRejectsNonShopifyMcpPlugins() {
+        ArrayNode actions = objectMapper.createArrayNode();
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("adapterType", "connector-http");
+        Set<String> existingActionNames = new java.util.LinkedHashSet<>(java.util.List.of("shopify_search_catalog"));
+
+        boolean replaced = compilerService.replaceGreenfieldShopifyActionConflict(
+            actions,
+            existingActionNames,
+            "mkp-action-other",
+            "shopify_search_catalog"
+        );
+
+        assertThat(replaced).isFalse();
+        assertThat(actions).hasSize(1);
+    }
+
     private DeploymentMarketplacePluginInstallEntity install() {
         DeploymentMarketplacePluginInstallEntity install = new DeploymentMarketplacePluginInstallEntity();
         install.setId("mpi-test");

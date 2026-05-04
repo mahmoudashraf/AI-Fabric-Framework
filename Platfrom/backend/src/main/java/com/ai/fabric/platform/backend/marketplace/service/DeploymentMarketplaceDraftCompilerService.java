@@ -563,10 +563,12 @@ public class DeploymentMarketplaceDraftCompilerService {
                 continue;
             }
             if (!existingActionNames.add(actionName)) {
-                throw new ResponseStatusException(
-                    CONFLICT,
-                    "Marketplace action conflicts with an existing deployment action: " + actionName
-                );
+                if (!replaceGreenfieldShopifyActionConflict(actions, existingActionNames, plugin.getId(), actionName)) {
+                    throw new ResponseStatusException(
+                        CONFLICT,
+                        "Marketplace action conflicts with an existing deployment action: " + actionName
+                    );
+                }
             }
             actions.add(compileActionContribution(actionEntry, install, plugin, version));
         }
@@ -908,6 +910,32 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
         return changed;
+    }
+
+    boolean replaceGreenfieldShopifyActionConflict(ArrayNode actions,
+                                                   Set<String> existingActionNames,
+                                                   String pluginId,
+                                                   String actionName) {
+        if (!GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS.contains(pluginId)
+            || !GREENFIELD_SHOPIFY_ACTION_IDS.contains(actionName)) {
+            return false;
+        }
+        removeActionsByName(actions, actionName);
+        existingActionNames.remove(actionName);
+        existingActionNames.add(actionName);
+        return true;
+    }
+
+    private void removeActionsByName(ArrayNode actions, String actionName) {
+        if (actions == null || !hasText(actionName)) {
+            return;
+        }
+        for (int index = actions.size() - 1; index >= 0; index--) {
+            JsonNode action = actions.get(index);
+            if (action != null && actionName.equals(action.path("name").asText("").trim())) {
+                actions.remove(index);
+            }
+        }
     }
 
     private boolean hasEnabledGreenfieldShopifyMcpActionPlugin(List<DeploymentMarketplacePluginInstallEntity> installs) {
