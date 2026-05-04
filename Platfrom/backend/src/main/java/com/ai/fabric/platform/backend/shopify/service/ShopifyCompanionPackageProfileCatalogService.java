@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -185,6 +186,8 @@ public class ShopifyCompanionPackageProfileCatalogService {
         String vectorProfileKey = StringUtils.hasText(requestedVectorProfileKey)
             ? requestedVectorProfileKey.trim().toUpperCase(Locale.ROOT)
             : entity.getVectorProfileKey();
+        List<String> requiredPluginIds = requiredPluginIds(entity);
+        List<String> disabledPluginIds = disabledPluginIds(entity);
         return new ResolvedPackageProfile(
             entity.getProfileKey(),
             entity.getPackageKey(),
@@ -202,6 +205,8 @@ public class ShopifyCompanionPackageProfileCatalogService {
             entity.getVectorProvisioningMode(),
             entity.getVectorStoragePosture(),
             entity.getVerificationPackId(),
+            requiredPluginIds,
+            disabledPluginIds,
             toSummary(entity)
         );
     }
@@ -228,7 +233,7 @@ public class ShopifyCompanionPackageProfileCatalogService {
             profile.vectorStoragePosture(),
             profile.verificationPackId(),
             "ACTIVE",
-            "{}",
+            profileDetailsJson(profile),
             null,
             null
         );
@@ -421,7 +426,9 @@ public class ShopifyCompanionPackageProfileCatalogService {
         entity.setVectorStoragePosture("SHARED");
         entity.setVerificationPackId("starter-launch-readiness");
         entity.setStatus("ACTIVE");
-        entity.setDetailsJson("{}");
+        entity.setDetailsJson("""
+            {"merchantVisible":true,"requiresBilling":false,"requiresReindexOnEmbeddingChange":false,"requiredPluginIds":["mkp-action-shopify-storefront-read-mcp","mkp-data-shopify-catalog","mkp-data-shopify-policies","mkp-inference-shared-embeddings"],"disabledPluginIds":["mkp-action-shopify-companion-read","mkp-action-shopify-cart-mcp","mkp-action-shopify-customer-account-mcp","mkp-action-shopify-checkout-mcp"]}
+            """.trim());
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         return entity;
@@ -464,6 +471,84 @@ public class ShopifyCompanionPackageProfileCatalogService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    private List<String> requiredPluginIds(ShopifyCompanionPackageProfileEntity entity) {
+        LinkedHashSet<String> pluginIds = readPluginIdArray(entity.getDetailsJson(), "requiredPluginIds");
+        if (pluginIds.isEmpty()) {
+            pluginIds.add(ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+            pluginIds.add(ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID);
+            pluginIds.add(ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID);
+            if (isEliteOrHigher(entity)) {
+                pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID);
+            }
+        }
+        pluginIds.add(entity.getInferencePluginId());
+        pluginIds.removeIf(pluginId -> !StringUtils.hasText(pluginId));
+        return List.copyOf(pluginIds);
+    }
+
+    private List<String> disabledPluginIds(ShopifyCompanionPackageProfileEntity entity) {
+        LinkedHashSet<String> pluginIds = readPluginIdArray(entity.getDetailsJson(), "disabledPluginIds");
+        pluginIds.add(ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID);
+        pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
+        pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID);
+        if (!isEliteOrHigher(entity)) {
+            pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID);
+        }
+        pluginIds.remove(entity.getInferencePluginId());
+        pluginIds.removeIf(pluginId -> !StringUtils.hasText(pluginId));
+        return List.copyOf(pluginIds);
+    }
+
+    private LinkedHashSet<String> readPluginIdArray(String detailsJson, String fieldName) {
+        LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
+        JsonNode root = readDetailsNode(detailsJson);
+        JsonNode array = root == null ? null : root.path(fieldName);
+        if (array != null && array.isArray()) {
+            for (JsonNode value : array) {
+                String pluginId = blankToNull(value.asText(null));
+                if (pluginId != null) {
+                    pluginIds.add(ShopifyCompanionPluginSelection.canonicalizePluginId(pluginId));
+                }
+            }
+        }
+        return pluginIds;
+    }
+
+    private JsonNode readDetailsNode(String detailsJson) {
+        if (!StringUtils.hasText(detailsJson)) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(detailsJson);
+            return node != null && node.isObject() ? node : objectMapper.createObjectNode();
+        } catch (Exception ignored) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
+    private boolean isEliteOrHigher(ShopifyCompanionPackageProfileEntity entity) {
+        String tierKey = entity == null ? "" : String.valueOf(entity.getTierKey()).trim().toUpperCase(Locale.ROOT);
+        String packageKey = entity == null ? "" : String.valueOf(entity.getPackageKey()).trim().toUpperCase(Locale.ROOT);
+        return "ELITE".equals(tierKey)
+            || "ENTERPRISE".equals(tierKey)
+            || "ELITE".equals(packageKey)
+            || "ENTERPRISE".equals(packageKey);
+    }
+
+    private String profileDetailsJson(ResolvedPackageProfile profile) {
+        if (profile.summary() != null && StringUtils.hasText(profile.summary().detailsJson())) {
+            return profile.summary().detailsJson();
+        }
+        try {
+            com.fasterxml.jackson.databind.node.ObjectNode details = objectMapper.createObjectNode();
+            details.set("requiredPluginIds", objectMapper.valueToTree(profile.requiredPluginIds()));
+            details.set("disabledPluginIds", objectMapper.valueToTree(profile.disabledPluginIds()));
+            return objectMapper.writeValueAsString(details);
+        } catch (Exception ignored) {
+            return "{}";
+        }
+    }
+
     public record ResolvedPackageProfile(
         String profileKey,
         String packageKey,
@@ -481,6 +566,8 @@ public class ShopifyCompanionPackageProfileCatalogService {
         String vectorProvisioningMode,
         String vectorStoragePosture,
         String verificationPackId,
+        List<String> requiredPluginIds,
+        List<String> disabledPluginIds,
         ShopifyCompanionPackageProfileSummary summary
     ) {
     }

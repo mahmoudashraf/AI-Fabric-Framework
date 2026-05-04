@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.action.service.ShopifyStorefrontMcpActionAdapter;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -110,6 +112,66 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.missingScopes()).containsExactly("read_orders");
         assertThat(summary.message()).contains("order-read scope approval");
         assertThat(summary.nextActions()).anyMatch(action -> action.contains("read_orders"));
+    }
+
+    @Test
+    void degradesReadySupportPostureWhenMcpToolsDrift() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyWebhookSubscriptionService webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
+        ShopifyStorefrontMcpActionAdapter mcpActionAdapter = mock(ShopifyStorefrontMcpActionAdapter.class);
+
+        when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
+            "support@alpha.test",
+            "https://alpha.test/contact",
+            null,
+            null,
+            null,
+            true
+        ));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord(
+            "read_products,read_content,read_legal_policies",
+            true
+        )));
+        when(billingService.summarize()).thenReturn(billingSummary());
+        when(mcpActionAdapter.readiness("alpha.myshopify.com")).thenReturn(Map.of(
+            "ready",
+            false,
+            "servers",
+            List.of(Map.of(
+                "serverRef",
+                "shopify-storefront-ucp",
+                "ready",
+                false,
+                "expectedTools",
+                List.of("search_catalog", "lookup_catalog", "get_product"),
+                "presentTools",
+                List.of("lookup_catalog"),
+                "missingTools",
+                List.of("search_catalog", "get_product")
+            ))
+        ));
+
+        ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
+            platformClient,
+            installRecordService,
+            billingService,
+            webhookSubscriptionService,
+            properties(),
+            mcpActionAdapter
+        );
+
+        var summary = service.summarizeForShop("alpha.myshopify.com");
+
+        assertThat(summary.status()).isEqualTo("DEGRADED");
+        assertThat(summary.lifecycleStage()).isEqualTo("MCP_DRIFT");
+        assertThat(summary.message()).contains("MCP endpoint/tool readiness");
+        assertThat(summary.verificationMethods()).contains("SHOPIFY_MCP_TOOLS_LIST");
+        assertThat(summary.supportedCapabilities()).contains("mcp:shopify-storefront-ucp:lookup_catalog");
+        assertThat(summary.blockedCapabilities())
+            .contains("mcp:shopify-storefront-ucp:search_catalog", "mcp:shopify-storefront-ucp:get_product");
+        assertThat(summary.nextActions()).anyMatch(action -> action.contains("missing tools: search_catalog, get_product"));
     }
 
     @Test

@@ -31,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -113,7 +114,7 @@ public class ShopifyStoreProvisioningService {
             job.setPreviousVectorProfileKey(previousState.vectorProfileKey());
             job.setRequestedTemplatePluginId(firstText(request == null ? null : request.requestedTemplatePluginId(), profile.templatePluginId()));
             job.setRequestedTemplatePluginVersion(firstText(request == null ? null : request.requestedTemplatePluginVersion(), profile.templatePluginVersion()));
-            job.setRequestedPluginIdsJson(writePluginIds(resolveRequestedPluginIds(request, profile)));
+            job.setRequestedPluginIdsJson(writePluginIds(resolveRequestedPluginIds(request, profile, store)));
             job.setInstallIntentId(blankToNull(request == null ? null : request.installIntentId()));
             job.setProfileChangeStrategy(resolveProfileChangeStrategy(previousState, profile));
             job.setVectorReindexRequired(vectorReindexRequired(previousState, profile));
@@ -292,8 +293,8 @@ public class ShopifyStoreProvisioningService {
 
             boolean skipNoOpPackageReconciliation = isNoOpPackageChange(job);
             if (hasText(store.getDeploymentId()) && !skipNoOpPackageReconciliation) {
-                markPhase(job, "BUNDLE_SYNC", "Reconciling marketplace inference profile and product package metadata.");
-                reconcileMarketplaceInferenceProfile(store, profile, job);
+                markPhase(job, "BUNDLE_SYNC", "Reconciling marketplace MCP action bundles, inference profile, and product package metadata.");
+                reconcileMarketplacePackageBundle(store, profile, job);
             }
             if (!skipNoOpPackageReconciliation) {
                 markPhase(job, "SOURCE_PREFLIGHT", "Reconciling Shopify Companion vectorization state.");
@@ -318,40 +319,52 @@ public class ShopifyStoreProvisioningService {
         }
     }
 
-    private void reconcileMarketplaceInferenceProfile(ShopifyStoreConnectionEntity store,
-                                                      ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile,
-                                                      ShopifyStoreProvisioningJobEntity job) {
+    private void reconcileMarketplacePackageBundle(ShopifyStoreConnectionEntity store,
+                                                   ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile,
+                                                   ShopifyStoreProvisioningJobEntity job) {
         DeploymentEntity deployment = deploymentRepository.findById(store.getDeploymentId())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + store.getDeploymentId()));
+        LinkedHashSet<String> desiredPluginIds = desiredPackagePluginIds(readPluginIds(job.getRequestedPluginIdsJson()), profile, store);
+        LinkedHashSet<String> disabledPluginIds = disabledPackagePluginIds(profile);
         List<DeploymentMarketplaceInstallSummary> installs = marketplaceInstallService.listInstallsForTrustedCaller(deployment);
-        List<DeploymentMarketplaceInstallSummary> activeInferenceInstalls = installs.stream()
-            .filter(install -> "INFERENCE_PROFILE".equalsIgnoreCase(install.pluginType()))
-            .filter(install -> !"DISABLED".equalsIgnoreCase(install.status()))
-            .toList();
-        for (DeploymentMarketplaceInstallSummary install : activeInferenceInstalls) {
-            if (!profile.inferencePluginId().equalsIgnoreCase(install.pluginId())) {
+
+        for (DeploymentMarketplaceInstallSummary install : installs) {
+            if ("DISABLED".equalsIgnoreCase(install.status()) || !isManagedPackageInstall(install)) {
+                continue;
+            }
+            String pluginId = install.pluginId();
+            boolean disabledByProfile = disabledPluginIds.stream().anyMatch(disabled -> disabled.equalsIgnoreCase(pluginId));
+            boolean noLongerDesired = desiredPluginIds.stream().noneMatch(desired -> desired.equalsIgnoreCase(pluginId));
+            if (disabledByProfile || noLongerDesired) {
                 marketplaceInstallService.updateInstallForTrustedCaller(
                     deployment,
                     install.id(),
                     new UpdateDeploymentMarketplaceInstallRequest(null, "DISABLED", null, null)
                 );
-                job.setVectorReindexRequired(true);
+                if (isVectorReindexAffectingPlugin(pluginId)) {
+                    job.setVectorReindexRequired(true);
+                }
             }
         }
-        boolean desiredActive = marketplaceInstallService.listInstallsForTrustedCaller(deployment).stream()
-            .anyMatch(install -> profile.inferencePluginId().equalsIgnoreCase(install.pluginId())
-                && !"DISABLED".equalsIgnoreCase(install.status()));
-        if (!desiredActive) {
-            DeploymentMarketplaceInstallSummary existing = marketplaceInstallService.listInstallsForTrustedCaller(deployment).stream()
-                .filter(install -> profile.inferencePluginId().equalsIgnoreCase(install.pluginId()))
+
+        List<DeploymentMarketplaceInstallSummary> refreshedInstalls = marketplaceInstallService.listInstallsForTrustedCaller(deployment);
+        for (String desiredPluginId : desiredPluginIds) {
+            boolean desiredActive = refreshedInstalls.stream()
+                .anyMatch(install -> desiredPluginId.equalsIgnoreCase(install.pluginId())
+                    && !"DISABLED".equalsIgnoreCase(install.status()));
+            if (desiredActive) {
+                continue;
+            }
+            DeploymentMarketplaceInstallSummary existing = refreshedInstalls.stream()
+                .filter(install -> desiredPluginId.equalsIgnoreCase(install.pluginId()))
                 .findFirst()
                 .orElse(null);
             if (existing == null) {
-                String version = marketplaceCatalogService.resolveLatestPublishedVersionLabel(profile.inferencePluginId());
+                String version = marketplaceCatalogService.resolveLatestPublishedVersionLabel(desiredPluginId);
                 marketplaceInstallService.createInstallForTrustedCaller(
                     deployment,
                     new CreateDeploymentMarketplaceInstallRequest(
-                        profile.inferencePluginId(),
+                        desiredPluginId,
                         version,
                         JSON.objectNode(),
                         JSON.objectNode()
@@ -364,7 +377,9 @@ public class ShopifyStoreProvisioningService {
                     new UpdateDeploymentMarketplaceInstallRequest(null, "ENABLED", null, null)
                 );
             }
-            job.setVectorReindexRequired(true);
+            if (isVectorReindexAffectingPlugin(desiredPluginId)) {
+                job.setVectorReindexRequired(true);
+            }
         }
         draftCompilerService.syncDeploymentDraftForTrustedCaller(deployment.getId());
     }
@@ -523,19 +538,96 @@ public class ShopifyStoreProvisioningService {
     }
 
     private List<String> resolveRequestedPluginIds(CreateShopifyStoreProvisioningJobRequest request,
-                                                  ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile) {
+                                                  ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile,
+                                                  ShopifyStoreConnectionEntity store) {
         LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
         if (request != null && request.requestedPluginIds() != null) {
             request.requestedPluginIds().stream()
                 .filter(this::hasText)
                 .map(String::trim)
+                .map(ShopifyCompanionPluginSelection::canonicalizePluginId)
                 .forEach(pluginIds::add);
         }
-        pluginIds.add(ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID);
-        pluginIds.add(ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID);
-        pluginIds.add(ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID);
-        pluginIds.add(profile.inferencePluginId());
-        return List.copyOf(pluginIds);
+        return List.copyOf(desiredPackagePluginIds(pluginIds, profile, store));
+    }
+
+    private LinkedHashSet<String> desiredPackagePluginIds(Collection<String> requestedPluginIds,
+                                                          ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile,
+                                                          ShopifyStoreConnectionEntity store) {
+        LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
+        if (requestedPluginIds != null) {
+            requestedPluginIds.stream()
+                .filter(this::hasText)
+                .map(String::trim)
+                .map(ShopifyCompanionPluginSelection::canonicalizePluginId)
+                .forEach(pluginIds::add);
+        }
+        if (profile != null && profile.requiredPluginIds() != null) {
+            profile.requiredPluginIds().stream()
+                .filter(this::hasText)
+                .map(String::trim)
+                .map(ShopifyCompanionPluginSelection::canonicalizePluginId)
+                .forEach(pluginIds::add);
+        }
+        if (profile != null && hasText(profile.inferencePluginId())) {
+            pluginIds.add(ShopifyCompanionPluginSelection.canonicalizePluginId(profile.inferencePluginId()));
+        }
+        LinkedHashSet<String> disabledPluginIds = disabledPackagePluginIds(profile);
+        pluginIds.removeIf(pluginId -> !isInstallableProfilePlugin(pluginId, profile, store)
+            || disabledPluginIds.stream().anyMatch(disabled -> disabled.equalsIgnoreCase(pluginId)));
+        return pluginIds;
+    }
+
+    private LinkedHashSet<String> disabledPackagePluginIds(ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile) {
+        LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
+        if (profile != null && profile.disabledPluginIds() != null) {
+            profile.disabledPluginIds().stream()
+                .filter(this::hasText)
+                .map(String::trim)
+                .map(ShopifyCompanionPluginSelection::canonicalizePluginId)
+                .forEach(pluginIds::add);
+        }
+        pluginIds.add(ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID);
+        return pluginIds;
+    }
+
+    private boolean isInstallableProfilePlugin(String pluginId,
+                                               ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile,
+                                               ShopifyStoreConnectionEntity store) {
+        if (!hasText(pluginId)) {
+            return false;
+        }
+        if (profile != null && pluginId.equalsIgnoreCase(profile.templatePluginId())) {
+            return false;
+        }
+        if (ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID.equalsIgnoreCase(pluginId)) {
+            return ShopifyCompanionPluginSelection.requiresCatalogData(store);
+        }
+        if (ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID.equalsIgnoreCase(pluginId)) {
+            return ShopifyCompanionPluginSelection.requiresPoliciesData(store);
+        }
+        return true;
+    }
+
+    private boolean isManagedPackageInstall(DeploymentMarketplaceInstallSummary install) {
+        if (install == null || !hasText(install.pluginId())) {
+            return false;
+        }
+        String pluginId = install.pluginId();
+        if (ShopifyCompanionPluginSelection.managedActionPluginIds().stream().anyMatch(id -> id.equalsIgnoreCase(pluginId))) {
+            return true;
+        }
+        if (ShopifyCompanionPluginSelection.managedDataPluginIds().stream().anyMatch(id -> id.equalsIgnoreCase(pluginId))) {
+            return true;
+        }
+        return ShopifyCompanionPluginSelection.isInferencePluginId(pluginId)
+            || "INFERENCE_PROFILE".equalsIgnoreCase(install.pluginType());
+    }
+
+    private boolean isVectorReindexAffectingPlugin(String pluginId) {
+        return ShopifyCompanionPluginSelection.isInferencePluginId(pluginId)
+            || ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID.equalsIgnoreCase(pluginId)
+            || ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID.equalsIgnoreCase(pluginId);
     }
 
     private ShopifyStorePackageState readPackageState(ShopifyStoreConnectionEntity store) {

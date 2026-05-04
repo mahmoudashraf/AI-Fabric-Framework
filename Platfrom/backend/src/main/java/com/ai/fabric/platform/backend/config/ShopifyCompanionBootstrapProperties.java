@@ -38,7 +38,7 @@ public record ShopifyCompanionBootstrapProperties(
         templatePluginVersion = normalize(templatePluginVersion, "");
         defaultPluginIds = defaultPluginIds == null
             ? List.of(
-                "mkp-action-shopify-companion-read",
+                "mkp-action-shopify-storefront-read-mcp",
                 "mkp-data-shopify-catalog",
                 "mkp-data-shopify-policies",
                 "mkp-inference-shared-embeddings"

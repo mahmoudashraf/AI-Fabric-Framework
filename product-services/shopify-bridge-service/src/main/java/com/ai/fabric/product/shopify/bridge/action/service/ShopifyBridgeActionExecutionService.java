@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.action.service;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExecuteRequest;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
@@ -120,7 +121,11 @@ public class ShopifyBridgeActionExecutionService {
 
         return switch (actionId) {
             case "shopify_search_catalog" -> searchCatalogWithMcp(acquisition.get(), request);
+            case "shopify_lookup_catalog" -> lookupCatalogWithMcp(acquisition.get(), request);
+            case "shopify_get_product" -> getProductWithMcp(acquisition.get(), request);
             case "shopify_search_policies" -> searchPoliciesWithMcp(acquisition.get(), request);
+            case "shopify_get_cart" -> getCartWithMcp(acquisition.get(), request);
+            case "shopify_update_cart" -> updateCartWithMcp(acquisition.get(), request);
             case "shopify_get_product_details" -> getProductDetailsWithMcp(acquisition.get(), request);
             case "list_products" -> listProducts(acquisition.get(), request);
             case "search_products" -> searchProducts(acquisition.get(), request);
@@ -133,37 +138,165 @@ public class ShopifyBridgeActionExecutionService {
         };
     }
 
+    public Map<String, Object> mcpReadiness(String shopDomain) {
+        String normalizedShopDomain = normalize(shopDomain);
+        if (normalizedShopDomain == null) {
+            return Map.of(
+                "ready", false,
+                "errorCode", "INVALID_REQUEST",
+                "message", "shopDomain is required."
+            );
+        }
+        if (storefrontMcpActionAdapter == null) {
+            return Map.of(
+                "ready", false,
+                "errorCode", "SERVICE_UNAVAILABLE",
+                "message", "Shopify MCP action adapter is not configured."
+            );
+        }
+        return storefrontMcpActionAdapter.readiness(normalizedShopDomain);
+    }
+
     private ShopifyBridgeActionResult searchCatalogWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
                                                            ShopifyBridgeActionExecuteRequest request) {
-        if (storefrontMcpActionAdapter == null) {
-            return ShopifyBridgeActionResult.failure(
-                "SERVICE_UNAVAILABLE",
-                "Shopify MCP action adapter is not configured."
-            );
+        ShopifyBridgeActionResult unavailable = mcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
         }
         return storefrontMcpActionAdapter.searchCatalog(acquisition, request);
     }
 
+    private ShopifyBridgeActionResult lookupCatalogWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                           ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = mcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return storefrontMcpActionAdapter.lookupCatalog(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult getProductWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                        ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = mcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return storefrontMcpActionAdapter.getProduct(acquisition, request);
+    }
+
     private ShopifyBridgeActionResult searchPoliciesWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
                                                             ShopifyBridgeActionExecuteRequest request) {
-        if (storefrontMcpActionAdapter == null) {
-            return ShopifyBridgeActionResult.failure(
-                "SERVICE_UNAVAILABLE",
-                "Shopify MCP action adapter is not configured."
-            );
+        ShopifyBridgeActionResult unavailable = mcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
         }
         return storefrontMcpActionAdapter.searchPolicies(acquisition, request);
     }
 
+    private ShopifyBridgeActionResult getCartWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                     ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = mcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        String shopperSessionId = shopperSessionId(request);
+        if (shopperSessionId == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SHOPPER_SESSION_REQUIRED",
+                "A shopper session identifier is required for governed cart actions."
+            );
+        }
+        try {
+            ShopifyBridgeGovernedActionAuditSummary audit = governedActionService.beginMcpCartTool(
+                acquisition.store().shopDomain(),
+                shopperSessionId,
+                "GET_CART",
+                false,
+                false,
+                "Shopify MCP get_cart started."
+            );
+            ShopifyBridgeActionResult result = storefrontMcpActionAdapter.getCart(acquisition, request);
+            ShopifyBridgeGovernedActionAuditSummary completed = governedActionService.completeMcpTool(
+                audit.id(),
+                result.success(),
+                result.success() ? "Shopify MCP get_cart completed." : result.message()
+            );
+            return withGovernedAudit(result, completed);
+        } catch (ResponseStatusException ex) {
+            return governedActionRejected(ex);
+        }
+    }
+
+    private ShopifyBridgeActionResult updateCartWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
+                                                        ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = mcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        String shopperSessionId = shopperSessionId(request);
+        if (shopperSessionId == null) {
+            return ShopifyBridgeActionResult.failure(
+                "SHOPPER_SESSION_REQUIRED",
+                "A shopper session identifier is required for governed cart actions."
+            );
+        }
+        try {
+            ShopifyBridgeGovernedActionAuditSummary audit = governedActionService.beginMcpCartTool(
+                acquisition.store().shopDomain(),
+                shopperSessionId,
+                "UPDATE_CART",
+                true,
+                Boolean.TRUE.equals(booleanParam(request, "confirmationAccepted")),
+                "Shopify MCP update_cart started."
+            );
+            ShopifyBridgeActionResult result = storefrontMcpActionAdapter.updateCart(acquisition, request);
+            ShopifyBridgeGovernedActionAuditSummary completed = governedActionService.completeMcpTool(
+                audit.id(),
+                result.success(),
+                result.success() ? "Shopify MCP update_cart completed." : result.message()
+            );
+            return withGovernedAudit(result, completed);
+        } catch (ResponseStatusException ex) {
+            return governedActionRejected(ex);
+        }
+    }
+
     private ShopifyBridgeActionResult getProductDetailsWithMcp(ShopifyBridgeCredentialAcquisition acquisition,
                                                                ShopifyBridgeActionExecuteRequest request) {
+        ShopifyBridgeActionResult unavailable = mcpAdapterUnavailable();
+        if (unavailable != null) {
+            return unavailable;
+        }
+        return storefrontMcpActionAdapter.getProductDetails(acquisition, request);
+    }
+
+    private ShopifyBridgeActionResult mcpAdapterUnavailable() {
         if (storefrontMcpActionAdapter == null) {
             return ShopifyBridgeActionResult.failure(
                 "SERVICE_UNAVAILABLE",
                 "Shopify MCP action adapter is not configured."
             );
         }
-        return storefrontMcpActionAdapter.getProductDetails(acquisition, request);
+        return null;
+    }
+
+    private ShopifyBridgeActionResult withGovernedAudit(ShopifyBridgeActionResult result,
+                                                        ShopifyBridgeGovernedActionAuditSummary audit) {
+        if (result == null || result.data() == null || audit == null) {
+            return result;
+        }
+        result.data().put("governedAuditId", audit.id());
+        result.data().put("governedAuditStatus", audit.status());
+        result.data().put("confirmationRequired", audit.confirmationRequired());
+        result.data().put("confirmationAccepted", audit.confirmationAccepted());
+        return result;
+    }
+
+    private ShopifyBridgeActionResult governedActionRejected(ResponseStatusException ex) {
+        String message = ex.getReason() == null || ex.getReason().isBlank()
+            ? "Governed commerce action could not be executed."
+            : ex.getReason();
+        return ShopifyBridgeActionResult.failure("GOVERNED_ACTION_REJECTED", message);
     }
 
     private ShopifyBridgeActionResult listProducts(ShopifyBridgeCredentialAcquisition acquisition,

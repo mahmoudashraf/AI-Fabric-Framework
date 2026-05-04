@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
+import com.ai.fabric.product.shopify.bridge.action.service.ShopifyStorefrontMcpActionAdapter;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
@@ -15,6 +16,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProf
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -22,6 +24,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ShopifyBridgeSupportReadinessService {
@@ -33,17 +37,36 @@ public class ShopifyBridgeSupportReadinessService {
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
     private final ShopifyBridgeProperties properties;
+    private final ShopifyStorefrontMcpActionAdapter mcpActionAdapter;
 
+    @Autowired
     public ShopifyBridgeSupportReadinessService(PlatformShopifyStoreClient platformShopifyStoreClient,
                                                 ShopifyInstallRecordService installRecordService,
                                                 ShopifyBridgeBillingService billingService,
                                                 ShopifyWebhookSubscriptionService webhookSubscriptionService,
-                                                ShopifyBridgeProperties properties) {
+                                                ShopifyBridgeProperties properties,
+                                                ShopifyStorefrontMcpActionAdapter mcpActionAdapter) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installRecordService = installRecordService;
         this.billingService = billingService;
         this.webhookSubscriptionService = webhookSubscriptionService;
         this.properties = properties;
+        this.mcpActionAdapter = mcpActionAdapter;
+    }
+
+    ShopifyBridgeSupportReadinessService(PlatformShopifyStoreClient platformShopifyStoreClient,
+                                         ShopifyInstallRecordService installRecordService,
+                                         ShopifyBridgeBillingService billingService,
+                                         ShopifyWebhookSubscriptionService webhookSubscriptionService,
+                                         ShopifyBridgeProperties properties) {
+        this(
+            platformShopifyStoreClient,
+            installRecordService,
+            billingService,
+            webhookSubscriptionService,
+            properties,
+            null
+        );
     }
 
     public ShopifyBridgeSupportReadinessSummary summarizeForShop(String shopDomain) {
@@ -107,6 +130,44 @@ public class ShopifyBridgeSupportReadinessService {
             supportProfile,
             billingState.status()
         );
+        McpReadinessPosture mcpReadiness = resolveMcpReadiness(shopDomain);
+        if (mcpReadiness.checked() && !mcpReadiness.ready()) {
+            if ("READY".equalsIgnoreCase(status)) {
+                status = "DEGRADED";
+                message = "Shopify MCP endpoint/tool readiness is not verified for this store. Repair MCP drift before go-live.";
+                lifecycleStage = "MCP_DRIFT";
+            } else {
+                message = message + " Shopify MCP endpoint/tool readiness is also not verified.";
+            }
+            nextActions = appendAll(nextActions, mcpReadiness.nextActions());
+        }
+
+        List<String> verificationMethods = orderLookupTierAllowed
+            ? (merchantHandoffConfigured
+                ? new ArrayList<>(List.of("ORDER_NUMBER_AND_EMAIL", "MERCHANT_SUPPORT_HANDOFF"))
+                : new ArrayList<>(List.of("ORDER_NUMBER_AND_EMAIL")))
+            : new ArrayList<>(List.of("MERCHANT_SUPPORT_HANDOFF"));
+        if (mcpReadiness.checked()) {
+            verificationMethods.add("SHOPIFY_MCP_TOOLS_LIST");
+        }
+        List<String> supportedCapabilities = orderLookupTierAllowed
+            ? new ArrayList<>(List.of(
+                "order-status",
+                "fulfillment-status",
+                "tracking-link",
+                "line-items",
+                "billing-status"
+            ))
+            : new ArrayList<>(List.of("merchant-handoff"));
+        supportedCapabilities.addAll(mcpReadiness.supportedCapabilities());
+        List<String> blockedCapabilities = new ArrayList<>(List.of(
+            "refunds",
+            "order-edits",
+            "address-changes",
+            "payment-details",
+            "customer-profile"
+        ));
+        blockedCapabilities.addAll(mcpReadiness.blockedCapabilities());
 
         return new ShopifyBridgeSupportReadinessSummary(
             normalizeShopDomain(shopDomain),
@@ -132,27 +193,9 @@ public class ShopifyBridgeSupportReadinessService {
             merchantHandoffConfigured,
             merchantHandoffMessage(supportProfile),
             nextActions,
-            orderLookupTierAllowed
-                ? (merchantHandoffConfigured
-                    ? List.of("ORDER_NUMBER_AND_EMAIL", "MERCHANT_SUPPORT_HANDOFF")
-                    : List.of("ORDER_NUMBER_AND_EMAIL"))
-                : List.of("MERCHANT_SUPPORT_HANDOFF"),
-            orderLookupTierAllowed
-                ? List.of(
-                    "order-status",
-                    "fulfillment-status",
-                    "tracking-link",
-                    "line-items",
-                    "billing-status"
-                )
-                : List.of("merchant-handoff"),
-            List.of(
-                "refunds",
-                "order-edits",
-                "address-changes",
-                "payment-details",
-                "customer-profile"
-            )
+            List.copyOf(verificationMethods),
+            List.copyOf(supportedCapabilities),
+            List.copyOf(blockedCapabilities)
         );
     }
 
@@ -461,6 +504,112 @@ public class ShopifyBridgeSupportReadinessService {
         return List.copyOf(actions);
     }
 
+    private McpReadinessPosture resolveMcpReadiness(String shopDomain) {
+        if (mcpActionAdapter == null) {
+            return McpReadinessPosture.unchecked();
+        }
+        try {
+            Map<String, Object> readiness = mcpActionAdapter.readiness(normalizeShopDomain(shopDomain));
+            boolean ready = readiness != null && Boolean.TRUE.equals(readiness.get("ready"));
+            Object serversValue = readiness == null ? null : readiness.get("servers");
+            if (!(serversValue instanceof List<?> servers)) {
+                return ready
+                    ? McpReadinessPosture.ready(List.of())
+                    : McpReadinessPosture.blocked(
+                        List.of("mcp:shopify:tools-list"),
+                        List.of("Repair Shopify MCP endpoint/tool readiness before go-live.")
+                    );
+            }
+
+            List<String> supportedCapabilities = new ArrayList<>();
+            List<String> blockedCapabilities = new ArrayList<>();
+            List<String> nextActions = new ArrayList<>();
+            for (Object serverValue : servers) {
+                if (!(serverValue instanceof Map<?, ?> server)) {
+                    continue;
+                }
+                String serverRef = optionalText(server.get("serverRef"));
+                boolean serverReady = Boolean.TRUE.equals(server.get("ready"));
+                List<String> expectedTools = stringList(server.get("expectedTools"));
+                List<String> missingTools = stringList(server.get("missingTools"));
+                List<String> presentTools = stringList(server.get("presentTools"));
+                List<String> supportedTools = presentTools.isEmpty()
+                    ? expectedTools
+                    : presentTools.stream()
+                        .filter(present -> expectedTools.stream().anyMatch(expected -> expected.equalsIgnoreCase(present)))
+                        .toList();
+                for (String tool : supportedTools) {
+                    supportedCapabilities.add("mcp:" + safeCapabilitySegment(serverRef) + ":" + tool);
+                }
+                if (!serverReady) {
+                    if (missingTools.isEmpty()) {
+                        blockedCapabilities.add("mcp:" + safeCapabilitySegment(serverRef) + ":tools-list");
+                        nextActions.add("Repair Shopify MCP tools/list readiness for " + safeServerLabel(serverRef) + ".");
+                    } else {
+                        blockedCapabilities.addAll(missingTools.stream()
+                            .map(tool -> "mcp:" + safeCapabilitySegment(serverRef) + ":" + tool)
+                            .toList());
+                        nextActions.add("Repair Shopify MCP drift for " + safeServerLabel(serverRef)
+                            + "; missing tools: " + String.join(", ", missingTools) + ".");
+                    }
+                }
+            }
+            if (ready) {
+                return McpReadinessPosture.ready(dedupe(supportedCapabilities));
+            }
+            if (nextActions.isEmpty()) {
+                nextActions.add("Repair Shopify MCP endpoint/tool readiness before go-live.");
+            }
+            return McpReadinessPosture.blocked(
+                dedupe(blockedCapabilities),
+                dedupe(nextActions),
+                dedupe(supportedCapabilities)
+            );
+        } catch (RuntimeException ex) {
+            return McpReadinessPosture.blocked(
+                List.of("mcp:shopify:tools-list"),
+                List.of("Repair Shopify MCP endpoint/tool readiness before go-live.")
+            );
+        }
+    }
+
+    private List<String> stringList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+            .map(this::optionalText)
+            .filter(text -> text != null)
+            .collect(Collectors.toList());
+    }
+
+    private String safeServerLabel(String serverRef) {
+        return optionalText(serverRef) == null ? "Shopify MCP" : serverRef;
+    }
+
+    private String safeCapabilitySegment(String value) {
+        String normalized = optionalText(value);
+        return normalized == null ? "shopify" : normalized;
+    }
+
+    private List<String> appendAll(List<String> base, List<String> additions) {
+        List<String> merged = new ArrayList<>(base == null ? List.of() : base);
+        if (additions != null) {
+            merged.addAll(additions);
+        }
+        return List.copyOf(dedupe(merged));
+    }
+
+    private List<String> dedupe(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+            .filter(value -> value != null && !value.isBlank())
+            .distinct()
+            .toList();
+    }
+
     private boolean inspectAppScopesWebhookReady(String shopDomain, String accessToken) {
         try {
             return "READY".equalsIgnoreCase(
@@ -545,5 +694,32 @@ public class ShopifyBridgeSupportReadinessService {
         String tierKey,
         String status
     ) {
+    }
+
+    private record McpReadinessPosture(
+        boolean checked,
+        boolean ready,
+        List<String> supportedCapabilities,
+        List<String> blockedCapabilities,
+        List<String> nextActions
+    ) {
+        private static McpReadinessPosture unchecked() {
+            return new McpReadinessPosture(false, true, List.of(), List.of(), List.of());
+        }
+
+        private static McpReadinessPosture ready(List<String> supportedCapabilities) {
+            return new McpReadinessPosture(true, true, supportedCapabilities, List.of(), List.of());
+        }
+
+        private static McpReadinessPosture blocked(List<String> blockedCapabilities,
+                                                   List<String> nextActions) {
+            return blocked(blockedCapabilities, nextActions, List.of());
+        }
+
+        private static McpReadinessPosture blocked(List<String> blockedCapabilities,
+                                                   List<String> nextActions,
+                                                   List<String> supportedCapabilities) {
+            return new McpReadinessPosture(true, false, supportedCapabilities, blockedCapabilities, nextActions);
+        }
     }
 }

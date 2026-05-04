@@ -36,7 +36,7 @@ class ShopifyStorefrontMcpActionAdapterTest {
         );
         ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
         when(mcpClient.toolsCall(
-            eq(URI.create("https://alpha.myshopify.com/api/mcp")),
+            eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")),
             eq("search_catalog"),
             argumentsCaptor.capture()
         )).thenReturn(objectMapper.readTree("""
@@ -136,6 +136,144 @@ class ShopifyStorefrontMcpActionAdapterTest {
         JsonNode arguments = argumentsCaptor.getValue();
         assertThat(arguments.path("query").asText()).isEqualTo("return policy");
         assertThat(arguments.path("context").asText()).isEqualTo("winter jacket");
+    }
+
+    @Test
+    void getProductCallsShopifyUcpGetProductTool() throws Exception {
+        ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
+        ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
+            mcpClient,
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            objectMapper
+        );
+        ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
+        when(mcpClient.toolsCall(
+            eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")),
+            eq("get_product"),
+            argumentsCaptor.capture()
+        )).thenReturn(objectMapper.readTree("""
+            {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Product"
+                }
+              ],
+              "structuredContent": {
+                "id": "gid://shopify/Product/123"
+              }
+            }
+            """));
+
+        ShopifyBridgeActionResult result = adapter.getProduct(
+            acquisition("alpha.myshopify.com"),
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_get_product",
+                Map.of("id", "gid://shopify/Product/123", "country", "US"),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("mcpServerRef", "shopify-storefront-ucp");
+        assertThat(result.data()).containsEntry("mcpEndpointKind", "UCP_CATALOG");
+        assertThat(result.data()).containsEntry("mcpToolName", "get_product");
+        JsonNode arguments = argumentsCaptor.getValue();
+        assertThat(arguments.path("meta").path("ucp-agent").path("profile").asText())
+            .isEqualTo("https://profiles.example/ucp.json");
+        assertThat(arguments.path("catalog").path("id").asText()).isEqualTo("gid://shopify/Product/123");
+        assertThat(arguments.path("catalog").path("context").path("address_country").asText()).isEqualTo("US");
+    }
+
+    @Test
+    void updateCartCallsShopifyStorefrontMcpUpdateCartTool() throws Exception {
+        ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
+        ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
+            mcpClient,
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            objectMapper
+        );
+        ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
+        when(mcpClient.toolsCall(
+            eq(URI.create("https://alpha.myshopify.com/api/mcp")),
+            eq("update_cart"),
+            argumentsCaptor.capture()
+        )).thenReturn(objectMapper.readTree("""
+            {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Cart updated"
+                }
+              ],
+              "structuredContent": {
+                "cart_id": "cart-1"
+              }
+            }
+            """));
+
+        ShopifyBridgeActionResult result = adapter.updateCart(
+            acquisition("alpha.myshopify.com"),
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_update_cart",
+                Map.of(
+                    "cart_id", "cart-1",
+                    "add_items", List.of(Map.of("variant_id", "gid://shopify/ProductVariant/1", "quantity", 1))
+                ),
+                null,
+                Map.of()
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("mcpServerRef", "shopify-storefront");
+        assertThat(result.data()).containsEntry("mcpEndpointKind", "STOREFRONT_STANDARD");
+        assertThat(result.data()).containsEntry("mcpToolName", "update_cart");
+        JsonNode arguments = argumentsCaptor.getValue();
+        assertThat(arguments.path("cart_id").asText()).isEqualTo("cart-1");
+        assertThat(arguments.path("add_items")).hasSize(1);
+    }
+
+    @Test
+    void readinessListsExpectedMcpToolsAcrossUcpAndStorefrontEndpoints() throws Exception {
+        ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
+        ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
+            mcpClient,
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            objectMapper
+        );
+        URI ucpEndpoint = URI.create("https://alpha.myshopify.com/api/ucp/mcp");
+        URI storefrontEndpoint = URI.create("https://alpha.myshopify.com/api/mcp");
+        ShopifyMcpClient.ShopifyMcpSession ucpSession =
+            new ShopifyMcpClient.ShopifyMcpSession(ucpEndpoint, "2025-11-25", "ucp-session", objectMapper.createObjectNode());
+        ShopifyMcpClient.ShopifyMcpSession storefrontSession =
+            new ShopifyMcpClient.ShopifyMcpSession(storefrontEndpoint, "2025-11-25", "storefront-session", objectMapper.createObjectNode());
+        when(mcpClient.initialize(ucpEndpoint)).thenReturn(ucpSession);
+        when(mcpClient.initialize(storefrontEndpoint)).thenReturn(storefrontSession);
+        when(mcpClient.toolsList(ucpSession)).thenReturn(objectMapper.readTree("""
+            {
+              "tools": [
+                {"name": "search_catalog"},
+                {"name": "lookup_catalog"},
+                {"name": "get_product"}
+              ]
+            }
+            """));
+        when(mcpClient.toolsList(storefrontSession)).thenReturn(objectMapper.readTree("""
+            {
+              "tools": [
+                {"name": "search_shop_policies_and_faqs"},
+                {"name": "get_cart"},
+                {"name": "update_cart"}
+              ]
+            }
+            """));
+
+        Map<String, Object> result = adapter.readiness("alpha.myshopify.com");
+
+        assertThat(result).containsEntry("ready", true);
+        assertThat((List<?>) result.get("servers")).hasSize(2);
     }
 
     @Test

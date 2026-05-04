@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.action.service;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExecuteRequest;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.client.shopify.ShopifyAdminGraphqlClient;
+import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGovernedActionAuditSummary;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantRequest;
 import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefrontGovernedActionGrantResponse;
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
@@ -382,6 +383,98 @@ class ShopifyBridgeActionExecutionServiceTest {
         assertThat(result.data()).containsEntry("evidenceType", "SHOPIFY_MCP_TOOL_RESULT");
         verify(mcpActionAdapter).getProductDetails(acquisition, request);
         verifyNoInteractions(graphqlClient, governedActionService);
+    }
+
+    @Test
+    void shopifyGetProductRoutesThroughMcpAdapterWithoutAdminGraphql() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyStorefrontGovernedActionService governedActionService = mock(ShopifyStorefrontGovernedActionService.class);
+        ShopifyStorefrontMcpActionAdapter mcpActionAdapter = mock(ShopifyStorefrontMcpActionAdapter.class);
+        ShopifyBridgeCredentialAcquisition acquisition = acquisition("alpha.myshopify.com");
+        ShopifyBridgeActionExecuteRequest request = new ShopifyBridgeActionExecuteRequest(
+            "shopify_get_product",
+            Map.of("id", "gid://shopify/Product/123"),
+            null,
+            Map.of("sessionId", "shopper-session-1")
+        );
+        ShopifyBridgeActionResult adapterResult = ShopifyBridgeActionResult.ok(
+            "Product details",
+            new LinkedHashMap<>(Map.of(
+                "adapterType", "mcp-tool",
+                "mcpServerRef", "shopify-storefront-ucp",
+                "mcpToolName", "get_product",
+                "evidenceType", "SHOPIFY_MCP_TOOL_RESULT"
+            ))
+        );
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            governedActionService,
+            mcpActionAdapter
+        );
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition));
+        when(mcpActionAdapter.getProduct(acquisition, request)).thenReturn(adapterResult);
+
+        ShopifyBridgeActionResult result = service.execute("alpha.myshopify.com", request);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("mcpToolName", "get_product");
+        verify(mcpActionAdapter).getProduct(acquisition, request);
+        verifyNoInteractions(graphqlClient, governedActionService);
+    }
+
+    @Test
+    void shopifyUpdateCartUsesGovernedAuditAroundMcpToolCall() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyStorefrontGovernedActionService governedActionService = mock(ShopifyStorefrontGovernedActionService.class);
+        ShopifyStorefrontMcpActionAdapter mcpActionAdapter = mock(ShopifyStorefrontMcpActionAdapter.class);
+        ShopifyBridgeCredentialAcquisition acquisition = acquisition("alpha.myshopify.com");
+        ShopifyBridgeActionExecuteRequest request = new ShopifyBridgeActionExecuteRequest(
+            "shopify_update_cart",
+            Map.of(
+                "cart_id", "cart-1",
+                "confirmationAccepted", true,
+                "shopperSessionId", "session-1",
+                "add_items", List.of(Map.of("variant_id", "gid://shopify/ProductVariant/1", "quantity", 1))
+            ),
+            null,
+            Map.of()
+        );
+        ShopifyBridgeActionResult adapterResult = ShopifyBridgeActionResult.ok(
+            "Cart updated",
+            new LinkedHashMap<>(Map.of(
+                "adapterType", "mcp-tool",
+                "mcpServerRef", "shopify-storefront",
+                "mcpToolName", "update_cart",
+                "evidenceType", "SHOPIFY_MCP_TOOL_RESULT"
+            ))
+        );
+        ShopifyBridgeGovernedActionAuditSummary started = audit("sga-started", "UPDATE_CART", "STARTED", true, true);
+        ShopifyBridgeGovernedActionAuditSummary completed = audit("sga-started", "UPDATE_CART", "COMPLETED", true, true);
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            governedActionService,
+            mcpActionAdapter
+        );
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition));
+        when(governedActionService.beginMcpCartTool("alpha.myshopify.com", "session-1", "UPDATE_CART", true, true, "Shopify MCP update_cart started."))
+            .thenReturn(started);
+        when(mcpActionAdapter.updateCart(acquisition, request)).thenReturn(adapterResult);
+        when(governedActionService.completeMcpTool("sga-started", true, "Shopify MCP update_cart completed."))
+            .thenReturn(completed);
+
+        ShopifyBridgeActionResult result = service.execute("alpha.myshopify.com", request);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("mcpToolName", "update_cart");
+        assertThat(result.data()).containsEntry("governedAuditId", "sga-started");
+        assertThat(result.data()).containsEntry("governedAuditStatus", "COMPLETED");
+        verifyNoInteractions(graphqlClient);
     }
 
     @Test
@@ -907,6 +1000,35 @@ class ShopifyBridgeActionExecutionServiceTest {
                     "edges", List.of()
                 )
             )
+        );
+    }
+
+    private ShopifyBridgeGovernedActionAuditSummary audit(String id,
+                                                          String actionType,
+                                                          String status,
+                                                          boolean confirmationRequired,
+                                                          boolean confirmationAccepted) {
+        Instant now = Instant.parse("2026-04-19T00:00:00Z");
+        return new ShopifyBridgeGovernedActionAuditSummary(
+            id,
+            actionType,
+            "guided-commerce",
+            "MAX_MODE",
+            "CART",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            confirmationRequired,
+            confirmationAccepted,
+            "sess...ion",
+            status,
+            "message",
+            now,
+            now.plusSeconds(300),
+            "COMPLETED".equals(status) ? now.plusSeconds(1) : null
         );
     }
 

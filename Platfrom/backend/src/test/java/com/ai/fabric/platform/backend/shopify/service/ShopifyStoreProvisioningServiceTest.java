@@ -308,6 +308,16 @@ class ShopifyStoreProvisioningServiceTest {
             "EXTERNAL_EXISTING",
             "SHARED",
             "starter-launch-readiness",
+            List.of(
+                "mkp-action-shopify-storefront-read-mcp",
+                "mkp-action-shopify-cart-mcp",
+                "mkp-inference-premium-hybrid"
+            ),
+            List.of(
+                "mkp-action-shopify-companion-read",
+                "mkp-action-shopify-customer-account-mcp",
+                "mkp-action-shopify-checkout-mcp"
+            ),
             summary
         );
     }

@@ -426,10 +426,10 @@ class ShopifyStoreGoLiveServiceTest {
         ObjectNode upstream = (ObjectNode) routing.path("connector").path("upstream");
         ObjectNode auth = (ObjectNode) upstream.path("auth");
         ObjectNode actions = (ObjectNode) routing.path("actions");
-        ObjectNode listProducts = (ObjectNode) routing.path("actions").path("list_products");
-        ObjectNode addProductToCart = (ObjectNode) routing.path("actions").path("add_product_to_cart");
-        ObjectNode requestBody = (ObjectNode) listProducts.path("request").path("body");
-        ObjectNode addRequestBody = (ObjectNode) addProductToCart.path("request").path("body");
+        ObjectNode searchCatalog = (ObjectNode) routing.path("actions").path("shopify_search_catalog");
+        ObjectNode updateCart = (ObjectNode) routing.path("actions").path("shopify_update_cart");
+        ObjectNode requestBody = (ObjectNode) searchCatalog.path("request").path("body");
+        ObjectNode updateRequestBody = (ObjectNode) updateCart.path("request").path("body");
         return "https://shopify-bridge.example.com".equals(upstream.path("base-url").asText())
             && "API_KEY".equals(auth.path("type").asText())
             && "X-BRIDGE-API-KEY".equals(auth.path("header").asText())
@@ -437,16 +437,16 @@ class ShopifyStoreGoLiveServiceTest {
             && !actions.has("find_similar_products")
             && !actions.has("compare_products")
             && actions.has("custom_unrelated_action")
-            && "POST".equals(listProducts.path("method").asText())
-            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(listProducts.path("path").asText())
-            && "POST".equals(addProductToCart.path("method").asText())
-            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(addProductToCart.path("path").asText())
+            && "POST".equals(searchCatalog.path("method").asText())
+            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(searchCatalog.path("path").asText())
+            && "POST".equals(updateCart.path("method").asText())
+            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(updateCart.path("path").asText())
             && "{{actionId}}".equals(requestBody.path("actionId").asText())
             && "{{params}}".equals(requestBody.path("params").asText())
             && "{{idempotencyKey}}".equals(requestBody.path("idempotencyKey").asText())
             && "{{trace}}".equals(requestBody.path("trace").asText())
-            && "{{actionId}}".equals(addRequestBody.path("actionId").asText())
-            && "{{params}}".equals(addRequestBody.path("params").asText());
+            && "{{actionId}}".equals(updateRequestBody.path("actionId").asText())
+            && "{{params}}".equals(updateRequestBody.path("params").asText());
     }
 
     private ObjectNode currentActionsConfig() {

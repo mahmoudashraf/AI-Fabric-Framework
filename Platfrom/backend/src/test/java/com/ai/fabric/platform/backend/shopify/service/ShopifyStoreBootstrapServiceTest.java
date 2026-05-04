@@ -91,7 +91,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.empty());
         when(customerConsumerService.createConsumer(eq("cus-123"), any())).thenReturn(consumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of());
-        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-action-shopify-companion-read")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-action-shopify-storefront-read-mcp")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-catalog")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
@@ -130,7 +130,7 @@ class ShopifyStoreBootstrapServiceTest {
                 "mkp-template-shopify-companion",
                 "",
                 List.of(
-                    "mkp-action-shopify-companion-read",
+                    "mkp-action-shopify-storefront-read-mcp",
                     "mkp-data-shopify-catalog",
                     "mkp-data-shopify-policies",
                     "mkp-inference-shared-embeddings"
@@ -149,7 +149,7 @@ class ShopifyStoreBootstrapServiceTest {
         assertThat(summary.consumerId()).isEqualTo("shopify-demo");
         assertThat(summary.installedPluginIds()).containsExactly(
             "mkp-template-shopify-companion",
-            "mkp-action-shopify-companion-read",
+            "mkp-action-shopify-storefront-read-mcp",
             "mkp-inference-shared-embeddings",
             "mkp-data-shopify-catalog",
             "mkp-data-shopify-policies"
@@ -298,7 +298,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(deploymentService.getActiveDraftForDeployment("dep-123")).thenReturn(draftResponse("dep-123"));
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.of(consumerEntity));
         when(customerConsumerService.updateBinding(eq("cus-123"), eq("shopify-demo"), any())).thenReturn(reboundConsumer);
-        when(installService.listInstalls("dep-123")).thenReturn(List.of(installSummary("mkp-action-shopify-companion-read")));
+        when(installService.listInstalls("dep-123")).thenReturn(List.of(installSummary("mkp-action-shopify-storefront-read-mcp")));
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-catalog")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
@@ -337,7 +337,7 @@ class ShopifyStoreBootstrapServiceTest {
                 "mkp-template-shopify-companion",
                 "",
                 List.of(
-                    "mkp-action-shopify-companion-read",
+                    "mkp-action-shopify-storefront-read-mcp",
                     "mkp-data-shopify-catalog",
                     "mkp-data-shopify-policies",
                     "mkp-inference-shared-embeddings"
@@ -352,7 +352,7 @@ class ShopifyStoreBootstrapServiceTest {
         assertThat(summary.createdDeployment()).isFalse();
         assertThat(summary.createdConsumer()).isFalse();
         assertThat(summary.installedPluginIds()).containsExactly(
-            "mkp-action-shopify-companion-read",
+            "mkp-action-shopify-storefront-read-mcp",
             "mkp-inference-shared-embeddings",
             "mkp-data-shopify-catalog",
             "mkp-data-shopify-policies"
@@ -488,7 +488,7 @@ class ShopifyStoreBootstrapServiceTest {
         when(consumerRepository.findByConsumerIdIgnoreCase("shopify-demo")).thenReturn(Optional.empty());
         when(customerConsumerService.createConsumer(eq("cus-123"), any())).thenReturn(consumer);
         when(installService.listInstalls("dep-123")).thenReturn(List.of());
-        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-action-shopify-companion-read")).thenReturn("1.0.0");
+        when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-action-shopify-storefront-read-mcp")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-catalog")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-data-shopify-policies")).thenReturn("1.0.0");
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel("mkp-inference-shared-embeddings")).thenReturn("1.0.0");
@@ -527,7 +527,7 @@ class ShopifyStoreBootstrapServiceTest {
                 "mkp-template-shopify-companion",
                 "",
                 List.of(
-                    "mkp-action-shopify-companion-read",
+                    "mkp-action-shopify-storefront-read-mcp",
                     "mkp-data-shopify-catalog",
                     "mkp-data-shopify-policies",
                     "mkp-inference-shopify-companion-default"
@@ -681,10 +681,10 @@ class ShopifyStoreBootstrapServiceTest {
         ObjectNode upstream = (ObjectNode) routing.path("connector").path("upstream");
         ObjectNode auth = (ObjectNode) upstream.path("auth");
         ObjectNode actions = (ObjectNode) routing.path("actions");
-        ObjectNode listProducts = (ObjectNode) routing.path("actions").path("list_products");
-        ObjectNode addProductToCart = (ObjectNode) routing.path("actions").path("add_product_to_cart");
-        ObjectNode requestBody = (ObjectNode) listProducts.path("request").path("body");
-        ObjectNode addRequestBody = (ObjectNode) addProductToCart.path("request").path("body");
+        ObjectNode searchCatalog = (ObjectNode) routing.path("actions").path("shopify_search_catalog");
+        ObjectNode updateCart = (ObjectNode) routing.path("actions").path("shopify_update_cart");
+        ObjectNode requestBody = (ObjectNode) searchCatalog.path("request").path("body");
+        ObjectNode updateRequestBody = (ObjectNode) updateCart.path("request").path("body");
         return "https://shopify-bridge.example.com".equals(upstream.path("base-url").asText())
             && "API_KEY".equals(auth.path("type").asText())
             && "X-BRIDGE-API-KEY".equals(auth.path("header").asText())
@@ -692,16 +692,16 @@ class ShopifyStoreBootstrapServiceTest {
             && !actions.has("find_similar_products")
             && !actions.has("compare_products")
             && actions.has("custom_unrelated_action")
-            && "POST".equals(listProducts.path("method").asText())
-            && "/api/admin/stores/demo.myshopify.com/actions/execute".equals(listProducts.path("path").asText())
-            && "POST".equals(addProductToCart.path("method").asText())
-            && "/api/admin/stores/demo.myshopify.com/actions/execute".equals(addProductToCart.path("path").asText())
+            && "POST".equals(searchCatalog.path("method").asText())
+            && "/api/admin/stores/demo.myshopify.com/actions/execute".equals(searchCatalog.path("path").asText())
+            && "POST".equals(updateCart.path("method").asText())
+            && "/api/admin/stores/demo.myshopify.com/actions/execute".equals(updateCart.path("path").asText())
             && "{{actionId}}".equals(requestBody.path("actionId").asText())
             && "{{params}}".equals(requestBody.path("params").asText())
             && "{{idempotencyKey}}".equals(requestBody.path("idempotencyKey").asText())
             && "{{trace}}".equals(requestBody.path("trace").asText())
-            && "{{actionId}}".equals(addRequestBody.path("actionId").asText())
-            && "{{params}}".equals(addRequestBody.path("params").asText());
+            && "{{actionId}}".equals(updateRequestBody.path("actionId").asText())
+            && "{{params}}".equals(updateRequestBody.path("params").asText());
     }
 
     private ShopifyStoreConnectionEntity store(String shopDomain) {

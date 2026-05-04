@@ -240,6 +240,69 @@ public class ShopifyStorefrontGovernedActionService {
             .toList();
     }
 
+    @Transactional
+    public ShopifyBridgeGovernedActionAuditSummary beginMcpCartTool(String shopDomain,
+                                                                    String shopperSessionId,
+                                                                    String actionType,
+                                                                    boolean mutation,
+                                                                    boolean confirmationAccepted,
+                                                                    String message) {
+        String normalizedShop = tokenService.normalizeShopDomain(shopDomain);
+        String normalizedSession = tokenService.normalizeShopperSessionId(shopperSessionId);
+        platformShopifyStoreClient.getStore(normalizedShop);
+        ShopifyBridgeBillingSummary billingSummary = resolveBillingSummary(normalizedShop);
+        requireGuidedCommerceEnabled(billingSummary);
+        boolean confirmationRequired = mutation && billingSummary.requiresExplicitConfirmation();
+        if (confirmationRequired && !confirmationAccepted) {
+            throw new ResponseStatusException(CONFLICT, "Elite guided commerce actions require explicit shopper confirmation.");
+        }
+
+        Instant now = clock.instant();
+        ShopifyBridgeGovernedActionAuditEntity entity = new ShopifyBridgeGovernedActionAuditEntity();
+        entity.setId(nextAuditId());
+        entity.setShopDomain(normalizedShop);
+        entity.setShopperSessionId(normalizedSession);
+        entity.setActionType(normalizeMcpCartActionType(actionType));
+        entity.setActionPackage(GUIDED_COMMERCE_PACKAGE);
+        entity.setSurfaceId("MAX_MODE");
+        entity.setPageType("CART");
+        entity.setConfirmationRequired(confirmationRequired);
+        entity.setConfirmationAccepted(confirmationAccepted);
+        entity.setStatus("STARTED");
+        entity.setMessage(sanitizeText(message, 500));
+        entity.setExpiresAt(now.plus(GRANT_TTL));
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        repository.save(entity);
+        usageService.recordEvent(normalizedShop, "STOREFRONT_ACTION_STARTED_" + entity.getActionType());
+        return toSummary(entity);
+    }
+
+    @Transactional
+    public ShopifyBridgeGovernedActionAuditSummary completeMcpTool(String auditId,
+                                                                   boolean success,
+                                                                   String message) {
+        if (auditId == null || auditId.isBlank()) {
+            throw new ResponseStatusException(CONFLICT, "Missing Shopify governed action audit identifier.");
+        }
+        ShopifyBridgeGovernedActionAuditEntity entity = repository.findById(auditId.trim())
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Unknown Shopify governed action audit record."));
+        if (isTerminalStatus(entity.getStatus())) {
+            return toSummary(entity);
+        }
+        Instant now = clock.instant();
+        entity.setStatus(success ? "COMPLETED" : "FAILED");
+        entity.setMessage(sanitizeText(message, 500));
+        entity.setCompletedAt(now);
+        entity.setUpdatedAt(now);
+        repository.save(entity);
+        usageService.recordEvent(
+            entity.getShopDomain(),
+            success ? "STOREFRONT_ACTION_COMPLETED_" + entity.getActionType() : "STOREFRONT_ACTION_FAILED_" + entity.getActionType()
+        );
+        return toSummary(entity);
+    }
+
     private ShopifyBridgeBillingSummary resolveBillingSummary(String shopDomain) {
         return installCredentialService.resolvePersistedMaterial(shopDomain)
             .map(acquisition -> billingService.summarizeForShop(shopDomain, acquisition.tokenExchangeMaterial().accessToken()))
@@ -267,6 +330,14 @@ public class ShopifyStorefrontGovernedActionService {
             throw new ResponseStatusException(CONFLICT, "Missing Shopify guided commerce action type.");
         }
         return value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+    }
+
+    private String normalizeMcpCartActionType(String value) {
+        String normalized = normalizeActionType(value);
+        if (!"GET_CART".equals(normalized) && !"UPDATE_CART".equals(normalized)) {
+            throw new ResponseStatusException(CONFLICT, "Unsupported Shopify MCP cart action: " + normalized);
+        }
+        return normalized;
     }
 
     private String normalizeCompletionStatus(String value) {

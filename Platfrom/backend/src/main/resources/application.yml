@@ -188,7 +188,7 @@ shopify:
       template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
       default-plugin-ids:
-        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-companion-read}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-storefront-read-mcp}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-shopify-catalog}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_3:mkp-data-shopify-policies}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_4:mkp-inference-shared-embeddings}

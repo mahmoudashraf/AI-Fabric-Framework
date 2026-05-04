@@ -12,21 +12,21 @@ import java.util.Set;
 
 final class ShopifyCompanionActionCatalog {
 
-    static final String ACTION_PLUGIN_ID = "mkp-action-shopify-companion-read";
+    static final String ACTION_PLUGIN_ID = ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID;
+    static final String CART_ACTION_PLUGIN_ID = ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID;
+    static final String LEGACY_ACTION_PLUGIN_ID = ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID;
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
     private static final Set<String> DISABLED_ACTION_IDS = Set.of(
         "relationship_query"
     );
 
     private static final List<String> DEFAULT_ACTION_IDS = List.of(
-        "list_products",
-        "search_products",
-        "get_product_details",
-        "check_availability",
-        "get_policy",
-        "add_product_to_cart",
-        "add_to_cart",
-        "update_cart_quantity"
+        "shopify_search_catalog",
+        "shopify_lookup_catalog",
+        "shopify_get_product",
+        "shopify_search_policies",
+        "shopify_get_cart",
+        "shopify_update_cart"
     );
 
     private static final Set<String> PRODUCT_FILTER_ACTION_IDS = Set.of(
@@ -395,7 +395,7 @@ final class ShopifyCompanionActionCatalog {
             return true;
         }
         String pluginId = blankToNull(action.path("marketplacePluginId").asText(null));
-        if (ACTION_PLUGIN_ID.equals(pluginId)) {
+        if (ACTION_PLUGIN_ID.equals(pluginId) || CART_ACTION_PLUGIN_ID.equals(pluginId) || LEGACY_ACTION_PLUGIN_ID.equals(pluginId)) {
             return true;
         }
         String category = blankToNull(action.path("category").asText(null));
