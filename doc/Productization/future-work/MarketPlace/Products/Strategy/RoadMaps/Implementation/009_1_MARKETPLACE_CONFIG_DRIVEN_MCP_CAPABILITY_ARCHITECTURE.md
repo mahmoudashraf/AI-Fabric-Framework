@@ -1,6 +1,6 @@
 # 009.1 Marketplace Config-Driven MCP Capability Architecture
 
-Status: partially implemented architecture change plan (created 2026-05-04; config-driven manifest/compile/runtime trace path live-verified on staging; generic discovery/import and Shopify Bridge legacy-action retirement still pending)
+Status: implemented locally for the config-driven MCP Marketplace plane (created 2026-05-04; staging deployment/live verification pending after commit)
 
 Parent plan: [009 Shopify MCP-First Implementation Sequence](009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md)
 
@@ -64,27 +64,29 @@ Adding another MCP tool should usually mean publishing or updating a Marketplace
 
 ## Current Implementation Status
 
-As of 2026-05-04, 009.1 is not fully complete.
+As of 2026-05-04, 009.1 implementation is complete in the codebase for the generic Marketplace-driven MCP path.
 
-Implemented and live-verified on staging:
+Implemented:
 
 - Marketplace `ACTION` validation accepts `adapterType=mcp-tool`.
 - `contributions.mcpServers` and `execution.mcp` metadata compile into the runtime action catalog.
 - Runtime connector forwarding preserves `adapterType`, `execution`, `mcpServers`, and `trace.actionConfig`.
-- Shopify Bridge hosts a generic MCP execution seed for config-driven actions.
-- A synthetic config-driven MCP action executed through Bridge without adding a new provider-specific action method.
-- Direct Shopify Storefront MCP `initialize`, `tools/list`, and `tools/call search_catalog` were live-verified.
+- Runtime connector routes `adapterType=mcp-tool` actions directly to the managed MCP Execution Gateway when no Shopify/product host is required.
+- Marketplace discovery/import calls the MCP Execution Gateway for `initialize` and `tools/list`, then generates private `ACTION` plugin drafts.
+- Discovery sanitizes caller input and resolves only Platform-held secret refs server-side before gateway calls.
+- Canonical schema hashing ignores descriptive/display-only schema fields and stable-sorts unordered arrays.
+- Gateway verification compares expected tool hashes against live `tools/list` evidence.
+- Gateway execution fails closed on blocking schema drift before `tools/call`.
+- Generic auth modes supported by the gateway are `NONE`, `STATIC_BEARER_SECRET`, `BEARER_TOKEN_SECRET_REF`, `API_KEY_HEADER_SECRET`, and `OAUTH2_CLIENT_CREDENTIALS`.
+- API-key header names are allowlisted by gateway configuration and blocked for sensitive infrastructure headers.
+- Shopify Bridge no longer owns customer-facing legacy/Admin GraphQL action implementations.
+- Shopify Bridge delegates customer-facing plugin-defined MCP actions to the generic MCP Execution Gateway after Shopify store/host checks.
+- Legacy Shopify aliases now return `ACTION_NOT_SUPPORTED` unless installed Marketplace action config provides an MCP execution contract.
 
-Pending for 009.1 completion:
+Operational prerequisites, not code gaps:
 
-- Marketplace import/discovery must call a generic MCP service to run `initialize` and `tools/list`, then generate private `ACTION` plugin drafts.
-- Schema hash canonicalization and drift verification must be wired into install/release checks.
-- Generic auth providers beyond the currently proven no-auth/static-header path must be completed.
-- Shopify Bridge must retire legacy customer-facing action aliases and Admin GraphQL action implementations.
-- Shopify Bridge must depend on plugin-defined MCP actions and the generic MCP execution service for customer-facing Shopify tool execution.
-- The generic MCP execution service must be extracted from Shopify Bridge before non-Shopify MCP support is considered complete.
-
-External Shopify auth material remains a separate blocker for fully live Customer Accounts MCP and Checkout MCP execution, but it is not the only remaining 009.1 work.
+- Live Customer Accounts MCP and Checkout MCP execution still requires valid external Shopify OAuth/session/checkout material for the staging store.
+- Production deployment remains out of scope until explicitly requested; staging is the verification target.
 
 ---
 
@@ -268,13 +270,13 @@ The compiler emits deterministic action metadata:
 }
 ```
 
-Runtime does not receive secret values. Runtime can decide that an action exists, but Bridge resolves endpoint/auth and performs the actual MCP call.
+Runtime does not receive secret values. Runtime can decide that an action exists, then calls either the product host or the managed MCP Execution Gateway according to the compiled host policy. Endpoint and auth secret resolution stay server-side.
 
 ---
 
 ## Shared MCP Execution Gateway
 
-The first implementation may live inside Shopify Bridge because that is where the Shopify MCP path already runs. Architecturally, this is a shared MCP execution gateway, not a Shopify-only product boundary. As soon as non-Shopify MCP servers are supported, the service should be package-separated and extractable from Shopify-specific install, billing, and store-binding code.
+The generic implementation now lives in the standalone managed MCP Execution Gateway service. Shopify Bridge is only the first Shopify host adapter and delegates plugin-defined customer-facing action execution to the gateway.
 
 The shared gateway contains:
 
@@ -289,7 +291,7 @@ McpActionExecutionService
   -> McpAuditRecorder
 ```
 
-Shopify Bridge remains the first host and adapter boundary for Shopify MCP. It should not become the permanent universal execution owner for CRM, GitHub, database, or other third-party MCP providers.
+Shopify Bridge remains the first Shopify host boundary. It is not the universal execution owner for CRM, GitHub, database, or other third-party MCP providers.
 
 ### Server Binding Resolver
 
@@ -313,7 +315,7 @@ Supported auth profiles for the first generic release:
 | `NONE` | yes | Public or anonymous MCP servers only. |
 | `STATIC_BEARER_SECRET` | yes | Bearer token from deployment/store secret ref. |
 | `API_KEY_HEADER_SECRET` | yes | Header name must be static, reviewed, in the platform allowlist, and approved by validation. |
-| `OAUTH2_CLIENT_CREDENTIALS` | yes after token service exists | Token URL, client id secret ref, client secret ref, scopes, cache TTL. |
+| `OAUTH2_CLIENT_CREDENTIALS` | yes | Token URL, client id or client id secret ref, client secret ref, scopes, and optional audience. |
 | `OAUTH2_AUTH_CODE_PKCE` | partly | Generic token storage can be shared, but provider-specific login UX may still need code. |
 | `CUSTOMER_OAUTH_PKCE` | partly | Requires session/customer binding and protected data posture. Shopify Customer Accounts is the first example. |
 
@@ -511,7 +513,7 @@ Marketplace classification remains mandatory:
 - `redactionPolicyRef`
 - `auditCategory`
 
-Bridge enforces governance immediately before `tools/call`.
+The product host or runtime enforces product/session-specific governance before calling the gateway. The gateway enforces generic MCP config, auth, schema drift, and normalized denial behavior immediately before `tools/call`.
 
 This prevents tier bypass if a runtime catalog or external MCP server drifts.
 

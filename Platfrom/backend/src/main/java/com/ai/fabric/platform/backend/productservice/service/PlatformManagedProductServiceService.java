@@ -93,7 +93,7 @@ public class PlatformManagedProductServiceService {
         entity.setDockerfilePath(defaultDockerfilePath(entity.getServiceKind(), request.dockerfilePath()));
         entity.setSecretName(trimToNull(request.secretName()));
         entity.setStatus(StringUtils.hasText(entity.getBaseUrl()) ? "ACTIVE" : "CREATED");
-        entity.setDetailsJson(initialDetailsJson(entity.getServiceKind(), request.shopifyBillingConfig()));
+        entity.setDetailsJson(initialDetailsJson(entity.getServiceKind(), request.shopifyBillingConfig(), request.targetProfileId()));
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
         repository.save(entity);
@@ -186,15 +186,22 @@ public class PlatformManagedProductServiceService {
     }
 
     private String initialDetailsJson(String serviceKind,
-                                      UpdatePlatformManagedProductServiceShopifyBillingConfigRequest shopifyBillingConfig) {
-        if (!PlatformManagedProductServiceShopifyBillingConfigSupport.supports(serviceKind)) {
-            return "{}";
+                                      UpdatePlatformManagedProductServiceShopifyBillingConfigRequest shopifyBillingConfig,
+                                      String targetProfileId) {
+        ObjectNode details = objectMapper.createObjectNode();
+        String normalizedTargetProfileId = trimToNull(targetProfileId);
+        if (normalizedTargetProfileId != null) {
+            details.put("providerType", "COOLIFY");
+            details.put("targetProfileId", normalizedTargetProfileId);
         }
-        return PlatformManagedProductServiceShopifyBillingConfigSupport.detailsWithConfig(
-            objectMapper,
-            "{}",
-            shopifyBillingConfig
-        ).toPrettyString();
+        if (PlatformManagedProductServiceShopifyBillingConfigSupport.supports(serviceKind)) {
+            details = PlatformManagedProductServiceShopifyBillingConfigSupport.detailsWithConfig(
+                objectMapper,
+                details.toPrettyString(),
+                shopifyBillingConfig
+            );
+        }
+        return details.toPrettyString();
     }
 
     private JsonNode readDetails(String detailsJson) {
@@ -265,6 +272,7 @@ public class PlatformManagedProductServiceService {
         }
         return switch (normalizeEnum(serviceKind)) {
             case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service";
+            case "MCP_EXECUTION_GATEWAY_SERVICE" -> "product-services/mcp-execution-gateway-service";
             default -> null;
         };
     }
@@ -276,6 +284,7 @@ public class PlatformManagedProductServiceService {
         }
         return switch (normalizeEnum(serviceKind)) {
             case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service/deploy/railway/Dockerfile";
+            case "MCP_EXECUTION_GATEWAY_SERVICE" -> "product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile";
             default -> null;
         };
     }

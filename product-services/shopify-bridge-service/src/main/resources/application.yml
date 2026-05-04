@@ -68,6 +68,13 @@ shopify:
       token-url: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_URL:https://api.shopify.com/auth/access_token}
       token-refresh-skew: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_REFRESH_SKEW:PT5M}
       terminal-operations-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED:false}
+    mcp-gateway:
+      base-url: ${SHOPIFY_BRIDGE_MCP_GATEWAY_BASE_URL:}
+      api-key: ${SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY:}
+      api-key-header: ${SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY_HEADER:X-MCP-GATEWAY-API-KEY}
+      execute-path: ${SHOPIFY_BRIDGE_MCP_GATEWAY_EXECUTE_PATH:/api/internal/mcp/actions/execute}
+      connect-timeout: ${SHOPIFY_BRIDGE_MCP_GATEWAY_CONNECT_TIMEOUT:PT5S}
+      read-timeout: ${SHOPIFY_BRIDGE_MCP_GATEWAY_READ_TIMEOUT:PT30S}
     billing:
       mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
       plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}

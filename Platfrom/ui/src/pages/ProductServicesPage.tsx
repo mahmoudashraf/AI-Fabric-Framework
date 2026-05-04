@@ -269,7 +269,29 @@ const emptyForm: ProductServiceFormState = {
   serviceRoot: 'product-services/shopify-bridge-service',
   dockerfilePath: 'product-services/shopify-bridge-service/deploy/railway/Dockerfile',
   secretName: null,
+  targetProfileId: null,
   shopifyBillingConfig: defaultShopifyBillingConfig,
+}
+
+const productServicePresets: Record<string, Partial<ProductServiceFormState>> = {
+  SHOPIFY_BRIDGE_SERVICE: {
+    productFamily: 'SHOPIFY',
+    serviceKind: 'SHOPIFY_BRIDGE_SERVICE',
+    serviceRoot: 'product-services/shopify-bridge-service',
+    dockerfilePath: 'product-services/shopify-bridge-service/deploy/railway/Dockerfile',
+    healthPath: '/actuator/health',
+    shopifyBillingConfig: defaultShopifyBillingConfig,
+  },
+  MCP_EXECUTION_GATEWAY_SERVICE: {
+    serviceRef: 'mcp-execution-gateway',
+    displayName: 'MCP Execution Gateway',
+    productFamily: 'MCP',
+    serviceKind: 'MCP_EXECUTION_GATEWAY_SERVICE',
+    serviceRoot: 'product-services/mcp-execution-gateway-service',
+    dockerfilePath: 'product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile',
+    healthPath: '/actuator/health',
+    shopifyBillingConfig: null,
+  },
 }
 
 function billingConfigOrDefault(
@@ -1200,9 +1222,25 @@ export function ProductServicesPage() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField select label="Product family" value={form.productFamily} onChange={(event) => setForm((current) => ({ ...current, productFamily: event.target.value }))} fullWidth>
                 <MenuItem value="SHOPIFY">SHOPIFY</MenuItem>
+                <MenuItem value="MCP">MCP</MenuItem>
                 <MenuItem value="WOOCOMMERCE">WOOCOMMERCE</MenuItem>
               </TextField>
-              <TextField label="Service kind" value={form.serviceKind} onChange={(event) => setForm((current) => ({ ...current, serviceKind: event.target.value }))} fullWidth />
+              <TextField
+                select
+                label="Service kind"
+                value={form.serviceKind}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    ...(productServicePresets[event.target.value] ?? {}),
+                    serviceKind: event.target.value,
+                  }))
+                }
+                fullWidth
+              >
+                <MenuItem value="SHOPIFY_BRIDGE_SERVICE">SHOPIFY_BRIDGE_SERVICE</MenuItem>
+                <MenuItem value="MCP_EXECUTION_GATEWAY_SERVICE">MCP_EXECUTION_GATEWAY_SERVICE</MenuItem>
+              </TextField>
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField label="Deployment mode" value={form.deploymentMode} onChange={(event) => setForm((current) => ({ ...current, deploymentMode: event.target.value }))} fullWidth />
@@ -1221,22 +1259,27 @@ export function ProductServicesPage() {
             <TextField label="Service root" value={form.serviceRoot ?? ''} onChange={(event) => setForm((current) => ({ ...current, serviceRoot: event.target.value || null }))} fullWidth />
             <TextField label="Dockerfile path" value={form.dockerfilePath ?? ''} onChange={(event) => setForm((current) => ({ ...current, dockerfilePath: event.target.value || null }))} fullWidth />
             <TextField label="Secret name (optional)" value={form.secretName ?? ''} onChange={(event) => setForm((current) => ({ ...current, secretName: event.target.value || null }))} fullWidth />
-            <Divider />
-            <Stack spacing={1}>
-              <Typography sx={{ fontWeight: 700 }}>Shopify billing</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Stored on the Platform service record and applied to the managed provider on reconcile, create, and recreate.
-              </Typography>
-            </Stack>
-            {shopifyBillingConfigFields(billingConfigOrDefault(form.shopifyBillingConfig), (patch) =>
-              setForm((current) => ({
-                ...current,
-                shopifyBillingConfig: {
-                  ...billingConfigOrDefault(current.shopifyBillingConfig),
-                  ...patch,
-                },
-              })),
-            )}
+            <TextField label="Coolify target profile ID" value={form.targetProfileId ?? ''} onChange={(event) => setForm((current) => ({ ...current, targetProfileId: event.target.value || null }))} fullWidth />
+            {form.serviceKind === 'SHOPIFY_BRIDGE_SERVICE' ? (
+              <>
+                <Divider />
+                <Stack spacing={1}>
+                  <Typography sx={{ fontWeight: 700 }}>Shopify billing</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Stored on the Platform service record and applied to the managed provider on reconcile, create, and recreate.
+                  </Typography>
+                </Stack>
+                {shopifyBillingConfigFields(billingConfigOrDefault(form.shopifyBillingConfig), (patch) =>
+                  setForm((current) => ({
+                    ...current,
+                    shopifyBillingConfig: {
+                      ...billingConfigOrDefault(current.shopifyBillingConfig),
+                      ...patch,
+                    },
+                  })),
+                )}
+              </>
+            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions>

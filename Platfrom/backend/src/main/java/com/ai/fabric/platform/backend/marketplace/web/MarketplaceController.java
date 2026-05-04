@@ -11,6 +11,10 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplaceCategorySumma
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginDetailSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginVersionSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpDiscoveryRequest;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpDiscoverySummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpImportDraftRequest;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpImportDraftSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherDetailSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSubmissionSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePublisherSummary;
@@ -28,6 +32,7 @@ import com.ai.fabric.platform.backend.marketplace.service.MarketplaceTemplateBoo
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplaceMcpDiscoveryService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublisherService;
 import com.ai.fabric.platform.backend.marketplace.service.MarketplacePublishingService;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceServiceService;
@@ -57,6 +62,7 @@ public class MarketplaceController {
     private final MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService;
     private final MarketplacePublisherService marketplacePublisherService;
     private final MarketplacePublishingService marketplacePublishingService;
+    private final MarketplaceMcpDiscoveryService marketplaceMcpDiscoveryService;
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
     private final PlatformManagedInferenceAdminService platformManagedInferenceAdminService;
 
@@ -65,6 +71,7 @@ public class MarketplaceController {
                                  MarketplaceTemplateBootstrapService marketplaceTemplateBootstrapService,
                                  MarketplacePublisherService marketplacePublisherService,
                                  MarketplacePublishingService marketplacePublishingService,
+                                 MarketplaceMcpDiscoveryService marketplaceMcpDiscoveryService,
                                  PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
                                  PlatformManagedInferenceAdminService platformManagedInferenceAdminService) {
         this.marketplaceCatalogService = marketplaceCatalogService;
@@ -72,6 +79,7 @@ public class MarketplaceController {
         this.marketplaceTemplateBootstrapService = marketplaceTemplateBootstrapService;
         this.marketplacePublisherService = marketplacePublisherService;
         this.marketplacePublishingService = marketplacePublishingService;
+        this.marketplaceMcpDiscoveryService = marketplaceMcpDiscoveryService;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
         this.platformManagedInferenceAdminService = platformManagedInferenceAdminService;
     }
@@ -95,6 +103,17 @@ public class MarketplaceController {
     @GetMapping("/marketplace/categories")
     public List<MarketplaceCategorySummary> listCategories() {
         return marketplaceCatalogService.listCategories();
+    }
+
+    @PostMapping("/marketplace/mcp/discover")
+    public MarketplaceMcpDiscoverySummary discoverMcpServer(@Valid @RequestBody MarketplaceMcpDiscoveryRequest request) {
+        return marketplaceMcpDiscoveryService.discover(request);
+    }
+
+    @PostMapping("/marketplace/mcp/import-draft")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MarketplaceMcpImportDraftSummary importMcpDraft(@Valid @RequestBody MarketplaceMcpImportDraftRequest request) {
+        return marketplaceMcpDiscoveryService.importDraft(request);
     }
 
     @GetMapping("/marketplace/publishers")

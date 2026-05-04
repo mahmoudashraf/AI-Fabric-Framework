@@ -792,6 +792,7 @@ export type CreatePlatformManagedProductServiceRequest = {
   serviceRoot: string | null
   dockerfilePath: string | null
   secretName: string | null
+  targetProfileId: string | null
   shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
 }
 

@@ -109,12 +109,16 @@ public class ActionConnectorExecutor {
             throw new IllegalArgumentException("accessMode is required");
         }
 
+        boolean mcpToolAction = isMcpToolAction(actionConfig);
         String url;
         try {
-            url = buildExecuteUrl();
+            url = mcpToolAction ? buildMcpGatewayExecuteUrl() : buildExecuteUrl();
         } catch (Exception ex) {
             String message = safeConfigErrorMessage(ex != null ? ex.getMessage() : null);
-            log.warn("Connector action '{}' skipped due to invalid connector configuration: {}", actionId, message);
+            log.warn("Connector action '{}' skipped due to invalid {} configuration: {}",
+                actionId,
+                mcpToolAction ? "MCP gateway" : "connector",
+                message);
             return failure(ERROR_INVALID_CONFIGURATION, message);
         }
         String idempotencyKey = needsIdempotency(accessMode) ? generateIdempotencyKey() : null;
@@ -128,7 +132,17 @@ public class ActionConnectorExecutor {
         request.put(ActionConnectorProtocol.KEY_TRACE, buildTrace(context, actionConfig));
 
         String body = writeJson(request);
-        HttpHeaders headers = buildHeaders(body);
+        HttpHeaders headers;
+        try {
+            headers = mcpToolAction ? buildMcpGatewayHeaders() : buildHeaders(body);
+        } catch (Exception ex) {
+            String message = safeConfigErrorMessage(ex != null ? ex.getMessage() : null);
+            log.warn("Connector action '{}' skipped due to invalid {} configuration: {}",
+                actionId,
+                mcpToolAction ? "MCP gateway" : "connector",
+                message);
+            return failure(ERROR_INVALID_CONFIGURATION, message);
+        }
         Map<String, String> headerValues = new LinkedHashMap<>();
         headers.forEach((key, values) -> {
             if (StringUtils.hasText(key) && values != null && !values.isEmpty()) {
@@ -265,6 +279,32 @@ public class ActionConnectorExecutor {
         return base + p;
     }
 
+    private String buildMcpGatewayExecuteUrl() {
+        AIActionConnectorProperties.McpGatewayProperties gateway = properties != null ? properties.getMcpGateway() : null;
+        String baseUrl = gateway != null ? gateway.getBaseUrl() : null;
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new IllegalStateException("ai.actions.connector.mcp-gateway.base-url is required to execute mcp-tool actions.");
+        }
+        String base = baseUrl.trim();
+        String baseLower = base.toLowerCase(Locale.ROOT);
+        if (!(baseLower.startsWith("http://") || baseLower.startsWith("https://"))) {
+            throw new IllegalStateException("ai.actions.connector.mcp-gateway.base-url must be an absolute URL starting with http:// or https://.");
+        }
+        if (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+
+        String path = gateway != null ? gateway.getExecutePath() : null;
+        if (!StringUtils.hasText(path)) {
+            path = "/api/internal/mcp/actions/execute";
+        }
+        String p = path.trim();
+        if (!p.startsWith("/")) {
+            p = "/" + p;
+        }
+        return base + p;
+    }
+
     private String safeConfigErrorMessage(String message) {
         if (!StringUtils.hasText(message)) {
             return "Invalid connector configuration.";
@@ -297,6 +337,39 @@ public class ActionConnectorExecutor {
         }
 
         return headers;
+    }
+
+    private HttpHeaders buildMcpGatewayHeaders() {
+        AIActionConnectorProperties.McpGatewayProperties gateway = properties != null ? properties.getMcpGateway() : null;
+        if (gateway == null || !StringUtils.hasText(gateway.getApiKey())) {
+            throw new IllegalStateException("ai.actions.connector.mcp-gateway.api-key is required to execute mcp-tool actions.");
+        }
+        String header = StringUtils.hasText(gateway.getApiKeyHeader())
+            ? gateway.getApiKeyHeader().trim()
+            : "X-MCP-GATEWAY-API-KEY";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(header, gateway.getApiKey().trim());
+        return headers;
+    }
+
+    private boolean isMcpToolAction(Map<String, Object> actionConfig) {
+        if (actionConfig == null || actionConfig.isEmpty()) {
+            return false;
+        }
+        Object adapterType = actionConfig.get("adapterType");
+        if (adapterType != null && "mcp-tool".equalsIgnoreCase(adapterType.toString().trim())) {
+            return true;
+        }
+        Object executionRaw = actionConfig.get("execution");
+        if (executionRaw instanceof Map<?, ?> execution) {
+            Object executionAdapterType = execution.get("adapterType");
+            if (executionAdapterType != null && "mcp-tool".equalsIgnoreCase(executionAdapterType.toString().trim())) {
+                return true;
+            }
+            return execution.containsKey("mcp");
+        }
+        return false;
     }
 
     private String sign(String secret, String timestamp, String nonce, String body) {

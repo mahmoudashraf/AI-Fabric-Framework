@@ -1,6 +1,6 @@
 # 009.2 MCP Execution Gateway Extraction Plan
 
-Status: architecture change plan (created 2026-05-04)
+Status: implemented locally as a standalone managed MCP Execution Gateway service (created 2026-05-04; staging deployment/live verification pending after commit)
 
 Parent plans:
 
@@ -17,13 +17,15 @@ Source strategy drafts:
 - [../MCP/Draft-009_SHOPIFY_CAPABILITY_EXECUTION_PLANE.md](../MCP/Draft-009_SHOPIFY_CAPABILITY_EXECUTION_PLANE.md)
 - [../MCP/Draft-011-GOVERNED_MCP_CAPABILITY_PLANE.md](../MCP/Draft-011-GOVERNED_MCP_CAPABILITY_PLANE.md)
 
-Current implementation seed:
+Current implementation:
 
-- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/mcp/client/McpStreamableHttpClient.java`
+- `product-services/mcp-execution-gateway-service`
+- `product-services/mcp-execution-gateway-service/src/main/java/com/ai/fabric/product/mcp/gateway/client/McpStreamableHttpClient.java`
+- `product-services/mcp-execution-gateway-service/src/main/java/com/ai/fabric/product/mcp/gateway/service/McpGatewayExecutionService.java`
 - `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/mcp/execution/McpActionExecutionGateway.java`
-- `product-services/shopify-bridge-service/src/test/java/com/ai/fabric/product/shopify/bridge/mcp/**`
 - Runtime action forwarding in `ai-infrastructure-module/ai-infrastructure-actions-connector`
 - Marketplace validation/compiler support in `Platfrom/backend`
+- Marketplace discovery/import support in `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/marketplace/service/MarketplaceMcpDiscoveryService.java`
 - Platform-managed product service lifecycle support in `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/productservice/**`
 - Product Services operator UI in `Platfrom/ui/src/pages/ProductServicesPage.tsx`
 
@@ -91,6 +93,27 @@ MCP Execution Gateway means protocol-boundary execution. It mediates MCP transpo
 
 Those are different responsibilities.
 
+## Current Implementation Status
+
+Implemented in the repository:
+
+- Standalone Spring Boot gateway service with internal API-key protection for `/api/internal/**`.
+- Streamable HTTP MCP client for `initialize`, initialized notification, `tools/list`, and `tools/call`.
+- JSON and SSE response handling, `MCP-Protocol-Version`, and `MCP-Session-Id` capture/reuse.
+- Gateway execution for Marketplace `adapterType=mcp-tool` actions with structured argument templates and restricted response mapping.
+- Discovery/import endpoint that Platform uses to create private Marketplace `ACTION` plugin drafts.
+- Server verification endpoint that compares expected tool schema hashes against live `tools/list` evidence.
+- Execution-time schema drift guard that blocks `tools/call` for blocking drift policies.
+- Auth modes: `NONE`, bearer token secret ref/static bearer, API-key header secret with configured allowlist, and OAuth2 client credentials.
+- Runtime/connector direct path to the gateway for hostless MCP actions.
+- Shopify Bridge customer-facing action execution now depends on plugin MCP config and the gateway; legacy Bridge-owned customer action bodies are removed.
+- Product Services support for creating, reconciling, restarting, force-recreating, decommissioning, checking health, and reading provider logs/history for the MCP gateway on Coolify-managed target profiles.
+- Product Services UI preset for `MCP_EXECUTION_GATEWAY_SERVICE`.
+
+Pending verification step:
+
+- Deploy the committed branch to Coolify staging and run live health/discovery/execution checks with available staging secrets.
+
 ---
 
 ## Target Boundary
@@ -139,11 +162,11 @@ The gateway must not become a second Marketplace.
 
 ## Deployment Shape
 
-009.2 should be delivered in two steps.
+009.2 was delivered directly as a standalone service plus thin product-host/runtime clients. A shared Java library may still be extracted later for code reuse, but the required product boundary is now the deployable gateway service.
 
 ### Step A: Shared Java Module
 
-Extract the code into a shared module first:
+Optional follow-up for code reuse:
 
 ```text
 ai-infrastructure-module/ai-infrastructure-mcp-execution
@@ -160,9 +183,7 @@ This module should contain:
 - `McpExecutionAuditEnvelope`
 - `McpSchemaHashService`
 
-Shopify Bridge depends on this module and keeps its current public action routes.
-
-This reduces risk because the already-live Shopify path can be migrated without introducing a new network hop.
+Shopify Bridge keeps its current public action routes and now calls the standalone gateway over an internal authenticated API. A shared module can reduce duplication later, but it is not required for the 009.2 product boundary.
 
 ### Step B: Standalone Product Service
 
@@ -184,18 +205,11 @@ Initial endpoints:
 POST /api/internal/mcp/actions/execute
 POST /api/internal/mcp/servers/verify
 POST /api/internal/mcp/servers/tools/list
+POST /api/internal/mcp/tools/call
+POST /api/internal/mcp/import/discover
+GET  /api/admin/overview
 GET  /actuator/health
 ```
-
-Optional later endpoints:
-
-```text
-POST /api/internal/mcp/import/discover
-POST /api/internal/mcp/drift/check
-POST /api/internal/mcp/sessions/delete
-```
-
-`/api/internal/mcp/import/discover` should move into the initial standalone release if Marketplace MCP import is being delivered in the same implementation wave. Discovery is required for 009.1 completion.
 
 The standalone service allows non-Shopify MCP actions to execute without Shopify Bridge.
 
@@ -397,15 +411,12 @@ Do not pass raw secret values through browser clients, runtime LLM traces, or Ma
 
 009.2 must preserve the 009.1 auth posture and make it reusable.
 
-Config-only in the first standalone release:
+Config-only in the standalone gateway release:
 
 - `NONE`
 - `STATIC_BEARER_SECRET`
 - `BEARER_TOKEN_SECRET_REF`
 - `API_KEY_HEADER_SECRET`
-
-Add after shared token service exists:
-
 - `OAUTH2_CLIENT_CREDENTIALS`
 
 Still product/host-assisted:
@@ -756,5 +767,4 @@ Live product proof:
 
 - Whether the standalone gateway reads compiled config directly from Platform or only accepts signed execution envelopes in v1.
 - Whether gateway audit writes directly to Platform or emits events for Platform ingestion.
-- Whether `OAUTH2_CLIENT_CREDENTIALS` lands in 009.2 or remains 009.3.
 - Whether the first non-Shopify live MCP proof should use a local mock server, a public test MCP server, or a real CRM/helpdesk provider.
