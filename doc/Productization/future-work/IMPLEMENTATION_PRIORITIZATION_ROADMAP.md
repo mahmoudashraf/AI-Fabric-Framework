@@ -391,3 +391,43 @@ The best implementation sequence is:
 4. expand into advanced enterprise and multi-cloud features
 
 That sequence best supports the market position we want and gives the product the strongest path from current state to a credible enterprise AI deployment platform.
+
+---
+
+## 9) Commercial and Go-to-Market Plans (PLAN-006 to PLAN-008)
+
+The plans above are engineering-focused. Three additional sequenced plans address pricing, licensing, positioning, and partner channel — the commercial surface around the engineering work:
+
+- [PLAN-006-PRICING_LICENSING_AND_POSITIONING_RECONCILIATION.md](./PLAN-006-PRICING_LICENSING_AND_POSITIONING_RECONCILIATION.md)
+- [PLAN-007-INTEGRATION_PARTNER_CHANNEL_LAUNCH.md](./PLAN-007-INTEGRATION_PARTNER_CHANNEL_LAUNCH.md)
+- [PLAN-008-VERTICAL_PRODUCT_FACTORY_OPERATING_MODEL.md](./PLAN-008-VERTICAL_PRODUCT_FACTORY_OPERATING_MODEL.md)
+
+Recommended sequencing relative to engineering work:
+
+- PLAN-006 runs immediately and in parallel with engineering work (it is documentation, not code)
+- PLAN-007 begins once Loom Companion is GA on Shopify and the install flow polish in PLAN-007 section 6 is engineered
+- PLAN-008 is the operating model; it is referenced continuously and reviewed quarterly
+
+PLAN-008 also re-tags certain items in this roadmap as "deferred":
+
+- multi-cloud provisioning expansion → defer until Phase 5 of PLAN-008
+- plugin marketplace monetization → defer until Phase 4 of PLAN-008
+- "Pro Developer License" framework pricing → cut entirely per PLAN-006
+
+The combined effect: engineering continues on the priority order in sections 1–8, but the **commercial center of gravity** shifts to channel and product polish per PLAN-007 and PLAN-008. Stop adding platform; start adding channel.
+
+---
+
+## 10) Ecosystem Integration Plan (PLAN-010)
+
+A separate engineering plan addresses Model Context Protocol (MCP) citizenship — both consuming external MCP servers as Actions and exposing deployments as MCP servers:
+
+- [PLAN-010-MCP_CLIENT_AND_SERVER_INTEGRATION.md](./PLAN-010-MCP_CLIENT_AND_SERVER_INTEGRATION.md)
+
+Recommended sequencing:
+
+- Waves A + B (MCP Client v1 — 5 weeks) can run in parallel with PLAN-007 Wave A foundations; the unlock from "AI Fabric supports MCP" justifies the effort independently
+- Wave D (MCP Server adapter) ships before any partner-channel marketing emphasizes third-party tool integration
+- Waves E + F (Marketplace plugin type and positioning) coordinate with marketplace v1 work and PLAN-006 positioning lock-in
+
+The strategic frame: MCP support is a translation layer that lets AI Fabric absorb the entire MCP ecosystem while keeping the governance, audit, and tenant isolation that vanilla MCP servers do not standardize. Position externally as the *governed* MCP platform, not as catch-up.
