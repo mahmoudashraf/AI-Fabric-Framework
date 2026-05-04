@@ -1517,17 +1517,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     private String normalizeGitRepositoryForCoolify(String repository) {
         String value = requireText(repository, "Coolify Git source requires a git repository.");
-        if (value.startsWith("https://") || value.startsWith("http://") || value.startsWith("git@")) {
-            return value;
-        }
-        String slug = value.replaceAll("^/+", "").replaceAll("/+$", "");
-        if (!slug.contains("/")) {
+        String candidate = value.trim();
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("https://github.com/") || lower.startsWith("http://github.com/")) {
+            candidate = candidate.substring(candidate.indexOf("github.com/") + "github.com/".length());
+        } else if (lower.startsWith("ssh://git@github.com/")) {
+            candidate = candidate.substring("ssh://git@github.com/".length());
+        } else if (lower.startsWith("git@github.com:")) {
+            candidate = candidate.substring("git@github.com:".length());
+        } else if (lower.contains("://") || lower.startsWith("git@")) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Coolify Git source repository must be a Git URL or GitHub slug like 'owner/repo'."
+                "Coolify Git source repository must be a GitHub owner/repo slug or github.com URL."
             );
         }
-        return "https://github.com/" + slug + (slug.endsWith(".git") ? "" : ".git");
+        String slug = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+        if (slug.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
+            return slug.endsWith(".git") ? slug : slug + ".git";
+        }
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Coolify Git source repository must be a GitHub owner/repo slug or github.com URL."
+        );
     }
 
     private String normalizeCoolifyDirectory(String value) {

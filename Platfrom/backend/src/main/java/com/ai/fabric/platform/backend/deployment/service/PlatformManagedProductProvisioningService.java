@@ -640,15 +640,25 @@ public class PlatformManagedProductProvisioningService {
         if (!hasText(normalized)) {
             throw new RailwayProvisioningConfigurationException("Coolify git repository is required.");
         }
-        String lower = normalized.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("https://") || lower.startsWith("http://") || lower.startsWith("git://") || lower.startsWith("git@")) {
-            return normalized;
+        String candidate = normalized;
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("https://github.com/") || lower.startsWith("http://github.com/")) {
+            candidate = candidate.substring(candidate.indexOf("github.com/") + "github.com/".length());
+        } else if (lower.startsWith("ssh://git@github.com/")) {
+            candidate = candidate.substring("ssh://git@github.com/".length());
+        } else if (lower.startsWith("git@github.com:")) {
+            candidate = candidate.substring("git@github.com:".length());
+        } else if (lower.contains("://") || lower.startsWith("git@")) {
+            throw new RailwayProvisioningConfigurationException(
+                "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
+            );
         }
-        if (normalized.indexOf('/') > 0 && !normalized.contains(" ")) {
-            return "https://github.com/" + normalized + (normalized.endsWith(".git") ? "" : ".git");
+        candidate = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+        if (candidate.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
+            return candidate.endsWith(".git") ? candidate : candidate + ".git";
         }
         throw new RailwayProvisioningConfigurationException(
-            "Coolify git repository must be a full git URL or an owner/repository slug."
+            "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
         );
     }
 

@@ -201,14 +201,14 @@ class CoolifyDeploymentProviderTest {
         assertThat(result.target()).isEqualTo("COOLIFY");
         assertThat(result.detailsJson()).contains(
             "GIT_SOURCE",
-            "https://github.com/mahmoudashraf/AI-Fabric-Framework.git",
+            "mahmoudashraf/AI-Fabric-Framework.git",
             "Platform-V8",
             "/ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile"
         );
         ArgumentCaptor<CoolifyCreatePublicApplicationRequest> request =
             ArgumentCaptor.forClass(CoolifyCreatePublicApplicationRequest.class);
         verify(coolifyApiClient).createPublicApplication(eq(connection), request.capture());
-        assertThat(request.getValue().gitRepository()).isEqualTo("https://github.com/mahmoudashraf/AI-Fabric-Framework.git");
+        assertThat(request.getValue().gitRepository()).isEqualTo("mahmoudashraf/AI-Fabric-Framework.git");
         assertThat(request.getValue().gitBranch()).isEqualTo("Platform-V8");
         assertThat(request.getValue().buildPack()).isEqualTo("dockerfile");
         assertThat(request.getValue().baseDirectory()).isEqualTo("/");
