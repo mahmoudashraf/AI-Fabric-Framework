@@ -6,7 +6,7 @@ Parent plan: [009 Shopify MCP-First Implementation Sequence](009_SHOPIFY_MCP_FIR
 
 Roadmap phase: `009.1` - generalize the Shopify MCP-first execution path so new MCP servers and tools can be onboarded through Marketplace configuration instead of new product code.
 
-Priority: P0 follow-on after the first Shopify MCP vertical slice. This plan should start before broad third-party MCP support is promised externally.
+Priority: P0 only after the Plan 009 read-only Shopify MCP vertical slice is live-verified; otherwise P1. This plan should start before broad third-party MCP support is promised externally, but it must not replace Shopify MCP product proof.
 
 Source strategy drafts:
 
@@ -26,7 +26,7 @@ Reference implementation:
 
 ## Purpose
 
-Plan 009 proved the correct product direction:
+Plan 009 establishes the product direction:
 
 ```text
 Marketplace ACTION plugin
@@ -51,10 +51,12 @@ MCP server discovery
   -> review/publish
   -> install with secret refs/server binding
   -> compile actionsConfig
-  -> generic Bridge MCP executor
+  -> shared MCP execution gateway
 ```
 
 Adding another MCP tool should usually mean publishing or updating a Marketplace plugin, not writing Java.
+
+009.1 is a follow-on genericization plan. It must not delay or replace the Shopify-specific Plan 009 goal: Shopify MCP customer-facing actions working end to end through Marketplace and Bridge.
 
 ---
 
@@ -186,9 +188,11 @@ Runtime does not receive secret values. Runtime can decide that an action exists
 
 ---
 
-## Generic Bridge MCP Runtime
+## Shared MCP Execution Gateway
 
-Bridge gets a generic executor:
+The first implementation may live inside Shopify Bridge because that is where the Shopify MCP path already runs. Architecturally, this is a shared MCP execution gateway, not a Shopify-only product boundary. As soon as non-Shopify MCP servers are supported, the service should be package-separated and extractable from Shopify-specific install, billing, and store-binding code.
+
+The shared gateway contains:
 
 ```text
 McpActionExecutionService
@@ -200,6 +204,8 @@ McpActionExecutionService
   -> McpResultNormalizer
   -> McpAuditRecorder
 ```
+
+Shopify Bridge remains the first host and adapter boundary for Shopify MCP. It should not become the permanent universal execution owner for CRM, GitHub, database, or other third-party MCP providers.
 
 ### Server Binding Resolver
 
@@ -222,18 +228,37 @@ Supported auth profiles for the first generic release:
 | --- | --- | --- |
 | `NONE` | yes | Public or anonymous MCP servers only. |
 | `STATIC_BEARER_SECRET` | yes | Bearer token from deployment/store secret ref. |
-| `API_KEY_HEADER_SECRET` | yes | Header name must be declared by the plugin and approved by validation. |
+| `API_KEY_HEADER_SECRET` | yes | Header name must be static, reviewed, in the platform allowlist, and approved by validation. |
 | `OAUTH2_CLIENT_CREDENTIALS` | yes after token service exists | Token URL, client id secret ref, client secret ref, scopes, cache TTL. |
 | `OAUTH2_AUTH_CODE_PKCE` | partly | Generic token storage can be shared, but provider-specific login UX may still need code. |
 | `CUSTOMER_OAUTH_PKCE` | partly | Requires session/customer binding and protected data posture. Shopify Customer Accounts is the first example. |
 
 New auth modes are the main reason a future MCP server should still require code.
 
+API-key header rules:
+
+- header names are never derived from user, session, LLM, or runtime input
+- header names must match the platform allowlist or an operator-reviewed Marketplace publisher allowlist
+- blocked headers include `Authorization`, `Cookie`, `Set-Cookie`, `Host`, `Origin`, `Referer`, `X-Forwarded-*`, and platform/Bridge admin key headers unless the auth provider type explicitly owns them
+- header values always come from secret refs resolved by the gateway, never from manifests or action params
+
 ### Transport Client
 
 Initial generic transport support:
 
 - `STREAMABLE_HTTP`
+
+Streamable HTTP compliance requirements:
+
+- use HTTP `POST` for JSON-RPC requests, notifications, and responses sent to the MCP endpoint
+- include `Accept: application/json, text/event-stream` on `POST`
+- support both `Content-Type: application/json` single-response bodies and `Content-Type: text/event-stream` SSE response streams
+- include `MCP-Protocol-Version` on requests after initialization using the negotiated protocol version
+- capture `MCP-Session-Id` from initialization responses when present and send it on subsequent requests
+- restart initialization without the old session when the server returns `404` for a request carrying `MCP-Session-Id`
+- support optional HTTP `GET` only for SSE listening/resumption where needed; `405 Method Not Allowed` is acceptable for servers that do not expose a listening stream
+- support explicit session termination with HTTP `DELETE` where the server allows it, but tolerate `405`
+- implement request timeouts and bounded SSE consumption so a server cannot hold gateway workers indefinitely
 
 Deferred:
 
@@ -273,6 +298,16 @@ Generic result normalization should support:
 - error classification
 - redaction policy
 
+Response mapping DSL v1:
+
+- use a restricted JSONPath subset for `resultPath`, `structuredContentPath`, `citationsPath`, and `resourceLinksPath`
+- allow root `$`, dot property access, bracket property access, and numeric array indexes only
+- disallow filters, script expressions, recursive descent, functions, arithmetic, and dynamic path construction
+- prefer MCP `structuredContent` when present and matching the declared output schema
+- fall back to `content[]` extraction with explicit content-type handling
+- validate mapping paths during Marketplace review and again during install verification
+- treat missing optional paths as empty values and missing required paths as a normalized MCP mapping error
+
 Default behavior:
 
 - preserve the MCP result as external evidence
@@ -310,6 +345,39 @@ Marketplace review validates:
 - tool schema hash is present for imported tools
 - risk class and confirmation match write behavior
 - package/tier policy is explicit
+
+### Schema Hash Canonicalization
+
+`toolSchemaHash` must be stable enough to catch real contract drift without noisy changes from descriptions or ordering.
+
+Canonical hash input includes:
+
+- tool `name`
+- normalized `inputSchema`
+- normalized `outputSchema` when present
+- required argument names
+- property names, primitive types, enum values, formats, item shapes, object nesting, and `additionalProperties`
+
+Canonical hash input excludes:
+
+- `title`
+- `description`
+- icons
+- examples
+- annotations
+- display-only metadata
+- object property ordering
+- unordered array ordering for fields such as `required` and `enum`
+
+Canonicalization rules:
+
+- convert schemas to canonical JSON with sorted object keys
+- sort semantically unordered arrays
+- preserve array order only where JSON Schema semantics require order
+- normalize absent `inputSchema` to an empty object schema
+- store both the hash and the normalized schema excerpt needed for review/debug evidence
+
+Drift policy evaluates the canonical hash, not raw `tools/list` response bytes.
 
 ### Install-Time Verification
 
@@ -433,9 +501,9 @@ Gate:
 - runtime action catalog contains enough metadata for Bridge to resolve execution
 - runtime action catalog contains no secret values
 
-### Phase 3: Generic Bridge Executor
+### Phase 3: Shared MCP Execution Gateway
 
-Build `McpActionExecutionService` and route `adapterType=mcp-tool` through it.
+Build `McpActionExecutionService` as a shared gateway component and route `adapterType=mcp-tool` through it. Shopify Bridge can host the first implementation, but the package boundary must keep Shopify-specific store/install logic outside the generic executor.
 
 Gate:
 
@@ -491,7 +559,7 @@ Keep provider-specific code only for:
 
 Gate:
 
-- Shopify remains live-verified after generic executor migration
+- Shopify remains live-verified after shared gateway migration
 
 ### Phase 8: Resources And Prompts
 
@@ -513,7 +581,7 @@ Gate:
 
 - A new Streamable HTTP MCP server with supported auth can be imported into a private Marketplace `ACTION` plugin draft.
 - The plugin can be reviewed, published, installed, compiled, and executed without adding provider-specific Bridge code.
-- Generic Bridge execution handles endpoint resolution, auth, argument rendering, `tools/call`, result normalization, audit, rate limits, and denial states.
+- Shared gateway execution handles endpoint resolution, auth, argument rendering, `tools/call`, result normalization, audit, rate limits, and denial states.
 - `tools/list` is used for import and drift verification, not runtime exposure.
 - Schema drift blocks, disables, or warns according to the plugin's declared policy.
 - Runtime action catalogs remain deterministic and secret-free.
@@ -550,7 +618,7 @@ Gate:
 
 - Whether generic import lives only in Platform admin first or also in partner/operator UI.
 - Whether plugin drafts should store full observed MCP schemas or only normalized hashes plus selected fields.
-- Whether response mapping should use JSONPath, JMESPath, or a restricted internal mapping DSL.
+- Whether response mapping DSL v1 should later expand beyond the restricted JSONPath subset.
 - Whether config-driven OAuth authorization-code flows should be generic enough for non-Shopify customer accounts in the first release.
 - How to represent MCP resource links in existing evidence/citation models.
 
