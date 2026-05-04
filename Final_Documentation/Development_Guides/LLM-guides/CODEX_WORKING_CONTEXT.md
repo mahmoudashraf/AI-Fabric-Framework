@@ -839,3 +839,18 @@ Rules:
 - Staging live verification passed: Platform health `UP`; Bridge health `UP`; Platform Marketplace APIs expose both new MCP bundles with five actions each; Bridge MCP readiness returns storefront `ready=true` plus gated Customer Account and Checkout server details.
 - Bridge staging action checks: `shopify_get_customer_orders` returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` without customer OAuth posture; `shopify_get_checkout` returns `CHECKOUT_MCP_NOT_CONFIGURED` without checkout credentials; storefront `shopify_search_catalog` still returns HTTP `200` / `success=true`.
 - Full live Customer Accounts MCP `tools/call` remains blocked until Shopify Customer Account OAuth/PKCE, protected customer data approval, and customer-token/session binding are configured. Full live Checkout MCP `tools/call` remains blocked until Shopify Checkout MCP client credentials are configured; terminal checkout execution additionally requires explicit enablement.
+
+## 2026-05-04 Shopify MCP-First 009.1 Config-Driven MCP Actions
+
+- Implemented and pushed commit `bed79eb46abbade5242a2189ec9d3c93f0f10de3` on branch `Platform-V8`.
+- Platform Marketplace validation now supports config-driven `contributions.mcpServers` for existing `ACTION` plugins, including Streamable HTTP transport, allowed tool lists, auth modes, schema drift policy, and restricted response mappings.
+- Deployment Marketplace draft compilation now emits `actionsConfig.mcpServers` and per-action `execution.mcp` metadata while preserving existing connector HTTP actions.
+- Runtime connector catalog loading now carries `adapterType`, `execution`, `mcpServers`, and `trace.actionConfig` through to Bridge action execution.
+- Shopify Bridge now has a generic `McpStreamableHttpClient` and `McpActionExecutionGateway` for config-driven `mcp-tool` actions. The Shopify Bridge remains Shopify-specific; this gateway is the first shared extraction point for a future generic MCP execution service.
+- Local verification passed: full Platform backend suite, full Shopify Bridge suite, connector/registry reactor tests, focused Marketplace/Bridge/connector tests, `git diff --check`, and shell syntax checks for the Shopify/Marketplace verification scripts.
+- Staging-only Coolify deploys completed for Platform backend and Shopify Bridge from commit `bed79eb46abbade5242a2189ec9d3c93f0f10de3`; production was not deployed or modified.
+- Staging live verification passed: Platform health `UP`, Bridge health `UP`, direct Shopify MCP `initialize`, `tools/list`, and `tools/call search_catalog` returned HTTP `200` against `https://shopping-companion-test.myshopify.com/api/mcp`.
+- Bridge staging live verification passed for both the product action and the new generic config-driven gateway:
+  - `shopify_search_catalog` returned HTTP `200`, `success=true`, `adapterType=mcp-tool`, `evidenceType=SHOPIFY_MCP_TOOL_RESULT`, `mcpServerRef=shopify-storefront-ucp`, `mcpToolName=search_catalog`.
+  - synthetic `generic_config_driven_mcp_live_search` with `trace.actionConfig.execution.mcp` returned HTTP `200`, `success=true`, `adapterType=mcp-tool`, `evidenceType=MCP_TOOL_RESULT`, and normalized evidence.
+- Evidence and inventory note remains under `/tmp/loomai-009-shopify-mcp-first/`; response captures from this run were written under `/tmp/shopify-mcp-*.json` and `/tmp/shopify-bridge-*.json`.
