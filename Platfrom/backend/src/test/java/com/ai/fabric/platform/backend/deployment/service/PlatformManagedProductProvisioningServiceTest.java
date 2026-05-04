@@ -32,6 +32,18 @@ import static org.mockito.Mockito.when;
 class PlatformManagedProductProvisioningServiceTest {
 
     @Test
+    void coolifySourceInputsUseApiCompatibleFormats() {
+        assertThat(PlatformManagedProductProvisioningService.coolifyGitRepository("mahmoudashraf/AI-Fabric-Framework"))
+            .isEqualTo("https://github.com/mahmoudashraf/AI-Fabric-Framework.git");
+        assertThat(PlatformManagedProductProvisioningService.coolifyGitRepository("https://github.com/example/repo.git"))
+            .isEqualTo("https://github.com/example/repo.git");
+        assertThat(PlatformManagedProductProvisioningService.coolifyDockerfileLocation("product-services/mcp/deploy/Dockerfile"))
+            .isEqualTo("/product-services/mcp/deploy/Dockerfile");
+        assertThat(PlatformManagedProductProvisioningService.coolifyDockerfileLocation("/deploy/Dockerfile"))
+            .isEqualTo("/deploy/Dockerfile");
+    }
+
+    @Test
     void reconcileShopifyBridgeCreatesRailwayResourcesAndStoresResolvedUrls() {
         PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
         service.setDetailsJson("""
