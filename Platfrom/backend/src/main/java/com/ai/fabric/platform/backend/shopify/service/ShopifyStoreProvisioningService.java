@@ -584,7 +584,6 @@ public class ShopifyStoreProvisioningService {
             profile.disabledPluginIds().stream()
                 .filter(this::hasText)
                 .map(String::trim)
-                .map(ShopifyCompanionPluginSelection::canonicalizePluginId)
                 .forEach(pluginIds::add);
         }
         pluginIds.add(ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID);

@@ -27,6 +27,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -68,6 +69,7 @@ class ShopifyStoreProvisioningServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(profileCatalogService.resolve("ELITE", "ELITE", "HIGH_QUALITY", "QDRANT_SHARED")).thenReturn(profile);
         when(marketplaceInstallService.listInstallsForTrustedCaller(deployment)).thenReturn(List.of(
+            install("mpi-legacy-read", "mkp-action-shopify-companion-read", "ENABLED", "ACTION"),
             install("mpi-inference", profile.inferencePluginId(), "ENABLED", "INFERENCE_PROFILE")
         ));
 
@@ -96,6 +98,21 @@ class ShopifyStoreProvisioningServiceTest {
         verify(vectorizationService).reconcileForTrustedCaller("alpha.myshopify.com");
         verify(vectorizationService, never()).reconcile("alpha.myshopify.com");
         verify(bootstrapService, never()).bootstrap(any(), any());
+        verify(marketplaceInstallService).updateInstallForTrustedCaller(
+            eq(deployment),
+            eq("mpi-legacy-read"),
+            argThat(request -> request != null && "DISABLED".equals(request.status()))
+        );
+        verify(marketplaceInstallService).createInstallForTrustedCaller(
+            eq(deployment),
+            argThat(request -> request != null
+                && "mkp-action-shopify-storefront-read-mcp".equals(request.pluginId()))
+        );
+        verify(marketplaceInstallService).createInstallForTrustedCaller(
+            eq(deployment),
+            argThat(request -> request != null
+                && "mkp-action-shopify-cart-mcp".equals(request.pluginId()))
+        );
     }
 
     @Test

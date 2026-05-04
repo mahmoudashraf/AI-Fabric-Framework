@@ -53,6 +53,8 @@ shopify:
     mcp:
       protocol-version: ${SHOPIFY_BRIDGE_MCP_PROTOCOL_VERSION:2025-11-25}
       ucp-agent-profile: ${SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE:https://shopify.dev/ucp/agent-profiles/examples/2026-04-08/valid-with-capabilities.json}
+      storefront-password: ${SHOPIFY_BRIDGE_MCP_STOREFRONT_PASSWORD:}
+      storefront-password-cookie-ttl: ${SHOPIFY_BRIDGE_MCP_STOREFRONT_PASSWORD_COOKIE_TTL:PT20M}
     billing:
       mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
       plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}

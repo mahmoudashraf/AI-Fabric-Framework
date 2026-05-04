@@ -472,7 +472,7 @@ public class ShopifyCompanionPackageProfileCatalogService {
     }
 
     private List<String> requiredPluginIds(ShopifyCompanionPackageProfileEntity entity) {
-        LinkedHashSet<String> pluginIds = readPluginIdArray(entity.getDetailsJson(), "requiredPluginIds");
+        LinkedHashSet<String> pluginIds = readPluginIdArray(entity.getDetailsJson(), "requiredPluginIds", true);
         if (pluginIds.isEmpty()) {
             pluginIds.add(ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
             pluginIds.add(ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID);
@@ -487,7 +487,7 @@ public class ShopifyCompanionPackageProfileCatalogService {
     }
 
     private List<String> disabledPluginIds(ShopifyCompanionPackageProfileEntity entity) {
-        LinkedHashSet<String> pluginIds = readPluginIdArray(entity.getDetailsJson(), "disabledPluginIds");
+        LinkedHashSet<String> pluginIds = readPluginIdArray(entity.getDetailsJson(), "disabledPluginIds", false);
         pluginIds.add(ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID);
         pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
         pluginIds.add(ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID);
@@ -499,7 +499,7 @@ public class ShopifyCompanionPackageProfileCatalogService {
         return List.copyOf(pluginIds);
     }
 
-    private LinkedHashSet<String> readPluginIdArray(String detailsJson, String fieldName) {
+    private LinkedHashSet<String> readPluginIdArray(String detailsJson, String fieldName, boolean canonicalize) {
         LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
         JsonNode root = readDetailsNode(detailsJson);
         JsonNode array = root == null ? null : root.path(fieldName);
@@ -507,7 +507,7 @@ public class ShopifyCompanionPackageProfileCatalogService {
             for (JsonNode value : array) {
                 String pluginId = blankToNull(value.asText(null));
                 if (pluginId != null) {
-                    pluginIds.add(ShopifyCompanionPluginSelection.canonicalizePluginId(pluginId));
+                    pluginIds.add(canonicalize ? ShopifyCompanionPluginSelection.canonicalizePluginId(pluginId) : pluginId);
                 }
             }
         }

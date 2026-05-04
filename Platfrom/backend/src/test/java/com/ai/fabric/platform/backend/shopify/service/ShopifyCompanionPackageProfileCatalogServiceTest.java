@@ -98,6 +98,7 @@ class ShopifyCompanionPackageProfileCatalogServiceTest {
             "mkp-action-shopify-customer-account-mcp",
             "mkp-action-shopify-checkout-mcp"
         );
+        assertThat(resolved.disabledPluginIds()).doesNotContain("mkp-action-shopify-storefront-read-mcp");
         assertThat(resolved.disabledPluginIds()).doesNotContain("mkp-action-shopify-cart-mcp");
     }
 

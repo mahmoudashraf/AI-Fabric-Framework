@@ -8,12 +8,20 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
@@ -28,6 +36,7 @@ public class ShopifyMcpClient {
     private final ObjectMapper objectMapper;
     private final ShopifyStorefrontMcpProperties properties;
     private final AtomicLong requestIds = new AtomicLong(1);
+    private final Map<String, StorefrontPasswordCookie> storefrontPasswordCookies = new ConcurrentHashMap<>();
 
     public ShopifyMcpClient(RestClient.Builder restClientBuilder,
                             ObjectMapper objectMapper,
@@ -116,7 +125,7 @@ public class ShopifyMcpClient {
                 .uri(endpoint)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
-                .headers(headers -> applyMcpHeaders(headers, session))
+                .headers(headers -> applyMcpHeaders(headers, session, endpoint))
                 .body(body)
                 .retrieve()
                 .toEntity(String.class);
@@ -133,13 +142,85 @@ public class ShopifyMcpClient {
         }
     }
 
-    private void applyMcpHeaders(HttpHeaders headers, ShopifyMcpSession session) {
+    private void applyMcpHeaders(HttpHeaders headers, ShopifyMcpSession session, URI endpoint) {
         headers.set(MCP_PROTOCOL_VERSION_HEADER, session != null && StringUtils.hasText(session.protocolVersion())
             ? session.protocolVersion()
             : properties.protocolVersion());
         if (session != null && StringUtils.hasText(session.sessionId())) {
             headers.set(MCP_SESSION_ID_HEADER, session.sessionId());
         }
+        String cookieHeader = storefrontPasswordCookieHeader(endpoint);
+        if (StringUtils.hasText(cookieHeader)) {
+            headers.add(HttpHeaders.COOKIE, cookieHeader);
+        }
+    }
+
+    private String storefrontPasswordCookieHeader(URI endpoint) {
+        if (endpoint == null || !StringUtils.hasText(properties.storefrontPassword())) {
+            return null;
+        }
+        String host = endpoint.getHost();
+        if (!StringUtils.hasText(host)) {
+            return null;
+        }
+        String cacheKey = storefrontPasswordCookieCacheKey(endpoint);
+        Instant now = Instant.now();
+        StorefrontPasswordCookie cached = storefrontPasswordCookies.get(cacheKey);
+        if (cached != null && cached.expiresAt().isAfter(now) && StringUtils.hasText(cached.cookieHeader())) {
+            return cached.cookieHeader();
+        }
+
+        URI passwordEndpoint = endpoint.resolve("/password");
+        MultiValueMap<String, String> form = new RedactedStorefrontPasswordForm();
+        form.add("form_type", "storefront_password");
+        form.add("password", properties.storefrontPassword());
+        try {
+            ResponseEntity<String> response = restClient.post()
+                .uri(passwordEndpoint)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form)
+                .retrieve()
+                .toEntity(String.class);
+            String cookieHeader = cookieHeader(response.getHeaders().get(HttpHeaders.SET_COOKIE));
+            if (StringUtils.hasText(cookieHeader)) {
+                storefrontPasswordCookies.put(
+                    cacheKey,
+                    new StorefrontPasswordCookie(cookieHeader, now.plus(properties.storefrontPasswordCookieTtl()))
+                );
+                return cookieHeader;
+            }
+            return null;
+        } catch (RestClientResponseException ex) {
+            throw new ResponseStatusException(
+                BAD_GATEWAY,
+                "Shopify storefront password unlock returned HTTP " + ex.getStatusCode().value() + ".",
+                ex
+            );
+        }
+    }
+
+    private String storefrontPasswordCookieCacheKey(URI endpoint) {
+        String host = endpoint.getHost().trim().toLowerCase(Locale.ROOT);
+        return endpoint.getPort() < 0 ? host : host + ":" + endpoint.getPort();
+    }
+
+    private String cookieHeader(List<String> setCookieHeaders) {
+        if (setCookieHeaders == null || setCookieHeaders.isEmpty()) {
+            return null;
+        }
+        Map<String, String> cookies = new LinkedHashMap<>();
+        for (String setCookie : setCookieHeaders) {
+            if (!StringUtils.hasText(setCookie)) {
+                continue;
+            }
+            String nameValue = setCookie.split(";", 2)[0].trim();
+            int equalsIndex = nameValue.indexOf('=');
+            if (equalsIndex <= 0 || equalsIndex == nameValue.length() - 1) {
+                continue;
+            }
+            cookies.put(nameValue.substring(0, equalsIndex), nameValue);
+        }
+        return cookies.isEmpty() ? null : String.join("; ", cookies.values());
     }
 
     private JsonNode readJsonRpcMessage(ResponseEntity<String> response) {
@@ -206,5 +287,19 @@ public class ShopifyMcpClient {
     }
 
     private record McpHttpResponse(JsonNode message, HttpHeaders headers) {
+    }
+
+    private record StorefrontPasswordCookie(String cookieHeader, Instant expiresAt) {
+    }
+
+    private static final class RedactedStorefrontPasswordForm extends LinkedMultiValueMap<String, String> {
+        @Override
+        public String toString() {
+            LinkedMultiValueMap<String, String> redacted = new LinkedMultiValueMap<>(this);
+            if (redacted.containsKey("password")) {
+                redacted.put("password", List.of("[REDACTED]"));
+            }
+            return redacted.toString();
+        }
     }
 }

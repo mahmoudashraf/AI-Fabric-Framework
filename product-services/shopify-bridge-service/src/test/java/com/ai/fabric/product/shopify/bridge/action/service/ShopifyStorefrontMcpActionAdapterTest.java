@@ -31,7 +31,7 @@ class ShopifyStorefrontMcpActionAdapterTest {
         ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
         ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
             mcpClient,
-            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json", null, null),
             objectMapper
         );
         ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
@@ -94,7 +94,7 @@ class ShopifyStorefrontMcpActionAdapterTest {
         ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
         ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
             mcpClient,
-            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json", null, null),
             objectMapper
         );
         ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
@@ -143,7 +143,7 @@ class ShopifyStorefrontMcpActionAdapterTest {
         ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
         ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
             mcpClient,
-            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json", null, null),
             objectMapper
         );
         ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
@@ -191,7 +191,7 @@ class ShopifyStorefrontMcpActionAdapterTest {
         ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
         ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
             mcpClient,
-            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json", null, null),
             objectMapper
         );
         ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
@@ -240,7 +240,7 @@ class ShopifyStorefrontMcpActionAdapterTest {
         ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
         ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
             mcpClient,
-            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json", null, null),
             objectMapper
         );
         URI ucpEndpoint = URI.create("https://alpha.myshopify.com/api/ucp/mcp");
@@ -281,7 +281,7 @@ class ShopifyStorefrontMcpActionAdapterTest {
         ShopifyMcpClient mcpClient = mock(ShopifyMcpClient.class);
         ShopifyStorefrontMcpActionAdapter adapter = new ShopifyStorefrontMcpActionAdapter(
             mcpClient,
-            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json"),
+            new ShopifyStorefrontMcpProperties("2025-11-25", "https://profiles.example/ucp.json", null, null),
             objectMapper
         );
         ArgumentCaptor<JsonNode> argumentsCaptor = ArgumentCaptor.forClass(JsonNode.class);
