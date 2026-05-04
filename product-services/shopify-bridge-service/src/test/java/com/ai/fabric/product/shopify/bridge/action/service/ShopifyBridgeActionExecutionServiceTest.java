@@ -46,9 +46,6 @@ class ShopifyBridgeActionExecutionServiceTest {
             credentialService,
             graphqlClient,
             governedActionService,
-            null,
-            null,
-            null,
             gateway
         );
 
@@ -81,9 +78,6 @@ class ShopifyBridgeActionExecutionServiceTest {
             credentialService,
             graphqlClient,
             governedActionService,
-            null,
-            null,
-            null,
             gateway
         );
 
@@ -106,9 +100,6 @@ class ShopifyBridgeActionExecutionServiceTest {
             credentialService,
             mock(ShopifyAdminGraphqlClient.class),
             mock(ShopifyStorefrontGovernedActionService.class),
-            null,
-            null,
-            null,
             gateway
         );
 

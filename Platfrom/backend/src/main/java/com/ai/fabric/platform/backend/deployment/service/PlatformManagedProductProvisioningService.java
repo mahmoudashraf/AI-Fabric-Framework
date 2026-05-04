@@ -1051,6 +1051,7 @@ public class PlatformManagedProductProvisioningService {
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_BASE_URL", deliveryProperties.publicBaseUrl()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PUBLIC_BASE_URL", blankToFallback(publicBaseUrl, "")));
+                addMcpGatewayEnv(env);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_SHOPIFY_API_KEY", shopifyApiKey);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_SHOPIFY_API_SECRET", shopifyApiSecret);
                 addOptionalEnv(
@@ -1082,6 +1083,26 @@ public class PlatformManagedProductProvisioningService {
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
         }
         return env;
+    }
+
+    private void addMcpGatewayEnv(List<RailwayGraphqlClient.RailwayEnvVarInput> env) {
+        String gatewayRef = productProvisioningProperties.mcpExecutionGatewayServiceRef();
+        PlatformManagedProductServiceEntity gateway = serviceRepository.findByServiceRefIgnoreCase(gatewayRef)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify Bridge requires managed MCP execution gateway service: " + gatewayRef
+            ));
+        if (!hasText(gateway.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "MCP execution gateway has no base URL: " + gatewayRef);
+        }
+        if (!hasText(gateway.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "MCP execution gateway has no managed API key secret: " + gatewayRef);
+        }
+        String gatewaySecret = resolveSecret(gateway.getSecretName());
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_BASE_URL", gateway.getBaseUrl()));
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY", gatewaySecret));
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY"));
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute"));
     }
 
     private String resolveSecret(String secretName) {

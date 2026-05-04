@@ -1,6 +1,5 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
-import com.ai.fabric.product.shopify.bridge.action.service.ShopifyStorefrontMcpActionAdapter;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
@@ -9,6 +8,7 @@ import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
+import com.ai.fabric.product.shopify.bridge.mcp.execution.McpActionExecutionGateway;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
@@ -37,7 +37,7 @@ public class ShopifyBridgeSupportReadinessService {
     private final ShopifyBridgeBillingService billingService;
     private final ShopifyWebhookSubscriptionService webhookSubscriptionService;
     private final ShopifyBridgeProperties properties;
-    private final ShopifyStorefrontMcpActionAdapter mcpActionAdapter;
+    private final McpActionExecutionGateway mcpActionExecutionGateway;
 
     @Autowired
     public ShopifyBridgeSupportReadinessService(PlatformShopifyStoreClient platformShopifyStoreClient,
@@ -45,13 +45,13 @@ public class ShopifyBridgeSupportReadinessService {
                                                 ShopifyBridgeBillingService billingService,
                                                 ShopifyWebhookSubscriptionService webhookSubscriptionService,
                                                 ShopifyBridgeProperties properties,
-                                                ShopifyStorefrontMcpActionAdapter mcpActionAdapter) {
+                                                McpActionExecutionGateway mcpActionExecutionGateway) {
         this.platformShopifyStoreClient = platformShopifyStoreClient;
         this.installRecordService = installRecordService;
         this.billingService = billingService;
         this.webhookSubscriptionService = webhookSubscriptionService;
         this.properties = properties;
-        this.mcpActionAdapter = mcpActionAdapter;
+        this.mcpActionExecutionGateway = mcpActionExecutionGateway;
     }
 
     ShopifyBridgeSupportReadinessService(PlatformShopifyStoreClient platformShopifyStoreClient,
@@ -505,11 +505,11 @@ public class ShopifyBridgeSupportReadinessService {
     }
 
     private McpReadinessPosture resolveMcpReadiness(String shopDomain) {
-        if (mcpActionAdapter == null) {
+        if (mcpActionExecutionGateway == null) {
             return McpReadinessPosture.unchecked();
         }
         try {
-            Map<String, Object> readiness = mcpActionAdapter.readiness(normalizeShopDomain(shopDomain));
+            Map<String, Object> readiness = mcpActionExecutionGateway.storefrontReadiness(normalizeShopDomain(shopDomain));
             boolean ready = readiness != null && Boolean.TRUE.equals(readiness.get("ready"));
             Object serversValue = readiness == null ? null : readiness.get("servers");
             if (!(serversValue instanceof List<?> servers)) {

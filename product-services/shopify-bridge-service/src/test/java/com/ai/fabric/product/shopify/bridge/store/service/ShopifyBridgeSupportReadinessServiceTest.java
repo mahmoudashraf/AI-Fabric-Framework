@@ -1,6 +1,5 @@
 package com.ai.fabric.product.shopify.bridge.store.service;
 
-import com.ai.fabric.product.shopify.bridge.action.service.ShopifyStorefrontMcpActionAdapter;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeBillingSummary;
 import com.ai.fabric.product.shopify.bridge.billing.model.ShopifyBridgeStoreBillingState;
 import com.ai.fabric.product.shopify.bridge.billing.service.ShopifyBridgeBillingService;
@@ -8,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStore
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSummary;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
+import com.ai.fabric.product.shopify.bridge.mcp.execution.McpActionExecutionGateway;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
@@ -120,7 +120,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
         ShopifyWebhookSubscriptionService webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
-        ShopifyStorefrontMcpActionAdapter mcpActionAdapter = mock(ShopifyStorefrontMcpActionAdapter.class);
+        McpActionExecutionGateway mcpActionExecutionGateway = mock(McpActionExecutionGateway.class);
 
         when(platformClient.getSupportProfile("alpha.myshopify.com")).thenReturn(new ShopifyBridgeSupportProfileSummary(
             "support@alpha.test",
@@ -135,7 +135,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
             true
         )));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(mcpActionAdapter.readiness("alpha.myshopify.com")).thenReturn(Map.of(
+        when(mcpActionExecutionGateway.storefrontReadiness("alpha.myshopify.com")).thenReturn(Map.of(
             "ready",
             false,
             "servers",
@@ -159,7 +159,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
             billingService,
             webhookSubscriptionService,
             properties(),
-            mcpActionAdapter
+            mcpActionExecutionGateway
         );
 
         var summary = service.summarizeForShop("alpha.myshopify.com");

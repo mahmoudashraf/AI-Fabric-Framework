@@ -50,24 +50,6 @@ shopify:
     webhook-shared-secret: ${SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET:}
     admin-api-key: ${SHOPIFY_BRIDGE_SHARED_SECRET:}
     admin-api-key-header: ${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER:X-BRIDGE-API-KEY}
-    mcp:
-      protocol-version: ${SHOPIFY_BRIDGE_MCP_PROTOCOL_VERSION:2025-11-25}
-      ucp-agent-profile: ${SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE:https://shopify.dev/ucp/agent-profiles/examples/2026-04-08/valid-with-capabilities.json}
-      storefront-password: ${SHOPIFY_BRIDGE_MCP_STOREFRONT_PASSWORD:}
-      storefront-password-cookie-ttl: ${SHOPIFY_BRIDGE_MCP_STOREFRONT_PASSWORD_COOKIE_TTL:PT20M}
-    customer-account-mcp:
-      enabled: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED:false}
-      protected-customer-data-approved: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED:false}
-      client-id: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID:}
-      redirect-uri: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI:}
-      scopes: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES:customer-account-mcp-api:full}
-    checkout-mcp:
-      enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED:false}
-      client-id: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID:}
-      client-secret: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET:}
-      token-url: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_URL:https://api.shopify.com/auth/access_token}
-      token-refresh-skew: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_REFRESH_SKEW:PT5M}
-      terminal-operations-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED:false}
     mcp-gateway:
       base-url: ${SHOPIFY_BRIDGE_MCP_GATEWAY_BASE_URL:}
       api-key: ${SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY:}

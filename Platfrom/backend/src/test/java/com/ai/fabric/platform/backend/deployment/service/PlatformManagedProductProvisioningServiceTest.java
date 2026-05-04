@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -99,6 +100,7 @@ class PlatformManagedProductProvisioningServiceTest {
             .thenReturn(new RailwayGraphqlClient.RailwayServiceSummary("svc-123", "shopify-bridge-shopify-bridge-prod"));
         when(platformSecretService.isSecretPresent("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn(true);
         when(platformSecretService.resolveSecret("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn("bridge-secret");
+        mockMcpGateway(serviceRepository, platformSecretService);
         when(platformSecretService.resolveSecret("SHOPIFY_APP_API_KEY")).thenReturn("shopify-api-key");
         when(platformSecretService.resolveSecret("SHOPIFY_APP_API_SECRET")).thenReturn("shopify-api-secret");
         when(railwayGraphqlClient.hasStagedChanges("env-123")).thenReturn(false);
@@ -196,6 +198,10 @@ class PlatformManagedProductProvisioningServiceTest {
                 "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
                 "SHOPIFY_BRIDGE_PLATFORM_BASE_URL",
                 "SHOPIFY_BRIDGE_ADMIN_API_VERSION",
+                "SHOPIFY_BRIDGE_MCP_GATEWAY_BASE_URL",
+                "SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY",
+                "SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY_HEADER",
+                "SHOPIFY_BRIDGE_MCP_GATEWAY_EXECUTE_PATH",
                 "SHOPIFY_BRIDGE_SHOPIFY_API_KEY",
                 "SHOPIFY_BRIDGE_SHOPIFY_API_SECRET",
                 "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET",
@@ -246,6 +252,9 @@ class PlatformManagedProductProvisioningServiceTest {
         when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
         when(serviceService.getService("shopify-bridge-prod")).thenReturn(summary(service));
         when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(platformSecretService.isSecretPresent("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn("bridge-secret");
+        mockMcpGateway(serviceRepository, platformSecretService);
 
         PlatformManagedProductProvisioningService provisioningService = new PlatformManagedProductProvisioningService(
             new PlatformProvisioningProperties(null, null, null, null, null, null, "ws-123", null, null, null, null, null, null, 32, null, null, false, false, 60_000, Duration.ofSeconds(1), Duration.ofSeconds(5)),
@@ -332,6 +341,7 @@ class PlatformManagedProductProvisioningServiceTest {
             .thenReturn(new RailwayGraphqlClient.RailwayServiceSummary("svc-123", "shopify-bridge-shopify-bridge-prod"));
         when(platformSecretService.isSecretPresent("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn(true);
         when(platformSecretService.resolveSecret("MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY")).thenReturn("bridge-secret");
+        mockMcpGateway(serviceRepository, platformSecretService);
         when(platformSecretService.resolveSecret("SHOPIFY_APP_API_KEY")).thenReturn("shopify-api-key");
         when(platformSecretService.resolveSecret("SHOPIFY_APP_API_SECRET")).thenReturn("shopify-api-secret");
         when(platformSecretService.resolveSecret("SHOPIFY_WEBHOOK_SHARED_SECRET")).thenReturn(null);
@@ -539,6 +549,20 @@ class PlatformManagedProductProvisioningServiceTest {
         service.setCreatedAt(Instant.now());
         service.setUpdatedAt(Instant.now());
         return service;
+    }
+
+    private void mockMcpGateway(PlatformManagedProductServiceRepository serviceRepository,
+                                PlatformSecretService platformSecretService) {
+        PlatformManagedProductServiceEntity gateway = productService("mcp-execution-gateway");
+        gateway.setId("psv-mcp-gateway");
+        gateway.setDisplayName("MCP Execution Gateway");
+        gateway.setProductFamily("MCP");
+        gateway.setServiceKind("MCP_EXECUTION_GATEWAY_SERVICE");
+        gateway.setBaseUrl("https://mcp-gateway.example.com");
+        gateway.setSecretName("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY");
+        gateway.setStatus("ACTIVE");
+        when(serviceRepository.findByServiceRefIgnoreCase("mcp-execution-gateway")).thenReturn(Optional.of(gateway));
+        when(platformSecretService.resolveSecret("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY")).thenReturn("gateway-secret");
     }
 
     private PlatformManagedProductServiceSummary summary(PlatformManagedProductServiceEntity service) {
