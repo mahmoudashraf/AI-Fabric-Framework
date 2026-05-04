@@ -826,3 +826,16 @@ Rules:
 - Deployed Bridge staging live verification succeeded through `/api/admin/stores/shopping-companion-test.myshopify.com/actions/execute`: all three `shopify_*` actions returned HTTP `200`, `success=true`, `adapterType=mcp-tool`, and `evidenceType=SHOPIFY_MCP_TOOL_RESULT`.
 - Evidence and inventory note: `/tmp/loomai-009-shopify-mcp-first/current-action-replacement-inventory.md`; live Bridge response capture: `/tmp/loomai-009-shopify-mcp-first/live-bridge-action-responses.json`.
 - Remaining Plan 009 follow-ons: split greenfield package profiles into dedicated MCP plugin bundles, add drift/verification automation, and defer cart/customer-account/checkout MCP until confirmation, OAuth/PKCE, protected-data, and checkout risk posture are approved.
+
+## 2026-05-04 Shopify MCP-First 009 Customer And Checkout Gates
+
+- Implemented and pushed commit `93c6bae0d91388ed466c559cc9e248472313bdab` on branch `Platform-V8`.
+- Added dedicated greenfield `ACTION` bundles `mkp-action-shopify-customer-account-mcp` and `mkp-action-shopify-checkout-mcp` through Flyway `V83__shopify_customer_account_checkout_mcp_bundles.sql`.
+- Platform package profiles now keep Customer Account and Checkout MCP plugins disabled by default unless profile detail flags explicitly enable them; draft compilation preserves their `adapterType=mcp-tool`, `execution.mcp`, auth, scope, and terminal checkout metadata.
+- Bridge now has Customer Accounts MCP discovery/auth gating and Checkout MCP client-credentials gating. Customer tools require shopper session plus customer OAuth token; checkout tools require configured agentic client credentials, and terminal checkout actions stay disabled unless explicitly enabled.
+- Bridge readiness now keeps storefront/cart readiness as the primary green signal and reports Customer Account / Checkout as `gatedServers` when external auth material is missing.
+- Local verification passed: full Platform backend test suite, full Shopify Bridge test suite, Marketplace integration seed checks, shell syntax checks for `scripts/verify-marketplace-install-flow.sh` and `scripts/verify-shopify-companion.sh`, and `git diff --check`.
+- Staging-only Coolify deploys completed for Platform backend and Shopify Bridge. Production was not deployed or modified.
+- Staging live verification passed: Platform health `UP`; Bridge health `UP`; Platform Marketplace APIs expose both new MCP bundles with five actions each; Bridge MCP readiness returns storefront `ready=true` plus gated Customer Account and Checkout server details.
+- Bridge staging action checks: `shopify_get_customer_orders` returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` without customer OAuth posture; `shopify_get_checkout` returns `CHECKOUT_MCP_NOT_CONFIGURED` without checkout credentials; storefront `shopify_search_catalog` still returns HTTP `200` / `success=true`.
+- Full live Customer Accounts MCP `tools/call` remains blocked until Shopify Customer Account OAuth/PKCE, protected customer data approval, and customer-token/session binding are configured. Full live Checkout MCP `tools/call` remains blocked until Shopify Checkout MCP client credentials are configured; terminal checkout execution additionally requires explicit enablement.
