@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyStorefro
 import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStorefrontGovernedActionService;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.mcp.execution.McpActionExecutionGateway;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -85,6 +86,7 @@ public class ShopifyBridgeActionExecutionService {
     private final ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter;
     private final ShopifyCustomerAccountMcpActionAdapter customerAccountMcpActionAdapter;
     private final ShopifyCheckoutMcpActionAdapter checkoutMcpActionAdapter;
+    private final McpActionExecutionGateway mcpActionExecutionGateway;
 
     public ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
                                                ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
@@ -96,6 +98,7 @@ public class ShopifyBridgeActionExecutionService {
             governedActionService,
             storefrontMcpActionAdapter,
             null,
+            null,
             null
         );
     }
@@ -106,19 +109,38 @@ public class ShopifyBridgeActionExecutionService {
                                                ShopifyStorefrontGovernedActionService governedActionService,
                                                ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter,
                                                ShopifyCustomerAccountMcpActionAdapter customerAccountMcpActionAdapter,
-                                               ShopifyCheckoutMcpActionAdapter checkoutMcpActionAdapter) {
+                                               ShopifyCheckoutMcpActionAdapter checkoutMcpActionAdapter,
+                                               McpActionExecutionGateway mcpActionExecutionGateway) {
         this.installCredentialService = installCredentialService;
         this.shopifyAdminGraphqlClient = shopifyAdminGraphqlClient;
         this.governedActionService = governedActionService;
         this.storefrontMcpActionAdapter = storefrontMcpActionAdapter;
         this.customerAccountMcpActionAdapter = customerAccountMcpActionAdapter;
         this.checkoutMcpActionAdapter = checkoutMcpActionAdapter;
+        this.mcpActionExecutionGateway = mcpActionExecutionGateway;
+    }
+
+    ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
+                                        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
+                                        ShopifyStorefrontGovernedActionService governedActionService,
+                                        ShopifyStorefrontMcpActionAdapter storefrontMcpActionAdapter,
+                                        ShopifyCustomerAccountMcpActionAdapter customerAccountMcpActionAdapter,
+                                        ShopifyCheckoutMcpActionAdapter checkoutMcpActionAdapter) {
+        this(
+            installCredentialService,
+            shopifyAdminGraphqlClient,
+            governedActionService,
+            storefrontMcpActionAdapter,
+            customerAccountMcpActionAdapter,
+            checkoutMcpActionAdapter,
+            null
+        );
     }
 
     ShopifyBridgeActionExecutionService(ShopifyBridgeInstallCredentialService installCredentialService,
                                         ShopifyAdminGraphqlClient shopifyAdminGraphqlClient,
                                         ShopifyStorefrontGovernedActionService governedActionService) {
-        this(installCredentialService, shopifyAdminGraphqlClient, governedActionService, null, null, null);
+        this(installCredentialService, shopifyAdminGraphqlClient, governedActionService, null, null, null, null);
     }
 
     public ShopifyBridgeActionResult execute(String shopDomain, ShopifyBridgeActionExecuteRequest request) {
@@ -164,8 +186,15 @@ public class ShopifyBridgeActionExecutionService {
             case "get_policy" -> getPolicy(acquisition.get(), request);
             case "add_product_to_cart", "add_to_cart" -> addProductToCart(acquisition.get(), request);
             case "update_cart_quantity" -> updateCartQuantity(acquisition.get(), request);
-            default -> ShopifyBridgeActionResult.failure("ACTION_NOT_SUPPORTED", "Action is not supported.");
+            default -> executeGenericMcpAction(normalizedShopDomain, request);
         };
+    }
+
+    private ShopifyBridgeActionResult executeGenericMcpAction(String shopDomain, ShopifyBridgeActionExecuteRequest request) {
+        if (mcpActionExecutionGateway != null && mcpActionExecutionGateway.supports(request)) {
+            return mcpActionExecutionGateway.execute(shopDomain, request);
+        }
+        return ShopifyBridgeActionResult.failure("ACTION_NOT_SUPPORTED", "Action is not supported.");
     }
 
     public Map<String, Object> mcpReadiness(String shopDomain) {

@@ -523,6 +523,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                                    Set<String> existingActionNames) {
         ArrayNode actions = ensureArray(actionsRoot, "actions");
         ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
+        ArrayNode mcpServers = ensureArray(actionsRoot, "mcpServers");
         JsonNode installConfig = readJson(install.getConfigJson());
         JsonNode installSecretRefs = readJson(install.getSecretRefsJson());
         JsonNode webhookTargetEntries = parsed.manifest().path("contributions").path("webhookTargets");
@@ -561,6 +562,24 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
             applyMarketplaceProvenance(compiledTarget, install, plugin, version);
             webhookTargets.add(compiledTarget);
+        }
+
+        JsonNode mcpServerEntries = parsed.manifest().path("contributions").path("mcpServers");
+        for (JsonNode serverEntry : iterable(mcpServerEntries)) {
+            if (!serverEntry.isObject()) {
+                continue;
+            }
+            String serverRef = text(serverEntry, "serverRef", "id");
+            if (!StringUtils.hasText(serverRef)) {
+                continue;
+            }
+            if (hasMcpServer(mcpServers, serverRef)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Marketplace MCP server conflicts with an existing deployment MCP server: " + serverRef
+                );
+            }
+            mcpServers.add(compileMcpServerContribution(serverEntry, installConfig, installSecretRefs, install, plugin, version));
         }
 
         JsonNode actionEntries = parsed.manifest().path("contributions").path("actions");
@@ -659,6 +678,71 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         applyMarketplaceProvenance(compiled, install, plugin, version);
         return compiled;
+    }
+
+    ObjectNode compileMcpServerContribution(JsonNode serverEntry,
+                                            JsonNode installConfig,
+                                            JsonNode installSecretRefs,
+                                            DeploymentMarketplacePluginInstallEntity install,
+                                            MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version) {
+        ObjectNode compiled = objectMapper.createObjectNode();
+        compiled.put("serverRef", text(serverEntry, "serverRef", "id"));
+        String transport = text(serverEntry, "transport", "transportType");
+        if (hasText(transport)) {
+            compiled.put("transport", transport.trim());
+        }
+        String endpointUrl = configuredText(serverEntry, installConfig, "endpointUrl", "endpointUrlField", "url", "urlField");
+        if (!hasText(endpointUrl)) {
+            endpointUrl = configuredText(serverEntry, installConfig, "discoveryUrl", "discoveryUrlField");
+        }
+        if (hasText(endpointUrl)) {
+            compiled.put("endpointUrl", endpointUrl);
+        }
+        String endpointUrlTemplate = text(serverEntry, "endpointUrlTemplate", "urlTemplate", "discoveryUrlTemplate");
+        if (hasText(endpointUrlTemplate)) {
+            compiled.put("endpointUrlTemplate", endpointUrlTemplate);
+        }
+        copyIfText(serverEntry, compiled, "authProfileRef", "authProfileRef");
+        if (serverEntry.path("allowedTools").isArray()) {
+            compiled.set("allowedTools", serverEntry.path("allowedTools").deepCopy());
+        }
+        if (serverEntry.path("verification").isObject()) {
+            compiled.set("verification", serverEntry.path("verification").deepCopy());
+        }
+        if (serverEntry.path("auth").isObject()) {
+            compiled.set("auth", compileMcpServerAuth(serverEntry.path("auth"), installSecretRefs));
+        }
+        applyMarketplaceProvenance(compiled, install, plugin, version);
+        return compiled;
+    }
+
+    private ObjectNode compileMcpServerAuth(JsonNode authEntry, JsonNode installSecretRefs) {
+        ObjectNode auth = objectMapper.createObjectNode();
+        copyIfText(authEntry, auth, "mode", "mode", "authMode");
+        copyIfText(authEntry, auth, "headerName", "headerName");
+        copyIfText(authEntry, auth, "tokenUrl", "tokenUrl");
+        copyIfText(authEntry, auth, "audience", "audience");
+        copyIfText(authEntry, auth, "clientId", "clientId");
+        String secretRef = configuredText(authEntry, installSecretRefs, "secretRef", "secretRefField");
+        if (!hasText(secretRef)) {
+            secretRef = configuredText(authEntry, installSecretRefs, "valueSecretRef", "valueSecretRefField");
+        }
+        if (hasText(secretRef)) {
+            auth.put("secretRef", secretRef);
+        }
+        String tokenSecretRef = configuredText(authEntry, installSecretRefs, "tokenSecretRef", "tokenSecretRefField");
+        if (hasText(tokenSecretRef)) {
+            auth.put("tokenSecretRef", tokenSecretRef);
+        }
+        String clientSecretRef = configuredText(authEntry, installSecretRefs, "clientSecretRef", "clientSecretRefField");
+        if (hasText(clientSecretRef)) {
+            auth.put("clientSecretRef", clientSecretRef);
+        }
+        if (authEntry.path("scopes").isArray()) {
+            auth.set("scopes", authEntry.path("scopes").deepCopy());
+        }
+        return auth;
     }
 
     private void applyDataPlugin(ObjectNode entityRoot,
@@ -902,6 +986,8 @@ public class DeploymentMarketplaceDraftCompilerService {
         removeMarketplaceManagedEntries(actions);
         ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
         removeMarketplaceManagedEntries(webhookTargets);
+        ArrayNode mcpServers = ensureArray(actionsRoot, "mcpServers");
+        removeMarketplaceManagedEntries(mcpServers);
     }
 
     boolean stripGreenfieldShopifyLegacyActions(ObjectNode actionsRoot,
@@ -1037,6 +1123,20 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         for (JsonNode target : targets) {
             if (target != null && target.isObject() && targetId.trim().equalsIgnoreCase(target.path("id").asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasMcpServer(ArrayNode servers, String serverRef) {
+        if (servers == null || !hasText(serverRef)) {
+            return false;
+        }
+        for (JsonNode server : servers) {
+            if (server != null
+                && server.isObject()
+                && serverRef.trim().equalsIgnoreCase(server.path("serverRef").asText(""))) {
                 return true;
             }
         }

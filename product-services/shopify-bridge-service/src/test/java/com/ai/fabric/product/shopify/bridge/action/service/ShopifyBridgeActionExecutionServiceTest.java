@@ -10,6 +10,7 @@ import com.ai.fabric.product.shopify.bridge.governedaction.service.ShopifyStoref
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyBridgeCredentialAcquisition;
 import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMaterial;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
+import com.ai.fabric.product.shopify.bridge.mcp.execution.McpActionExecutionGateway;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import org.junit.jupiter.api.Test;
 
@@ -257,6 +258,44 @@ class ShopifyBridgeActionExecutionServiceTest {
 
         assertThat(result.success()).isFalse();
         assertThat(result.errorCode()).isEqualTo("ACTION_NOT_SUPPORTED");
+    }
+
+    @Test
+    void unsupportedNamedActionCanRouteThroughGenericMcpGatewayWhenTraceCarriesMcpConfig() {
+        ShopifyBridgeInstallCredentialService credentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyAdminGraphqlClient graphqlClient = mock(ShopifyAdminGraphqlClient.class);
+        ShopifyStorefrontGovernedActionService governedActionService = mock(ShopifyStorefrontGovernedActionService.class);
+        McpActionExecutionGateway genericMcpGateway = mock(McpActionExecutionGateway.class);
+        ShopifyBridgeActionExecuteRequest request = new ShopifyBridgeActionExecuteRequest(
+            "inventory_search",
+            Map.of("query", "coffee"),
+            null,
+            Map.of("execution", Map.of("mcp", Map.of("serverRef", "inventory-mcp", "toolName", "inventory.search")))
+        );
+        ShopifyBridgeActionResult gatewayResult = ShopifyBridgeActionResult.ok(
+            "MCP tool result",
+            Map.of("adapterType", "mcp-tool", "mcpServerRef", "inventory-mcp", "mcpToolName", "inventory.search")
+        );
+        ShopifyBridgeActionExecutionService service = new ShopifyBridgeActionExecutionService(
+            credentialService,
+            graphqlClient,
+            governedActionService,
+            null,
+            null,
+            null,
+            genericMcpGateway
+        );
+
+        when(credentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.of(acquisition("alpha.myshopify.com")));
+        when(genericMcpGateway.supports(request)).thenReturn(true);
+        when(genericMcpGateway.execute("alpha.myshopify.com", request)).thenReturn(gatewayResult);
+
+        ShopifyBridgeActionResult result = service.execute("alpha.myshopify.com", request);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("mcpServerRef", "inventory-mcp");
+        verify(genericMcpGateway).execute("alpha.myshopify.com", request);
+        verifyNoInteractions(graphqlClient, governedActionService);
     }
 
     @Test

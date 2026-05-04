@@ -53,7 +53,8 @@ public class ConnectorActionsRegistryContributor implements AIActionRegistryCont
                 def.confirmationMessage(),
                 sensitive,
                 executor,
-                def.llmFacts()
+                def.llmFacts(),
+                def.runtimeActionConfig()
             ));
         }
 

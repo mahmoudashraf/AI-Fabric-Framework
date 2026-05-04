@@ -230,6 +230,52 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     }
 
     @Test
+    void compileMcpServerContributionResolvesInstallConfigAndSecretRefsWithoutSecretValues() throws Exception {
+        JsonNode server = objectMapper.readTree("""
+            {
+              "serverRef": "inventory-mcp",
+              "transport": "STREAMABLE_HTTP",
+              "endpointUrlField": "inventoryMcpEndpoint",
+              "allowedTools": ["inventory.search"],
+              "auth": {
+                "mode": "API_KEY_HEADER_SECRET",
+                "headerName": "X-MCP-API-Key",
+                "secretRefField": "inventoryMcpApiKeyRef"
+              },
+              "verification": {
+                "mode": "INITIALIZE_AND_TOOLS_LIST",
+                "schemaDriftPolicy": "WARN_ONLY"
+              }
+            }
+            """);
+        JsonNode installConfig = objectMapper.readTree("""
+            {"inventoryMcpEndpoint": "https://inventory.example/mcp"}
+            """);
+        JsonNode installSecretRefs = objectMapper.readTree("""
+            {"inventoryMcpApiKeyRef": "INV_MCP_API_KEY"}
+            """);
+
+        ObjectNode compiled = compilerService.compileMcpServerContribution(
+            server,
+            installConfig,
+            installSecretRefs,
+            install(),
+            plugin(),
+            version()
+        );
+
+        assertThat(compiled.path("serverRef").asText()).isEqualTo("inventory-mcp");
+        assertThat(compiled.path("endpointUrl").asText()).isEqualTo("https://inventory.example/mcp");
+        assertThat(compiled.path("allowedTools").get(0).asText()).isEqualTo("inventory.search");
+        assertThat(compiled.path("auth").path("mode").asText()).isEqualTo("API_KEY_HEADER_SECRET");
+        assertThat(compiled.path("auth").path("headerName").asText()).isEqualTo("X-MCP-API-Key");
+        assertThat(compiled.path("auth").path("secretRef").asText()).isEqualTo("INV_MCP_API_KEY");
+        assertThat(compiled.path("auth").has("value")).isFalse();
+        assertThat(compiled.path("verification").path("schemaDriftPolicy").asText()).isEqualTo("WARN_ONLY");
+        assertThat(compiled.path("marketplacePluginId").asText()).isEqualTo("mkp-action-shopify-companion-read");
+    }
+
+    @Test
     void stripGreenfieldShopifyLegacyActionsRemovesStaleShopifyActionsWhenMcpBundleIsEnabled() {
         ObjectNode actionsRoot = objectMapper.createObjectNode();
         ArrayNode actions = actionsRoot.putArray("actions");

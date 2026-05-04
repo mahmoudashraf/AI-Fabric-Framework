@@ -94,6 +94,14 @@ public class ActionConnectorExecutor {
                                 ActionAccessMode accessMode,
                                 Map<String, Object> params,
                                 ActionContext context) {
+        return execute(actionId, accessMode, params, context, null);
+    }
+
+    public ActionResult execute(String actionId,
+                                ActionAccessMode accessMode,
+                                Map<String, Object> params,
+                                ActionContext context,
+                                Map<String, Object> actionConfig) {
         if (!StringUtils.hasText(actionId)) {
             throw new IllegalArgumentException("actionId is required");
         }
@@ -117,7 +125,7 @@ public class ActionConnectorExecutor {
         if (StringUtils.hasText(idempotencyKey)) {
             request.put(ActionConnectorProtocol.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
-        request.put(ActionConnectorProtocol.KEY_TRACE, buildTrace(context));
+        request.put(ActionConnectorProtocol.KEY_TRACE, buildTrace(context, actionConfig));
 
         String body = writeJson(request);
         HttpHeaders headers = buildHeaders(body);
@@ -181,8 +189,11 @@ public class ActionConnectorExecutor {
         return IDEMPOTENCY_PREFIX + ulidGenerator.nextUlid();
     }
 
-    private Map<String, Object> buildTrace(ActionContext context) {
+    private Map<String, Object> buildTrace(ActionContext context, Map<String, Object> actionConfig) {
         Map<String, Object> trace = new LinkedHashMap<>();
+        if (actionConfig != null && !actionConfig.isEmpty()) {
+            trace.put("actionConfig", new LinkedHashMap<>(actionConfig));
+        }
         if (context == null) {
             return trace;
         }

@@ -37,6 +37,7 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
     private final Set<String> sensitiveParams;
     private final ActionConnectorExecutor executor;
     private final ConnectorActionLlmFactsDefinition llmFacts;
+    private final Map<String, Object> actionConfig;
 
     public ConnectorAIActionHandler(AIActionMetaData metadata,
                                     boolean requiresConfirmation,
@@ -52,12 +53,25 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                                     Set<String> sensitiveParams,
                                     ActionConnectorExecutor executor,
                                     ConnectorActionLlmFactsDefinition llmFacts) {
+        this(metadata, requiresConfirmation, confirmationTemplate, sensitiveParams, executor, llmFacts, null);
+    }
+
+    public ConnectorAIActionHandler(AIActionMetaData metadata,
+                                    boolean requiresConfirmation,
+                                    String confirmationTemplate,
+                                    Set<String> sensitiveParams,
+                                    ActionConnectorExecutor executor,
+                                    ConnectorActionLlmFactsDefinition llmFacts,
+                                    Map<String, Object> actionConfig) {
         this.metadata = metadata;
         this.requiresConfirmation = requiresConfirmation;
         this.confirmationTemplate = StringUtils.hasText(confirmationTemplate) ? confirmationTemplate.trim() : null;
         this.sensitiveParams = sensitiveParams != null ? Set.copyOf(sensitiveParams) : Set.of();
         this.executor = executor;
         this.llmFacts = llmFacts;
+        this.actionConfig = actionConfig != null && !actionConfig.isEmpty()
+            ? Map.copyOf(actionConfig)
+            : Map.of();
     }
 
     @Override
@@ -100,7 +114,7 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 .message("Action metadata is missing action name.")
                 .build();
         }
-        return executor.execute(actionId, metadata.getAccessMode(), params != null ? params : Map.of(), context);
+        return executor.execute(actionId, metadata.getAccessMode(), params != null ? params : Map.of(), context, actionConfig);
     }
 
     @Override

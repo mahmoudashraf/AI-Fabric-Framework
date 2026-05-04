@@ -20,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -73,6 +74,51 @@ public class MarketplaceManifestService {
     private static final Set<String> SUPPORTED_DATASET_UPDATE_STRATEGIES = Set.of("UPSERT_BY_ID");
     private static final Set<String> SUPPORTED_SYNC_CONNECTOR_TYPES = Set.of("SQL_QUERY", "FILE_FOLDER");
     private static final String ACTION_ADAPTER_TYPE_MCP_TOOL = "mcp-tool";
+    private static final Set<String> SUPPORTED_MCP_TRANSPORTS = Set.of("STREAMABLE_HTTP");
+    private static final Set<String> SUPPORTED_MCP_SCHEMA_DRIFT_POLICIES = Set.of(
+        "WARN_ONLY",
+        "DISABLE_ACTION",
+        "BLOCK_RELEASE"
+    );
+    private static final Set<String> SUPPORTED_MCP_VERIFICATION_MODES = Set.of(
+        "INITIALIZE_AND_TOOLS_LIST",
+        "TOOLS_LIST_ONLY",
+        "TOOLS_CALL_PROBE"
+    );
+    private static final Set<String> SUPPORTED_MCP_AUTH_MODES = Set.of(
+        "NONE",
+        "BEARER_TOKEN_SECRET_REF",
+        "STATIC_BEARER_SECRET",
+        "API_KEY_HEADER_SECRET",
+        "OAUTH2_CLIENT_CREDENTIALS",
+        "OAUTH2_AUTHORIZATION_CODE_PKCE",
+        "CUSTOMER_OAUTH_PKCE",
+        "SHOPIFY_AGENTIC_CLIENT_CREDENTIALS"
+    );
+    private static final Set<String> ALLOWED_MCP_API_KEY_HEADERS = Set.of(
+        "X-API-KEY",
+        "X-MCP-API-KEY",
+        "X-LOOM-MCP-KEY"
+    );
+    private static final Set<String> BLOCKED_MCP_HEADER_NAMES = Set.of(
+        "AUTHORIZATION",
+        "COOKIE",
+        "SET-COOKIE",
+        "HOST",
+        "ORIGIN",
+        "REFERER",
+        "X-FORWARDED-FOR",
+        "X-FORWARDED-HOST",
+        "X-FORWARDED-PROTO",
+        "X-BRIDGE-API-KEY",
+        "X-PLATFORM-API-KEY",
+        "X-PLATFORM-PUBLIC-API-KEY"
+    );
+    private static final Pattern MCP_REF_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_.:-]{0,127}");
+    private static final Pattern MCP_TOOL_NAME_PATTERN = Pattern.compile("[A-Za-z0-9_.:-]{1,128}");
+    private static final Pattern MCP_SCHEMA_HASH_PATTERN = Pattern.compile("sha256:[a-fA-F0-9]{64}");
+    private static final Pattern MCP_RESPONSE_MAPPING_PATH_PATTERN =
+        Pattern.compile("\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[[0-9]+])*");
 
     private final ObjectMapper objectMapper;
 
@@ -198,6 +244,7 @@ public class MarketplaceManifestService {
             throw invalid(plugin, version, "action plugins must declare a non-empty contributions.actions array.");
         }
         Set<String> webhookTargetIds = parseWebhookTargets(plugin, version, contributions.path("webhookTargets"));
+        Set<String> mcpServerRefs = parseMcpServerContributions(plugin, version, contributions.path("mcpServers"));
         List<String> actionIds = new ArrayList<>();
         for (JsonNode action : actions) {
             if (!action.isObject()) {
@@ -207,7 +254,7 @@ public class MarketplaceManifestService {
             if (!StringUtils.hasText(actionId)) {
                 throw invalid(plugin, version, "each action contribution must declare id or actionId.");
             }
-            validateActionExecutionContribution(plugin, version, action, actionId.trim());
+            validateActionExecutionContribution(plugin, version, action, actionId.trim(), mcpServerRefs);
             JsonNode route = action.path("route");
             if (route.isObject()) {
                 String url = route.path("url").asText("").trim();
@@ -239,7 +286,8 @@ public class MarketplaceManifestService {
     private void validateActionExecutionContribution(MarketplacePluginEntity plugin,
                                                      MarketplacePluginVersionEntity version,
                                                      JsonNode action,
-                                                     String actionId) {
+                                                     String actionId,
+                                                     Set<String> mcpServerRefs) {
         JsonNode execution = action.path("execution");
         if (!execution.isMissingNode() && !execution.isNull() && !execution.isObject()) {
             throw invalid(plugin, version, "action '" + actionId + "' execution must be an object when provided.");
@@ -272,14 +320,214 @@ public class MarketplaceManifestService {
         if (!StringUtils.hasText(serverRef)) {
             throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.serverRef is required.");
         }
+        if (!MCP_REF_PATTERN.matcher(serverRef.trim()).matches()) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.serverRef is invalid.");
+        }
+        if (!mcpServerRefs.isEmpty() && !mcpServerRefs.contains(serverRef.trim())) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.serverRef does not match contributions.mcpServers.");
+        }
         String toolName = firstText(mcp, "toolName");
         if (!StringUtils.hasText(toolName)) {
             throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.toolName is required.");
+        }
+        if (!MCP_TOOL_NAME_PATTERN.matcher(toolName.trim()).matches()) {
+            throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.toolName is invalid.");
         }
         JsonNode argumentTemplate = mcp.path("argumentTemplate");
         if (!argumentTemplate.isMissingNode() && !argumentTemplate.isNull() && !argumentTemplate.isObject()) {
             throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.argumentTemplate must be an object when provided.");
         }
+        validateMcpSchemaHash(plugin, version, mcp.path("toolSchemaHash"), "action '" + actionId + "' execution.mcp.toolSchemaHash");
+        validateMcpSchemaDriftPolicy(plugin, version, firstText(mcp, "schemaDriftPolicy"), "action '" + actionId + "' execution.mcp.schemaDriftPolicy");
+        validateMcpResponseMapping(plugin, version, mcp.path("responseMapping"), "action '" + actionId + "' execution.mcp.responseMapping");
+    }
+
+    private Set<String> parseMcpServerContributions(MarketplacePluginEntity plugin,
+                                                    MarketplacePluginVersionEntity version,
+                                                    JsonNode mcpServers) {
+        if (mcpServers.isMissingNode() || mcpServers.isNull()) {
+            return Set.of();
+        }
+        if (!mcpServers.isArray()) {
+            throw invalid(plugin, version, "action plugin mcpServers must be an array when provided.");
+        }
+        Set<String> serverRefs = new LinkedHashSet<>();
+        for (JsonNode server : mcpServers) {
+            if (!server.isObject()) {
+                throw invalid(plugin, version, "each MCP server contribution must be an object.");
+            }
+            String serverRef = firstText(server, "serverRef", "id");
+            if (!StringUtils.hasText(serverRef)) {
+                throw invalid(plugin, version, "each MCP server contribution must declare serverRef or id.");
+            }
+            serverRef = serverRef.trim();
+            if (!MCP_REF_PATTERN.matcher(serverRef).matches()) {
+                throw invalid(plugin, version, "MCP serverRef is invalid: " + serverRef);
+            }
+            if (!serverRefs.add(serverRef)) {
+                throw invalid(plugin, version, "duplicate MCP serverRef: " + serverRef);
+            }
+
+            String transport = normalizedMcpEnum(firstText(server, "transport", "transportType"));
+            if (!StringUtils.hasText(transport)) {
+                throw invalid(plugin, version, "MCP server '" + serverRef + "' transport is required.");
+            }
+            if (!SUPPORTED_MCP_TRANSPORTS.contains(transport)) {
+                throw invalid(plugin, version, "MCP server '" + serverRef + "' declares unsupported transport: " + transport);
+            }
+
+            boolean hasEndpoint = StringUtils.hasText(firstText(server, "endpointUrl", "url", "discoveryUrl"))
+                || StringUtils.hasText(firstText(server, "endpointUrlTemplate", "urlTemplate", "discoveryUrlTemplate"))
+                || StringUtils.hasText(firstText(server, "endpointUrlField", "urlField", "discoveryUrlField"));
+            if (!hasEndpoint) {
+                throw invalid(plugin, version, "MCP server '" + serverRef + "' must declare endpointUrl, endpointUrlTemplate, or endpointUrlField.");
+            }
+
+            validateMcpAllowedTools(plugin, version, server.path("allowedTools"), serverRef);
+            validateMcpAuthContribution(plugin, version, server.path("auth"), serverRef);
+            validateMcpVerificationContribution(plugin, version, server.path("verification"), serverRef);
+        }
+        return Set.copyOf(serverRefs);
+    }
+
+    private void validateMcpAllowedTools(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         JsonNode allowedTools,
+                                         String serverRef) {
+        if (allowedTools.isMissingNode() || allowedTools.isNull()) {
+            return;
+        }
+        if (!allowedTools.isArray() || allowedTools.isEmpty()) {
+            throw invalid(plugin, version, "MCP server '" + serverRef + "' allowedTools must be a non-empty array when provided.");
+        }
+        for (JsonNode tool : allowedTools) {
+            String toolName = tool.asText("").trim();
+            if (!StringUtils.hasText(toolName) || !MCP_TOOL_NAME_PATTERN.matcher(toolName).matches()) {
+                throw invalid(plugin, version, "MCP server '" + serverRef + "' allowedTools contains an invalid tool name.");
+            }
+        }
+    }
+
+    private void validateMcpAuthContribution(MarketplacePluginEntity plugin,
+                                             MarketplacePluginVersionEntity version,
+                                             JsonNode auth,
+                                             String serverRef) {
+        if (auth.isMissingNode() || auth.isNull()) {
+            return;
+        }
+        if (!auth.isObject()) {
+            throw invalid(plugin, version, "MCP server '" + serverRef + "' auth must be an object when provided.");
+        }
+        String mode = normalizedMcpEnum(firstText(auth, "mode", "authMode"));
+        if (StringUtils.hasText(mode) && !SUPPORTED_MCP_AUTH_MODES.contains(mode)) {
+            throw invalid(plugin, version, "MCP server '" + serverRef + "' auth declares unsupported mode: " + mode);
+        }
+        if ("API_KEY_HEADER_SECRET".equals(mode)) {
+            String headerName = firstText(auth, "headerName");
+            if (!StringUtils.hasText(headerName)) {
+                throw invalid(plugin, version, "MCP server '" + serverRef + "' API key auth requires headerName.");
+            }
+            validateMcpHeaderName(plugin, version, headerName, serverRef);
+            boolean hasSecretRef = StringUtils.hasText(firstText(auth, "secretRef", "valueSecretRef"))
+                || StringUtils.hasText(firstText(auth, "secretRefField", "valueSecretRefField"));
+            if (!hasSecretRef) {
+                throw invalid(plugin, version, "MCP server '" + serverRef + "' API key auth requires secretRef or secretRefField.");
+            }
+        }
+        if ("BEARER_TOKEN_SECRET_REF".equals(mode) || "STATIC_BEARER_SECRET".equals(mode)) {
+            boolean hasSecretRef = StringUtils.hasText(firstText(auth, "secretRef", "tokenSecretRef"))
+                || StringUtils.hasText(firstText(auth, "secretRefField", "tokenSecretRefField"));
+            if (!hasSecretRef) {
+                throw invalid(plugin, version, "MCP server '" + serverRef + "' bearer auth requires secretRef or secretRefField.");
+            }
+        }
+    }
+
+    private void validateMcpVerificationContribution(MarketplacePluginEntity plugin,
+                                                    MarketplacePluginVersionEntity version,
+                                                    JsonNode verification,
+                                                    String serverRef) {
+        if (verification.isMissingNode() || verification.isNull()) {
+            return;
+        }
+        if (!verification.isObject()) {
+            throw invalid(plugin, version, "MCP server '" + serverRef + "' verification must be an object when provided.");
+        }
+        String mode = normalizedMcpEnum(firstText(verification, "mode"));
+        if (StringUtils.hasText(mode) && !SUPPORTED_MCP_VERIFICATION_MODES.contains(mode)) {
+            throw invalid(plugin, version, "MCP server '" + serverRef + "' verification declares unsupported mode: " + mode);
+        }
+        validateMcpSchemaDriftPolicy(
+            plugin,
+            version,
+            firstText(verification, "schemaDriftPolicy"),
+            "MCP server '" + serverRef + "' verification.schemaDriftPolicy"
+        );
+    }
+
+    private void validateMcpHeaderName(MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       String headerName,
+                                       String serverRef) {
+        String normalized = headerName == null ? "" : headerName.trim().toUpperCase(Locale.ROOT);
+        if (BLOCKED_MCP_HEADER_NAMES.contains(normalized) || !ALLOWED_MCP_API_KEY_HEADERS.contains(normalized)) {
+            throw invalid(plugin, version, "MCP server '" + serverRef + "' auth headerName is not allowlisted.");
+        }
+    }
+
+    private void validateMcpSchemaHash(MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       JsonNode hashNode,
+                                       String context) {
+        if (hashNode.isMissingNode() || hashNode.isNull()) {
+            return;
+        }
+        String hash = hashNode.asText("").trim();
+        if (!MCP_SCHEMA_HASH_PATTERN.matcher(hash).matches()) {
+            throw invalid(plugin, version, context + " must be sha256:<64 lowercase or uppercase hex chars>.");
+        }
+    }
+
+    private void validateMcpSchemaDriftPolicy(MarketplacePluginEntity plugin,
+                                              MarketplacePluginVersionEntity version,
+                                              String policy,
+                                              String context) {
+        String normalized = normalizedMcpEnum(policy);
+        if (StringUtils.hasText(normalized) && !SUPPORTED_MCP_SCHEMA_DRIFT_POLICIES.contains(normalized)) {
+            throw invalid(plugin, version, context + " declares unsupported policy: " + normalized);
+        }
+    }
+
+    private void validateMcpResponseMapping(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode responseMapping,
+                                            String context) {
+        if (responseMapping.isMissingNode() || responseMapping.isNull()) {
+            return;
+        }
+        if (!responseMapping.isObject()) {
+            throw invalid(plugin, version, context + " must be an object when provided.");
+        }
+        for (String field : List.of(
+            "resultPath",
+            "contentPath",
+            "structuredContentPath",
+            "citationsPath",
+            "resourceLinksPath",
+            "pinnedTargetsPath"
+        )) {
+            JsonNode value = responseMapping.path(field);
+            if (value.isMissingNode() || value.isNull()) {
+                continue;
+            }
+            if (!value.isTextual() || !MCP_RESPONSE_MAPPING_PATH_PATTERN.matcher(value.asText("").trim()).matches()) {
+                throw invalid(plugin, version, context + "." + field + " must be a restricted JSONPath.");
+            }
+        }
+    }
+
+    private String normalizedMcpEnum(String value) {
+        return value == null ? "" : value.trim().replace('-', '_').toUpperCase(Locale.ROOT);
     }
 
     private Set<String> parseWebhookTargets(MarketplacePluginEntity plugin,

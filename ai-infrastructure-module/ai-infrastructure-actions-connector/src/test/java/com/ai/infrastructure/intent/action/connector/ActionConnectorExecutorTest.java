@@ -111,6 +111,39 @@ class ActionConnectorExecutorTest {
     }
 
     @Test
+    void execute_shouldIncludeRuntimeActionConfigInTrace() {
+        StubHttpClient stub = new StubHttpClient(List.of(
+            new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{}}", Map.of())
+        ));
+        ActionConnectorExecutor executor = new ActionConnectorExecutor(
+            connectorProps("https://example", 1, Duration.ZERO),
+            stub,
+            null,
+            fixedClock()
+        );
+
+        executor.execute(
+            "inventory_search",
+            ActionAccessMode.READ,
+            Map.of("query", "bag"),
+            testContext(),
+            Map.of(
+                "adapterType", "mcp-tool",
+                "execution", Map.of("mcp", Map.of("serverRef", "inventory-mcp", "toolName", "inventory.search")),
+                "mcpServers", Map.of("inventory-mcp", Map.of("endpointUrl", "https://inventory.example/mcp"))
+            )
+        );
+
+        Map<String, Object> request = readRequest(stub.lastRequestBody());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trace = (Map<String, Object>) request.get(ActionConnectorProtocol.KEY_TRACE);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actionConfig = (Map<String, Object>) trace.get("actionConfig");
+        assertThat(actionConfig).containsEntry("adapterType", "mcp-tool");
+        assertThat(actionConfig).containsKeys("execution", "mcpServers");
+    }
+
+    @Test
     void execute_shouldRetryOnRetryableErrorCodeWhenIdempotent() {
         StubHttpClient stub = new StubHttpClient(List.of(
             new OutboundHttpExecutionResponse(200, "{\"success\":false,\"errorCode\":\"SERVICE_UNAVAILABLE\",\"message\":\"temp\"}", Map.of()),

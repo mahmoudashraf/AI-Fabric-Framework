@@ -90,6 +90,149 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void mcpServerContributionValidatesTransportAllowlistedAuthAndResponseMapping() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "mcpServers": [
+                  {
+                    "serverRef": "inventory-mcp",
+                    "transport": "streamable-http",
+                    "endpointUrlField": "inventoryMcpEndpoint",
+                    "allowedTools": ["inventory.search"],
+                    "auth": {
+                      "mode": "API_KEY_HEADER_SECRET",
+                      "headerName": "X-MCP-API-Key",
+                      "secretRefField": "inventoryMcpApiKeyRef"
+                    },
+                    "verification": {
+                      "mode": "INITIALIZE_AND_TOOLS_LIST",
+                      "schemaDriftPolicy": "WARN_ONLY"
+                    }
+                  }
+                ],
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "adapterType": "mcp-tool",
+                    "readOnly": true,
+                    "execution": {
+                      "adapterType": "mcp-tool",
+                      "mcp": {
+                        "serverRef": "inventory-mcp",
+                        "toolName": "inventory.search",
+                        "toolSchemaHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "schemaDriftPolicy": "DISABLE_ACTION",
+                        "argumentTemplate": {"query": "{{params.query}}"},
+                        "responseMapping": {
+                          "resultPath": "$.structuredContent.products",
+                          "contentPath": "$.content[0].text"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            service.parseAndValidate(actionPlugin(), version(manifest));
+
+        assertThat(parsed.contributions().actionIds()).containsExactly("inventory_search");
+    }
+
+    @Test
+    void mcpServerContributionRejectsBlockedApiKeyHeaderNames() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "mcpServers": [
+                  {
+                    "serverRef": "inventory-mcp",
+                    "transport": "STREAMABLE_HTTP",
+                    "endpointUrlField": "inventoryMcpEndpoint",
+                    "auth": {
+                      "mode": "API_KEY_HEADER_SECRET",
+                      "headerName": "Authorization",
+                      "secretRefField": "inventoryMcpApiKeyRef"
+                    }
+                  }
+                ],
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "adapterType": "mcp-tool",
+                    "readOnly": true,
+                    "execution": {
+                      "adapterType": "mcp-tool",
+                      "mcp": {
+                        "serverRef": "inventory-mcp",
+                        "toolName": "inventory.search"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("auth headerName is not allowlisted");
+    }
+
+    @Test
+    void mcpActionMustReferenceDeclaredServerWhenServersAreProvided() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "mcpServers": [
+                  {
+                    "serverRef": "inventory-mcp",
+                    "transport": "STREAMABLE_HTTP",
+                    "endpointUrl": "https://inventory.example/mcp"
+                  }
+                ],
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "adapterType": "mcp-tool",
+                    "readOnly": true,
+                    "execution": {
+                      "adapterType": "mcp-tool",
+                      "mcp": {
+                        "serverRef": "other-mcp",
+                        "toolName": "inventory.search"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("does not match contributions.mcpServers");
+    }
+
+    @Test
     void connectorHttpActionManifestStillAllowsRouteBackedActions() {
         String manifest = """
             {
