@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
@@ -19,6 +20,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequ
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
@@ -100,6 +102,7 @@ public class DeploymentVerificationRolloutService {
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
+    private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentService deploymentService;
     private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
@@ -119,6 +122,7 @@ public class DeploymentVerificationRolloutService {
     @Autowired
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
+                                                DeploymentVersionRepository deploymentVersionRepository,
                                                 DeploymentService deploymentService,
                                                 DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                                                 DeploymentAssignmentRepository deploymentAssignmentRepository,
@@ -136,6 +140,7 @@ public class DeploymentVerificationRolloutService {
                                                 @Qualifier("canonicalRolloutExecutor") Executor rolloutExecutor) {
         this.deploymentRepository = deploymentRepository;
         this.releaseRepository = releaseRepository;
+        this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentService = deploymentService;
         this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
@@ -171,6 +176,7 @@ public class DeploymentVerificationRolloutService {
         this(
             deploymentRepository,
             releaseRepository,
+            null,
             deploymentService,
             deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
@@ -206,6 +212,7 @@ public class DeploymentVerificationRolloutService {
         this(
             deploymentRepository,
             releaseRepository,
+            null,
             deploymentService,
             deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
@@ -240,6 +247,7 @@ public class DeploymentVerificationRolloutService {
         this(
             deploymentRepository,
             releaseRepository,
+            null,
             deploymentService,
             null,
             deploymentAssignmentRepository,
@@ -604,7 +612,10 @@ public class DeploymentVerificationRolloutService {
         DeploymentReleaseEntity latestRelease = deployment == null
             ? null
             : releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
-        RolloutReadiness readiness = evaluateReadiness(deployment, latestRelease, missingPrerequisites);
+        DeploymentVersionEntity activeVersion = deployment == null || deploymentVersionRepository == null || !hasText(deployment.getActiveVersionId())
+            ? null
+            : deploymentVersionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        RolloutReadiness readiness = evaluateReadiness(definition, deployment, latestRelease, activeVersion, missingPrerequisites);
 
         return new DeploymentVerificationRolloutItemSummary(
             definition.key(),
@@ -625,12 +636,16 @@ public class DeploymentVerificationRolloutService {
             deployment == null ? null : deployment.getRuntimeBaseUrl(),
             deployment != null && hasText(deployment.getConnectorBaseUrl()),
             readiness.message(),
+            readiness.repairRecommended(),
+            readiness.repairReasons(),
             missingPrerequisites
         );
     }
 
-    private RolloutReadiness evaluateReadiness(DeploymentEntity deployment,
+    private RolloutReadiness evaluateReadiness(VerificationRolloutDefinition definition,
+                                               DeploymentEntity deployment,
                                                DeploymentReleaseEntity latestRelease,
+                                               DeploymentVersionEntity activeVersion,
                                                List<String> missingPrerequisites) {
         if (deployment == null) {
             return new RolloutReadiness(false, "This canonical rollout has not been created yet.");
@@ -667,6 +682,13 @@ public class DeploymentVerificationRolloutService {
                     + "). Resolve the latest rollout failure before using this canonical deployment as verification-ready."
             );
         }
+        List<String> configDriftReasons = canonicalConfigDriftReasons(definition, deployment, activeVersion);
+        if (!configDriftReasons.isEmpty()) {
+            return RolloutReadiness.repairable(
+                "Canonical rollout config drift detected: " + String.join(", ", configDriftReasons),
+                configDriftReasons
+            );
+        }
 
         DeploymentVectorizationVerificationSummary vectorization = deploymentVectorizationVerificationService == null
             ? null
@@ -694,6 +716,43 @@ public class DeploymentVerificationRolloutService {
         }
 
         return new RolloutReadiness(true, "Runtime and the internal connector service are live, and the rollout is ready for hosted verification.");
+    }
+
+    private List<String> canonicalConfigDriftReasons(VerificationRolloutDefinition definition,
+                                                     DeploymentEntity deployment,
+                                                     DeploymentVersionEntity activeVersion) {
+        if (definition == null || deployment == null) {
+            return List.of();
+        }
+        List<String> reasons = new ArrayList<>();
+        String expectedBaseUrl = ecommerceUpstreamBaseUrl();
+        if (activeVersion == null) {
+            if (deploymentVersionRepository == null) {
+                return reasons;
+            }
+            reasons.add("ACTIVE_VERSION_NOT_RESOLVED");
+            return reasons;
+        }
+        JsonNode routingConfig = readJson(activeVersion.getRoutingConfigJson());
+        JsonNode securityConfig = readJson(activeVersion.getSecurityConfigJson());
+        if (!baseUrlsEqual(expectedBaseUrl, routingConfig.path("connector").path("upstream").path("base-url").asText(""))) {
+            reasons.add("CONNECTOR_UPSTREAM_BASE_URL_DRIFT");
+        }
+        if (!baseUrlsEqual(expectedBaseUrl, routingConfig.path("authz").path("upstream").path("base-url").asText(""))) {
+            reasons.add("AUTHZ_UPSTREAM_BASE_URL_DRIFT");
+        }
+        if (!baseUrlsEqual(expectedBaseUrl, securityConfig.path("authzBaseUrl").asText(""))) {
+            reasons.add("SECURITY_AUTHZ_BASE_URL_DRIFT");
+        }
+        if (vectorizationSourceConnectionRepository != null) {
+            vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId()).ifPresent(connection -> {
+                JsonNode connectionConfig = readJson(connection.getConnectionConfigJson());
+                if (!baseUrlsEqual(expectedBaseUrl, connectionConfig.path("baseUrl").asText(""))) {
+                    reasons.add("VECTORIZATION_SOURCE_BASE_URL_DRIFT");
+                }
+            });
+        }
+        return reasons.stream().distinct().toList();
     }
 
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {
@@ -1216,6 +1275,17 @@ public class DeploymentVerificationRolloutService {
         }
     }
 
+    private JsonNode readJson(String json) {
+        if (!hasText(json)) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            return objectMapper.readTree(json);
+        } catch (IOException ex) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
     private ObjectNode ecommerceSecurityConfig(JsonNode source) {
         ObjectNode root = ensureObject(source);
         root.put("authzMode", "REMOTE_HTTP");
@@ -1471,6 +1541,10 @@ public class DeploymentVerificationRolloutService {
         return normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
     }
 
+    private boolean baseUrlsEqual(String expected, String actual) {
+        return normalizeBaseUrl(expected).equals(normalizeBaseUrl(actual));
+    }
+
     private boolean hasConcreteValue(String value) {
         return hasText(value) && !isPlaceholderExpression(value);
     }
@@ -1576,7 +1650,14 @@ public class DeploymentVerificationRolloutService {
         abstract UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft);
     }
 
-    private record RolloutReadiness(boolean ready, String message) {
+    private record RolloutReadiness(boolean ready, String message, boolean repairRecommended, List<String> repairReasons) {
+        RolloutReadiness(boolean ready, String message) {
+            this(ready, message, false, List.of());
+        }
+
+        static RolloutReadiness repairable(String message, List<String> repairReasons) {
+            return new RolloutReadiness(false, message, true, repairReasons == null ? List.of() : List.copyOf(repairReasons));
+        }
     }
 
     private record RolloutExecutionFailure(String displayName, String message) {

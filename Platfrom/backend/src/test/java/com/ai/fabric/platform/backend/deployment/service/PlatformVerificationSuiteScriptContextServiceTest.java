@@ -49,6 +49,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                     "https://runtime.example.test",
                     true,
                     "ready",
+                    false,
+                    List.of(),
                     List.of()
                 )
             )

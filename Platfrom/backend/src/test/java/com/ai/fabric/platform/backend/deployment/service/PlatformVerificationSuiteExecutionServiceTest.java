@@ -202,6 +202,8 @@ class PlatformVerificationSuiteExecutionServiceTest {
                     "https://runtime.example.test/" + key,
                     true,
                     "ready",
+                    false,
+                    List.of(),
                     List.of()
                 ))
                 .toList()

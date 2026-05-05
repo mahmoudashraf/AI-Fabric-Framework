@@ -21,6 +21,8 @@ public record DeploymentVerificationRolloutItemSummary(
     String runtimeBaseUrl,
     boolean connectorProvisioned,
     String readinessMessage,
+    boolean repairRecommended,
+    List<String> repairReasons,
     List<String> missingPrerequisites
 ) {
 }

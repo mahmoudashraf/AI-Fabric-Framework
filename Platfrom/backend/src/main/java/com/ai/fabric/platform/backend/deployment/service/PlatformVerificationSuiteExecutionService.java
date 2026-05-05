@@ -172,7 +172,7 @@ public class PlatformVerificationSuiteExecutionService {
     }
 
     private boolean executeCanonicalRolloutInventory(PlatformVerificationSuiteRunStageEntity stage,
-                                                     boolean allowControlPlaneRepair) {
+                                                     boolean allowControlPlaneRepair) throws InterruptedException {
         markStageRunning(stage, "Resolving canonical rollout inventory and secret readiness.");
         DeploymentVerificationRolloutSummary summary = deploymentVerificationRolloutService.listRollouts();
         List<RolloutAssessment> assessments = assessRollouts(summary);
@@ -185,7 +185,7 @@ public class PlatformVerificationSuiteExecutionService {
             : List.of();
         if (!repairKeys.isEmpty()) {
             deploymentVerificationRolloutService.recreateRollouts(repairKeys);
-            summary = deploymentVerificationRolloutService.listRollouts();
+            summary = awaitCanonicalRolloutRepair(repairKeys);
             assessments = assessRollouts(summary);
             repaired = true;
         }
@@ -206,7 +206,10 @@ public class PlatformVerificationSuiteExecutionService {
                 .put("runtimeBaseUrl", defaultText(assessment.rollout.runtimeBaseUrl(), ""))
                 .put("missingRequiredSecrets", assessment.missingRequiredSecrets)
                 .put("secretSummary", defaultText(assessment.secretSummary, ""))
+                .put("repairRecommended", assessment.rollout.repairRecommended())
                 .put("blockReason", defaultText(assessment.blockReason, ""));
+            ArrayNode repairReasons = item.putArray("repairReasons");
+            assessment.rollout.repairReasons().forEach(repairReasons::add);
             ArrayNode missingPrerequisites = item.putArray("missingPrerequisites");
             assessment.rollout.missingPrerequisites().forEach(missingPrerequisites::add);
             items.add(item);
@@ -227,6 +230,28 @@ public class PlatformVerificationSuiteExecutionService {
         return false;
     }
 
+    private DeploymentVerificationRolloutSummary awaitCanonicalRolloutRepair(List<String> repairKeys) throws InterruptedException {
+        Instant deadline = Instant.now().plus(suiteProperties.timeout());
+        DeploymentVerificationRolloutSummary summary = deploymentVerificationRolloutService.listRollouts();
+        while (Instant.now().isBefore(deadline)) {
+            List<RolloutAssessment> repairAssessments = assessRollouts(summary).stream()
+                .filter(assessment -> repairKeys.contains(assessment.rollout.key()))
+                .toList();
+            boolean allReady = repairAssessments.stream().allMatch(assessment -> assessment.blockReason == null);
+            if (allReady) {
+                return summary;
+            }
+            boolean stillConverging = repairAssessments.stream()
+                .anyMatch(assessment -> assessment.rollout.repairRecommended() || isRolloutApplyInProgress(assessment.rollout));
+            if (!stillConverging) {
+                return summary;
+            }
+            Thread.sleep(suiteProperties.pollInterval().toMillis());
+            summary = deploymentVerificationRolloutService.listRollouts();
+        }
+        return summary;
+    }
+
     private boolean shouldRepairCanonicalRollout(RolloutAssessment assessment) {
         if (assessment == null || assessment.rollout == null) {
             return true;
@@ -239,6 +264,9 @@ public class PlatformVerificationSuiteExecutionService {
         }
         if (isRolloutApplyInProgress(assessment.rollout)) {
             return false;
+        }
+        if (assessment.rollout.repairRecommended()) {
+            return true;
         }
         return isRolloutTerminalFailure(assessment.rollout);
     }
@@ -569,6 +597,8 @@ public class PlatformVerificationSuiteExecutionService {
                     null,
                     false,
                     "Canonical rollout is missing.",
+                    true,
+                    List.of("MISSING_DEPLOYMENT"),
                     List.of("MISSING_DEPLOYMENT")
                 ),
                 "Canonical rollout is missing.",
@@ -593,6 +623,15 @@ public class PlatformVerificationSuiteExecutionService {
                 "Missing required deployment secrets.",
                 false,
                 secretUsage.missingRequiredCount(),
+                secretUsage.summaryMessage()
+            );
+        }
+        if (!rollout.verificationReady()) {
+            return new RolloutAssessment(
+                rollout,
+                defaultText(rollout.readinessMessage(), "Canonical rollout is not verification-ready."),
+                false,
+                0,
                 secretUsage.summaryMessage()
             );
         }
