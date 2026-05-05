@@ -173,7 +173,7 @@ class PlatformVerificationSuiteScriptContextServiceTest {
     }
 
     @Test
-    void buildsMarketplaceInstallFlowContextAsLightweightHostedSmoke() {
+    void buildsMarketplaceInstallFlowContextWithReleaseVectorDefaults() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
         when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
@@ -224,9 +224,11 @@ class PlatformVerificationSuiteScriptContextServiceTest {
 
         assertThat(context.scriptPath()).isEqualTo("scripts/verify-marketplace-install-flow.sh");
         assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
-        assertThat(context.environment()).containsEntry("VALIDATION_TEMPLATE_ID", "dev-openai-memory");
-        assertThat(context.environment()).containsEntry("VALIDATION_VECTOR_PROVISIONING_MODE", "LOCAL_MANAGED");
-        assertThat(context.environment()).containsEntry("MARKETPLACE_INSTALL_FLOW_SHARED_VECTOR_PATCH", "false");
+        assertThat(context.environment()).doesNotContainKeys(
+            "VALIDATION_TEMPLATE_ID",
+            "VALIDATION_VECTOR_PROVISIONING_MODE",
+            "MARKETPLACE_INSTALL_FLOW_SHARED_VECTOR_PATCH"
+        );
         assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
     }
 

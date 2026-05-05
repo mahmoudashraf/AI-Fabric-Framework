@@ -74,7 +74,7 @@ The release blocker is the Platform `full-platform-release-readiness` suite.
 - `shopify-mcp-gateway-verification`
 - `shopify-first-product-readiness-audit`
 
-The suite still includes the generic Marketplace install-flow gate. In staging, that stage uses the lightweight `dev-openai-memory` validation template and does not rewrite the draft to shared Qdrant. The dedicated managed-vector-provider stage remains the release-blocking proof for Qdrant control-plane readiness; the Marketplace install-flow stage proves template bootstrap, ACTION/DATA/INFERENCE plugin install, compile, publish, apply, cleanup, and live query evidence without overloading the shared staging host.
+The suite still includes the generic Marketplace install-flow gate. In staging, that stage must keep the default `dev-openai-qdrant` template and shared Qdrant draft patch because shared-index Marketplace DATA plugins require `vectorStoragePosture=SHARED` on a shared-storage-capable provider. The dedicated managed-vector-provider stage proves Qdrant control-plane readiness; the Marketplace install-flow stage proves that the same shared-vector posture works through template bootstrap, ACTION/DATA/INFERENCE plugin install, compile, publish, apply, cleanup, and live query evidence.
 
 The `shopify-mcp-gateway-verification` stage must prove:
 
