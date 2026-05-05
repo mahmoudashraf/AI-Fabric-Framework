@@ -148,9 +148,14 @@ public class PlatformVerificationSuiteScriptContextService {
     }
 
     private PlatformVerificationScriptContextSummary buildMarketplaceInstallFlow() {
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("VALIDATION_TEMPLATE_ID", "dev-openai-memory");
+        environment.put("VALIDATION_VECTOR_PROVISIONING_MODE", "LOCAL_MANAGED");
+        environment.put("MARKETPLACE_INSTALL_FLOW_SHARED_VECTOR_PATCH", "false");
+
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-marketplace-install-flow.sh",
-            basePlatformEnvironment(),
+            environment,
             basePlatformSecretEnvironment()
         );
     }

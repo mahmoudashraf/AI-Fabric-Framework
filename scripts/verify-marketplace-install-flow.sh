@@ -58,6 +58,7 @@ KEEP_DEPLOYMENT="${KEEP_DEPLOYMENT:-false}"
 VALIDATION_VECTOR_PROVISIONING_MODE="${VALIDATION_VECTOR_PROVISIONING_MODE:-PLATFORM_MANAGED}"
 VALIDATION_SHARED_VECTOR_PROVIDER="${VALIDATION_SHARED_VECTOR_PROVIDER:-aws}"
 VALIDATION_SHARED_VECTOR_REGION="${VALIDATION_SHARED_VECTOR_REGION:-eu-west-1}"
+MARKETPLACE_INSTALL_FLOW_SHARED_VECTOR_PATCH="${MARKETPLACE_INSTALL_FLOW_SHARED_VECTOR_PATCH:-true}"
 
 ACTION_PLUGIN_VERSION="${ACTION_PLUGIN_VERSION:-1.0.0}"
 PACKAGED_DATA_PLUGIN_VERSION="${PACKAGED_DATA_PLUGIN_VERSION:-${DATA_PLUGIN_VERSION:-1.0.0}}"
@@ -844,9 +845,10 @@ VALIDATION_TEMPLATE_ID_EXPECTED="${VALIDATION_TEMPLATE_ID}" \
   json_assert "template bootstrap deployment" $'import os\nassert (data or {}).get("templateId") == os.environ["VALIDATION_TEMPLATE_ID_EXPECTED"]\nprint("ok")'
 pass "template plugin bootstrapped deployment ${DEPLOYMENT_ID}"
 
-fetch_active_draft
-PATCHED_PROVIDER_CONFIG_JSON="$(extract_json_value $'import json\nresult = json.dumps((data or {}).get("providerConfig") or {})')"
-PATCHED_PROVIDER_CONFIG_JSON="$(python3 - <<'PY' "${PATCHED_PROVIDER_CONFIG_JSON}" "${VALIDATION_SHARED_VECTOR_PROVIDER}" "${VALIDATION_SHARED_VECTOR_REGION}"
+if [[ "${MARKETPLACE_INSTALL_FLOW_SHARED_VECTOR_PATCH}" == "true" ]]; then
+  fetch_active_draft
+  PATCHED_PROVIDER_CONFIG_JSON="$(extract_json_value $'import json\nresult = json.dumps((data or {}).get("providerConfig") or {})')"
+  PATCHED_PROVIDER_CONFIG_JSON="$(python3 - <<'PY' "${PATCHED_PROVIDER_CONFIG_JSON}" "${VALIDATION_SHARED_VECTOR_PROVIDER}" "${VALIDATION_SHARED_VECTOR_REGION}"
 import json
 import sys
 
@@ -859,7 +861,7 @@ provider["qdrantCloudRegionId"] = sys.argv[3]
 print(json.dumps(provider))
 PY
 )"
-platform_request "PUT" "/api/deployment-drafts/${DRAFT_ID}" "$(python3 - <<'PY' "${PATCHED_PROVIDER_CONFIG_JSON}"
+  platform_request "PUT" "/api/deployment-drafts/${DRAFT_ID}" "$(python3 - <<'PY' "${PATCHED_PROVIDER_CONFIG_JSON}"
 import json
 import sys
 print(json.dumps({
@@ -867,11 +869,14 @@ print(json.dumps({
 }))
 PY
 )"
-assert_status 200 "deployment draft shared vector patch"
-VALIDATION_SHARED_VECTOR_PROVIDER_EXPECTED="${VALIDATION_SHARED_VECTOR_PROVIDER}" \
-VALIDATION_SHARED_VECTOR_REGION_EXPECTED="${VALIDATION_SHARED_VECTOR_REGION}" \
-  json_assert "deployment draft shared vector patch" $'import os\nprovider = (data or {}).get("providerConfig") or {}\nassert provider.get("vectorStoragePosture") == "SHARED", provider\nassert provider.get("vectorProvisioningMode") == "PLATFORM_MANAGED", provider\nassert provider.get("qdrantManagedCollectionsEnabled") is True, provider\nassert provider.get("qdrantCloudProviderId") == os.environ["VALIDATION_SHARED_VECTOR_PROVIDER_EXPECTED"], provider\nassert provider.get("qdrantCloudRegionId") == os.environ["VALIDATION_SHARED_VECTOR_REGION_EXPECTED"], provider\nprint("ok")'
-pass "deployment draft patched to shared Qdrant vector backing"
+  assert_status 200 "deployment draft shared vector patch"
+  VALIDATION_SHARED_VECTOR_PROVIDER_EXPECTED="${VALIDATION_SHARED_VECTOR_PROVIDER}" \
+  VALIDATION_SHARED_VECTOR_REGION_EXPECTED="${VALIDATION_SHARED_VECTOR_REGION}" \
+    json_assert "deployment draft shared vector patch" $'import os\nprovider = (data or {}).get("providerConfig") or {}\nassert provider.get("vectorStoragePosture") == "SHARED", provider\nassert provider.get("vectorProvisioningMode") == "PLATFORM_MANAGED", provider\nassert provider.get("qdrantManagedCollectionsEnabled") is True, provider\nassert provider.get("qdrantCloudProviderId") == os.environ["VALIDATION_SHARED_VECTOR_PROVIDER_EXPECTED"], provider\nassert provider.get("qdrantCloudRegionId") == os.environ["VALIDATION_SHARED_VECTOR_REGION_EXPECTED"], provider\nprint("ok")'
+  pass "deployment draft patched to shared Qdrant vector backing"
+else
+  pass "deployment draft shared Qdrant vector patch skipped"
+fi
 
 platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/marketplace-installs" "$(python3 - <<'PY' "${ACTION_PLUGIN_ID}" "${ACTION_PLUGIN_VERSION}" "${ACTION_CONFIG_JSON}" "${ACTION_SECRET_REFS_JSON}"
 import json

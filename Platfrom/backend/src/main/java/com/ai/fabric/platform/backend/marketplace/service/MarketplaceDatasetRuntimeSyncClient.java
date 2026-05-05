@@ -68,7 +68,7 @@ public class MarketplaceDatasetRuntimeSyncClient {
             if (!response.path("success").asBoolean(false) || response.path("failedOperations").asInt(0) > 0) {
                 throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Marketplace dataset sync failed for " + datasetId + ": " + response.path("message").asText("batch failure")
+                    "Marketplace dataset sync failed for " + datasetId + ": " + summarizeBatchFailure(response)
                 );
             }
             succeeded += response.path("succeededOperations").asInt(batch.size());
@@ -97,7 +97,7 @@ public class MarketplaceDatasetRuntimeSyncClient {
             if (!response.path("success").asBoolean(false) || response.path("failedOperations").asInt(0) > 0) {
                 throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Marketplace dataset delete failed for " + datasetId + ": " + response.path("message").asText("batch failure")
+                    "Marketplace dataset delete failed for " + datasetId + ": " + summarizeBatchFailure(response)
                 );
             }
             succeeded += response.path("succeededOperations").asInt(batch.size());
@@ -282,6 +282,35 @@ public class MarketplaceDatasetRuntimeSyncClient {
             || statusCode == 502
             || statusCode == 503
             || statusCode == 504;
+    }
+
+    private String summarizeBatchFailure(JsonNode response) {
+        String baseMessage = response == null
+            ? "batch failure"
+            : response.path("message").asText("batch failure");
+        JsonNode results = response == null ? null : response.path("results");
+        if (results == null || !results.isArray()) {
+            return baseMessage;
+        }
+        for (JsonNode result : results) {
+            if (result.path("success").asBoolean(false)) {
+                continue;
+            }
+            StringBuilder details = new StringBuilder(baseMessage);
+            appendDetail(details, "errorCode", result.path("errorCode").asText(""));
+            appendDetail(details, "vectorSpace", result.path("vectorSpace").asText(""));
+            appendDetail(details, "id", result.path("id").asText(""));
+            appendDetail(details, "message", result.path("message").asText(""));
+            return details.toString();
+        }
+        return baseMessage;
+    }
+
+    private void appendDetail(StringBuilder target, String key, String value) {
+        if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.append("; ").append(key.trim()).append("=").append(value.trim());
     }
 
     private void sleepBeforeRetry() {
