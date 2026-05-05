@@ -60,7 +60,7 @@ class CoolifyApiClientTest {
             assertThat(body.has("environment_uuid")).isFalse();
             assertThat(body.has("destination_uuid")).isFalse();
             assertThat(body.has("autogenerate_domain")).isFalse();
-            assertThat(body.path("git_repository").asText()).isEqualTo("https://github.com/example/repo.git");
+            assertThat(body.path("git_repository").asText()).isEqualTo("example/repo.git");
             assertThat(body.path("dockerfile_location").asText()).isEqualTo("/runtime/Dockerfile");
             assertThat(body.path("domains").asText()).isEqualTo("http://dep-123.example.test");
             assertThat(body.path("is_auto_deploy_enabled").asBoolean()).isFalse();

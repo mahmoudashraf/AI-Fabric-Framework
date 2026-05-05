@@ -228,6 +228,22 @@ public class CoolifyApiClient {
         return item;
     }
 
+    private String normalizePublicGitRepository(String repository) {
+        if (!StringUtils.hasText(repository)) {
+            return repository;
+        }
+        String candidate = repository.trim();
+        String lower = candidate.toLowerCase();
+        if (lower.startsWith("https://github.com/") || lower.startsWith("http://github.com/")) {
+            candidate = candidate.substring(candidate.indexOf("github.com/") + "github.com/".length());
+        } else if (lower.startsWith("ssh://git@github.com/")) {
+            candidate = candidate.substring("ssh://git@github.com/".length());
+        } else if (lower.startsWith("git@github.com:")) {
+            candidate = candidate.substring("git@github.com:".length());
+        }
+        return candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+    }
+
     public CoolifyActionResponse start(CoolifyConnection connection, String uuid, boolean force, boolean instantDeploy) {
         return action(
             connection,
@@ -326,7 +342,7 @@ public class CoolifyApiClient {
         put(body, "server_uuid", request.serverUuid());
         put(body, "environment_name", request.environmentName());
         put(body, "environment_uuid", request.environmentUuid());
-        put(body, "git_repository", request.gitRepository());
+        put(body, "git_repository", normalizePublicGitRepository(request.gitRepository()));
         put(body, "git_branch", request.gitBranch());
         put(body, "build_pack", request.buildPack());
         put(body, "base_directory", request.baseDirectory());
@@ -348,7 +364,7 @@ public class CoolifyApiClient {
 
     private ObjectNode publicApplicationUpdateBody(CoolifyCreatePublicApplicationRequest request) {
         ObjectNode body = objectMapper.createObjectNode();
-        put(body, "git_repository", request.gitRepository());
+        put(body, "git_repository", normalizePublicGitRepository(request.gitRepository()));
         put(body, "git_branch", request.gitBranch());
         put(body, "build_pack", request.buildPack());
         put(body, "base_directory", request.baseDirectory());

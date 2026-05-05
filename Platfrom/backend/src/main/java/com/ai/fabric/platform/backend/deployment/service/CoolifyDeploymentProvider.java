@@ -1559,7 +1559,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         String slug = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
         if (slug.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
-            return "https://github.com/" + (slug.endsWith(".git") ? slug : slug + ".git");
+            return slug;
         }
         throw new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
