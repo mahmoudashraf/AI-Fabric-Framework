@@ -201,3 +201,14 @@ Do not print raw secrets while running these checks.
 - the latest release gate reports `READY`
 - the Shopify readiness audit reflects fresh pass evidence
 - launch claims are limited to design-partner readiness until production and external Shopify auth gates are completed
+
+---
+
+## Release Gate Remediation Log
+
+### 2026-05-05
+
+- `full-platform-release-readiness` passed through the new Shopify MCP Gateway stage and then failed in the Shopify first-product readiness audit because the store chat path was still blocked by deployment release posture.
+- The active Shopify Companion deployment had already published the MCP action catalog, but a fresh Coolify apply could reach marketplace DATA sync while the runtime was still serving the previous vector/action configuration.
+- Release gating now treats retryable marketplace dataset runtime `404` responses as a longer deployment-settle window and preserves the runtime error body in Platform failures, so operators can distinguish runtime warmup from real vector-space/config defects.
+- The next required live proof is a fresh staging apply of `dep-8c3e7259` / `ver-9a56e63a`, followed by `full-platform-release-readiness` and `release-gate=READY`.

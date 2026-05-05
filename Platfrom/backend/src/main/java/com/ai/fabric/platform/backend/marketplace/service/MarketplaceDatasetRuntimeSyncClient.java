@@ -31,20 +31,31 @@ public class MarketplaceDatasetRuntimeSyncClient {
     private static final String SCOPE_VECTORIZATION_VERIFICATION = "vectorization:verification";
     private static final String SYSTEM_ISSUER = "platform-marketplace-dataset-sync";
     private static final Duration RUNTIME_REQUEST_TIMEOUT = Duration.ofSeconds(60);
-    private static final int MAX_RUNTIME_ATTEMPTS = 5;
-    private static final long RETRY_SLEEP_MILLIS = 1500L;
+    private static final int DEFAULT_MAX_RUNTIME_ATTEMPTS = 40;
+    private static final long DEFAULT_RETRY_SLEEP_MILLIS = 3000L;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final PlatformSecretService platformSecretService;
+    private final int maxRuntimeAttempts;
+    private final long retrySleepMillis;
 
     public MarketplaceDatasetRuntimeSyncClient(ObjectMapper objectMapper,
                                                PlatformSecretService platformSecretService) {
+        this(objectMapper, platformSecretService, DEFAULT_MAX_RUNTIME_ATTEMPTS, DEFAULT_RETRY_SLEEP_MILLIS);
+    }
+
+    MarketplaceDatasetRuntimeSyncClient(ObjectMapper objectMapper,
+                                        PlatformSecretService platformSecretService,
+                                        int maxRuntimeAttempts,
+                                        long retrySleepMillis) {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
         this.objectMapper = objectMapper;
         this.platformSecretService = platformSecretService;
+        this.maxRuntimeAttempts = Math.max(1, maxRuntimeAttempts);
+        this.retrySleepMillis = Math.max(0L, retrySleepMillis);
     }
 
     public int upsertDocuments(DeploymentEntity deployment,
@@ -130,24 +141,26 @@ public class MarketplaceDatasetRuntimeSyncClient {
         HttpRequest request = requestBuilder
             .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
             .build();
-        for (int attempt = 1; attempt <= MAX_RUNTIME_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= maxRuntimeAttempts; attempt++) {
             try {
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
                 if (response.statusCode() >= 200 && response.statusCode() < 300) {
                     return StringUtils.hasText(response.body()) ? objectMapper.readTree(response.body()) : objectMapper.createObjectNode();
                 }
-                if (attempt < MAX_RUNTIME_ATTEMPTS && isRetryableStatus(response.statusCode())) {
+                if (attempt < maxRuntimeAttempts && isRetryableStatus(response.statusCode())) {
                     sleepBeforeRetry();
                     continue;
                 }
                 throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Marketplace dataset sync runtime batch failed with HTTP " + response.statusCode() + "."
+                    "Marketplace dataset sync runtime batch failed with HTTP "
+                        + response.statusCode()
+                        + summarizeHttpFailure(response.body())
                 );
             } catch (ResponseStatusException ex) {
                 throw ex;
             } catch (Exception ex) {
-                if (attempt < MAX_RUNTIME_ATTEMPTS) {
+                if (attempt < maxRuntimeAttempts) {
                     sleepBeforeRetry();
                     continue;
                 }
@@ -315,11 +328,42 @@ public class MarketplaceDatasetRuntimeSyncClient {
 
     private void sleepBeforeRetry() {
         try {
-            Thread.sleep(RETRY_SLEEP_MILLIS);
+            if (retrySleepMillis > 0) {
+                Thread.sleep(retrySleepMillis);
+            }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Marketplace dataset sync retry was interrupted.", ex);
         }
+    }
+
+    private String summarizeHttpFailure(String body) {
+        if (!StringUtils.hasText(body)) {
+            return ".";
+        }
+        String summary = null;
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            if (root.isObject()) {
+                String batchFailure = summarizeBatchFailure(root);
+                StringBuilder details = new StringBuilder(batchFailure);
+                appendDetail(details, "errorCode", root.path("errorCode").asText(""));
+                appendDetail(details, "error", root.path("error").asText(""));
+                appendDetail(details, "status", root.path("status").asText(""));
+                appendDetail(details, "path", root.path("path").asText(""));
+                summary = details.toString();
+            }
+        } catch (Exception ignored) {
+            summary = body;
+        }
+        if (!StringUtils.hasText(summary)) {
+            summary = body;
+        }
+        String normalized = summary.replaceAll("\\s+", " ").trim();
+        if (normalized.length() > 500) {
+            normalized = normalized.substring(0, 500) + "...";
+        }
+        return ": " + normalized + ".";
     }
 
     private void putIfText(ObjectNode target, String key, String value) {
