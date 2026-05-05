@@ -26,35 +26,38 @@ public class McpGatewayController {
 
     private final McpGatewayExecutionService executionService;
     private final McpGatewayProperties properties;
+    private final Instant serverStartedAt;
 
     public McpGatewayController(McpGatewayExecutionService executionService,
                                 McpGatewayProperties properties) {
         this.executionService = executionService;
         this.properties = properties;
+        this.serverStartedAt = Instant.now();
     }
 
     @GetMapping("/api/admin/overview")
     public Map<String, Object> overview() {
-        return Map.of(
-            "status", properties.internalApiKeyConfigured() ? "READY" : "BLOCKED",
-            "message", properties.internalApiKeyConfigured()
+        return Map.ofEntries(
+            Map.entry("status", properties.internalApiKeyConfigured() ? "READY" : "BLOCKED"),
+            Map.entry("message", properties.internalApiKeyConfigured()
                 ? "MCP execution gateway is configured."
-                : "MCP gateway internal API key is not configured.",
-            "appName", "MCP Execution Gateway Service",
-            "productFamily", "MCP",
-            "serviceKind", "MCP_EXECUTION_GATEWAY_SERVICE",
-            "environmentScope", properties.environmentScope(),
-            "adminApiKeyConfigured", properties.internalApiKeyConfigured(),
-            "serverStartedAt", Instant.now().toString(),
-            "capabilities", java.util.List.of(
+                : "MCP gateway internal API key is not configured."),
+            Map.entry("appName", "MCP Execution Gateway Service"),
+            Map.entry("serviceRef", properties.serviceRef()),
+            Map.entry("productFamily", "MCP"),
+            Map.entry("serviceKind", "MCP_EXECUTION_GATEWAY_SERVICE"),
+            Map.entry("environmentScope", properties.environmentScope()),
+            Map.entry("adminApiKeyConfigured", properties.internalApiKeyConfigured()),
+            Map.entry("serverStartedAt", serverStartedAt.toString()),
+            Map.entry("capabilities", java.util.List.of(
                 "mcp.initialize",
                 "mcp.tools.list",
                 "mcp.tools.call",
                 "mcp.servers.verify",
                 "marketplace.mcp.discovery",
                 "actions.adapterType.mcp-tool"
-            ),
-            "notYetImplemented", java.util.List.of()
+            )),
+            Map.entry("notYetImplemented", java.util.List.of())
         );
     }
 
