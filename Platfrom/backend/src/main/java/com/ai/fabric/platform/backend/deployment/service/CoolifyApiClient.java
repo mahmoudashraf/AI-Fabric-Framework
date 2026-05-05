@@ -250,14 +250,20 @@ public class CoolifyApiClient {
         }
         String candidate = repository.trim();
         String lower = candidate.toLowerCase();
-        if (lower.startsWith("https://github.com/") || lower.startsWith("http://github.com/")) {
-            candidate = candidate.substring(candidate.indexOf("github.com/") + "github.com/".length());
-        } else if (lower.startsWith("ssh://git@github.com/")) {
-            candidate = candidate.substring("ssh://git@github.com/".length());
+        if (lower.startsWith("ssh://git@github.com/")) {
+            candidate = "git@github.com:" + candidate.substring("ssh://git@github.com/".length());
         } else if (lower.startsWith("git@github.com:")) {
-            candidate = candidate.substring("git@github.com:".length());
+            return trimTrailingGitSuffix(candidate);
+        } else if (!lower.startsWith("https://")
+            && !lower.startsWith("http://")
+            && !lower.startsWith("git://")) {
+            candidate = "https://github.com/" + candidate;
         }
-        return candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+        return trimTrailingGitSuffix(candidate.replaceAll("/+$", ""));
+    }
+
+    private String trimTrailingGitSuffix(String value) {
+        return value.endsWith(".git") ? value.substring(0, value.length() - ".git".length()) : value;
     }
 
     public CoolifyActionResponse start(CoolifyConnection connection, String uuid, boolean force, boolean instantDeploy) {
