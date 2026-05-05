@@ -224,6 +224,7 @@ class PlatformVerificationSuiteScriptContextServiceTest {
 
         assertThat(context.scriptPath()).isEqualTo("scripts/verify-marketplace-install-flow.sh");
         assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE", "false");
         assertThat(context.environment()).doesNotContainKeys(
             "VALIDATION_TEMPLATE_ID",
             "VALIDATION_VECTOR_PROVISIONING_MODE",

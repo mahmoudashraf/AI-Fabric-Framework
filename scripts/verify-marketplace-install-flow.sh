@@ -37,6 +37,7 @@ MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS="${MARKETPLACE_POC_QUERY_RETRY_ATTEMPTS:-6}
 MARKETPLACE_POC_QUERY_RETRY_SLEEP_SECONDS="${MARKETPLACE_POC_QUERY_RETRY_SLEEP_SECONDS:-8}"
 MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS="${MARKETPLACE_QUERY_EVIDENCE_RETRY_ATTEMPTS:-6}"
 MARKETPLACE_QUERY_EVIDENCE_RETRY_SLEEP_SECONDS="${MARKETPLACE_QUERY_EVIDENCE_RETRY_SLEEP_SECONDS:-5}"
+MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE="${MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE:-true}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TEMPLATE_PLUGIN_ID="${TEMPLATE_PLUGIN_ID:-mkp-template-support-desk-shell}"
@@ -1016,6 +1017,20 @@ public_request "${MANIFEST_ARTIFACT_URL}"
 assert_status 200 "manifest artifact fetch"
 json_assert "manifest artifact fetch" $'manifest = data or {}\nprovider = manifest.get("providerConfig") or {}\ninference = provider.get("marketplaceInference") or {}\nassert bool(manifest.get("marketplaceDatasetConfig")), manifest\nassert bool(manifest.get("knowledgeSourceConfig")), manifest\nassert bool(manifest.get("shellConfig")), manifest\nassert provider.get("generationBaseUrl") == "https://api.openai.com/v1", provider\nassert provider.get("generationApiKeySecretRef") == "OPENAI_API_KEY", provider\nassert provider.get("openaiEmbeddingModel") == "text-embedding-3-small", provider\nassert "customer-openai" in (inference.get("profileIds") or []), inference\nprint("ok")'
 pass "published artifacts expose marketplace dataset outputs"
+
+if [[ "${MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE}" != "true" ]]; then
+  echo ""
+  echo "Deployment: ${DEPLOYMENT_ID}"
+  echo "Published version: ${PUBLISHED_VERSION_ID}"
+  echo "Release: skipped"
+  echo "Action install: ${ACTION_INSTALL_ID}"
+  echo "Packaged data install: ${PACKAGED_DATA_INSTALL_ID}"
+  echo "SQL data install: ${SQL_DATA_INSTALL_ID}"
+  echo "Folder data install: ${FOLDER_DATA_INSTALL_ID}"
+  echo "Inference install: ${INFERENCE_INSTALL_ID}"
+  pass "marketplace install flow control-plane verification"
+  exit 0
+fi
 
 apply_published_version
 wait_for_release_verification

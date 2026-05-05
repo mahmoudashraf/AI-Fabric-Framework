@@ -138,6 +138,8 @@ Production is supported by target profile, but production deployment is explicit
 
 Plan 009.3 makes market readiness release-gated: the Shopify MCP product is design-partner ready only after staging `full-platform-release-readiness` passes with `shopify-mcp-gateway-verification`, `shopify-companion-verification`, and `shopify-first-product-readiness-audit` included.
 
+The hosted full suite runs `marketplace-install-flow` with `MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE=false`. That keeps Marketplace plugin bootstrap, compile, publish, artifact, shared-vector posture, and cleanup release-blocking without launching a new heavyweight validation runtime on the shared staging host; the later canonical hosted verification stages remain responsible for runtime apply and live query evidence.
+
 ---
 
 ## 5. Adding A New MCP Server

@@ -149,6 +149,7 @@ public class PlatformVerificationSuiteScriptContextService {
 
     private PlatformVerificationScriptContextSummary buildMarketplaceInstallFlow() {
         Map<String, String> environment = basePlatformEnvironment();
+        environment.put("MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE", "false");
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-marketplace-install-flow.sh",
