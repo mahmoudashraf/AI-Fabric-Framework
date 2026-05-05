@@ -1042,7 +1042,25 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 : source.dockerfileLocation());
         }
         putEnv(env, "PLATFORM_ENVIRONMENT_NAME", profile.getEnvironmentName());
-        return new ArrayList<>(env.values());
+        return withPreviewEnvironment(new ArrayList<>(env.values()));
+    }
+
+    private List<CoolifyEnvVar> withPreviewEnvironment(List<CoolifyEnvVar> envVars) {
+        List<CoolifyEnvVar> expanded = new ArrayList<>();
+        for (CoolifyEnvVar envVar : envVars) {
+            expanded.add(envVar);
+            if (!envVar.preview()) {
+                expanded.add(new CoolifyEnvVar(
+                    envVar.key(),
+                    envVar.value(),
+                    true,
+                    envVar.literal(),
+                    envVar.multiline(),
+                    envVar.shownOnce()
+                ));
+            }
+        }
+        return expanded;
     }
 
     private void putEnv(LinkedHashMap<String, CoolifyEnvVar> env, String key, String value) {

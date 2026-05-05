@@ -592,11 +592,19 @@ class CoolifyDeploymentProviderTest {
         assertThat(runtimeEnvByKey.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY").value())
             .isEqualTo("runtime-secret");
         assertThat(runtimeEnvByKey.get("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY").shownOnce()).isTrue();
+        assertThat(runtimeEnv.getValue())
+            .filteredOn(env -> "PLATFORM_DEPLOYMENT_VERSION_ID".equals(env.key()))
+            .extracting(CoolifyEnvVar::preview)
+            .containsExactly(false, true);
         assertThat(connectorEnvByKey.get("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL").value())
             .isEqualTo("http://dep-123.runtime.example.test");
         assertThat(connectorEnvByKey.get("REST_CONNECTOR_RUNTIME_PROXY_API_KEY").value())
             .isEqualTo("runtime-secret");
         assertThat(connectorEnvByKey.get("REST_CONNECTOR_RUNTIME_PROXY_API_KEY").shownOnce()).isTrue();
+        assertThat(connectorEnv.getValue())
+            .filteredOn(env -> "PLATFORM_DEPLOYMENT_VERSION_ID".equals(env.key()))
+            .extracting(CoolifyEnvVar::preview)
+            .containsExactly(false, true);
         verifyNoInteractions(sourceArtifactService);
     }
 
@@ -857,6 +865,8 @@ class CoolifyDeploymentProviderTest {
     }
 
     private Map<String, CoolifyEnvVar> envByKey(List<CoolifyEnvVar> env) {
-        return env.stream().collect(Collectors.toMap(CoolifyEnvVar::key, item -> item));
+        return env.stream()
+            .filter(item -> !item.preview())
+            .collect(Collectors.toMap(CoolifyEnvVar::key, item -> item));
     }
 }
