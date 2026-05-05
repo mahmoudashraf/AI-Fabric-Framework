@@ -73,7 +73,7 @@
         "shopifyPageModeGroup": "product"
       },
       "expectedBehavior": "grounded_product_faq",
-      "requiredConcepts": ["product"],
+      "requiredConcepts": ["material"],
       "forbiddenClaims": [],
       "expectedDenial": false,
       "groundingRequired": true
