@@ -138,6 +138,20 @@ public class CoolifyApiClient {
         return Optional.of(toApplication(response));
     }
 
+    public Optional<CoolifyDeploymentSummary> getDeployment(CoolifyConnection connection, String deploymentUuid) {
+        JsonNode response = requestJson(
+            connection,
+            "GET",
+            "/deployments/" + encodePath(deploymentUuid),
+            null,
+            false
+        );
+        if (response == null || response.isMissingNode() || response.isNull()) {
+            return Optional.empty();
+        }
+        return Optional.of(toDeployment(response));
+    }
+
     public String createDockerImageApplication(CoolifyConnection connection,
                                                CoolifyCreateDockerImageApplicationRequest request) {
         ObjectNode body = dockerImageApplicationBody(request);
@@ -494,6 +508,22 @@ public class CoolifyApiClient {
         );
     }
 
+    private CoolifyDeploymentSummary toDeployment(JsonNode node) {
+        JsonNode application = node.path("application");
+        return new CoolifyDeploymentSummary(
+            textFirst(node, "deployment_uuid", "deploymentUuid", "uuid"),
+            firstNonBlank(textFirst(node, "application_name", "applicationName"), textFirst(application, "name")),
+            textFirst(application, "uuid"),
+            textFirst(node, "status", "state", "deployment_status"),
+            textFirst(node, "commit"),
+            textFirst(node, "commit_message", "commitMessage"),
+            textFirst(node, "created_at", "createdAt"),
+            textFirst(node, "updated_at", "updatedAt"),
+            textFirst(node, "finished_at", "finishedAt"),
+            node
+        );
+    }
+
     private CoolifyEnvironmentSummary toEnvironment(String projectUuid, JsonNode node) {
         return new CoolifyEnvironmentSummary(
             textFirst(node, "uuid"),
@@ -530,6 +560,10 @@ public class CoolifyApiClient {
             }
         }
         return null;
+    }
+
+    private String firstNonBlank(String left, String right) {
+        return StringUtils.hasText(left) ? left.trim() : StringUtils.hasText(right) ? right.trim() : null;
     }
 
     private void put(ObjectNode body, String field, String value) {

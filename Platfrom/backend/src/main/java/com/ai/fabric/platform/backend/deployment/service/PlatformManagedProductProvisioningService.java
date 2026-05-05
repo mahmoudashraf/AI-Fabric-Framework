@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -433,8 +434,12 @@ public class PlatformManagedProductProvisioningService {
                 buildCoolifyServiceEnv(service, publicBaseUrl)
             );
             CoolifyActionResponse deployResponse = coolifyApiClient.start(binding.connection(), application.uuid(), true, true);
-            CoolifyApplicationSummary observed = coolifyApiClient.getApplication(binding.connection(), application.uuid())
-                .orElse(application);
+            CoolifyApplicationSummary observed = awaitCoolifyDeployment(
+                binding.connection(),
+                application.uuid(),
+                application,
+                deployResponse
+            );
             finalizeActiveCoolifyService(
                 service,
                 binding.profile().getId(),
@@ -482,8 +487,14 @@ public class PlatformManagedProductProvisioningService {
         CoolifyBinding binding = resolveCoolifyBinding(service);
         try {
             CoolifyActionResponse response = coolifyApiClient.restart(binding.connection(), applicationUuid);
-            CoolifyApplicationSummary observed = coolifyApiClient.getApplication(binding.connection(), applicationUuid)
+            CoolifyApplicationSummary existing = coolifyApiClient.getApplication(binding.connection(), applicationUuid)
                 .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify application not found: " + applicationUuid));
+            CoolifyApplicationSummary observed = awaitCoolifyDeployment(
+                binding.connection(),
+                applicationUuid,
+                existing,
+                response
+            );
             finalizeActiveCoolifyService(
                 service,
                 binding.profile().getId(),
@@ -663,6 +674,72 @@ public class PlatformManagedProductProvisioningService {
             }
         }
         throw new ResponseStatusException(CONFLICT, "Timed out waiting for Coolify application deletion: " + applicationUuid);
+    }
+
+    private CoolifyApplicationSummary awaitCoolifyDeployment(CoolifyConnection connection,
+                                                             String applicationUuid,
+                                                             CoolifyApplicationSummary fallback,
+                                                             CoolifyActionResponse deployResponse) {
+        String deploymentUuid = deployResponse == null ? null : trimToNull(deployResponse.deploymentUuid());
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        Duration pollInterval = productProvisioningProperties.pollInterval();
+        CoolifyApplicationSummary latest = fallback;
+        CoolifyDeploymentSummary deployment = null;
+        while (Instant.now().isBefore(deadline)) {
+            if (hasText(deploymentUuid)) {
+                deployment = coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+            }
+            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+            if (coolifyDeploymentFailed(deployment)) {
+                throw new IllegalStateException(
+                    "Coolify deployment failed for managed product service application " + applicationUuid
+                        + " (deployment=" + deployment.deploymentUuid()
+                        + ", status=" + deployment.status() + ")."
+                );
+            }
+            boolean deploymentReady = !hasText(deploymentUuid) || coolifyDeploymentFinished(deployment);
+            if (deploymentReady && coolifyApplicationReady(latest)) {
+                return latest;
+            }
+            try {
+                Thread.sleep(Math.max(pollInterval.toMillis(), 250L));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for Coolify deployment.", ex);
+            }
+        }
+        throw new ResponseStatusException(CONFLICT, "Timed out waiting for Coolify deployment: " + applicationUuid);
+    }
+
+    private boolean coolifyApplicationReady(CoolifyApplicationSummary application) {
+        if (application == null || !hasText(application.status())) {
+            return false;
+        }
+        String normalized = upper(application.status());
+        return normalized.startsWith("RUNNING") && !normalized.contains("UNHEALTHY");
+    }
+
+    private boolean coolifyDeploymentFinished(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) {
+            return false;
+        }
+        String normalized = upper(deployment.status());
+        return normalized.equals("FINISHED")
+            || normalized.equals("SUCCESS")
+            || normalized.equals("SUCCEEDED")
+            || normalized.equals("COMPLETED")
+            || hasText(deployment.finishedAt()) && !coolifyDeploymentFailed(deployment);
+    }
+
+    private boolean coolifyDeploymentFailed(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) {
+            return false;
+        }
+        String normalized = upper(deployment.status());
+        return normalized.contains("FAILED")
+            || normalized.contains("ERROR")
+            || normalized.contains("CANCELLED")
+            || normalized.contains("CANCELED");
     }
 
     private boolean deleteCoolifyApplicationIfPresent(CoolifyConnection connection, String applicationUuid) {

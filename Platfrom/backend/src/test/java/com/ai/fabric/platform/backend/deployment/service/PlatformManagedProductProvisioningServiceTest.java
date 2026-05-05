@@ -26,6 +26,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -340,6 +341,7 @@ class PlatformManagedProductProvisioningServiceTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("coolify-app-new"), any())).thenReturn(11);
         when(coolifyApiClient.start(connection, "coolify-app-new", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-new", new ObjectMapper().createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
 
         PlatformManagedProductProvisioningService provisioningService = new PlatformManagedProductProvisioningService(
             new PlatformProvisioningProperties(null, null, null, "mahmoudashraf/AI-Fabric-Framework", "Platform-V8", "staging", "ws-123", null, null, null, null, null, null, 32, null, null, false, false, 60_000, Duration.ofSeconds(1), Duration.ofSeconds(5)),
@@ -415,6 +417,7 @@ class PlatformManagedProductProvisioningServiceTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(stagingConnection), eq("coolify-app-staging"), any())).thenReturn(11);
         when(coolifyApiClient.start(stagingConnection, "coolify-app-staging", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-staging", new ObjectMapper().createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, stagingConnection);
 
         PlatformManagedProductProvisioningService provisioningService = newCoolifyProvisioningService(
             serviceService,
@@ -486,6 +489,7 @@ class PlatformManagedProductProvisioningServiceTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(productionConnection), eq("coolify-app-production"), any())).thenReturn(11);
         when(coolifyApiClient.start(productionConnection, "coolify-app-production", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-production", new ObjectMapper().createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, productionConnection);
 
         PlatformManagedProductProvisioningService provisioningService = newCoolifyProvisioningService(
             serviceService,
@@ -925,6 +929,26 @@ class PlatformManagedProductProvisioningServiceTest {
         gateway.setStatus("ACTIVE");
         when(serviceRepository.findByServiceRefIgnoreCase("mcp-execution-gateway")).thenReturn(Optional.of(gateway));
         when(platformSecretService.resolveSecret("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY")).thenReturn("gateway-secret");
+    }
+
+    private void stubFinishedDeployments(CoolifyApiClient coolifyApiClient, CoolifyConnection connection) {
+        when(coolifyApiClient.getDeployment(eq(connection), anyString()))
+            .thenAnswer(invocation -> Optional.of(finishedDeployment(invocation.getArgument(1))));
+    }
+
+    private CoolifyDeploymentSummary finishedDeployment(String deploymentUuid) {
+        return new CoolifyDeploymentSummary(
+            deploymentUuid,
+            "mcp-gateway-mcp-execution-gateway",
+            "coolify-app",
+            "finished",
+            "HEAD",
+            "test deploy",
+            "2026-05-05T00:00:00Z",
+            "2026-05-05T00:00:01Z",
+            "2026-05-05T00:00:01Z",
+            new ObjectMapper().createObjectNode()
+        );
     }
 
     private PlatformManagedProductServiceSummary summary(PlatformManagedProductServiceEntity service) {

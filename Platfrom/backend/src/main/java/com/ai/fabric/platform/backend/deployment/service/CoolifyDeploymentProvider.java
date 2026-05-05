@@ -353,11 +353,18 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 "Trigger Coolify deployment for the REST connector application.",
                 () -> coolifyApiClient.start(connection, finalConnectorApplication.uuid(), true, true)
             );
+            CoolifyActionResponse finalConnectorDeployResponse = connectorDeployResponse;
             observedConnector = tracked(
                 progressTracker,
                 "wait_for_coolify_connector",
                 "Wait for Coolify to report the REST connector application running.",
-                () -> waitForApplicationReady(connection, finalConnectorApplication.uuid(), resourceDefaults, finalConnectorApplication)
+                () -> waitForApplicationReady(
+                    connection,
+                    finalConnectorApplication.uuid(),
+                    resourceDefaults,
+                    finalConnectorApplication,
+                    finalConnectorDeployResponse
+                )
             );
         }
 
@@ -372,7 +379,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             progressTracker,
             "wait_for_coolify_runtime",
             "Wait for Coolify to report the application running before Platform verification.",
-            () -> waitForApplicationReady(connection, runtimeApplication.uuid(), resourceDefaults, runtimeApplication)
+            () -> waitForApplicationReady(
+                connection,
+                runtimeApplication.uuid(),
+                resourceDefaults,
+                runtimeApplication,
+                runtimeDeployResponse
+            )
         );
 
         CoolifyApplicationSummary finalObservedConnector = observedConnector;
@@ -1283,7 +1296,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private CoolifyApplicationSummary waitForApplicationReady(CoolifyConnection connection,
                                                               String applicationUuid,
                                                               JsonNode resourceDefaults,
-                                                              CoolifyApplicationSummary fallback) {
+                                                              CoolifyApplicationSummary fallback,
+                                                              CoolifyActionResponse deployResponse) {
         Duration timeout = durationSeconds(
             resourceDefaults,
             "deploySettleTimeoutSeconds",
@@ -1296,6 +1310,30 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
         Instant deadline = Instant.now().plus(timeout);
         CoolifyApplicationSummary latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(fallback);
+        String deploymentUuid = deployResponse == null ? null : deployResponse.deploymentUuid();
+        CoolifyDeploymentSummary deployment = observeCoolifyDeployment(connection, deploymentUuid);
+        while (!coolifyDeploymentReady(deployment, deploymentUuid) && Instant.now().isBefore(deadline)) {
+            try {
+                Thread.sleep(pollInterval.toMillis());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return latest;
+            }
+            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+            deployment = observeCoolifyDeployment(connection, deploymentUuid);
+        }
+        if (!coolifyDeploymentReady(deployment, deploymentUuid)) {
+            throw new IllegalStateException(
+                "Timed out waiting for Coolify deployment to finish for application " + applicationUuid + "."
+            );
+        }
+        if (coolifyDeploymentFailed(deployment)) {
+            throw new IllegalStateException(
+                "Coolify deployment failed for application " + applicationUuid
+                    + " (deployment=" + deployment.deploymentUuid()
+                    + ", status=" + deployment.status() + ")."
+            );
+        }
         while (!applicationReady(latest) && Instant.now().isBefore(deadline)) {
             try {
                 Thread.sleep(pollInterval.toMillis());
@@ -1306,6 +1344,43 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
         }
         return latest;
+    }
+
+    private CoolifyDeploymentSummary observeCoolifyDeployment(CoolifyConnection connection, String deploymentUuid) {
+        if (!StringUtils.hasText(deploymentUuid)) {
+            return null;
+        }
+        return coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+    }
+
+    private boolean coolifyDeploymentReady(CoolifyDeploymentSummary deployment, String deploymentUuid) {
+        if (!StringUtils.hasText(deploymentUuid)) {
+            return true;
+        }
+        return deployment != null && (coolifyDeploymentFinished(deployment) || coolifyDeploymentFailed(deployment));
+    }
+
+    private boolean coolifyDeploymentFinished(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) {
+            return false;
+        }
+        String normalized = normalizeStatus(deployment.status(), "");
+        return normalized.equals("FINISHED")
+            || normalized.equals("SUCCESS")
+            || normalized.equals("SUCCEEDED")
+            || normalized.equals("COMPLETED")
+            || StringUtils.hasText(deployment.finishedAt()) && !coolifyDeploymentFailed(deployment);
+    }
+
+    private boolean coolifyDeploymentFailed(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) {
+            return false;
+        }
+        String normalized = normalizeStatus(deployment.status(), "");
+        return normalized.contains("FAILED")
+            || normalized.contains("ERROR")
+            || normalized.contains("CANCELLED")
+            || normalized.contains("CANCELED");
     }
 
     private Duration durationSeconds(JsonNode root, String field, Duration fallback) {

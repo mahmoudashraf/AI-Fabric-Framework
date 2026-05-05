@@ -100,6 +100,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(6);
         when(coolifyApiClient.start(connection, "app-uuid", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -182,6 +183,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(10);
         when(coolifyApiClient.start(connection, "app-uuid", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -296,6 +298,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(3);
         when(coolifyApiClient.start(connection, "app-uuid", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -405,6 +408,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(10);
         when(coolifyApiClient.start(connection, "app-uuid", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -543,6 +547,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("new-app"), any())).thenReturn(8);
         when(coolifyApiClient.start(connection, "new-app", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -653,6 +658,7 @@ class CoolifyDeploymentProviderTest {
             .thenReturn(new CoolifyActionResponse("Runtime deployment queued.", "runtime-deploy", objectMapper.createObjectNode()));
         when(coolifyApiClient.start(connection, "connector-uuid", true, true))
             .thenReturn(new CoolifyActionResponse("Connector deployment queued.", "connector-deploy", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
@@ -990,5 +996,25 @@ class CoolifyDeploymentProviderTest {
         return env.stream()
             .filter(item -> !item.preview())
             .collect(Collectors.toMap(CoolifyEnvVar::key, item -> item));
+    }
+
+    private void stubFinishedDeployments(CoolifyApiClient coolifyApiClient, CoolifyConnection connection) {
+        when(coolifyApiClient.getDeployment(eq(connection), anyString()))
+            .thenAnswer(invocation -> Optional.of(finishedDeployment(invocation.getArgument(1))));
+    }
+
+    private CoolifyDeploymentSummary finishedDeployment(String deploymentUuid) {
+        return new CoolifyDeploymentSummary(
+            deploymentUuid,
+            "runtime-dep-123",
+            "app-uuid",
+            "finished",
+            "HEAD",
+            "test deploy",
+            "2026-05-05T00:00:00Z",
+            "2026-05-05T00:00:01Z",
+            "2026-05-05T00:00:01Z",
+            objectMapper.createObjectNode()
+        );
     }
 }

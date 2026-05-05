@@ -203,6 +203,25 @@ class CoolifyApiClientTest {
         }
     }
 
+    @Test
+    void getDeploymentReadsCoolifyDeploymentStatusByUuid() throws Exception {
+        HttpServer server = deploymentServer();
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            CoolifyDeploymentSummary deployment = client.getDeployment(connection(server), "deploy-uuid")
+                .orElseThrow();
+
+            assertThat(deployment.deploymentUuid()).isEqualTo("deploy-uuid");
+            assertThat(deployment.applicationName()).isEqualTo("runtime-dep-123");
+            assertThat(deployment.applicationUuid()).isEqualTo("app-uuid");
+            assertThat(deployment.status()).isEqualTo("finished");
+            assertThat(deployment.finishedAt()).isEqualTo("2026-05-05T18:28:52.000000Z");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private HttpServer patchServer(AtomicReference<String> observedBody) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/applications/app-uuid", exchange -> {
@@ -316,6 +335,34 @@ class CoolifyApiClientTest {
                 return;
             }
             sendJson(exchange, 200, "{\"logs\":\"Bridge started\\nReady\"}");
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer deploymentServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/deployments/deploy-uuid", exchange -> {
+            if (!"GET".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            sendJson(exchange, 200, """
+                {
+                  "deployment_uuid": "deploy-uuid",
+                  "status": "finished",
+                  "commit": "cdc9ef4",
+                  "commit_message": "Resolve managed vector env for Coolify deployments",
+                  "created_at": "2026-05-05T18:26:01.000000Z",
+                  "updated_at": "2026-05-05T18:28:52.000000Z",
+                  "finished_at": "2026-05-05T18:28:52.000000Z",
+                  "application": {
+                    "uuid": "app-uuid",
+                    "name": "runtime-dep-123"
+                  }
+                }
+                """);
         });
         server.start();
         return server;
