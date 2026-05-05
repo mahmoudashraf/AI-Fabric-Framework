@@ -541,6 +541,54 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryAppliesContextModeForComparisonSurface() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+        when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
+            {
+              "query":"Compare this with similar options and tell me who should choose each one.",
+              "mode":"navigator_deep",
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "contentText":"Page type: product. Shopify surface: comparison. Shopify mode: navigator_deep",
+                  "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"comparison",
+                    "shopifyEffectiveConversationMode":"navigator_deep"
+                  }
+                }
+              ]
+            }
+            """), "shopper-session-1")).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Compared store options."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Compare this with similar options and tell me who should choose each one.",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"comparison",
+                    "shopifyEffectiveConversationMode":"navigator_deep"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+    }
+
+    @Test
     void queryMirrorsThinkerAnswerIntoWidgetSanitizedPayload() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);

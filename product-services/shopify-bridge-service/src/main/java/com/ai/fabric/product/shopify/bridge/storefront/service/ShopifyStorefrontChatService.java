@@ -44,6 +44,13 @@ public class ShopifyStorefrontChatService {
         "chat",
         "depth"
     );
+    private static final Set<String> MODE_CONTROL_SURFACE_ENTRIES = Set.of(
+        "launcher",
+        "max-mode",
+        "chat",
+        "depth",
+        "comparison"
+    );
     private static final String THINKER_MODE = "THINKER_DEEP";
     private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
         "navigator",
@@ -76,7 +83,7 @@ public class ShopifyStorefrontChatService {
         if (guardResponse != null) {
             return guardResponse;
         }
-        applyStorefrontDepthChatMode(normalizedRequest, billingSummary);
+        applyStorefrontConversationMode(normalizedRequest, billingSummary);
         JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
         return shapeStorefrontResponse(response);
     }
@@ -333,10 +340,10 @@ public class ShopifyStorefrontChatService {
         return allowedSurfaces.contains("ai-search");
     }
 
-    private void applyStorefrontDepthChatMode(ObjectNode request, ShopifyBridgeBillingSummary billingSummary) {
+    private void applyStorefrontConversationMode(ObjectNode request, ShopifyBridgeBillingSummary billingSummary) {
         ObjectNode context = storefrontContextFromAttachments(request);
         String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
-        if (surfaceEntry == null || !DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
+        if (surfaceEntry == null || !MODE_CONTROL_SURFACE_ENTRIES.contains(surfaceEntry)) {
             return;
         }
         String requestedMode = normalizeConversationMode(textOrNull(request, "mode"));
