@@ -335,6 +335,7 @@ public class PlatformVerificationSuiteScriptContextService {
     private PlatformVerificationScriptContextSummary buildCoolifyProviderVerification() {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("COOLIFY_STRICT_APPLICATION_SMOKE", "false");
+        environment.put("COOLIFY_VERIFY_PRODUCTION", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>();
         String stagingToken = requireSecret(

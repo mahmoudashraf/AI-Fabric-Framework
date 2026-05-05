@@ -7,6 +7,7 @@ PRODUCTION_BASE_URL="${COOLIFY_PRODUCTION_BASE_URL:-http://46.225.162.106:8000}"
 STRICT_APPLICATION_SMOKE="${COOLIFY_STRICT_APPLICATION_SMOKE:-false}"
 PUBLIC_GIT_SMOKE="${COOLIFY_PUBLIC_GIT_SMOKE:-false}"
 KEEP_SMOKE_APP="${COOLIFY_KEEP_SMOKE_APP:-false}"
+VERIFY_PRODUCTION="${COOLIFY_VERIFY_PRODUCTION:-true}"
 
 STAGING_PROJECT_UUID="${COOLIFY_STAGING_PROJECT_UUID:-id069t43frp519u5i3dg2jpr}"
 STAGING_ENVIRONMENT_NAME="${COOLIFY_STAGING_ENVIRONMENT_NAME:-staging}"
@@ -309,10 +310,16 @@ run_public_git_smoke() {
 }
 
 require_secret COOLIFY_STAGING_API_TOKEN
-require_secret COOLIFY_PRODUCTION_API_TOKEN
+if [[ "${VERIFY_PRODUCTION}" == "true" ]]; then
+  require_secret COOLIFY_PRODUCTION_API_TOKEN
+fi
 
 verify_instance staging "${STAGING_BASE_URL}" "${COOLIFY_STAGING_API_TOKEN}"
-verify_instance production "${PRODUCTION_BASE_URL}" "${COOLIFY_PRODUCTION_API_TOKEN}"
+if [[ "${VERIFY_PRODUCTION}" == "true" ]]; then
+  verify_instance production "${PRODUCTION_BASE_URL}" "${COOLIFY_PRODUCTION_API_TOKEN}"
+else
+  echo "[coolify] production verification skipped; set COOLIFY_VERIFY_PRODUCTION=true to include production."
+fi
 
 if [[ "${STRICT_APPLICATION_SMOKE}" == "true" ]]; then
   run_staging_smoke "${COOLIFY_STAGING_API_TOKEN}"
