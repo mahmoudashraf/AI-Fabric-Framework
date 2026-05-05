@@ -21,12 +21,15 @@ import java.util.Map;
 @Service
 public class McpActionExecutionGateway {
 
-    private static final List<String> STOREFRONT_EXPECTED_TOOLS = List.of(
-        "search_catalog",
+    private static final List<String> STOREFRONT_STANDARD_EXPECTED_TOOLS = List.of(
         "search_shop_policies_and_faqs",
-        "get_product_details",
         "get_cart",
         "update_cart"
+    );
+    private static final List<String> STOREFRONT_UCP_CATALOG_EXPECTED_TOOLS = List.of(
+        "search_catalog",
+        "lookup_catalog",
+        "get_product"
     );
 
     private final McpExecutionGatewayProperties properties;
@@ -101,43 +104,28 @@ public class McpActionExecutionGateway {
             return readinessFailure("INVALID_REQUEST", "shopDomain is required.");
         }
         String normalizedShopDomain = shopDomain.trim().toLowerCase();
-        String serverRef = "shopify-storefront";
-        String endpoint = "https://" + normalizedShopDomain + "/api/mcp";
         try {
-            Map<String, Object> server = new LinkedHashMap<>();
-            server.put("transport", "STREAMABLE_HTTP");
-            server.put("endpointUrl", endpoint);
-            server.put("auth", Map.of("mode", "NONE"));
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("serverRef", serverRef);
-            body.put("server", server);
-            body.put("trace", Map.of("shopDomain", normalizedShopDomain));
-            JsonNode response = restClient.post()
-                .uri(gatewayUrl("/api/internal/mcp/servers/tools/list"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .header(properties.apiKeyHeader(), properties.apiKey())
-                .body(body)
-                .retrieve()
-                .body(JsonNode.class);
-            boolean success = response != null && response.path("success").asBoolean(false);
-            JsonNode tools = response == null ? MissingNode.getInstance() : response.path("result");
-            List<String> presentTools = toolNames(tools);
-            List<String> missingTools = STOREFRONT_EXPECTED_TOOLS.stream()
-                .filter(expected -> presentTools.stream().noneMatch(present -> present.equalsIgnoreCase(expected)))
-                .toList();
-            boolean ready = success && missingTools.isEmpty();
-            Map<String, Object> serverSummary = new LinkedHashMap<>();
-            serverSummary.put("serverRef", serverRef);
-            serverSummary.put("endpointUrl", endpoint);
-            serverSummary.put("ready", ready);
-            serverSummary.put("expectedTools", STOREFRONT_EXPECTED_TOOLS);
-            serverSummary.put("presentTools", presentTools);
-            serverSummary.put("missingTools", missingTools);
+            List<Map<String, Object>> serverSummaries = List.of(
+                toolsReadiness(
+                    "shopify-storefront",
+                    "https://" + normalizedShopDomain + "/api/mcp",
+                    normalizedShopDomain,
+                    STOREFRONT_STANDARD_EXPECTED_TOOLS
+                ),
+                toolsReadiness(
+                    "shopify-storefront-ucp",
+                    "https://" + normalizedShopDomain + "/api/ucp/mcp",
+                    normalizedShopDomain,
+                    STOREFRONT_UCP_CATALOG_EXPECTED_TOOLS
+                )
+            );
+            boolean ready = serverSummaries.stream().allMatch(summary -> Boolean.TRUE.equals(summary.get("ready")));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("ready", ready);
-            out.put("message", ready ? "MCP gateway tools/list readiness passed." : "MCP gateway tools/list readiness found missing tools.");
-            out.put("servers", List.of(serverSummary));
+            out.put("message", ready
+                ? "MCP gateway tools/list readiness passed."
+                : "MCP gateway tools/list readiness found missing tools.");
+            out.put("servers", serverSummaries);
             return out;
         } catch (RestClientResponseException ex) {
             return readinessFailure(
@@ -147,6 +135,43 @@ public class McpActionExecutionGateway {
         } catch (Exception ex) {
             return readinessFailure("MCP_GATEWAY_REQUEST_FAILED", "MCP execution gateway readiness request failed.");
         }
+    }
+
+    private Map<String, Object> toolsReadiness(String serverRef,
+                                               String endpoint,
+                                               String shopDomain,
+                                               List<String> expectedTools) {
+        Map<String, Object> server = new LinkedHashMap<>();
+        server.put("transport", "STREAMABLE_HTTP");
+        server.put("endpointUrl", endpoint);
+        server.put("auth", Map.of("mode", "NONE"));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("serverRef", serverRef);
+        body.put("server", server);
+        body.put("trace", Map.of("shopDomain", shopDomain));
+        JsonNode response = restClient.post()
+            .uri(gatewayUrl("/api/internal/mcp/servers/tools/list"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(properties.apiKeyHeader(), properties.apiKey())
+            .body(body)
+            .retrieve()
+            .body(JsonNode.class);
+        boolean success = response != null && response.path("success").asBoolean(false);
+        JsonNode tools = response == null ? MissingNode.getInstance() : response.path("result");
+        List<String> presentTools = toolNames(tools);
+        List<String> missingTools = expectedTools.stream()
+            .filter(expected -> presentTools.stream().noneMatch(present -> present.equalsIgnoreCase(expected)))
+            .toList();
+        boolean ready = success && missingTools.isEmpty();
+        Map<String, Object> serverSummary = new LinkedHashMap<>();
+        serverSummary.put("serverRef", serverRef);
+        serverSummary.put("endpointUrl", endpoint);
+        serverSummary.put("ready", ready);
+        serverSummary.put("expectedTools", expectedTools);
+        serverSummary.put("presentTools", presentTools);
+        serverSummary.put("missingTools", missingTools);
+        return serverSummary;
     }
 
     private ShopifyBridgeActionResult toBridgeResult(JsonNode response) {

@@ -78,6 +78,7 @@ if [[ "${SHELL_SYNTAX_CHECKS}" == "true" ]]; then
     bash -n scripts/verify-managed-vector-providers.sh &&
     bash -n scripts/verify-platform-admin-regression.sh &&
     bash -n scripts/verify-platform-code-regression.sh &&
+    bash -n scripts/verify-shopify-mcp-gateway.sh &&
     bash -n scripts/verify-shopify-companion.sh &&
     bash -n scripts/verify-shopify-companion-uninstall.sh &&
     bash -n scripts/verify-thinker-resolver-readiness.sh &&

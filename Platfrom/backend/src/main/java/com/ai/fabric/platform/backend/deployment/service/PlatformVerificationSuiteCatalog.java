@@ -18,6 +18,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String MANAGED_VECTOR_PROVIDER_VERIFICATION_SUITE_KEY = "managed-vector-provider-verification";
     public static final String MARKETPLACE_INSTALL_FLOW_SUITE_KEY = "marketplace-install-flow";
     public static final String SHOPIFY_COMPANION_VERIFICATION_SUITE_KEY = "shopify-companion-verification";
+    public static final String SHOPIFY_MCP_GATEWAY_VERIFICATION_SUITE_KEY = "shopify-mcp-gateway-verification";
     public static final String SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY = "shopify-first-product-readiness-audit";
     public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
     public static final String THINKER_RESOLVER_READINESS_SUITE_KEY = "thinker-resolver-readiness";
@@ -38,6 +39,7 @@ public class PlatformVerificationSuiteCatalog {
             managedVectorProviderVerification(),
             marketplaceInstallFlowVerification(),
             shopifyCompanionVerification(),
+            shopifyMcpGatewayVerification(),
             shopifyFirstProductReadinessAudit(),
             partnerEnablementVerification(),
             thinkerResolverReadiness(),
@@ -143,6 +145,14 @@ public class PlatformVerificationSuiteCatalog {
                     "Run direct provider verification for the release-blocking Qdrant Cloud provider."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
+                    "coolify-provider-verification",
+                    "Coolify provider verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_COOLIFY_PROVIDER_VERIFICATION,
+                    true,
+                    "Verify Coolify API tokens and live host health before Platform-managed product-service checks."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
                     "marketplace-install-flow",
                     "Marketplace install flow",
                     "SCRIPT_VERIFICATION",
@@ -157,6 +167,14 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
                     true,
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
+                ),
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "shopify-mcp-gateway-verification",
+                    "Shopify MCP Gateway verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_MCP_GATEWAY_VERIFICATION,
+                    true,
+                    "Verify managed MCP Gateway auth, Marketplace MCP discovery, direct gateway execution, and Shopify Bridge delegated MCP evidence."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "shopify-first-product-readiness-audit",
@@ -281,6 +299,25 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION,
                     true,
                     "Verify the shared Shopify Bridge service, store binding, storefront bootstrap, and shopper query path."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary shopifyMcpGatewayVerification() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            SHOPIFY_MCP_GATEWAY_VERIFICATION_SUITE_KEY,
+            "Shopify MCP Gateway verification",
+            "Standalone Plan 009 release gate for Marketplace MCP discovery, managed MCP Gateway auth, Shopify MCP tools/list/tools/call, and Bridge-delegated mcp-tool evidence.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "shopify-mcp-gateway-verification",
+                    "Shopify MCP Gateway verification",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_MCP_GATEWAY_VERIFICATION,
+                    true,
+                    "Run the Shopify MCP-first managed Gateway verification script."
                 )
             )
         );
