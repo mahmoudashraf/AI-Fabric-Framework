@@ -177,11 +177,14 @@ public class PlatformVerificationSuiteExecutionService {
         DeploymentVerificationRolloutSummary summary = deploymentVerificationRolloutService.listRollouts();
         List<RolloutAssessment> assessments = assessRollouts(summary);
         boolean repaired = false;
-        if (allowControlPlaneRepair && shouldRefreshCanonicalRollouts(stage, assessments)) {
-            List<String> selected = assessments.stream()
+        List<String> repairKeys = allowControlPlaneRepair
+            ? assessments.stream()
+                .filter(this::shouldRepairCanonicalRollout)
                 .map(assessment -> assessment.rollout.key())
-                .toList();
-            deploymentVerificationRolloutService.recreateRollouts(selected);
+                .toList()
+            : List.of();
+        if (!repairKeys.isEmpty()) {
+            deploymentVerificationRolloutService.recreateRollouts(repairKeys);
             summary = deploymentVerificationRolloutService.listRollouts();
             assessments = assessRollouts(summary);
             repaired = true;
@@ -224,12 +227,42 @@ public class PlatformVerificationSuiteExecutionService {
         return false;
     }
 
-    private boolean shouldRefreshCanonicalRollouts(PlatformVerificationSuiteRunStageEntity stage,
-                                                   List<RolloutAssessment> assessments) {
-        if (assessments.stream().anyMatch(assessment -> assessment.structurallyBlocked)) {
+    private boolean shouldRepairCanonicalRollout(RolloutAssessment assessment) {
+        if (assessment == null || assessment.rollout == null) {
             return true;
         }
-        return PlatformVerificationSuiteCatalog.CANONICAL_FLEET_TARGET_REF.equalsIgnoreCase(defaultText(stage.getTargetRef(), ""));
+        if (assessment.structurallyBlocked) {
+            return true;
+        }
+        if (assessment.missingRequiredSecrets > 0 || assessment.rollout.verificationReady()) {
+            return false;
+        }
+        if (isRolloutApplyInProgress(assessment.rollout)) {
+            return false;
+        }
+        return isRolloutTerminalFailure(assessment.rollout);
+    }
+
+    private boolean isRolloutApplyInProgress(DeploymentVerificationRolloutItemSummary rollout) {
+        String releaseStatus = normalize(rollout.latestReleaseStatus());
+        String provisioningStatus = normalize(rollout.latestProvisioningStatus());
+        String verificationStatus = normalize(rollout.latestVerificationStatus());
+        return List.of("APPLY_REQUESTED", "PRE_APPLY_VERIFYING", "PROVISIONING", "VERIFYING").contains(releaseStatus)
+            || List.of("QUEUED", "RUNNING", "AWAITING_CONFIRMATION").contains(provisioningStatus)
+            || "RUNNING".equals(verificationStatus);
+    }
+
+    private boolean isRolloutTerminalFailure(DeploymentVerificationRolloutItemSummary rollout) {
+        String releaseStatus = normalize(rollout.latestReleaseStatus());
+        String provisioningStatus = normalize(rollout.latestProvisioningStatus());
+        String verificationStatus = normalize(rollout.latestVerificationStatus());
+        return List.of("FAILED", "PRE_APPLY_BLOCKED", "APPLIED_VERIFICATION_FAILED", "CANCELED", "CANCELLED").contains(releaseStatus)
+            || List.of("FAILED", "BLOCKED", "CANCELED", "CANCELLED").contains(provisioningStatus)
+            || "FAILED".equals(verificationStatus);
+    }
+
+    private String normalize(String value) {
+        return defaultText(value, "").trim().toUpperCase();
     }
 
     private boolean executeScriptVerification(PlatformVerificationSuiteRunStageEntity stage) throws InterruptedException, java.io.IOException {

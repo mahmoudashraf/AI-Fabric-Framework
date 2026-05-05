@@ -393,6 +393,55 @@ class DeploymentReleaseRecoveryServiceTest {
     }
 
     @Test
+    void reconcileLatestInProgressReleaseRedispatchesStaleCoolifyQueuedApply() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            verificationRunRepository,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-coolify-queued");
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId("ver-coolify-queued");
+        release.setStatus("APPLY_REQUESTED");
+        release.setProvisioningTarget("COOLIFY");
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setProvisioningStatus("QUEUED");
+        release.setCurrentStepKey("queue_release");
+        release.setUpdatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        when(deploymentReleaseExecutionService.tryDispatchApplyAsync(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        )).thenReturn(true);
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService).tryDispatchApplyAsync(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
     void reconcileLatestInProgressReleaseFailsStalePreApplyVerificationStep() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);

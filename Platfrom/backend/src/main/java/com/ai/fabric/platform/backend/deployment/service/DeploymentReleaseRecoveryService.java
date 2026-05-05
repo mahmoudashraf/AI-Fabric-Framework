@@ -289,6 +289,7 @@ public class DeploymentReleaseRecoveryService {
         String stepKey = release.getCurrentStepKey();
         if (coolify) {
             return switch (release.getStatus()) {
+                case "APPLY_REQUESTED" -> "queue_release".equals(stepKey);
                 case "VERIFYING" -> "run_verification".equals(stepKey) || "sync_marketplace_datasets".equals(stepKey);
                 default -> false;
             };
@@ -327,7 +328,10 @@ public class DeploymentReleaseRecoveryService {
     }
 
     private boolean isQueuedApplyCandidate(DeploymentReleaseEntity release) {
-        if (!"RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget())) {
+        boolean railway = "RAILWAY_API".equalsIgnoreCase(release.getProvisioningTarget());
+        boolean coolify = "COOLIFY".equalsIgnoreCase(release.getProvisioningTarget())
+            || release.getProviderType() == DeploymentProviderType.COOLIFY;
+        if (!railway && !coolify) {
             return false;
         }
         return "APPLY_REQUESTED".equals(release.getStatus()) && "queue_release".equals(release.getCurrentStepKey());
