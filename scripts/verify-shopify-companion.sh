@@ -118,6 +118,8 @@ ORDER_LOOKUP_EMAIL="${ORDER_LOOKUP_EMAIL:-}"
 ORDER_LOOKUP_SAMPLE_SOURCE="none"
 STOREFRONT_QUERY_RETRY_ATTEMPTS="${STOREFRONT_QUERY_RETRY_ATTEMPTS:-3}"
 STOREFRONT_QUERY_RETRY_SLEEP_SECONDS="${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS:-2}"
+PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS="${PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS:-12}"
+PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS="${PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS:-10}"
 TEMP_PLATFORM_COOKIE_JAR=""
 
 cleanup() {
@@ -811,9 +813,21 @@ assert_nonempty "$(json_get "${product_service_deployments_json}" "deployments.0
 
 echo "== Platform product service Railway logs =="
 latest_product_service_deployment_id="$(json_get "${product_service_deployments_json}" "deployments.0.id")"
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]-}"
+for ((product_service_logs_attempt = 1; product_service_logs_attempt <= PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS; product_service_logs_attempt++)); do
+  platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]-}"
+  product_service_logs_json="${HTTP_BODY}"
+  product_service_logs_available="$(json_get "${product_service_logs_json}" "available")"
+  product_service_logs_message="$(json_get "${product_service_logs_json}" "message")"
+  if [[ "${HTTP_STATUS}" == "200" && "${product_service_logs_available}" == "true" ]]; then
+    break
+  fi
+  if [[ "${product_service_logs_message}" == *"HTTP 429"* && "${product_service_logs_attempt}" -lt "${PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS}" ]]; then
+    sleep "${PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS}"
+    continue
+  fi
+  break
+done
 assert_equals "${HTTP_STATUS}" "200" "product service Railway logs status"
-product_service_logs_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_logs_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service Railway logs serviceRef"
 assert_equals "$(json_get "${product_service_logs_json}" "available")" "true" "product service Railway logs availability"
 assert_equals "$(json_get "${product_service_logs_json}" "railwayDeploymentId")" "${latest_product_service_deployment_id}" "product service Railway logs deployment id"

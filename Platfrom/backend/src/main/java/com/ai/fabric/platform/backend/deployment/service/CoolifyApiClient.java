@@ -22,6 +22,8 @@ import java.util.Optional;
 public class CoolifyApiClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(45);
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final Duration RETRY_BASE_DELAY = Duration.ofMillis(500);
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -388,33 +390,75 @@ public class CoolifyApiClient {
                                  JsonNode body,
                                  boolean failOnNotFound) {
         try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint(connection, path))
-                .timeout(REQUEST_TIMEOUT)
-                .header("Accept", "application/json")
-                .header("Authorization", "Bearer " + connection.token());
-            if (body == null) {
-                builder.method(method, HttpRequest.BodyPublishers.noBody());
-            } else {
-                builder.header("Content-Type", "application/json")
-                    .method(method, HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
-            }
+            String serializedBody = body == null ? null : objectMapper.writeValueAsString(body);
+            for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+                HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint(connection, path))
+                    .timeout(REQUEST_TIMEOUT)
+                    .header("Accept", "application/json")
+                    .header("Authorization", "Bearer " + connection.token());
+                if (serializedBody == null) {
+                    builder.method(method, HttpRequest.BodyPublishers.noBody());
+                } else {
+                    builder.header("Content-Type", "application/json")
+                        .method(method, HttpRequest.BodyPublishers.ofString(serializedBody));
+                }
 
-            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 404 && !failOnNotFound) {
-                return null;
+                HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 404 && !failOnNotFound) {
+                    return null;
+                }
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    if (isRetryable(response.statusCode()) && attempt < MAX_RETRY_ATTEMPTS) {
+                        sleepBeforeRetry(response, attempt);
+                        continue;
+                    }
+                    throw new CoolifyApiException(
+                        "Coolify API request failed with HTTP " + response.statusCode() + " for " + sanitizedPath(path) + ".",
+                        response.statusCode(),
+                        sanitizedPath(path)
+                    );
+                }
+                return readJson(response.body());
             }
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new CoolifyApiException(
-                    "Coolify API request failed with HTTP " + response.statusCode() + " for " + sanitizedPath(path) + ".",
-                    response.statusCode(),
-                    sanitizedPath(path)
-                );
-            }
-            return readJson(response.body());
+            throw new CoolifyApiException(
+                "Coolify API request failed after retries for " + sanitizedPath(path) + ".",
+                502,
+                sanitizedPath(path)
+            );
         } catch (CoolifyApiException ex) {
             throw ex;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Coolify API request interrupted for " + sanitizedPath(path) + ".", ex);
         } catch (Exception ex) {
             throw new IllegalStateException("Coolify API request failed for " + sanitizedPath(path) + ".", ex);
+        }
+    }
+
+    private boolean isRetryable(int statusCode) {
+        return statusCode == 429 || (statusCode >= 500 && statusCode < 600);
+    }
+
+    private void sleepBeforeRetry(HttpResponse<?> response, int attempt) throws InterruptedException {
+        Duration delay = response.headers()
+            .firstValue("Retry-After")
+            .flatMap(this::parseRetryAfter)
+            .orElse(RETRY_BASE_DELAY.multipliedBy(1L << Math.max(0, attempt - 1)));
+        Thread.sleep(Math.min(delay.toMillis(), 5_000L));
+    }
+
+    private Optional<Duration> parseRetryAfter(String value) {
+        if (!StringUtils.hasText(value)) {
+            return Optional.empty();
+        }
+        try {
+            long seconds = Long.parseLong(value.trim());
+            if (seconds < 0) {
+                return Optional.empty();
+            }
+            return Optional.of(Duration.ofSeconds(Math.min(seconds, 30)));
+        } catch (NumberFormatException ex) {
+            return Optional.empty();
         }
     }
 
