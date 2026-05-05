@@ -283,8 +283,14 @@ class PlatformManagedProductProvisioningServiceTest {
     @Test
     void forceRecreateCoolifyMcpGatewayDeletesDomainMatchedAppBeforeRecreate() {
         PlatformManagedProductServiceEntity service = mcpGatewayService();
-        service.setBaseUrl(null);
-        service.setDetailsJson("{}");
+        service.setBaseUrl("https://mcp-execution-gateway.46.224.145.148.sslip.io");
+        service.setDetailsJson("""
+            {
+              "providerType": "COOLIFY",
+              "targetProfileId": "dtp-coolify-staging",
+              "coolifyApplicationUuid": "coolify-app-stale"
+            }
+            """);
 
         PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
         PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
@@ -326,6 +332,8 @@ class PlatformManagedProductProvisioningServiceTest {
         when(platformSecretService.isSecretPresent("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY")).thenReturn(true);
         when(platformSecretService.resolveSecret("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY")).thenReturn("gateway-secret");
         when(coolifyApiClient.listApplications(connection)).thenReturn(List.of(existing), List.of());
+        when(coolifyApiClient.delete(connection, "coolify-app-stale", true, false, true, true))
+            .thenThrow(new CoolifyApiException("Coolify API request failed with HTTP 404 for /applications/coolify-app-stale.", 404, "/applications/coolify-app-stale"));
         when(coolifyApiClient.getApplication(connection, "coolify-app-orphan")).thenReturn(Optional.empty());
         when(coolifyApiClient.createPublicApplication(eq(connection), any())).thenReturn("coolify-app-new");
         when(coolifyApiClient.getApplication(connection, "coolify-app-new")).thenReturn(Optional.of(created));
@@ -355,6 +363,7 @@ class PlatformManagedProductProvisioningServiceTest {
         assertThat(service.getStatus()).isEqualTo("ACTIVE");
         assertThat(service.getBaseUrl()).isEqualTo("https://mcp-execution-gateway.46.224.145.148.sslip.io");
         assertThat(service.getDetailsJson()).contains("coolify-app-new", "dtp-coolify-staging", "deploy-new");
+        verify(coolifyApiClient).delete(connection, "coolify-app-stale", true, false, true, true);
         verify(coolifyApiClient).delete(connection, "coolify-app-orphan", true, false, true, true);
         ArgumentCaptor<CoolifyCreatePublicApplicationRequest> request =
             ArgumentCaptor.forClass(CoolifyCreatePublicApplicationRequest.class);

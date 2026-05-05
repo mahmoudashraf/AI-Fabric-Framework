@@ -524,24 +524,18 @@ public class PlatformManagedProductProvisioningService {
         CoolifyBinding binding = resolveCoolifyBinding(service);
         ObjectNode details = mutableDetails(service);
         String applicationUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
-        if (!hasText(applicationUuid)) {
-            CoolifyApplicationSummary existing = findCoolifyApplication(
-                binding,
-                sharedServiceName(service),
-                coolifyDomain(service, binding.connection().config())
-            );
-            applicationUuid = existing == null ? null : existing.uuid();
-        }
+        CoolifyApplicationSummary discovered = findCoolifyApplication(
+            binding,
+            sharedServiceName(service),
+            firstNonBlank(service.getBaseUrl(), coolifyDomain(service, binding.connection().config()))
+        );
+        String discoveredUuid = discovered == null ? null : trimToNull(discovered.uuid());
+        boolean deleted = false;
         if (hasText(applicationUuid)) {
-            try {
-                coolifyApiClient.delete(binding.connection(), applicationUuid, true, false, true, true);
-                awaitCoolifyApplicationDeletion(binding.connection(), applicationUuid);
-            } catch (RuntimeException ex) {
-                String message = blankToFallback(ex.getMessage(), "").toLowerCase(Locale.ROOT);
-                if (!message.contains("404") && !message.contains("not found")) {
-                    throw ex;
-                }
-            }
+            deleted = deleteCoolifyApplicationIfPresent(binding.connection(), applicationUuid);
+        }
+        if (!deleted && hasText(discoveredUuid) && !discoveredUuid.equals(applicationUuid)) {
+            deleteCoolifyApplicationIfPresent(binding.connection(), discoveredUuid);
         }
         clearCoolifyBinding(service);
         return reconcile(service.getServiceRef());
@@ -669,6 +663,20 @@ public class PlatformManagedProductProvisioningService {
             }
         }
         throw new ResponseStatusException(CONFLICT, "Timed out waiting for Coolify application deletion: " + applicationUuid);
+    }
+
+    private boolean deleteCoolifyApplicationIfPresent(CoolifyConnection connection, String applicationUuid) {
+        try {
+            coolifyApiClient.delete(connection, applicationUuid, true, false, true, true);
+            awaitCoolifyApplicationDeletion(connection, applicationUuid);
+            return true;
+        } catch (RuntimeException ex) {
+            String message = blankToFallback(ex.getMessage(), "").toLowerCase(Locale.ROOT);
+            if (message.contains("404") || message.contains("not found")) {
+                return false;
+            }
+            throw ex;
+        }
     }
 
     static String coolifyGitRepository(String repository) {
