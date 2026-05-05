@@ -4,6 +4,9 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
@@ -274,6 +277,90 @@ class PlatformManagedProductProvisioningServiceTest {
         assertThat(summary.serviceRef()).isEqualTo("shopify-bridge-prod");
         assertThat(service.getStatus()).isEqualTo("ACTIVE");
         verify(serviceRepository).save(service);
+        verifyNoInteractions(railwayGraphqlClient);
+    }
+
+    @Test
+    void forceRecreateCoolifyMcpGatewayDeletesDomainMatchedAppBeforeRecreate() {
+        PlatformManagedProductServiceEntity service = mcpGatewayService();
+        service.setBaseUrl(null);
+        service.setDetailsJson("{}");
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentTargetProfileEntity profile = coolifyProfile();
+        CoolifyConnection connection = coolifyConnection();
+        CoolifyApplicationSummary existing = new CoolifyApplicationSummary(
+            "coolify-app-orphan",
+            "manual-mcp-gateway",
+            "https://mcp-execution-gateway.46.224.145.148.sslip.io",
+            "running:healthy",
+            null,
+            null,
+            new ObjectMapper().createObjectNode()
+        );
+        CoolifyApplicationSummary created = new CoolifyApplicationSummary(
+            "coolify-app-new",
+            "mcp-gateway-mcp-execution-gateway",
+            "https://mcp-execution-gateway.46.224.145.148.sslip.io",
+            "running:healthy",
+            null,
+            null,
+            new ObjectMapper().createObjectNode()
+        );
+
+        when(serviceService.requireService("mcp-execution-gateway")).thenReturn(service);
+        when(serviceService.getService("mcp-execution-gateway")).thenAnswer(invocation -> summary(service));
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(targetProfileRepository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(DeploymentProviderType.COOLIFY))
+            .thenReturn(List.of(profile));
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(platformSecretService.isSecretPresent("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY")).thenReturn(true);
+        when(platformSecretService.resolveSecret("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY")).thenReturn("gateway-secret");
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of(existing), List.of());
+        when(coolifyApiClient.getApplication(connection, "coolify-app-orphan")).thenReturn(Optional.empty());
+        when(coolifyApiClient.createPublicApplication(eq(connection), any())).thenReturn("coolify-app-new");
+        when(coolifyApiClient.getApplication(connection, "coolify-app-new")).thenReturn(Optional.of(created));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("coolify-app-new"), any())).thenReturn(11);
+        when(coolifyApiClient.start(connection, "coolify-app-new", true, true))
+            .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-new", new ObjectMapper().createObjectNode()));
+
+        PlatformManagedProductProvisioningService provisioningService = new PlatformManagedProductProvisioningService(
+            new PlatformProvisioningProperties(null, null, null, "mahmoudashraf/AI-Fabric-Framework", "Platform-V8", "staging", "ws-123", null, null, null, null, null, null, 32, null, null, false, false, 60_000, Duration.ofSeconds(1), Duration.ofSeconds(5)),
+            new PlatformProductProvisioningProperties(null, null, null, null, null, null, null, null, null, Duration.ofMillis(1), Duration.ofSeconds(1)),
+            new PlatformDeliveryProperties("https://platform.example.com", true, Duration.ofDays(1)),
+            railwayGraphqlClient,
+            targetProfileResolver,
+            coolifyApiClient,
+            targetProfileRepository,
+            platformSecretService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            serviceService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        PlatformManagedProductServiceSummary result = provisioningService.forceRecreate("mcp-execution-gateway");
+
+        assertThat(result.serviceRef()).isEqualTo("mcp-execution-gateway");
+        assertThat(service.getStatus()).isEqualTo("ACTIVE");
+        assertThat(service.getBaseUrl()).isEqualTo("https://mcp-execution-gateway.46.224.145.148.sslip.io");
+        assertThat(service.getDetailsJson()).contains("coolify-app-new", "dtp-coolify-staging", "deploy-new");
+        verify(coolifyApiClient).delete(connection, "coolify-app-orphan", true, false, true, true);
+        ArgumentCaptor<CoolifyCreatePublicApplicationRequest> request =
+            ArgumentCaptor.forClass(CoolifyCreatePublicApplicationRequest.class);
+        verify(coolifyApiClient).createPublicApplication(eq(connection), request.capture());
+        assertThat(request.getValue().gitRepository()).isEqualTo("https://github.com/mahmoudashraf/AI-Fabric-Framework.git");
+        assertThat(request.getValue().domains()).isEqualTo("https://mcp-execution-gateway.46.224.145.148.sslip.io");
         verifyNoInteractions(railwayGraphqlClient);
     }
 
@@ -549,6 +636,62 @@ class PlatformManagedProductProvisioningServiceTest {
         service.setCreatedAt(Instant.now());
         service.setUpdatedAt(Instant.now());
         return service;
+    }
+
+    private PlatformManagedProductServiceEntity mcpGatewayService() {
+        PlatformManagedProductServiceEntity service = productService("mcp-execution-gateway");
+        service.setId("psv-mcp-gateway");
+        service.setDisplayName("MCP Execution Gateway");
+        service.setProductFamily("MCP");
+        service.setServiceKind("MCP_EXECUTION_GATEWAY_SERVICE");
+        service.setEnvironmentScope("staging");
+        service.setHealthPath("/actuator/health");
+        service.setServiceRoot("product-services/mcp-execution-gateway-service");
+        service.setDockerfilePath("product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile");
+        service.setSecretName("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY");
+        return service;
+    }
+
+    private DeploymentTargetProfileEntity coolifyProfile() {
+        DeploymentTargetProfileEntity profile = new DeploymentTargetProfileEntity();
+        profile.setId("dtp-coolify-staging");
+        profile.setName("Coolify Staging");
+        profile.setProviderType(DeploymentProviderType.COOLIFY);
+        profile.setEnvironmentName("staging");
+        profile.setActive(true);
+        profile.setPlatformServicesAllowed(true);
+        profile.setDefaultForRuntime(true);
+        profile.setSourceStrategy("GIT_SOURCE");
+        profile.setProviderConfigJson("{}");
+        profile.setNetworkPolicyJson("{}");
+        profile.setResourceDefaultsJson("{}");
+        profile.setCreatedAt(Instant.now());
+        profile.setUpdatedAt(Instant.now());
+        return profile;
+    }
+
+    private CoolifyConnection coolifyConnection() {
+        return new CoolifyConnection(
+            "http://46.224.145.148:8000",
+            "token",
+            new CoolifyTargetProfileConfig(
+                "http://46.224.145.148:8000",
+                "project-uuid",
+                "staging",
+                "environment-uuid",
+                "server-uuid",
+                "destination-uuid",
+                "46.224.145.148.sslip.io",
+                null,
+                1,
+                1,
+                false,
+                true,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
     }
 
     private void mockMcpGateway(PlatformManagedProductServiceRepository serviceRepository,
