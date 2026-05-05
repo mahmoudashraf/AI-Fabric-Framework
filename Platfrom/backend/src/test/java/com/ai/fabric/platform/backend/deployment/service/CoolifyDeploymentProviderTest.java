@@ -17,6 +17,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -215,6 +216,121 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().dockerfileLocation()).isEqualTo("/ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
         assertThat(request.getValue().autoDeployEnabled()).isFalse();
         verifyNoInteractions(sourceArtifactService);
+    }
+
+    @Test
+    void provisionsPublicGitApplicationWithResolvedManagedVectorProviderConfig() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        DeploymentManagedVectorProvisioningService managedVectorProvisioningService =
+            mock(DeploymentManagedVectorProvisioningService.class);
+        DeploymentManagedVectorResourceService managedVectorResourceService =
+            mock(DeploymentManagedVectorResourceService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setSourceStrategy("GIT_SOURCE");
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "staging",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary application = new CoolifyApplicationSummary(
+            "app-uuid",
+            "runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            null,
+            null,
+            objectMapper.readTree("{\"uuid\":\"app-uuid\",\"status\":\"running:healthy\"}")
+        );
+        JsonNode effectiveProviderConfig = objectMapper.readTree("""
+            {
+              "vectorStrategy": "qdrant",
+              "qdrantHost": "https://managed-qdrant.example",
+              "qdrantRuntimeApiKeySecretName": "MANAGED_QDRANT_RUNTIME_KEY"
+            }
+            """);
+        ManagedVectorProvisioningResult managedVectorResult = new ManagedVectorProvisioningResult(
+            effectiveProviderConfig,
+            objectMapper.readTree("{\"enabled\":true,\"vectorStrategy\":\"qdrant\",\"mode\":\"MANAGED_CLOUD_CLUSTER\"}")
+        );
+        RailwayProvisioningPlanSummary plan = railwayPlanWithRuntimeEnv(List.of(
+            new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", "https://artifacts.example/entities.yaml"),
+            new RailwayEnvVarSummary("AI_PROVIDERS_QDRANT_HOST", "https://managed-qdrant.example")
+        ));
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
+        when(managedVectorProvisioningService.requiresProvisioning(any())).thenReturn(true);
+        when(managedVectorProvisioningService.ensureProvisioned(any(), any())).thenReturn(managedVectorResult);
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), eq(effectiveProviderConfig))).thenReturn(plan);
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-staging"),
+            eq("APPLICATION")
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createPublicApplication(eq(connection), any())).thenReturn("app-uuid");
+        when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.of(application));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(3);
+        when(coolifyApiClient.start(connection, "app-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            managedVectorProvisioningService,
+            managedVectorResourceService,
+            targetProfileResolver,
+            coolifyApiClient,
+            null,
+            null,
+            objectMapper
+        );
+        DeploymentReleaseEntity release = release();
+        release.setSourceArtifactId(null);
+
+        ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+
+        verify(railwayProvisioningPlanService).buildPlan(any(), any(), eq(effectiveProviderConfig));
+        verify(managedVectorResourceService).syncProvisionedResources(any(), any(), any(), eq(managedVectorResult));
+        ArgumentCaptor<List<CoolifyEnvVar>> env = ArgumentCaptor.forClass(List.class);
+        verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), env.capture());
+        Map<String, String> values = env.getValue().stream()
+            .filter(value -> !value.preview())
+            .filter(value -> value.value() != null)
+            .collect(Collectors.toMap(CoolifyEnvVar::key, CoolifyEnvVar::value));
+        assertThat(values).containsEntry("AI_PROVIDERS_QDRANT_HOST", "https://managed-qdrant.example");
+        assertThat(result.detailsJson()).contains(
+            "\"managedVectorProvisioning\"",
+            "\"effectiveProviderConfig\"",
+            "managed-qdrant.example"
+        );
     }
 
     @Test
@@ -776,12 +892,18 @@ class CoolifyDeploymentProviderTest {
     }
 
     private RailwayProvisioningPlanSummary railwayPlan() {
+        return railwayPlanWithRuntimeEnv(List.of(
+            new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", "https://artifacts.example/entities.yaml")
+        ));
+    }
+
+    private RailwayProvisioningPlanSummary railwayPlanWithRuntimeEnv(List<RailwayEnvVarSummary> runtimeEnv) {
         RailwayServicePlanSummary runtime = new RailwayServicePlanSummary(
             "runtime-dep-123",
             null,
             "ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile",
             "https://runtime-dep-123.placeholder.local",
-            List.of(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", "https://artifacts.example/entities.yaml"))
+            runtimeEnv
         );
         return new RailwayProvisioningPlanSummary(
             "dep-123",

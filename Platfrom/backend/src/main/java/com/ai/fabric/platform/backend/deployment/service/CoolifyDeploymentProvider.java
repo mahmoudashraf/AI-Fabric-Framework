@@ -58,6 +58,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
     private final DeploymentSourceArtifactService sourceArtifactService;
     private final RailwayProvisioningPlanService railwayProvisioningPlanService;
+    private final DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService;
+    private final DeploymentManagedVectorResourceService deploymentManagedVectorResourceService;
     private final CoolifyTargetProfileResolver targetProfileResolver;
     private final CoolifyApiClient coolifyApiClient;
     private final PlatformSecretService platformSecretService;
@@ -69,6 +71,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                      DeploymentProviderResourceHandleRepository resourceHandleRepository,
                                      DeploymentSourceArtifactService sourceArtifactService,
                                      RailwayProvisioningPlanService railwayProvisioningPlanService,
+                                     DeploymentManagedVectorProvisioningService deploymentManagedVectorProvisioningService,
+                                     DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
                                      CoolifyTargetProfileResolver targetProfileResolver,
                                      CoolifyApiClient coolifyApiClient,
                                      PlatformSecretService platformSecretService,
@@ -78,6 +82,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         this.resourceHandleRepository = resourceHandleRepository;
         this.sourceArtifactService = sourceArtifactService;
         this.railwayProvisioningPlanService = railwayProvisioningPlanService;
+        this.deploymentManagedVectorProvisioningService = deploymentManagedVectorProvisioningService;
+        this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.targetProfileResolver = targetProfileResolver;
         this.coolifyApiClient = coolifyApiClient;
         this.platformSecretService = platformSecretService;
@@ -97,6 +103,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             resourceHandleRepository,
             sourceArtifactService,
             railwayProvisioningPlanService,
+            null,
+            null,
             targetProfileResolver,
             coolifyApiClient,
             null,
@@ -118,10 +126,36 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             resourceHandleRepository,
             sourceArtifactService,
             railwayProvisioningPlanService,
+            null,
+            null,
             targetProfileResolver,
             coolifyApiClient,
             platformSecretService,
             null,
+            objectMapper
+        );
+    }
+
+    CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
+                              DeploymentProviderResourceHandleRepository resourceHandleRepository,
+                              DeploymentSourceArtifactService sourceArtifactService,
+                              RailwayProvisioningPlanService railwayProvisioningPlanService,
+                              CoolifyTargetProfileResolver targetProfileResolver,
+                              CoolifyApiClient coolifyApiClient,
+                              PlatformSecretService platformSecretService,
+                              PlatformCustomerRepository platformCustomerRepository,
+                              ObjectMapper objectMapper) {
+        this(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            null,
+            null,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
+            platformCustomerRepository,
             objectMapper
         );
     }
@@ -153,11 +187,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             }
         );
         JsonNode resourceDefaults = readJson(profile.getResourceDefaultsJson());
+        ManagedVectorProvisioningResult managedVectorProvisioningResult = ensureManagedVectorProvisioned(
+            deployment,
+            version,
+            release,
+            progressTracker
+        );
         CoolifyProvisioningSource source = tracked(
             progressTracker,
             "resolve_coolify_source",
             "Resolve Coolify application source from target profile strategy.",
-            () -> resolveProvisioningSource(profile, resourceDefaults, deployment, version, release)
+            () -> resolveProvisioningSource(
+                profile,
+                resourceDefaults,
+                deployment,
+                version,
+                release,
+                managedVectorProvisioningResult.effectiveProviderConfig()
+            )
         );
         CoolifyResourceScope resourceScope = tracked(
             progressTracker,
@@ -378,7 +425,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             runtimeEnvCount,
             finalConnectorEnvCount,
             runtimeDeployResponse,
-            finalConnectorDeployResponse
+            finalConnectorDeployResponse,
+            managedVectorProvisioningResult
         );
         progressTracker.mergeDetails(details);
 
@@ -900,14 +948,43 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             + " (" + projectName + "), environment " + environmentName + ".";
     }
 
+    private ManagedVectorProvisioningResult ensureManagedVectorProvisioned(DeploymentEntity deployment,
+                                                                           DeploymentVersionEntity version,
+                                                                           DeploymentReleaseEntity release,
+                                                                           ProvisioningProgressTracker progressTracker) {
+        if (deploymentManagedVectorProvisioningService == null) {
+            ObjectNode details = objectMapper.createObjectNode();
+            details.put("enabled", false);
+            details.put("mode", "UNAVAILABLE");
+            details.put("message", "Managed vector provisioning service is not available in this Coolify provider context.");
+            return new ManagedVectorProvisioningResult(null, details);
+        }
+
+        ManagedVectorProvisioningResult result = deploymentManagedVectorProvisioningService.requiresProvisioning(version)
+            ? tracked(
+                progressTracker,
+                "ensure_vector_backend",
+                "Create or reconcile managed external vector resources before runtime deployment.",
+                () -> deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version)
+            )
+            : deploymentManagedVectorProvisioningService.ensureProvisioned(deployment, version);
+        if (deploymentManagedVectorResourceService != null) {
+            deploymentManagedVectorResourceService.syncProvisionedResources(deployment, version, release, result);
+        }
+        return result;
+    }
+
     private CoolifyProvisioningSource resolveProvisioningSource(DeploymentTargetProfileEntity profile,
                                                                JsonNode resourceDefaults,
                                                                DeploymentEntity deployment,
                                                                DeploymentVersionEntity version,
-                                                               DeploymentReleaseEntity release) {
+                                                               DeploymentReleaseEntity release,
+                                                               JsonNode providerConfigOverride) {
         String sourceStrategy = resolveSourceStrategy(profile, resourceDefaults);
         if ("GIT_SOURCE".equals(sourceStrategy)) {
-            RailwayProvisioningPlanSummary plan = railwayProvisioningPlanService.buildPlan(deployment, version);
+            RailwayProvisioningPlanSummary plan = providerConfigOverride == null
+                ? railwayProvisioningPlanService.buildPlan(deployment, version)
+                : railwayProvisioningPlanService.buildPlan(deployment, version, providerConfigOverride);
             RailwayServicePlanSummary runtime = plan.services() == null ? null : plan.services().runtime();
             if (runtime == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coolify Git source requires a runtime service plan.");
@@ -1411,10 +1488,17 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                             int runtimeEnvCount,
                                             int connectorEnvCount,
                                             CoolifyActionResponse runtimeDeployResponse,
-                                            CoolifyActionResponse connectorDeployResponse) {
+                                            CoolifyActionResponse connectorDeployResponse,
+                                            ManagedVectorProvisioningResult managedVectorProvisioningResult) {
         ObjectNode details = objectMapper.createObjectNode();
         details.put("provider", "COOLIFY");
         details.put("targetProfileId", profile.getId());
+        if (managedVectorProvisioningResult != null) {
+            details.set("managedVectorProvisioning", managedVectorProvisioningResult.details());
+            if (managedVectorProvisioningResult.effectiveProviderConfig() != null) {
+                details.set("effectiveProviderConfig", managedVectorProvisioningResult.effectiveProviderConfig());
+            }
+        }
         writeScopeDetails(details, scope);
         details.put("providerResourceHandleId", runtimeHandle.getId());
         details.put("applicationUuid", runtimeApplication.uuid());
