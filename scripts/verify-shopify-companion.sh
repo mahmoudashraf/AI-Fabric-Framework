@@ -106,7 +106,7 @@ EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED="${EXPECT_ORDER_LOOKUP_MERCHANT_
 EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
 EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-}"
 EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE:-}"
-EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,check_availability,get_policy}"
+EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-shopify_search_catalog,shopify_get_product,shopify_lookup_catalog,shopify_search_policies,shopify_get_cart,shopify_update_cart}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
@@ -1307,41 +1307,112 @@ PY
 
   if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
     echo "== Storefront comparison resolver query =="
-    http_request POST "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/actions/execute" '{"actionId":"list_products","params":{"query":""}}' "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
-    assert_equals "${HTTP_STATUS}" "200" "bridge admin list products status"
-    comparison_skus_csv="$(JSON_PAYLOAD="${HTTP_BODY}" python3 - <<'PY'
+    comparison_action_payload="$(python3 - <<'PY' "${SHOP_DOMAIN}"
+import json
+import sys
+
+shop_domain = sys.argv[1]
+print(json.dumps({
+    "actionId": "shopify_search_catalog",
+    "params": {
+        "query": "shirt",
+        "country": "US",
+        "intent": "product comparison",
+        "limit": 5
+    },
+    "trace": {
+        "shopDomain": shop_domain,
+        "actionConfig": {
+            "adapterType": "mcp-tool",
+            "execution": {
+                "adapterType": "mcp-tool",
+                "mcp": {
+                    "serverRef": "shopify-storefront",
+                    "endpointKind": "STOREFRONT_STANDARD",
+                    "toolName": "search_catalog",
+                    "argumentTemplate": {
+                        "catalog": {
+                            "query": "{{params.query}}",
+                            "context": {
+                                "address_country": "{{params.country}}",
+                                "intent": "{{params.intent}}"
+                            },
+                            "pagination": {
+                                "limit": "{{params.limit}}"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}))
+PY
+)"
+    http_request POST "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/actions/execute" "${comparison_action_payload}" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+    assert_equals "${HTTP_STATUS}" "200" "bridge admin search catalog status"
+    comparison_terms_csv="$(JSON_PAYLOAD="${HTTP_BODY}" python3 - <<'PY'
 import json
 import os
 
 payload = json.loads(os.environ["JSON_PAYLOAD"])
-items = (((payload or {}).get("data") or {}).get("items") or [])
-skus = []
-for item in items:
+terms = []
+
+def add(value):
+    value = str(value or "").strip()
+    if value and value not in terms:
+        terms.append(value)
+
+for item in (((payload or {}).get("data") or {}).get("items") or []):
     if not isinstance(item, dict):
         continue
-    sku = str(item.get("primarySku") or "").strip()
-    if sku and sku not in skus:
-        skus.append(sku)
-    if len(skus) >= 2:
+    add(item.get("primarySku"))
+    add(item.get("title"))
+
+tool_result = ((payload or {}).get("data") or {}).get("toolResult") or {}
+for content_item in tool_result.get("content") or []:
+    if not isinstance(content_item, dict) or content_item.get("type") != "text":
+        continue
+    try:
+        catalog_payload = json.loads(content_item.get("text") or "{}")
+    except json.JSONDecodeError:
+        continue
+    for product in catalog_payload.get("products") or []:
+        if not isinstance(product, dict):
+            continue
+        product_title = str(product.get("title") or "").strip()
+        add(product_title)
+        for variant in product.get("variants") or []:
+            if not isinstance(variant, dict):
+                continue
+            variant_title = str(variant.get("title") or "").strip()
+            add(" ".join(part for part in [product_title, variant_title] if part))
+            add(variant.get("id"))
+            if len(terms) >= 2:
+                break
+        if len(terms) >= 2:
+            break
+    if len(terms) >= 2:
         break
-print(",".join(skus))
+
+print(",".join(terms[:2]))
 PY
 )"
-    assert_nonempty "${comparison_skus_csv}" "bridge admin comparison SKU sample"
-    comparison_reference_sku="${comparison_skus_csv%%,*}"
-    comparison_secondary_sku="${comparison_skus_csv#*,}"
-    assert_nonempty "${comparison_reference_sku}" "comparison reference SKU"
-    assert_nonempty "${comparison_secondary_sku}" "comparison secondary SKU"
+    assert_nonempty "${comparison_terms_csv}" "bridge admin comparison product sample"
+    comparison_reference_term="${comparison_terms_csv%%,*}"
+    comparison_secondary_term="${comparison_terms_csv#*,}"
+    assert_nonempty "${comparison_reference_term}" "comparison reference product"
+    assert_nonempty "${comparison_secondary_term}" "comparison secondary product"
 
-    comparison_resolver_payload="$(python3 - <<'PY' "${comparison_reference_sku}" "${comparison_secondary_sku}" "${SHOPIFY_COMPARISON_MODE}"
+    comparison_resolver_payload="$(python3 - <<'PY' "${comparison_reference_term}" "${comparison_secondary_term}" "${SHOPIFY_COMPARISON_MODE}"
 import json
 import sys
 
-reference_sku = sys.argv[1]
-comparison_sku = sys.argv[2]
+reference_term = sys.argv[1]
+comparison_term = sys.argv[2]
 mode = sys.argv[3]
 print(json.dumps({
-    "query": f"Compare products with SKU {reference_sku} and SKU {comparison_sku} and explain the tradeoffs.",
+    "query": f"Compare {reference_term} and {comparison_term} and explain the tradeoffs.",
     "mode": mode,
     "storefrontContext": {
         "pageType": "product",
