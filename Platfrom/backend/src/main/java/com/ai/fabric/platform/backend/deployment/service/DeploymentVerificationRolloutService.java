@@ -54,7 +54,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -113,7 +112,6 @@ public class DeploymentVerificationRolloutService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
-    private final Executor rolloutExecutor;
     private final PlatformVerificationSuiteProperties suiteProperties;
 
     @Autowired
@@ -148,7 +146,6 @@ public class DeploymentVerificationRolloutService {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
-        this.rolloutExecutor = rolloutExecutor != null ? rolloutExecutor : Runnable::run;
         this.suiteProperties = suiteProperties;
     }
 
@@ -264,8 +261,8 @@ public class DeploymentVerificationRolloutService {
 
     public DeploymentVerificationRolloutSummary recreateRollouts(List<String> selectedKeys) {
         List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
-        executeInParallel(selected, this::ensureDeployment, "create/apply");
-        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s) in parallel.");
+        executeSequentially(selected, this::ensureDeployment, "create/apply");
+        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s) sequentially.");
     }
 
     public DeploymentVerificationRolloutSummary cleanupRollouts(List<String> selectedKeys) {
@@ -455,21 +452,20 @@ public class DeploymentVerificationRolloutService {
         forceRedispatchLatestQueuedApply(deploymentId);
     }
 
-    private void executeInParallel(List<VerificationRolloutDefinition> definitions,
-                                   java.util.function.Consumer<VerificationRolloutDefinition> operation,
-                                   String operationLabel) {
+    private void executeSequentially(List<VerificationRolloutDefinition> definitions,
+                                     java.util.function.Consumer<VerificationRolloutDefinition> operation,
+                                     String operationLabel) {
         if (definitions == null || definitions.isEmpty()) {
             return;
         }
 
-        List<CompletableFuture<RolloutExecutionFailure>> futures = definitions.stream()
-            .map(definition -> CompletableFuture.supplyAsync(() -> executeOperation(definition, operation), rolloutExecutor))
-            .toList();
-
-        List<RolloutExecutionFailure> failures = futures.stream()
-            .map(CompletableFuture::join)
-            .filter(Objects::nonNull)
-            .toList();
+        List<RolloutExecutionFailure> failures = new ArrayList<>();
+        for (VerificationRolloutDefinition definition : definitions) {
+            RolloutExecutionFailure failure = executeOperation(definition, operation);
+            if (failure != null) {
+                failures.add(failure);
+            }
+        }
 
         if (!failures.isEmpty()) {
             String details = failures.stream()

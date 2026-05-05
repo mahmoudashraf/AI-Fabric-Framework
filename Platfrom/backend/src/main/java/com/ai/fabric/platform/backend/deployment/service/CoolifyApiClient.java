@@ -22,8 +22,8 @@ import java.util.Optional;
 public class CoolifyApiClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(45);
-    private static final int MAX_RETRY_ATTEMPTS = 3;
-    private static final Duration RETRY_BASE_DELAY = Duration.ofMillis(500);
+    private static final int MAX_RETRY_ATTEMPTS = 6;
+    private static final Duration RETRY_BASE_DELAY = Duration.ofSeconds(1);
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -480,7 +480,7 @@ public class CoolifyApiClient {
             .firstValue("Retry-After")
             .flatMap(this::parseRetryAfter)
             .orElse(RETRY_BASE_DELAY.multipliedBy(1L << Math.max(0, attempt - 1)));
-        Thread.sleep(Math.min(delay.toMillis(), 5_000L));
+        Thread.sleep(Math.min(delay.toMillis(), 15_000L));
     }
 
     private Optional<Duration> parseRetryAfter(String value) {

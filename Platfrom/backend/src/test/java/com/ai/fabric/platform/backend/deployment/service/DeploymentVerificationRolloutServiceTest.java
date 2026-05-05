@@ -43,10 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -842,7 +838,7 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
-    void recreateRolloutsCanExecuteSelectedPresetsInParallel() {
+    void recreateRolloutsExecutesSelectedPresetsSequentially() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
@@ -857,7 +853,6 @@ class DeploymentVerificationRolloutServiceTest {
         VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
         ObjectMapper objectMapper = new ObjectMapper();
         Map<String, DeploymentEntity> deploymentsById = new ConcurrentHashMap<>();
-        CountDownLatch createStarted = new CountDownLatch(2);
         AtomicInteger activeCreates = new AtomicInteger();
         AtomicInteger maxConcurrentCreates = new AtomicInteger();
 
@@ -880,8 +875,6 @@ class DeploymentVerificationRolloutServiceTest {
             CreateDeploymentRequest request = invocation.getArgument(0);
             int active = activeCreates.incrementAndGet();
             maxConcurrentCreates.accumulateAndGet(active, Math::max);
-            createStarted.countDown();
-            createStarted.await(2, TimeUnit.SECONDS);
             activeCreates.decrementAndGet();
 
             String deploymentId = rolloutDeploymentId(request);
@@ -941,33 +934,28 @@ class DeploymentVerificationRolloutServiceTest {
             return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
         });
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
-                deploymentRepository,
-                releaseRepository,
-                deploymentService,
-                deploymentReleaseRecoveryService,
-                deploymentAssignmentRepository,
-                deploymentAssignmentService,
-                platformUserRepository,
-                platformSecretService,
-                deploymentVectorizationVerificationService,
-                sourceConnectionRepository,
-                planRepository,
-                revisionRepository,
-                objectMapper,
-                new DefaultResourceLoader(),
-                executor
-            );
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            objectMapper,
+            new DefaultResourceLoader(),
+            Runnable::run
+        );
 
-            DeploymentVerificationRolloutSummary summary = service.recreateRollouts(List.of("pinecone", "weaviate"));
+        DeploymentVerificationRolloutSummary summary = service.recreateRollouts(List.of("pinecone", "weaviate"));
 
-            assertThat(summary.summaryMessage()).contains("in parallel");
-            assertThat(maxConcurrentCreates.get()).isGreaterThan(1);
-        } finally {
-            executor.shutdownNow();
-        }
+        assertThat(summary.summaryMessage()).contains("sequentially");
+        assertThat(maxConcurrentCreates.get()).isEqualTo(1);
     }
 
     @Test
