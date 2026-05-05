@@ -1141,6 +1141,96 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
+    void listRolloutsAcceptsCoolifyManagedVectorizationRunnerServiceEvidence() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-marketplace");
+        deployment.setName("Marketplace Runtime Verification");
+        deployment.setEnvironmentName("dev");
+        deployment.setStatus("ACTIVE");
+        deployment.setActiveVersionId("ver-123");
+        deployment.setRuntimeBaseUrl("https://runtime.example");
+        deployment.setConnectorBaseUrl("https://connector.example");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setProvisioningStatus("ACTIVE");
+        release.setVerificationStatus("PASSED");
+        release.setProvisioningDetailsJson("""
+            {"coolify":{"services":{"vectorizationRunner":{"serviceId":"runner-app","serviceName":"vectorization-runner-dep-marketplace","deploymentStatus":"SUCCESS","deploymentId":"deploy-runner"}}}}
+            """);
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(deployment));
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-marketplace")).thenReturn(Optional.of(release));
+        when(deploymentVectorizationVerificationService.build(eq(deployment), any())).thenReturn(
+            new DeploymentVectorizationVerificationSummary(
+                "dep-marketplace",
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                List.of("policy", "product", "review"),
+                List.of("policy", "product", "review"),
+                null,
+                null,
+                new VectorizationRunnerSummary(
+                    "vrr-123",
+                    "PLATFORM_MANAGED_AUTO",
+                    "ACTIVE",
+                    "CURRENT",
+                    "hint-1234",
+                    Instant.parse("2026-04-20T09:51:41Z"),
+                    "vectorization-runner-dep-marketplace",
+                    "2026.04.track-b",
+                    "1",
+                    Instant.parse("2026-04-21T11:30:00Z"),
+                    Instant.parse("2026-04-21T11:45:00Z"),
+                    Instant.parse("2099-04-21T17:45:00Z")
+                )
+            )
+        );
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.listRollouts();
+
+        assertThat(summary.items()).filteredOn(item -> "marketplace".equals(item.key())).singleElement().satisfies(item -> {
+            assertThat(item.verificationReady()).isTrue();
+            assertThat(item.readinessMessage()).contains("vectorization runner");
+        });
+    }
+
+    @Test
     void recreateRolloutsDoesNotReassignExistingOwnerToDifferentCanonicalRole() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);

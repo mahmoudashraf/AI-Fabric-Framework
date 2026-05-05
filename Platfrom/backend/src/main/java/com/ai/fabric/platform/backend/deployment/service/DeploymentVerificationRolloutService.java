@@ -1397,16 +1397,18 @@ public class DeploymentVerificationRolloutService {
             return false;
         }
         try {
-            JsonNode runnerService = objectMapper.readTree(latestRelease.getProvisioningDetailsJson())
-                .path("railway")
-                .path("services")
-                .path("vectorizationRunner");
-            return runnerService.isObject()
-                && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
-                && hasText(runnerService.path("deploymentStatus").asText(""));
+            JsonNode details = objectMapper.readTree(latestRelease.getProvisioningDetailsJson());
+            return runnerServiceProvisioned(details.path("railway").path("services").path("vectorizationRunner"))
+                || runnerServiceProvisioned(details.path("coolify").path("services").path("vectorizationRunner"));
         } catch (IOException ex) {
             return false;
         }
+    }
+
+    private boolean runnerServiceProvisioned(JsonNode runnerService) {
+        return runnerService.isObject()
+            && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
+            && hasText(runnerService.path("deploymentStatus").asText(""));
     }
 
     private boolean isPlaceholderExpression(String value) {

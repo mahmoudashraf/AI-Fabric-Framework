@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationRunnerProvisioningService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -45,8 +46,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     private static final String RESOURCE_KIND_APPLICATION = "APPLICATION";
     private static final String RESOURCE_KIND_CONNECTOR_APPLICATION = "CONNECTOR_APPLICATION";
+    private static final String RESOURCE_KIND_VECTORIZATION_RUNNER_APPLICATION = "VECTORIZATION_RUNNER_APPLICATION";
     private static final String SERVICE_ROLE_RUNTIME = "runtime";
     private static final String SERVICE_ROLE_CONNECTOR = "connector";
+    private static final String SERVICE_ROLE_VECTORIZATION_RUNNER = "vectorization-runner";
     private static final String DEFAULT_SERVICE_NAME = "ai-fabric-runtime";
     private static final String DEFAULT_PROMOTION_CHANNEL = "staging";
     private static final Duration DEFAULT_DEPLOY_SETTLE_TIMEOUT = Duration.ofMinutes(6);
@@ -65,6 +68,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final PlatformSecretService platformSecretService;
     private final PlatformCustomerRepository platformCustomerRepository;
     private final ObjectMapper objectMapper;
+    private VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
 
     @Autowired
     public CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -89,6 +93,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         this.platformSecretService = platformSecretService;
         this.platformCustomerRepository = platformCustomerRepository;
         this.objectMapper = objectMapper;
+    }
+
+    @Autowired(required = false)
+    void setVectorizationRunnerProvisioningService(VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService) {
+        this.vectorizationRunnerProvisioningService = vectorizationRunnerProvisioningService;
     }
 
     CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -212,6 +221,17 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             "Resolve the Coolify project and environment that should group this customer's resources.",
             () -> resolveResourceScope(connection, deployment, resourceDefaults)
         );
+        RailwayServicePlanSummary vectorizationRunnerPlan = source.vectorizationRunnerPlan();
+        if (vectorizationRunnerPlan != null && vectorizationRunnerProvisioningService != null) {
+            tracked(
+                progressTracker,
+                "provision_vectorization_runner_registration",
+                "Create or reconcile vectorization runner registration material before runner deployment.",
+                () -> vectorizationRunnerProvisioningService.ensureManagedRegistration(deployment)
+            );
+        } else if (vectorizationRunnerPlan == null && vectorizationRunnerProvisioningService != null) {
+            vectorizationRunnerProvisioningService.clearManagedRegistrationSecret(deployment.getId());
+        }
 
         String portsExposes = text(resourceDefaults, "portsExposes", connection.config().defaultPortsExposes());
         String healthCheckPath = text(resourceDefaults, "healthCheckPath", connection.config().defaultHealthCheckPath());
@@ -290,6 +310,50 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
 
+        CoolifyApplicationSummary vectorizationRunnerApplication = null;
+        if (source.gitSource() && vectorizationRunnerPlan != null) {
+            String runnerAppName = resolveApplicationName(
+                deployment,
+                resourceDefaults,
+                source,
+                vectorizationRunnerPlan,
+                SERVICE_ROLE_VECTORIZATION_RUNNER
+            );
+            String runnerBaseDirectory = serviceBaseDirectory(
+                vectorizationRunnerPlan,
+                resourceDefaults,
+                "vectorizationRunnerBaseDirectory"
+            );
+            String runnerDockerfileLocation = serviceDockerfileLocation(
+                vectorizationRunnerPlan,
+                resourceDefaults,
+                "vectorizationRunnerDockerfilePath"
+            );
+            vectorizationRunnerApplication = tracked(
+                progressTracker,
+                "reconcile_coolify_vectorization_runner_application",
+                "Create or update the Coolify public Git vectorization runner application.",
+                () -> reconcileApplication(
+                    connection,
+                    resourceScope,
+                    deployment,
+                    profile,
+                    RESOURCE_KIND_VECTORIZATION_RUNNER_APPLICATION,
+                    runnerAppName,
+                    source,
+                    vectorizationRunnerPlan,
+                    runnerBaseDirectory,
+                    runnerDockerfileLocation,
+                    portsExposes,
+                    healthCheckEnabled,
+                    healthCheckPath,
+                    healthCheckPort,
+                    false,
+                    null
+                )
+            );
+        }
+
         String runtimeBaseUrl = normalizeRuntimeBaseUrl(runtimeApplication.fqdn());
         String connectorBaseUrl = connectorApplication == null
             ? runtimeBaseUrl
@@ -343,6 +407,32 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
 
+        int vectorizationRunnerEnvCount = 0;
+        if (vectorizationRunnerApplication != null) {
+            CoolifyApplicationSummary finalVectorizationRunnerApplication = vectorizationRunnerApplication;
+            vectorizationRunnerEnvCount = tracked(
+                progressTracker,
+                "configure_coolify_vectorization_runner_environment",
+                "Update vectorization runner environment variables in Coolify.",
+                () -> coolifyApiClient.updateEnvironmentVariables(
+                    connection,
+                    finalVectorizationRunnerApplication.uuid(),
+                    buildEnvironment(
+                        deployment,
+                        version,
+                        release,
+                        profile,
+                        resourceScope,
+                        source,
+                        vectorizationRunnerPlan,
+                        SERVICE_ROLE_VECTORIZATION_RUNNER,
+                        runtimeBaseUrl,
+                        connectorBaseUrl
+                    )
+                )
+            );
+        }
+
         CoolifyActionResponse connectorDeployResponse = null;
         CoolifyApplicationSummary observedConnector = null;
         if (connectorApplication != null) {
@@ -364,6 +454,31 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     resourceDefaults,
                     finalConnectorApplication,
                     finalConnectorDeployResponse
+                )
+            );
+        }
+
+        CoolifyActionResponse vectorizationRunnerDeployResponse = null;
+        CoolifyApplicationSummary observedVectorizationRunner = null;
+        if (vectorizationRunnerApplication != null) {
+            CoolifyApplicationSummary finalVectorizationRunnerApplication = vectorizationRunnerApplication;
+            vectorizationRunnerDeployResponse = tracked(
+                progressTracker,
+                "trigger_coolify_vectorization_runner_deploy",
+                "Trigger Coolify deployment for the vectorization runner application.",
+                () -> coolifyApiClient.start(connection, finalVectorizationRunnerApplication.uuid(), true, true)
+            );
+            CoolifyActionResponse finalVectorizationRunnerDeployResponse = vectorizationRunnerDeployResponse;
+            observedVectorizationRunner = tracked(
+                progressTracker,
+                "wait_for_coolify_vectorization_runner",
+                "Wait for Coolify to report the vectorization runner application running.",
+                () -> waitForApplicationReady(
+                    connection,
+                    finalVectorizationRunnerApplication.uuid(),
+                    resourceDefaults,
+                    finalVectorizationRunnerApplication,
+                    finalVectorizationRunnerDeployResponse
                 )
             );
         }
@@ -391,6 +506,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         CoolifyApplicationSummary finalObservedConnector = observedConnector;
         int finalConnectorEnvCount = connectorEnvCount;
         CoolifyActionResponse finalConnectorDeployResponse = connectorDeployResponse;
+        CoolifyApplicationSummary finalObservedVectorizationRunner = observedVectorizationRunner;
+        int finalVectorizationRunnerEnvCount = vectorizationRunnerEnvCount;
+        CoolifyActionResponse finalVectorizationRunnerDeployResponse = vectorizationRunnerDeployResponse;
         DeploymentProviderResourceHandleEntity connectorHandle = connectorApplication == null ? null : tracked(
             progressTracker,
             "record_coolify_connector_handle",
@@ -407,6 +525,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 SERVICE_ROLE_CONNECTOR,
                 finalConnectorEnvCount,
                 finalConnectorDeployResponse
+            )
+        );
+        DeploymentProviderResourceHandleEntity vectorizationRunnerHandle = vectorizationRunnerApplication == null ? null : tracked(
+            progressTracker,
+            "record_coolify_vectorization_runner_handle",
+            "Persist Coolify vectorization runner resource handle for operator actions.",
+            () -> upsertHandle(
+                deployment,
+                release,
+                profile,
+                resourceScope,
+                connection.config(),
+                RESOURCE_KIND_VECTORIZATION_RUNNER_APPLICATION,
+                finalObservedVectorizationRunner,
+                source,
+                SERVICE_ROLE_VECTORIZATION_RUNNER,
+                finalVectorizationRunnerEnvCount,
+                finalVectorizationRunnerDeployResponse
             )
         );
         DeploymentProviderResourceHandleEntity runtimeHandle = tracked(
@@ -433,18 +569,22 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             connectorHandle,
             observedRuntime,
             finalObservedConnector,
+            vectorizationRunnerHandle,
+            finalObservedVectorizationRunner,
             resourceScope,
             source,
             runtimeEnvCount,
             finalConnectorEnvCount,
+            finalVectorizationRunnerEnvCount,
             runtimeDeployResponse,
             finalConnectorDeployResponse,
+            finalVectorizationRunnerDeployResponse,
             managedVectorProvisioningResult
         );
         progressTracker.mergeDetails(details);
 
         return new ProvisioningResult(
-            applicationsReady(observedRuntime, finalObservedConnector) ? "ACTIVE" : "DEPLOY_REQUESTED",
+            applicationsReady(observedRuntime, finalObservedConnector, finalObservedVectorizationRunner) ? "ACTIVE" : "DEPLOY_REQUESTED",
             DeploymentProviderType.COOLIFY.legacyTarget(),
             runtimeBaseUrl,
             connectorBaseUrl,
@@ -1003,6 +1143,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coolify Git source requires a runtime service plan.");
             }
             RailwayServicePlanSummary connector = plan.services() == null ? null : plan.services().restConnector();
+            RailwayServicePlanSummary vectorizationRunner = plan.services() == null ? null : plan.services().vectorizationRunner();
             String repository = text(resourceDefaults, "gitRepository", plan.repository());
             String branch = text(resourceDefaults, "gitBranch", plan.branch());
             String dockerfilePath = text(resourceDefaults, "dockerfilePath", runtime.dockerfilePath());
@@ -1018,6 +1159,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 plan,
                 runtime,
                 connector,
+                vectorizationRunner,
                 normalizeGitRepositoryForCoolify(repository),
                 requireText(branch, "Coolify Git source requires a git branch."),
                 normalizeCoolifyDirectory(baseDirectory),
@@ -1029,6 +1171,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             return new CoolifyProvisioningSource(
                 sourceStrategy,
                 resolveSourceArtifact(release, resourceDefaults),
+                null,
                 null,
                 null,
                 null,
@@ -1073,20 +1216,32 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private String connectorBaseDirectory(RailwayServicePlanSummary connectorPlan, JsonNode resourceDefaults) {
+        return serviceBaseDirectory(connectorPlan, resourceDefaults, "connectorBaseDirectory");
+    }
+
+    private String serviceBaseDirectory(RailwayServicePlanSummary servicePlan,
+                                        JsonNode resourceDefaults,
+                                        String overrideField) {
         return normalizeCoolifyDirectory(text(
             resourceDefaults,
-            "connectorBaseDirectory",
-            connectorPlan != null && StringUtils.hasText(connectorPlan.rootDir())
-                ? normalizeCoolifyDirectory(connectorPlan.rootDir())
+            overrideField,
+            servicePlan != null && StringUtils.hasText(servicePlan.rootDir())
+                ? normalizeCoolifyDirectory(servicePlan.rootDir())
                 : "/"
         ));
     }
 
     private String connectorDockerfileLocation(RailwayServicePlanSummary connectorPlan, JsonNode resourceDefaults) {
+        return serviceDockerfileLocation(connectorPlan, resourceDefaults, "connectorDockerfilePath");
+    }
+
+    private String serviceDockerfileLocation(RailwayServicePlanSummary servicePlan,
+                                             JsonNode resourceDefaults,
+                                             String overrideField) {
         return normalizeDockerfileLocation(text(
             resourceDefaults,
-            "connectorDockerfilePath",
-            connectorPlan == null ? null : connectorPlan.dockerfilePath()
+            overrideField,
+            servicePlan == null ? null : servicePlan.dockerfilePath()
         ));
     }
 
@@ -1209,12 +1364,16 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                           String serviceRole) {
         String configured = SERVICE_ROLE_CONNECTOR.equals(serviceRole)
             ? text(resourceDefaults, "connectorApplicationName", null)
+            : SERVICE_ROLE_VECTORIZATION_RUNNER.equals(serviceRole)
+                ? text(resourceDefaults, "vectorizationRunnerApplicationName", null)
             : text(resourceDefaults, "applicationName", null);
         if (StringUtils.hasText(configured)) {
             return normalizeName(configured);
         }
         String prefix = SERVICE_ROLE_CONNECTOR.equals(serviceRole)
             ? text(resourceDefaults, "connectorApplicationNamePrefix", null)
+            : SERVICE_ROLE_VECTORIZATION_RUNNER.equals(serviceRole)
+                ? text(resourceDefaults, "vectorizationRunnerApplicationNamePrefix", null)
             : text(resourceDefaults, "applicationNamePrefix", null);
         if (StringUtils.hasText(prefix)) {
             return normalizeName(prefix + "-" + deployment.getId());
@@ -1407,9 +1566,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     }
 
     private boolean applicationsReady(CoolifyApplicationSummary runtimeApplication,
-                                      CoolifyApplicationSummary connectorApplication) {
+                                      CoolifyApplicationSummary connectorApplication,
+                                      CoolifyApplicationSummary vectorizationRunnerApplication) {
         return applicationReady(runtimeApplication)
-            && (connectorApplication == null || applicationReady(connectorApplication));
+            && (connectorApplication == null || applicationReady(connectorApplication))
+            && (vectorizationRunnerApplication == null || applicationReady(vectorizationRunnerApplication));
     }
 
     private String normalizeName(String value) {
@@ -1558,12 +1719,16 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                             DeploymentProviderResourceHandleEntity connectorHandle,
                                             CoolifyApplicationSummary runtimeApplication,
                                             CoolifyApplicationSummary connectorApplication,
+                                            DeploymentProviderResourceHandleEntity vectorizationRunnerHandle,
+                                            CoolifyApplicationSummary vectorizationRunnerApplication,
                                             CoolifyResourceScope scope,
                                             CoolifyProvisioningSource source,
                                             int runtimeEnvCount,
                                             int connectorEnvCount,
+                                            int vectorizationRunnerEnvCount,
                                             CoolifyActionResponse runtimeDeployResponse,
                                             CoolifyActionResponse connectorDeployResponse,
+                                            CoolifyActionResponse vectorizationRunnerDeployResponse,
                                             ManagedVectorProvisioningResult managedVectorProvisioningResult) {
         ObjectNode details = objectMapper.createObjectNode();
         details.put("provider", "COOLIFY");
@@ -1590,15 +1755,34 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             details.put("connectorFqdn", connectorApplication.fqdn());
             details.put("connectorStatus", connectorApplication.status());
         }
+        if (vectorizationRunnerHandle != null && vectorizationRunnerApplication != null) {
+            details.put("vectorizationRunnerProviderResourceHandleId", vectorizationRunnerHandle.getId());
+            details.put("vectorizationRunnerApplicationUuid", vectorizationRunnerApplication.uuid());
+            details.put("vectorizationRunnerFqdn", vectorizationRunnerApplication.fqdn());
+            details.put("vectorizationRunnerStatus", vectorizationRunnerApplication.status());
+            ObjectNode services = objectNode(objectNode(details, "coolify"), "services");
+            ObjectNode runner = objectNode(services, "vectorizationRunner");
+            runner.put("serviceId", vectorizationRunnerApplication.uuid());
+            runner.put("serviceName", vectorizationRunnerApplication.name());
+            runner.put("deploymentStatus", applicationReady(vectorizationRunnerApplication) ? "SUCCESS" : "DEPLOY_REQUESTED");
+            if (vectorizationRunnerDeployResponse != null) {
+                runner.put("deploymentId", vectorizationRunnerDeployResponse.deploymentUuid());
+            }
+        }
         writeSourceDetails(details, source);
-        details.put("environmentVariableCount", runtimeEnvCount + connectorEnvCount);
+        details.put("environmentVariableCount", runtimeEnvCount + connectorEnvCount + vectorizationRunnerEnvCount);
         details.put("runtimeEnvironmentVariableCount", runtimeEnvCount);
         details.put("connectorEnvironmentVariableCount", connectorEnvCount);
+        details.put("vectorizationRunnerEnvironmentVariableCount", vectorizationRunnerEnvCount);
         details.put("deploymentUuid", runtimeDeployResponse.deploymentUuid());
         details.put("statusMessage", runtimeDeployResponse.message());
         if (connectorDeployResponse != null) {
             details.put("connectorDeploymentUuid", connectorDeployResponse.deploymentUuid());
             details.put("connectorStatusMessage", connectorDeployResponse.message());
+        }
+        if (vectorizationRunnerDeployResponse != null) {
+            details.put("vectorizationRunnerDeploymentUuid", vectorizationRunnerDeployResponse.deploymentUuid());
+            details.put("vectorizationRunnerStatusMessage", vectorizationRunnerDeployResponse.message());
         }
         details.put("dnsSkipped", !StringUtils.hasText(runtimeApplication.fqdn()));
         details.put("generatedAt", Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
@@ -1640,6 +1824,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             if (source.connectorPlan() != null) {
                 target.put("connectorDockerfileLocation", normalizeDockerfileLocation(source.connectorPlan().dockerfilePath()));
             }
+            if (source.vectorizationRunnerPlan() != null) {
+                target.put(
+                    "vectorizationRunnerDockerfileLocation",
+                    normalizeDockerfileLocation(source.vectorizationRunnerPlan().dockerfilePath())
+                );
+            }
             if (source.plan() != null) {
                 target.put("railwayPlanRepository", source.plan().repository());
                 target.put("railwayPlanBranch", source.plan().branch());
@@ -1653,6 +1843,16 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         putIfText(target, "projectName", scope.projectName());
         putIfText(target, "environmentName", scope.environmentName());
         putIfText(target, "environmentUuid", scope.environmentUuid());
+    }
+
+    private ObjectNode objectNode(ObjectNode parent, String field) {
+        JsonNode existing = parent.path(field);
+        if (existing instanceof ObjectNode objectNode) {
+            return objectNode;
+        }
+        ObjectNode created = objectMapper.createObjectNode();
+        parent.set(field, created);
+        return created;
     }
 
     private JsonNode readJson(String json) {
@@ -1792,6 +1992,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         RailwayProvisioningPlanSummary plan,
         RailwayServicePlanSummary runtimePlan,
         RailwayServicePlanSummary connectorPlan,
+        RailwayServicePlanSummary vectorizationRunnerPlan,
         String gitRepository,
         String gitBranch,
         String baseDirectory,

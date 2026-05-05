@@ -17,6 +17,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.ai.fabric.platform.backend.vectorization.service.VectorizationRunnerProvisioningService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -731,6 +732,135 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
+    void provisionsCoolifyVectorizationRunnerApplicationWhenPlanRequiresIt() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService =
+            mock(VectorizationRunnerProvisioningService.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setSourceStrategy("GIT_SOURCE");
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "staging",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary runtimeApplication = new CoolifyApplicationSummary(
+            "runtime-uuid",
+            "runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            null,
+            null,
+            objectMapper.readTree("{\"uuid\":\"runtime-uuid\",\"status\":\"running:healthy\"}")
+        );
+        CoolifyApplicationSummary connectorApplication = new CoolifyApplicationSummary(
+            "connector-uuid",
+            "rest-connector-dep-123",
+            "http://dep-123-connector.runtime.example.test",
+            "running:healthy",
+            null,
+            null,
+            objectMapper.readTree("{\"uuid\":\"connector-uuid\",\"status\":\"running:healthy\"}")
+        );
+        CoolifyApplicationSummary runnerApplication = new CoolifyApplicationSummary(
+            "runner-uuid",
+            "vectorization-runner-dep-123",
+            null,
+            "running:healthy",
+            null,
+            null,
+            objectMapper.readTree("{\"uuid\":\"runner-uuid\",\"status\":\"running:healthy\"}")
+        );
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlanWithConnectorRunnerAndSecrets());
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-staging"),
+            anyString()
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createPublicApplication(eq(connection), any()))
+            .thenReturn("runtime-uuid")
+            .thenReturn("connector-uuid")
+            .thenReturn("runner-uuid");
+        when(coolifyApiClient.getApplication(connection, "runtime-uuid")).thenReturn(Optional.of(runtimeApplication));
+        when(coolifyApiClient.getApplication(connection, "connector-uuid")).thenReturn(Optional.of(connectorApplication));
+        when(coolifyApiClient.getApplication(connection, "runner-uuid")).thenReturn(Optional.of(runnerApplication));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("runtime-uuid"), any())).thenReturn(12);
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("connector-uuid"), any())).thenReturn(8);
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("runner-uuid"), any())).thenReturn(10);
+        when(coolifyApiClient.start(connection, "runtime-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Runtime deployment queued.", "runtime-deploy", objectMapper.createObjectNode()));
+        when(coolifyApiClient.start(connection, "connector-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Connector deployment queued.", "connector-deploy", objectMapper.createObjectNode()));
+        when(coolifyApiClient.start(connection, "runner-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Runner deployment queued.", "runner-deploy", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_DEP_123")).thenReturn("runner-token");
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
+            objectMapper
+        );
+        provider.setVectorizationRunnerProvisioningService(vectorizationRunnerProvisioningService);
+        DeploymentReleaseEntity release = release();
+        release.setSourceArtifactId(null);
+
+        ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+
+        assertThat(result.detailsJson()).contains(
+            "\"coolify\"",
+            "\"vectorizationRunner\"",
+            "\"vectorizationRunnerProviderResourceHandleId\"",
+            "\"deploymentStatus\" : \"SUCCESS\""
+        );
+        ArgumentCaptor<CoolifyCreatePublicApplicationRequest> request =
+            ArgumentCaptor.forClass(CoolifyCreatePublicApplicationRequest.class);
+        verify(coolifyApiClient, times(3)).createPublicApplication(eq(connection), request.capture());
+        assertThat(request.getAllValues())
+            .extracting(CoolifyCreatePublicApplicationRequest::dockerfileLocation)
+            .contains(
+                "/ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile"
+            );
+        verify(vectorizationRunnerProvisioningService).ensureManagedRegistration(any());
+        verifyNoInteractions(sourceArtifactService);
+    }
+
+    @Test
     void statusRedactsRawCoolifySecrets() throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
@@ -988,6 +1118,76 @@ class CoolifyDeploymentProviderTest {
                 "https://artifacts.example/manifest.json"
             ),
             new RailwayProvisioningServicesSummary(runtime, connector),
+            List.of()
+        );
+    }
+
+    private RailwayProvisioningPlanSummary railwayPlanWithConnectorRunnerAndSecrets() {
+        RailwayServicePlanSummary runtime = new RailwayServicePlanSummary(
+            "runtime-dep-123",
+            null,
+            "ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile",
+            "https://runtime-dep-123.placeholder.local",
+            List.of(
+                new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", "https://artifacts.example/entities.yaml"),
+                new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", "https://connector-dep-123.placeholder.local"),
+                new RailwayEnvVarSummary(
+                    "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
+                    "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+                )
+            )
+        );
+        RailwayServicePlanSummary connector = new RailwayServicePlanSummary(
+            "rest-connector-dep-123",
+            null,
+            "ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile",
+            "https://connector-dep-123.placeholder.local",
+            List.of(
+                new RailwayEnvVarSummary("REST_CONNECTOR_ROUTING_CONFIG_LOCATION", "https://artifacts.example/routing.yaml"),
+                new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL", "https://runtime-dep-123.placeholder.local"),
+                new RailwayEnvVarSummary(
+                    "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",
+                    "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}"
+                )
+            )
+        );
+        RailwayServicePlanSummary runner = new RailwayServicePlanSummary(
+            "vectorization-runner-dep-123",
+            null,
+            "ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile",
+            null,
+            List.of(
+                new RailwayEnvVarSummary("AI_FABRIC_VECTORIZATION_RUNNER_PLATFORM_BASE_URL", "https://platform.example"),
+                new RailwayEnvVarSummary(
+                    "AI_FABRIC_VECTORIZATION_RUNNER_REGISTRATION_TOKEN",
+                    "${secret:MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_DEP_123}"
+                ),
+                new RailwayEnvVarSummary("AI_FABRIC_VECTORIZATION_RUNNER_RUNNER_INSTANCE_ID", "vectorization-runner-dep-123"),
+                new RailwayEnvVarSummary("AI_FABRIC_VECTORIZATION_RUNNER_DEPLOYMENT_ID", "dep-123")
+            )
+        );
+        return new RailwayProvisioningPlanSummary(
+            "dep-123",
+            "Demo",
+            "staging",
+            "template",
+            "ver-123",
+            "v1",
+            "hash",
+            "api",
+            "demo-staging",
+            "mahmoudashraf/AI-Fabric-Framework",
+            "Platform-V8",
+            null,
+            "REMOTE_CONFIG_BUNDLES",
+            new RailwayArtifactUrlsSummary(
+                "https://artifacts.example/actions.yaml",
+                "https://artifacts.example/entities.yaml",
+                "https://artifacts.example/routing.yaml",
+                "https://artifacts.example/prompts.yaml",
+                "https://artifacts.example/manifest.json"
+            ),
+            new RailwayProvisioningServicesSummary(runtime, connector, runner),
             List.of()
         );
     }
