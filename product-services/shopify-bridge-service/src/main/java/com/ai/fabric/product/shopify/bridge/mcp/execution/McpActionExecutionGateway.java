@@ -22,14 +22,11 @@ import java.util.Map;
 public class McpActionExecutionGateway {
 
     private static final List<String> STOREFRONT_STANDARD_EXPECTED_TOOLS = List.of(
+        "search_catalog",
         "search_shop_policies_and_faqs",
         "get_cart",
-        "update_cart"
-    );
-    private static final List<String> STOREFRONT_UCP_CATALOG_EXPECTED_TOOLS = List.of(
-        "search_catalog",
-        "lookup_catalog",
-        "get_product"
+        "update_cart",
+        "get_product_details"
     );
 
     private final McpExecutionGatewayProperties properties;
@@ -111,12 +108,6 @@ public class McpActionExecutionGateway {
                     "https://" + normalizedShopDomain + "/api/mcp",
                     normalizedShopDomain,
                     STOREFRONT_STANDARD_EXPECTED_TOOLS
-                ),
-                toolsReadiness(
-                    "shopify-storefront-ucp",
-                    "https://" + normalizedShopDomain + "/api/ucp/mcp",
-                    normalizedShopDomain,
-                    STOREFRONT_UCP_CATALOG_EXPECTED_TOOLS
                 )
             );
             boolean ready = serverSummaries.stream().allMatch(summary -> Boolean.TRUE.equals(summary.get("ready")));

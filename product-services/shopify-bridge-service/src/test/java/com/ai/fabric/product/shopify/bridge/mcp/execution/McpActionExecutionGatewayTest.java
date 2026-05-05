@@ -71,7 +71,7 @@ class McpActionExecutionGatewayTest {
     }
 
     @Test
-    void storefrontReadinessVerifiesStandardAndUcpCatalogEndpointsSeparately() {
+    void storefrontReadinessVerifiesLiveStorefrontMcpEndpoint() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         McpActionExecutionGateway gateway = new McpActionExecutionGateway(
@@ -87,22 +87,11 @@ class McpActionExecutionGatewayTest {
                 {
                   "success": true,
                   "result": [
+                    {"name": "search_catalog"},
                     {"name": "search_shop_policies_and_faqs"},
                     {"name": "get_cart"},
-                    {"name": "update_cart"}
-                  ]
-                }
-                """, MediaType.APPLICATION_JSON));
-        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/servers/tools/list"))
-            .andExpect(method(HttpMethod.POST))
-            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
-            .andRespond(withSuccess("""
-                {
-                  "success": true,
-                  "result": [
-                    {"name": "search_catalog"},
-                    {"name": "lookup_catalog"},
-                    {"name": "get_product"}
+                    {"name": "update_cart"},
+                    {"name": "get_product_details"}
                   ]
                 }
                 """, MediaType.APPLICATION_JSON));
@@ -112,14 +101,11 @@ class McpActionExecutionGatewayTest {
         assertThat(readiness).containsEntry("ready", true);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> servers = (List<Map<String, Object>>) readiness.get("servers");
-        assertThat(servers).hasSize(2);
+        assertThat(servers).hasSize(1);
         assertThat(servers).extracting(serverSummary -> serverSummary.get("serverRef"))
-            .containsExactly("shopify-storefront", "shopify-storefront-ucp");
+            .containsExactly("shopify-storefront");
         assertThat(servers).extracting(serverSummary -> serverSummary.get("endpointUrl"))
-            .containsExactly(
-                "https://alpha.myshopify.com/api/mcp",
-                "https://alpha.myshopify.com/api/ucp/mcp"
-            );
+            .containsExactly("https://alpha.myshopify.com/api/mcp");
         assertThat(servers).allMatch(serverSummary -> Boolean.TRUE.equals(serverSummary.get("ready")));
         server.verify();
     }

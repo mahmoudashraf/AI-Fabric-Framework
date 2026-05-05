@@ -9,6 +9,7 @@ Companion plans:
 - `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md`
 - `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_1_MARKETPLACE_CONFIG_DRIVEN_MCP_CAPABILITY_ARCHITECTURE.md`
 - `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md`
+- `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_3_SHOPIFY_MCP_MARKET_READINESS_AND_RELEASE_GATE.md`
 - `Final_Documentation/Development_Guides/MANAGED_PRODUCT_SERVICES_AUTH_GUIDE.md`
 - `Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_MANIFEST_REFERENCE.md`
 - `Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md`
@@ -134,6 +135,8 @@ Platform-managed service behavior:
 - Force recreate clears stale Platform/Coolify linkage and can recover from a deleted or stale Coolify UUID by adopting/deleting the domain/name match before recreating from desired state.
 
 Production is supported by target profile, but production deployment is explicit. Staging remains the implicit/default target.
+
+Plan 009.3 makes market readiness release-gated: the Shopify MCP product is design-partner ready only after staging `full-platform-release-readiness` passes with `shopify-mcp-gateway-verification`, `shopify-companion-verification`, and `shopify-first-product-readiness-audit` included.
 
 ---
 
