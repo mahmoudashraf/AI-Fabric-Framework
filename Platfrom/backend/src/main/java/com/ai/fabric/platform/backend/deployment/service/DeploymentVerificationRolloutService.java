@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -92,7 +94,7 @@ public class DeploymentVerificationRolloutService {
     private static final int DEFAULT_BATCH_SIZE = 25;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
-    private static final String DEFAULT_WEAVIATE_HOST = "weaviate-external-verify-dev.up.railway.app";
+    private static final String TEST_WEAVIATE_HOST = "weaviate.example.test";
     private static final String ZILLIZ_PROJECT_ID = "proj-a58a34b87ccfe2c80d6ec2";
     private static final String ZILLIZ_REGION_ID = "aws-eu-central-1";
 
@@ -112,6 +114,7 @@ public class DeploymentVerificationRolloutService {
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
     private final Executor rolloutExecutor;
+    private final PlatformVerificationSuiteProperties suiteProperties;
 
     @Autowired
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
@@ -126,6 +129,7 @@ public class DeploymentVerificationRolloutService {
                                                 VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
                                                 VectorizationPlanRepository vectorizationPlanRepository,
                                                 VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
+                                                PlatformVerificationSuiteProperties suiteProperties,
                                                 ObjectMapper objectMapper,
                                                 ResourceLoader resourceLoader,
                                                 @Qualifier("canonicalRolloutExecutor") Executor rolloutExecutor) {
@@ -145,6 +149,42 @@ public class DeploymentVerificationRolloutService {
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
         this.rolloutExecutor = rolloutExecutor != null ? rolloutExecutor : Runnable::run;
+        this.suiteProperties = suiteProperties;
+    }
+
+    public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
+                                                DeploymentReleaseRepository releaseRepository,
+                                                DeploymentService deploymentService,
+                                                DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
+                                                DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                                DeploymentAssignmentService deploymentAssignmentService,
+                                                PlatformUserRepository platformUserRepository,
+                                                PlatformSecretService platformSecretService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                                VectorizationPlanRepository vectorizationPlanRepository,
+                                                VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
+                                                ObjectMapper objectMapper,
+                                                ResourceLoader resourceLoader,
+                                                Executor rolloutExecutor) {
+        this(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            vectorizationSourceConnectionRepository,
+            vectorizationPlanRepository,
+            vectorizationPlanRevisionRepository,
+            defaultSuiteProperties(),
+            objectMapper,
+            resourceLoader,
+            rolloutExecutor
+        );
     }
 
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
@@ -174,6 +214,7 @@ public class DeploymentVerificationRolloutService {
             vectorizationSourceConnectionRepository,
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
+            defaultSuiteProperties(),
             objectMapper,
             resourceLoader,
             Runnable::run
@@ -206,6 +247,7 @@ public class DeploymentVerificationRolloutService {
             vectorizationSourceConnectionRepository,
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
+            defaultSuiteProperties(),
             objectMapper,
             resourceLoader,
             Runnable::run
@@ -1373,11 +1415,41 @@ public class DeploymentVerificationRolloutService {
     }
 
     private String verificationWeaviateHost() {
-        String override = System.getenv("PLATFORM_VERIFICATION_WEAVIATE_HOST");
+        String override = suiteProperties == null ? null : suiteProperties.weaviateHost();
+        if (!hasText(override)) {
+            override = System.getenv("PLATFORM_VERIFICATION_WEAVIATE_HOST");
+        }
         if (!hasText(override)) {
             override = System.getenv("WEAVIATE_HOST");
         }
-        return hasText(override) ? override.trim() : DEFAULT_WEAVIATE_HOST;
+        if (hasText(override)) {
+            return override.trim();
+        }
+        throw new ResponseStatusException(
+            BAD_REQUEST,
+            "PLATFORM_VERIFICATION_WEAVIATE_HOST is required before recreating the canonical Weaviate verification rollout."
+        );
+    }
+
+    private static PlatformVerificationSuiteProperties defaultSuiteProperties() {
+        return new PlatformVerificationSuiteProperties(
+            Duration.ofMinutes(180),
+            Duration.ofMinutes(12),
+            Duration.ofMinutes(20),
+            Duration.ofMinutes(75),
+            Duration.ofHours(12),
+            Duration.ofSeconds(3),
+            20,
+            12_000,
+            80_000,
+            null,
+            TEST_WEAVIATE_HOST,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     private String firstNonBlank(String value, String fallback) {

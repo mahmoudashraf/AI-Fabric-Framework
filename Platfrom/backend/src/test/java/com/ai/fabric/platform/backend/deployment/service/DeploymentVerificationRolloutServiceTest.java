@@ -553,7 +553,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(milvus.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
 
         UpdateDeploymentDraftRequest weaviate = updates.get(5);
-        assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("weaviate-external-verify-dev.up.railway.app");
+        assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("weaviate.example.test");
         assertThat(weaviate.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
         assertThat(weaviate.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
         assertThat(weaviate.entityConfig().path("ai-entities").has("product")).isTrue();
