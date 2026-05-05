@@ -880,9 +880,14 @@ Rules:
 
 ## 2026-05-05 Shopify MCP Guides And Production Profile Support
 
+- Implemented and pushed commit `5dc8b938a` on branch `Platform-V8`.
 - Created `Final_Documentation/Development_Guides/SHOPIFY_MCP_FIRST_AND_GATEWAY_DEVELOPMENT_GUIDE.md` covering Plan 009, 009.1, and 009.2 implementation status, how to add config-driven MCP servers/actions, managed service profiles, staging verification, secrets posture, and remaining external Customer Account/Checkout gates.
 - Updated `Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md` and `009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md` to document Coolify target profiles for Platform-managed product services.
 - Added Flyway `V86__allow_coolify_production_platform_services.sql`: `dtp-coolify-production` is active and allows Platform-managed product services, but remains non-default for runtime and restartable services; `dtp-coolify-staging` remains the implicit default.
 - `PlatformManagedProductProvisioningService` now fails closed if more than one Coolify product-service profile is allowed and none is marked `defaultForRestartableServices`; explicit `targetProfileId=dtp-coolify-production` is required for production product-service placement.
 - Product Services UI now loads Coolify target profiles and uses a select for managed-service profile placement instead of a raw profile ID text field.
+- Local verification passed: full Platform backend suite, focused Platform managed product/profile tests, MCP Gateway suite, Platform UI production build, marketplace/shopify shell syntax checks, staged exact-secret scan, and `git diff --check`.
+- Staging-only Coolify deploys completed for Platform backend (`fl0w2fi36rmgqz7wbeilothw`) and Platform UI (`z7n39dhj65aal2kl3veef3fd`). Both deployments finished; backend `/actuator/health` and UI `/health` returned `UP`.
+- Staging live Platform API verification passed: `dtp-coolify-production` is `active=true`, `platformServicesAllowed=true`, `defaultForRuntime=false`, `defaultForRestartableServices=false`; `dtp-coolify-staging` remains active, platform-service allowed, and the restartable/runtime default.
+- Served staging UI bundle contains the new Product Services target-profile selector text.
 - Production deployment was not performed. This work only makes production an explicit, managed target profile for future Platform-managed services while keeping staging as default.
