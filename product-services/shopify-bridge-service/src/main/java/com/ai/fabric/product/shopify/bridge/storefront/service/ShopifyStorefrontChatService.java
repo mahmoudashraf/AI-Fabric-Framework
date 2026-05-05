@@ -69,7 +69,7 @@ public class ShopifyStorefrontChatService {
 
     public JsonNode query(String shopDomain, JsonNode request, String shopperSessionId) {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
-        ObjectNode normalizedRequest = normalizeRequest(request);
+        ObjectNode normalizedRequest = normalizeRequest(request, store.shopDomain());
         ShopifyBridgeBillingSummary billingSummary = storefrontBillingSummary(store, normalizedRequest);
         enforceSurfaceEntitlement(store, normalizedRequest, billingSummary);
         JsonNode guardResponse = storefrontGuardResponse(store, normalizedRequest, billingSummary);
@@ -83,17 +83,17 @@ public class ShopifyStorefrontChatService {
 
     public JsonNode suggestions(String shopDomain, JsonNode request, String shopperSessionId) {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
-        ObjectNode normalizedRequest = normalizeRequest(request);
+        ObjectNode normalizedRequest = normalizeRequest(request, store.shopDomain());
         enforceSurfaceEntitlement(store, normalizedRequest, storefrontBillingSummary(store, normalizedRequest));
         return platformShopifyStoreClient.suggestConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
     }
 
-    private ObjectNode normalizeRequest(JsonNode request) {
+    private ObjectNode normalizeRequest(JsonNode request, String shopDomain) {
         ObjectNode body = request != null && request.isObject()
             ? (ObjectNode) request.deepCopy()
             : objectMapper.createObjectNode();
         ObjectNode storefrontContext = extractStorefrontContext(body);
-        ObjectNode storefrontContextAttachment = storefrontContextAttachment(storefrontContext);
+        ObjectNode storefrontContextAttachment = storefrontContextAttachment(storefrontContext, shopDomain);
         body.remove("storefrontContext");
         CONTEXT_TOP_LEVEL_FIELDS.forEach(body::remove);
         if (storefrontContextAttachment != null && !storefrontContextAttachment.isEmpty()) {
@@ -126,42 +126,42 @@ public class ShopifyStorefrontChatService {
         return context;
     }
 
-    private ObjectNode storefrontContextAttachment(JsonNode rawContext) {
-        if (rawContext == null || !rawContext.isObject()) {
-            return null;
-        }
+    private ObjectNode storefrontContextAttachment(JsonNode rawContext, String shopDomain) {
         ObjectNode metadata = objectMapper.createObjectNode();
-        copyLimitedTextField(rawContext, metadata, "pageType");
-        copyLimitedTextField(rawContext, metadata, "pageTitle");
-        copyLimitedTextField(rawContext, metadata, "shopifyShellModeProfile");
-        copyLimitedTextField(rawContext, metadata, "shopifySurfaceEntry");
-        copyLimitedTextField(rawContext, metadata, "shopifyPageModeGroup");
-        copyLimitedTextField(rawContext, metadata, "shopifyEffectiveConversationMode");
+        putLimitedTextField(metadata, "shopDomain", shopDomain);
+        if (rawContext != null && rawContext.isObject()) {
+            copyLimitedTextField(rawContext, metadata, "pageType");
+            copyLimitedTextField(rawContext, metadata, "pageTitle");
+            copyLimitedTextField(rawContext, metadata, "shopifyShellModeProfile");
+            copyLimitedTextField(rawContext, metadata, "shopifySurfaceEntry");
+            copyLimitedTextField(rawContext, metadata, "shopifyPageModeGroup");
+            copyLimitedTextField(rawContext, metadata, "shopifyEffectiveConversationMode");
 
-        JsonNode rawProduct = rawContext.get("product");
-        if (rawProduct != null && rawProduct.isObject()) {
-            copyLimitedTextField(rawProduct, metadata, "id", "productId");
-            copyLimitedTextField(rawProduct, metadata, "handle", "productHandle");
-            copyLimitedTextField(rawProduct, metadata, "title", "productTitle");
-            copyLimitedTextField(rawProduct, metadata, "vendor", "productVendor");
-            copyLimitedTextField(rawProduct, metadata, "type", "productType");
-            copyLimitedTextField(rawProduct, metadata, "priceCents", "productPriceCents");
-        }
+            JsonNode rawProduct = rawContext.get("product");
+            if (rawProduct != null && rawProduct.isObject()) {
+                copyLimitedTextField(rawProduct, metadata, "id", "productId");
+                copyLimitedTextField(rawProduct, metadata, "handle", "productHandle");
+                copyLimitedTextField(rawProduct, metadata, "title", "productTitle");
+                copyLimitedTextField(rawProduct, metadata, "vendor", "productVendor");
+                copyLimitedTextField(rawProduct, metadata, "type", "productType");
+                copyLimitedTextField(rawProduct, metadata, "priceCents", "productPriceCents");
+            }
 
-        JsonNode rawCollection = rawContext.get("collection");
-        if (rawCollection != null && rawCollection.isObject()) {
-            copyLimitedTextField(rawCollection, metadata, "id", "collectionId");
-            copyLimitedTextField(rawCollection, metadata, "handle", "collectionHandle");
-            copyLimitedTextField(rawCollection, metadata, "title", "collectionTitle");
-        }
+            JsonNode rawCollection = rawContext.get("collection");
+            if (rawCollection != null && rawCollection.isObject()) {
+                copyLimitedTextField(rawCollection, metadata, "id", "collectionId");
+                copyLimitedTextField(rawCollection, metadata, "handle", "collectionHandle");
+                copyLimitedTextField(rawCollection, metadata, "title", "collectionTitle");
+            }
 
-        JsonNode rawDocument = rawContext.get("document");
-        if (rawDocument != null && rawDocument.isObject()) {
-            copyLimitedTextField(rawDocument, metadata, "id", "documentId");
-            copyLimitedTextField(rawDocument, metadata, "handle", "documentHandle");
-            copyLimitedTextField(rawDocument, metadata, "title", "documentTitle");
-            copyLimitedTextField(rawDocument, metadata, "type", "documentType");
-            copyLimitedTextField(rawDocument, metadata, "url", "documentUrl");
+            JsonNode rawDocument = rawContext.get("document");
+            if (rawDocument != null && rawDocument.isObject()) {
+                copyLimitedTextField(rawDocument, metadata, "id", "documentId");
+                copyLimitedTextField(rawDocument, metadata, "handle", "documentHandle");
+                copyLimitedTextField(rawDocument, metadata, "title", "documentTitle");
+                copyLimitedTextField(rawDocument, metadata, "type", "documentType");
+                copyLimitedTextField(rawDocument, metadata, "url", "documentUrl");
+            }
         }
 
         String contentText = storefrontContextSummary(metadata);
@@ -185,6 +185,14 @@ public class ShopifyStorefrontChatService {
 
     private void copyLimitedTextField(JsonNode source, ObjectNode target, String sourceField, String targetField) {
         String value = trimToNull(textOrNull(source, sourceField));
+        putLimitedTextField(target, targetField, value);
+    }
+
+    private void putLimitedTextField(ObjectNode target, String targetField, String value) {
+        if (target == null || !StringUtils.hasText(targetField)) {
+            return;
+        }
+        value = trimToNull(value);
         if (value == null) {
             return;
         }

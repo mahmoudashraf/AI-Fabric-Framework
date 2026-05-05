@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.action.ActionObjectPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -146,6 +147,53 @@ class ActionConnectorExecutorTest {
         Map<String, Object> actionConfig = (Map<String, Object>) trace.get("actionConfig");
         assertThat(actionConfig).containsEntry("adapterType", "mcp-tool");
         assertThat(actionConfig).containsKeys("execution", "mcpServers");
+    }
+
+    @Test
+    void execute_shouldPromoteStorefrontShopDomainAttachmentIntoMcpTrace() {
+        StubHttpClient stub = new StubHttpClient(List.of(
+            new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{}}", Map.of())
+        ));
+        AIActionConnectorProperties props = connectorProps("https://example", 1, Duration.ZERO);
+        props.getMcpGateway().setBaseUrl("https://mcp-gateway.internal");
+        props.getMcpGateway().setApiKey("gateway-secret");
+        ActionConnectorExecutor executor = new ActionConnectorExecutor(
+            props,
+            stub,
+            null,
+            fixedClock()
+        );
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user@example.com")
+            .sessionId("s1")
+            .conversationId("c1")
+            .requestId("r1")
+            .attachments(List.of(OrchestrationAttachment.builder()
+                .source("shopify-storefront-context")
+                .metadata(Map.of("shopDomain", "alpha.myshopify.com"))
+                .build()))
+            .build();
+
+        executor.execute(
+            "shopify_search_catalog",
+            ActionAccessMode.READ,
+            Map.of("query", "bag"),
+            new ActionContext(orchestrationContext, null),
+            Map.of(
+                "adapterType", "mcp-tool",
+                "execution", Map.of("mcp", Map.of(
+                    "serverRef", "shopify-storefront",
+                    "endpointKind", "STOREFRONT_STANDARD",
+                    "toolName", "search_catalog"
+                ))
+            )
+        );
+
+        Map<String, Object> request = readRequest(stub.lastRequestBody());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trace = (Map<String, Object>) request.get(ActionConnectorProtocol.KEY_TRACE);
+        assertThat(trace).containsEntry("shopDomain", "alpha.myshopify.com");
     }
 
     @Test

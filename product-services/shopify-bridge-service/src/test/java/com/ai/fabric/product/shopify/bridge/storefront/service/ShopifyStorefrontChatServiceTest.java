@@ -46,6 +46,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "productHandle":"travel-pack",
                     "productTitle":"Travel Pack"
@@ -80,6 +81,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "productHandle":"travel-pack",
                     "productTitle":"Travel Pack"
@@ -104,6 +106,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Page title: Travel Pack. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "pageTitle":"Travel Pack",
                     "productHandle":"travel-pack",
@@ -142,6 +145,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Page title: Travel Pack. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "pageTitle":"Travel Pack",
                     "productHandle":"travel-pack",
@@ -159,7 +163,16 @@ class ShopifyStorefrontChatServiceTest {
         ShopifyStorefrontChatService service = service(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(supportBlockedStore());
         when(platformClient.suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
-            {"content":"Current page: Travel Pack","maxSuggestions":4}
+            {
+              "content":"Current page: Travel Pack",
+              "maxSuggestions":4,
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "metadata":{"shopDomain":"alpha.myshopify.com"}
+                }
+              ]
+            }
             """), null)).thenReturn(objectMapper.readTree("""
             {"success":true,"suggestions":["Tell me about Travel Pack"]}
             """));
@@ -174,7 +187,16 @@ class ShopifyStorefrontChatServiceTest {
 
         assertThat(response.path("suggestions")).hasSize(1);
         verify(platformClient).suggestConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
-            {"content":"Current page: Travel Pack","maxSuggestions":4}
+            {
+              "content":"Current page: Travel Pack",
+              "maxSuggestions":4,
+              "attachments":[
+                {
+                  "source":"shopify-storefront-context",
+                  "metadata":{"shopDomain":"alpha.myshopify.com"}
+                }
+              ]
+            }
             """), null);
     }
 
@@ -237,6 +259,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Shopify surface: max-mode. Shopify page group: product. Shopify mode: navigator. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "shopifySurfaceEntry":"max-mode",
                     "shopifyPageModeGroup":"product",
@@ -323,6 +346,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Shopify surface: ai-search. Shopify page group: product. Shopify mode: navigator. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "shopifySurfaceEntry":"ai-search",
                     "shopifyPageModeGroup":"product",
@@ -373,6 +397,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Shopify surface: launcher. Shopify page group: product. Shopify mode: navigator. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "shopifyPageModeGroup":"product",
@@ -427,6 +452,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Shopify surface: launcher. Shopify page group: product. Shopify mode: navigator. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "shopifyPageModeGroup":"product",
@@ -480,6 +506,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Shopify surface: launcher. Shopify page group: product. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "shopifyPageModeGroup":"product",
@@ -582,6 +609,7 @@ class ShopifyStorefrontChatServiceTest {
                   "source":"shopify-storefront-context",
                   "contentText":"Page type: product. Shopify surface: launcher. Product: Travel Pack. Product handle: travel-pack",
                   "metadata":{
+                    "shopDomain":"alpha.myshopify.com",
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "productHandle":"travel-pack",

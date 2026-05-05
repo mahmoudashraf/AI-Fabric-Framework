@@ -157,8 +157,7 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-storefront-read-mcp")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_search_catalog")))
-            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_lookup_catalog")))
-            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_product")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_product_details")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_search_policies")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-cart-mcp")))

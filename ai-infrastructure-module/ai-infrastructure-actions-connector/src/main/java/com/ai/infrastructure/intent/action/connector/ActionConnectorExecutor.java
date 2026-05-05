@@ -11,6 +11,7 @@ import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionTargetRef;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -219,6 +220,7 @@ public class ActionConnectorExecutor {
         if (!authContext.isEmpty()) {
             trace.put(ActionConnectorProtocol.TRACE_AUTH_CONTEXT, authContext);
         }
+        putIfText(trace, "shopDomain", resolveShopDomainTraceValue(context));
         return trace;
     }
 
@@ -251,6 +253,45 @@ public class ActionConnectorExecutor {
             return;
         }
         out.put(key, value.trim());
+    }
+
+    private String resolveShopDomainTraceValue(ActionContext context) {
+        if (context == null) {
+            return null;
+        }
+        String value = firstText(context.metadata(), "shopDomain", "shop_domain", "storeDomain", "store_domain");
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        if (context.orchestrationContext() == null || context.orchestrationContext().getAttachments() == null) {
+            return null;
+        }
+        for (OrchestrationAttachment attachment : context.orchestrationContext().getAttachments()) {
+            if (attachment == null) {
+                continue;
+            }
+            value = firstText(attachment.getMetadata(), "shopDomain", "shop_domain", "storeDomain", "store_domain");
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String firstText(Map<String, ?> source, String... keys) {
+        if (source == null || source.isEmpty() || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            Object value = source.get(key);
+            if (value != null && StringUtils.hasText(value.toString())) {
+                return value.toString().trim();
+            }
+        }
+        return null;
     }
 
     private String buildExecuteUrl() {

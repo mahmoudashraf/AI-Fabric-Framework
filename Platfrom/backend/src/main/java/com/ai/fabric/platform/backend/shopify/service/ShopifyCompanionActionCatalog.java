@@ -22,8 +22,7 @@ final class ShopifyCompanionActionCatalog {
 
     private static final List<String> DEFAULT_ACTION_IDS = List.of(
         "shopify_search_catalog",
-        "shopify_lookup_catalog",
-        "shopify_get_product",
+        "shopify_get_product_details",
         "shopify_search_policies",
         "shopify_get_cart",
         "shopify_update_cart"
