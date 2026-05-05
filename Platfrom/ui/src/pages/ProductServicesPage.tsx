@@ -37,6 +37,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   createProductService,
   decommissionProductService,
+  fetchDeploymentTargetProfiles,
   fetchProductServiceDeploymentHistory,
   fetchProductService,
   fetchProductServiceActivity,
@@ -55,6 +56,7 @@ import {
   scaleProductService,
   updateProductServiceShopifyBillingConfig,
   type CreatePlatformManagedProductServiceRequest,
+  type DeploymentTargetProfileSummary,
   type PlatformAuditEventSummary,
   type PlatformManagedProductServiceBillingSummary,
   type PlatformManagedProductServiceHealthSummary,
@@ -122,6 +124,14 @@ function billingSeverity(billing: PlatformManagedProductServiceBillingSummary | 
     return billing.status?.toUpperCase() === 'PAYMENT_ISSUE' ? 'error' : 'warning'
   }
   return 'info'
+}
+
+function targetProfileLabel(profile: DeploymentTargetProfileSummary): string {
+  const flags = [
+    profile.defaultForRestartableServices ? 'restartable default' : null,
+    profile.defaultForRuntime ? 'runtime default' : null,
+  ].filter(Boolean)
+  return `${profile.name} (${profile.id}, ${profile.environmentName})${flags.length > 0 ? ` - ${flags.join(', ')}` : ''}`
 }
 
 function usageBreakdownLabel(eventType: string): string {
@@ -508,6 +518,16 @@ export function ProductServicesPage() {
     queryKey: ['product-services'],
     queryFn: fetchProductServices,
   })
+
+  const targetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles', 'COOLIFY', 'product-services'],
+    queryFn: () => fetchDeploymentTargetProfiles('COOLIFY'),
+  })
+
+  const managedServiceTargetProfiles = useMemo(
+    () => (targetProfilesQuery.data ?? []).filter((profile) => profile.active && profile.platformServicesAllowed),
+    [targetProfilesQuery.data],
+  )
 
   const selectedServiceRef = searchParams.get('service') ?? ''
 
@@ -1259,7 +1279,29 @@ export function ProductServicesPage() {
             <TextField label="Service root" value={form.serviceRoot ?? ''} onChange={(event) => setForm((current) => ({ ...current, serviceRoot: event.target.value || null }))} fullWidth />
             <TextField label="Dockerfile path" value={form.dockerfilePath ?? ''} onChange={(event) => setForm((current) => ({ ...current, dockerfilePath: event.target.value || null }))} fullWidth />
             <TextField label="Secret name (optional)" value={form.secretName ?? ''} onChange={(event) => setForm((current) => ({ ...current, secretName: event.target.value || null }))} fullWidth />
-            <TextField label="Coolify target profile ID" value={form.targetProfileId ?? ''} onChange={(event) => setForm((current) => ({ ...current, targetProfileId: event.target.value || null }))} fullWidth />
+            <TextField
+              select
+              label="Coolify target profile"
+              value={form.targetProfileId ?? ''}
+              onChange={(event) => setForm((current) => ({ ...current, targetProfileId: event.target.value || null }))}
+              helperText={
+                targetProfilesQuery.isError
+                  ? 'Target profiles failed to load; leave blank to use the managed-service default or enter one through the API.'
+                  : 'Leave blank for the restartable-services default. Select production only for an intentional production rollout.'
+              }
+              disabled={targetProfilesQuery.isLoading}
+              fullWidth
+            >
+              <MenuItem value="">Default managed-service profile</MenuItem>
+              {managedServiceTargetProfiles.map((profile) => (
+                <MenuItem key={profile.id} value={profile.id}>
+                  {targetProfileLabel(profile)}
+                </MenuItem>
+              ))}
+              {form.targetProfileId && !managedServiceTargetProfiles.some((profile) => profile.id === form.targetProfileId) ? (
+                <MenuItem value={form.targetProfileId}>{form.targetProfileId}</MenuItem>
+              ) : null}
+            </TextField>
             {form.serviceKind === 'SHOPIFY_BRIDGE_SERVICE' ? (
               <>
                 <Divider />

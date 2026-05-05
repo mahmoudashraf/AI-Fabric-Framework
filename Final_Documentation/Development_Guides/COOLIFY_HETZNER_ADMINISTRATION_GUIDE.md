@@ -48,6 +48,19 @@ Production is not the current deployment target for new development.
 - Runtime: `https://loomai-runtime.46.225.162.106.sslip.io`
 - Ecommerce app: `https://loomai-ecommerce-store.46.225.162.106.sslip.io`
 
+### 2.3 Platform Target Profiles
+
+Platform stores Coolify deployment targets in `deployment_target_profiles`.
+
+Customer runtimes and Platform-managed product services use the same target-profile table, but product services are additionally gated by `platform_services_allowed`.
+
+Current intended posture:
+
+- `dtp-coolify-staging`: active, default for runtime, default for restartable services, and allowed for Platform-managed product services.
+- `dtp-coolify-production`: active and allowed for explicit Platform-managed product-service placement, but not a default runtime or restartable-services target.
+
+This keeps staging as the implicit managed-service target while allowing production records such as `mcp-execution-gateway-production` or `shopify-bridge-production` to be created with `targetProfileId=dtp-coolify-production` when production rollout is explicitly requested.
+
 ## 3. Local Access Material
 
 ### 3.1 SSH

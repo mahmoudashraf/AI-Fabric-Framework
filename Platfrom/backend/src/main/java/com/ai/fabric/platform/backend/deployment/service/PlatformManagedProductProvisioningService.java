@@ -772,11 +772,7 @@ public class PlatformManagedProductProvisioningService {
             profile = targetProfileRepository.findById(targetProfileId)
                 .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify target profile not found: " + targetProfileId));
         } else {
-            profile = targetProfileRepository.findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(DeploymentProviderType.COOLIFY).stream()
-                .filter(DeploymentTargetProfileEntity::isActive)
-                .filter(DeploymentTargetProfileEntity::isPlatformServicesAllowed)
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "No active Coolify target profile allows platform services."));
+            profile = resolveDefaultCoolifyPlatformServiceProfile();
             details.put("providerType", "COOLIFY");
             details.put("targetProfileId", profile.getId());
             service.setDetailsJson(details.toPrettyString());
@@ -786,6 +782,30 @@ public class PlatformManagedProductProvisioningService {
             throw new ResponseStatusException(CONFLICT, "Coolify target profile is not active for platform services: " + profile.getId());
         }
         return new CoolifyBinding(profile, coolifyTargetProfileResolver.requireConnection(profile));
+    }
+
+    private DeploymentTargetProfileEntity resolveDefaultCoolifyPlatformServiceProfile() {
+        List<DeploymentTargetProfileEntity> allowedProfiles = targetProfileRepository
+            .findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(DeploymentProviderType.COOLIFY)
+            .stream()
+            .filter(DeploymentTargetProfileEntity::isActive)
+            .filter(DeploymentTargetProfileEntity::isPlatformServicesAllowed)
+            .toList();
+        if (allowedProfiles.isEmpty()) {
+            throw new ResponseStatusException(CONFLICT, "No active Coolify target profile allows platform services.");
+        }
+        return allowedProfiles.stream()
+            .filter(DeploymentTargetProfileEntity::isDefaultForRestartableServices)
+            .findFirst()
+            .orElseGet(() -> {
+                if (allowedProfiles.size() == 1) {
+                    return allowedProfiles.get(0);
+                }
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Multiple Coolify target profiles allow platform services. Set targetProfileId explicitly."
+                );
+            });
     }
 
     private String coolifyDomain(PlatformManagedProductServiceEntity service, CoolifyTargetProfileConfig config) {

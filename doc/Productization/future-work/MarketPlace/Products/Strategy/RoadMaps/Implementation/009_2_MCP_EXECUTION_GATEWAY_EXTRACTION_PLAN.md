@@ -112,6 +112,7 @@ Implemented in the repository:
 - Product Services UI preset for `MCP_EXECUTION_GATEWAY_SERVICE`.
 - Coolify git source normalization for managed product services.
 - Product Services force-recreate hardening for stale Coolify app bindings: Platform can adopt/delete the stale domain/name match, clear linkage, and recreate the gateway from desired Platform state.
+- Coolify production target profile support for explicit Platform-managed product-service placement while keeping staging as the implicit/default managed-service target.
 
 Staging live verification completed:
 
@@ -271,6 +272,13 @@ Force recreate semantics must match the existing Product Services page behavior 
 - fail closed if required target profile or provider credential material is missing
 
 Reconciliation must be idempotent. Re-running reconcile on the same desired spec should not create duplicate Coolify applications.
+
+Production profile semantics:
+
+- `dtp-coolify-staging` remains the implicit Product Services target because it is the active restartable-services default.
+- `dtp-coolify-production` is allowed for Platform-managed product services only when a service record explicitly sets `targetProfileId=dtp-coolify-production`.
+- If multiple Coolify profiles allow platform services and no restartable-services default exists, reconcile fails closed and requires an explicit `targetProfileId`.
+- Production services should use separate service refs and secret names such as `mcp-execution-gateway-production` and `MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_PRODUCTION_API_KEY`.
 
 The Product Services UI should either:
 
