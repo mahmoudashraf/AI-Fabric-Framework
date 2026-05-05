@@ -1525,6 +1525,14 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             candidate = candidate.substring("ssh://git@github.com/".length());
         } else if (lower.startsWith("git@github.com:")) {
             candidate = candidate.substring("git@github.com:".length());
+            String slug = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+            if (slug.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
+                return "git@github.com:" + (slug.endsWith(".git") ? slug : slug + ".git");
+            }
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Coolify Git source repository must be a GitHub owner/repo slug or github.com URL."
+            );
         } else if (lower.contains("://") || lower.startsWith("git@")) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -1533,7 +1541,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         String slug = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
         if (slug.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
-            return slug.endsWith(".git") ? slug : slug + ".git";
+            return "https://github.com/" + (slug.endsWith(".git") ? slug : slug + ".git");
         }
         throw new ResponseStatusException(
             HttpStatus.BAD_REQUEST,

@@ -35,11 +35,11 @@ class PlatformManagedProductProvisioningServiceTest {
     @Test
     void coolifySourceInputsUseApiCompatibleFormats() {
         assertThat(PlatformManagedProductProvisioningService.coolifyGitRepository("mahmoudashraf/AI-Fabric-Framework"))
-            .isEqualTo("mahmoudashraf/AI-Fabric-Framework.git");
+            .isEqualTo("https://github.com/mahmoudashraf/AI-Fabric-Framework.git");
         assertThat(PlatformManagedProductProvisioningService.coolifyGitRepository("https://github.com/example/repo.git"))
-            .isEqualTo("example/repo.git");
+            .isEqualTo("https://github.com/example/repo.git");
         assertThat(PlatformManagedProductProvisioningService.coolifyGitRepository("git@github.com:example/repo.git"))
-            .isEqualTo("example/repo.git");
+            .isEqualTo("git@github.com:example/repo.git");
         assertThat(PlatformManagedProductProvisioningService.coolifyDockerfileLocation("product-services/mcp/deploy/Dockerfile"))
             .isEqualTo("/product-services/mcp/deploy/Dockerfile");
         assertThat(PlatformManagedProductProvisioningService.coolifyDockerfileLocation("/deploy/Dockerfile"))

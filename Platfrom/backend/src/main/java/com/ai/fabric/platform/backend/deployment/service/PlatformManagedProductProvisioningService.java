@@ -654,14 +654,21 @@ public class PlatformManagedProductProvisioningService {
             candidate = candidate.substring("ssh://git@github.com/".length());
         } else if (lower.startsWith("git@github.com:")) {
             candidate = candidate.substring("git@github.com:".length());
+            candidate = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+            if (candidate.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
+                return "git@github.com:" + (candidate.endsWith(".git") ? candidate : candidate + ".git");
+            }
+            throw new RailwayProvisioningConfigurationException(
+                "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
+            );
         } else if (lower.contains("://") || lower.startsWith("git@")) {
             throw new RailwayProvisioningConfigurationException(
                 "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
             );
         }
-        candidate = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
-        if (candidate.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
-            return candidate.endsWith(".git") ? candidate : candidate + ".git";
+        String slug = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+        if (slug.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
+            return "https://github.com/" + (slug.endsWith(".git") ? slug : slug + ".git");
         }
         throw new RailwayProvisioningConfigurationException(
             "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
