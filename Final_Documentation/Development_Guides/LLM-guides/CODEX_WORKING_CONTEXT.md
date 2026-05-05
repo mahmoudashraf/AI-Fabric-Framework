@@ -863,3 +863,17 @@ Rules:
 - Boundary decision: Shopify Bridge remains Shopify-specific for install, store/session, billing, Customer Accounts, Checkout, webhooks, and Shopify readiness; the extracted gateway owns MCP transport, auth providers, server binding, argument rendering, schema drift checks, result normalization, and generic governed evidence.
 - Owner clarified 009.2 must support the generic runtime/connector path without Shopify Bridge. The standalone gateway must be a Platform-managed reproducible Product Service, deployed through Coolify target profiles and visible in Product Services UI with Bridge-parity lifecycle controls: reconcile, health, logs/history, restart, scale, rotate secret, force recreate, and decommission.
 - Owner clarified 009.1 is not complete until Marketplace MCP discovery/import uses the generic gateway, and Shopify Bridge no longer owns legacy customer-facing action implementations. Final Bridge role: Shopify host/governance/session/billing checks, then delegate installed plugin-defined MCP actions to the generic MCP Execution Gateway.
+
+## 2026-05-05 Shopify MCP-First 009.2 Live Verification
+
+- Implemented and pushed the standalone managed MCP Execution Gateway hardening and Platform-managed lifecycle fixes through commit `deba94b47`.
+- MCP Gateway `/api/internal/**` and `/api/admin/**` require the configured internal gateway key; unauthenticated admin overview returns `401`, authenticated overview returns service identity and capability metadata.
+- Platform Product Services can now force-recreate the gateway on Coolify staging even when the saved provider UUID is stale: it falls back to domain/name lookup, deletes the old app, clears linkage, and recreates from Platform desired state.
+- Coolify git source provisioning now normalizes managed product service repos to the API-compatible GitHub URL form instead of `owner/repo.git`.
+- Staging force recreate for `mcp-execution-gateway` succeeded through Platform, reconciled a new Coolify app, and returned `ACTIVE`/`READY` with health probe status `READY`.
+- Staging health checks passed for Platform backend, Runtime, Shopify Bridge, and MCP Execution Gateway. Production was not deployed or modified.
+- Platform Marketplace MCP discovery live-verified through the gateway with a non-Shopify MCP server; discovery returned normalized `tools/list` evidence and schema hashes.
+- A generic non-Shopify `mcp-tool` action executed directly through the standalone gateway without Shopify Bridge and returned normalized `MCP_TOOL_RESULT` evidence.
+- Shopify Bridge readiness verified the Shopify Storefront MCP server; `shopify_search_catalog` executed through Bridge -> plugin MCP config -> standalone gateway -> Shopify MCP and returned normalized `MCP_TOOL_RESULT` evidence.
+- Customer Account and Checkout MCP plugins remain implemented and gated. Full live `tools/call` for those servers still requires external Shopify Customer Account OAuth/PKCE/customer-token material, protected customer data posture, and Checkout MCP client credentials/readiness.
+- Local verification passed: full Platform backend suite, full Shopify Bridge suite, full MCP Gateway suite, focused Product Services/Coolify tests, connector MCP tests, marketplace/shopify shell syntax checks, and `git diff --check`.

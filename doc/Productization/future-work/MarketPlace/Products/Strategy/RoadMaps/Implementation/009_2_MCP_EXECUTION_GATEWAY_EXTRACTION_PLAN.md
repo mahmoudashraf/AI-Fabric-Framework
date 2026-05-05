@@ -1,6 +1,6 @@
 # 009.2 MCP Execution Gateway Extraction Plan
 
-Status: implemented locally as a standalone managed MCP Execution Gateway service (created 2026-05-04; staging deployment/live verification pending after commit)
+Status: implemented, pushed, deployed as a standalone managed MCP Execution Gateway service, and live-verified on Coolify staging on 2026-05-05. Production was not deployed.
 
 Parent plans:
 
@@ -97,7 +97,7 @@ Those are different responsibilities.
 
 Implemented in the repository:
 
-- Standalone Spring Boot gateway service with internal API-key protection for `/api/internal/**`.
+- Standalone Spring Boot gateway service with internal API-key protection for `/api/internal/**` and `/api/admin/**`.
 - Streamable HTTP MCP client for `initialize`, initialized notification, `tools/list`, and `tools/call`.
 - JSON and SSE response handling, `MCP-Protocol-Version`, and `MCP-Session-Id` capture/reuse.
 - Gateway execution for Marketplace `adapterType=mcp-tool` actions with structured argument templates and restricted response mapping.
@@ -105,14 +105,24 @@ Implemented in the repository:
 - Server verification endpoint that compares expected tool schema hashes against live `tools/list` evidence.
 - Execution-time schema drift guard that blocks `tools/call` for blocking drift policies.
 - Auth modes: `NONE`, bearer token secret ref/static bearer, API-key header secret with configured allowlist, and OAuth2 client credentials.
+- Reviewed `endpointKind` and `profileRef` binding for Shopify Storefront/UCP, Customer Account, and Checkout MCP without action-specific endpoint code.
 - Runtime/connector direct path to the gateway for hostless MCP actions.
 - Shopify Bridge customer-facing action execution now depends on plugin MCP config and the gateway; legacy Bridge-owned customer action bodies are removed.
 - Product Services support for creating, reconciling, restarting, force-recreating, decommissioning, checking health, and reading provider logs/history for the MCP gateway on Coolify-managed target profiles.
 - Product Services UI preset for `MCP_EXECUTION_GATEWAY_SERVICE`.
+- Coolify git source normalization for managed product services.
+- Product Services force-recreate hardening for stale Coolify app bindings: Platform can adopt/delete the stale domain/name match, clear linkage, and recreate the gateway from desired Platform state.
 
-Pending verification step:
+Staging live verification completed:
 
-- Deploy the committed branch to Coolify staging and run live health/discovery/execution checks with available staging secrets.
+- Platform backend, Runtime, Shopify Bridge, and MCP Execution Gateway health checks returned `UP`.
+- MCP Gateway `/api/admin/overview` returned `401` without the internal admin key and `200` with the configured key.
+- Product Services force-recreated the MCP Gateway through Coolify staging and reconciled it back to `ACTIVE`/`READY` with a new Coolify app UUID.
+- Platform Product Services health probed the recreated gateway successfully through `/actuator/health`.
+- Platform Marketplace MCP discovery returned normalized `tools/list` evidence for a non-Shopify MCP server through the gateway.
+- A generic non-Shopify `mcp-tool` action executed directly through the gateway without Shopify Bridge.
+- Shopify Bridge readiness verified the Shopify Storefront MCP server and expected Storefront tools.
+- `shopify_search_catalog` executed through Shopify Bridge, plugin MCP config, and the standalone gateway with normalized `MCP_TOOL_RESULT` evidence.
 
 ---
 
@@ -235,7 +245,7 @@ It must be managed through the same Product Services control-plane surface used 
 The initial managed service identity should use these product-service fields:
 
 ```text
-serviceRef: mcp-execution-gateway-staging
+serviceRef: mcp-execution-gateway
 displayName: MCP Execution Gateway
 productFamily: MCP
 serviceKind: MCP_EXECUTION_GATEWAY_SERVICE
@@ -738,9 +748,9 @@ curl -fsS "$MCP_EXECUTION_GATEWAY_BASE_URL/actuator/health"
 Platform-managed service checks:
 
 ```bash
-curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway-staging"
-curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway-staging/health"
-curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway-staging/railway/deployments?limit=5"
+curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway"
+curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway/health"
+curl -fsS "$PLATFORM_BACKEND_BASE_URL/api/product-services/mcp-execution-gateway/railway/deployments?limit=5"
 ```
 
 The deployment-history/log endpoint names are still `railway/*` in the current Product Services API even when the backing provider is Coolify. 009.2 may rename these to provider-neutral names, but it must keep existing UI behavior working during migration.

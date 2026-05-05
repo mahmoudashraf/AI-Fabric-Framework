@@ -1,6 +1,6 @@
 # 009.1 Marketplace Config-Driven MCP Capability Architecture
 
-Status: implemented locally for the config-driven MCP Marketplace plane (created 2026-05-04; staging deployment/live verification pending after commit)
+Status: implemented, pushed, deployed to Coolify staging, and live-verified on 2026-05-05. Production was not deployed.
 
 Parent plan: [009 Shopify MCP-First Implementation Sequence](009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md)
 
@@ -64,7 +64,7 @@ Adding another MCP tool should usually mean publishing or updating a Marketplace
 
 ## Current Implementation Status
 
-As of 2026-05-04, 009.1 implementation is complete in the codebase for the generic Marketplace-driven MCP path.
+As of 2026-05-05, 009.1 implementation is complete for the generic Marketplace-driven MCP path and has been verified on Coolify staging.
 
 Implemented:
 
@@ -82,6 +82,16 @@ Implemented:
 - Shopify Bridge no longer owns customer-facing legacy/Admin GraphQL action implementations.
 - Shopify Bridge delegates customer-facing plugin-defined MCP actions to the generic MCP Execution Gateway after Shopify store/host checks.
 - Legacy Shopify aliases now return `ACTION_NOT_SUPPORTED` unless installed Marketplace action config provides an MCP execution contract.
+- Shopify-specific MCP endpoint selection is resolved by reviewed `endpointKind`/profile configuration rather than hard-coded action behavior.
+
+Staging live verification completed:
+
+- Platform, Runtime, Shopify Bridge, and MCP Execution Gateway health checks returned `UP`.
+- Platform Marketplace MCP discovery called the standalone gateway and returned normalized `tools/list` evidence for a non-Shopify MCP server.
+- A generic non-Shopify `mcp-tool` action executed through the standalone MCP Execution Gateway without Shopify Bridge.
+- Shopify Bridge executed `shopify_search_catalog` through plugin MCP config and the standalone gateway with normalized `MCP_TOOL_RESULT` evidence.
+- MCP Gateway admin APIs rejected unauthenticated requests and accepted the configured internal admin key.
+- Platform Product Services force-recreated the MCP Gateway through Coolify staging and reconciled it back to `ACTIVE`/`READY`.
 
 Operational prerequisites, not code gaps:
 
