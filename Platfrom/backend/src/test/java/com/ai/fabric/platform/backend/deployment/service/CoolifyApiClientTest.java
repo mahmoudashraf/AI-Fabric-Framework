@@ -60,7 +60,7 @@ class CoolifyApiClientTest {
             assertThat(body.has("environment_uuid")).isFalse();
             assertThat(body.has("destination_uuid")).isFalse();
             assertThat(body.has("autogenerate_domain")).isFalse();
-            assertThat(body.path("git_repository").asText()).isEqualTo("https://github.com/example/repo");
+            assertThat(body.path("git_repository").asText()).isEqualTo("example/repo");
             assertThat(body.path("dockerfile_location").asText()).isEqualTo("/runtime/Dockerfile");
             assertThat(body.path("domains").asText()).isEqualTo("http://dep-123.example.test");
             assertThat(body.path("is_auto_deploy_enabled").asBoolean()).isFalse();
@@ -110,6 +110,48 @@ class CoolifyApiClientTest {
             assertThat(body.path("docker_registry_image_name").asText()).isEqualTo("ghcr.io/example/runtime");
             assertThat(body.path("docker_registry_image_tag").asText()).isEqualTo("sha-123");
             assertThat(body.path("domains").asText()).isEqualTo("http://dep-123.example.test");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void createPublicApplicationSendsFullGitUrlForCoolifyCreateValidation() throws Exception {
+        AtomicReference<String> observedBody = new AtomicReference<>();
+        HttpServer server = createPublicApplicationServer(observedBody);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            String uuid = client.createPublicApplication(
+                connection(server),
+                new CoolifyCreatePublicApplicationRequest(
+                    "project-uuid",
+                    "server-uuid",
+                    "staging",
+                    "environment-uuid",
+                    "example/repo",
+                    "Platform-V8",
+                    "dockerfile",
+                    "/",
+                    "/runtime/Dockerfile",
+                    "8080",
+                    "destination-uuid",
+                    "runtime-dep-123",
+                    "Managed by AI Fabric deployment dep-123",
+                    "http://dep-123.example.test",
+                    true,
+                    "/actuator/health",
+                    "8080",
+                    false,
+                    false,
+                    false,
+                    false
+                )
+            );
+
+            JsonNode body = objectMapper.readTree(observedBody.get());
+            assertThat(uuid).isEqualTo("app-uuid");
+            assertThat(body.path("git_repository").asText()).isEqualTo("https://github.com/example/repo");
         } finally {
             server.stop(0);
         }
@@ -235,6 +277,21 @@ class CoolifyApiClientTest {
             exchange.sendResponseHeaders(200, response.length);
             exchange.getResponseBody().write(response);
             exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer createPublicApplicationServer(AtomicReference<String> observedBody) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/public", exchange -> {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            observedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            sendJson(exchange, 201, "{\"uuid\":\"app-uuid\"}");
         });
         server.start();
         return server;

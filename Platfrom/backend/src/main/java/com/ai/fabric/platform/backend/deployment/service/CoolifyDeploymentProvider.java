@@ -822,6 +822,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private CoolifyApplicationSummary createPublicApplication(CoolifyConnection connection,
                                                              CoolifyCreatePublicApplicationRequest request) {
         String uuid = coolifyApiClient.createPublicApplication(connection, request);
+        coolifyApiClient.updatePublicApplication(connection, uuid, request);
         return coolifyApiClient.getApplication(connection, uuid)
             .orElse(new CoolifyApplicationSummary(
                 uuid,
