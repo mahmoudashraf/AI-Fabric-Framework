@@ -177,6 +177,9 @@ public class PlatformVerificationSuiteScriptContextService {
         if (suiteProperties.shopifyEmbeddedHost() != null && !suiteProperties.shopifyEmbeddedHost().isBlank()) {
             environment.put("SHOPIFY_EMBEDDED_HOST", suiteProperties.shopifyEmbeddedHost());
         }
+        environment.put("SHOPIFY_COMPANION_ENSURE_BILLING_STATE", "true");
+        environment.put("EXPECT_BILLING_TIER", "STARTER");
+        environment.put("EXPECT_BILLING_STATUS", "ACTIVE");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
         for (String secretName : SHOPIFY_OPTIONAL_SECRET_NAMES) {

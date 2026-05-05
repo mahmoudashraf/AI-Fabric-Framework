@@ -46,6 +46,7 @@ set -euo pipefail
 #   EXPECT_ACTION_REQUIRES_CONFIRMATION=false
 #   EXPECT_ACTION_AUDIT_AVAILABLE=false
 #   EXPECT_MAX_WIDGET_SURFACE=<optional; defaults true when chat fallback is expected>
+#   SHOPIFY_COMPANION_ENSURE_BILLING_STATE=true repairs Bridge billing state to EXPECT_BILLING_TIER/ACTIVE before assertions
 #   EXPECT_ORDER_LOOKUP_STATUS=READY
 #   EXPECT_ORDER_LOOKUP_SUPPORTED=<optional; defaults from live billing allowedSurfaces>
 #   EXPECT_ORDER_LOOKUP_SCOPE_GRANTED=<optional expected live scope grant>
@@ -107,6 +108,8 @@ EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
 EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-}"
 EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE:-}"
 EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-shopify_search_catalog,shopify_get_product_details,shopify_search_policies,shopify_get_cart,shopify_update_cart}"
+SHOPIFY_COMPANION_ENSURE_BILLING_STATE="${SHOPIFY_COMPANION_ENSURE_BILLING_STATE:-false}"
+SHOPIFY_COMPANION_BILLING_STATE_REASON="${SHOPIFY_COMPANION_BILLING_STATE_REASON:-Shopify Companion live verification requires the configured release-gate billing posture.}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
@@ -517,6 +520,54 @@ PY
   fi
 }
 
+ensure_companion_billing_state() {
+  if [[ "${SHOPIFY_COMPANION_ENSURE_BILLING_STATE}" != "true" ]]; then
+    return
+  fi
+  if [[ -z "${EXPECT_BILLING_TIER}" ]]; then
+    echo "FAIL: EXPECT_BILLING_TIER is required when SHOPIFY_COMPANION_ENSURE_BILLING_STATE=true" >&2
+    exit 2
+  fi
+  if [[ -z "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
+    echo "FAIL: SHOPIFY_BRIDGE_ADMIN_API_KEY is required when SHOPIFY_COMPANION_ENSURE_BILLING_STATE=true" >&2
+    exit 2
+  fi
+
+  local target_status="${EXPECT_BILLING_STATUS:-ACTIVE}"
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/billing-summary" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge billing state preflight status"
+
+  local current_tier current_status
+  current_tier="$(json_get "${HTTP_BODY}" "tierKey")"
+  current_status="$(json_get "${HTTP_BODY}" "status")"
+  if [[ "${current_tier}" == "${EXPECT_BILLING_TIER}" && "${current_status}" == "${target_status}" ]]; then
+    echo "PASS: bridge billing posture already ${EXPECT_BILLING_TIER}/${target_status}"
+    return
+  fi
+
+  local payload
+  payload="$(python3 - <<'PY' "${EXPECT_BILLING_TIER}" "${target_status}" "${SHOPIFY_COMPANION_BILLING_STATE_REASON}"
+import json
+import sys
+tier = sys.argv[1]
+status = sys.argv[2]
+reason = sys.argv[3]
+print(json.dumps({
+    "tierKey": tier,
+    "status": status,
+    "subscriptionId": f"release-gate-{tier.lower()}",
+    "subscriptionName": f"Loom Companion {tier.title()}",
+    "reason": reason,
+}))
+PY
+  )"
+  http_request POST "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/billing-state" "${payload}" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge billing state repair status"
+  assert_equals "$(json_get "${HTTP_BODY}" "tierKey")" "${EXPECT_BILLING_TIER}" "bridge billing state repaired tier"
+  assert_equals "$(json_get "${HTTP_BODY}" "status")" "${target_status}" "bridge billing state repaired status"
+  echo "PASS: bridge billing posture set to ${EXPECT_BILLING_TIER}/${target_status}"
+}
+
 http_request() {
   local method="$1"
   local url="$2"
@@ -776,6 +827,7 @@ http_request GET "${bridge_base}/actuator/health" ""
 assert_equals "${HTTP_STATUS}" "200" "bridge actuator health status"
 bridge_health_json="${HTTP_BODY}"
 assert_equals "$(json_get "${bridge_health_json}" "status")" "UP" "bridge actuator health payload"
+ensure_companion_billing_state
 
 echo "== Platform product service summary =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]-}"

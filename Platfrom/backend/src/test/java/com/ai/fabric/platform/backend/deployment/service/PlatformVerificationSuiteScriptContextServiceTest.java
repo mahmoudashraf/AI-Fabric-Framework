@@ -290,6 +290,9 @@ class PlatformVerificationSuiteScriptContextServiceTest {
 
         assertThat(context.environment()).containsEntry("SHOPIFY_BRIDGE_BASE_URL", "https://bridge.example.test");
         assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.environment()).containsEntry("SHOPIFY_COMPANION_ENSURE_BILLING_STATE", "true");
+        assertThat(context.environment()).containsEntry("EXPECT_BILLING_TIER", "STARTER");
+        assertThat(context.environment()).containsEntry("EXPECT_BILLING_STATUS", "ACTIVE");
         assertThat(context.environment()).containsEntry("EXPECT_STOREFRONT_READY", "false");
         assertThat(context.environment()).containsEntry("EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT");
     }
