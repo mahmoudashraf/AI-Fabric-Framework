@@ -34,6 +34,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -113,6 +114,7 @@ public class DeploymentVerificationRolloutService {
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
     private final PlatformVerificationSuiteProperties suiteProperties;
+    private final String ecommerceUpstreamBaseUrl;
 
     @Autowired
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
@@ -128,6 +130,7 @@ public class DeploymentVerificationRolloutService {
                                                 VectorizationPlanRepository vectorizationPlanRepository,
                                                 VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
                                                 PlatformVerificationSuiteProperties suiteProperties,
+                                                @Value("${platform.verification.suites.ecommerce-upstream-base-url:}") String ecommerceUpstreamBaseUrl,
                                                 ObjectMapper objectMapper,
                                                 ResourceLoader resourceLoader,
                                                 @Qualifier("canonicalRolloutExecutor") Executor rolloutExecutor) {
@@ -147,6 +150,7 @@ public class DeploymentVerificationRolloutService {
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourceLoader = resourceLoader;
         this.suiteProperties = suiteProperties;
+        this.ecommerceUpstreamBaseUrl = normalizeBaseUrl(firstNonBlank(ecommerceUpstreamBaseUrl, ECOMMERCE_UPSTREAM_BASE_URL));
     }
 
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
@@ -178,6 +182,7 @@ public class DeploymentVerificationRolloutService {
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
             defaultSuiteProperties(),
+            ECOMMERCE_UPSTREAM_BASE_URL,
             objectMapper,
             resourceLoader,
             rolloutExecutor
@@ -212,6 +217,7 @@ public class DeploymentVerificationRolloutService {
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
             defaultSuiteProperties(),
+            ECOMMERCE_UPSTREAM_BASE_URL,
             objectMapper,
             resourceLoader,
             Runnable::run
@@ -245,6 +251,7 @@ public class DeploymentVerificationRolloutService {
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
             defaultSuiteProperties(),
+            ECOMMERCE_UPSTREAM_BASE_URL,
             objectMapper,
             resourceLoader,
             Runnable::run
@@ -997,7 +1004,7 @@ public class DeploymentVerificationRolloutService {
         apiKey.put("value", "${CONNECTOR_API_KEY}");
 
         ObjectNode upstream = connector.with("upstream");
-        upstream.put("base-url", ECOMMERCE_UPSTREAM_BASE_URL);
+        upstream.put("base-url", ecommerceUpstreamBaseUrl());
         ObjectNode upstreamAuth = upstream.with("auth");
         if (!hasConcreteValue(upstreamAuth.path("type").asText(""))) {
             upstreamAuth.put("type", "NONE");
@@ -1013,7 +1020,7 @@ public class DeploymentVerificationRolloutService {
         authz.put("enabled", true);
         authz.put("path", "/api/authz/check");
         ObjectNode authzUpstream = authz.with("upstream");
-        authzUpstream.put("base-url", ECOMMERCE_UPSTREAM_BASE_URL);
+        authzUpstream.put("base-url", ecommerceUpstreamBaseUrl());
         ObjectNode authzUpstreamAuth = authzUpstream.with("auth");
         if (!hasConcreteValue(authzUpstreamAuth.path("type").asText(""))) {
             authzUpstreamAuth.put("type", "NONE");
@@ -1109,7 +1116,7 @@ public class DeploymentVerificationRolloutService {
 
     private JsonNode canonicalVectorizationConnectionConfig() {
         ObjectNode root = objectMapper.createObjectNode();
-        root.put("baseUrl", ECOMMERCE_UPSTREAM_BASE_URL);
+        root.put("baseUrl", ecommerceUpstreamBaseUrl());
         ObjectNode datasets = root.putObject("datasets");
         datasets.set("product", canonicalDatasetConfig("/api/products?limit=500"));
         datasets.set("review", canonicalDatasetConfig("/api/reviews?limit=500"));
@@ -1214,7 +1221,7 @@ public class DeploymentVerificationRolloutService {
         root.put("authzMode", "REMOTE_HTTP");
         root.put("adminApiKeyEnabled", true);
         root.put("connectorApiKeyEnabled", true);
-        root.put("authzBaseUrl", ECOMMERCE_UPSTREAM_BASE_URL);
+        root.put("authzBaseUrl", ecommerceUpstreamBaseUrl());
         root.put("publicRuntimeBootstrapEnabled", true);
         root.put("publicRuntimeTokenIssuer", PUBLIC_RUNTIME_TOKEN_ISSUER);
         root.put("publicRuntimeAcceptedIssuers", PUBLIC_RUNTIME_ACCEPTED_ISSUERS);
@@ -1450,6 +1457,18 @@ public class DeploymentVerificationRolloutService {
 
     private String firstNonBlank(String value, String fallback) {
         return hasText(value) ? value : fallback;
+    }
+
+    private String ecommerceUpstreamBaseUrl() {
+        return firstNonBlank(ecommerceUpstreamBaseUrl, ECOMMERCE_UPSTREAM_BASE_URL);
+    }
+
+    private String normalizeBaseUrl(String value) {
+        if (!hasText(value)) {
+            return ECOMMERCE_UPSTREAM_BASE_URL;
+        }
+        String normalized = value.trim();
+        return normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
     }
 
     private boolean hasConcreteValue(String value) {
