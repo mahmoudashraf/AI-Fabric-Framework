@@ -30,6 +30,18 @@ if [[ -f "${TOKEN_FILE}" ]]; then
   set +a
 fi
 
+load_secret_file_var() {
+  local name="$1"
+  local file_var="${name}_FILE"
+  local file_path="${!file_var:-}"
+  if [[ -z "${!name:-}" && -n "${file_path}" && -f "${file_path}" ]]; then
+    export "${name}=$(<"${file_path}")"
+  fi
+}
+
+load_secret_file_var COOLIFY_STAGING_API_TOKEN
+load_secret_file_var COOLIFY_PRODUCTION_API_TOKEN
+
 require_secret() {
   local name="$1"
   if [[ -z "${!name:-}" ]]; then
