@@ -566,7 +566,7 @@ public class PlatformManagedProductAdminService {
                 .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/overview")))
                 .timeout(HTTP_TIMEOUT)
                 .header("Accept", "application/json")
-                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .header(adminApiKeyHeader(service), apiKey)
                 .GET()
                 .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -597,6 +597,15 @@ public class PlatformManagedProductAdminService {
         } catch (Exception ex) {
             return degradedOverview(service, firstNonBlank(ex.getMessage(), "Managed product overview request failed."));
         }
+    }
+
+    private String adminApiKeyHeader(PlatformManagedProductServiceEntity service) {
+        String serviceKind = service == null || service.getServiceKind() == null
+            ? ""
+            : service.getServiceKind().trim().toUpperCase(java.util.Locale.ROOT);
+        return "MCP_EXECUTION_GATEWAY_SERVICE".equals(serviceKind)
+            ? "X-MCP-GATEWAY-API-KEY"
+            : BRIDGE_ADMIN_API_KEY_HEADER;
     }
 
     @Transactional

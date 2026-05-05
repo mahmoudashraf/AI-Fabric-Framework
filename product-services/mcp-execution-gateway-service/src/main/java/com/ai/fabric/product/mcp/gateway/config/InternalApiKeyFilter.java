@@ -23,7 +23,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request == null ? "" : request.getRequestURI();
-        return path == null || !path.startsWith("/api/internal/");
+        return path == null || !(path.startsWith("/api/internal/") || path.startsWith("/api/admin/"));
     }
 
     @Override

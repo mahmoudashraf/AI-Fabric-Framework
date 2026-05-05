@@ -289,7 +289,7 @@ public class McpGatewayExecutionService {
             JsonNode serverBinding = findServerBinding(trace, actionConfig, serverRef);
             URI endpoint = resolveEndpoint(serverRef, request, trace, mcp, serverBinding);
             JsonNode arguments = renderArguments(request, trace, mcp.path("argumentTemplate"));
-            Map<String, String> headers = resolveAuthHeaders(trace, firstObject(mcp.path("auth"), serverBinding.path("auth")));
+            Map<String, String> headers = resolveAuthHeaders(trace, mcpAuthConfig(mcp, serverBinding));
             McpStreamableHttpClient.McpRequestOptions options =
                 McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
             McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
@@ -541,6 +541,9 @@ public class McpGatewayExecutionService {
             }
         }
         if (!StringUtils.hasText(endpoint)) {
+            endpoint = endpointForKind(firstText(mcp, serverBinding, List.of("endpointKind", "kind")), request, trace);
+        }
+        if (!StringUtils.hasText(endpoint)) {
             throw new IllegalArgumentException("MCP server endpoint is required for " + firstNonBlank(serverRef, "server") + ".");
         }
         URI uri = URI.create(endpoint.trim());
@@ -573,7 +576,75 @@ public class McpGatewayExecutionService {
         if (!argumentTemplate.isObject()) {
             throw new IllegalArgumentException("MCP argumentTemplate must be an object.");
         }
-        return renderTemplateNode(argumentTemplate, request, trace);
+        return resolveProfileRefs(renderTemplateNode(argumentTemplate, request, trace), trace);
+    }
+
+    private String endpointForKind(String endpointKind, Object request, JsonNode trace) {
+        String kind = normalizedEnum(endpointKind);
+        if (!StringUtils.hasText(kind)) {
+            return null;
+        }
+        String shopDomain = resolveShopDomain(request, trace);
+        if (!StringUtils.hasText(shopDomain)) {
+            throw new IllegalArgumentException("MCP endpointKind " + kind + " requires trace.shopDomain or params.shopDomain.");
+        }
+        return switch (kind) {
+            case "STOREFRONT_STANDARD", "SHOPIFY_STOREFRONT_STANDARD" ->
+                "https://" + shopDomain + "/api/mcp";
+            case "UCP_CATALOG", "CHECKOUT_UCP", "SHOPIFY_UCP", "SHOPIFY_UCP_CATALOG" ->
+                "https://" + shopDomain + "/api/ucp/mcp";
+            case "CUSTOMER_ACCOUNT", "SHOPIFY_CUSTOMER_ACCOUNT" -> discoverCustomerAccountMcpEndpoint(shopDomain);
+            default -> throw new IllegalArgumentException("Unsupported MCP endpointKind: " + kind);
+        };
+    }
+
+    private String discoverCustomerAccountMcpEndpoint(String shopDomain) {
+        try {
+            JsonNode response = tokenRestClient.get()
+                .uri(URI.create("https://" + shopDomain + "/.well-known/customer-account-api"))
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(JsonNode.class);
+            String endpoint = response == null ? null : firstNonBlank(
+                text(response, "mcp_api"),
+                text(response, "mcpApi", "mcp_endpoint", "mcpEndpoint")
+            );
+            if (!StringUtils.hasText(endpoint)) {
+                throw new IllegalArgumentException("Customer Account MCP discovery response did not include mcp_api.");
+            }
+            return endpoint;
+        } catch (RestClientException ex) {
+            throw new IllegalArgumentException("Customer Account MCP endpoint discovery failed.");
+        }
+    }
+
+    private String resolveShopDomain(Object request, JsonNode trace) {
+        for (JsonNode candidate : List.of(
+            trace.path("shopDomain"),
+            trace.path("install").path("shopDomain"),
+            trace.path("config").path("shopDomain")
+        )) {
+            String value = candidate.asText("").trim();
+            if (StringUtils.hasText(value)) {
+                return normalizeShopDomain(value);
+            }
+        }
+        if (request instanceof ActionExecuteRequest executeRequest) {
+            Object value = executeRequest.params() == null ? null : executeRequest.params().get("shopDomain");
+            if (value != null && StringUtils.hasText(value.toString())) {
+                return normalizeShopDomain(value.toString());
+            }
+        }
+        return null;
+    }
+
+    private String normalizeShopDomain(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (!normalized.matches("[a-z0-9][a-z0-9.-]*\\.myshopify\\.com")
+            && !normalized.matches("[a-z0-9][a-z0-9.-]*\\.[a-z]{2,63}")) {
+            throw new IllegalArgumentException("MCP Shopify shopDomain is invalid.");
+        }
+        return normalized;
     }
 
     private JsonNode renderTemplateNode(JsonNode node, Object request, JsonNode trace) {
@@ -609,6 +680,90 @@ public class McpGatewayExecutionService {
         }
         matcher.appendTail(out);
         return objectMapper.getNodeFactory().textNode(out.toString());
+    }
+
+    private JsonNode resolveProfileRefs(JsonNode node, JsonNode trace) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return node;
+        }
+        if (node.isArray()) {
+            ArrayNode out = objectMapper.createArrayNode();
+            for (JsonNode child : node) {
+                out.add(resolveProfileRefs(child, trace));
+            }
+            return out;
+        }
+        if (!node.isObject()) {
+            return node;
+        }
+        ObjectNode out = objectMapper.createObjectNode();
+        node.fields().forEachRemaining(entry -> out.set(entry.getKey(), resolveProfileRefs(entry.getValue(), trace)));
+        String profileRef = text(out, "profileRef");
+        if (StringUtils.hasText(profileRef)) {
+            String profile = resolveProfileValue(trace, profileRef);
+            if (!StringUtils.hasText(profile)) {
+                throw new IllegalArgumentException("MCP profileRef is not available: " + profileRef);
+            }
+            out.remove("profileRef");
+            out.put("profile", profile);
+        }
+        return out;
+    }
+
+    private String resolveProfileValue(JsonNode trace, String profileRef) {
+        if (!StringUtils.hasText(profileRef)) {
+            return null;
+        }
+        for (JsonNode container : List.of(
+            trace.path("mcpProfileValues"),
+            trace.path("profileValues"),
+            trace.path("config")
+        )) {
+            String value = container.path(profileRef).asText("").trim();
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        String normalizedRef = profileRef.trim().toUpperCase(Locale.ROOT);
+        Set<String> allowlist = properties.profileRefAllowlist().stream()
+            .map(value -> value.trim().toUpperCase(Locale.ROOT))
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (environment != null && allowlist.contains(normalizedRef)) {
+            String value = environment.getProperty(profileRef.trim());
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private JsonNode mcpAuthConfig(JsonNode mcp, JsonNode serverBinding) {
+        JsonNode auth = firstObject(mcp.path("auth"), serverBinding.path("auth"));
+        if (auth.isObject() && !auth.isEmpty()) {
+            return auth;
+        }
+        String authMode = firstNonBlank(text(mcp, "authMode"), text(serverBinding, "authMode"));
+        if (!StringUtils.hasText(authMode)) {
+            return objectMapper.createObjectNode();
+        }
+        ObjectNode out = objectMapper.createObjectNode();
+        out.put("mode", authMode);
+        for (String field : List.of(
+            "tokenSecretRef",
+            "secretRef",
+            "headerName",
+            "tokenUrl",
+            "tokenEndpoint",
+            "clientId",
+            "clientIdSecretRef",
+            "clientSecretRef",
+            "scope",
+            "audience"
+        )) {
+            copyText(mcp, out, field);
+            copyText(serverBinding, out, field);
+        }
+        return out;
     }
 
     private JsonNode resolveTemplateValue(String expression, Object request, JsonNode trace, boolean allowParams) {

@@ -14,6 +14,7 @@ public record McpGatewayProperties(
     String internalApiKeyHeader,
     String protocolVersion,
     List<String> apiKeyHeaderAllowlist,
+    List<String> profileRefAllowlist,
     boolean environmentSecretResolutionEnabled,
     String environmentSecretRefPrefix,
     Duration connectTimeout,
@@ -30,6 +31,10 @@ public record McpGatewayProperties(
             "X-API-KEY",
             "X-MCP-API-KEY",
             "X-LOOM-MCP-KEY"
+        ));
+        profileRefAllowlist = normalizeList(profileRefAllowlist, List.of(
+            "MCP_PROFILE_SHOPIFY_UCP_AGENT",
+            "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"
         ));
         environmentSecretRefPrefix = normalize(environmentSecretRefPrefix, "MCP_SECRET_");
         connectTimeout = validDuration(connectTimeout, Duration.ofSeconds(5));

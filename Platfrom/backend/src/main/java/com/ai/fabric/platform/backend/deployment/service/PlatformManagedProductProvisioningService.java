@@ -1113,6 +1113,9 @@ public class PlatformManagedProductProvisioningService {
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SCOPE", resolveEnvironmentName(service)));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_PROTOCOL_VERSION", "2025-11-25"));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_API_KEY_HEADER_ALLOWLIST", "X-API-KEY,X-MCP-API-KEY,X-LOOM-MCP-KEY"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_PROFILE_REF_ALLOWLIST", "MCP_PROFILE_SHOPIFY_UCP_AGENT,SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_PROFILE_SHOPIFY_UCP_AGENT", defaultShopifyUcpAgentProfile()));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE", defaultShopifyUcpAgentProfile()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED", "false"));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SECRET_REF_PREFIX", "MCP_SECRET_"));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
@@ -1140,6 +1143,10 @@ public class PlatformManagedProductProvisioningService {
         env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY", gatewaySecret));
         env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY"));
         env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute"));
+    }
+
+    private String defaultShopifyUcpAgentProfile() {
+        return "https://shopify.dev/ucp/agent-profiles/examples/2026-04-08/valid-with-capabilities.json";
     }
 
     private String resolveSecret(String secretName) {

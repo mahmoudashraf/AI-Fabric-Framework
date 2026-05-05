@@ -252,6 +252,7 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
+        addRuntimeMcpGatewayEnv(runtimeEnv, actionsConfig);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
@@ -979,6 +980,51 @@ public class RailwayProvisioningPlanService {
             runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
         }
+    }
+
+    private void addRuntimeMcpGatewayEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode actionsConfig) {
+        if (!hasMcpToolActions(actionsConfig)) {
+            return;
+        }
+        if (platformManagedProductServiceRepository == null) {
+            throw new IllegalStateException("MCP tool actions require the managed MCP execution gateway service repository.");
+        }
+        PlatformManagedProductServiceEntity gateway = platformManagedProductServiceRepository
+            .findByServiceRefIgnoreCase("mcp-execution-gateway")
+            .orElseThrow(() -> new IllegalStateException("MCP tool actions require managed product service mcp-execution-gateway."));
+        String baseUrl = trimToNull(gateway.getPrivateNetworkUrl());
+        if (baseUrl == null) {
+            baseUrl = trimToNull(gateway.getBaseUrl());
+        }
+        String secretName = trimToNull(gateway.getSecretName());
+        if (!hasText(baseUrl) || !hasText(secretName)) {
+            throw new IllegalStateException("MCP execution gateway requires base URL and admin secret before runtime provisioning.");
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_BASE_URL", baseUrl));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY", "${secret:" + secretName + "}"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY"));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute"));
+    }
+
+    private boolean hasMcpToolActions(JsonNode actionsConfig) {
+        JsonNode actions = actionsConfig == null ? null : actionsConfig.path("actions");
+        if (actions == null || !actions.isArray()) {
+            return false;
+        }
+        for (JsonNode action : actions) {
+            String adapterType = text(action, "adapterType");
+            if ("mcp-tool".equalsIgnoreCase(adapterType)) {
+                return true;
+            }
+            JsonNode execution = action.path("execution");
+            if (execution.isObject()) {
+                String executionAdapterType = text(execution, "adapterType");
+                if ("mcp-tool".equalsIgnoreCase(executionAdapterType) || execution.path("mcp").isObject()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void addRuntimeWebhookTargetEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode actionsConfig) {

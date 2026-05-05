@@ -44,6 +44,7 @@ class McpGatewayExecutionServiceTest {
         "X-MCP-GATEWAY-API-KEY",
         "2025-11-25",
         java.util.List.of("X-API-KEY", "X-MCP-API-KEY", "X-LOOM-MCP-KEY"),
+        java.util.List.of("MCP_PROFILE_SHOPIFY_UCP_AGENT", "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"),
         false,
         "MCP_SECRET_",
         Duration.ofSeconds(1),
@@ -177,6 +178,7 @@ class McpGatewayExecutionServiceTest {
             "X-MCP-GATEWAY-API-KEY",
             "2025-11-25",
             java.util.List.of("X-API-KEY", "X-MCP-API-KEY", "X-LOOM-MCP-KEY"),
+            java.util.List.of("MCP_PROFILE_SHOPIFY_UCP_AGENT", "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"),
             true,
             "MCP_SECRET_",
             Duration.ofSeconds(1),
@@ -227,6 +229,80 @@ class McpGatewayExecutionServiceTest {
 
         assertThat(response.success()).isTrue();
         assertThat(options.getValue().headers()).containsEntry("X-MCP-API-KEY", "env-vendor-token");
+    }
+
+    @Test
+    void resolvesShopifyEndpointKindAndAllowlistedProfileRefs() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("MCP_PROFILE_SHOPIFY_UCP_AGENT", "https://profiles.example/ucp-agent.json");
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties, environment);
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://alpha.myshopify.com/api/ucp/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        ArgumentCaptor<JsonNode> arguments = ArgumentCaptor.forClass(JsonNode.class);
+        when(client.initialize(eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")), any())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("search_catalog"), arguments.capture(), any()))
+            .thenReturn(objectMapper.readTree("{\"content\":[{\"type\":\"text\",\"text\":\"ok\"}]}"));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_search_catalog",
+            Map.of("query", "snowboard"),
+            null,
+            Map.of("shopDomain", "alpha.myshopify.com", "actionConfig", Map.of(
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront-ucp",
+                        "endpointKind", "UCP_CATALOG",
+                        "toolName", "search_catalog",
+                        "argumentTemplate", Map.of(
+                            "meta", Map.of("ucp-agent", Map.of("profileRef", "MCP_PROFILE_SHOPIFY_UCP_AGENT")),
+                            "catalog", Map.of("query", "{{params.query}}")
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isTrue();
+        assertThat(arguments.getValue().path("meta").path("ucp-agent").has("profileRef")).isFalse();
+        assertThat(arguments.getValue().path("meta").path("ucp-agent").path("profile").asText())
+            .isEqualTo("https://profiles.example/ucp-agent.json");
+        assertThat(arguments.getValue().path("catalog").path("query").asText()).isEqualTo("snowboard");
+    }
+
+    @Test
+    void failsClosedForMcpAuthModeWithoutConcreteCredentialBinding() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_lookup_order",
+            Map.of("order_id", "gid://shopify/Order/1", "shopDomain", "alpha.myshopify.com"),
+            null,
+            Map.of("actionConfig", Map.of(
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-customer-account",
+                        "endpointUrl", "https://alpha.myshopify.com/customer/api/mcp",
+                        "authMode", "CUSTOMER_OAUTH_PKCE",
+                        "toolName", "lookup_order"
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_CONFIG");
+        assertThat(response.message()).contains("CUSTOMER_OAUTH_PKCE");
+        verify(client, never()).initialize(any(), any());
     }
 
     @Test
