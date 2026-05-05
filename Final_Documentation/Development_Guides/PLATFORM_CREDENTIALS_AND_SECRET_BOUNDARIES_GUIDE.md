@@ -157,6 +157,21 @@ Examples:
 
 These are internal managed secrets and are not entered manually by operators in most cases.
 
+### 1.8 Managed product service internal API secrets
+
+Platform-managed product services have one internal API secret per service record. The service record field is `secretName`; Platform resolves that secret and injects it into the deployed service.
+
+Examples:
+
+- `MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY`
+- `MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY`
+- `MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_PRODUCTION_API_KEY`
+- `MANAGED_PRODUCT_SHOPIFY_BRIDGE_PRODUCTION_API_KEY`
+
+These are service-to-service/admin keys, not Platform API keys and not vendor keys.
+
+See `Final_Documentation/Development_Guides/MANAGED_PRODUCT_SERVICES_AUTH_GUIDE.md`.
+
 ## 2. What Goes Where
 
 ### 2.1 Railway env on the platform backend service
@@ -194,6 +209,7 @@ Put these in the platform `Secrets` workspace:
 - `MILVUS_PASSWORD`
 - optional `PLATFORM_OPERATOR_API_KEY`
 - optional `PLATFORM_ADMIN_API_KEY`
+- managed product-service internal API keys such as `MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY`
 
 ### 2.3 Do not put these in draft config JSON
 

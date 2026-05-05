@@ -9,6 +9,7 @@ Companion plans:
 - `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_SHOPIFY_MCP_FIRST_IMPLEMENTATION_SEQUENCE.md`
 - `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_1_MARKETPLACE_CONFIG_DRIVEN_MCP_CAPABILITY_ARCHITECTURE.md`
 - `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md`
+- `Final_Documentation/Development_Guides/MANAGED_PRODUCT_SERVICES_AUTH_GUIDE.md`
 - `Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_MANIFEST_REFERENCE.md`
 - `Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md`
 
@@ -249,6 +250,8 @@ Production product-service records must have their own secret names. Do not shar
 ---
 
 ## 7. Secret Boundaries
+
+For the full managed product-service auth model, rotation path, and staging baseline, see `Final_Documentation/Development_Guides/MANAGED_PRODUCT_SERVICES_AUTH_GUIDE.md`.
 
 Never store raw provider secrets in:
 
