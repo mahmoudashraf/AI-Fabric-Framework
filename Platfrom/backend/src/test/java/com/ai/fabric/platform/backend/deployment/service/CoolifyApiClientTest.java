@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -147,6 +149,44 @@ class CoolifyApiClientTest {
         }
     }
 
+    @Test
+    void updateEnvironmentVariablesWritesPreviewRowsIndividually() throws Exception {
+        AtomicReference<String> observedBulkBody = new AtomicReference<>();
+        AtomicReference<String> observedPreviewBody = new AtomicReference<>();
+        AtomicInteger bulkRequests = new AtomicInteger();
+        AtomicInteger previewRequests = new AtomicInteger();
+        HttpServer server = environmentServer(observedBulkBody, observedPreviewBody, bulkRequests, previewRequests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            int updated = client.updateEnvironmentVariables(
+                connection(server),
+                "app-uuid",
+                List.of(
+                    new CoolifyEnvVar("PLATFORM_DEPLOYMENT_VERSION_ID", "ver-new", false, true, false, false),
+                    new CoolifyEnvVar("PLATFORM_DEPLOYMENT_VERSION_ID", "ver-new", true, true, false, false)
+                )
+            );
+
+            assertThat(updated).isEqualTo(2);
+            assertThat(bulkRequests.get()).isEqualTo(1);
+            assertThat(previewRequests.get()).isEqualTo(1);
+
+            JsonNode bulkBody = objectMapper.readTree(observedBulkBody.get());
+            assertThat(bulkBody.path("data")).hasSize(1);
+            assertThat(bulkBody.path("data").get(0).path("key").asText()).isEqualTo("PLATFORM_DEPLOYMENT_VERSION_ID");
+            assertThat(bulkBody.path("data").get(0).path("value").asText()).isEqualTo("ver-new");
+            assertThat(bulkBody.path("data").get(0).path("is_preview").asBoolean()).isFalse();
+
+            JsonNode previewBody = objectMapper.readTree(observedPreviewBody.get());
+            assertThat(previewBody.path("key").asText()).isEqualTo("PLATFORM_DEPLOYMENT_VERSION_ID");
+            assertThat(previewBody.path("value").asText()).isEqualTo("ver-new");
+            assertThat(previewBody.path("is_preview").asBoolean()).isTrue();
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private HttpServer patchServer(AtomicReference<String> observedBody) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/applications/app-uuid", exchange -> {
@@ -160,6 +200,51 @@ class CoolifyApiClientTest {
             exchange.sendResponseHeaders(200, response.length);
             exchange.getResponseBody().write(response);
             exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer environmentServer(AtomicReference<String> observedBulkBody,
+                                         AtomicReference<String> observedPreviewBody,
+                                         AtomicInteger bulkRequests,
+                                         AtomicInteger previewRequests) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs/bulk", exchange -> {
+            if (!"PATCH".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            bulkRequests.incrementAndGet();
+            observedBulkBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            sendJson(exchange, 201, """
+                [
+                  {
+                    "uuid": "env-standard",
+                    "key": "PLATFORM_DEPLOYMENT_VERSION_ID",
+                    "value": "ver-new",
+                    "is_preview": false
+                  }
+                ]
+                """);
+        });
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            if (!"PATCH".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            previewRequests.incrementAndGet();
+            observedPreviewBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            sendJson(exchange, 201, """
+                {
+                  "uuid": "env-preview",
+                  "key": "PLATFORM_DEPLOYMENT_VERSION_ID",
+                  "value": "ver-new",
+                  "is_preview": true
+                }
+                """);
         });
         server.start();
         return server;

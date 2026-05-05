@@ -186,19 +186,46 @@ public class CoolifyApiClient {
         if (envVars == null || envVars.isEmpty()) {
             return 0;
         }
+        List<CoolifyEnvVar> bulkEnvVars = envVars.stream()
+            .filter(envVar -> envVar != null && !envVar.preview())
+            .toList();
+        int updated = 0;
+        if (!bulkEnvVars.isEmpty()) {
+            updated += updateEnvironmentVariablesBulk(connection, uuid, bulkEnvVars);
+        }
+        for (CoolifyEnvVar envVar : envVars) {
+            if (envVar == null || !envVar.preview()) {
+                continue;
+            }
+            updateEnvironmentVariable(connection, uuid, envVar);
+            updated++;
+        }
+        return updated;
+    }
+
+    private int updateEnvironmentVariablesBulk(CoolifyConnection connection, String uuid, List<CoolifyEnvVar> envVars) {
         ObjectNode body = objectMapper.createObjectNode();
         ArrayNode data = body.putArray("data");
         for (CoolifyEnvVar envVar : envVars) {
-            ObjectNode item = data.addObject();
-            item.put("key", envVar.key());
-            item.put("value", envVar.value() == null ? "" : envVar.value());
-            item.put("is_preview", envVar.preview());
-            item.put("is_literal", envVar.literal());
-            item.put("is_multiline", envVar.multiline());
-            item.put("is_shown_once", envVar.shownOnce());
+            data.add(envBody(envVar));
         }
         JsonNode response = requestJson(connection, "PATCH", "/applications/" + encodePath(uuid) + "/envs/bulk", body, true);
         return response.isArray() ? response.size() : envVars.size();
+    }
+
+    private void updateEnvironmentVariable(CoolifyConnection connection, String uuid, CoolifyEnvVar envVar) {
+        requestJson(connection, "PATCH", "/applications/" + encodePath(uuid) + "/envs", envBody(envVar), true);
+    }
+
+    private ObjectNode envBody(CoolifyEnvVar envVar) {
+        ObjectNode item = objectMapper.createObjectNode();
+        item.put("key", envVar.key());
+        item.put("value", envVar.value() == null ? "" : envVar.value());
+        item.put("is_preview", envVar.preview());
+        item.put("is_literal", envVar.literal());
+        item.put("is_multiline", envVar.multiline());
+        item.put("is_shown_once", envVar.shownOnce());
+        return item;
     }
 
     public CoolifyActionResponse start(CoolifyConnection connection, String uuid, boolean force, boolean instantDeploy) {
