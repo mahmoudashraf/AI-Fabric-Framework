@@ -655,6 +655,7 @@ class PlatformManagedProductProvisioningServiceTest {
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID")).thenReturn("customer-client-id");
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET")).thenReturn("customer-client-secret");
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI")).thenReturn("https://bridge.example/api/customer-auth/callback");
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN")).thenReturn("shop-staging.loomai.pro");
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES")).thenReturn("customer-account-mcp-api:full");
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED")).thenReturn("true");
         when(railwayGraphqlClient.hasStagedChanges("env-123")).thenReturn(false);
@@ -752,6 +753,10 @@ class PlatformManagedProductProvisioningServiceTest {
             .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI".equals(input.name()))
             .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
             .containsExactly("https://bridge.example/api/customer-auth/callback");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("shop-staging.loomai.pro");
     }
 
     @Test

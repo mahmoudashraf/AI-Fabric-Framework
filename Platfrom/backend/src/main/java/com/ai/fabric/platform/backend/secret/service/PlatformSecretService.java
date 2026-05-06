@@ -452,6 +452,14 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Storefront Domain",
+                "Optional custom storefront domain used for Shopify Customer Account OAuth discovery and safe post-login returns while sessions remain bound to the canonical myshopify.com shop.",
+                false
+            )
+        );
+        secrets.put(
             "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL",
             new SecretDefinition(
                 "Shopify Customer Account MCP Auth State TTL",

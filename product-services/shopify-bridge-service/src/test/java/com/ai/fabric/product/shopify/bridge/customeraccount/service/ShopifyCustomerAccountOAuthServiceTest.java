@@ -198,8 +198,64 @@ class ShopifyCustomerAccountOAuthServiceTest {
         server.verify();
     }
 
+    @Test
+    void configuredStorefrontDomainIsUsedForDiscoveryAndReturnToWhileSessionStaysCanonical() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ShopifyCustomerAccountSessionRepository repository = mock(ShopifyCustomerAccountSessionRepository.class);
+        ShopifyCustomerAccountOAuthService service = service(repository, builder, "shop-staging.loomai.pro");
+        when(repository.findByShopDomainIgnoreCaseAndShopperSessionIdHash(
+            eq("alpha.myshopify.com"),
+            anyString()
+        )).thenReturn(Optional.empty());
+        when(repository.save(org.mockito.ArgumentMatchers.any(ShopifyCustomerAccountSessionEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        server.expect(requestTo("https://shop-staging.loomai.pro/.well-known/openid-configuration"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess("""
+                {
+                  "authorization_endpoint": "https://shopify.com/authentication/1/oauth/authorize",
+                  "token_endpoint": "https://shopify.com/authentication/1/oauth/token"
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://shopify.com/authentication/1/oauth/token"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withSuccess("""
+                {
+                  "access_token": "customer-access-token",
+                  "refresh_token": "customer-refresh-token",
+                  "token_type": "Bearer",
+                  "scope": "customer-account-mcp-api:full",
+                  "expires_in": 3600
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        URI authorization = service.beginAuthorization(
+            "alpha.myshopify.com",
+            "shopper-session-1",
+            "https://shop-staging.loomai.pro/account/orders"
+        );
+        String state = UriComponentsBuilder.fromUri(authorization).build().getQueryParams().getFirst("state");
+
+        URI returnTo = service.completeAuthorization("oauth-code", state);
+
+        assertThat(returnTo.toString()).isEqualTo("https://shop-staging.loomai.pro/account/orders?loomCustomerAuth=connected");
+        ArgumentCaptor<ShopifyCustomerAccountSessionEntity> captor =
+            ArgumentCaptor.forClass(ShopifyCustomerAccountSessionEntity.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getShopDomain()).isEqualTo("alpha.myshopify.com");
+        server.verify();
+    }
+
     private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
                                                        RestClient.Builder builder) {
+        return service(repository, builder, "");
+    }
+
+    private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
+                                                       RestClient.Builder builder,
+                                                       String storefrontDomain) {
         ShopifyBridgeProperties bridgeProperties = new ShopifyBridgeProperties(
             "Shopify Bridge Service",
             "shopify-bridge-test",
@@ -223,6 +279,7 @@ class ShopifyCustomerAccountOAuthServiceTest {
             "customer-client-id",
             "customer-client-secret",
             "https://bridge.example/api/customer-auth/callback",
+            storefrontDomain,
             List.of("customer-account-mcp-api:full"),
             Duration.ofMinutes(10),
             Duration.ofDays(30),

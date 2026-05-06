@@ -13,6 +13,7 @@ public record ShopifyMcpExternalAuthProperties(
     String customerAccountMcpClientId,
     String customerAccountMcpClientSecret,
     String customerAccountMcpRedirectUri,
+    String customerAccountMcpStorefrontDomain,
     List<String> customerAccountMcpScopes,
     Duration customerAccountMcpStateTtl,
     Duration customerAccountMcpSessionTtl,
@@ -26,6 +27,7 @@ public record ShopifyMcpExternalAuthProperties(
         customerAccountMcpClientId = normalize(customerAccountMcpClientId);
         customerAccountMcpClientSecret = normalize(customerAccountMcpClientSecret);
         customerAccountMcpRedirectUri = normalize(customerAccountMcpRedirectUri);
+        customerAccountMcpStorefrontDomain = normalize(customerAccountMcpStorefrontDomain).toLowerCase(java.util.Locale.ROOT);
         customerAccountMcpScopes = customerAccountMcpScopes == null
             ? List.of()
             : customerAccountMcpScopes.stream()

@@ -293,6 +293,7 @@ class McpActionExecutionGatewayTest {
             customerConfigured ? "customer-client-id" : "",
             customerConfigured ? "customer-client-secret" : "",
             customerConfigured ? "https://bridge.example/customer/callback" : "",
+            "",
             customerConfigured ? List.of("customer-account-mcp-api:full") : List.of(),
             null,
             null,

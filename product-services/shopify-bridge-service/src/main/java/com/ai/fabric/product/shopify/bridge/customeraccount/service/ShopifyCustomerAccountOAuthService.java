@@ -39,6 +39,8 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 public class ShopifyCustomerAccountOAuthService {
 
     private static final Pattern SHOP_DOMAIN_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9-]*\\.myshopify\\.com$");
+    private static final Pattern CUSTOMER_ACCOUNT_DOMAIN_PATTERN =
+        Pattern.compile("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$");
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
     private static final Duration TOKEN_REFRESH_SKEW = Duration.ofMinutes(2);
 
@@ -101,7 +103,8 @@ public class ShopifyCustomerAccountOAuthService {
         requireCustomerAuthConfigured();
         String normalizedShop = normalizeShopDomain(shopDomain);
         String normalizedSession = normalizeShopperSessionId(shopperSessionId);
-        JsonNode discovery = discoverCustomerAccounts(normalizedShop);
+        String customerAccountDomain = customerAccountDomainForShop(normalizedShop);
+        JsonNode discovery = discoverCustomerAccounts(customerAccountDomain);
         String authorizationEndpoint = requiredDiscoveryField(discovery, "authorization_endpoint");
         String tokenEndpoint = requiredDiscoveryField(discovery, "token_endpoint");
         String verifier = securityService.randomVerifier();
@@ -109,7 +112,7 @@ public class ShopifyCustomerAccountOAuthService {
         AuthStateClaims state = new AuthStateClaims(
             normalizedShop,
             normalizedSession,
-            safeReturnTo(normalizedShop, returnTo),
+            safeReturnTo(normalizedShop, customerAccountDomain, returnTo),
             tokenEndpoint,
             verifier,
             securityService.randomNonce(),
@@ -229,7 +232,7 @@ public class ShopifyCustomerAccountOAuthService {
         try {
             String tokenEndpoint = StringUtils.hasText(entity.getTokenEndpoint())
                 ? entity.getTokenEndpoint().trim()
-                : requiredDiscoveryField(discoverCustomerAccounts(entity.getShopDomain()), "token_endpoint");
+                : requiredDiscoveryField(discoverCustomerAccounts(customerAccountDomainForShop(entity.getShopDomain())), "token_endpoint");
             TokenResponse response = exchangeRefreshToken(tokenEndpoint, refreshToken);
             applyTokenResponse(entity, response, now);
             repository.save(entity);
@@ -378,8 +381,8 @@ public class ShopifyCustomerAccountOAuthService {
             .toUri();
     }
 
-    private String safeReturnTo(String shopDomain, String returnTo) {
-        String fallback = "https://" + shopDomain + "/account";
+    private String safeReturnTo(String shopDomain, String customerAccountDomain, String returnTo) {
+        String fallback = "https://" + customerAccountDomain + "/account";
         if (!StringUtils.hasText(returnTo)) {
             return fallback;
         }
@@ -389,7 +392,8 @@ public class ShopifyCustomerAccountOAuthService {
                 return fallback;
             }
             String host = candidate.getHost();
-            if (host == null || !host.equalsIgnoreCase(shopDomain)) {
+            if (host == null
+                || (!host.equalsIgnoreCase(customerAccountDomain) && !host.equalsIgnoreCase(shopDomain))) {
                 return fallback;
             }
             return candidate.toString();
@@ -428,6 +432,18 @@ public class ShopifyCustomerAccountOAuthService {
                 "Shopify Customer Account MCP OAuth/PKCE and protected customer data posture are not configured."
             );
         }
+    }
+
+    private String customerAccountDomainForShop(String shopDomain) {
+        String configured = authProperties.customerAccountMcpStorefrontDomain();
+        if (!StringUtils.hasText(configured)) {
+            return shopDomain;
+        }
+        String normalized = configured.trim().toLowerCase(Locale.ROOT);
+        if (!CUSTOMER_ACCOUNT_DOMAIN_PATTERN.matcher(normalized).matches()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Invalid Shopify Customer Account storefront domain configuration.");
+        }
+        return normalized;
     }
 
     private String requiredText(String value, String message) {

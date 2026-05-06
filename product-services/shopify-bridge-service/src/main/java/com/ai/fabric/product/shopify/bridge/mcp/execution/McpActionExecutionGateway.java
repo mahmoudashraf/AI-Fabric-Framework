@@ -75,7 +75,7 @@ public class McpActionExecutionGateway {
                               RestClient restClient) {
         this.properties = properties;
         this.externalAuthProperties = externalAuthProperties == null
-            ? new ShopifyMcpExternalAuthProperties(false, false, "", "", "", List.of(), null, null, null, null, false, false)
+            ? new ShopifyMcpExternalAuthProperties(false, false, "", "", "", "", List.of(), null, null, null, null, false, false)
             : externalAuthProperties;
         this.customerAccountOAuthService = customerAccountOAuthService;
         this.objectMapper = objectMapper;

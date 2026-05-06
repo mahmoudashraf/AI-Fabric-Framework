@@ -63,6 +63,7 @@ shopify:
       customer-account-mcp-client-id: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID:}
       customer-account-mcp-client-secret: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET:}
       customer-account-mcp-redirect-uri: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI:}
+      customer-account-mcp-storefront-domain: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN:}
       customer-account-mcp-scopes: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES:}
       customer-account-mcp-state-ttl: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL:PT10M}
       customer-account-mcp-session-ttl: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL:P30D}

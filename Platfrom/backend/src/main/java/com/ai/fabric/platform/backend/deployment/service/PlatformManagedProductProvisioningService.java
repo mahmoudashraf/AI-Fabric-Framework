@@ -39,6 +39,7 @@ public class PlatformManagedProductProvisioningService {
     private static final String CUSTOMER_ACCOUNT_MCP_CLIENT_ID_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID";
     private static final String CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET";
     private static final String CUSTOMER_ACCOUNT_MCP_REDIRECT_URI_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI";
+    private static final String CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN";
     private static final String CUSTOMER_ACCOUNT_MCP_SCOPES_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES";
     private static final String CUSTOMER_ACCOUNT_MCP_PROTECTED_APPROVED_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED";
     private static final String CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL";
@@ -1288,6 +1289,7 @@ public class PlatformManagedProductProvisioningService {
                 String customerAccountMcpClientId = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CLIENT_ID_SECRET);
                 String customerAccountMcpClientSecret = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET_SECRET);
                 String customerAccountMcpRedirectUri = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_REDIRECT_URI_SECRET);
+                String customerAccountMcpStorefrontDomain = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN_SECRET);
                 String customerAccountMcpScopes = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SCOPES_SECRET);
                 String customerAccountMcpStateTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET);
                 String customerAccountMcpSessionTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SESSION_TTL_SECRET);
@@ -1321,6 +1323,7 @@ public class PlatformManagedProductProvisioningService {
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID", customerAccountMcpClientId);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET", customerAccountMcpClientSecret);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI", customerAccountMcpRedirectUri);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN", customerAccountMcpStorefrontDomain);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES", customerAccountMcpScopes);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL", customerAccountMcpStateTtl);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL", customerAccountMcpSessionTtl);
