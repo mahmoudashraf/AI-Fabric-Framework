@@ -4,6 +4,7 @@ import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExec
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.config.McpExecutionGatewayProperties;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyMcpExternalAuthProperties;
+import com.ai.fabric.product.shopify.bridge.customeraccount.service.ShopifyCustomerAccountOAuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -14,8 +15,11 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -143,36 +147,13 @@ class McpActionExecutionGatewayTest {
     }
 
     @Test
-    void customerAccountMcpForwardsSessionTokenFromTraceOnly() {
-        RestClient.Builder builder = RestClient.builder();
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+    void customerAccountMcpDoesNotAcceptTraceSuppliedCustomerToken() {
         McpActionExecutionGateway gateway = new McpActionExecutionGateway(
             properties("https://mcp-gateway.internal", "secret"),
             externalAuth(true, false, false),
             objectMapper,
-            builder
+            RestClient.builder()
         );
-
-        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
-            .andExpect(method(HttpMethod.POST))
-            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
-            .andExpect(content().json("""
-                {
-                  "actionId": "shopify_lookup_order",
-                  "params": {"order_id": "gid://shopify/Order/1"},
-                  "trace": {
-                    "shopDomain": "alpha.myshopify.com",
-                    "mcpCustomerAccessToken": "customer-token"
-                  }
-                }
-                """))
-            .andRespond(withSuccess("""
-                {
-                  "success": true,
-                  "message": "ok",
-                  "data": {"orderName": "#1001"}
-                }
-                """, MediaType.APPLICATION_JSON));
 
         ShopifyBridgeActionResult result = gateway.execute(
             "alpha.myshopify.com",
@@ -194,8 +175,65 @@ class McpActionExecutionGatewayTest {
             )
         );
 
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+    }
+
+    @Test
+    void customerAccountMcpResolvesSessionTokenByShopperSessionIdServerSide() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ShopifyCustomerAccountOAuthService customerAuth = mock(ShopifyCustomerAccountOAuthService.class);
+        when(customerAuth.resolveAccessToken("alpha.myshopify.com", "shopper-session-1"))
+            .thenReturn(Optional.of("customer-token"));
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            externalAuth(true, false, false),
+            customerAuth,
+            objectMapper,
+            builder.build()
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andExpect(content().json("""
+                {
+                  "actionId": "shopify_get_customer_orders",
+                  "params": {"shopperSessionId": "shopper-session-1"},
+                  "trace": {
+                    "shopDomain": "alpha.myshopify.com",
+                    "mcpCustomerAccessToken": "customer-token"
+                  }
+                }
+                """))
+            .andRespond(withSuccess("""
+                {
+                  "success": true,
+                  "message": "ok",
+                  "data": {"orderCount": 1}
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_get_customer_orders",
+                Map.of("shopperSessionId", "shopper-session-1"),
+                null,
+                Map.of("actionConfig", Map.of(
+                    "execution", Map.of("mcp", Map.of(
+                        "serverRef", "shopify-customer-account",
+                        "endpointKind", "CUSTOMER_ACCOUNT",
+                        "authMode", "CUSTOMER_OAUTH_PKCE",
+                        "toolName", "get_customer_orders"
+                    ))
+                ))
+            )
+        );
+
         assertThat(result.success()).isTrue();
-        assertThat(result.data()).containsEntry("orderName", "#1001");
+        assertThat(result.data()).containsEntry("orderCount", 1);
         server.verify();
     }
 
@@ -253,8 +291,13 @@ class McpActionExecutionGatewayTest {
             customerConfigured,
             customerConfigured,
             customerConfigured ? "customer-client-id" : "",
+            customerConfigured ? "customer-client-secret" : "",
             customerConfigured ? "https://bridge.example/customer/callback" : "",
             customerConfigured ? List.of("customer-account-mcp-api:full") : List.of(),
+            null,
+            null,
+            null,
+            null,
             checkoutEnabled,
             terminalCheckoutEnabled
         );

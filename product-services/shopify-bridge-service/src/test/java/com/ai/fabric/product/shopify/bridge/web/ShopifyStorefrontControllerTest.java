@@ -93,6 +93,8 @@ class ShopifyStorefrontControllerTest {
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/suggestions",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/support/order-lookup",
             "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events",
+            "https://bridge.example.com/api/customer-auth/start?shop=alpha.myshopify.com",
+            "https://bridge.example.com/api/customer-auth/session?shop=alpha.myshopify.com",
             false,
             false,
             "Order lookup is available only on Elite stores with verified support access.",
@@ -122,7 +124,8 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.allowedConversationModes[0]").value("navigator"))
             .andExpect(jsonPath("$.enabledSurfaces[0]").value("ai-search"))
             .andExpect(jsonPath("$.bridgeQueryUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query"))
-            .andExpect(jsonPath("$.bridgeEventUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events"));
+            .andExpect(jsonPath("$.bridgeEventUrl").value("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events"))
+            .andExpect(jsonPath("$.customerAccountAuthStartUrl").value("https://bridge.example.com/api/customer-auth/start?shop=alpha.myshopify.com"));
 
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_BOOTSTRAP");
     }

@@ -36,6 +36,14 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 @Service
 public class PlatformManagedProductProvisioningService {
 
+    private static final String CUSTOMER_ACCOUNT_MCP_CLIENT_ID_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID";
+    private static final String CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET";
+    private static final String CUSTOMER_ACCOUNT_MCP_REDIRECT_URI_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI";
+    private static final String CUSTOMER_ACCOUNT_MCP_SCOPES_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES";
+    private static final String CUSTOMER_ACCOUNT_MCP_PROTECTED_APPROVED_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED";
+    private static final String CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL";
+    private static final String CUSTOMER_ACCOUNT_MCP_SESSION_TTL_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL";
+
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformProductProvisioningProperties productProvisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
@@ -1277,6 +1285,20 @@ public class PlatformManagedProductProvisioningService {
                 String shopifyApiKey = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiKeySecretName());
                 String shopifyApiSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiSecretSecretName());
                 String webhookSharedSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeWebhookSharedSecretName());
+                String customerAccountMcpClientId = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CLIENT_ID_SECRET);
+                String customerAccountMcpClientSecret = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET_SECRET);
+                String customerAccountMcpRedirectUri = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_REDIRECT_URI_SECRET);
+                String customerAccountMcpScopes = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SCOPES_SECRET);
+                String customerAccountMcpStateTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET);
+                String customerAccountMcpSessionTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SESSION_TTL_SECRET);
+                boolean customerAccountMcpProtectedApproved = Boolean.parseBoolean(
+                    blankToFallback(resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_PROTECTED_APPROVED_SECRET), "false")
+                );
+                boolean customerAccountMcpConfigured = customerAccountMcpProtectedApproved
+                    && hasText(customerAccountMcpClientId)
+                    && hasText(customerAccountMcpClientSecret)
+                    && hasText(customerAccountMcpRedirectUri)
+                    && hasText(customerAccountMcpScopes);
                 boolean checkoutMcpConfigured = checkoutMcpCredentialsConfigured();
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SHARED_SECRET", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SERVICE_REF", service.getServiceRef()));
@@ -1294,8 +1316,14 @@ public class PlatformManagedProductProvisioningService {
                     "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET",
                     hasText(webhookSharedSecret) ? webhookSharedSecret : shopifyApiSecret
                 );
-                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED", "false"));
-                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED", "false"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED", Boolean.toString(customerAccountMcpConfigured)));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED", Boolean.toString(customerAccountMcpProtectedApproved)));
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID", customerAccountMcpClientId);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET", customerAccountMcpClientSecret);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI", customerAccountMcpRedirectUri);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES", customerAccountMcpScopes);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL", customerAccountMcpStateTtl);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL", customerAccountMcpSessionTtl);
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED", Boolean.toString(checkoutMcpConfigured)));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED", "false"));
                 PlatformManagedProductServiceShopifyBillingConfigSummary billingConfig =

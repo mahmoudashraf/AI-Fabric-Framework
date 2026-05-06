@@ -928,7 +928,7 @@ Critical fixes that made the gate pass:
 
 - Reviewed PR #156 review-thread state through the GitHub app: the prior Coolify P1 and MCP Gateway timeout P2 threads are resolved/outdated. Local code confirms Coolify transport errors throw `CoolifyApiException` and MCP Streamable HTTP timeouts are wired into `SimpleClientHttpRequestFactory`.
 - Hardened the new review concerns worth handling: release execution and verification-suite executors were widened from single-thread bottlenecks to bounded parallel pools, and Platform CORS PATCH support now documents that origin scope remains property-driven.
-- Added Platform secret definitions for external Shopify MCP material: `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES`, `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID`, and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.
+- Added Platform secret definitions for external Shopify MCP material: Customer Account MCP client id/secret/redirect/scopes/protected-data flag/optional TTLs plus Checkout MCP client id/secret.
 - Prepared Customer Account MCP fail-closed behavior: Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` until OAuth/PKCE/protected-data posture is configured, then `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound; MCP Gateway supports `CUSTOMER_OAUTH_PKCE` token pass-through.
 - Prepared Checkout MCP credential path: Platform-managed MCP Gateway maps checkout credentials to gateway-only `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` / `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET`, Bridge receives checkout enablement only when both platform secrets exist, and MCP Gateway supports Shopify's JSON client-credentials token request for `SHOPIFY_AGENTIC_CLIENT_CREDENTIALS`.
 - Terminal checkout remains explicitly gated by `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=false` by default.
@@ -940,3 +940,15 @@ Critical fixes that made the gate pass:
 - `npm --prefix product-services/shopify-bridge-service run shopify:app:deploy` was blocked locally because `max-mode-widget` dependencies were not installed (`vite: command not found`), so direct Shopify CLI deploy with `--no-build` was used.
 - Shopify app config deploy succeeded and released `loom-companion-31`, registering the Customer Account auth redirect in the Shopify app config.
 - Remaining Customer Account MCP blocker: Bridge still needs the actual customer OAuth/PKCE start/callback/token-binding flow behind `/api/customer-auth/callback`; protected customer data posture must also be confirmed before claiming live account/order MCP support.
+
+## 2026-05-06 Shopify Customer Account OAuth Backend
+
+- Implemented Bridge Customer Account OAuth/PKCE backend path for 009/009.3: `/api/customer-auth/start`, `/api/customer-auth/callback`, `/api/customer-auth/session`, and `DELETE /api/customer-auth/session`.
+- Added Bridge Flyway `V8__shopify_customer_account_auth_sessions.sql` plus JPA session storage. Customer token material is AES-GCM encrypted with the Bridge app secret; lookup uses shop plus HMAC of the shopper session id, not raw customer tokens in action params.
+- MCP action execution now resolves Customer Account OAuth tokens server-side from bound shopper sessions and only then forwards `mcpCustomerAccessToken` to the managed MCP Gateway trace. Trace-supplied customer access tokens are not accepted as a Customer Account MCP auth source.
+- Storefront bootstrap now exposes customer-auth start/status URLs so the theme/runtime can initiate Customer Account login without hardcoding Bridge routes.
+- Platform-managed Shopify Bridge env provisioning now injects Customer Account MCP client id/secret/redirect/scopes/TTLs from Platform secrets and enables the Bridge gate only when those values and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true` are present.
+- MCP Gateway Bridge calls now wire `SHOPIFY_BRIDGE_MCP_GATEWAY_CONNECT_TIMEOUT` / `SHOPIFY_BRIDGE_MCP_GATEWAY_READ_TIMEOUT` into the HTTP request factory, and Customer Account OAuth discovery/token calls now have explicit `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT` / `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT` controls.
+- Docs updated: 009 sequence, 009.3 readiness gate, and managed product-services auth guide now list `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET`, TTL env names, and the implemented OAuth/session endpoints.
+- Focused verification passed: `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyCustomerAccountOAuthServiceTest,McpActionExecutionGatewayTest,ShopifyBridgeSecurityHttpIntegrationTest,ShopifyStorefrontControllerTest test`.
+- Remaining live claim gate: protected customer data approval/posture must be confirmed and a real staging customer login must complete the registered OAuth callback before Customer Account MCP `tools/call` can be called live-verified.

@@ -16,6 +16,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummar
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -78,6 +79,8 @@ public class ShopifyStorefrontBootstrapService {
         String bridgeSuggestionsUrl = storefrontUrl(store.shopDomain(), "/chat/suggestions");
         String bridgeOrderLookupUrl = storefrontUrl(store.shopDomain(), "/support/order-lookup");
         String bridgeEventUrl = storefrontUrl(store.shopDomain(), "/events");
+        String customerAccountAuthStartUrl = customerAuthUrl(store.shopDomain(), "/start");
+        String customerAccountAuthSessionUrl = customerAuthUrl(store.shopDomain(), "/session");
         if (!ShopifyStorefrontInteractionReadinessSupport.isReady(store)) {
             return unavailable(
                 store,
@@ -86,7 +89,9 @@ public class ShopifyStorefrontBootstrapService {
                 bridgeQueryUrl,
                 bridgeSuggestionsUrl,
                 bridgeOrderLookupUrl,
-                bridgeEventUrl
+                bridgeEventUrl,
+                customerAccountAuthStartUrl,
+                customerAccountAuthSessionUrl
             );
         }
 
@@ -219,6 +224,8 @@ public class ShopifyStorefrontBootstrapService {
             bridgeSuggestionsUrl,
             bridgeOrderLookupUrl,
             bridgeEventUrl,
+            customerAccountAuthStartUrl,
+            customerAccountAuthSessionUrl,
             orderLookupEnabled,
             olderOrdersRequireBroaderScope,
             orderLookupMessage,
@@ -234,7 +241,9 @@ public class ShopifyStorefrontBootstrapService {
                                                            String bridgeQueryUrl,
                                                            String bridgeSuggestionsUrl,
                                                            String bridgeOrderLookupUrl,
-                                                           String bridgeEventUrl) {
+                                                           String bridgeEventUrl,
+                                                           String customerAccountAuthStartUrl,
+                                                           String customerAccountAuthSessionUrl) {
         String defaultConversationMode = DEFAULT_CONVERSATION_MODE;
         return new ShopifyStorefrontBootstrapResponse(
             false,
@@ -270,6 +279,8 @@ public class ShopifyStorefrontBootstrapService {
             bridgeSuggestionsUrl,
             bridgeOrderLookupUrl,
             bridgeEventUrl,
+            customerAccountAuthStartUrl,
+            customerAccountAuthSessionUrl,
             false,
             true,
             "Order lookup is unavailable until the store is storefront-ready.",
@@ -349,6 +360,20 @@ public class ShopifyStorefrontBootstrapService {
             ? properties.publicBaseUrl().substring(0, properties.publicBaseUrl().length() - 1)
             : properties.publicBaseUrl();
         return base + path;
+    }
+
+    private String customerAuthUrl(String shopDomain, String suffix) {
+        String path = "/api/customer-auth" + suffix;
+        UriComponentsBuilder builder = properties.publicBaseUrl().isBlank()
+            ? UriComponentsBuilder.fromPath(path)
+            : UriComponentsBuilder.fromHttpUrl(normalizedPublicBaseUrl() + path);
+        return builder.queryParam("shop", shopDomain).build().toUriString();
+    }
+
+    private String normalizedPublicBaseUrl() {
+        return properties.publicBaseUrl().endsWith("/")
+            ? properties.publicBaseUrl().substring(0, properties.publicBaseUrl().length() - 1)
+            : properties.publicBaseUrl();
     }
 
     private String resolveDefaultConversationMode(String configuredDefaultConversationMode,

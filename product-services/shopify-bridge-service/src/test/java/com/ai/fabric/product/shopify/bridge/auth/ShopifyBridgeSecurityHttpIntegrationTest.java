@@ -85,6 +85,13 @@ class ShopifyBridgeSecurityHttpIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void customerAccountAuthRoutesArePublicButStillValidatedByController() {
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/customer-auth/session", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     private HttpRequest optionsRequest(String path) {
         return HttpRequest.newBuilder()
             .uri(URI.create("http://localhost:" + port + path))

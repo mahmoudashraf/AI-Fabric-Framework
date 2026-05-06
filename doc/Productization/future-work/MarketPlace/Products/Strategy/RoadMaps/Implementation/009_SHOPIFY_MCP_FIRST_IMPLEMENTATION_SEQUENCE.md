@@ -446,10 +446,13 @@ Pending external auth material for staging live verification:
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED=true`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES`
+- optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL` and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL`
+- optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT` and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT`
 - registered Shopify Customer Account OAuth redirect URI for the staging Bridge/customer flow
-- a staging customer OAuth/PKCE access token path or permission to complete the PKCE login flow for a staging test customer
+- a staging test customer login flow to complete the PKCE authorization and bind the customer token to the Bridge shopper session
 - confirmation that the staging store is approved for the protected customer data needed by these actions
 
 Do not paste these values into tracked docs. Store secrets in Coolify staging env or local ignored/private secret files and record only the names/paths in handoff docs.
@@ -457,7 +460,10 @@ Do not paste these values into tracked docs. Store secrets in Coolify staging en
 Prepared status:
 
 - Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` until this posture is configured.
-- After posture is configured, Bridge returns `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth token is bound to the shopper session.
+- Bridge exposes `/api/customer-auth/start`, `/api/customer-auth/callback`, and `/api/customer-auth/session` for Shopify Customer Account OAuth/PKCE start, callback, and session status.
+- Bridge stores bound customer token material encrypted at rest and indexes it only by shop plus a HMAC of the shopper session identifier.
+- Bridge wires explicit HTTP connect/read timeouts for both MCP Gateway calls and Customer Account discovery/token calls.
+- After posture is configured, Bridge returns `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until the customer OAuth token is bound to the shopper session.
 - MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by attaching the bound customer OAuth token as the MCP Authorization header.
 
 ### Phase 9: Checkout And Generic MCP Follow-On

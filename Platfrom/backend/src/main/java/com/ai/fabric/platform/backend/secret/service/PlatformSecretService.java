@@ -428,10 +428,42 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Client Secret",
+                "External Shopify Customer Account MCP OAuth client secret used by the Bridge callback to exchange PKCE authorization codes.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Protected Data Approval Flag",
+                "Set to true only after protected customer data posture is approved for the target Shopify Customer Account MCP actions.",
+                false
+            )
+        );
+        secrets.put(
             "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI",
             new SecretDefinition(
                 "Shopify Customer Account MCP Redirect URI",
                 "Registered Customer Account MCP OAuth/PKCE redirect URI for the staging Bridge customer login callback.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Auth State TTL",
+                "Optional Bridge Customer Account OAuth state TTL, for example PT10M.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Session TTL",
+                "Optional Bridge Customer Account shopper-session binding TTL, for example P30D.",
                 false
             )
         );

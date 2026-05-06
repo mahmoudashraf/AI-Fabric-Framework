@@ -16,5 +16,11 @@ class ShopifyStorefrontCorsConfiguration implements WebMvcConfigurer {
             .allowedMethods("GET", "POST", "OPTIONS")
             .allowedHeaders("*")
             .maxAge(3600);
+        // Customer-auth status/start endpoints are storefront-callable but never expose OAuth tokens.
+        registry.addMapping("/api/customer-auth/**")
+            .allowedOriginPatterns("*")
+            .allowedMethods("GET", "DELETE", "OPTIONS")
+            .allowedHeaders("*")
+            .maxAge(3600);
     }
 }

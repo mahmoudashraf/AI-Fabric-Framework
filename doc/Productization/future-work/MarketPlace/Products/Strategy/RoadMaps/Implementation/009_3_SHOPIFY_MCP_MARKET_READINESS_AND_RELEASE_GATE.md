@@ -132,26 +132,34 @@ The first product release gate uses Shopify Storefront MCP `/api/mcp` because it
 
 Required before claiming live customer-account capability:
 
-- Shopify Customer Account OAuth/PKCE configuration
+- Shopify Customer Account OAuth/PKCE configuration in Bridge staging env
 - protected customer data posture and approval where required
-- customer access token/session binding in the product host
+- customer access token/session binding in the product host through the registered Bridge callback
 - live `tools/list` and `tools/call` evidence against the staging store
 - denial evidence when customer token/session is missing
 
 Prepared platform/Bridge behavior:
 
 - Customer Account MCP actions remain Marketplace `ACTION` plugins, but Bridge fails closed with `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` until OAuth/PKCE posture is configured.
+- Bridge implements the Customer Account OAuth/PKCE backend endpoints `/api/customer-auth/start`, `/api/customer-auth/callback`, and `/api/customer-auth/session`.
+- Bridge encrypts Customer Account token material at rest and stores only a shop-scoped HMAC of the shopper session identifier for lookup.
 - After posture is configured, Bridge fails closed with `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
-- MCP Gateway can attach a bound customer OAuth access token to Customer Account MCP requests using `CUSTOMER_OAUTH_PKCE`.
+- Shopify Bridge action execution resolves the bound customer OAuth access token server-side by `shopDomain` plus shopper session; action params, browser payloads, and inbound trace fields are not accepted as token sources.
+- MCP Gateway can attach the bound customer OAuth access token to Customer Account MCP requests using `CUSTOMER_OAUTH_PKCE`.
 
 Credential/config intake names:
 
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED=true`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES=customer-account-mcp-api:full`
-- staging customer OAuth/PKCE token acquisition path or a test customer login flow that can bind the token to the shopper session
+- optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL`
+- optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL`
+- optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT`
+- optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT`
+- staging test customer login flow that can complete the registered `/api/customer-auth/callback` flow and bind the token to the shopper session
 
 ### Checkout MCP
 
@@ -268,6 +276,7 @@ Do not print raw secrets while running these checks.
   - qdrant hosted run `hvr-d224a9a4`: `PASS: All checks completed. (43 passes, 2 warnings)`.
 - 009.3 staging status is design-partner ready for the claim-safe product boundary in this document. Production launch and stronger Customer Account / Checkout MCP claims remain gated by the external Shopify auth, protected-data, checkout, and production deployment requirements listed above.
 - External auth gates are prepared up to credential intake: Bridge returns explicit Customer Account and Checkout MCP gate errors, MCP Gateway supports Customer Account token pass-through and Shopify Checkout client-credentials JSON token exchange, Platform managed product provisioning maps checkout credentials to gateway-only `MCP_SECRET_...` env names, and release/verification async executors were widened to avoid single-thread platform starvation.
+- Bridge Customer Account OAuth/PKCE implementation was added after the initial 009.3 pass: `/api/customer-auth/start` performs Customer Account OIDC discovery and PKCE redirect, `/api/customer-auth/callback` exchanges the code with confidential-client auth, Customer Account token material is encrypted at rest in `shopify_customer_account_sessions`, and MCP action execution resolves bound tokens server-side by shopper session without trusting inbound trace token fields. MCP Gateway HTTP calls and Customer Account discovery/token calls now use explicit configured connect/read timeouts. Stronger customer-account product claims still require protected-data approval confirmation plus live customer login and safe `tools/call` evidence on staging.
 
 ### 2026-05-05
 

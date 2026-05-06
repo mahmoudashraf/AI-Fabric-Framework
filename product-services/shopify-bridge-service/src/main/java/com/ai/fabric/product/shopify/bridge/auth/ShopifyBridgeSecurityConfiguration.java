@@ -48,6 +48,7 @@ public class ShopifyBridgeSecurityConfiguration {
                 .requestMatchers("/", "/app", "/assets/**", "/favicon.ico").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers("/auth/shopify/**").permitAll()
+                .requestMatchers("/api/customer-auth/**").permitAll()
                 .requestMatchers("/api/webhooks/shopify").permitAll()
                 .requestMatchers("/api/storefront/**").permitAll()
                 .requestMatchers("/api/app/shell").permitAll()

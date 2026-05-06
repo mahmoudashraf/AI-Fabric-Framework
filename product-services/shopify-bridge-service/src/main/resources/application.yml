@@ -61,8 +61,13 @@ shopify:
       customer-account-mcp-enabled: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED:false}
       customer-account-mcp-protected-data-approved: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED:false}
       customer-account-mcp-client-id: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID:}
+      customer-account-mcp-client-secret: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET:}
       customer-account-mcp-redirect-uri: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI:}
       customer-account-mcp-scopes: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES:}
+      customer-account-mcp-state-ttl: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL:PT10M}
+      customer-account-mcp-session-ttl: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL:P30D}
+      customer-account-mcp-connect-timeout: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT:PT5S}
+      customer-account-mcp-read-timeout: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT:PT30S}
       checkout-mcp-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED:false}
       checkout-mcp-terminal-operations-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED:false}
     billing:

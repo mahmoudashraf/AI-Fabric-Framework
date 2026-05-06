@@ -4,16 +4,19 @@ import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExec
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.config.McpExecutionGatewayProperties;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyMcpExternalAuthProperties;
+import com.ai.fabric.product.shopify.bridge.customeraccount.service.ShopifyCustomerAccountOAuthService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,26 +36,50 @@ public class McpActionExecutionGateway {
 
     private final McpExecutionGatewayProperties properties;
     private final ShopifyMcpExternalAuthProperties externalAuthProperties;
+    private final ShopifyCustomerAccountOAuthService customerAccountOAuthService;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
 
     @Autowired
     public McpActionExecutionGateway(McpExecutionGatewayProperties properties,
                                      ShopifyMcpExternalAuthProperties externalAuthProperties,
+                                     ShopifyCustomerAccountOAuthService customerAccountOAuthService,
                                      ObjectMapper objectMapper,
                                      RestClient.Builder restClientBuilder) {
-        this.properties = properties;
-        this.externalAuthProperties = externalAuthProperties == null
-            ? new ShopifyMcpExternalAuthProperties(false, false, "", "", List.of(), false, false)
-            : externalAuthProperties;
-        this.objectMapper = objectMapper;
-        this.restClient = restClientBuilder.build();
+        this(
+            properties,
+            externalAuthProperties,
+            customerAccountOAuthService,
+            objectMapper,
+            gatewayRestClient(restClientBuilder, properties)
+        );
+    }
+
+    McpActionExecutionGateway(McpExecutionGatewayProperties properties,
+                              ShopifyMcpExternalAuthProperties externalAuthProperties,
+                              ObjectMapper objectMapper,
+                              RestClient.Builder restClientBuilder) {
+        this(properties, externalAuthProperties, null, objectMapper, restClientBuilder.build());
     }
 
     McpActionExecutionGateway(McpExecutionGatewayProperties properties,
                               ObjectMapper objectMapper,
                               RestClient.Builder restClientBuilder) {
-        this(properties, null, objectMapper, restClientBuilder);
+        this(properties, null, null, objectMapper, restClientBuilder.build());
+    }
+
+    McpActionExecutionGateway(McpExecutionGatewayProperties properties,
+                              ShopifyMcpExternalAuthProperties externalAuthProperties,
+                              ShopifyCustomerAccountOAuthService customerAccountOAuthService,
+                              ObjectMapper objectMapper,
+                              RestClient restClient) {
+        this.properties = properties;
+        this.externalAuthProperties = externalAuthProperties == null
+            ? new ShopifyMcpExternalAuthProperties(false, false, "", "", "", List.of(), null, null, null, null, false, false)
+            : externalAuthProperties;
+        this.customerAccountOAuthService = customerAccountOAuthService;
+        this.objectMapper = objectMapper;
+        this.restClient = restClient;
     }
 
     public boolean supports(ShopifyBridgeActionExecuteRequest request) {
@@ -73,14 +100,14 @@ public class McpActionExecutionGateway {
             );
         }
         JsonNode mcp = findMcpExecution(request);
-        ShopifyBridgeActionResult externalAuthGate = externalAuthGate(request, mcp);
+        ShopifyBridgeActionResult externalAuthGate = externalAuthGate(shopDomain, request, mcp);
         if (externalAuthGate != null) {
             return externalAuthGate;
         }
         try {
             Map<String, Object> trace = new LinkedHashMap<>(request.trace() == null ? Map.of() : request.trace());
             trace.put("shopDomain", shopDomain);
-            addCustomerAccessTokenIfPresent(trace, request);
+            addCustomerAccessTokenIfPresent(trace, shopDomain, request);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("actionId", request.actionId());
             body.put("params", request.params() == null ? Map.of() : request.params());
@@ -241,6 +268,16 @@ public class McpActionExecutionGateway {
         return base + path;
     }
 
+    private static RestClient gatewayRestClient(RestClient.Builder restClientBuilder,
+                                                McpExecutionGatewayProperties properties) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(properties.connectTimeout());
+        requestFactory.setReadTimeout(properties.readTimeout());
+        return restClientBuilder
+            .requestFactory(requestFactory)
+            .build();
+    }
+
     private JsonNode findMcpExecution(ShopifyBridgeActionExecuteRequest request) {
         JsonNode trace = objectMapper.valueToTree(request == null || request.trace() == null ? Map.of() : request.trace());
         for (JsonNode candidate : List.of(
@@ -256,7 +293,7 @@ public class McpActionExecutionGateway {
         return MissingNode.getInstance();
     }
 
-    private ShopifyBridgeActionResult externalAuthGate(ShopifyBridgeActionExecuteRequest request, JsonNode mcp) {
+    private ShopifyBridgeActionResult externalAuthGate(String shopDomain, ShopifyBridgeActionExecuteRequest request, JsonNode mcp) {
         if (!mcp.isObject()) {
             return null;
         }
@@ -267,7 +304,16 @@ public class McpActionExecutionGateway {
                     "Customer Account MCP OAuth/PKCE and protected customer data posture are not configured."
                 );
             }
-            if (!StringUtils.hasText(customerAccessToken(request))) {
+            String customerToken;
+            try {
+                customerToken = resolveBoundCustomerAccessToken(shopDomain, request);
+            } catch (ResponseStatusException ex) {
+                return ShopifyBridgeActionResult.failure(
+                    "INVALID_REQUEST",
+                    StringUtils.hasText(ex.getReason()) ? ex.getReason() : "Invalid Customer Account MCP shopper session."
+                );
+            }
+            if (!StringUtils.hasText(customerToken)) {
                 return ShopifyBridgeActionResult.failure(
                     "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
                     "Customer Account MCP requires a bound customer session token."
@@ -314,26 +360,49 @@ public class McpActionExecutionGateway {
             || serverRef.contains("CHECKOUT");
     }
 
-    private void addCustomerAccessTokenIfPresent(Map<String, Object> trace, ShopifyBridgeActionExecuteRequest request) {
-        String token = customerAccessToken(request);
+    private void addCustomerAccessTokenIfPresent(Map<String, Object> trace,
+                                                 String shopDomain,
+                                                 ShopifyBridgeActionExecuteRequest request) {
+        if (!isCustomerAccountMcp(findMcpExecution(request))) {
+            return;
+        }
+        String token = resolveBoundCustomerAccessToken(shopDomain, request);
         if (StringUtils.hasText(token)) {
             trace.put("mcpCustomerAccessToken", token);
         }
     }
 
-    private String customerAccessToken(ShopifyBridgeActionExecuteRequest request) {
+    private String resolveBoundCustomerAccessToken(String shopDomain, ShopifyBridgeActionExecuteRequest request) {
         if (request == null) {
             return null;
         }
-        for (String key : List.of(
-            "mcpCustomerAccessToken",
-            "customerAccountAccessToken",
-            "customerAccessToken",
-            "customerAuthorization"
-        )) {
-            String token = textValue(request.trace(), key);
-            if (StringUtils.hasText(token)) {
-                return token;
+        if (customerAccountOAuthService != null) {
+            String shopperSessionId = shopperSessionId(request);
+            if (StringUtils.hasText(shopDomain) && StringUtils.hasText(shopperSessionId)) {
+                return customerAccountOAuthService.resolveAccessToken(shopDomain, shopperSessionId).orElse(null);
+            }
+        }
+        return null;
+    }
+
+    private String shopperSessionId(ShopifyBridgeActionExecuteRequest request) {
+        for (String key : List.of("shopperSessionId", "shopper_session_id", "sessionId")) {
+            String value = textValue(request.trace(), key);
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        Object authContext = request.trace() == null ? null : request.trace().get("authContext");
+        if (authContext instanceof Map<?, ?> authMap) {
+            Object value = authMap.get("sessionId");
+            if (value != null && StringUtils.hasText(value.toString())) {
+                return value.toString().trim();
+            }
+        }
+        for (String key : List.of("shopperSessionId", "shopper_session_id", "sessionId")) {
+            String value = textValue(request.params(), key);
+            if (StringUtils.hasText(value)) {
+                return value;
             }
         }
         return null;

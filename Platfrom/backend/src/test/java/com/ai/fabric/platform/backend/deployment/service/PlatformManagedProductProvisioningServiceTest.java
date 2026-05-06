@@ -652,6 +652,11 @@ class PlatformManagedProductProvisioningServiceTest {
         when(platformSecretService.resolveSecret("SHOPIFY_APP_API_KEY")).thenReturn("shopify-api-key");
         when(platformSecretService.resolveSecret("SHOPIFY_APP_API_SECRET")).thenReturn("shopify-api-secret");
         when(platformSecretService.resolveSecret("SHOPIFY_WEBHOOK_SHARED_SECRET")).thenReturn(null);
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID")).thenReturn("customer-client-id");
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET")).thenReturn("customer-client-secret");
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI")).thenReturn("https://bridge.example/api/customer-auth/callback");
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES")).thenReturn("customer-account-mcp-api:full");
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED")).thenReturn("true");
         when(railwayGraphqlClient.hasStagedChanges("env-123")).thenReturn(false);
         when(railwayGraphqlClient.deployService("svc-123", "env-123")).thenReturn("dep-railway-123");
         when(railwayGraphqlClient.getDeployment("dep-railway-123"))
@@ -735,6 +740,18 @@ class PlatformManagedProductProvisioningServiceTest {
             .filteredOn(input -> "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET".equals(input.name()))
             .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
             .containsExactly("shopify-api-secret");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("true");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("customer-client-secret");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("https://bridge.example/api/customer-auth/callback");
     }
 
     @Test
