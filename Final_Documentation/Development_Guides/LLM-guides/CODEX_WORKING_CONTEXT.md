@@ -904,3 +904,13 @@ Rules:
 - Release gate endpoint returned `READY=true` / `status=READY`; freshness window expires at `2026-05-06T13:38:50Z`.
 - Hosted evidence from the full suite: marketplace `hvr-05692359` passed with 42 passes / 2 warnings; ecommerce `hvr-002dcf32` passed with 43 passes / 2 warnings; qdrant `hvr-d224a9a4` passed with 43 passes / 2 warnings.
 - Updated `009_3_SHOPIFY_MCP_MARKET_READINESS_AND_RELEASE_GATE.md` with the final staging pass evidence. Staging is design-partner ready for the claim-safe 009.3 product boundary; production launch and stronger Customer Account / Checkout MCP claims remain externally gated.
+
+Critical fixes that made the gate pass:
+
+- Fixed Coolify/runtime config drift: Coolify env writes now update both normal and preview env rows for action-catalog/version keys, which stopped the runtime from serving stale pre-MCP action config after successful reapply.
+- Fixed Shopify MCP trace propagation: Bridge storefront chat now forwards the resolved shop domain as sanitized `shopify-storefront-context`, and runtime connector execution promotes that metadata into the MCP Gateway trace so `endpointKind=STOREFRONT_STANDARD` can resolve `https://{shop}/api/mcp`.
+- Reset the live Storefront MCP bundle to the standard Shopify Storefront MCP `/api/mcp` tool set available on the staging shop instead of older UCP catalog aliases.
+- Repaired Coolify source/provider assumptions: canonical rollouts were corrected away from stale source URLs, and release verification now uses provider target-profile preflight instead of Railway-only preflight when the deployment is on Coolify.
+- Made canonical release repair reliable on the constrained staging host by serializing/throttling rollout work and making recreate/apply idempotent, so provider cleanup and redeploys do not leave partially applied verification fleets.
+- Switched Platform-managed canonical verification rollouts to runtime `ALLOW_VERIFIED` authz, removing stale `authzBaseUrl` wiring. This fixed the qdrant/ecommerce hosted-verification `Access denied by policy` failure while preserving connector route-level authz.
+- Verified the final Shopify Bridge delegated MCP `502` was not a remaining code-path issue: managed gateway/bridge secrets and URLs matched, direct gateway execution passed, Bridge delegated execution passed, and the targeted platform-hosted MCP suite passed.
