@@ -975,3 +975,17 @@ Critical fixes that made the gate pass:
 - Regression coverage: `PartnerEnablementIntegrationTest#storeVerificationPackUsesEliteWhenLegacyFreePackExposesGovernedSurface` covers a legacy LOW_COST package state with `order-lookup` and verifies the endpoint selects the Elite readiness pack.
 - Live staging cleanup was done only through Platform APIs: removed `order-lookup` from `shopping-companion-test.myshopify.com` widget surfaces, recorded billing `FREE/ACTIVE`, and ran Free package reconciliation job `spj-b7f16d23` to `READY`.
 - Targeted staging suite `partner-enablement-verification` then passed as run `vsr-5ccfa1a2`.
+
+## 2026-05-06 Post-Rotation 009.3 Release Gate Pass
+
+- Commit `b911222ac` (`Fix Shopify partner readiness pack fallback`) was pushed to `origin/Platform-V8` and deployed to staging Platform backend through Coolify.
+- Local verification before deploy passed: `PartnerEnablementIntegrationTest#storeVerificationPackUsesEliteWhenLegacyFreePackExposesGovernedSurface`, full `PartnerEnablementIntegrationTest`, full `mvn -f Platfrom/backend/pom.xml -q test`, and `git diff --check`.
+- Live staging confirmed `V91` applied: package profile `LOW_COST` now reports `verificationPackId=starter-launch-readiness`.
+- Coolify staging Platform backend env scope was repaired after fresh containers defaulted DB settings to localhost. Required DB envs, release-suite URLs, `PLATFORM_PUBLIC_BASE_URL`, Shopify Bridge/shop/product-service refs, and Weaviate host were written as normal non-preview rows so redeploys do not depend on preview-only config.
+- Platform DB-backed signing secrets required by canonical rollout checks were restored through Platform Secrets API. Only secret names/readiness are recorded in tracked docs; values remain in private/operator material.
+- The staging `PLATFORM_ADMIN_API_KEY` was rotated from the legacy weak operator value, stored only in Coolify/private handoff, and verified live against `/api/platform/secrets`.
+- A first post-rotation full gate (`vsr-e31e820b`) failed at `marketplace-hosted-verification` with a Qdrant Cloud management 401. Direct `/api/deployments/dep-d99b3252/provider-connectivity` recheck then returned `qdrant_cloud_control_plane=READY`; the follow-up full gate passed without further code changes.
+- Final full release gate passed after admin-key rotation: `full-platform-release-readiness` run `vsr-90ca64ba`, status `PASSED`, completed `2026-05-06T22:36:55Z`.
+- `/api/verification-suites/release-gate` returned `READY=true` / `status=READY`; freshness expires at `2026-05-07T10:36:55Z`.
+- Hosted evidence from `vsr-90ca64ba`: marketplace `hvr-b885536b` passed with 42 passes / 2 warnings, ecommerce `hvr-8a0d4ce5` passed with 43 passes / 2 warnings, and qdrant `hvr-551c1c39` passed with 43 passes / 2 warnings.
+- Remaining live claim gates are unchanged: Customer Account MCP still needs a real staging customer login/bound-token `tools/call` proof after protected-data posture is confirmed; Checkout MCP still needs separate Shopify checkout credentials/readiness before any live checkout claim.

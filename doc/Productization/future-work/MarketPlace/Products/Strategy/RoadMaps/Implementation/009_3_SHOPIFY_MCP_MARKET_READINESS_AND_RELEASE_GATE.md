@@ -1,6 +1,6 @@
 # 009.3 Shopify MCP Market Readiness And Release Gate
 
-Status: staging release gate passed on 2026-05-06. Staging is the active target. Production is not deployed by this plan.
+Status: staging release gate passed on 2026-05-06. Latest full pass is `vsr-90ca64ba`, completed at `2026-05-06T22:36:55Z`. Staging is the active target. Production is not deployed by this plan.
 
 Parent plans:
 
@@ -263,6 +263,13 @@ Do not print raw secrets while running these checks.
 
 ### 2026-05-06
 
+- Latest staging release-gate evidence after Platform admin-key rotation: `full-platform-release-readiness` passed as run `vsr-90ca64ba`, completed at `2026-05-06T22:36:55Z`; `/api/verification-suites/release-gate` returned `READY=true` / `status=READY` with freshness expiry `2026-05-07T10:36:55Z`.
+- Hosted verification evidence from `vsr-90ca64ba`: marketplace `hvr-b885536b` passed with 42 passes / 2 warnings, ecommerce `hvr-8a0d4ce5` passed with 43 passes / 2 warnings, and qdrant `hvr-551c1c39` passed with 43 passes / 2 warnings.
+- Staging Platform backend was also deployed to commit `b911222ac` for the Partner readiness-pack cleanup. `V91__normalize_low_cost_shopify_readiness_pack.sql` applied live: `LOW_COST` now uses `starter-launch-readiness`.
+- Coolify staging Platform backend env scope was repaired for non-preview redeploys. Required DB env, release-suite URL env, `PLATFORM_PUBLIC_BASE_URL`, Shopify Bridge URL/shop/product-service refs, Weaviate host, and release-gate support settings were written as normal runtime env rows, not only preview rows.
+- Platform DB-backed signing secrets required by canonical rollout checks were restored through the Platform Secrets API. Values remain in private/operator material only; tracked docs must record only secret names and readiness state.
+- The staging `PLATFORM_ADMIN_API_KEY` was rotated from the earlier weak operator value, stored in Coolify/private handoff only, and verified against live `/api/platform/secrets` before rerunning the full gate.
+- A first post-rotation full run (`vsr-e31e820b`) failed at `marketplace-hosted-verification` with a Qdrant Cloud control-plane 401. Direct live provider-connectivity for the same marketplace deployment then returned `qdrant_cloud_control_plane=READY`, and the rerun `vsr-90ca64ba` passed all 14 stages. No code change was required for that final Qdrant probe; the remaining operational rule is to recheck Qdrant management/data-plane secret freshness before each release gate.
 - Staging Platform backend was deployed through Coolify to commit `3fde4faf8` after the release gate exposed canonical runtime authorization drift. The canonical verification fleet now uses `ALLOW_VERIFIED` runtime authz for Platform-managed verification rollouts while preserving connector route-level authorization.
 - Canonical rollouts were repaired through `/api/deployments/verification-rollouts/recreate` for `ecommerce`, `qdrant`, `pinecone`, `milvus`, and `weaviate`. Final rollout inventory showed all canonical deployments `APPLIED_VERIFIED`, `ACTIVE`, and `verificationReady=true`.
 - The earlier qdrant hosted verification failure was rechecked directly with hosted run `hvr-dd2d009e`, which passed: `PASS: All checks completed. (43 passes, 2 warnings)`.
