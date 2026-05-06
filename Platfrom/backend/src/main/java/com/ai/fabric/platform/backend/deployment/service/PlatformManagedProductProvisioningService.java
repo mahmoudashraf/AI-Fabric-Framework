@@ -612,6 +612,7 @@ public class PlatformManagedProductProvisioningService {
             );
         }
         if (existing != null && hasText(existing.uuid())) {
+            request = request.withDomains(mergeCoolifyDomains(request.domains(), existing.fqdn()));
             coolifyApiClient.updatePublicApplication(binding.connection(), existing.uuid(), request);
             return coolifyApiClient.getApplication(binding.connection(), existing.uuid()).orElse(existing);
         }
@@ -910,6 +911,60 @@ public class PlatformManagedProductProvisioningService {
             return null;
         }
         return fqdn.startsWith("http://") || fqdn.startsWith("https://") ? fqdn : "https://" + fqdn;
+    }
+
+    private String mergeCoolifyDomains(String desiredDomains, String observedDomains) {
+        if (!hasText(desiredDomains)) {
+            return trimToNull(observedDomains);
+        }
+        List<String> merged = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        appendCoolifyDomains(merged, seen, desiredDomains);
+        if (coolifyDomainListsOverlap(desiredDomains, observedDomains)) {
+            appendCoolifyDomains(merged, seen, observedDomains);
+        }
+        return merged.isEmpty() ? trimToNull(desiredDomains) : String.join(",", merged);
+    }
+
+    private void appendCoolifyDomains(List<String> merged, java.util.Set<String> seen, String domains) {
+        if (!hasText(domains)) {
+            return;
+        }
+        for (String candidate : domains.split(",")) {
+            String normalized = trimToNull(candidate);
+            String key = coolifyDomainKey(normalized);
+            if (hasText(normalized) && hasText(key) && seen.add(key)) {
+                merged.add(normalized);
+            }
+        }
+    }
+
+    private boolean coolifyDomainListsOverlap(String left, String right) {
+        if (!hasText(left) || !hasText(right)) {
+            return false;
+        }
+        java.util.Set<String> leftKeys = new java.util.LinkedHashSet<>();
+        for (String candidate : left.split(",")) {
+            String key = coolifyDomainKey(candidate);
+            if (hasText(key)) {
+                leftKeys.add(key);
+            }
+        }
+        for (String candidate : right.split(",")) {
+            if (leftKeys.contains(coolifyDomainKey(candidate))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String coolifyDomainKey(String domain) {
+        String host = normalizedUrlHost(domain);
+        if (hasText(host)) {
+            return host.toLowerCase(Locale.ROOT);
+        }
+        String normalized = trimToNull(domain);
+        return hasText(normalized) ? normalized.toLowerCase(Locale.ROOT) : null;
     }
 
     private boolean coolifyFqdnMatchesBaseUrl(String fqdn, String baseUrl) {
