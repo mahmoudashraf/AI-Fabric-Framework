@@ -932,3 +932,11 @@ Critical fixes that made the gate pass:
 - Prepared Customer Account MCP fail-closed behavior: Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` until OAuth/PKCE/protected-data posture is configured, then `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound; MCP Gateway supports `CUSTOMER_OAUTH_PKCE` token pass-through.
 - Prepared Checkout MCP credential path: Platform-managed MCP Gateway maps checkout credentials to gateway-only `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` / `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET`, Bridge receives checkout enablement only when both platform secrets exist, and MCP Gateway supports Shopify's JSON client-credentials token request for `SHOPIFY_AGENTIC_CLIENT_CREDENTIALS`.
 - Terminal checkout remains explicitly gated by `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=false` by default.
+
+## 2026-05-06 Shopify Customer Account Redirect Registration
+
+- Added `[customer_authentication]` to Shopify app config renderers and tracked app TOML files with staging redirect `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io/api/customer-auth/callback` and JavaScript origin `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io`.
+- Loaded the private Shopify CLI Partner token from the private handoff into a temp secret file without printing it; `shopify:app:info` confirmed the expected Loom Companion app, client id, service account, dev store, and full scopes.
+- `npm --prefix product-services/shopify-bridge-service run shopify:app:deploy` was blocked locally because `max-mode-widget` dependencies were not installed (`vite: command not found`), so direct Shopify CLI deploy with `--no-build` was used.
+- Shopify app config deploy succeeded and released `loom-companion-31`, registering the Customer Account auth redirect in the Shopify app config.
+- Remaining Customer Account MCP blocker: Bridge still needs the actual customer OAuth/PKCE start/callback/token-binding flow behind `/api/customer-auth/callback`; protected customer data posture must also be confirmed before claiming live account/order MCP support.

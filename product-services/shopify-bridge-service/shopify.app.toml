@@ -14,6 +14,14 @@ redirect_urls = [
   "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io/auth/shopify/callback"
 ]
 
+[customer_authentication]
+redirect_uris = [
+  "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io/api/customer-auth/callback"
+]
+javascript_origins = [
+  "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io"
+]
+
 [build]
 automatically_update_urls_on_dev = false
 dev_store_url = "https://shopping-companion-test.myshopify.com"
