@@ -222,7 +222,7 @@ Create an explicit production-managed MCP Gateway record with a production servi
   "maxReplicas": 3,
   "healthPath": "/actuator/health",
   "serviceRoot": "product-services/mcp-execution-gateway-service",
-  "dockerfilePath": "product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile",
+  "dockerfilePath": "product-services/mcp-execution-gateway-service/deploy/container/Dockerfile",
   "secretName": "MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_PRODUCTION_API_KEY",
   "targetProfileId": "dtp-coolify-production"
 }
@@ -244,7 +244,7 @@ Create an explicit production Shopify Bridge record the same way, using a separa
   "maxReplicas": 3,
   "healthPath": "/actuator/health",
   "serviceRoot": "product-services/shopify-bridge-service",
-  "dockerfilePath": "product-services/shopify-bridge-service/deploy/railway/Dockerfile",
+  "dockerfilePath": "product-services/shopify-bridge-service/deploy/container/Dockerfile",
   "secretName": "MANAGED_PRODUCT_SHOPIFY_BRIDGE_PRODUCTION_API_KEY",
   "targetProfileId": "dtp-coolify-production"
 }

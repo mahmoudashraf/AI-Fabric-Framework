@@ -255,10 +255,10 @@ tenantMode: MULTI_TENANT_SHARED
 environmentScope: staging
 healthPath: /actuator/health
 serviceRoot: product-services/mcp-execution-gateway-service
-dockerfilePath: product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile
+dockerfilePath: product-services/mcp-execution-gateway-service/deploy/container/Dockerfile
 ```
 
-The Dockerfile path name can remain `deploy/railway/Dockerfile` only if the existing product-service deployment convention still expects it. The service must still be deployable to Coolify through the provider-neutral target-profile path.
+Use the provider-neutral `deploy/container/Dockerfile` path for new Platform-managed product-service records. `deploy/railway/Dockerfile` is a compatibility path only for existing Railway projects that still reference it.
 
 Platform remains the source of truth for the service definition. Coolify is the provider runtime. Operators must not have to manually recreate the gateway from the Coolify UI for normal lifecycle work.
 

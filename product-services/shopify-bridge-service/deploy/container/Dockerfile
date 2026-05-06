@@ -1,6 +1,3 @@
-# Railway compatibility Dockerfile.
-# New provider-neutral deployments should use:
-# product-services/shopify-bridge-service/deploy/container/Dockerfile
 FROM node:20-alpine AS ui-build
 WORKDIR /workspace/ui
 

@@ -51,6 +51,17 @@ These secrets are resolved by Platform during reconcile, restart, force recreate
 
 The provider token is not injected into the product service container.
 
+Provider-specific names must not become the product-service contract. New managed product-service records should use provider-neutral Dockerfile paths:
+
+```text
+product-services/mcp-execution-gateway-service/deploy/container/Dockerfile
+product-services/shopify-bridge-service/deploy/container/Dockerfile
+```
+
+Coolify and Railway may both deploy these images. Provider-specific compatibility paths such as `deploy/railway/Dockerfile` are only for existing projects that still point there.
+
+Secrets must be runtime environment variables in the deployment provider. Do not pass vendor keys, webhook secrets, internal service keys, or MCP credentials as Docker build arguments.
+
 ## 4. Product Service Internal API Auth
 
 Each managed product service record has a `secretName`. Platform resolves that secret and injects it into the deployed service as the service's private API key.

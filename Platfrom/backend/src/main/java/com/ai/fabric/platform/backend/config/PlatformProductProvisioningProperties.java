@@ -62,7 +62,7 @@ public record PlatformProductProvisioningProperties(
         shopifyBridgeServiceRoot = normalizeText(shopifyBridgeServiceRoot, "product-services/shopify-bridge-service");
         shopifyBridgeDockerfilePath = normalizeText(
             shopifyBridgeDockerfilePath,
-            "product-services/shopify-bridge-service/deploy/railway/Dockerfile"
+            "product-services/shopify-bridge-service/deploy/container/Dockerfile"
         );
         shopifyBridgeServiceNamePrefix = normalizeText(shopifyBridgeServiceNamePrefix, "shopify-bridge");
         shopifyBridgeHealthPath = normalizeText(shopifyBridgeHealthPath, "/actuator/health");
@@ -74,7 +74,7 @@ public record PlatformProductProvisioningProperties(
         mcpExecutionGatewayServiceRoot = normalizeText(mcpExecutionGatewayServiceRoot, "product-services/mcp-execution-gateway-service");
         mcpExecutionGatewayDockerfilePath = normalizeText(
             mcpExecutionGatewayDockerfilePath,
-            "product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile"
+            "product-services/mcp-execution-gateway-service/deploy/container/Dockerfile"
         );
         mcpExecutionGatewayServiceNamePrefix = normalizeText(mcpExecutionGatewayServiceNamePrefix, "mcp-gateway");
         mcpExecutionGatewayHealthPath = normalizeText(mcpExecutionGatewayHealthPath, "/actuator/health");

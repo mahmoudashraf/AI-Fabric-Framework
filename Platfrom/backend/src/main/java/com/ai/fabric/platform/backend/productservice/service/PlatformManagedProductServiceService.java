@@ -283,8 +283,8 @@ public class PlatformManagedProductServiceService {
             return explicit;
         }
         return switch (normalizeEnum(serviceKind)) {
-            case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service/deploy/railway/Dockerfile";
-            case "MCP_EXECUTION_GATEWAY_SERVICE" -> "product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile";
+            case "SHOPIFY_BRIDGE_SERVICE" -> "product-services/shopify-bridge-service/deploy/container/Dockerfile";
+            case "MCP_EXECUTION_GATEWAY_SERVICE" -> "product-services/mcp-execution-gateway-service/deploy/container/Dockerfile";
             default -> null;
         };
     }

@@ -117,7 +117,7 @@ class PlatformManagedProductProvisioningServiceTest {
                 "svc-123",
                 "shopify-bridge-shopify-bridge-prod",
                 "product-services/shopify-bridge-service",
-                "product-services/shopify-bridge-service/deploy/railway/Dockerfile",
+                "product-services/shopify-bridge-service/deploy/container/Dockerfile",
                 "/actuator/health",
                 "http://shopify-bridge.internal",
                 "TheBaseRepo",
@@ -187,7 +187,7 @@ class PlatformManagedProductProvisioningServiceTest {
             eq("svc-123"),
             eq("env-123"),
             eq("product-services/shopify-bridge-service"),
-            eq("product-services/shopify-bridge-service/deploy/railway/Dockerfile"),
+            eq("product-services/shopify-bridge-service/deploy/container/Dockerfile"),
             eq("/actuator/health"),
             eq(1)
         );
@@ -593,7 +593,7 @@ class PlatformManagedProductProvisioningServiceTest {
                 "svc-123",
                 "shopify-bridge-shopify-bridge-prod",
                 "product-services/shopify-bridge-service",
-                "product-services/shopify-bridge-service/deploy/railway/Dockerfile",
+                "product-services/shopify-bridge-service/deploy/container/Dockerfile",
                 "/actuator/health",
                 "http://shopify-bridge.internal",
                 "TheBaseRepo",
@@ -702,7 +702,7 @@ class PlatformManagedProductProvisioningServiceTest {
                 "svc-456",
                 "shopify-bridge-shopify-bridge-prod",
                 "product-services/shopify-bridge-service",
-                "product-services/shopify-bridge-service/deploy/railway/Dockerfile",
+                "product-services/shopify-bridge-service/deploy/container/Dockerfile",
                 "/actuator/health",
                 "http://shopify-bridge.internal",
                 "TheBaseRepo",
@@ -781,7 +781,7 @@ class PlatformManagedProductProvisioningServiceTest {
         service.setMaxReplicas(3);
         service.setHealthPath("/actuator/health");
         service.setServiceRoot("product-services/shopify-bridge-service");
-        service.setDockerfilePath("product-services/shopify-bridge-service/deploy/railway/Dockerfile");
+        service.setDockerfilePath("product-services/shopify-bridge-service/deploy/container/Dockerfile");
         service.setStatus("CREATED");
         service.setDetailsJson("{}");
         service.setCreatedAt(Instant.now());
@@ -798,7 +798,7 @@ class PlatformManagedProductProvisioningServiceTest {
         service.setEnvironmentScope("staging");
         service.setHealthPath("/actuator/health");
         service.setServiceRoot("product-services/mcp-execution-gateway-service");
-        service.setDockerfilePath("product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile");
+        service.setDockerfilePath("product-services/mcp-execution-gateway-service/deploy/container/Dockerfile");
         service.setSecretName("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY");
         return service;
     }

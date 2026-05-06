@@ -241,6 +241,8 @@ public class CoolifyApiClient {
         item.put("is_literal", envVar.literal());
         item.put("is_multiline", envVar.multiline());
         item.put("is_shown_once", envVar.shownOnce());
+        item.put("is_buildtime", false);
+        item.put("is_runtime", true);
         return item;
     }
 

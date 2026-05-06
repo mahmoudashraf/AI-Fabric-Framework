@@ -1,6 +1,3 @@
-# Railway compatibility Dockerfile.
-# New provider-neutral deployments should use:
-# product-services/mcp-execution-gateway-service/deploy/container/Dockerfile
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 

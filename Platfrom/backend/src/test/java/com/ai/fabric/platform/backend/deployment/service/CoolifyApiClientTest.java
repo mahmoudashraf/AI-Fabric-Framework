@@ -219,11 +219,15 @@ class CoolifyApiClientTest {
             assertThat(bulkBody.path("data").get(0).path("key").asText()).isEqualTo("PLATFORM_DEPLOYMENT_VERSION_ID");
             assertThat(bulkBody.path("data").get(0).path("value").asText()).isEqualTo("ver-new");
             assertThat(bulkBody.path("data").get(0).path("is_preview").asBoolean()).isFalse();
+            assertThat(bulkBody.path("data").get(0).path("is_buildtime").asBoolean()).isFalse();
+            assertThat(bulkBody.path("data").get(0).path("is_runtime").asBoolean()).isTrue();
 
             JsonNode previewBody = objectMapper.readTree(observedPreviewBody.get());
             assertThat(previewBody.path("key").asText()).isEqualTo("PLATFORM_DEPLOYMENT_VERSION_ID");
             assertThat(previewBody.path("value").asText()).isEqualTo("ver-new");
             assertThat(previewBody.path("is_preview").asBoolean()).isTrue();
+            assertThat(previewBody.path("is_buildtime").asBoolean()).isFalse();
+            assertThat(previewBody.path("is_runtime").asBoolean()).isTrue();
         } finally {
             server.stop(0);
         }

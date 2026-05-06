@@ -30,7 +30,7 @@ Staging is the active implementation target for Shopify MCP-first Plan 009.
 - Platform backend: `https://loomai-platform-backend.46.224.145.148.sslip.io`
 - Platform UI: `https://loomai-platform-ui.46.224.145.148.sslip.io`
 - Partner UI: `https://loomai-partner-ui.46.224.145.148.sslip.io`
-- Shopify Bridge: `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io`
+- Shopify Bridge: `https://shopify-bridge-staging.46.224.145.148.sslip.io`
 - Runtime: `https://loomai-runtime.46.224.145.148.sslip.io`
 - Ecommerce app: `https://loomai-ecommerce-store.46.224.145.148.sslip.io`
 
@@ -203,6 +203,17 @@ For Plan 009 Shopify MCP-first live verification, staging needs:
 - Bridge action call verified through the deployed staging Bridge, not only through local unit tests
 
 Production must not be redeployed for this workflow unless explicitly requested.
+
+### 6.1 Provider-Neutral Product Service Images
+
+Platform-managed product services must use provider-neutral Dockerfile paths for new deployments:
+
+- Shopify Bridge: `product-services/shopify-bridge-service/deploy/container/Dockerfile`
+- MCP Execution Gateway: `product-services/mcp-execution-gateway-service/deploy/container/Dockerfile`
+
+Coolify application `dockerfile_location` values should point to these paths with a leading slash because Coolify builds from the monorepo root. Railway can use the same paths. The old `deploy/railway/Dockerfile` paths are compatibility paths for existing Railway projects only.
+
+Do not configure product-service secrets as build-time variables. Shopify credentials, webhook secrets, Platform service keys, MCP gateway keys, and downstream MCP credentials must be runtime environment variables in Coolify or Railway.
 
 ## 7. Common Coolify Operations
 

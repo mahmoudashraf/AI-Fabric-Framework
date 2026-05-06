@@ -162,13 +162,18 @@ platform:
     provisioning:
       shared-project-name-prefix: ${PLATFORM_PRODUCT_SHARED_PROJECT_NAME_PREFIX:loom-product}
       shopify-bridge-service-root: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_ROOT:product-services/shopify-bridge-service}
-      shopify-bridge-dockerfile-path: ${PLATFORM_SHOPIFY_BRIDGE_DOCKERFILE_PATH:product-services/shopify-bridge-service/deploy/railway/Dockerfile}
+      shopify-bridge-dockerfile-path: ${PLATFORM_SHOPIFY_BRIDGE_DOCKERFILE_PATH:product-services/shopify-bridge-service/deploy/container/Dockerfile}
       shopify-bridge-service-name-prefix: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_NAME_PREFIX:shopify-bridge}
       shopify-bridge-health-path: ${PLATFORM_SHOPIFY_BRIDGE_HEALTH_PATH:/actuator/health}
       shopify-bridge-admin-api-version: ${PLATFORM_SHOPIFY_BRIDGE_ADMIN_API_VERSION:2026-04}
       shopify-bridge-shopify-api-key-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_KEY_SECRET_NAME:}
       shopify-bridge-shopify-api-secret-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_SECRET_SECRET_NAME:}
       shopify-bridge-webhook-shared-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET_NAME:}
+      mcp-execution-gateway-service-ref: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_REF:mcp-execution-gateway}
+      mcp-execution-gateway-service-root: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_ROOT:product-services/mcp-execution-gateway-service}
+      mcp-execution-gateway-dockerfile-path: ${PLATFORM_MCP_EXECUTION_GATEWAY_DOCKERFILE_PATH:product-services/mcp-execution-gateway-service/deploy/container/Dockerfile}
+      mcp-execution-gateway-service-name-prefix: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_NAME_PREFIX:mcp-gateway}
+      mcp-execution-gateway-health-path: ${PLATFORM_MCP_EXECUTION_GATEWAY_HEALTH_PATH:/actuator/health}
       poll-interval: ${PLATFORM_PRODUCT_PROVISIONING_POLL_INTERVAL:15s}
       request-timeout: ${PLATFORM_PRODUCT_PROVISIONING_REQUEST_TIMEOUT:5m}
 
