@@ -235,6 +235,35 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void updateEnvironmentVariablesDeletesOlderDuplicateRuntimeRowsForUpdatedKeys() throws Exception {
+        AtomicInteger deleteRequests = new AtomicInteger();
+        AtomicReference<String> deletedPath = new AtomicReference<>();
+        HttpServer server = environmentDuplicateServer(deleteRequests, deletedPath);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            int updated = client.updateEnvironmentVariables(
+                connection(server),
+                "app-uuid",
+                List.of(new CoolifyEnvVar(
+                    "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
+                    "https://bridge.example",
+                    false,
+                    true,
+                    false,
+                    false
+                ))
+            );
+
+            assertThat(updated).isEqualTo(1);
+            assertThat(deleteRequests.get()).isEqualTo(1);
+            assertThat(deletedPath.get()).isEqualTo("/api/v1/applications/app-uuid/envs/env-old");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void logsRetriesTransientRateLimitResponses() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         HttpServer server = logsRateLimitServer(requests);
@@ -339,6 +368,27 @@ class CoolifyApiClientTest {
                 """);
         });
         server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            if ("GET".equals(exchange.getRequestMethod())) {
+                sendJson(exchange, 200, """
+                    [
+                      {
+                        "uuid": "env-standard",
+                        "key": "PLATFORM_DEPLOYMENT_VERSION_ID",
+                        "value": "ver-new",
+                        "is_preview": false,
+                        "updated_at": "2026-05-06T20:00:00.000000Z"
+                      },
+                      {
+                        "uuid": "env-preview",
+                        "key": "PLATFORM_DEPLOYMENT_VERSION_ID",
+                        "value": "ver-new",
+                        "is_preview": true,
+                        "updated_at": "2026-05-06T20:00:01.000000Z"
+                      }
+                    ]
+                    """);
+                return;
+            }
             if (!"PATCH".equals(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(405, -1);
                 exchange.close();
@@ -354,6 +404,70 @@ class CoolifyApiClientTest {
                   "is_preview": true
                 }
                 """);
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer environmentDuplicateServer(AtomicInteger deleteRequests,
+                                                  AtomicReference<String> deletedPath) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs/bulk", exchange -> {
+            if (!"PATCH".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            sendJson(exchange, 201, """
+                [
+                  {
+                    "uuid": "env-new",
+                    "key": "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
+                    "value": "https://bridge.example",
+                    "is_preview": false,
+                    "updated_at": "2026-05-06T20:42:28.000000Z"
+                  }
+                ]
+                """);
+        });
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if ("GET".equals(exchange.getRequestMethod()) && "/api/v1/applications/app-uuid/envs".equals(path)) {
+                sendJson(exchange, 200, """
+                    [
+                      {
+                        "uuid": "env-old",
+                        "key": "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
+                        "value": "https://old.example",
+                        "is_preview": false,
+                        "updated_at": "2026-05-06T11:44:58.000000Z"
+                      },
+                      {
+                        "uuid": "env-new",
+                        "key": "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
+                        "value": "https://bridge.example",
+                        "is_preview": false,
+                        "updated_at": "2026-05-06T20:42:28.000000Z"
+                      },
+                      {
+                        "uuid": "env-preview",
+                        "key": "SHOPIFY_BRIDGE_PUBLIC_BASE_URL",
+                        "value": "https://preview.example",
+                        "is_preview": true,
+                        "updated_at": "2026-05-06T10:00:00.000000Z"
+                      }
+                    ]
+                    """);
+                return;
+            }
+            if ("DELETE".equals(exchange.getRequestMethod()) && path.endsWith("/env-old")) {
+                deleteRequests.incrementAndGet();
+                deletedPath.set(path);
+                sendJson(exchange, 200, "{\"message\":\"deleted\"}");
+                return;
+            }
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
         });
         server.start();
         return server;

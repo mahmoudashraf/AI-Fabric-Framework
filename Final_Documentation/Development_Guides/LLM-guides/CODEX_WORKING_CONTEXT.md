@@ -952,3 +952,17 @@ Critical fixes that made the gate pass:
 - Docs updated: 009 sequence, 009.3 readiness gate, and managed product-services auth guide now list `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET`, TTL env names, and the implemented OAuth/session endpoints.
 - Focused verification passed: `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyCustomerAccountOAuthServiceTest,McpActionExecutionGatewayTest,ShopifyBridgeSecurityHttpIntegrationTest,ShopifyStorefrontControllerTest test`.
 - Remaining live claim gate: protected customer data approval/posture must be confirmed and a real staging customer login must complete the registered OAuth callback before Customer Account MCP `tools/call` can be called live-verified.
+
+## 2026-05-06 Shopify Customer Account Staging Unblock
+
+- Deployed Shopify Bridge staging to commit `2c3c4306a` and configured the staging Customer Account MCP env in Coolify without printing raw secrets.
+- Cleaned duplicate Coolify env rows on the staging Bridge app. The duplicates were operationally significant: retained older rows caused the running Bridge to miss `SHOPIFY_BRIDGE_SHOPIFY_API_SECRET`, `SHOPIFY_BRIDGE_SHOPIFY_API_KEY`, `SHOPIFY_BRIDGE_PLATFORM_BASE_URL`, and `SHOPIFY_BRIDGE_SHARED_SECRET` even though Coolify still showed values in the UI/API.
+- Patched `CoolifyApiClient.updateEnvironmentVariables(...)` so Platform-managed Coolify env writes read back application env rows and delete older duplicates for the updated key plus preview scope. Preview and normal rows remain separate.
+- Live staging verification after cleanup and redeploy:
+  - Bridge health: `UP`.
+  - Storefront bootstrap returned HTTP `200` and included `customerAccountAuthStartUrl` / `customerAccountAuthSessionUrl` on the canonical `loomai-shopify-bridge-staging` base URL.
+  - `/api/customer-auth/session` returned HTTP `200`, `configured=true`, `authenticated=false` for an unbound shopper session.
+  - `/api/customer-auth/start` returned HTTP `302` to Shopify Customer Account OAuth using the registered staging callback and `customer-account-mcp-api:full`.
+  - Customer Account action probe for `shopify_get_customer_orders` returned HTTP `409` / `CUSTOMER_ACCOUNT_AUTH_REQUIRED`, proving the path is configured and now gated on shopper login rather than missing env.
+  - Storefront MCP `shopify_search_catalog` still returned HTTP `200`, `success=true`, and normalized `MCP_TOOL_RESULT` evidence through Bridge -> MCP Gateway -> Shopify MCP.
+- Remaining live claim gate: a real staging customer login must complete the Shopify-hosted OAuth callback before Customer Account MCP `tools/call` can be live-verified with a bound customer token. Checkout MCP still requires its separate Shopify checkout credentials/readiness.

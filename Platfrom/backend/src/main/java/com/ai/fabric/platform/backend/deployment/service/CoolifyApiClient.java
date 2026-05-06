@@ -16,8 +16,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class CoolifyApiClient {
@@ -217,6 +222,7 @@ public class CoolifyApiClient {
             updateEnvironmentVariable(connection, uuid, envVar);
             updated++;
         }
+        deduplicateEnvironmentVariables(connection, uuid, envVars);
         return updated;
     }
 
@@ -232,6 +238,70 @@ public class CoolifyApiClient {
 
     private void updateEnvironmentVariable(CoolifyConnection connection, String uuid, CoolifyEnvVar envVar) {
         requestJson(connection, "PATCH", "/applications/" + encodePath(uuid) + "/envs", envBody(envVar), true);
+    }
+
+    private void deduplicateEnvironmentVariables(CoolifyConnection connection, String uuid, List<CoolifyEnvVar> updatedEnvVars) {
+        Set<EnvIdentity> updatedKeys = updatedEnvVars.stream()
+            .filter(envVar -> envVar != null && StringUtils.hasText(envVar.key()))
+            .map(envVar -> new EnvIdentity(envVar.key().trim(), envVar.preview()))
+            .collect(Collectors.toSet());
+        if (updatedKeys.isEmpty()) {
+            return;
+        }
+
+        JsonNode response = requestJson(connection, "GET", "/applications/" + encodePath(uuid) + "/envs", null, true);
+        if (response == null || !response.isArray()) {
+            return;
+        }
+
+        Map<EnvIdentity, List<CoolifyEnvRecord>> recordsByIdentity = new LinkedHashMap<>();
+        int index = 0;
+        for (JsonNode item : response) {
+            String envUuid = textFirst(item, "uuid", "id");
+            String key = textFirst(item, "key");
+            if (!StringUtils.hasText(envUuid) || !StringUtils.hasText(key)) {
+                index++;
+                continue;
+            }
+            EnvIdentity identity = new EnvIdentity(key.trim(), item.path("is_preview").asBoolean(false));
+            if (!updatedKeys.contains(identity)) {
+                index++;
+                continue;
+            }
+            recordsByIdentity.computeIfAbsent(identity, ignored -> new ArrayList<>())
+                .add(new CoolifyEnvRecord(
+                    envUuid,
+                    firstNonBlank(textFirst(item, "updated_at", "updatedAt"), textFirst(item, "created_at", "createdAt")),
+                    index
+                ));
+            index++;
+        }
+
+        for (List<CoolifyEnvRecord> records : recordsByIdentity.values()) {
+            if (records.size() < 2) {
+                continue;
+            }
+            records.sort(Comparator
+                .comparing((CoolifyEnvRecord record) -> normalizeTimestamp(record.updatedAt()))
+                .thenComparingInt(CoolifyEnvRecord::index));
+            for (int i = 0; i < records.size() - 1; i++) {
+                deleteEnvironmentVariable(connection, uuid, records.get(i).uuid());
+            }
+        }
+    }
+
+    private void deleteEnvironmentVariable(CoolifyConnection connection, String uuid, String envUuid) {
+        requestJson(
+            connection,
+            "DELETE",
+            "/applications/" + encodePath(uuid) + "/envs/" + encodePath(envUuid),
+            null,
+            true
+        );
+    }
+
+    private String normalizeTimestamp(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "";
     }
 
     private ObjectNode envBody(CoolifyEnvVar envVar) {
@@ -615,5 +685,11 @@ public class CoolifyApiClient {
     private String sanitizedPath(String path) {
         int queryStart = path.indexOf('?');
         return queryStart < 0 ? path : path.substring(0, queryStart);
+    }
+
+    private record EnvIdentity(String key, boolean preview) {
+    }
+
+    private record CoolifyEnvRecord(String uuid, String updatedAt, int index) {
     }
 }
