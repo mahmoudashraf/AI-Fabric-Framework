@@ -3,10 +3,12 @@ package com.ai.fabric.product.shopify.bridge.mcp.execution;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExecuteRequest;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.config.McpExecutionGatewayProperties;
+import com.ai.fabric.product.shopify.bridge.config.ShopifyMcpExternalAuthProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -30,15 +32,27 @@ public class McpActionExecutionGateway {
     );
 
     private final McpExecutionGatewayProperties properties;
+    private final ShopifyMcpExternalAuthProperties externalAuthProperties;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
 
+    @Autowired
     public McpActionExecutionGateway(McpExecutionGatewayProperties properties,
+                                     ShopifyMcpExternalAuthProperties externalAuthProperties,
                                      ObjectMapper objectMapper,
                                      RestClient.Builder restClientBuilder) {
         this.properties = properties;
+        this.externalAuthProperties = externalAuthProperties == null
+            ? new ShopifyMcpExternalAuthProperties(false, false, "", "", List.of(), false, false)
+            : externalAuthProperties;
         this.objectMapper = objectMapper;
         this.restClient = restClientBuilder.build();
+    }
+
+    McpActionExecutionGateway(McpExecutionGatewayProperties properties,
+                              ObjectMapper objectMapper,
+                              RestClient.Builder restClientBuilder) {
+        this(properties, null, objectMapper, restClientBuilder);
     }
 
     public boolean supports(ShopifyBridgeActionExecuteRequest request) {
@@ -58,9 +72,15 @@ public class McpActionExecutionGateway {
                 "MCP execution gateway API key is not configured."
             );
         }
+        JsonNode mcp = findMcpExecution(request);
+        ShopifyBridgeActionResult externalAuthGate = externalAuthGate(request, mcp);
+        if (externalAuthGate != null) {
+            return externalAuthGate;
+        }
         try {
             Map<String, Object> trace = new LinkedHashMap<>(request.trace() == null ? Map.of() : request.trace());
             trace.put("shopDomain", shopDomain);
+            addCustomerAccessTokenIfPresent(trace, request);
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("actionId", request.actionId());
             body.put("params", request.params() == null ? Map.of() : request.params());
@@ -234,6 +254,102 @@ public class McpActionExecutionGateway {
             }
         }
         return MissingNode.getInstance();
+    }
+
+    private ShopifyBridgeActionResult externalAuthGate(ShopifyBridgeActionExecuteRequest request, JsonNode mcp) {
+        if (!mcp.isObject()) {
+            return null;
+        }
+        if (isCustomerAccountMcp(mcp)) {
+            if (!externalAuthProperties.customerAccountConfigured()) {
+                return ShopifyBridgeActionResult.failure(
+                    "CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED",
+                    "Customer Account MCP OAuth/PKCE and protected customer data posture are not configured."
+                );
+            }
+            if (!StringUtils.hasText(customerAccessToken(request))) {
+                return ShopifyBridgeActionResult.failure(
+                    "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+                    "Customer Account MCP requires a bound customer session token."
+                );
+            }
+        }
+        if (isCheckoutMcp(mcp)) {
+            if (!externalAuthProperties.checkoutMcpEnabled()) {
+                return ShopifyBridgeActionResult.failure(
+                    "CHECKOUT_MCP_NOT_CONFIGURED",
+                    "Checkout MCP client credentials are not configured."
+                );
+            }
+            if (mcp.path("requiresTerminalCheckoutEnablement").asBoolean(false)
+                && !externalAuthProperties.checkoutMcpTerminalOperationsEnabled()) {
+                return ShopifyBridgeActionResult.failure(
+                    "CHECKOUT_TERMINAL_OPERATION_DISABLED",
+                    "Terminal checkout MCP operations are disabled."
+                );
+            }
+            if (mcp.path("requiresIdempotencyKey").asBoolean(false)
+                && !StringUtils.hasText(request == null ? null : request.idempotencyKey())) {
+                return ShopifyBridgeActionResult.failure(
+                    "INVALID_REQUEST",
+                    "Checkout MCP terminal actions require an idempotency key."
+                );
+            }
+        }
+        return null;
+    }
+
+    private boolean isCustomerAccountMcp(JsonNode mcp) {
+        String endpointKind = normalized(text(mcp, "endpointKind"));
+        String authMode = normalized(text(mcp, "authMode"));
+        return endpointKind.contains("CUSTOMER_ACCOUNT") || "CUSTOMER_OAUTH_PKCE".equals(authMode);
+    }
+
+    private boolean isCheckoutMcp(JsonNode mcp) {
+        String endpointKind = normalized(text(mcp, "endpointKind"));
+        String authMode = normalized(text(mcp, "authMode"));
+        String serverRef = normalized(text(mcp, "serverRef"));
+        return endpointKind.contains("CHECKOUT")
+            || "SHOPIFY_AGENTIC_CLIENT_CREDENTIALS".equals(authMode)
+            || serverRef.contains("CHECKOUT");
+    }
+
+    private void addCustomerAccessTokenIfPresent(Map<String, Object> trace, ShopifyBridgeActionExecuteRequest request) {
+        String token = customerAccessToken(request);
+        if (StringUtils.hasText(token)) {
+            trace.put("mcpCustomerAccessToken", token);
+        }
+    }
+
+    private String customerAccessToken(ShopifyBridgeActionExecuteRequest request) {
+        if (request == null) {
+            return null;
+        }
+        for (String key : List.of(
+            "mcpCustomerAccessToken",
+            "customerAccountAccessToken",
+            "customerAccessToken",
+            "customerAuthorization"
+        )) {
+            String token = textValue(request.trace(), key);
+            if (StringUtils.hasText(token)) {
+                return token;
+            }
+        }
+        return null;
+    }
+
+    private String textValue(Map<String, Object> values, String key) {
+        if (values == null || !values.containsKey(key)) {
+            return null;
+        }
+        Object value = values.get(key);
+        String text = value == null ? null : value.toString();
+        return StringUtils.hasText(text) ? text.trim() : null;
+    }
+
+    private String normalized(String value) {
+        return value == null ? "" : value.trim().replace('-', '_').toUpperCase(java.util.Locale.ROOT);
     }
 
     private String text(JsonNode node, String field) {

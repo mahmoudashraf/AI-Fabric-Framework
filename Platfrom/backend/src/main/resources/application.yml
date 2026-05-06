@@ -169,6 +169,8 @@ platform:
       shopify-bridge-shopify-api-key-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_KEY_SECRET_NAME:}
       shopify-bridge-shopify-api-secret-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_SECRET_SECRET_NAME:}
       shopify-bridge-webhook-shared-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET_NAME:}
+      shopify-bridge-checkout-mcp-client-id-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID_SECRET_NAME:SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID}
+      shopify-bridge-checkout-mcp-client-secret-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET_SECRET_NAME:SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET}
       mcp-execution-gateway-service-ref: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_REF:mcp-execution-gateway}
       mcp-execution-gateway-service-root: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_ROOT:product-services/mcp-execution-gateway-service}
       mcp-execution-gateway-dockerfile-path: ${PLATFORM_MCP_EXECUTION_GATEWAY_DOCKERFILE_PATH:product-services/mcp-execution-gateway-service/deploy/container/Dockerfile}

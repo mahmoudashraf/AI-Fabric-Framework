@@ -188,6 +188,8 @@ The Gateway supports these auth modes:
 - `STATIC_BEARER_SECRET`
 - `API_KEY_HEADER_SECRET`
 - `OAUTH2_CLIENT_CREDENTIALS`
+- `CUSTOMER_OAUTH_PKCE`
+- `SHOPIFY_AGENTIC_CLIENT_CREDENTIALS`
 
 API-key header names are allowlisted. The managed Gateway defaults to:
 
@@ -198,6 +200,13 @@ X-LOOM-MCP-KEY
 ```
 
 Blocked header names include platform, bridge, gateway, cookie, host, forwarded, and authorization-control headers. Use a reviewed MCP-specific header instead of arbitrary plugin-declared headers.
+
+Shopify-specific external MCP gates:
+
+- Customer Account MCP uses `CUSTOMER_OAUTH_PKCE`. Bridge must be configured with `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED=true`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`, and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES`. Runtime must bind a customer OAuth access token to the shopper session before execution.
+- Checkout MCP uses `SHOPIFY_AGENTIC_CLIENT_CREDENTIALS`. Store the Shopify Dev Dashboard Catalog credentials as Platform secrets `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.
+- Platform-managed MCP Gateway provisioning maps checkout credentials to gateway-only env vars `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` and `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET`; Bridge only receives the boolean checkout enablement gate.
+- Keep `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=false` unless an explicitly approved staging terminal checkout test is being run.
 
 ## 7. Rotation
 

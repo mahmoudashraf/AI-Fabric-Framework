@@ -16,8 +16,8 @@ public class AsyncExecutionConfig {
     public Executor releaseExecutionExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("release-exec-");
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
         executor.setQueueCapacity(64);
         executor.initialize();
         return executor;
@@ -60,9 +60,9 @@ public class AsyncExecutionConfig {
     public Executor verificationSuiteExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("verification-suite-");
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(2);
-        executor.setQueueCapacity(8);
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(16);
         executor.initialize();
         return new DelegatingSecurityContextAsyncTaskExecutor(executor);
     }

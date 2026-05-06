@@ -1277,6 +1277,7 @@ public class PlatformManagedProductProvisioningService {
                 String shopifyApiKey = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiKeySecretName());
                 String shopifyApiSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiSecretSecretName());
                 String webhookSharedSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeWebhookSharedSecretName());
+                boolean checkoutMcpConfigured = checkoutMcpCredentialsConfigured();
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SHARED_SECRET", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SERVICE_REF", service.getServiceRef()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_APP_NAME", blankToFallback(service.getDisplayName(), "Shopify Bridge Service")));
@@ -1293,6 +1294,10 @@ public class PlatformManagedProductProvisioningService {
                     "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET",
                     hasText(webhookSharedSecret) ? webhookSharedSecret : shopifyApiSecret
                 );
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED", "false"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED", "false"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED", Boolean.toString(checkoutMcpConfigured)));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED", "false"));
                 PlatformManagedProductServiceShopifyBillingConfigSummary billingConfig =
                     PlatformManagedProductServiceShopifyBillingConfigSupport.summaryFromDetails(
                         objectMapper,
@@ -1305,6 +1310,9 @@ public class PlatformManagedProductProvisioningService {
             }
             case "MCP_EXECUTION_GATEWAY_SERVICE" -> {
                 String sharedSecret = resolveSecret(service.getSecretName());
+                String checkoutClientId = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientIdSecretName());
+                String checkoutClientSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientSecretSecretName());
+                boolean checkoutMcpConfigured = hasText(checkoutClientId) && hasText(checkoutClientSecret);
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_INTERNAL_API_KEY", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_SERVICE_REF", service.getServiceRef()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SCOPE", resolveEnvironmentName(service)));
@@ -1313,8 +1321,12 @@ public class PlatformManagedProductProvisioningService {
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_PROFILE_REF_ALLOWLIST", "MCP_PROFILE_SHOPIFY_UCP_AGENT,SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_PROFILE_SHOPIFY_UCP_AGENT", defaultShopifyUcpAgentProfile()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE", defaultShopifyUcpAgentProfile()));
-                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED", "false"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED", Boolean.toString(checkoutMcpConfigured)));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SECRET_REF_PREFIX", "MCP_SECRET_"));
+                if (checkoutMcpConfigured) {
+                    env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID", checkoutClientId));
+                    env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET", checkoutClientSecret));
+                }
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
             }
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
@@ -1344,6 +1356,11 @@ public class PlatformManagedProductProvisioningService {
 
     private String defaultShopifyUcpAgentProfile() {
         return "https://shopify.dev/ucp/agent-profiles/examples/2026-04-08/valid-with-capabilities.json";
+    }
+
+    private boolean checkoutMcpCredentialsConfigured() {
+        return hasText(resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientIdSecretName()))
+            && hasText(resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientSecretSecretName()));
     }
 
     private String resolveSecret(String secretName) {

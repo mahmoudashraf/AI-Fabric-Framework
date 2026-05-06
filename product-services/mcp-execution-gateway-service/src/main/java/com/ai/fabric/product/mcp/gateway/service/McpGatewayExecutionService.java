@@ -78,6 +78,9 @@ public class McpGatewayExecutionService {
         "annotations",
         "$comment"
     );
+    private static final String SHOPIFY_CHECKOUT_TOKEN_URL = "https://api.shopify.com/auth/access_token";
+    private static final String SHOPIFY_CHECKOUT_CLIENT_ID_SECRET_REF = "MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID";
+    private static final String SHOPIFY_CHECKOUT_CLIENT_SECRET_SECRET_REF = "MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET";
 
     private final McpStreamableHttpClient mcpClient;
     private final ObjectMapper objectMapper;
@@ -302,6 +305,8 @@ public class McpGatewayExecutionService {
             }
             JsonNode result = mcpClient.toolsCall(session, toolName, arguments, options);
             return normalizeResult(serverRef, toolName, mcp, result, drift);
+        } catch (McpAuthGateException ex) {
+            return failure(ex.errorCode(), ex.getMessage());
         } catch (IllegalArgumentException ex) {
             return failure("INVALID_MCP_ACTION_CONFIG", ex.getMessage());
         } catch (ResponseStatusException ex) {
@@ -820,8 +825,25 @@ public class McpGatewayExecutionService {
             return Map.of(headerName.trim(), secretValue.trim());
         }
         if ("OAUTH2_CLIENT_CREDENTIALS".equals(mode)) {
-            String accessToken = fetchClientCredentialsToken(trace, auth);
+            String accessToken = fetchClientCredentialsToken(trace, auth, false);
             return Map.of(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+        }
+        if ("SHOPIFY_AGENTIC_CLIENT_CREDENTIALS".equals(mode)) {
+            String accessToken = fetchClientCredentialsToken(trace, auth, true);
+            return Map.of(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+        }
+        if ("CUSTOMER_OAUTH_PKCE".equals(mode)) {
+            String customerToken = resolveCustomerAccountAccessToken(trace, auth);
+            if (!StringUtils.hasText(customerToken)) {
+                throw new McpAuthGateException(
+                    "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+                    "Customer Account MCP requires a bound customer OAuth/PKCE access token."
+                );
+            }
+            String bearer = customerToken.trim().regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
+                ? customerToken.trim()
+                : "Bearer " + customerToken.trim();
+            return Map.of(HttpHeaders.AUTHORIZATION, bearer);
         }
         throw new IllegalArgumentException("MCP auth mode is not supported by the generic execution gateway: " + mode);
     }
@@ -836,8 +858,11 @@ public class McpGatewayExecutionService {
         }
     }
 
-    private String fetchClientCredentialsToken(JsonNode trace, JsonNode auth) {
+    private String fetchClientCredentialsToken(JsonNode trace, JsonNode auth, boolean shopifyAgenticCheckout) {
         String tokenUrl = text(auth, "tokenUrl", "tokenEndpoint", "tokenEndpointUrl");
+        if (!StringUtils.hasText(tokenUrl) && shopifyAgenticCheckout) {
+            tokenUrl = SHOPIFY_CHECKOUT_TOKEN_URL;
+        }
         if (!StringUtils.hasText(tokenUrl)) {
             throw new IllegalArgumentException("MCP OAuth2 client credentials auth requires tokenUrl.");
         }
@@ -847,32 +872,66 @@ public class McpGatewayExecutionService {
         }
         String clientId = firstNonBlank(
             text(auth, "clientId"),
-            resolveSecretValue(trace, text(auth, "clientIdSecretRef"))
+            firstNonBlank(
+                resolveSecretValue(trace, text(auth, "clientIdSecretRef")),
+                shopifyAgenticCheckout ? resolveSecretValue(trace, SHOPIFY_CHECKOUT_CLIENT_ID_SECRET_REF) : null
+            )
         );
-        String clientSecret = resolveSecretValue(trace, text(auth, "clientSecretRef", "secretRef"));
+        String clientSecret = firstNonBlank(
+            resolveSecretValue(trace, text(auth, "clientSecretRef", "secretRef")),
+            shopifyAgenticCheckout ? resolveSecretValue(trace, SHOPIFY_CHECKOUT_CLIENT_SECRET_SECRET_REF) : null
+        );
         if (!StringUtils.hasText(clientId) || !StringUtils.hasText(clientSecret)) {
+            if (shopifyAgenticCheckout) {
+                throw new McpAuthGateException(
+                    "CHECKOUT_MCP_NOT_CONFIGURED",
+                    "Checkout MCP client credentials are not configured."
+                );
+            }
             throw new IllegalArgumentException("MCP OAuth2 client credentials are not available.");
         }
-        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("grant_type", "client_credentials");
-        form.add("client_id", clientId.trim());
-        form.add("client_secret", clientSecret.trim());
+        boolean jsonRequest = shopifyAgenticCheckout || "JSON".equals(normalizedEnum(text(auth, "tokenRequestFormat", "requestFormat")));
         String scope = text(auth, "scope", "scopes");
-        if (StringUtils.hasText(scope)) {
-            form.add("scope", scope.trim());
-        }
         String audience = text(auth, "audience");
-        if (StringUtils.hasText(audience)) {
-            form.add("audience", audience.trim());
-        }
         try {
-            JsonNode response = tokenRestClient.post()
-                .uri(tokenUri)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .accept(MediaType.APPLICATION_JSON)
-                .body(form)
-                .retrieve()
-                .body(JsonNode.class);
+            JsonNode response;
+            if (jsonRequest) {
+                ObjectNode payload = objectMapper.createObjectNode();
+                payload.put("grant_type", "client_credentials");
+                payload.put("client_id", clientId.trim());
+                payload.put("client_secret", clientSecret.trim());
+                if (StringUtils.hasText(scope)) {
+                    payload.put("scope", scope.trim());
+                }
+                if (StringUtils.hasText(audience)) {
+                    payload.put("audience", audience.trim());
+                }
+                response = tokenRestClient.post()
+                    .uri(tokenUri)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .body(JsonNode.class);
+            } else {
+                MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+                form.add("grant_type", "client_credentials");
+                form.add("client_id", clientId.trim());
+                form.add("client_secret", clientSecret.trim());
+                if (StringUtils.hasText(scope)) {
+                    form.add("scope", scope.trim());
+                }
+                if (StringUtils.hasText(audience)) {
+                    form.add("audience", audience.trim());
+                }
+                response = tokenRestClient.post()
+                    .uri(tokenUri)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .body(form)
+                    .retrieve()
+                    .body(JsonNode.class);
+            }
             String accessToken = response == null ? null : response.path("access_token").asText("").trim();
             if (!StringUtils.hasText(accessToken)) {
                 throw new IllegalArgumentException("MCP OAuth2 token response did not include access_token.");
@@ -881,6 +940,37 @@ public class McpGatewayExecutionService {
         } catch (RestClientException ex) {
             throw new IllegalArgumentException("MCP OAuth2 client credentials token request failed.");
         }
+    }
+
+    private String resolveCustomerAccountAccessToken(JsonNode trace, JsonNode auth) {
+        String token = resolveSecretValue(trace, text(auth, "tokenSecretRef", "secretRef"));
+        if (StringUtils.hasText(token)) {
+            return token;
+        }
+        for (String field : List.of(
+            "mcpCustomerAccessToken",
+            "customerAccountAccessToken",
+            "customerAccessToken",
+            "customerAuthorization"
+        )) {
+            token = trace.path(field).asText("").trim();
+            if (StringUtils.hasText(token)) {
+                return token;
+            }
+        }
+        for (String dottedPath : List.of(
+            "customerAccount.accessToken",
+            "customerAccount.authorization",
+            "customer.accessToken",
+            "shopper.customerAccessToken"
+        )) {
+            JsonNode value = readDottedPath(trace, dottedPath);
+            token = value.asText("").trim();
+            if (StringUtils.hasText(token)) {
+                return token;
+            }
+        }
+        return null;
     }
 
     private String resolveSecretValue(JsonNode trace, String secretRef) {
@@ -1029,5 +1119,18 @@ public class McpGatewayExecutionService {
 
     private ActionExecuteResponse failure(String errorCode, String message) {
         return new ActionExecuteResponse(false, message, Map.of(), errorCode, List.of());
+    }
+
+    private static class McpAuthGateException extends RuntimeException {
+        private final String errorCode;
+
+        McpAuthGateException(String errorCode, String message) {
+            super(message);
+            this.errorCode = errorCode;
+        }
+
+        String errorCode() {
+            return errorCode;
+        }
     }
 }

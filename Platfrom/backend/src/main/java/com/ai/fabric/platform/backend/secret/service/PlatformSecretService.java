@@ -420,6 +420,46 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Client ID",
+                "External Shopify Customer Account MCP OAuth client identifier used after protected customer data posture is approved.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Redirect URI",
+                "Registered Customer Account MCP OAuth/PKCE redirect URI for the staging Bridge customer login callback.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Scopes",
+                "Allowed Customer Account MCP OAuth scopes, for example customer-account-mcp-api:full.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID",
+            new SecretDefinition(
+                "Shopify Checkout MCP Client ID",
+                "Checkout MCP client identifier from Shopify Dev Dashboard Catalog for agentic checkout live verification.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET",
+            new SecretDefinition(
+                "Shopify Checkout MCP Client Secret",
+                "Checkout MCP client secret from Shopify Dev Dashboard Catalog. Used only by the managed MCP Execution Gateway.",
+                false
+            )
+        );
+        secrets.put(
             "PARTNER_SUPABASE_JWT",
             new SecretDefinition(
                 "Partner Verification Supabase JWT",

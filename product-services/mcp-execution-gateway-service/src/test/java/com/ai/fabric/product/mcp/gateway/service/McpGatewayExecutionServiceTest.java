@@ -300,9 +300,50 @@ class McpGatewayExecutionServiceTest {
         ));
 
         assertThat(response.success()).isFalse();
-        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_CONFIG");
-        assertThat(response.message()).contains("CUSTOMER_OAUTH_PKCE");
+        assertThat(response.errorCode()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+        assertThat(response.message()).contains("customer OAuth/PKCE access token");
         verify(client, never()).initialize(any(), any());
+    }
+
+    @Test
+    void executesCustomerAccountMcpWhenCustomerOauthTokenIsBound() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://customer.example/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
+            ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
+        when(client.initialize(eq(URI.create("https://customer.example/mcp")), options.capture())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("lookup_order"), any(), any()))
+            .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"status\":\"fulfilled\"}}"));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_lookup_order",
+            Map.of("order_id", "gid://shopify/Order/1"),
+            null,
+            Map.of(
+                "mcpCustomerAccessToken", "customer-oauth-token",
+                "actionConfig", Map.of(
+                    "execution", Map.of(
+                        "adapterType", "mcp-tool",
+                        "mcp", Map.of(
+                            "serverRef", "shopify-customer-account",
+                            "endpointUrl", "https://customer.example/mcp",
+                            "authMode", "CUSTOMER_OAUTH_PKCE",
+                            "toolName", "lookup_order"
+                        )
+                    )
+                )
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isTrue();
+        assertThat(options.getValue().headers()).containsEntry("Authorization", "Bearer customer-oauth-token");
     }
 
     @Test
@@ -454,6 +495,83 @@ class McpGatewayExecutionServiceTest {
 
         assertThat(response.success()).isTrue();
         assertThat(options.getValue().headers()).containsEntry("Authorization", "Bearer oauth-access-token");
+        tokenServer.verify();
+    }
+
+    @Test
+    void resolvesShopifyCheckoutClientCredentialsWithJsonTokenRequest() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayProperties envProperties = new McpGatewayProperties(
+            "mcp-gateway-test",
+            "test",
+            "secret",
+            "X-MCP-GATEWAY-API-KEY",
+            "2025-11-25",
+            java.util.List.of("X-API-KEY", "X-MCP-API-KEY", "X-LOOM-MCP-KEY"),
+            java.util.List.of("MCP_PROFILE_SHOPIFY_UCP_AGENT", "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"),
+            true,
+            "MCP_SECRET_",
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(5)
+        );
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID", "checkout-client-id")
+            .withProperty("MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET", "checkout-client-secret");
+        RestClient.Builder tokenBuilder = RestClient.builder();
+        MockRestServiceServer tokenServer = MockRestServiceServer.bindTo(tokenBuilder).build();
+        tokenServer.expect(requestTo("https://api.shopify.com/auth/access_token"))
+            .andExpect(method(org.springframework.http.HttpMethod.POST))
+            .andExpect(content().json("""
+                {
+                  "grant_type": "client_credentials",
+                  "client_id": "checkout-client-id",
+                  "client_secret": "checkout-client-secret"
+                }
+                """))
+            .andRespond(withSuccess("{\"access_token\":\"shopify-checkout-token\",\"scope\":\"checkout\",\"expires_in\":3600}", org.springframework.http.MediaType.APPLICATION_JSON));
+        McpGatewayExecutionService service = new McpGatewayExecutionService(
+            client,
+            objectMapper,
+            envProperties,
+            environment,
+            tokenBuilder
+        );
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://alpha.myshopify.com/api/ucp/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
+            ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
+        when(client.initialize(eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")), options.capture())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("get_checkout"), any(), any()))
+            .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"id\":\"checkout-1\"}}"));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_get_checkout",
+            Map.of("id", "checkout-1"),
+            null,
+            Map.of(
+                "shopDomain", "alpha.myshopify.com",
+                "actionConfig", Map.of(
+                    "execution", Map.of(
+                        "adapterType", "mcp-tool",
+                        "mcp", Map.of(
+                            "serverRef", "shopify-checkout",
+                            "endpointKind", "CHECKOUT_UCP",
+                            "authMode", "SHOPIFY_AGENTIC_CLIENT_CREDENTIALS",
+                            "toolName", "get_checkout",
+                            "argumentTemplate", Map.of("id", "{{params.id}}")
+                        )
+                    )
+                )
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isTrue();
+        assertThat(options.getValue().headers()).containsEntry("Authorization", "Bearer shopify-checkout-token");
         tokenServer.verify();
     }
 

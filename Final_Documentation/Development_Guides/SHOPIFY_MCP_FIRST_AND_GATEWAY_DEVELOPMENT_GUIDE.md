@@ -362,3 +362,19 @@ Checkout MCP requires:
 - terminal-operation policy approval for any terminal checkout actions
 
 These are external readiness gates, not reasons to add direct GraphQL action implementations back into Bridge.
+
+### Credential Intake Behavior
+
+Customer Account MCP is prepared as a fail-closed path:
+
+- Before OAuth/PKCE and protected customer data posture are configured, Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED`.
+- After posture is configured, Bridge returns `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
+- When a customer token is bound, MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by forwarding it as the MCP Authorization header.
+
+Checkout MCP is prepared as a managed-gateway path:
+
+- Add the Shopify Dev Dashboard Catalog credentials as Platform secrets named `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.
+- Reconcile/recreate the managed MCP Gateway and Shopify Bridge product services.
+- Platform provisioning writes the credentials only to the MCP Gateway as `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` and `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET`, and enables gateway environment secret resolution for the `MCP_SECRET_` prefix.
+- Bridge receives `SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED=true` only when both checkout credentials exist.
+- Terminal checkout actions require the separate `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` flag and must stay disabled for normal staging verification.

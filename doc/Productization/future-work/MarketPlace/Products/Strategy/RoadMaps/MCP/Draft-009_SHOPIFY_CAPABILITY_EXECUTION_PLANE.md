@@ -280,7 +280,7 @@ Pending external auth material before full staging live verification:
 - `SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED=true`
 - `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID`
 - `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`
-- `SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_URL`
+- Shopify token endpoint override only if a manifest must replace the default `https://api.shopify.com/auth/access_token`
 - optional `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` only for explicitly approved terminal checkout tests
 - confirmation whether staging checkout verification is limited to create/get/update or may include `complete_checkout` / `cancel_checkout`
 

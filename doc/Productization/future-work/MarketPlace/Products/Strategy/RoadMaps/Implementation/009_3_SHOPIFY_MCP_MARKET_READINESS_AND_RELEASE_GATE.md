@@ -69,8 +69,8 @@ Claims to avoid until separately verified:
 These items do not block controlled design-partner shipping, but they do block a broad public Shopify App Store / self-serve launch claim:
 
 - Merge PR `#156` (`Platform v8`) or otherwise land its production-intended work. Current posture at the time of this note: open, mergeable, and still carrying the Platform V8 MCP/Coolify/product-service release work.
-- Resolve the open PR `#156` P1 review thread for Coolify structured upstream errors: Coolify transport failures must return the intended structured `502` / `COOLIFY_UPSTREAM_FAILURE` contract instead of falling through as generic `500` responses.
-- Resolve the open PR `#156` P2 review thread for MCP Gateway upstream timeouts: configured connect/read timeouts must be enforced by the MCP Streamable HTTP client so stalled MCP servers cannot tie up gateway request threads beyond configured limits.
+- Keep the PR `#156` P1/P2 review fixes release-gated: Coolify transport failures must continue returning the structured `502` / `COOLIFY_UPSTREAM_FAILURE` contract, and MCP Gateway Streamable HTTP connect/read timeouts must remain wired into the HTTP request factory.
+- Keep Platform release/verification async work off a single-thread bottleneck. Release execution and verification-suite execution must use bounded parallel executors so one slow Coolify or repair call cannot starve unrelated platform operations.
 - Keep higher-tier public claims gated until Shopify Customer Account MCP and Checkout MCP have the required external Shopify auth/security material, protected customer data posture, credentials, and live `tools/list` / safe `tools/call` evidence.
 - Finish merchant-facing self-serve packaging: onboarding path, pricing/package copy, support policy, install/recovery guidance, merchant documentation, App Store listing/review collateral, and a clear public escalation process.
 
@@ -138,6 +138,21 @@ Required before claiming live customer-account capability:
 - live `tools/list` and `tools/call` evidence against the staging store
 - denial evidence when customer token/session is missing
 
+Prepared platform/Bridge behavior:
+
+- Customer Account MCP actions remain Marketplace `ACTION` plugins, but Bridge fails closed with `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` until OAuth/PKCE posture is configured.
+- After posture is configured, Bridge fails closed with `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
+- MCP Gateway can attach a bound customer OAuth access token to Customer Account MCP requests using `CUSTOMER_OAUTH_PKCE`.
+
+Credential/config intake names:
+
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED=true`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES=customer-account-mcp-api:full`
+- staging customer OAuth/PKCE token acquisition path or a test customer login flow that can bind the token to the shopper session
+
 ### Checkout MCP
 
 Required before claiming live checkout capability:
@@ -147,6 +162,26 @@ Required before claiming live checkout capability:
 - explicit terminal-operation enablement policy if terminal checkout actions are tested
 - live `tools/list` and safe `tools/call` evidence
 - denial evidence when checkout credentials or terminal-operation approval is missing
+
+Prepared platform/Gateway behavior:
+
+- Checkout MCP actions remain Marketplace `ACTION` plugins, but Bridge fails closed with `CHECKOUT_MCP_NOT_CONFIGURED` until managed checkout client credentials are configured.
+- MCP Gateway supports `SHOPIFY_AGENTIC_CLIENT_CREDENTIALS` and uses Shopify's JSON token request to `https://api.shopify.com/auth/access_token`.
+- Platform-managed MCP Gateway provisioning maps configured checkout credentials into `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` and `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET` for gateway-only secret resolution.
+- Terminal checkout tools remain disabled unless `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true`.
+
+Credential/config intake names:
+
+- Platform secrets:
+  - `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID`
+  - `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`
+- Managed service env produced after both secrets exist:
+  - `SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED=true`
+  - `MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED=true`
+  - `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID`
+  - `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET`
+- Optional only for approved staging terminal tests:
+  - `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true`
 
 ---
 
@@ -232,6 +267,7 @@ Do not print raw secrets while running these checks.
   - ecommerce hosted run `hvr-002dcf32`: `PASS: All checks completed. (43 passes, 2 warnings)`.
   - qdrant hosted run `hvr-d224a9a4`: `PASS: All checks completed. (43 passes, 2 warnings)`.
 - 009.3 staging status is design-partner ready for the claim-safe product boundary in this document. Production launch and stronger Customer Account / Checkout MCP claims remain gated by the external Shopify auth, protected-data, checkout, and production deployment requirements listed above.
+- External auth gates are prepared up to credential intake: Bridge returns explicit Customer Account and Checkout MCP gate errors, MCP Gateway supports Customer Account token pass-through and Shopify Checkout client-credentials JSON token exchange, Platform managed product provisioning maps checkout credentials to gateway-only `MCP_SECRET_...` env names, and release/verification async executors were widened to avoid single-thread platform starvation.
 
 ### 2026-05-05
 

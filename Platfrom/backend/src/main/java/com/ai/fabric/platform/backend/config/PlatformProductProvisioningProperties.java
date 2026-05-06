@@ -16,6 +16,8 @@ public record PlatformProductProvisioningProperties(
     String shopifyBridgeShopifyApiKeySecretName,
     String shopifyBridgeShopifyApiSecretSecretName,
     String shopifyBridgeWebhookSharedSecretName,
+    String shopifyBridgeCheckoutMcpClientIdSecretName,
+    String shopifyBridgeCheckoutMcpClientSecretSecretName,
     String mcpExecutionGatewayServiceRef,
     String mcpExecutionGatewayServiceRoot,
     String mcpExecutionGatewayDockerfilePath,
@@ -51,6 +53,8 @@ public record PlatformProductProvisioningProperties(
             null,
             null,
             null,
+            null,
+            null,
             pollInterval,
             requestTimeout
         );
@@ -70,6 +74,14 @@ public record PlatformProductProvisioningProperties(
         shopifyBridgeShopifyApiKeySecretName = normalizeText(shopifyBridgeShopifyApiKeySecretName, "SHOPIFY_APP_API_KEY");
         shopifyBridgeShopifyApiSecretSecretName = normalizeText(shopifyBridgeShopifyApiSecretSecretName, "SHOPIFY_APP_API_SECRET");
         shopifyBridgeWebhookSharedSecretName = normalizeText(shopifyBridgeWebhookSharedSecretName, "SHOPIFY_WEBHOOK_SHARED_SECRET");
+        shopifyBridgeCheckoutMcpClientIdSecretName = normalizeText(
+            shopifyBridgeCheckoutMcpClientIdSecretName,
+            "SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID"
+        );
+        shopifyBridgeCheckoutMcpClientSecretSecretName = normalizeText(
+            shopifyBridgeCheckoutMcpClientSecretSecretName,
+            "SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET"
+        );
         mcpExecutionGatewayServiceRef = normalizeText(mcpExecutionGatewayServiceRef, "mcp-execution-gateway");
         mcpExecutionGatewayServiceRoot = normalizeText(mcpExecutionGatewayServiceRoot, "product-services/mcp-execution-gateway-service");
         mcpExecutionGatewayDockerfilePath = normalizeText(

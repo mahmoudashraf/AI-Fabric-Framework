@@ -454,6 +454,12 @@ Pending external auth material for staging live verification:
 
 Do not paste these values into tracked docs. Store secrets in Coolify staging env or local ignored/private secret files and record only the names/paths in handoff docs.
 
+Prepared status:
+
+- Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` until this posture is configured.
+- After posture is configured, Bridge returns `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth token is bound to the shopper session.
+- MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by attaching the bound customer OAuth token as the MCP Authorization header.
+
 ### Phase 9: Checkout And Generic MCP Follow-On
 
 After Shopify read/cart/customer-account verticals are stable, continue with the broader Draft 011 plan.
@@ -475,11 +481,17 @@ Pending external auth material for checkout live verification:
 - `SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED=true`
 - `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID`
 - `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`
-- `SHOPIFY_BRIDGE_CHECKOUT_MCP_TOKEN_URL`
 - optional `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` only for explicitly approved `complete_checkout` / `cancel_checkout` staging tests
 - confirmation whether staging may test only non-terminal checkout create/get/update or also terminal checkout operations
 
 Do not enable terminal checkout operations by default. Keep them behind explicit staging approval and audit evidence.
+
+Prepared status:
+
+- Platform secret definitions exist for `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.
+- Platform-managed MCP Gateway provisioning maps those values to gateway-only `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` and `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET` env vars after both platform secrets are configured.
+- MCP Gateway supports `SHOPIFY_AGENTIC_CLIENT_CREDENTIALS` using Shopify's default JSON token request to `https://api.shopify.com/auth/access_token`; a manifest-level `auth.tokenUrl` override may be used if Shopify changes the endpoint.
+- Bridge returns `CHECKOUT_MCP_NOT_CONFIGURED` until managed checkout credentials are configured, and returns `CHECKOUT_TERMINAL_OPERATION_DISABLED` for terminal checkout actions unless terminal operations are explicitly enabled.
 
 ---
 

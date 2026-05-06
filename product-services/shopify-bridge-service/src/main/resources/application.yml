@@ -57,6 +57,14 @@ shopify:
       execute-path: ${SHOPIFY_BRIDGE_MCP_GATEWAY_EXECUTE_PATH:/api/internal/mcp/actions/execute}
       connect-timeout: ${SHOPIFY_BRIDGE_MCP_GATEWAY_CONNECT_TIMEOUT:PT5S}
       read-timeout: ${SHOPIFY_BRIDGE_MCP_GATEWAY_READ_TIMEOUT:PT30S}
+    mcp-external-auth:
+      customer-account-mcp-enabled: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED:false}
+      customer-account-mcp-protected-data-approved: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED:false}
+      customer-account-mcp-client-id: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID:}
+      customer-account-mcp-redirect-uri: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI:}
+      customer-account-mcp-scopes: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES:}
+      checkout-mcp-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED:false}
+      checkout-mcp-terminal-operations-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED:false}
     billing:
       mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
       plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}
