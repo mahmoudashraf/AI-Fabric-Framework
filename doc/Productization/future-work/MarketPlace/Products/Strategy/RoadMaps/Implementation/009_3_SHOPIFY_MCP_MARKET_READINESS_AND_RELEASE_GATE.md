@@ -1,6 +1,6 @@
 # 009.3 Shopify MCP Market Readiness And Release Gate
 
-Status: in progress on 2026-05-05. Staging is the active target. Production is not deployed by this plan.
+Status: staging release gate passed on 2026-05-06. Staging is the active target. Production is not deployed by this plan.
 
 Parent plans:
 
@@ -206,6 +206,21 @@ Do not print raw secrets while running these checks.
 
 ## Release Gate Remediation Log
 
+### 2026-05-06
+
+- Staging Platform backend was deployed through Coolify to commit `3fde4faf8` after the release gate exposed canonical runtime authorization drift. The canonical verification fleet now uses `ALLOW_VERIFIED` runtime authz for Platform-managed verification rollouts while preserving connector route-level authorization.
+- Canonical rollouts were repaired through `/api/deployments/verification-rollouts/recreate` for `ecommerce`, `qdrant`, `pinecone`, `milvus`, and `weaviate`. Final rollout inventory showed all canonical deployments `APPLIED_VERIFIED`, `ACTIVE`, and `verificationReady=true`.
+- The earlier qdrant hosted verification failure was rechecked directly with hosted run `hvr-dd2d009e`, which passed: `PASS: All checks completed. (43 passes, 2 warnings)`.
+- The earlier Shopify Bridge delegated MCP 502 was replayed against live staging. Direct MCP Gateway action execution and Bridge delegated execution both returned HTTP `200`, `success=true`, and normalized `MCP_TOOL_RESULT` evidence for `shopify_search_catalog`.
+- Targeted Platform suite `shopify-mcp-gateway-verification` passed as run `vsr-ce3a7a61`. Its Bridge delegated MCP action stage passed through the platform-hosted runner.
+- Full Platform release gate passed as run `vsr-dc3204cf`, completed at `2026-05-06T01:38:50Z`.
+- `/api/verification-suites/release-gate` returned `READY=true` / `status=READY`; the recorded freshness window expires at `2026-05-06T13:38:50Z`.
+- Hosted verification evidence in the full suite:
+  - marketplace hosted run `hvr-05692359`: `PASS: All checks completed. (42 passes, 2 warnings)`.
+  - ecommerce hosted run `hvr-002dcf32`: `PASS: All checks completed. (43 passes, 2 warnings)`.
+  - qdrant hosted run `hvr-d224a9a4`: `PASS: All checks completed. (43 passes, 2 warnings)`.
+- 009.3 staging status is design-partner ready for the claim-safe product boundary in this document. Production launch and stronger Customer Account / Checkout MCP claims remain gated by the external Shopify auth, protected-data, checkout, and production deployment requirements listed above.
+
 ### 2026-05-05
 
 - `full-platform-release-readiness` passed through the new Shopify MCP Gateway stage and then failed in the Shopify first-product readiness audit because the store chat path was still blocked by deployment release posture.
@@ -215,5 +230,5 @@ Do not print raw secrets while running these checks.
 - The next live gate exposed a storefront chat failure where the runtime executed `shopify_search_catalog` but the MCP Gateway rejected the action because `shopDomain` was missing from trace metadata. Bridge storefront chat now always forwards the resolved shop domain as a sanitized `shopify-storefront-context` attachment, and runtime connector execution promotes that metadata into MCP Gateway trace.
 - The active Storefront MCP bundle also still carried UCP catalog aliases from earlier drafts. A new migration resets the live storefront read MCP bundle to the standard Shopify Storefront MCP `/api/mcp` tools that are actually available on the staging shop: `shopify_search_catalog`, `shopify_get_product_details`, and `shopify_search_policies`.
 - Canonical hosted verification then exposed a stale Weaviate provider default. The `weaviate` rollout still used the old Railway-hosted Weaviate endpoint, so pre-apply provider connectivity failed before runtime apply. Platform now treats Weaviate verification as environment/private-configuration driven through `PLATFORM_VERIFICATION_WEAVIATE_HOST` or `WEAVIATE_HOST`; the stale Java default was removed.
-- Staging Platform Coolify env was updated with the current Weaviate Cloud REST host from the private handoff. The update triggered a Platform redeploy, after which the staging Hetzner/Coolify host became unresponsive and required provider-level recovery. Live release-gate completion remains blocked until the staging host is healthy, the Weaviate rollout is recreated, and `full-platform-release-readiness` returns `READY`.
-- The next required live proof is a recovered Platform staging deploy, fresh canonical `weaviate` recreate/apply, followed by `full-platform-release-readiness` and `release-gate=READY`.
+- Staging Platform Coolify env was updated with the current Weaviate Cloud REST host from the private handoff. The update triggered a Platform redeploy, after which the staging Hetzner/Coolify host became unresponsive and required provider-level recovery.
+- This 2026-05-05 blocker was superseded by the 2026-05-06 pass evidence above: staging recovered, canonical rollouts were repaired, `full-platform-release-readiness` passed, and `release-gate=READY`.

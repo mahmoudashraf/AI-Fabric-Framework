@@ -891,3 +891,16 @@ Rules:
 - Staging live Platform API verification passed: `dtp-coolify-production` is `active=true`, `platformServicesAllowed=true`, `defaultForRuntime=false`, `defaultForRestartableServices=false`; `dtp-coolify-staging` remains active, platform-service allowed, and the restartable/runtime default.
 - Served staging UI bundle contains the new Product Services target-profile selector text.
 - Production deployment was not performed. This work only makes production an explicit, managed target profile for future Platform-managed services while keeping staging as default.
+
+## 2026-05-06 Shopify MCP 009.3 Release Gate Pass
+
+- Continued staging-only release gating on branch `Platform-V8`; production was not deployed or modified.
+- Deployed staging Platform backend through Coolify to commit `3fde4faf8` after the gate exposed canonical runtime authorization drift.
+- Repaired canonical verification rollouts through `/api/deployments/verification-rollouts/recreate` for `ecommerce`, `qdrant`, `pinecone`, `milvus`, and `weaviate`; final inventory showed all canonical deployments `APPLIED_VERIFIED`, `ACTIVE`, and `verificationReady=true`.
+- Direct qdrant hosted verification after repair passed as `hvr-dd2d009e`: `PASS: All checks completed. (43 passes, 2 warnings)`.
+- Replayed the earlier Shopify Bridge delegated MCP 502 against live staging. Direct MCP Gateway execution and Bridge delegated execution both returned HTTP `200`, `success=true`, and normalized `MCP_TOOL_RESULT` evidence for `shopify_search_catalog`.
+- Targeted Platform suite `shopify-mcp-gateway-verification` passed as `vsr-ce3a7a61`, including the Bridge delegated MCP action stage.
+- Full Platform release gate `full-platform-release-readiness` passed as `vsr-dc3204cf`, completed at `2026-05-06T01:38:50Z`.
+- Release gate endpoint returned `READY=true` / `status=READY`; freshness window expires at `2026-05-06T13:38:50Z`.
+- Hosted evidence from the full suite: marketplace `hvr-05692359` passed with 42 passes / 2 warnings; ecommerce `hvr-002dcf32` passed with 43 passes / 2 warnings; qdrant `hvr-d224a9a4` passed with 43 passes / 2 warnings.
+- Updated `009_3_SHOPIFY_MCP_MARKET_READINESS_AND_RELEASE_GATE.md` with the final staging pass evidence. Staging is design-partner ready for the claim-safe 009.3 product boundary; production launch and stronger Customer Account / Checkout MCP claims remain externally gated.
