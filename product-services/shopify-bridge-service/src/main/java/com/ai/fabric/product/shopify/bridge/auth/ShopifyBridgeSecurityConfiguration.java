@@ -1,6 +1,7 @@
 package com.ai.fabric.product.shopify.bridge.auth;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,6 +43,7 @@ public class ShopifyBridgeSecurityConfiguration {
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/", "/app", "/assets/**", "/favicon.ico").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
