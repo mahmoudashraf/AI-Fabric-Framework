@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -61,9 +62,33 @@ class ShopifyBridgeSecurityHttpIntegrationTest {
     }
 
     @Test
+    void preflightRequestsDoNotRequireRouteAuthentication() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+
+        HttpResponse<String> adminResponse = client.send(
+            optionsRequest("/api/admin/overview"),
+            HttpResponse.BodyHandlers.ofString()
+        );
+        HttpResponse<String> merchantResponse = client.send(
+            optionsRequest("/api/app/session"),
+            HttpResponse.BodyHandlers.ofString()
+        );
+
+        assertThat(adminResponse.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(merchantResponse.statusCode()).isEqualTo(HttpStatus.OK.value());
+    }
+
+    @Test
     void unmappedApiRoutesRemainForbidden() {
         ResponseEntity<String> response = restTemplate.getForEntity("/api/internal/unknown", String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    private HttpRequest optionsRequest(String path) {
+        return HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:" + port + path))
+            .method(HttpMethod.OPTIONS.name(), HttpRequest.BodyPublishers.noBody())
+            .build();
     }
 }

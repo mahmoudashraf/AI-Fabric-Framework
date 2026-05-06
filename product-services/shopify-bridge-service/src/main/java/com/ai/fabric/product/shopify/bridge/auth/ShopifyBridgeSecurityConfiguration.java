@@ -72,6 +72,10 @@ public class ShopifyBridgeSecurityConfiguration {
         protected void doFilterInternal(HttpServletRequest request,
                                         HttpServletResponse response,
                                         FilterChain filterChain) throws ServletException, IOException {
+            if (HttpMethod.OPTIONS.matches(request.getMethod())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             if (!request.getRequestURI().startsWith("/api/app/") || "/api/app/shell".equals(request.getRequestURI())) {
                 filterChain.doFilter(request, response);
                 return;
@@ -108,6 +112,10 @@ public class ShopifyBridgeSecurityConfiguration {
         protected void doFilterInternal(HttpServletRequest request,
                                         HttpServletResponse response,
                                         FilterChain filterChain) throws ServletException, IOException {
+            if (HttpMethod.OPTIONS.matches(request.getMethod())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             if (!request.getRequestURI().startsWith("/api/admin/")) {
                 filterChain.doFilter(request, response);
                 return;
