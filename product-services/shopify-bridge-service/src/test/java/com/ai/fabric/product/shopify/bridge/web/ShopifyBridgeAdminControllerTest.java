@@ -86,6 +86,12 @@ class ShopifyBridgeAdminControllerTest {
     }
 
     @Test
+    void unmappedApiRoutesAreDeniedByDefault() throws Exception {
+        mockMvc.perform(get("/api/internal/unknown"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void adminOverviewReturnsDiagnosticsWhenApiKeyMatches() throws Exception {
         when(diagnosticsService.overview()).thenReturn(new ShopifyBridgeOverviewResponse(
             "Shopify Bridge Service",

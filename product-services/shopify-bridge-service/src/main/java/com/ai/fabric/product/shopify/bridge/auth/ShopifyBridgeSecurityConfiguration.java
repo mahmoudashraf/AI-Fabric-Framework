@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.Customizer;
@@ -20,6 +21,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 @Configuration
 public class ShopifyBridgeSecurityConfiguration {
@@ -39,13 +42,16 @@ public class ShopifyBridgeSecurityConfiguration {
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/", "/app", "/assets/**", "/favicon.ico").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers("/auth/shopify/**").permitAll()
                 .requestMatchers("/api/webhooks/shopify").permitAll()
+                .requestMatchers("/api/storefront/**").permitAll()
                 .requestMatchers("/api/app/shell").permitAll()
                 .requestMatchers("/api/app/**").authenticated()
                 .requestMatchers("/api/admin/**").authenticated()
-                .anyRequest().permitAll()
+                .anyRequest().denyAll()
             )
             .addFilterBefore(new MerchantSessionFilter(merchantSessionTokenService), UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(new AdminApiKeyFilter(properties), UsernamePasswordAuthenticationFilter.class);
@@ -111,7 +117,7 @@ public class ShopifyBridgeSecurityConfiguration {
             }
 
             String presented = request.getHeader(properties.adminApiKeyHeader());
-            if (presented == null || !properties.adminApiKey().equals(presented)) {
+            if (presented == null || !constantTimeEquals(properties.adminApiKey(), presented)) {
                 response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid bridge admin API key.");
                 return;
             }
@@ -127,6 +133,12 @@ public class ShopifyBridgeSecurityConfiguration {
             } finally {
                 SecurityContextHolder.clearContext();
             }
+        }
+
+        private boolean constantTimeEquals(String expected, String actual) {
+            byte[] expectedBytes = expected == null ? new byte[0] : expected.getBytes(StandardCharsets.UTF_8);
+            byte[] actualBytes = actual == null ? new byte[0] : actual.getBytes(StandardCharsets.UTF_8);
+            return MessageDigest.isEqual(expectedBytes, actualBytes);
         }
     }
 }

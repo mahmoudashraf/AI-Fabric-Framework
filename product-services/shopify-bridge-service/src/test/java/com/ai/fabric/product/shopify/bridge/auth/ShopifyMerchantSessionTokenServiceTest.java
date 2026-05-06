@@ -50,6 +50,38 @@ class ShopifyMerchantSessionTokenServiceTest {
             .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("audience"));
     }
 
+    @Test
+    void verifyRejectsIssuerDestinationMismatch() {
+        ShopifyMerchantSessionTokenService service = new ShopifyMerchantSessionTokenService(properties(), objectMapper);
+        String token = sessionToken(
+            "shopify-api-key",
+            "shopify-secret",
+            Instant.now().plusSeconds(60),
+            "https://beta.myshopify.com/admin",
+            "https://alpha.myshopify.com"
+        );
+
+        assertThatThrownBy(() -> service.verify("Bearer " + token))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("issuer"));
+    }
+
+    @Test
+    void verifyRejectsNonShopifyDestination() {
+        ShopifyMerchantSessionTokenService service = new ShopifyMerchantSessionTokenService(properties(), objectMapper);
+        String token = sessionToken(
+            "shopify-api-key",
+            "shopify-secret",
+            Instant.now().plusSeconds(60),
+            "https://attacker.example.com/admin",
+            "https://attacker.example.com"
+        );
+
+        assertThatThrownBy(() -> service.verify("Bearer " + token))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(ex -> assertThat(((ResponseStatusException) ex).getReason()).contains("destination"));
+    }
+
     private ShopifyBridgeProperties properties() {
         return new ShopifyBridgeProperties(
             "Bridge",
@@ -71,14 +103,24 @@ class ShopifyMerchantSessionTokenServiceTest {
     }
 
     private String sessionToken(String audience, String secret, Instant expiresAt) {
+        return sessionToken(
+            audience,
+            secret,
+            expiresAt,
+            "https://alpha.myshopify.com/admin",
+            "https://alpha.myshopify.com"
+        );
+    }
+
+    private String sessionToken(String audience, String secret, Instant expiresAt, String issuer, String destination) {
         try {
             String header = base64Url("""
                 {"alg":"HS256","typ":"JWT"}
                 """.trim());
             long now = Instant.now().getEpochSecond();
             String payload = base64Url("""
-                {"iss":"https://alpha.myshopify.com/admin","dest":"https://alpha.myshopify.com","aud":"%s","sub":"gid://shopify/User/1","nbf":%d,"exp":%d}
-                """.formatted(audience, now - 10, expiresAt.getEpochSecond()));
+                {"iss":"%s","dest":"%s","aud":"%s","sub":"gid://shopify/User/1","nbf":%d,"exp":%d}
+                """.formatted(issuer, destination, audience, now - 10, expiresAt.getEpochSecond()));
             String signingInput = header + "." + payload;
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
