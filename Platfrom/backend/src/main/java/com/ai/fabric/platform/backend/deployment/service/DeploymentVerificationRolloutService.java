@@ -735,13 +735,18 @@ public class DeploymentVerificationRolloutService {
         }
         JsonNode routingConfig = readJson(activeVersion.getRoutingConfigJson());
         JsonNode securityConfig = readJson(activeVersion.getSecurityConfigJson());
+        String expectedAuthzMode = expectedAuthzMode(definition);
+        if (!expectedAuthzMode.equalsIgnoreCase(securityConfig.path("authzMode").asText(""))) {
+            reasons.add("SECURITY_AUTHZ_MODE_DRIFT");
+        }
         if (!baseUrlsEqual(expectedBaseUrl, routingConfig.path("connector").path("upstream").path("base-url").asText(""))) {
             reasons.add("CONNECTOR_UPSTREAM_BASE_URL_DRIFT");
         }
         if (!baseUrlsEqual(expectedBaseUrl, routingConfig.path("authz").path("upstream").path("base-url").asText(""))) {
             reasons.add("AUTHZ_UPSTREAM_BASE_URL_DRIFT");
         }
-        if (!baseUrlsEqual(expectedBaseUrl, securityConfig.path("authzBaseUrl").asText(""))) {
+        if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_REMOTE_HTTP.equals(expectedAuthzMode)
+            && !baseUrlsEqual(expectedBaseUrl, securityConfig.path("authzBaseUrl").asText(""))) {
             reasons.add("SECURITY_AUTHZ_BASE_URL_DRIFT");
         }
         if (vectorizationSourceConnectionRepository != null) {
@@ -753,6 +758,12 @@ public class DeploymentVerificationRolloutService {
             });
         }
         return reasons.stream().distinct().toList();
+    }
+
+    private String expectedAuthzMode(VerificationRolloutDefinition definition) {
+        return definition != null && "marketplace".equalsIgnoreCase(definition.key())
+            ? ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED
+            : ManagedDeploymentProfileCatalog.AUTHZ_MODE_REMOTE_HTTP;
     }
 
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {
@@ -882,7 +893,7 @@ public class DeploymentVerificationRolloutService {
                         ecommerceEntityConfig(OPENAI_VECTOR_DIMENSIONS),
                         ecommerceRoutingConfig(),
                         normalizeProviderConfig(provider, OPENAI_VECTOR_DIMENSIONS),
-                        ecommerceSecurityConfig(draft.securityConfig()),
+                        marketplaceSecurityConfig(draft.securityConfig()),
                         withDefaultPromptLatencyTuning(ensureObject(draft.promptConfig())),
                         marketplaceKnowledgeSourceConfig(),
                         marketplaceShellConfig(),
@@ -1297,6 +1308,13 @@ public class DeploymentVerificationRolloutService {
         root.put("publicRuntimeAcceptedIssuers", PUBLIC_RUNTIME_ACCEPTED_ISSUERS);
         root.put("publicRuntimeAcceptedAudiences", PUBLIC_RUNTIME_ACCEPTED_AUDIENCES);
         root.put("publicRuntimeDefaultAudience", PUBLIC_RUNTIME_DEFAULT_AUDIENCE);
+        return root;
+    }
+
+    private ObjectNode marketplaceSecurityConfig(JsonNode source) {
+        ObjectNode root = ecommerceSecurityConfig(source);
+        root.put("authzMode", ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED);
+        root.remove("authzBaseUrl");
         return root;
     }
 

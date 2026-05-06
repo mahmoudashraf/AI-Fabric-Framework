@@ -497,6 +497,8 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(marketplace.providerConfig().path("openaiEmbeddingModel").asText()).isEqualTo("text-embedding-3-small");
         assertThat(marketplace.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(1536);
         assertThat(marketplace.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(marketplace.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(marketplace.securityConfig().has("authzBaseUrl")).isFalse();
         assertThat(marketplace.shellConfig().path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
         assertThat(marketplace.shellConfig().path("modules").isArray()).isTrue();
         assertThat(marketplace.shellConfig().path("cards").isArray()).isTrue();
