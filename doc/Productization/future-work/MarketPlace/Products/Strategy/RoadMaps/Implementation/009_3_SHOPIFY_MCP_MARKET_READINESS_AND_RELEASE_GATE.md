@@ -32,7 +32,7 @@ The target market posture is:
 
 ```text
 Design-partner ready: yes, after staging release gate passes.
-Broad self-serve production launch: no, until production deployment, app-review posture, and Customer Account/Checkout auth gates are completed.
+Broad self-serve production launch: no, until production deployment, PR/review gates, app-review posture, self-serve packaging, and Customer Account/Checkout auth gates are completed.
 ```
 
 ---
@@ -61,6 +61,18 @@ Claims to avoid until separately verified:
 - live Checkout MCP execution
 - terminal checkout automation
 - payment, refund, or protected customer data automation without explicit approvals and auth material
+
+---
+
+## Public Self-Serve Launch Pending Items
+
+These items do not block controlled design-partner shipping, but they do block a broad public Shopify App Store / self-serve launch claim:
+
+- Merge PR `#156` (`Platform v8`) or otherwise land its production-intended work. Current posture at the time of this note: open, mergeable, and still carrying the Platform V8 MCP/Coolify/product-service release work.
+- Resolve the open PR `#156` P1 review thread for Coolify structured upstream errors: Coolify transport failures must return the intended structured `502` / `COOLIFY_UPSTREAM_FAILURE` contract instead of falling through as generic `500` responses.
+- Resolve the open PR `#156` P2 review thread for MCP Gateway upstream timeouts: configured connect/read timeouts must be enforced by the MCP Streamable HTTP client so stalled MCP servers cannot tie up gateway request threads beyond configured limits.
+- Keep higher-tier public claims gated until Shopify Customer Account MCP and Checkout MCP have the required external Shopify auth/security material, protected customer data posture, credentials, and live `tools/list` / safe `tools/call` evidence.
+- Finish merchant-facing self-serve packaging: onboarding path, pricing/package copy, support policy, install/recovery guidance, merchant documentation, App Store listing/review collateral, and a clear public escalation process.
 
 ---
 

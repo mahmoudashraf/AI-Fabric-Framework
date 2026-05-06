@@ -524,6 +524,13 @@ Plan 009 is complete when:
 - Old route-backed Shopify customer actions are removed from greenfield package profiles.
 - Runtime action catalog remains generated from Marketplace/package profile truth.
 
+Public self-serve Shopify App Store launch remains a separate gate after Plan 009 implementation. It requires:
+
+- PR `#156` (`Platform v8`) merged or otherwise landed into the production-intended branch.
+- Open PR `#156` review threads resolved, including Coolify structured upstream error handling and MCP Gateway HTTP timeout enforcement.
+- Customer Account MCP and Checkout MCP claims kept behind Shopify OAuth/PKCE, protected customer data, checkout credential, and live safe-call evidence gates.
+- Merchant-facing self-serve onboarding, pricing, support policy, install/recovery guidance, and App Store review collateral completed.
+
 ---
 
 ## Stop Conditions
