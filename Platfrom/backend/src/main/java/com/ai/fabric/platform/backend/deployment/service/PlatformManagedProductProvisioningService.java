@@ -44,6 +44,8 @@ public class PlatformManagedProductProvisioningService {
     private static final String CUSTOMER_ACCOUNT_MCP_PROTECTED_APPROVED_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED";
     private static final String CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL";
     private static final String CUSTOMER_ACCOUNT_MCP_SESSION_TTL_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL";
+    private static final String CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT";
+    private static final String CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT";
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformProductProvisioningProperties productProvisioningProperties;
@@ -1293,6 +1295,8 @@ public class PlatformManagedProductProvisioningService {
                 String customerAccountMcpScopes = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SCOPES_SECRET);
                 String customerAccountMcpStateTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET);
                 String customerAccountMcpSessionTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SESSION_TTL_SECRET);
+                String customerAccountMcpConnectTimeout = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT_SECRET);
+                String customerAccountMcpReadTimeout = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT_SECRET);
                 boolean customerAccountMcpProtectedApproved = Boolean.parseBoolean(
                     blankToFallback(resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_PROTECTED_APPROVED_SECRET), "false")
                 );
@@ -1327,6 +1331,8 @@ public class PlatformManagedProductProvisioningService {
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES", customerAccountMcpScopes);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL", customerAccountMcpStateTtl);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL", customerAccountMcpSessionTtl);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT", customerAccountMcpConnectTimeout);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT", customerAccountMcpReadTimeout);
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED", Boolean.toString(checkoutMcpConfigured)));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED", "false"));
                 PlatformManagedProductServiceShopifyBillingConfigSummary billingConfig =

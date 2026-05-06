@@ -658,6 +658,8 @@ class PlatformManagedProductProvisioningServiceTest {
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN")).thenReturn("shop-staging.loomai.pro");
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES")).thenReturn("customer-account-mcp-api:full");
         when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED")).thenReturn("true");
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT")).thenReturn("PT5S");
+        when(platformSecretService.resolveSecret("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT")).thenReturn("PT30S");
         when(railwayGraphqlClient.hasStagedChanges("env-123")).thenReturn(false);
         when(railwayGraphqlClient.deployService("svc-123", "env-123")).thenReturn("dep-railway-123");
         when(railwayGraphqlClient.getDeployment("dep-railway-123"))
@@ -757,6 +759,14 @@ class PlatformManagedProductProvisioningServiceTest {
             .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN".equals(input.name()))
             .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
             .containsExactly("shop-staging.loomai.pro");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("PT5S");
+        assertThat(envCaptor.getValue())
+            .filteredOn(input -> "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT".equals(input.name()))
+            .extracting(RailwayGraphqlClient.RailwayEnvVarInput::value)
+            .containsExactly("PT30S");
     }
 
     @Test

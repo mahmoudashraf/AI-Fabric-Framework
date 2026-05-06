@@ -476,6 +476,22 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Connect Timeout",
+                "Optional Bridge Customer Account OAuth discovery/token connect timeout, for example PT5S.",
+                false
+            )
+        );
+        secrets.put(
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT",
+            new SecretDefinition(
+                "Shopify Customer Account MCP Read Timeout",
+                "Optional Bridge Customer Account OAuth discovery/token read timeout, for example PT30S.",
+                false
+            )
+        );
+        secrets.put(
             "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES",
             new SecretDefinition(
                 "Shopify Customer Account MCP Scopes",
