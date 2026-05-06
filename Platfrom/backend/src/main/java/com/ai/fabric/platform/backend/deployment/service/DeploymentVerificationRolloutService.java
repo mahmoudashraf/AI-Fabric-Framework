@@ -761,9 +761,7 @@ public class DeploymentVerificationRolloutService {
     }
 
     private String expectedAuthzMode(VerificationRolloutDefinition definition) {
-        return definition != null && "marketplace".equalsIgnoreCase(definition.key())
-            ? ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED
-            : ManagedDeploymentProfileCatalog.AUTHZ_MODE_REMOTE_HTTP;
+        return ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED;
     }
 
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {
@@ -1299,10 +1297,10 @@ public class DeploymentVerificationRolloutService {
 
     private ObjectNode ecommerceSecurityConfig(JsonNode source) {
         ObjectNode root = ensureObject(source);
-        root.put("authzMode", "REMOTE_HTTP");
+        root.put("authzMode", ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED);
         root.put("adminApiKeyEnabled", true);
         root.put("connectorApiKeyEnabled", true);
-        root.put("authzBaseUrl", ecommerceUpstreamBaseUrl());
+        root.remove("authzBaseUrl");
         root.put("publicRuntimeBootstrapEnabled", true);
         root.put("publicRuntimeTokenIssuer", PUBLIC_RUNTIME_TOKEN_ISSUER);
         root.put("publicRuntimeAcceptedIssuers", PUBLIC_RUNTIME_ACCEPTED_ISSUERS);

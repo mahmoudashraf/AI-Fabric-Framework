@@ -451,6 +451,8 @@ class DeploymentVerificationRolloutServiceTest {
             .isEqualTo("ecommerce-demo,runtime-public-bootstrap");
         assertThat(ecommerce.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
         assertThat(ecommerce.securityConfig().path("publicRuntimeDefaultAudience").asText()).isEqualTo("ecommerce-demo-chat");
+        assertThat(ecommerce.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(ecommerce.securityConfig().has("authzBaseUrl")).isFalse();
 
         UpdateDeploymentDraftRequest marketplace = updates.get(1);
         assertThat(marketplace.knowledgeSourceConfig().path("contractVersion").asText()).isEqualTo("KNOWLEDGE_SOURCE_CONFIG_V1");
@@ -523,7 +525,8 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.routingConfig().path("connector").path("upstream").path("auth").path("value").asText()).isEmpty();
         assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("value").asText()).isEmpty();
-        assertThat(qdrant.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
+        assertThat(qdrant.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(qdrant.securityConfig().has("authzBaseUrl")).isFalse();
         assertThat(qdrant.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
         assertThat(qdrant.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
         assertThat(qdrant.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
@@ -548,7 +551,8 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(milvus.entityConfig().path("ai-entities").has("review")).isTrue();
         assertThat(milvus.actionsConfig().path("actions")).isNotEmpty();
         assertThat(milvus.routingConfig().path("actions")).isNotEmpty();
-        assertThat(milvus.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
+        assertThat(milvus.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(milvus.securityConfig().has("authzBaseUrl")).isFalse();
 
         UpdateDeploymentDraftRequest weaviate = updates.get(5);
         assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("weaviate.example.test");
