@@ -387,6 +387,9 @@ public class DeploymentHostedVerificationContextService {
         env.put("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         env.put("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
         env.put("EXPECT_MARKETPLACE_INFERENCE_CONTRACT_VERSION", "INFERENCE_PROFILE_RUNTIME_V1");
+        env.put("ECOMMERCE_RESOLVER_SMOKE_QUERY", "Check live availability for SKU-0001.");
+        env.put("ECOMMERCE_COMPARE_SMOKE_QUERY", "Compare SKU-0001 with SKU-0002 and summarize the main differences.");
+        env.put("ECOMMERCE_THINKER_SMOKE_QUERY", "Check live availability for SKU-0001 and summarize the refund policy.");
         env.put(
             "MARKETPLACE_SMOKE_QUERY",
             "Using only retrieved marketplace knowledge sources, summarize the return and refund policy."
