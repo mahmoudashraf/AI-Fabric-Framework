@@ -9,6 +9,7 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyScopeSupport;
 import com.ai.fabric.product.shopify.bridge.mcp.execution.McpActionExecutionGateway;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
@@ -643,10 +644,34 @@ public class ShopifyBridgeSupportReadinessService {
                 billingState.status(),
                 billingState.activeSubscriptions()
             );
+            enqueueProvisioningSafely(shopDomain, billingState.tierKey(), "Support readiness verification refreshed billing state.");
             return billingState;
         } catch (RuntimeException ignored) {
             // Preserve the lightweight fallback path when Shopify billing is temporarily unavailable.
             return null;
+        }
+    }
+
+    private void enqueueProvisioningSafely(String shopDomain, String tierKey, String reason) {
+        try {
+            platformShopifyStoreClient.enqueueProvisioning(
+                shopDomain,
+                new ShopifyBridgeCreateProvisioningJobRequest(
+                    "PACKAGE_CHANGE",
+                    null,
+                    tierKey,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    reason,
+                    false
+                )
+            );
+        } catch (RuntimeException ignored) {
+            // Readiness checks must remain diagnostic; provisioning can be retried by Platform operators.
         }
     }
 

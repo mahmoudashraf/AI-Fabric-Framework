@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -281,6 +283,14 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.appScopesUpdateWebhookReady()).isTrue();
         assertThat(summary.lifecycleStage()).isEqualTo("MERCHANT_HANDOFF");
         verify(installRecordService).recordAppScopesUpdateWebhookReady("alpha.myshopify.com", true);
+        verify(platformClient).recordBillingState(eq("alpha.myshopify.com"), argThat(request ->
+            "FREE".equals(request.tierKey()) && "ACTIVE".equals(request.status())
+        ));
+        verify(platformClient).enqueueProvisioning(eq("alpha.myshopify.com"), argThat(request ->
+            "PACKAGE_CHANGE".equals(request.jobType())
+                && "FREE".equals(request.requestedTierKey())
+                && Boolean.FALSE.equals(request.processImmediately())
+        ));
     }
 
     @Test

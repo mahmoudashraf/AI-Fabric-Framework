@@ -880,6 +880,120 @@ class PartnerEnablementIntegrationTest {
     }
 
     @Test
+    void packageTrialActivationReconcilesBillingDriftBeforeBlockingNewTrial() throws Exception {
+        String token = partnerJwt("trial-drift-user", "trial-drift-user@example.com");
+        String sessionPayload = completeSignup(token, "Trial Drift Partner Workspace");
+        String partnerMemberId = JsonPath.read(sessionPayload, "$.member.id");
+        createShopifyStore("shopify-store-trial-drift", "trial-drift-client.myshopify.com", "Trial Drift Client");
+
+        mockMvc.perform(post("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clientName": "Trial Drift Client",
+                      "storeConnectionId": "shopify-store-trial-drift"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "trial-drift-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andReturn();
+        String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
+
+        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "trial-drift-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Merchant Owner",
+                      "approverEmail": "owner@example.com",
+                      "approvedScope": "FULL_STORE_ACCESS"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+        mockMvc.perform(patch("/api/platform/partners/members/{memberId}", partnerMemberId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "privileges": ["PACKAGE_TRIAL_ACTIVATE"]
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        var firstActivation = mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tierKey": "ELITE",
+                      "trialDays": 30,
+                      "reason": "Initial design partner package trial"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activePackageTrial.tierKey", is("ELITE")))
+            .andExpect(jsonPath("$.activePackageTrial.status", is("ACTIVE")))
+            .andReturn();
+        String driftedTrialId = JsonPath.read(firstActivation.getResponse().getContentAsString(), "$.activePackageTrial.id");
+
+        mockMvc.perform(post("/api/shopify/stores/{shopDomain}/billing-state", "trial-drift-client.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tierKey": "FREE",
+                      "status": "ACTIVE",
+                      "reason": "Shopify billing inspection found no active paid subscription."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tierKey", is("FREE")));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/product-controls", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activePackageTrial").doesNotExist())
+            .andExpect(jsonPath("$.packageTrialHistory[0].status", is("BILLING_DRIFT")));
+
+        var secondActivation = mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tierKey": "STARTER",
+                      "trialDays": 7,
+                      "reason": "Reactivate after Shopify billing drift reconciliation"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activePackageTrial.tierKey", is("STARTER")))
+            .andExpect(jsonPath("$.activePackageTrial.status", is("ACTIVE")))
+            .andExpect(jsonPath("$.packageTrialHistory[1].status", is("BILLING_DRIFT")))
+            .andReturn();
+
+        String activeTrialId = JsonPath.read(secondActivation.getResponse().getContentAsString(), "$.activePackageTrial.id");
+        assertThat(packageTrialActivationRepository.findById(driftedTrialId).orElseThrow().getStatus())
+            .isEqualTo("BILLING_DRIFT");
+        assertThat(packageTrialActivationRepository.findById(activeTrialId).orElseThrow().getStatus())
+            .isEqualTo("ACTIVE");
+
+        mockMvc.perform(get("/api/shopify/stores/{shopDomain}/billing-state", "trial-drift-client.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tierKey", is("STARTER")))
+            .andExpect(jsonPath("$.subscriptionId", is("partner-trial-" + activeTrialId)));
+    }
+
+    @Test
     void merchantCanDenyInstalledStorePartnerAccessFromAdminFlow() throws Exception {
         String token = partnerJwt("denied-user", "denied-user@example.com");
         completeSignup(token, "Denied Partner Workspace");

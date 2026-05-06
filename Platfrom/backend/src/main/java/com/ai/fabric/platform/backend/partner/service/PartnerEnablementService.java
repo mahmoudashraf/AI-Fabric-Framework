@@ -131,6 +131,9 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 public class PartnerEnablementService {
 
     private static final String PACKAGE_TRIAL_ACTIVATE = "PACKAGE_TRIAL_ACTIVATE";
+    private static final String PACKAGE_TRIAL_STATUS_ACTIVE = "ACTIVE";
+    private static final String PACKAGE_TRIAL_STATUS_DEACTIVATED = "DEACTIVATED";
+    private static final String PACKAGE_TRIAL_STATUS_BILLING_DRIFT = "BILLING_DRIFT";
     private static final List<String> PLATFORM_CONFIGURABLE_PARTNER_PRIVILEGES = List.of(
         PACKAGE_TRIAL_ACTIVATE
     );
@@ -450,7 +453,11 @@ public class PartnerEnablementService {
         String tierKey = normalizeTrialTier(request == null ? null : request.tierKey());
         int trialDays = normalizeTrialDays(request == null ? null : request.trialDays());
         Instant now = Instant.now();
-        packageTrialActivationRepository.findFirstByStoreAssignmentIdAndStatusOrderByCreatedAtDesc(assignment.getId(), "ACTIVE")
+
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        ShopifyStoreBillingStateSummary previousBilling = shopifyStoreConnectionService.getBillingState(assignment.getShopDomain());
+        reconcileActivePackageTrialBillingDrift(context, assignment, store, previousBilling, now);
+        packageTrialActivationRepository.findFirstByStoreAssignmentIdAndStatusOrderByCreatedAtDesc(assignment.getId(), PACKAGE_TRIAL_STATUS_ACTIVE)
             .ifPresent(existing -> {
                 String message = existing.getTrialEndsAt() != null && !existing.getTrialEndsAt().isAfter(now)
                     ? "A past-due package trial must be manually deactivated before a new trial can be activated."
@@ -458,8 +465,6 @@ public class PartnerEnablementService {
                 throw new ResponseStatusException(CONFLICT, message);
             });
 
-        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
-        ShopifyStoreBillingStateSummary previousBilling = shopifyStoreConnectionService.getBillingState(assignment.getShopDomain());
         PartnerPackageTrialActivationEntity trial = new PartnerPackageTrialActivationEntity();
         trial.setId(id("ppt"));
         trial.setPartnerAccountId(context.account().getId());
@@ -469,7 +474,7 @@ public class PartnerEnablementService {
         trial.setShopDomain(store.shopDomain());
         trial.setPackageKey(tierKey);
         trial.setTierKey(tierKey);
-        trial.setStatus("ACTIVE");
+        trial.setStatus(PACKAGE_TRIAL_STATUS_ACTIVE);
         trial.setTrialDays(trialDays);
         trial.setTrialStartsAt(now);
         trial.setTrialEndsAt(now.plusSeconds(trialDays * 86_400L));
@@ -539,15 +544,27 @@ public class PartnerEnablementService {
         if (!assignment.getId().equals(trial.getStoreAssignmentId())) {
             throw new PartnerForbiddenException("Package trial is not attached to this store assignment.");
         }
-        if (!"ACTIVE".equals(trial.getStatus())) {
+        if (!PACKAGE_TRIAL_STATUS_ACTIVE.equals(trial.getStatus())) {
             throw new ResponseStatusException(CONFLICT, "Package trial is not active.");
         }
         Instant now = Instant.now();
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        ShopifyStoreBillingStateSummary currentBilling = shopifyStoreConnectionService.getBillingState(assignment.getShopDomain());
+        if (packageTrialBillingDrift(trial, currentBilling)) {
+            markPackageTrialBillingDrift(
+                context,
+                trial,
+                store,
+                currentBilling,
+                now,
+                "Manual partner package trial deactivation reconciled billing drift"
+            );
+            return toProductControlSummary(assignment, shopifyStoreConnectionService.getConnection(assignment.getShopDomain()));
+        }
         if (trial.getTrialEndsAt() != null && trial.getTrialEndsAt().isAfter(now)) {
             throw new ResponseStatusException(CONFLICT, "Package trial is not past due yet.");
         }
 
-        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
         String restoredTier = normalizeRestoreTier(trial.getPreviousTierKey());
         String restoredStatus = firstNonBlank(trial.getPreviousBillingStatus(), "ACTIVE").toUpperCase(Locale.ROOT);
         String reason = firstNonBlank(trimToNull(request == null ? null : request.reason()), "Manual partner package trial deactivation");
@@ -575,7 +592,7 @@ public class PartnerEnablementService {
                 false
             )
         );
-        trial.setStatus("DEACTIVATED");
+        trial.setStatus(PACKAGE_TRIAL_STATUS_DEACTIVATED);
         trial.setDeactivatedAt(now);
         trial.setDeactivatedByMemberId(context.member().getId());
         trial.setDeactivationReason(reason);
@@ -2292,6 +2309,7 @@ public class PartnerEnablementService {
                                                                  ShopifyStoreConnectionSummary store,
                                                                  ShopifyStoreSupportProfileSummary supportProfile) {
         ShopifyStoreWidgetSettingsSummary widgetSettings = widgetSettings(store);
+        ShopifyStoreBillingStateSummary billingState = shopifyStoreConnectionService.getBillingState(assignment.getShopDomain());
         return new PartnerProductControlSummary(
             assignment.getId(),
             store.id(),
@@ -2317,8 +2335,8 @@ public class PartnerEnablementService {
             widgetSettings,
             supportProfile,
             productControlCapabilities(assignment),
-            activePackageTrial(assignment),
-            packageTrialHistory(assignment),
+            activePackageTrial(assignment, billingState),
+            packageTrialHistory(assignment, billingState),
             TRIAL_ACTIVATION_TIERS,
             MAX_TRIAL_DAYS,
             store.updatedAt()
@@ -2383,24 +2401,31 @@ public class PartnerEnablementService {
             .contains(privilege);
     }
 
-    private PartnerPackageTrialActivationSummary activePackageTrial(PartnerStoreAssignmentEntity assignment) {
-        return packageTrialActivationRepository.findFirstByStoreAssignmentIdAndStatusOrderByCreatedAtDesc(assignment.getId(), "ACTIVE")
-            .map(this::toTrialSummary)
+    private PartnerPackageTrialActivationSummary activePackageTrial(PartnerStoreAssignmentEntity assignment,
+                                                                    ShopifyStoreBillingStateSummary billingState) {
+        return packageTrialActivationRepository
+            .findFirstByStoreAssignmentIdAndStatusOrderByCreatedAtDesc(assignment.getId(), PACKAGE_TRIAL_STATUS_ACTIVE)
+            .filter(trial -> !packageTrialBillingDrift(trial, billingState))
+            .map(trial -> toTrialSummary(trial, billingState))
             .orElse(null);
     }
 
-    private List<PartnerPackageTrialActivationSummary> packageTrialHistory(PartnerStoreAssignmentEntity assignment) {
+    private List<PartnerPackageTrialActivationSummary> packageTrialHistory(PartnerStoreAssignmentEntity assignment,
+                                                                           ShopifyStoreBillingStateSummary billingState) {
         return packageTrialActivationRepository.findTop10ByStoreAssignmentIdOrderByCreatedAtDesc(assignment.getId()).stream()
-            .map(this::toTrialSummary)
+            .map(trial -> toTrialSummary(trial, billingState))
             .toList();
     }
 
-    private PartnerPackageTrialActivationSummary toTrialSummary(PartnerPackageTrialActivationEntity trial) {
+    private PartnerPackageTrialActivationSummary toTrialSummary(PartnerPackageTrialActivationEntity trial,
+                                                                ShopifyStoreBillingStateSummary billingState) {
         Instant now = Instant.now();
-        boolean pastDue = "ACTIVE".equals(trial.getStatus())
+        boolean billingDrift = packageTrialBillingDrift(trial, billingState);
+        boolean pastDue = !billingDrift
+            && PACKAGE_TRIAL_STATUS_ACTIVE.equals(trial.getStatus())
             && trial.getTrialEndsAt() != null
             && !trial.getTrialEndsAt().isAfter(now);
-        String effectiveStatus = pastDue ? "PAST_DUE" : trial.getStatus();
+        String effectiveStatus = billingDrift ? PACKAGE_TRIAL_STATUS_BILLING_DRIFT : pastDue ? "PAST_DUE" : trial.getStatus();
         return new PartnerPackageTrialActivationSummary(
             trial.getId(),
             trial.getShopDomain(),
@@ -2424,6 +2449,102 @@ public class PartnerEnablementService {
             pastDue && trial.getDeactivatedAt() == null,
             trial.getUpdatedAt()
         );
+    }
+
+    private void reconcileActivePackageTrialBillingDrift(PartnerContext context,
+                                                         PartnerStoreAssignmentEntity assignment,
+                                                         ShopifyStoreConnectionSummary store,
+                                                         ShopifyStoreBillingStateSummary billingState,
+                                                         Instant now) {
+        packageTrialActivationRepository
+            .findFirstByStoreAssignmentIdAndStatusOrderByCreatedAtDesc(assignment.getId(), PACKAGE_TRIAL_STATUS_ACTIVE)
+            .filter(trial -> packageTrialBillingDrift(trial, billingState))
+            .ifPresent(trial -> markPackageTrialBillingDrift(
+                context,
+                trial,
+                store,
+                billingState,
+                now,
+                "Partner package trial activation reconciled stale billing state before creating a new trial"
+            ));
+    }
+
+    private void markPackageTrialBillingDrift(PartnerContext context,
+                                              PartnerPackageTrialActivationEntity trial,
+                                              ShopifyStoreConnectionSummary store,
+                                              ShopifyStoreBillingStateSummary billingState,
+                                              Instant now,
+                                              String reason) {
+        String currentTier = normalizeRestoreTier(billingState == null ? null : billingState.tierKey());
+        String currentStatus = firstNonBlank(billingState == null ? null : billingState.status(), "ACTIVE").toUpperCase(Locale.ROOT);
+        trial.setStatus(PACKAGE_TRIAL_STATUS_BILLING_DRIFT);
+        trial.setDeactivatedAt(now);
+        trial.setDeactivatedByMemberId(context.member().getId());
+        trial.setDeactivationReason(reason);
+        trial.setDetailsJson(mergeTrialDetails(trial.getDetailsJson(), Map.of(
+            "billingDriftReconciledAt", now.toString(),
+            "currentBillingTier", currentTier,
+            "currentBillingStatus", currentStatus,
+            "expectedSubscriptionId", packageTrialSubscriptionId(trial)
+        )));
+        trial.setUpdatedAt(now);
+        packageTrialActivationRepository.save(trial);
+        ShopifyStoreProvisioningJobSummary job = null;
+        if ("ACTIVE".equalsIgnoreCase(currentStatus)) {
+            job = shopifyStoreProvisioningService.enqueue(
+                store.shopDomain(),
+                new CreateShopifyStoreProvisioningJobRequest(
+                    "PACKAGE_CHANGE",
+                    currentTier,
+                    currentTier,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    reason,
+                    false
+                )
+            );
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("shopDomain", store.shopDomain());
+        details.put("trialTier", trial.getTierKey());
+        details.put("currentBillingTier", currentTier);
+        details.put("currentBillingStatus", currentStatus);
+        details.put("expectedSubscriptionId", packageTrialSubscriptionId(trial));
+        if (job != null) {
+            details.put("provisioningJobId", job.id());
+        }
+        audit(context, "PACKAGE_TRIAL_BILLING_DRIFT_RECONCILED", "PACKAGE_TRIAL", trial.getId(), "SUCCESS", writeJson(details));
+    }
+
+    private boolean packageTrialBillingDrift(PartnerPackageTrialActivationEntity trial,
+                                             ShopifyStoreBillingStateSummary billingState) {
+        if (trial == null || !PACKAGE_TRIAL_STATUS_ACTIVE.equals(trial.getStatus())) {
+            return false;
+        }
+        if (billingState == null) {
+            return false;
+        }
+        if (!"ACTIVE".equalsIgnoreCase(billingState.status())) {
+            return true;
+        }
+        if (!trial.getTierKey().equalsIgnoreCase(firstNonBlank(billingState.tierKey(), "FREE"))) {
+            return true;
+        }
+        return !packageTrialSubscriptionId(trial).equalsIgnoreCase(firstNonBlank(billingState.subscriptionId(), ""));
+    }
+
+    private String packageTrialSubscriptionId(PartnerPackageTrialActivationEntity trial) {
+        return "partner-trial-" + trial.getId();
+    }
+
+    private String mergeTrialDetails(String currentJson, Map<String, ?> driftDetails) {
+        Map<String, Object> merged = new LinkedHashMap<>(readMap(currentJson));
+        merged.put("billingDrift", new LinkedHashMap<>(driftDetails));
+        return writeJson(merged);
     }
 
     private boolean partnerVisibleActivity(PartnerActionAuditEntity entity) {
