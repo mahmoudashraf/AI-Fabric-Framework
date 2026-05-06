@@ -12,6 +12,7 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -467,10 +468,21 @@ public class CoolifyApiClient {
             throw ex;
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Coolify API request interrupted for " + sanitizedPath(path) + ".", ex);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Coolify API request failed for " + sanitizedPath(path) + ".", ex);
+            throw upstreamFailure(path, "Coolify API request interrupted", ex);
+        } catch (IOException ex) {
+            throw upstreamFailure(path, "Coolify API transport failed", ex);
+        } catch (RuntimeException ex) {
+            throw upstreamFailure(path, "Coolify API request failed", ex);
         }
+    }
+
+    private CoolifyApiException upstreamFailure(String path, String message, Throwable cause) {
+        return new CoolifyApiException(
+            message + " for " + sanitizedPath(path) + ".",
+            502,
+            sanitizedPath(path),
+            cause
+        );
     }
 
     private boolean isRetryable(int statusCode) {

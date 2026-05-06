@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CoolifyApiClientTest {
 
@@ -268,6 +269,18 @@ class CoolifyApiClientTest {
         }
     }
 
+    @Test
+    void transportFailuresUseCoolifyUpstreamExceptionContract() {
+        CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+        assertThatThrownBy(() -> client.version(connection("http://127.0.0.1:1")))
+            .isInstanceOfSatisfying(CoolifyApiException.class, exception -> {
+                assertThat(exception.statusCode()).isEqualTo(502);
+                assertThat(exception.path()).isEqualTo("/version");
+                assertThat(exception).hasMessageContaining("Coolify API transport failed");
+            });
+    }
+
     private HttpServer patchServer(AtomicReference<String> observedBody) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/applications/app-uuid", exchange -> {
@@ -438,11 +451,15 @@ class CoolifyApiClientTest {
     }
 
     private CoolifyConnection connection(HttpServer server) {
+        return connection("http://127.0.0.1:" + server.getAddress().getPort());
+    }
+
+    private CoolifyConnection connection(String baseUrl) {
         return new CoolifyConnection(
-            "http://127.0.0.1:" + server.getAddress().getPort(),
+            baseUrl,
             "test-token",
             new CoolifyTargetProfileConfig(
-                "http://127.0.0.1:" + server.getAddress().getPort(),
+                baseUrl,
                 "project-uuid",
                 "staging",
                 "environment-uuid",

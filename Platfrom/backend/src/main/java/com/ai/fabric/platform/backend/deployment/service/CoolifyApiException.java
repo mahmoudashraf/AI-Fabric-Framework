@@ -11,6 +11,12 @@ public class CoolifyApiException extends RuntimeException {
         this.path = path;
     }
 
+    public CoolifyApiException(String message, int statusCode, String path, Throwable cause) {
+        super(message, cause);
+        this.statusCode = statusCode;
+        this.path = path;
+    }
+
     public int statusCode() {
         return statusCode;
     }

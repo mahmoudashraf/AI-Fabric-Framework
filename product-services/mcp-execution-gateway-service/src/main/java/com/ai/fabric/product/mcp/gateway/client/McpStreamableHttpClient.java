@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -33,9 +35,11 @@ public class McpStreamableHttpClient {
     public McpStreamableHttpClient(RestClient.Builder restClientBuilder,
                                    ObjectMapper objectMapper,
                                    McpGatewayProperties properties) {
-        this.restClient = restClientBuilder.build();
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.restClient = restClientBuilder
+            .requestFactory(requestFactory(properties))
+            .build();
     }
 
     public McpSession initialize(URI endpoint, McpRequestOptions options) {
@@ -134,7 +138,16 @@ public class McpStreamableHttpClient {
                 "MCP server returned HTTP " + ex.getStatusCode().value() + ".",
                 ex
             );
+        } catch (RestClientException ex) {
+            throw new ResponseStatusException(BAD_GATEWAY, "MCP server request failed.", ex);
         }
+    }
+
+    private SimpleClientHttpRequestFactory requestFactory(McpGatewayProperties properties) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(properties.connectTimeout());
+        requestFactory.setReadTimeout(properties.readTimeout());
+        return requestFactory;
     }
 
     private void applyMcpHeaders(HttpHeaders headers, McpSession session, McpRequestOptions options) {
