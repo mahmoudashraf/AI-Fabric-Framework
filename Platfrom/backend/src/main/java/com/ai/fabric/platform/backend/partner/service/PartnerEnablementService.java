@@ -1445,10 +1445,13 @@ public class PartnerEnablementService {
             ? null
             : trimToNull(store.packageProfile().verificationPackId());
         if (configuredPackId != null) {
-            return verificationPacks().stream()
+            VerificationPack configuredPack = verificationPacks().stream()
                 .filter(pack -> pack.id().equals(configuredPackId))
                 .findFirst()
-                .orElseGet(this::defaultVerificationPack);
+                .orElse(null);
+            if (configuredPack != null) {
+                return configuredPack;
+            }
         }
         if (store != null && containsForbiddenSurface(storeConfiguredSurfaces(store))) {
             return verificationPack("shopify-companion-elite-readiness");

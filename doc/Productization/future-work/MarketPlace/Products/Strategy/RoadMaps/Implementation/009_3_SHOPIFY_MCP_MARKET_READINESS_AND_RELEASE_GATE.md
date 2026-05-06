@@ -281,6 +281,11 @@ Do not print raw secrets while running these checks.
 - The staging unblock exposed duplicate Coolify env rows on the Bridge app. Platform now hardens `CoolifyApiClient.updateEnvironmentVariables(...)` by reading back env rows after writes and deleting older duplicates for the updated key plus preview scope, preventing stale retained rows from masking runtime env values on later managed applies.
 - Storefront MCP was rechecked after the Customer Account env change: `shopify_search_catalog` still returned HTTP `200`, `success=true`, and normalized `MCP_TOOL_RESULT` evidence through Bridge -> MCP Gateway -> Shopify MCP.
 - Current remaining Customer Account gate is no longer missing endpoint/config. It is the final real customer login and bound-token `tools/call` proof. Checkout MCP remains gated by separate Shopify checkout credentials/readiness.
+- A fresh full gate later exposed stale Partner release-gate auth and package-readiness drift. The Partner Supabase JWT was refreshed from local private Supabase test material and stored back in the Platform secret `PARTNER_SUPABASE_JWT` without printing the token.
+- Staging Platform backend now has a dedicated `PLATFORM_ADMIN_API_KEY` runtime env in Coolify for release-gate operations. The key is stored only in local/private operator material and in Coolify, not in tracked docs.
+- The test shop was reconciled through Platform APIs only: `order-lookup` was removed from enabled storefront surfaces, billing was recorded as `FREE/ACTIVE`, and Free package reconciliation job `spj-b7f16d23` completed `READY`.
+- Partner verification pack selection now ignores unknown configured pack ids before applying governed-surface detection, and `V91__normalize_low_cost_shopify_readiness_pack.sql` normalizes LOW_COST profile rows from old `shopify-companion-free-readiness` to `starter-launch-readiness`.
+- Targeted `partner-enablement-verification` passed after cleanup as run `vsr-5ccfa1a2`.
 
 ### 2026-05-05
 

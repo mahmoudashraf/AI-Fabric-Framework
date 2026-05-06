@@ -734,6 +734,85 @@ class PartnerEnablementIntegrationTest {
     }
 
     @Test
+    void storeVerificationPackUsesEliteWhenLegacyFreePackExposesGovernedSurface() throws Exception {
+        String token = partnerJwt("legacy-pack-user", "legacy-pack-user@example.com");
+        completeSignup(token, "Legacy Pack Partner Workspace");
+        createShopifyStore("shopify-store-legacy-pack", "legacy-pack-client.myshopify.com", "Legacy Pack Client");
+
+        ShopifyStoreConnectionEntity store = storeConnectionRepository.findById("shopify-store-legacy-pack").orElseThrow();
+        store.setDetailsJson("""
+            {
+              "packageState": {
+                "profileKey": "LOW_COST",
+                "packageKey": "FREE",
+                "tierKey": "FREE",
+                "displayName": "Low cost",
+                "costPosture": "LOW",
+                "runtimeProfileKey": "LOW_COST",
+                "vectorProfileKey": "QDRANT_SHARED",
+                "verificationPackId": "shopify-companion-free-readiness",
+                "lastReconciledAt": "2026-04-25T22:00:00Z"
+              },
+              "widget": {
+                "settings": {
+                  "enabledSurfaces": ["ai-search", "order-lookup"],
+                  "allowedConversationModes": ["navigator"],
+                  "defaultConversationMode": "navigator"
+                }
+              }
+            }
+            """);
+        storeConnectionRepository.save(store);
+
+        var implementationResult = mockMvc.perform(post("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clientName": "Legacy Pack Client",
+                      "storeConnectionId": "shopify-store-legacy-pack"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+
+        var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "legacy-pack-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andReturn();
+        String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
+
+        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "legacy-pack-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Merchant Owner",
+                      "approverEmail": "owner@example.com",
+                      "approvedScope": "FULL_STORE_ACCESS"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+        mockMvc.perform(get("/api/partners/client-implementations/{requestId}", implementationId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("APPROVED")));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/verification-pack", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is("shopify-companion-elite-readiness")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'elite-package-profile')].status", hasItem("FAILED")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'elite-surface-posture')].status", hasItem("PASSED")));
+    }
+
+    @Test
     void packageTrialActivationRequiresPlatformGrantedPrivilegeAndManualPastDueDeactivation() throws Exception {
         String token = partnerJwt("trial-user", "trial-user@example.com");
         String sessionPayload = completeSignup(token, "Trial Partner Workspace");

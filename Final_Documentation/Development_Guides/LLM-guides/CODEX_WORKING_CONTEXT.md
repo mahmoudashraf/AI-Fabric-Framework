@@ -966,3 +966,12 @@ Critical fixes that made the gate pass:
   - Customer Account action probe for `shopify_get_customer_orders` returned HTTP `409` / `CUSTOMER_ACCOUNT_AUTH_REQUIRED`, proving the path is configured and now gated on shopper login rather than missing env.
   - Storefront MCP `shopify_search_catalog` still returned HTTP `200`, `success=true`, and normalized `MCP_TOOL_RESULT` evidence through Bridge -> MCP Gateway -> Shopify MCP.
 - Remaining live claim gate: a real staging customer login must complete the Shopify-hosted OAuth callback before Customer Account MCP `tools/call` can be live-verified with a bound customer token. Checkout MCP still requires its separate Shopify checkout credentials/readiness.
+
+## 2026-05-06 Shopify Partner Readiness Pack Cleanup
+
+- Fresh `partner-enablement-verification` initially failed after the expired Partner Supabase JWT was refreshed because the staging test shop exposed `order-lookup` while its effective package profile was still LOW_COST/FREE. The Partner script selected Elite readiness from the live surface set, but the store verification endpoint returned Starter because the LOW_COST profile still carried old `shopify-companion-free-readiness` metadata.
+- Code fix: Partner verification pack selection now ignores unknown configured pack ids and falls through to governed-surface detection, so legacy/free metadata cannot mask an Elite/governed surface posture.
+- Migration `V91__normalize_low_cost_shopify_readiness_pack.sql` normalizes existing LOW_COST profile rows from `shopify-companion-free-readiness` to `starter-launch-readiness`.
+- Regression coverage: `PartnerEnablementIntegrationTest#storeVerificationPackUsesEliteWhenLegacyFreePackExposesGovernedSurface` covers a legacy LOW_COST package state with `order-lookup` and verifies the endpoint selects the Elite readiness pack.
+- Live staging cleanup was done only through Platform APIs: removed `order-lookup` from `shopping-companion-test.myshopify.com` widget surfaces, recorded billing `FREE/ACTIVE`, and ran Free package reconciliation job `spj-b7f16d23` to `READY`.
+- Targeted staging suite `partner-enablement-verification` then passed as run `vsr-5ccfa1a2`.
