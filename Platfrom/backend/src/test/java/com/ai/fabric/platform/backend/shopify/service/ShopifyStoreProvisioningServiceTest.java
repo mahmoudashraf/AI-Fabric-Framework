@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceI
 import com.ai.fabric.platform.backend.marketplace.service.MarketplaceCatalogService;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntity;
 import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreProvisioningJobEntity;
+import com.ai.fabric.platform.backend.shopify.model.CreateShopifyStoreProvisioningJobRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyCompanionPackageProfileSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreProvisioningJobSummary;
@@ -248,6 +249,75 @@ class ShopifyStoreProvisioningServiceTest {
         verify(vectorizationService, never()).reconcileForTrustedCaller(any());
     }
 
+    @Test
+    void enqueueExplicitPackageChangeDoesNotReuseStaleRuntimeProfile() {
+        ShopifyStoreProvisioningJobRepository jobRepository = mock(ShopifyStoreProvisioningJobRepository.class);
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        ShopifyStoreBootstrapService bootstrapService = mock(ShopifyStoreBootstrapService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
+        ShopifyStoreSourcePreflightSupport detailsSupport =
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper().findAndRegisterModules());
+        ShopifyCompanionPackageProfileCatalogService profileCatalogService = mock(ShopifyCompanionPackageProfileCatalogService.class);
+        DeploymentMarketplaceInstallService marketplaceInstallService = mock(DeploymentMarketplaceInstallService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+
+        ShopifyStoreConnectionEntity store = store();
+        store.setDetailsJson("""
+            {"packageState":{"packageKey":"ELITE","tierKey":"ELITE","runtimeProfileKey":"HIGH_QUALITY","vectorProfileKey":"QDRANT_SHARED"}}
+            """.trim());
+        ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile freeProfile = freeProfile();
+
+        when(storeRepository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(jobRepository.findFirstByShopDomainIgnoreCaseAndStatusInOrderByCreatedAtDesc(eq("alpha.myshopify.com"), any()))
+            .thenReturn(Optional.empty());
+        when(jobRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(profileCatalogService.resolve("FREE", "FREE", null, null)).thenReturn(freeProfile);
+
+        ShopifyStoreProvisioningService service = new ShopifyStoreProvisioningService(
+            jobRepository,
+            storeRepository,
+            deploymentRepository,
+            bootstrapService,
+            vectorizationService,
+            detailsSupport,
+            profileCatalogService,
+            marketplaceInstallService,
+            draftCompilerService,
+            marketplaceCatalogService,
+            auditService,
+            new TransactionTemplate(transactionManager)
+        );
+
+        ShopifyStoreProvisioningJobSummary summary = service.enqueue(
+            "alpha.myshopify.com",
+            new CreateShopifyStoreProvisioningJobRequest(
+                "PACKAGE_CHANGE",
+                "FREE",
+                "FREE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Billing reconciliation.",
+                false
+            )
+        );
+
+        assertThat(summary.requestedPackageKey()).isEqualTo("FREE");
+        assertThat(summary.requestedTierKey()).isEqualTo("FREE");
+        assertThat(summary.requestedRuntimeProfileKey()).isEqualTo("LOW_COST");
+        assertThat(summary.previousPackageKey()).isEqualTo("ELITE");
+        verify(profileCatalogService).resolve("FREE", "FREE", null, null);
+        verify(profileCatalogService, never()).resolve("FREE", "FREE", "HIGH_QUALITY", "QDRANT_SHARED");
+    }
+
     private ShopifyStoreConnectionEntity store() {
         ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
         entity.setId("shp-123");
@@ -332,6 +402,62 @@ class ShopifyStoreProvisioningServiceTest {
             ),
             List.of(
                 "mkp-action-shopify-companion-read",
+                "mkp-action-shopify-customer-account-mcp",
+                "mkp-action-shopify-checkout-mcp"
+            ),
+            summary
+        );
+    }
+
+    private ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile freeProfile() {
+        ShopifyCompanionPackageProfileSummary summary = new ShopifyCompanionPackageProfileSummary(
+            "LOW_COST",
+            "FREE",
+            "FREE",
+            "LOW_COST",
+            "QDRANT_SHARED",
+            "Low cost",
+            "Free generation and shared vector storage.",
+            "LOW",
+            "mkp-template-shopify-companion",
+            null,
+            "dev-openai-qdrant",
+            "mkp-inference-shared-embeddings",
+            "qdrant",
+            "EXTERNAL_EXISTING",
+            "SHARED",
+            "shopify-companion-free-readiness",
+            "ACTIVE",
+            "{}",
+            null,
+            null
+        );
+        return new ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile(
+            "LOW_COST",
+            "FREE",
+            "FREE",
+            "LOW_COST",
+            "QDRANT_SHARED",
+            "Low cost",
+            "Free generation and shared vector storage.",
+            "LOW",
+            "mkp-template-shopify-companion",
+            null,
+            "dev-openai-qdrant",
+            "mkp-inference-shared-embeddings",
+            "qdrant",
+            "EXTERNAL_EXISTING",
+            "SHARED",
+            "shopify-companion-free-readiness",
+            List.of(
+                "mkp-action-shopify-storefront-read-mcp",
+                "mkp-data-shopify-catalog",
+                "mkp-data-shopify-policies",
+                "mkp-inference-shared-embeddings"
+            ),
+            List.of(
+                "mkp-action-shopify-companion-read",
+                "mkp-action-shopify-cart-mcp",
                 "mkp-action-shopify-customer-account-mcp",
                 "mkp-action-shopify-checkout-mcp"
             ),

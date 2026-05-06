@@ -529,11 +529,20 @@ public class ShopifyStoreProvisioningService {
     private ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile resolveRequestedProfile(ShopifyStoreConnectionEntity store,
                                                                                                        CreateShopifyStoreProvisioningJobRequest request) {
         ShopifyStorePackageState current = readPackageState(store);
+        String requestedPackageKey = request == null ? null : request.requestedPackageKey();
+        String requestedTierKey = request == null ? null : request.requestedTierKey();
+        boolean packageOrTierRequested = hasText(requestedPackageKey) || hasText(requestedTierKey);
         return profileCatalogService.resolve(
-            firstText(request == null ? null : request.requestedPackageKey(), current.packageKey()),
-            firstText(request == null ? null : request.requestedTierKey(), current.tierKey()),
-            firstText(request == null ? null : request.requestedRuntimeProfileKey(), current.runtimeProfileKey()),
-            firstText(request == null ? null : request.requestedVectorProfileKey(), current.vectorProfileKey())
+            firstText(requestedPackageKey, current.packageKey()),
+            firstText(requestedTierKey, current.tierKey()),
+            firstText(
+                request == null ? null : request.requestedRuntimeProfileKey(),
+                packageOrTierRequested ? null : current.runtimeProfileKey()
+            ),
+            firstText(
+                request == null ? null : request.requestedVectorProfileKey(),
+                packageOrTierRequested ? null : current.vectorProfileKey()
+            )
         );
     }
 
