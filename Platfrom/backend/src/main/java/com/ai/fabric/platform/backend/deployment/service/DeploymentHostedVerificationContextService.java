@@ -108,6 +108,7 @@ public class DeploymentHostedVerificationContextService {
         env.put("PLATFORM_EXPECT_VERSION_ID", version.getId());
         env.put("PLATFORM_EXPECT_RELEASE_STATUS", normalizeExpectation(release.getStatus(), "APPLIED"));
         env.put("PLATFORM_EXPECT_VERIFICATION_STATUS", normalizeExpectation(release.getVerificationStatus(), "UNKNOWN"));
+        putIfPresent(env, "PLATFORM_TARGET_PROFILE_ID", release.getTargetProfileId());
         env.put("VERIFY_WRITE", Boolean.toString(verifyWrite));
         DeploymentTenantScopedVectorSummary tenantScopedSummary = deploymentTenantScopedVectorService.build(deployment, providerConfig);
         DeploymentVectorizationVerificationSummary vectorizationSummary = deploymentVectorizationVerificationService.build(deployment, entityConfig);

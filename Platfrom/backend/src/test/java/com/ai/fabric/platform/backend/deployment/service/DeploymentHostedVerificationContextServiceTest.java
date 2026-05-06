@@ -64,6 +64,7 @@ class DeploymentHostedVerificationContextServiceTest {
         release.setDeploymentVersionId("ver-marketplace");
         release.setStatus("APPLIED_VERIFIED");
         release.setVerificationStatus("PASSED");
+        release.setTargetProfileId("dtp-coolify-staging");
 
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-marketplace");
@@ -186,6 +187,7 @@ class DeploymentHostedVerificationContextServiceTest {
 
         assertThat(context.profile()).isEqualTo("marketplace-runtime");
         assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
+        assertThat(context.env()).containsEntry("PLATFORM_TARGET_PROFILE_ID", "dtp-coolify-staging");
         assertThat(context.env()).containsEntry("VERIFY_MARKETPLACE_RUNTIME", "true");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");

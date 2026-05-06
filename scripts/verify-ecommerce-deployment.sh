@@ -70,6 +70,7 @@ PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
 PLATFORM_COOKIE="${PLATFORM_COOKIE:-}"
 PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
+PLATFORM_TARGET_PROFILE_ID="${PLATFORM_TARGET_PROFILE_ID:-}"
 PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
 PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
 PLATFORM_EXPECT_PREFLIGHT_READY="${PLATFORM_EXPECT_PREFLIGHT_READY:-true}"
@@ -1512,6 +1513,40 @@ PY
   return "${rc}"
 }
 
+discover_platform_target_profile_id() {
+  local tmp
+  tmp="$(mktemp)"
+  printf '%s' "${HTTP_BODY}" > "${tmp}"
+  python3 - <<'PY' "${tmp}"
+import json
+import pathlib
+import sys
+
+raw = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").strip()
+profiles = json.loads(raw) if raw else []
+if not isinstance(profiles, list):
+    raise SystemExit(1)
+
+def is_candidate(item):
+    return isinstance(item, dict) and item.get("active") is True
+
+for predicate in (
+    lambda item: item.get("defaultForRuntime") is True,
+    lambda item: item.get("defaultForRestartableServices") is True,
+    lambda item: item.get("platformServicesAllowed") is True,
+    lambda item: True,
+):
+    for item in profiles:
+        if is_candidate(item) and predicate(item) and item.get("id"):
+            print(item["id"])
+            raise SystemExit(0)
+raise SystemExit(1)
+PY
+  local rc=$?
+  rm -f "${tmp}"
+  return "${rc}"
+}
+
 resolve_ecommerce_sample_skus() {
   if [[ -z "${STORE_BASE_URL}" ]]; then
     return
@@ -2019,19 +2054,38 @@ if [[ "${RUN_PLATFORM_CHECKS}" == "true" ]]; then
 
   platform_http GET "${PLATFORM_BASE_URL}/api/platform/overview"
   assert_status 200 "platform overview"
-  json_assert "platform overview" $'caps = set((data or {}).get("capabilities") or [])\nfor req in ["verification","railway-preflight","release-progress-tracking","config-drift-verification"]:\n  assert req in caps\nprint("ok")'
+  json_assert "platform overview" $'caps = set((data or {}).get("capabilities") or [])\nfor req in ["verification","release-progress-tracking","config-drift-verification"]:\n  assert req in caps\nassert "provider-preflight" in caps or "railway-preflight" in caps\nprint("ok")'
   pass "platform GET /api/platform/overview"
 
   echo ""
-  echo "== Platform Railway Preflight =="
-  platform_http GET "${PLATFORM_BASE_URL}/api/platform/provisioning/railway/preflight"
-  assert_status 200 "platform railway preflight"
-  if [[ "${PLATFORM_EXPECT_PREFLIGHT_READY}" == "true" ]]; then
-    json_assert "platform railway preflight" $'assert (data or {}).get("ready") is True\nchecks = (data or {}).get("checks") or []\nassert len(checks) > 0\nfailed = [item for item in checks if (item or {}).get("status") == "FAILED"]\nassert not failed, failed\nprint("ok")'
-  else
-    json_assert "platform railway preflight" $'checks = (data or {}).get("checks") or []\nassert len(checks) > 0\nprint("ok")'
+  if [[ -z "${PLATFORM_TARGET_PROFILE_ID}" ]]; then
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployment-provider/target-profiles?providerType=COOLIFY"
+    if [[ "${HTTP_STATUS}" == "200" ]]; then
+      PLATFORM_TARGET_PROFILE_ID="$(discover_platform_target_profile_id || true)"
+    fi
   fi
-  pass "platform GET /api/platform/provisioning/railway/preflight"
+
+  if [[ -n "${PLATFORM_TARGET_PROFILE_ID}" ]]; then
+    echo "== Platform Provider Preflight =="
+    platform_http GET "${PLATFORM_BASE_URL}/api/deployment-provider/target-profiles/${PLATFORM_TARGET_PROFILE_ID}/preflight"
+    assert_status 200 "platform provider preflight"
+    if [[ "${PLATFORM_EXPECT_PREFLIGHT_READY}" == "true" ]]; then
+      json_assert "platform provider preflight" $'assert (data or {}).get("targetProfileId") == "'"${PLATFORM_TARGET_PROFILE_ID}"'"\nassert (data or {}).get("status") == "PASSED", data\nchecks = (data or {}).get("checks") or []\nassert len(checks) > 0\nprint("ok")'
+    else
+      json_assert "platform provider preflight" $'checks = (data or {}).get("checks") or []\nassert len(checks) > 0\nprint("ok")'
+    fi
+    pass "platform GET /api/deployment-provider/target-profiles/${PLATFORM_TARGET_PROFILE_ID}/preflight"
+  else
+    echo "== Platform Railway Preflight =="
+    platform_http GET "${PLATFORM_BASE_URL}/api/platform/provisioning/railway/preflight"
+    assert_status 200 "platform railway preflight"
+    if [[ "${PLATFORM_EXPECT_PREFLIGHT_READY}" == "true" ]]; then
+      json_assert "platform railway preflight" $'assert (data or {}).get("ready") is True\nchecks = (data or {}).get("checks") or []\nassert len(checks) > 0\nfailed = [item for item in checks if (item or {}).get("status") == "FAILED"]\nassert not failed, failed\nprint("ok")'
+    else
+      json_assert "platform railway preflight" $'checks = (data or {}).get("checks") or []\nassert len(checks) > 0\nprint("ok")'
+    fi
+    pass "platform GET /api/platform/provisioning/railway/preflight"
+  fi
 
   echo ""
   echo "== Platform Deployment Workspace =="
