@@ -61,7 +61,7 @@ Default deploy posture in this repo:
 - the built merchant UI is copied into the Shopify Bridge container
 - the bridge service serves the embedded app shell and `/assets/**` from that bundled UI directory
 - Coolify, Railway, local Docker, and CI should use `deploy/container/Dockerfile`
-- `deploy/railway/Dockerfile` is kept only for existing Railway projects that already point there
+- Railway support must point at the same neutral Dockerfile with provider-specific env, domain, healthcheck, and resource settings managed in Railway
 
 ## Important boundary
 

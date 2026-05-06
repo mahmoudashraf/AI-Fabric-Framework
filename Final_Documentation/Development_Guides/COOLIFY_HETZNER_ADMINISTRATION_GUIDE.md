@@ -211,7 +211,7 @@ Platform-managed product services must use provider-neutral Dockerfile paths for
 - Shopify Bridge: `product-services/shopify-bridge-service/deploy/container/Dockerfile`
 - MCP Execution Gateway: `product-services/mcp-execution-gateway-service/deploy/container/Dockerfile`
 
-Coolify application `dockerfile_location` values should point to these paths with a leading slash because Coolify builds from the monorepo root. Railway can use the same paths. The old `deploy/railway/Dockerfile` paths are compatibility paths for existing Railway projects only.
+Coolify application `dockerfile_location` values should point to these paths with a leading slash because Coolify builds from the monorepo root. Railway support uses the same paths from the repository root. Do not create provider-specific product-service Dockerfiles.
 
 Do not configure product-service secrets as build-time variables. Shopify credentials, webhook secrets, Platform service keys, MCP gateway keys, and downstream MCP credentials must be runtime environment variables in Coolify or Railway.
 

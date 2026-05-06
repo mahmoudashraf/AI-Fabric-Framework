@@ -58,7 +58,7 @@ product-services/mcp-execution-gateway-service/deploy/container/Dockerfile
 product-services/shopify-bridge-service/deploy/container/Dockerfile
 ```
 
-Coolify and Railway may both deploy these images. Provider-specific compatibility paths such as `deploy/railway/Dockerfile` are only for existing projects that still point there.
+Coolify and Railway may both deploy these images. Provider-specific app settings may differ, but product-service image paths must stay provider-neutral.
 
 Secrets must be runtime environment variables in the deployment provider. Do not pass vendor keys, webhook secrets, internal service keys, or MCP credentials as Docker build arguments.
 

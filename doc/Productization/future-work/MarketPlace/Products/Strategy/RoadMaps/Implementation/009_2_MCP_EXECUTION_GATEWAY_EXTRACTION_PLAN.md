@@ -258,7 +258,7 @@ serviceRoot: product-services/mcp-execution-gateway-service
 dockerfilePath: product-services/mcp-execution-gateway-service/deploy/container/Dockerfile
 ```
 
-Use the provider-neutral `deploy/container/Dockerfile` path for new Platform-managed product-service records. `deploy/railway/Dockerfile` is a compatibility path only for existing Railway projects that still reference it.
+Use the provider-neutral `deploy/container/Dockerfile` path for Platform-managed product-service records on Coolify, Railway, or any later container provider. Provider-specific deployment settings belong in the target profile/provider app, not in service-specific Dockerfile paths.
 
 Platform remains the source of truth for the service definition. Coolify is the provider runtime. Operators must not have to manually recreate the gateway from the Coolify UI for normal lifecycle work.
 
