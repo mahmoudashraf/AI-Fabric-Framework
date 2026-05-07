@@ -998,3 +998,13 @@ Critical fixes that made the gate pass:
 - `/api/verification-suites/release-gate` returned `READY=true` / `status=READY`; freshness expires at `2026-05-07T10:36:55Z`.
 - Hosted evidence from `vsr-90ca64ba`: marketplace `hvr-b885536b` passed with 42 passes / 2 warnings, ecommerce `hvr-8a0d4ce5` passed with 43 passes / 2 warnings, and qdrant `hvr-551c1c39` passed with 43 passes / 2 warnings.
 - Remaining live claim gates are unchanged: Customer Account MCP still needs a real staging customer login/bound-token `tools/call` proof after protected-data posture is confirmed; Checkout MCP still needs separate Shopify checkout credentials/readiness before any live checkout claim.
+
+## 2026-05-07 Fresh 009.3 Release Gate Pass
+
+- A fresh full staging gate after the Customer Account MCP custom-domain unblock first failed as run `vsr-640bca52` at `partner-enablement-verification` because the stored Partner Supabase JWT had expired.
+- Refreshed the Partner Supabase JWT from local private Supabase test-account material, stored it in `/tmp/partner_supabase_jwt.secret`, and updated Platform secret `PARTNER_SUPABASE_JWT` without printing the token.
+- Targeted `partner-enablement-verification` passed as run `vsr-7013bc78`.
+- Fresh `full-platform-release-readiness` passed as run `vsr-b71dbec2`, completed `2026-05-07T00:18:10Z`; `/api/verification-suites/release-gate` returned `READY=true` / `status=READY` with freshness expiry `2026-05-07T12:18:10Z`.
+- The full pass covered all 14 stages, including Shopify Companion verification, Shopify MCP Gateway verification, Shopify first-product readiness audit, Partner enablement, Thinker resolver readiness, and all hosted verification stages.
+- Hosted verification evidence from `vsr-b71dbec2`: marketplace passed with 42 passes / 2 warnings, ecommerce passed with 43 passes / 2 warnings, and Qdrant passed with 43 passes / 2 warnings.
+- Remaining live claim gates: Customer Account MCP still needs a real staging customer browser login and bound-token `tools/call`; Checkout MCP still needs `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`. Production was not deployed.

@@ -1,6 +1,6 @@
 # 009.3 Shopify MCP Market Readiness And Release Gate
 
-Status: staging release gate passed on 2026-05-06. Latest full pass is `vsr-90ca64ba`, completed at `2026-05-06T22:36:55Z`. Staging is the active target. Production is not deployed by this plan.
+Status: staging release gate passed on 2026-05-07. Latest full pass is `vsr-b71dbec2`, completed at `2026-05-07T00:18:10Z`; release-gate freshness expires at `2026-05-07T12:18:10Z`. Staging is the active target. Production is not deployed by this plan.
 
 Parent plans:
 
@@ -261,6 +261,19 @@ Do not print raw secrets while running these checks.
 ---
 
 ## Release Gate Remediation Log
+
+### 2026-05-07
+
+- A fresh full staging gate (`vsr-640bca52`) was rerun after the Customer Account MCP custom-domain unblock and failed at `partner-enablement-verification` because the stored Partner Supabase JWT was expired/invalid.
+- The Partner Supabase JWT was refreshed from local private Supabase test-account material and written back to Platform secret `PARTNER_SUPABASE_JWT` without printing the token.
+- Targeted `partner-enablement-verification` then passed as run `vsr-7013bc78`.
+- Fresh `full-platform-release-readiness` passed as run `vsr-b71dbec2`, completed at `2026-05-07T00:18:10Z`; `/api/verification-suites/release-gate` returned `READY=true` / `status=READY` with freshness expiry `2026-05-07T12:18:10Z`.
+- `vsr-b71dbec2` passed all 14 release stages: shared inference health, Platform admin live regression, canonical rollout inventory, managed vector provider verification, Coolify provider verification, Marketplace install flow, Shopify Companion verification, Shopify MCP Gateway verification, Shopify first-product readiness audit, Partner enablement, Thinker resolver readiness, Marketplace hosted verification, ecommerce hosted verification, and Qdrant hosted verification.
+- Hosted verification evidence from `vsr-b71dbec2`: marketplace passed with 42 passes / 2 warnings, ecommerce passed with 43 passes / 2 warnings, and Qdrant passed with 43 passes / 2 warnings.
+- Shopify Storefront MCP remains live for the first product path: Bridge readiness is ready for Storefront MCP and the `shopify_search_catalog` path is covered by the passing `shopify-mcp-gateway-verification` stage.
+- Customer Account MCP staging config/OAuth start is complete, including the custom storefront domain `shop-staging.loomai.pro`; the remaining claim gate is a real customer browser login through Shopify-hosted auth and a bound-token safe `tools/call`.
+- Checkout MCP remains externally gated because `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET` are still missing from Platform secrets.
+- Production was not deployed or claimed by this pass.
 
 ### 2026-05-06
 
