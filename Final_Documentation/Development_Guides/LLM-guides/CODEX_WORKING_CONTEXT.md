@@ -957,6 +957,14 @@ Critical fixes that made the gate pass:
 ## 2026-05-06 Shopify Customer Account Staging Unblock
 
 - Deployed Shopify Bridge staging to commit `2c3c4306a` and configured the staging Customer Account MCP env in Coolify without printing raw secrets.
+
+## 2026-05-07 Shopify Customer Account Custom Domain Unblock
+
+- Added `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` to Bridge config, Platform secret catalog, managed product-service env propagation, tests, and 009/009.3 docs. Staging value is `shop-staging.loomai.pro`; Bridge uses it for Customer Account OAuth discovery/safe returns while keeping sessions bound to `shopping-companion-test.myshopify.com`.
+- Added missing Platform secret catalog/env propagation for `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT` and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT`.
+- Live staging operations: Platform and Bridge were deployed through Coolify to `8ddbf9829`, then Platform to `3d711609a`; Platform-managed Bridge reconcile succeeded with `lastDeploymentId=k7dywpb0hyuqafrwigm089t1`.
+- Fixed staging Platform host env posture by adding non-preview Coolify env rows for `PLATFORM_DEPLOY_REPOSITORY=mahmoudashraf/AI-Fabric-Framework`, `PLATFORM_DEPLOY_BRANCH=Platform-V8`, and `PLATFORM_PROVISIONING_MODE=COOLIFY`; preview-only rows were not driving live product-service reconcile.
+- Live checks passed: `shop-staging.loomai.pro` resolves/serves the Shopify password page; Bridge health is `UP`; Customer Account auth start returns HTTP `302` to Shopify OAuth; session status is `configured=true`, `authenticated=false`; `shopify_get_customer_orders` fails closed with `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a real customer browser login binds the shopper session.
 - Cleaned duplicate Coolify env rows on the staging Bridge app. The duplicates were operationally significant: retained older rows caused the running Bridge to miss `SHOPIFY_BRIDGE_SHOPIFY_API_SECRET`, `SHOPIFY_BRIDGE_SHOPIFY_API_KEY`, `SHOPIFY_BRIDGE_PLATFORM_BASE_URL`, and `SHOPIFY_BRIDGE_SHARED_SECRET` even though Coolify still showed values in the UI/API.
 - Patched `CoolifyApiClient.updateEnvironmentVariables(...)` so Platform-managed Coolify env writes read back application env rows and delete older duplicates for the updated key plus preview scope. Preview and normal rows remain separate.
 - Live staging verification after cleanup and redeploy:
