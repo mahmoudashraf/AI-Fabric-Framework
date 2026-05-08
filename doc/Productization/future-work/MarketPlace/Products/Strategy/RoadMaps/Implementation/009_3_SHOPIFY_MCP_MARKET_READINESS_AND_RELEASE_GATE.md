@@ -297,6 +297,14 @@ Do not print raw secrets while running these checks.
 - Checkout MCP remains externally gated because `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET` are still missing from Platform secrets.
 - Production was not deployed or claimed by this pass.
 
+### 2026-05-08 Final Staging Gate After Checkout Direct-Call Hardening
+
+- Commit `0fe8ae8cb` (`Support checkout MCP direct calls`) was pushed and the managed staging MCP Gateway plus Shopify Bridge were reconciled through Platform/Coolify.
+- Checkout UCP now uses direct JSON-RPC `tools/call` through MCP Gateway, and Bridge/Gateway pass Shopify's required buyer IP as `Shopify-Buyer-IP` from server request context.
+- Focused `scripts/verify-shopify-mcp-gateway.sh` passed against staging after reconcile.
+- Full Platform release gate passed as `vsr-4efedfd2`, all 14 stages green, completed `2026-05-08T23:20:46.361081Z`; `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, with freshness expiry `2026-05-09T11:20:46.361081Z`.
+- Managed Checkout MCP remains intentionally claim-gated by the Shopify staging storefront password: Bridge returns the explicit `MCP server returned HTTP 302 redirect to /password.` error. No password-cookie bypass was added to production code.
+
 ### 2026-05-06
 
 - Latest staging release-gate evidence after Platform admin-key rotation: `full-platform-release-readiness` passed as run `vsr-90ca64ba`, completed at `2026-05-06T22:36:55Z`; `/api/verification-suites/release-gate` returned `READY=true` / `status=READY` with freshness expiry `2026-05-07T10:36:55Z`.

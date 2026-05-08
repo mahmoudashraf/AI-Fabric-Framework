@@ -1038,3 +1038,17 @@ Critical fixes that made the gate pass:
 - Post-reconcile live proof: direct MCP Gateway `tools/list` for `shopify-checkout` and Bridge `shopify_get_checkout` both fail with the explicit message `MCP server returned HTTP 302 redirect to /password.`
 - Focused Shopify MCP gateway verification passed against staging after the redeploy: `scripts/verify-shopify-mcp-gateway.sh`.
 - Fresh full release gate passed as `vsr-4a50d909` with 14/14 stages passed, including `shopify-mcp-gateway-verification`. `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, completed `2026-05-08T22:41:28.687806Z`, and expires `2026-05-09T10:41:28.687806Z`.
+
+## 2026-05-08 Checkout MCP Direct-Call Hardening And Final Gate
+
+- Local direct Shopify Checkout MCP diagnosis with a storefront browser/password session plus `Shopify-Buyer-IP` reached `/api/ucp/mcp` and returned a governed UCP `invalid_checkout_id` result for a safe invalid `get_checkout` id. This proves the remaining managed-path blocker is storefront password protection, not checkout credentials, agent profile, or buyer-IP header semantics.
+- Code hardening commit `0fe8ae8cb` (`Support checkout MCP direct calls`) was pushed to `origin/Platform-V8`.
+- MCP Gateway now uses direct JSON-RPC `tools/call` for Checkout UCP actions instead of `initialize` / `tools/list`, maps server-derived `buyerIp` trace to Shopify's required `Shopify-Buyer-IP` header, and keeps normal MCP schema verification unchanged for non-Checkout MCP actions.
+- Shopify Bridge now enriches action trace with server-derived `buyerIp` and `buyerUserAgent` from the incoming request before delegating to the MCP Gateway.
+- Platform's default Shopify UCP profile was updated to Shopify's cart-and-checkout profile for future managed Gateway reconciles.
+- Verification passed before deployment: full `mvn -f product-services/shopify-bridge-service/pom.xml -q test`, full `mvn -f product-services/mcp-execution-gateway-service/pom.xml -q test`, `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformManagedProductAdminServiceTest test`, and `git diff --check`.
+- Platform-managed MCP Gateway and Shopify Bridge were reconciled through Platform/Coolify staging after the push; both returned `ACTIVE`, `lastReconcileStatus=SUCCESS`, `driftStatus=NO_DRIFT`, and health `READY` / actuator `UP`.
+- Focused staging verifier passed again: `scripts/verify-shopify-mcp-gateway.sh`.
+- Managed Bridge Checkout MCP probe now fails correctly with `MCP server returned HTTP 302 redirect to /password.` No password cookie or storefront-password bypass was added to Bridge or MCP Gateway.
+- Partner Supabase JWT expired during the first full-gate rerun; it was refreshed from private test-account material and stored back into Platform secret `PARTNER_SUPABASE_JWT` without printing the token. Standalone Partner suite `vsr-457143f5` passed after refresh.
+- Fresh full release gate passed as `vsr-4efedfd2` with all 14 stages green, completed `2026-05-08T23:20:46.361081Z`; `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, freshness expires `2026-05-09T11:20:46.361081Z`.
