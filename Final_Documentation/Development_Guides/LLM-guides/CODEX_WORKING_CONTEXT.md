@@ -1021,4 +1021,7 @@ Critical fixes that made the gate pass:
 - Deployment hygiene correction: the first catalog commit changed already-applied Flyway migration `V83`, and staging correctly rejected it with a checksum mismatch. The follow-up commit restored `V83` unchanged and left catalog convergence in additive `V92` only.
 - Staging Platform deploy from commit `996785fa7` completed in Coolify deployment `ateasu96dnfetqysbd0ku4l0`; `/actuator/health` returned `UP`, and the live Marketplace endpoint returned plugin version `1.0.1` with only `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
 - Post-deploy bound-token proof passed again through Bridge -> MCP Gateway -> Shopify Customer Account MCP for both live catalog tools. The test customer still has no orders, so Shopify returned successful MCP tool envelopes containing no-order/not-found tool text.
+- Final staging deploy from branch HEAD commit `edc8d5b61` completed in Coolify deployment `dbudzzhqpe2bpq67irxit9jk`; Platform health stayed `UP`.
+- Partner Supabase JWT was refreshed again from private test-account material and stored back into Platform secret `PARTNER_SUPABASE_JWT` without printing the token.
+- Fresh full release gate passed as `vsr-a3069cb1` with 14/14 stages passed. `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, completed `2026-05-08T21:52:05.687947Z`, and expires `2026-05-09T09:52:05.687947Z`.
 - Checkout MCP remains gated by missing Platform secrets `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.

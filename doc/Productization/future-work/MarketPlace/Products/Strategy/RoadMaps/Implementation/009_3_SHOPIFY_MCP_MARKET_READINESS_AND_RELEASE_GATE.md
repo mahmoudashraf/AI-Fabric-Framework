@@ -276,6 +276,9 @@ Do not print raw secrets while running these checks.
 - Deployment remediation: an initial commit changed already-applied migration `V83`, which staging correctly rejected with a Flyway checksum mismatch. The fix restored `V83` unchanged and kept the deployed-catalog change in additive migration `V92` only.
 - Staging deploy from commit `996785fa7` completed through Coolify deployment `ateasu96dnfetqysbd0ku4l0`; Platform health returned `UP`, and the live Marketplace endpoint returned Customer Account MCP plugin version `1.0.1` with only `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
 - Post-deploy bound-token proof passed again through Bridge -> MCP Gateway -> Shopify Customer Account MCP for both live catalog tools. The staging test customer has no orders, so Shopify returned successful MCP envelopes with no-order/not-found tool text.
+- Final staging deploy from branch HEAD commit `edc8d5b61` completed through Coolify deployment `dbudzzhqpe2bpq67irxit9jk`; Platform health returned `UP`.
+- The Partner Supabase JWT was refreshed again from local private test-account material and stored back into Platform secret `PARTNER_SUPABASE_JWT` without printing the token.
+- Fresh full release gate `vsr-a3069cb1` passed with all 14 stages green. `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, completed `2026-05-08T21:52:05.687947Z`, and expires `2026-05-09T09:52:05.687947Z`.
 - Checkout MCP remains externally gated because `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET` are still missing from Platform secrets.
 
 ### 2026-05-07
