@@ -146,6 +146,7 @@ Prepared platform/Bridge behavior:
 - After posture is configured, Bridge fails closed with `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
 - Shopify Bridge action execution resolves the bound customer OAuth access token server-side by `shopDomain` plus shopper session; action params, browser payloads, and inbound trace fields are not accepted as token sources.
 - MCP Gateway can attach the bound customer OAuth access token to Customer Account MCP requests using `CUSTOMER_OAUTH_PKCE`.
+- Live staging proof now exists for the read-only order-status boundary: a real customer browser login bound a shopper session, and Shopify Customer Account MCP `get_most_recent_order_status` / `get_order_status` returned normalized `MCP_TOOL_RESULT` evidence through Bridge and the MCP Gateway. The Marketplace bundle intentionally exposes only those live-observed Customer Account MCP tools until additional Customer Account tools are proven through live discovery and safe `tools/call`.
 
 Credential/config intake names:
 
@@ -261,6 +262,18 @@ Do not print raw secrets while running these checks.
 ---
 
 ## Release Gate Remediation Log
+
+### 2026-05-08
+
+- After protected customer data usage was selected in the Shopify Partner portal for the dev-store install, a real staging customer browser login completed through `/api/customer-auth/start` and `/api/customer-auth/callback`.
+- Session binding proof: `/api/customer-auth/session` for the fresh shopper session returned `configured=true` and `authenticated=true`.
+- First post-login action attempt exposed stale MCP Gateway deployment code: `CUSTOMER_OAUTH_PKCE` was rejected as unsupported. Reconciled the managed `mcp-execution-gateway` product service through Platform; the new Coolify deployment became healthy and the gateway accepted the customer OAuth auth mode.
+- Live Customer Account MCP proof then passed through Bridge -> MCP Gateway -> Shopify Customer Account MCP:
+  - `get_most_recent_order_status` returned HTTP `200`, `success=true`, normalized `MCP_TOOL_RESULT`, and Shopify tool text `No orders found for this customer.`
+  - `get_order_status` with `order_number=1001` returned HTTP `200`, `success=true`, normalized `MCP_TOOL_RESULT`, and Shopify tool text `Order not found with number: 1001`.
+- The earlier Marketplace Customer Account MCP bundle contained unverified tool aliases (`get_customer_orders`, `lookup_order`, and return-request tools). Those were removed from the product catalog. The bundle now exposes only the live-observed read-only Customer Account MCP tools: `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
+- Added migration `V92__shopify_customer_account_mcp_live_tool_names.sql` so already-deployed Platform databases converge to the same live-observed Customer Account MCP action catalog.
+- Checkout MCP remains externally gated because `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET` are still missing from Platform secrets.
 
 ### 2026-05-07
 

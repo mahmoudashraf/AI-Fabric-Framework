@@ -163,14 +163,14 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
     void compileActionContributionPreservesCustomerAccountMcpAuthMetadata() throws Exception {
         JsonNode action = objectMapper.readTree("""
             {
-              "actionId": "shopify_lookup_order",
+              "actionId": "shopify_get_order_status",
               "adapterType": "mcp-tool",
               "description": "Lookup customer order",
               "category": "shopify-companion",
               "readOnly": true,
               "anonymousAllowed": false,
               "params": [
-                {"name": "order_id", "type": "STRING", "required": true}
+                {"name": "order_number", "type": "STRING", "required": true}
               ],
               "execution": {
                 "adapterType": "mcp-tool",
@@ -179,7 +179,8 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
                   "endpointKind": "CUSTOMER_ACCOUNT",
                   "authMode": "CUSTOMER_OAUTH_PKCE",
                   "requiredCustomerScopes": ["customer-account-mcp-api:full"],
-                  "toolName": "lookup_order"
+                  "toolName": "get_order_status",
+                  "argumentTemplate": {"order_number": "{{params.order_number}}"}
                 }
               }
             }
@@ -187,7 +188,7 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
 
         ObjectNode compiled = compilerService.compileActionContribution(action, install(), plugin(), version());
 
-        assertThat(compiled.path("name").asText()).isEqualTo("shopify_lookup_order");
+        assertThat(compiled.path("name").asText()).isEqualTo("shopify_get_order_status");
         assertThat(compiled.path("anonymousAllowed").asBoolean()).isFalse();
         assertThat(compiled.path("execution").path("mcp").path("serverRef").asText()).isEqualTo("shopify-customer-account");
         assertThat(compiled.path("execution").path("mcp").path("authMode").asText()).isEqualTo("CUSTOMER_OAUTH_PKCE");
@@ -286,7 +287,7 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
             .put("name", "shopify_get_product_details")
             .put("adapterType", "connector-http");
         actions.addObject()
-            .put("name", "shopify_lookup_order")
+            .put("name", "shopify_get_most_recent_order_status")
             .put("adapterType", "connector-http");
         actions.addObject()
             .put("name", "shopify_create_checkout")

@@ -282,8 +282,8 @@ class McpGatewayExecutionServiceTest {
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
 
         ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
-            "shopify_lookup_order",
-            Map.of("order_id", "gid://shopify/Order/1", "shopDomain", "alpha.myshopify.com"),
+            "shopify_get_order_status",
+            Map.of("order_number", "1001", "shopDomain", "alpha.myshopify.com"),
             null,
             Map.of("actionConfig", Map.of(
                 "execution", Map.of(
@@ -292,7 +292,7 @@ class McpGatewayExecutionServiceTest {
                         "serverRef", "shopify-customer-account",
                         "endpointUrl", "https://alpha.myshopify.com/customer/api/mcp",
                         "authMode", "CUSTOMER_OAUTH_PKCE",
-                        "toolName", "lookup_order"
+                        "toolName", "get_order_status"
                     )
                 )
             )),
@@ -318,12 +318,12 @@ class McpGatewayExecutionServiceTest {
         ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
             ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
         when(client.initialize(eq(URI.create("https://customer.example/mcp")), options.capture())).thenReturn(session);
-        when(client.toolsCall(eq(session), eq("lookup_order"), any(), any()))
+        when(client.toolsCall(eq(session), eq("get_order_status"), any(), any()))
             .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"status\":\"fulfilled\"}}"));
 
         ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
-            "shopify_lookup_order",
-            Map.of("order_id", "gid://shopify/Order/1"),
+            "shopify_get_order_status",
+            Map.of("order_number", "1001"),
             null,
             Map.of(
                 "mcpCustomerAccessToken", "customer-oauth-token",
@@ -334,7 +334,7 @@ class McpGatewayExecutionServiceTest {
                             "serverRef", "shopify-customer-account",
                             "endpointUrl", "https://customer.example/mcp",
                             "authMode", "CUSTOMER_OAUTH_PKCE",
-                            "toolName", "lookup_order"
+                            "toolName", "get_order_status"
                         )
                     )
                 )

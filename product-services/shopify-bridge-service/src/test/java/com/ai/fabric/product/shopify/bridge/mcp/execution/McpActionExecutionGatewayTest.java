@@ -128,15 +128,15 @@ class McpActionExecutionGatewayTest {
         ShopifyBridgeActionResult result = gateway.execute(
             "alpha.myshopify.com",
             new ShopifyBridgeActionExecuteRequest(
-                "shopify_lookup_order",
-                Map.of("order_id", "gid://shopify/Order/1"),
+                "shopify_get_order_status",
+                Map.of("order_number", "1001"),
                 null,
                 Map.of("actionConfig", Map.of(
                     "execution", Map.of("mcp", Map.of(
                         "serverRef", "shopify-customer-account",
                         "endpointKind", "CUSTOMER_ACCOUNT",
                         "authMode", "CUSTOMER_OAUTH_PKCE",
-                        "toolName", "lookup_order"
+                        "toolName", "get_order_status"
                     ))
                 ))
             )
@@ -158,8 +158,8 @@ class McpActionExecutionGatewayTest {
         ShopifyBridgeActionResult result = gateway.execute(
             "alpha.myshopify.com",
             new ShopifyBridgeActionExecuteRequest(
-                "shopify_lookup_order",
-                Map.of("order_id", "gid://shopify/Order/1"),
+                "shopify_get_order_status",
+                Map.of("order_number", "1001"),
                 null,
                 Map.of(
                     "mcpCustomerAccessToken", "customer-token",
@@ -168,7 +168,7 @@ class McpActionExecutionGatewayTest {
                             "serverRef", "shopify-customer-account",
                             "endpointKind", "CUSTOMER_ACCOUNT",
                             "authMode", "CUSTOMER_OAUTH_PKCE",
-                            "toolName", "lookup_order"
+                            "toolName", "get_order_status"
                         ))
                     )
                 )
@@ -199,7 +199,7 @@ class McpActionExecutionGatewayTest {
             .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
             .andExpect(content().json("""
                 {
-                  "actionId": "shopify_get_customer_orders",
+                  "actionId": "shopify_get_most_recent_order_status",
                   "params": {"shopperSessionId": "shopper-session-1"},
                   "trace": {
                     "shopDomain": "alpha.myshopify.com",
@@ -218,7 +218,7 @@ class McpActionExecutionGatewayTest {
         ShopifyBridgeActionResult result = gateway.execute(
             "alpha.myshopify.com",
             new ShopifyBridgeActionExecuteRequest(
-                "shopify_get_customer_orders",
+                "shopify_get_most_recent_order_status",
                 Map.of("shopperSessionId", "shopper-session-1"),
                 null,
                 Map.of("actionConfig", Map.of(
@@ -226,7 +226,7 @@ class McpActionExecutionGatewayTest {
                         "serverRef", "shopify-customer-account",
                         "endpointKind", "CUSTOMER_ACCOUNT",
                         "authMode", "CUSTOMER_OAUTH_PKCE",
-                        "toolName", "get_customer_orders"
+                        "toolName", "get_most_recent_order_status"
                     ))
                 ))
             )

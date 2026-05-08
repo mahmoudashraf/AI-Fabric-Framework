@@ -1008,3 +1008,14 @@ Critical fixes that made the gate pass:
 - The full pass covered all 14 stages, including Shopify Companion verification, Shopify MCP Gateway verification, Shopify first-product readiness audit, Partner enablement, Thinker resolver readiness, and all hosted verification stages.
 - Hosted verification evidence from `vsr-b71dbec2`: marketplace passed with 42 passes / 2 warnings, ecommerce passed with 43 passes / 2 warnings, and Qdrant passed with 43 passes / 2 warnings.
 - Remaining live claim gates: Customer Account MCP still needs a real staging customer browser login and bound-token `tools/call`; Checkout MCP still needs `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`. Production was not deployed.
+
+## 2026-05-08 Customer Account MCP Bound-Token Live Proof
+
+- User selected protected customer data usage in the Shopify Partner portal for the dev-store install, then completed the Shopify-hosted customer browser login for shopper session `loom-staging-ca-20260508211207`.
+- Bridge session status returned `configured=true`, `authenticated=true`, proving the customer OAuth/PKCE callback stored a bound shopper-session token.
+- The first bound action attempt exposed stale MCP Gateway deployment code rejecting `CUSTOMER_OAUTH_PKCE`. Reconciled the managed `mcp-execution-gateway` product service through Platform; the new Coolify deployment `uum905buei522jgn3w6zgkqh` became healthy.
+- Live Customer Account MCP proof passed through Bridge -> MCP Gateway -> Shopify Customer Account MCP:
+  - `get_most_recent_order_status` returned HTTP `200`, `success=true`, normalized `MCP_TOOL_RESULT`, and Shopify tool text `No orders found for this customer.`
+  - `get_order_status` with `order_number=1001` returned HTTP `200`, `success=true`, normalized `MCP_TOOL_RESULT`, and Shopify tool text `Order not found with number: 1001`.
+- The existing Customer Account MCP Marketplace bundle had unverified tool aliases (`get_customer_orders`, `lookup_order`, and return-request tools). Local fix narrows the product catalog to the live-observed read-only tools: `shopify_get_most_recent_order_status` and `shopify_get_order_status`, with migration `V92__shopify_customer_account_mcp_live_tool_names.sql` for deployed DB convergence.
+- Checkout MCP remains gated by missing Platform secrets `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.
