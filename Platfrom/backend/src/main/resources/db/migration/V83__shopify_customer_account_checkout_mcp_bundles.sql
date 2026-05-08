@@ -104,19 +104,20 @@ select
       "contributions": {
         "actions": [
           {
-            "actionId": "shopify_get_most_recent_order_status",
-            "displayName": "Get most recent order status",
+            "actionId": "shopify_get_customer_orders",
+            "displayName": "Get customer orders",
             "readOnly": true,
             "anonymousAllowed": false,
             "requiresConfirmation": false,
             "groundingEligible": false,
             "readActionResolutionEligible": false,
             "adapterType": "mcp-tool",
-            "capabilityRef": "shopify.customer_account.orders.recent_status",
-            "description": "Retrieve the authenticated customer''s most recent order status through Shopify Customer Accounts MCP after Bridge customer/session binding.",
+            "capabilityRef": "shopify.customer_account.orders.list",
+            "description": "Retrieve authenticated customer order history through Shopify Customer Accounts MCP after Bridge customer/session binding.",
             "category": "shopify-companion",
             "params": [
-              {"name": "shopperSessionId", "description": "Bridge shopper session identifier bound to the customer account token", "type": "STRING", "required": true}
+              {"name": "shopperSessionId", "description": "Bridge shopper session identifier bound to the customer account token", "type": "STRING", "required": true},
+              {"name": "limit", "description": "Maximum orders to request", "type": "INTEGER", "required": false, "min": 1, "max": 20}
             ],
             "execution": {
               "adapterType": "mcp-tool",
@@ -125,8 +126,37 @@ select
                 "endpointKind": "CUSTOMER_ACCOUNT",
                 "authMode": "CUSTOMER_OAUTH_PKCE",
                 "requiredCustomerScopes": ["customer-account-mcp-api:full"],
-                "toolName": "get_most_recent_order_status",
-                "argumentTemplate": {}
+                "toolName": "get_customer_orders",
+                "argumentTemplate": {"limit": "{{params.limit}}"}
+              }
+            },
+            "route": {"method": "POST", "path": "/actions/execute"}
+          },
+          {
+            "actionId": "shopify_lookup_order",
+            "displayName": "Lookup customer order",
+            "readOnly": true,
+            "anonymousAllowed": false,
+            "requiresConfirmation": false,
+            "groundingEligible": false,
+            "readActionResolutionEligible": false,
+            "adapterType": "mcp-tool",
+            "capabilityRef": "shopify.customer_account.orders.lookup",
+            "description": "Lookup a specific authenticated customer order through Shopify Customer Accounts MCP.",
+            "category": "shopify-companion",
+            "params": [
+              {"name": "shopperSessionId", "description": "Bridge shopper session identifier bound to the customer account token", "type": "STRING", "required": true},
+              {"name": "order_id", "description": "Customer order identifier", "type": "STRING", "required": true}
+            ],
+            "execution": {
+              "adapterType": "mcp-tool",
+              "mcp": {
+                "serverRef": "shopify-customer-account",
+                "endpointKind": "CUSTOMER_ACCOUNT",
+                "authMode": "CUSTOMER_OAUTH_PKCE",
+                "requiredCustomerScopes": ["customer-account-mcp-api:full"],
+                "toolName": "lookup_order",
+                "argumentTemplate": {"order_id": "{{params.order_id}}"}
               }
             },
             "route": {"method": "POST", "path": "/actions/execute"}
@@ -145,7 +175,7 @@ select
             "category": "shopify-companion",
             "params": [
               {"name": "shopperSessionId", "description": "Bridge shopper session identifier bound to the customer account token", "type": "STRING", "required": true},
-              {"name": "order_number", "description": "Customer-visible order number", "type": "STRING", "required": true}
+              {"name": "order_id", "description": "Customer order identifier", "type": "STRING", "required": true}
             ],
             "execution": {
               "adapterType": "mcp-tool",
@@ -155,7 +185,70 @@ select
                 "authMode": "CUSTOMER_OAUTH_PKCE",
                 "requiredCustomerScopes": ["customer-account-mcp-api:full"],
                 "toolName": "get_order_status",
-                "argumentTemplate": {"order_number": "{{params.order_number}}"}
+                "argumentTemplate": {"order_id": "{{params.order_id}}"}
+              }
+            },
+            "route": {"method": "POST", "path": "/actions/execute"}
+          },
+          {
+            "actionId": "shopify_get_return_eligibility",
+            "displayName": "Get return eligibility",
+            "readOnly": true,
+            "anonymousAllowed": false,
+            "requiresConfirmation": false,
+            "groundingEligible": false,
+            "readActionResolutionEligible": false,
+            "adapterType": "mcp-tool",
+            "capabilityRef": "shopify.customer_account.returns.eligibility",
+            "description": "Check authenticated customer return eligibility through Shopify Customer Accounts MCP.",
+            "category": "shopify-companion",
+            "params": [
+              {"name": "shopperSessionId", "description": "Bridge shopper session identifier bound to the customer account token", "type": "STRING", "required": true},
+              {"name": "order_id", "description": "Customer order identifier", "type": "STRING", "required": true},
+              {"name": "line_item_ids", "description": "Optional order line item identifiers", "type": "ARRAY", "required": false}
+            ],
+            "execution": {
+              "adapterType": "mcp-tool",
+              "mcp": {
+                "serverRef": "shopify-customer-account",
+                "endpointKind": "CUSTOMER_ACCOUNT",
+                "authMode": "CUSTOMER_OAUTH_PKCE",
+                "requiredCustomerScopes": ["customer-account-mcp-api:full"],
+                "toolName": "get_return_eligibility",
+                "argumentTemplate": {"order_id": "{{params.order_id}}", "line_item_ids": "{{params.line_item_ids}}"}
+              }
+            },
+            "route": {"method": "POST", "path": "/actions/execute"}
+          },
+          {
+            "actionId": "shopify_start_return_request",
+            "displayName": "Start return request",
+            "readOnly": false,
+            "anonymousAllowed": false,
+            "requiresConfirmation": true,
+            "confirmationMessage": "Start this return request?",
+            "groundingEligible": false,
+            "readActionResolutionEligible": false,
+            "adapterType": "mcp-tool",
+            "capabilityRef": "shopify.customer_account.returns.start",
+            "description": "Start an authenticated customer return request through Shopify Customer Accounts MCP after Bridge confirmation and audit.",
+            "category": "shopify-companion",
+            "params": [
+              {"name": "shopperSessionId", "description": "Bridge shopper session identifier bound to the customer account token", "type": "STRING", "required": true},
+              {"name": "order_id", "description": "Customer order identifier", "type": "STRING", "required": true},
+              {"name": "line_item_ids", "description": "Order line item identifiers to return", "type": "ARRAY", "required": true},
+              {"name": "reason", "description": "Return reason", "type": "STRING", "required": false},
+              {"name": "confirmationAccepted", "description": "Explicit shopper confirmation flag", "type": "BOOLEAN", "required": true}
+            ],
+            "execution": {
+              "adapterType": "mcp-tool",
+              "mcp": {
+                "serverRef": "shopify-customer-account",
+                "endpointKind": "CUSTOMER_ACCOUNT",
+                "authMode": "CUSTOMER_OAUTH_PKCE",
+                "requiredCustomerScopes": ["customer-account-mcp-api:full"],
+                "toolName": "start_return_request",
+                "argumentTemplate": {"order_id": "{{params.order_id}}", "line_item_ids": "{{params.line_item_ids}}", "reason": "{{params.reason}}"}
               }
             },
             "route": {"method": "POST", "path": "/actions/execute"}
