@@ -273,6 +273,9 @@ Do not print raw secrets while running these checks.
   - `get_order_status` with `order_number=1001` returned HTTP `200`, `success=true`, normalized `MCP_TOOL_RESULT`, and Shopify tool text `Order not found with number: 1001`.
 - The earlier Marketplace Customer Account MCP bundle contained unverified tool aliases (`get_customer_orders`, `lookup_order`, and return-request tools). Those were removed from the product catalog. The bundle now exposes only the live-observed read-only Customer Account MCP tools: `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
 - Added migration `V92__shopify_customer_account_mcp_live_tool_names.sql` so already-deployed Platform databases converge to the same live-observed Customer Account MCP action catalog.
+- Deployment remediation: an initial commit changed already-applied migration `V83`, which staging correctly rejected with a Flyway checksum mismatch. The fix restored `V83` unchanged and kept the deployed-catalog change in additive migration `V92` only.
+- Staging deploy from commit `996785fa7` completed through Coolify deployment `ateasu96dnfetqysbd0ku4l0`; Platform health returned `UP`, and the live Marketplace endpoint returned Customer Account MCP plugin version `1.0.1` with only `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
+- Post-deploy bound-token proof passed again through Bridge -> MCP Gateway -> Shopify Customer Account MCP for both live catalog tools. The staging test customer has no orders, so Shopify returned successful MCP envelopes with no-order/not-found tool text.
 - Checkout MCP remains externally gated because `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET` are still missing from Platform secrets.
 
 ### 2026-05-07
