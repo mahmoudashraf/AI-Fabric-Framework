@@ -128,6 +128,13 @@ public class McpStreamableHttpClient {
                 .body(body)
                 .retrieve()
                 .toEntity(String.class);
+            if (response.getStatusCode().is3xxRedirection()) {
+                throw new ResponseStatusException(
+                    BAD_GATEWAY,
+                    "MCP server returned HTTP " + response.getStatusCode().value()
+                        + " redirect" + safeRedirectLocation(response) + "."
+                );
+            }
             if (notification) {
                 return new McpHttpResponse(null, response.getHeaders());
             }
@@ -141,6 +148,15 @@ public class McpStreamableHttpClient {
         } catch (RestClientException ex) {
             throw new ResponseStatusException(BAD_GATEWAY, "MCP server request failed.", ex);
         }
+    }
+
+    private String safeRedirectLocation(ResponseEntity<String> response) {
+        URI location = response == null ? null : response.getHeaders().getLocation();
+        if (location == null) {
+            return "";
+        }
+        String path = location.getPath();
+        return StringUtils.hasText(path) ? " to " + path : "";
     }
 
     private SimpleClientHttpRequestFactory requestFactory(McpGatewayProperties properties) {

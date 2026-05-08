@@ -358,6 +358,7 @@ Customer Account MCP requires:
 Checkout MCP requires:
 
 - Checkout MCP client credentials
+- `/api/ucp/mcp` reachable without storefront-password redirects on the staging shop/domain
 - Shopify agentic checkout readiness
 - terminal-operation policy approval for any terminal checkout actions
 
@@ -379,3 +380,4 @@ Checkout MCP is prepared as a managed-gateway path:
 - Platform provisioning writes the credentials only to the MCP Gateway as `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` and `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET`, and enables gateway environment secret resolution for the `MCP_SECRET_` prefix.
 - Bridge receives `SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED=true` only when both checkout credentials exist.
 - Terminal checkout actions require the separate `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` flag and must stay disabled for normal staging verification.
+- If Checkout MCP `tools/list` or `tools/call` fails with a redirect to `/password`, the Shopify online store password is still enabled. Unlock the staging storefront in Shopify Admin before claiming live Checkout MCP evidence.

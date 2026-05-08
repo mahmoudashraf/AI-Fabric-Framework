@@ -1,6 +1,6 @@
 # 009.3 Shopify MCP Market Readiness And Release Gate
 
-Status: staging release gate passed on 2026-05-07. Latest full pass is `vsr-b71dbec2`, completed at `2026-05-07T00:18:10Z`; release-gate freshness expires at `2026-05-07T12:18:10Z`. Staging is the active target. Production is not deployed by this plan.
+Status: staging release gate passed on 2026-05-08. Latest full pass is `vsr-a3069cb1`, completed at `2026-05-08T21:52:05.687947Z`; release-gate freshness expires at `2026-05-09T09:52:05.687947Z`. Staging is the active target. Production is not deployed by this plan.
 
 Parent plans:
 
@@ -71,7 +71,7 @@ These items do not block controlled design-partner shipping, but they do block a
 - Merge PR `#156` (`Platform v8`) or otherwise land its production-intended work. Current posture at the time of this note: open, mergeable, and still carrying the Platform V8 MCP/Coolify/product-service release work.
 - Keep the PR `#156` P1/P2 review fixes release-gated: Coolify transport failures must continue returning the structured `502` / `COOLIFY_UPSTREAM_FAILURE` contract, and MCP Gateway Streamable HTTP connect/read timeouts must remain wired into the HTTP request factory.
 - Keep Platform release/verification async work off a single-thread bottleneck. Release execution and verification-suite execution must use bounded parallel executors so one slow Coolify or repair call cannot starve unrelated platform operations.
-- Keep higher-tier public claims gated until Shopify Customer Account MCP and Checkout MCP have the required external Shopify auth/security material, protected customer data posture, credentials, and live `tools/list` / safe `tools/call` evidence.
+- Keep higher-tier public claims gated until Shopify Customer Account MCP and Checkout MCP have the required external Shopify auth/security material, protected customer data posture, credentials, storefront readiness, and live `tools/list` / safe `tools/call` evidence. Customer Account MCP now has read-only staging `tools/call` proof. Checkout MCP credentials now exist in staging and Shopify token exchange succeeds, but live Checkout MCP remains gated until the staging store serves `/api/ucp/mcp` without storefront-password redirects.
 - Finish merchant-facing self-serve packaging: onboarding path, pricing/package copy, support policy, install/recovery guidance, merchant documentation, App Store listing/review collateral, and a clear public escalation process.
 
 ---
@@ -168,6 +168,7 @@ Credential/config intake names:
 Required before claiming live checkout capability:
 
 - Shopify Checkout MCP client credentials
+- staging storefront access that does not redirect `/api/ucp/mcp` to the password page
 - checkout partner/security readiness
 - explicit terminal-operation enablement policy if terminal checkout actions are tested
 - live `tools/list` and safe `tools/call` evidence
@@ -179,6 +180,7 @@ Prepared platform/Gateway behavior:
 - MCP Gateway supports `SHOPIFY_AGENTIC_CLIENT_CREDENTIALS` and uses Shopify's JSON token request to `https://api.shopify.com/auth/access_token`.
 - Platform-managed MCP Gateway provisioning maps configured checkout credentials into `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID` and `MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET` for gateway-only secret resolution.
 - Terminal checkout tools remain disabled unless `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true`.
+- Staging credential proof as of 2026-05-08: the provided Checkout MCP Catalog credentials are stored as Platform secrets, the managed MCP Gateway and Shopify Bridge were reconciled successfully, and Shopify's token endpoint issues an agentic access token. Direct POSTs to both `shopping-companion-test.myshopify.com/api/ucp/mcp` and `shop-staging.loomai.pro/api/ucp/mcp` currently return HTTP `302` to `/password` because the staging online store has storefront password protection enabled (`onlineStore.passwordProtection.enabled=true`). This is the remaining live Checkout MCP gate before `tools/list` / safe `tools/call` proof.
 
 Credential/config intake names:
 

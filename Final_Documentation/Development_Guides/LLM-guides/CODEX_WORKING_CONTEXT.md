@@ -1024,4 +1024,13 @@ Critical fixes that made the gate pass:
 - Final staging deploy from branch HEAD commit `edc8d5b61` completed in Coolify deployment `dbudzzhqpe2bpq67irxit9jk`; Platform health stayed `UP`.
 - Partner Supabase JWT was refreshed again from private test-account material and stored back into Platform secret `PARTNER_SUPABASE_JWT` without printing the token.
 - Fresh full release gate passed as `vsr-a3069cb1` with 14/14 stages passed. `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, completed `2026-05-08T21:52:05.687947Z`, and expires `2026-05-09T09:52:05.687947Z`.
-- Checkout MCP remains gated by missing Platform secrets `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.
+- Checkout MCP remained gated at this point by missing Platform secrets `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`.
+
+## 2026-05-08 Checkout MCP Credential Intake And Password Gate
+
+- Checkout MCP Catalog credentials were added to Platform secret storage as `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET`; raw values remain only in private/operator material.
+- Platform-managed Shopify Bridge and MCP Execution Gateway were reconciled after secret intake. Bridge health returned `UP`; MCP Gateway health returned `UP`.
+- Direct Shopify token exchange against `https://api.shopify.com/auth/access_token` succeeded with the checkout client credentials, proving the credentials are valid enough to receive an agentic access token.
+- Checkout MCP live endpoint verification is still blocked by Shopify storefront password protection: direct POSTs to both `shopping-companion-test.myshopify.com/api/ucp/mcp` and `shop-staging.loomai.pro/api/ucp/mcp` returned HTTP `302` to `/password`. Admin GraphQL confirmed `onlineStore.passwordProtection.enabled=true`.
+- Code hardening: MCP Gateway Streamable HTTP client now reports MCP HTTP redirects explicitly instead of collapsing them into a vague empty-response error. Targeted test `McpStreamableHttpClientTest` passed.
+- Remaining live Checkout MCP gate: unlock/remove the staging online-store password, then rerun `tools/list` and a safe `get_checkout`/non-terminal `tools/call` through the managed MCP Gateway/Bridge path. Terminal checkout remains disabled unless explicitly approved by `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true`.

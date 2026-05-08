@@ -45,6 +45,26 @@ class McpStreamableHttpClientTest {
         }
     }
 
+    @Test
+    void initializeFailsExplicitlyOnRedirect() throws Exception {
+        HttpServer server = redirectingMcpServer();
+        try {
+            McpStreamableHttpClient client = new McpStreamableHttpClient(
+                RestClient.builder(),
+                objectMapper,
+                properties(Duration.ofMillis(500), Duration.ofMillis(500))
+            );
+
+            assertThatThrownBy(() -> client.initialize(endpoint(server), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY);
+                    assertThat(exception).hasMessageContaining("MCP server returned HTTP 302 redirect to /password");
+                });
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private HttpServer slowMcpServer(Duration delay) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/mcp", exchange -> {
@@ -77,6 +97,22 @@ class McpStreamableHttpClientTest {
             } finally {
                 exchange.close();
             }
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer redirectingMcpServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/mcp", exchange -> {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            exchange.getResponseHeaders().add("Location", "/password");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
         });
         server.start();
         return server;
