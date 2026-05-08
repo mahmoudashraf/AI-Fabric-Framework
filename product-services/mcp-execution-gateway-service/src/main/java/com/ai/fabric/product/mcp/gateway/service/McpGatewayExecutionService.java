@@ -295,15 +295,21 @@ public class McpGatewayExecutionService {
             Map<String, String> headers = resolveAuthHeaders(trace, mcpAuthConfig(mcp, serverBinding));
             McpStreamableHttpClient.McpRequestOptions options =
                 McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
-            McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
-            ToolVerificationResult drift = verifyActionToolSchema(session, options, serverRef, toolName, mcp);
-            if (drift != null && (!drift.present() || !drift.schemaMatches()) && schemaDriftBlocks(drift.schemaDriftPolicy())) {
-                return failure(
-                    "MCP_SCHEMA_DRIFT",
-                    "MCP tool schema verification failed for " + toolName + "."
-                );
+            ToolVerificationResult drift = null;
+            JsonNode result;
+            if (usesDirectJsonRpcToolCall(mcp, serverBinding)) {
+                result = mcpClient.toolsCall(endpoint, toolName, arguments, options);
+            } else {
+                McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
+                drift = verifyActionToolSchema(session, options, serverRef, toolName, mcp);
+                if (drift != null && (!drift.present() || !drift.schemaMatches()) && schemaDriftBlocks(drift.schemaDriftPolicy())) {
+                    return failure(
+                        "MCP_SCHEMA_DRIFT",
+                        "MCP tool schema verification failed for " + toolName + "."
+                    );
+                }
+                result = mcpClient.toolsCall(session, toolName, arguments, options);
             }
-            JsonNode result = mcpClient.toolsCall(session, toolName, arguments, options);
             return normalizeResult(serverRef, toolName, mcp, result, drift);
         } catch (McpAuthGateException ex) {
             return failure(ex.errorCode(), ex.getMessage());
@@ -830,7 +836,13 @@ public class McpGatewayExecutionService {
         }
         if ("SHOPIFY_AGENTIC_CLIENT_CREDENTIALS".equals(mode)) {
             String accessToken = fetchClientCredentialsToken(trace, auth, true);
-            return Map.of(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+            String buyerIp = resolveShopifyBuyerIp(trace);
+            if (StringUtils.hasText(buyerIp)) {
+                headers.put("Shopify-Buyer-IP", buyerIp);
+            }
+            return Map.copyOf(headers);
         }
         if ("CUSTOMER_OAUTH_PKCE".equals(mode)) {
             String customerToken = resolveCustomerAccountAccessToken(trace, auth);
@@ -846,6 +858,59 @@ public class McpGatewayExecutionService {
             return Map.of(HttpHeaders.AUTHORIZATION, bearer);
         }
         throw new IllegalArgumentException("MCP auth mode is not supported by the generic execution gateway: " + mode);
+    }
+
+    private boolean usesDirectJsonRpcToolCall(JsonNode mcp, JsonNode serverBinding) {
+        String endpointKind = normalizedEnum(firstText(mcp, serverBinding, List.of("endpointKind", "kind")));
+        String serverRef = normalizedEnum(firstText(mcp, serverBinding, List.of("serverRef", "id")));
+        String authMode = normalizedEnum(firstText(mcp, serverBinding, List.of("authMode", "mode")));
+        return "CHECKOUT_UCP".equals(endpointKind)
+            || serverRef.contains("CHECKOUT")
+            || ("SHOPIFY_AGENTIC_CLIENT_CREDENTIALS".equals(authMode) && endpointKind.contains("UCP"));
+    }
+
+    private String resolveShopifyBuyerIp(JsonNode trace) {
+        String value = firstNonBlank(
+            text(trace, "shopifyBuyerIp", "buyerIp", "clientIp", "remoteAddr"),
+            firstNonBlank(
+                text(trace.path("request"), "shopifyBuyerIp", "buyerIp", "clientIp", "remoteAddr"),
+                text(trace.path("authContext"), "shopifyBuyerIp", "buyerIp", "clientIp", "remoteAddr")
+            )
+        );
+        String candidate = firstForwardedIp(value);
+        return isSafeIpLiteral(candidate) ? candidate : null;
+    }
+
+    private String firstForwardedIp(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String candidate = value.split(",", 2)[0].trim();
+        if (candidate.startsWith("[") && candidate.contains("]")) {
+            candidate = candidate.substring(1, candidate.indexOf(']'));
+        }
+        int portSeparator = candidate.lastIndexOf(':');
+        if (portSeparator > 0 && candidate.indexOf(':') == portSeparator) {
+            candidate = candidate.substring(0, portSeparator);
+        }
+        return candidate.trim();
+    }
+
+    private boolean isSafeIpLiteral(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        if (value.matches("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")) {
+            return true;
+        }
+        if (!value.contains(":") || !value.matches("^[0-9A-Fa-f:.]+$")) {
+            return false;
+        }
+        try {
+            return java.net.InetAddress.getByName(value) instanceof java.net.Inet6Address;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private void validateApiKeyHeader(String headerName) {

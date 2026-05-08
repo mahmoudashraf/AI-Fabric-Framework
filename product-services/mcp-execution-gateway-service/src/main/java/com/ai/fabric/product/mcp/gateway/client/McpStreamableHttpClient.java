@@ -92,6 +92,23 @@ public class McpStreamableHttpClient {
         return requireResult(response.message(), "tools/call");
     }
 
+    public JsonNode toolsCall(URI endpoint, String toolName, JsonNode arguments, McpRequestOptions options) {
+        if (!StringUtils.hasText(toolName)) {
+            throw new ResponseStatusException(BAD_GATEWAY, "MCP toolName is required.");
+        }
+        ObjectNode params = objectMapper.createObjectNode();
+        params.put("name", toolName.trim());
+        params.set("arguments", arguments != null && arguments.isObject() ? arguments : objectMapper.createObjectNode());
+        McpHttpResponse response = postJsonRpc(
+            endpoint,
+            jsonRpcRequest("tools/call", params),
+            null,
+            false,
+            options == null ? McpRequestOptions.none(properties.protocolVersion()) : options
+        );
+        return requireResult(response.message(), "tools/call");
+    }
+
     private void postNotification(URI endpoint, String method, McpSession session, McpRequestOptions options) {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("jsonrpc", "2.0");

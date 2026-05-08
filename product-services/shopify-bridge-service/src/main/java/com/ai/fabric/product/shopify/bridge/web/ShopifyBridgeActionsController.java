@@ -3,6 +3,7 @@ package com.ai.fabric.product.shopify.bridge.web;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExecuteRequest;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.action.service.ShopifyBridgeActionExecutionService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 @RestController
 @RequestMapping("/api/admin/stores")
@@ -26,8 +28,12 @@ public class ShopifyBridgeActionsController {
 
     @PostMapping("/{shopDomain}/actions/execute")
     public ResponseEntity<ShopifyBridgeActionResult> execute(@PathVariable String shopDomain,
-                                                             @RequestBody(required = false) ShopifyBridgeActionExecuteRequest request) {
-        ShopifyBridgeActionResult result = actionExecutionService.execute(shopDomain, request);
+                                                             @RequestBody(required = false) ShopifyBridgeActionExecuteRequest request,
+                                                             HttpServletRequest servletRequest) {
+        ShopifyBridgeActionResult result = actionExecutionService.execute(
+            shopDomain,
+            withRequestContext(request, servletRequest)
+        );
         return ResponseEntity.status(statusFor(result)).body(result);
     }
 
@@ -56,5 +62,38 @@ public class ShopifyBridgeActionsController {
                  "GOVERNED_ACTION_REJECTED" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_GATEWAY;
         };
+    }
+
+    private ShopifyBridgeActionExecuteRequest withRequestContext(ShopifyBridgeActionExecuteRequest request,
+                                                                 HttpServletRequest servletRequest) {
+        if (request == null) {
+            request = new ShopifyBridgeActionExecuteRequest(null, Map.of(), null, Map.of());
+        }
+        Map<String, Object> trace = new LinkedHashMap<>(request.trace() == null ? Map.of() : request.trace());
+        trace.putIfAbsent("buyerIp", clientIp(servletRequest));
+        String userAgent = servletRequest == null ? null : servletRequest.getHeader("User-Agent");
+        if (userAgent != null && !userAgent.isBlank()) {
+            trace.putIfAbsent("buyerUserAgent", userAgent.trim());
+        }
+        return new ShopifyBridgeActionExecuteRequest(
+            request.actionId(),
+            request.params(),
+            request.idempotencyKey(),
+            trace
+        );
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        if (request == null) {
+            return "";
+        }
+        for (String header : new String[] {"X-Forwarded-For", "X-Real-IP"}) {
+            String value = request.getHeader(header);
+            if (value != null && !value.isBlank()) {
+                return value.split(",", 2)[0].trim();
+            }
+        }
+        String remote = request.getRemoteAddr();
+        return remote == null ? "" : remote.trim();
     }
 }

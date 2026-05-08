@@ -536,16 +536,14 @@ class McpGatewayExecutionServiceTest {
             environment,
             tokenBuilder
         );
-        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://alpha.myshopify.com/api/ucp/mcp"),
-            "2025-11-25",
-            "session-1",
-            objectMapper.createObjectNode()
-        );
         ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
             ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
-        when(client.initialize(eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")), options.capture())).thenReturn(session);
-        when(client.toolsCall(eq(session), eq("get_checkout"), any(), any()))
+        when(client.toolsCall(
+            eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")),
+            eq("get_checkout"),
+            any(),
+            options.capture()
+        ))
             .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"id\":\"checkout-1\"}}"));
 
         ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
@@ -554,6 +552,7 @@ class McpGatewayExecutionServiceTest {
             null,
             Map.of(
                 "shopDomain", "alpha.myshopify.com",
+                "buyerIp", "203.0.113.10",
                 "actionConfig", Map.of(
                     "execution", Map.of(
                         "adapterType", "mcp-tool",
@@ -572,6 +571,8 @@ class McpGatewayExecutionServiceTest {
 
         assertThat(response.success()).isTrue();
         assertThat(options.getValue().headers()).containsEntry("Authorization", "Bearer shopify-checkout-token");
+        assertThat(options.getValue().headers()).containsEntry("Shopify-Buyer-IP", "203.0.113.10");
+        verify(client, never()).initialize(eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")), any());
         tokenServer.verify();
     }
 
