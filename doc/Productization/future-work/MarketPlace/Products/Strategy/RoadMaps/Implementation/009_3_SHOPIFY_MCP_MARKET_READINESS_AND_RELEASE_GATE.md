@@ -1,6 +1,6 @@
 # 009.3 Shopify MCP Market Readiness And Release Gate
 
-Status: staging release gate passed on 2026-05-08. Latest full pass is `vsr-a3069cb1`, completed at `2026-05-08T21:52:05.687947Z`; release-gate freshness expires at `2026-05-09T09:52:05.687947Z`. Staging is the active target. Production is not deployed by this plan.
+Status: staging release gate passed on 2026-05-08. Latest full pass is `vsr-4a50d909`, completed at `2026-05-08T22:41:28.687806Z`; release-gate freshness expires at `2026-05-09T10:41:28.687806Z`. Staging is the active target. Production is not deployed by this plan.
 
 Parent plans:
 
