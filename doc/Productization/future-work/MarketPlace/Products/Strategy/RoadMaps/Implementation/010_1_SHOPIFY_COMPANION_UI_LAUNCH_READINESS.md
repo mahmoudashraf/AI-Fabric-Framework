@@ -1,6 +1,6 @@
 # 010.1 Shopify Companion UI Launch Readiness
 
-Status: implementation in progress (created 2026-05-09; local UI/build verification passed, staging deployment/live gate pending)
+Status: staging-verified implementation (created 2026-05-09; deployed and live-gated on staging)
 
 Owner mode: product UI / GTM readiness / launch operations LLM session
 
@@ -332,10 +332,21 @@ Local verification passed:
 - `bash -n scripts/verify-partner-enablement-live.sh`
 - `git diff --check`
 
+Staging verification after deployment:
+
+- Commit `bf64cff98` deployed to staging Partner UI, Platform UI, and Shopify Bridge through Coolify.
+- Coolify staging deployments finished on commit `bf64cff98`:
+  - Partner UI `xiictlx7e8vzqhfcctq9okrq`
+  - Platform UI `j8urpbbpn2myuk1aegftk0s2`
+  - Shopify Bridge `trcfvrfxqn9yzwlv1cc26re4`
+- Strict live `scripts/verify-partner-enablement-live.sh` passed after refreshing the Partner Supabase JWT and updating Platform secret `PARTNER_SUPABASE_JWT` without printing token material.
+- The live verifier proved the new deployed Partner UI 010.1 surfaces and the new Platform UI `/shopify-launch-readiness` surface.
+- Hosted `full-platform-release-readiness` passed as `vsr-16cf2a58` with 14/14 stages green. `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, completed `2026-05-09T12:23:06.695323Z`, expires `2026-05-10T00:23:06.695323Z`.
+
 Release-gate state after this implementation:
 
-- `010_1_UI_READY`: locally verified; staging deployment/live asset proof pending.
-- `010_SELF_SERVICE_PRODUCTION_READY`: still intentionally blocked until hosted/full staging release gate, controlled production-promotion proof, production provisioning verification, rollback/deactivation proof, and failed-promotion staging-isolation proof are recorded.
+- `010_1_UI_READY`: passed on staging.
+- `010_SELF_SERVICE_PRODUCTION_READY`: still intentionally blocked until controlled production-promotion proof, production provisioning verification, rollback/deactivation proof, and failed-promotion staging-isolation proof are recorded.
 
 ---
 

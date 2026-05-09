@@ -1081,10 +1081,13 @@ Critical fixes that made the gate pass:
 
 ## 2026-05-09 Plan 010.1 UI Implementation
 
-- Implemented 010.1 UI launch readiness locally across Merchant Shopify Admin UI, Partner UI, Platform/Admin UI, verifier script, and launch exports guide.
+- Implemented and pushed 010.1 UI launch readiness in commit `bf64cff98` (`Complete 010.1 launch readiness UI`) across Merchant Shopify Admin UI, Partner UI, Platform/Admin UI, verifier script, and launch exports guide.
 - Merchant Shopify Admin UI now has an explicit Go live `Launch package` card for onboarding, package/tier posture, support path, evidence, design-partner posture, App Store/private listing claim safety, controlled production proof, and rollback/deactivation guidance.
 - Partner UI now exposes the 010.1 launch readiness kit in the dashboard and assigned-store workspace, including Free/Starter/Elite explanation, design-partner package, weekly value review prompts, App Store/private listing posture, and production proof gating.
 - Platform/Admin UI now has `/shopify-launch-readiness` and `Shopify Launch` navigation for App Store/private listing readiness, protected-data gates, Customer Account MCP and Checkout MCP gate status, controlled production proof state, release-gate evidence, recent verification runs, and 010_SELF_SERVICE_PRODUCTION_READY blockers.
 - Live verifier script now checks deployed Partner UI assets for 010.1 launch surfaces and deployed Platform UI assets for the Shopify launch readiness route/surfaces.
 - Local verification passed: Partner UI build/smoke, Platform UI build, Shopify Bridge UI build, `bash -n scripts/verify-partner-enablement-live.sh`, and `git diff --check`.
-- Staging deployment/live gate proof still needs to run for this new UI commit; production mutation remains gated and must not be run as part of normal staging verification.
+- Deployed staging apps through Coolify on commit `bf64cff98`: Partner UI deployment `xiictlx7e8vzqhfcctq9okrq`, Platform UI deployment `j8urpbbpn2myuk1aegftk0s2`, and Shopify Bridge deployment `trcfvrfxqn9yzwlv1cc26re4`; all finished successfully.
+- Strict live `scripts/verify-partner-enablement-live.sh` passed on staging after refreshing the Partner Supabase JWT and updating Platform secret `PARTNER_SUPABASE_JWT` without printing token material. This proved the new deployed 010.1 Partner UI and Platform UI launch-readiness asset surfaces plus the merchant approval/evidence/rollback workflow.
+- Hosted `full-platform-release-readiness` passed as `vsr-16cf2a58` with 14/14 stages green. Release gate is `READY=true` / `status=READY`, completed `2026-05-09T12:23:06.695323Z`, expires `2026-05-10T00:23:06.695323Z`.
+- Production mutation remains gated and was not run. `010_1_UI_READY` is staging-verified; `010_SELF_SERVICE_PRODUCTION_READY` remains blocked only by controlled production-promotion proof, production provisioning verification, rollback/deactivation proof, and failed-promotion staging-isolation proof.
