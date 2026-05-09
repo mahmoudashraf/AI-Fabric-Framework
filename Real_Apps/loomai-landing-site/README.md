@@ -21,6 +21,10 @@ Default URL: `http://127.0.0.1:4177`
 npm --prefix Real_Apps/loomai-landing-site run smoke
 ```
 
+## Creative Redesign Handoff
+
+Use [`docs/CLAUDE_REDESIGN_HANDOFF.md`](docs/CLAUDE_REDESIGN_HANDOFF.md) when handing this package to Claude or another design assistant. It describes the merchant/product landing page, partner landing page, functional contracts, form bindings, routes, claim rules, and verification commands that must remain intact during a redesign.
+
 ## Runtime Configuration
 
 All values are optional and public unless explicitly marked as server-side only.
