@@ -8,12 +8,14 @@ import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationS
 import com.ai.fabric.platform.backend.partner.model.PartnerEligibleStoreSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleCreateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerLaunchReadinessSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialDeactivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerProductionPromotionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
@@ -88,6 +90,18 @@ public class PartnerEnablementController {
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
     public PartnerStoreSummary getStore(@PathVariable String storeId) {
         return service.getStore(storeId);
+    }
+
+    @GetMapping("/stores/{storeId}/launch-readiness")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerLaunchReadinessSummary getLaunchReadiness(@PathVariable String storeId) {
+        return service.getLaunchReadiness(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/production-promotions")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerProductionPromotionSummary requestProductionPromotion(@PathVariable String storeId) {
+        return service.requestProductionPromotion(storeId);
     }
 
     @GetMapping("/stores/{storeId}/product-controls")

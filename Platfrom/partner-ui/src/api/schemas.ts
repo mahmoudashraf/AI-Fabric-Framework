@@ -147,6 +147,38 @@ export const partnerProductControlSchema = z.object({
   updatedAt: z.string(),
 })
 
+export const partnerLaunchReadinessSchema = z.object({
+  storeId: z.string(),
+  shopDomain: z.string(),
+  status: z.string(),
+  stagingReady: z.boolean(),
+  evidenceReady: z.boolean(),
+  productionPromotionAllowed: z.boolean(),
+  productionPromotionReady: z.boolean(),
+  goLiveEligible: z.boolean(),
+  blockers: z.array(z.string()),
+  nextActions: z.array(z.string()),
+  latestVerificationRunId: nullableString,
+  latestVerificationStatus: nullableString,
+  latestEvidenceBundleId: nullableString,
+  latestEvidenceStatus: nullableString,
+  merchantAction: z.string(),
+  checkedAt: z.string(),
+})
+
+export const partnerProductionPromotionSchema = z.object({
+  storeId: z.string(),
+  shopDomain: z.string(),
+  status: z.string(),
+  message: z.string(),
+  onboardingStatus: nullableString,
+  latestReleaseStatus: nullableString,
+  latestReleaseVerificationStatus: nullableString,
+  blockers: z.array(z.string()),
+  nextActions: z.array(z.string()),
+  requestedAt: z.string(),
+})
+
 export const partnerActivityEventSchema = z.object({
   id: z.string(),
   action: z.string(),
@@ -493,6 +525,8 @@ export type PartnerSession = z.infer<typeof partnerSessionSchema>
 export type PartnerMember = z.infer<typeof partnerMemberSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
 export type PartnerProductControl = z.infer<typeof partnerProductControlSchema>
+export type PartnerLaunchReadiness = z.infer<typeof partnerLaunchReadinessSchema>
+export type PartnerProductionPromotion = z.infer<typeof partnerProductionPromotionSchema>
 export type PartnerProductPackage = z.infer<typeof partnerProductPackageSchema>
 export type PartnerProductWidgetSettings = z.infer<typeof partnerProductWidgetSettingsSchema>
 export type PartnerProductSupportProfile = z.infer<typeof partnerProductSupportProfileSchema>

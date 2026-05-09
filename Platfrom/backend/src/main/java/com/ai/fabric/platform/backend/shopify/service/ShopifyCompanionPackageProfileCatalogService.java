@@ -188,6 +188,21 @@ public class ShopifyCompanionPackageProfileCatalogService {
             : entity.getVectorProfileKey();
         List<String> requiredPluginIds = requiredPluginIds(entity);
         List<String> disabledPluginIds = disabledPluginIds(entity);
+        String stagingTemplatePluginId = detailText(
+            entity,
+            "stagingTemplatePluginId",
+            firstText(entity.getTemplatePluginId(), bootstrapProperties.stagingTemplatePluginId())
+        );
+        String productionTemplatePluginId = detailText(
+            entity,
+            "productionTemplatePluginId",
+            bootstrapProperties.productionTemplatePluginId()
+        );
+        String productionTargetProfileId = detailText(
+            entity,
+            "productionTargetProfileId",
+            bootstrapProperties.goLiveTargetProfileId()
+        );
         return new ResolvedPackageProfile(
             entity.getProfileKey(),
             entity.getPackageKey(),
@@ -207,6 +222,9 @@ public class ShopifyCompanionPackageProfileCatalogService {
             entity.getVerificationPackId(),
             requiredPluginIds,
             disabledPluginIds,
+            stagingTemplatePluginId,
+            productionTemplatePluginId,
+            productionTargetProfileId,
             toSummary(entity)
         );
     }
@@ -547,6 +565,22 @@ public class ShopifyCompanionPackageProfileCatalogService {
         return readDetailsNode(entity.getDetailsJson()).path(fieldName).asBoolean(false);
     }
 
+    private String detailText(ShopifyCompanionPackageProfileEntity entity, String fieldName, String fallback) {
+        if (entity == null || !StringUtils.hasText(fieldName)) {
+            return blankToNull(fallback);
+        }
+        JsonNode value = readDetailsNode(entity.getDetailsJson()).path(fieldName);
+        if (value.isTextual() && StringUtils.hasText(value.asText())) {
+            return value.asText().trim();
+        }
+        return blankToNull(fallback);
+    }
+
+    private String firstText(String first, String second) {
+        String normalizedFirst = blankToNull(first);
+        return normalizedFirst != null ? normalizedFirst : blankToNull(second);
+    }
+
     private boolean isEliteOrHigher(ShopifyCompanionPackageProfileEntity entity) {
         String tierKey = entity == null ? "" : String.valueOf(entity.getTierKey()).trim().toUpperCase(Locale.ROOT);
         String packageKey = entity == null ? "" : String.valueOf(entity.getPackageKey()).trim().toUpperCase(Locale.ROOT);
@@ -564,6 +598,9 @@ public class ShopifyCompanionPackageProfileCatalogService {
             com.fasterxml.jackson.databind.node.ObjectNode details = objectMapper.createObjectNode();
             details.set("requiredPluginIds", objectMapper.valueToTree(profile.requiredPluginIds()));
             details.set("disabledPluginIds", objectMapper.valueToTree(profile.disabledPluginIds()));
+            details.put("stagingTemplatePluginId", profile.stagingTemplatePluginId());
+            details.put("productionTemplatePluginId", profile.productionTemplatePluginId());
+            details.put("productionTargetProfileId", profile.productionTargetProfileId());
             return objectMapper.writeValueAsString(details);
         } catch (Exception ignored) {
             return "{}";
@@ -589,6 +626,9 @@ public class ShopifyCompanionPackageProfileCatalogService {
         String verificationPackId,
         List<String> requiredPluginIds,
         List<String> disabledPluginIds,
+        String stagingTemplatePluginId,
+        String productionTemplatePluginId,
+        String productionTargetProfileId,
         ShopifyCompanionPackageProfileSummary summary
     ) {
     }

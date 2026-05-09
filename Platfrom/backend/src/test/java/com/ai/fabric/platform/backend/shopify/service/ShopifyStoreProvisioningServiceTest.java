@@ -94,6 +94,9 @@ class ShopifyStoreProvisioningServiceTest {
         assertThat(summary.status()).isEqualTo("READY");
         assertThat(summary.phase()).isEqualTo("READY");
         assertThat(store.getDetailsJson()).contains("\"profileKey\":\"HIGH_QUALITY\"");
+        assertThat(store.getDetailsJson()).contains("\"stagingTemplatePluginId\":\"mkp-template-shopify-companion-staging\"");
+        assertThat(store.getDetailsJson()).contains("\"productionTemplatePluginId\":\"mkp-template-shopify-companion-production\"");
+        assertThat(store.getDetailsJson()).contains("\"productionTargetProfileId\":\"dtp-coolify-production\"");
         assertThat(store.getOnboardingStatus()).isEqualTo("PLATFORM_BOOTSTRAPPED");
         verify(draftCompilerService).syncDeploymentDraftForTrustedCaller("dep-123");
         verify(vectorizationService).reconcileForTrustedCaller("alpha.myshopify.com");
@@ -345,7 +348,7 @@ class ShopifyStoreProvisioningServiceTest {
         entity.setRequestedTierKey("ELITE");
         entity.setRequestedRuntimeProfileKey("HIGH_QUALITY");
         entity.setRequestedVectorProfileKey("QDRANT_SHARED");
-        entity.setRequestedTemplatePluginId("mkp-template-shopify-companion");
+        entity.setRequestedTemplatePluginId("mkp-template-shopify-companion-staging");
         entity.setRequestedPluginIdsJson("[]");
         entity.setProfileChangeStrategy("INITIAL");
         entity.setAttemptCount(0);
@@ -365,7 +368,7 @@ class ShopifyStoreProvisioningServiceTest {
             "High quality",
             "Premium generation and shared vector storage.",
             "QUALITY",
-            "mkp-template-shopify-companion",
+            "mkp-template-shopify-companion-staging",
             null,
             "dev-openai-qdrant",
             "mkp-inference-premium-hybrid",
@@ -387,7 +390,7 @@ class ShopifyStoreProvisioningServiceTest {
             "High quality",
             "Premium generation and shared vector storage.",
             "QUALITY",
-            "mkp-template-shopify-companion",
+            "mkp-template-shopify-companion-staging",
             null,
             "dev-openai-qdrant",
             "mkp-inference-premium-hybrid",
@@ -405,6 +408,9 @@ class ShopifyStoreProvisioningServiceTest {
                 "mkp-action-shopify-customer-account-mcp",
                 "mkp-action-shopify-checkout-mcp"
             ),
+            "mkp-template-shopify-companion-staging",
+            "mkp-template-shopify-companion-production",
+            "dtp-coolify-production",
             summary
         );
     }
@@ -419,7 +425,7 @@ class ShopifyStoreProvisioningServiceTest {
             "Low cost",
             "Free generation and shared vector storage.",
             "LOW",
-            "mkp-template-shopify-companion",
+            "mkp-template-shopify-companion-staging",
             null,
             "dev-openai-qdrant",
             "mkp-inference-shared-embeddings",
@@ -441,7 +447,7 @@ class ShopifyStoreProvisioningServiceTest {
             "Low cost",
             "Free generation and shared vector storage.",
             "LOW",
-            "mkp-template-shopify-companion",
+            "mkp-template-shopify-companion-staging",
             null,
             "dev-openai-qdrant",
             "mkp-inference-shared-embeddings",
@@ -461,6 +467,9 @@ class ShopifyStoreProvisioningServiceTest {
                 "mkp-action-shopify-customer-account-mcp",
                 "mkp-action-shopify-checkout-mcp"
             ),
+            "mkp-template-shopify-companion-staging",
+            "mkp-template-shopify-companion-production",
+            "dtp-coolify-production",
             summary
         );
     }

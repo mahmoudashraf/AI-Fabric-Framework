@@ -129,6 +129,9 @@ class ShopifyStoreBootstrapServiceTest {
                 true,
                 "mkp-template-shopify-companion",
                 "",
+                "mkp-template-shopify-companion-staging",
+                "mkp-template-shopify-companion-production",
+                "",
                 List.of(
                     "mkp-action-shopify-storefront-read-mcp",
                     "mkp-data-shopify-catalog",
@@ -235,7 +238,7 @@ class ShopifyStoreBootstrapServiceTest {
             productServiceRepository,
             connectionService,
             vectorizationService,
-            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
+            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", "mkp-template-shopify-companion-staging", "mkp-template-shopify-companion-production", "", List.of()),
             auditService
         );
 
@@ -335,6 +338,9 @@ class ShopifyStoreBootstrapServiceTest {
                 "eu-west-1",
                 true,
                 "mkp-template-shopify-companion",
+                "",
+                "mkp-template-shopify-companion-staging",
+                "mkp-template-shopify-companion-production",
                 "",
                 List.of(
                     "mkp-action-shopify-storefront-read-mcp",
@@ -436,7 +442,7 @@ class ShopifyStoreBootstrapServiceTest {
             productServiceRepository,
             connectionService,
             vectorizationService,
-            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", List.of()),
+            new ShopifyCompanionBootstrapProperties("dev", "dev-openai-qdrant", "PLATFORM_MANAGED", "SHARED", "https://shared-qdrant.example", "", "MANAGED_QDRANT_DB_API_KEY_DEP_DEP_SHARED", "aws", "eu-west-1", true, "mkp-template-shopify-companion", "", "mkp-template-shopify-companion-staging", "mkp-template-shopify-companion-production", "", List.of()),
             auditService
         );
 
@@ -525,6 +531,9 @@ class ShopifyStoreBootstrapServiceTest {
                 "eu-west-1",
                 true,
                 "mkp-template-shopify-companion",
+                "",
+                "mkp-template-shopify-companion-staging",
+                "mkp-template-shopify-companion-production",
                 "",
                 List.of(
                     "mkp-action-shopify-storefront-read-mcp",
@@ -618,6 +627,9 @@ class ShopifyStoreBootstrapServiceTest {
                 "eu-west-1",
                 true,
                 "mkp-template-shopify-companion",
+                "",
+                "mkp-template-shopify-companion-staging",
+                "mkp-template-shopify-companion-production",
                 "",
                 List.of()
             ),

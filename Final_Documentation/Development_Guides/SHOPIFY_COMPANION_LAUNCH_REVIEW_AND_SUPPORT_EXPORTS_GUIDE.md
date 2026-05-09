@@ -59,6 +59,14 @@ The major export builders are:
 
 The merchant app wires them into copy/download controls from the embedded admin UI.
 
+Partner launch readiness and production-promotion review surfaces live in:
+
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/service/PartnerEnablementService.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/web/PartnerEnablementController.java`
+- `Platfrom/partner-ui/src/pages/StoreWorkspacePage.tsx`
+
+These surfaces are not export-only. They gate whether a partner can prepare production promotion from the approved store workspace without exposing provider internals.
+
 ---
 
 ## 3) Live Data Sources Behind The Exports
@@ -119,12 +127,35 @@ Operational posture comes from:
 
 This is where the exports get:
 
+- source preflight posture
+- vectorization health
+- live-update automation state
+- recent Shopify live-update events
 - webhook readiness
 - subscription webhook posture
-- live update health
 - indexing readiness
 
-### 3.5 Shopper-signal and ROI posture
+### 3.5 Partner launch readiness posture
+
+Partner production-prep posture comes from Platform partner enablement APIs:
+
+- `GET /api/partners/stores/{storeId}/launch-readiness`
+- `POST /api/partners/stores/{storeId}/production-promotions`
+
+The launch-readiness response combines:
+
+- active merchant-approved partner assignment
+- store install, source, sync, and widget posture
+- latest verification result
+- latest evidence-bundle state
+- go-live eligibility from the Shopify store readiness state
+- merchant-safe blockers and next actions
+
+Blocked and failed promotion attempts are written to partner audit evidence. The UI should show the merchant-safe reason and keep operator diagnostics behind Platform audit/support access.
+
+`scripts/verify-partner-enablement-live.sh` now checks that deployed Partner UI assets contain the Launch tab and production-promotion API wiring. Set `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true` only when the run should intentionally request a real production promotion.
+
+### 3.6 Shopper-signal and ROI posture
 
 Merchant value evidence comes from:
 

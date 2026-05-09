@@ -13,6 +13,7 @@ PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 STRICT="${PARTNER_LIVE_STRICT:-false}"
 TARGET_STORE_ID="${PARTNER_LIVE_STORE_ID:-}"
 TARGET_SHOP_DOMAIN="${PARTNER_LIVE_SHOP_DOMAIN:-${SHOP_DOMAIN:-}}"
+PRODUCTION_PROMOTION_PROOF="${PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF:-false}"
 RUN_TAG="${PARTNER_LIVE_RUN_TAG:-release-gate-$(date -u +%Y%m%dT%H%M%SZ)}"
 PACKAGE_TRIAL_PRIVILEGE="PACKAGE_TRIAL_ACTIVATE"
 TEMP_ACCESS_REQUEST_ID=""
@@ -326,9 +327,13 @@ required = [
     "/api/partners/templates",
     "/api/partners/template-applications",
     "/api/partners/stores/",
+    "/launch-readiness",
+    "/production-promotions",
     "/max-widget",
     "Live Max widget test",
     "Partner-secured routes",
+    "Production readiness",
+    "Request production promotion",
     "/notes",
     "/escalations",
     "/package-trials",
@@ -1275,6 +1280,62 @@ print(bundle["id"])
 PY
 )"
   echo "PASS: launch evidence bundle persisted (${launch_bundle_id})"
+
+  launch_readiness_body="${TMP_DIR}/launch-readiness.json"
+  launch_readiness_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/launch-readiness" "${launch_readiness_body}")"
+  cp "${launch_readiness_body}" "${TMP_DIR}/last-body"
+  assert_status "${launch_readiness_status}" "200" "partner launch readiness reachable"
+  production_promotion_ready="$(python3 - <<'PY' "${launch_readiness_body}" "${workflow_store_id}" "${workflow_shop_domain}"
+import json
+import pathlib
+import sys
+
+readiness = json.loads(pathlib.Path(sys.argv[1]).read_text())
+store_id = sys.argv[2]
+shop = sys.argv[3].lower()
+assert readiness["storeId"] == store_id, readiness
+assert str(readiness.get("shopDomain") or "").lower() == shop, readiness
+assert readiness.get("stagingReady") is True, readiness
+assert readiness.get("latestVerificationStatus") == "PASSED", readiness
+assert readiness.get("evidenceReady") is True, readiness
+assert readiness.get("latestEvidenceStatus") == "READY", readiness
+raw = json.dumps(readiness).lower()
+for forbidden in ("secret", "token", "password", "credential", "provider_resource"):
+    assert forbidden not in raw, readiness
+print("true" if readiness.get("productionPromotionReady") is True else "false")
+PY
+)"
+  echo "PASS: launch readiness reports staging proof and merchant-safe evidence"
+
+  if [[ "${PRODUCTION_PROMOTION_PROOF}" == "true" ]]; then
+    if [[ "${production_promotion_ready}" != "true" ]]; then
+      echo "FAIL: PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true but launch readiness is not production-ready." >&2
+      exit 27
+    fi
+    production_promotion_body="${TMP_DIR}/production-promotion.json"
+    production_promotion_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/production-promotions" "${production_promotion_body}")"
+    cp "${production_promotion_body}" "${TMP_DIR}/last-body"
+    assert_status "${production_promotion_status}" "200" "partner production promotion requested"
+    python3 - <<'PY' "${production_promotion_body}" "${workflow_store_id}" "${workflow_shop_domain}"
+import json
+import pathlib
+import sys
+
+promotion = json.loads(pathlib.Path(sys.argv[1]).read_text())
+store_id = sys.argv[2]
+shop = sys.argv[3].lower()
+assert promotion["storeId"] == store_id, promotion
+assert str(promotion.get("shopDomain") or "").lower() == shop, promotion
+assert promotion["status"] == "REQUESTED", promotion
+assert promotion.get("latestReleaseStatus"), promotion
+raw = json.dumps(promotion).lower()
+for forbidden in ("secret", "token", "password", "credential", "provider_resource"):
+    assert forbidden not in raw, promotion
+print("PASS: production promotion response is merchant-safe")
+PY
+  else
+    echo "SKIP: production promotion mutation not run; set PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true for an intentional Go production proof."
+  fi
 
   evidence_list_body="${TMP_DIR}/evidence-bundles-list.json"
   evidence_list_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}/evidence-bundles" "${evidence_list_body}")"

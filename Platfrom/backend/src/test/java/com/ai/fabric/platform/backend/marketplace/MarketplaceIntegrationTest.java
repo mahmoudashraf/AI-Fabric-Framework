@@ -203,10 +203,18 @@ class MarketplaceIntegrationTest {
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(3))))
+            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(5))))
             .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(7))))
             .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(5))))
             .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(8))));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-shopify-companion-staging")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-template-shopify-companion-staging")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-shopify-companion-production")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-template-shopify-companion-production")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-inference-shared-embeddings")))
             .andExpect(status().isOk())

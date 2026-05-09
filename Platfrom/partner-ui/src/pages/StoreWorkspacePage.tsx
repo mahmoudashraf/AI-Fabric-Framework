@@ -25,6 +25,7 @@ import {
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined'
+import RocketLaunchOutlinedIcon from '@mui/icons-material/RocketLaunchOutlined'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import FolderZipOutlinedIcon from '@mui/icons-material/FolderZipOutlined'
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
@@ -43,9 +44,10 @@ import { z } from 'zod'
 import { createStoreEvidenceBundle, listStoreEvidenceBundles } from '../api/evidence'
 import { createEscalation, listEscalations } from '../api/escalations'
 import { listClientImplementations } from '../api/implementations'
+import { getLaunchReadiness, requestProductionPromotion } from '../api/launch'
 import { createStoreNote, listStoreNotes } from '../api/notes'
 import { activatePackageTrial, deactivatePackageTrial, getProductControls, updateProductSourceSettings, updateProductSupportProfile, updateProductWidgetSettings } from '../api/productControls'
-import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerProductControl, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
+import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerLaunchReadiness, PartnerProductControl, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
 import { getPartnerStore } from '../api/stores'
 import { listTemplateApplications } from '../api/templates'
 import { listStoreThinkerSessions } from '../api/thinker'
@@ -157,6 +159,7 @@ export function StoreWorkspacePage() {
           <Tab label="Overview" />
           <Tab label="Product controls" />
           <Tab label="Setup checklist" />
+          <Tab label="Launch" />
           <Tab label="Verification" />
           <Tab label="Evidence" />
           <Tab label="Thinker" />
@@ -176,10 +179,11 @@ export function StoreWorkspacePage() {
       ) : null}
       {tab === 1 ? <ProductControlsTab storeId={store.id} /> : null}
       {tab === 2 ? <SetupTab store={store} latestRun={latestRun} templates={appliedTemplates} /> : null}
-      {tab === 3 ? <VerificationTab storeId={store.id} /> : null}
-      {tab === 4 ? <EvidenceTab storeId={store.id} /> : null}
-      {tab === 5 ? <ThinkerTab storeId={store.id} /> : null}
-      {tab === 6 ? (
+      {tab === 3 ? <LaunchTab store={store} /> : null}
+      {tab === 4 ? <VerificationTab storeId={store.id} /> : null}
+      {tab === 5 ? <EvidenceTab storeId={store.id} /> : null}
+      {tab === 6 ? <ThinkerTab storeId={store.id} /> : null}
+      {tab === 7 ? (
         <Paper sx={{ p: 2 }}>
           <Typography variant="h3">Support center</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
@@ -188,7 +192,7 @@ export function StoreWorkspacePage() {
           <Button sx={{ mt: 2 }} onClick={() => navigate('/support')}>Open support</Button>
         </Paper>
       ) : null}
-      {tab === 7 ? <NotesTab storeId={store.id} /> : null}
+      {tab === 8 ? <NotesTab storeId={store.id} /> : null}
       <EscalationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} storeId={store.id} />
     </>
   )
@@ -804,6 +808,115 @@ function SetupTab({ store, latestRun, templates }: { store: PartnerStore; latest
           <TimelineRow key={item.label} title={item.label} subtitle={item.detail} status={item.status} />
         ))}
       </Stack>
+    </Paper>
+  )
+}
+
+function LaunchTab({ store }: { store: PartnerStore }) {
+  const { api } = useSupabaseAuth()
+  const queryClient = useQueryClient()
+  const readinessQuery = useQuery({ queryKey: ['store-launch-readiness', store.id], queryFn: () => getLaunchReadiness(api, store.id) })
+  const promotionMutation = useMutation({
+    mutationFn: () => requestProductionPromotion(api, store.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['store-launch-readiness', store.id] })
+      await queryClient.invalidateQueries({ queryKey: ['store', store.id] })
+      await queryClient.invalidateQueries({ queryKey: ['activity'] })
+    },
+  })
+
+  if (readinessQuery.isLoading) {
+    return <LinearProgress />
+  }
+  if (readinessQuery.isError || !readinessQuery.data) {
+    return <Alert severity="error">{readinessQuery.error instanceof Error ? readinessQuery.error.message : 'Launch readiness could not be loaded.'}</Alert>
+  }
+
+  const readiness = readinessQuery.data
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ md: 'center' }}>
+          <Stack spacing={1}>
+            <SectionHeading icon={<RocketLaunchOutlinedIcon />} title="Production readiness" />
+            <Typography color="text.secondary">
+              Production promotion is prepared from merchant-approved store state, verification proof, and launch evidence. Operational details and secrets stay inside Platform operations.
+            </Typography>
+          </Stack>
+          <StatusChip status={readiness.status} />
+        </Stack>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 1.5, mt: 2 }}>
+          <InfoTile label="Staging" value={readiness.stagingReady ? 'Ready' : 'Needs setup'} />
+          <InfoTile label="Verification" value={titleize(readiness.latestVerificationStatus ?? 'not run')} />
+          <InfoTile label="Evidence" value={readiness.evidenceReady ? titleize(readiness.latestEvidenceStatus ?? 'ready') : 'Needed'} />
+          <InfoTile label="Go-live gate" value={readiness.goLiveEligible ? 'Eligible' : 'Blocked'} />
+          <InfoTile label="Checked" value={formatDateTime(readiness.checkedAt)} />
+        </Box>
+      </Paper>
+
+      {promotionMutation.isSuccess ? (
+        <Alert severity="success">
+          {promotionMutation.data.message}
+        </Alert>
+      ) : null}
+      {promotionMutation.isError ? (
+        <Alert severity="error">{promotionMutation.error instanceof Error ? promotionMutation.error.message : 'Production promotion request failed.'}</Alert>
+      ) : null}
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
+        <LaunchChecklist readiness={readiness} />
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h3">Promotion action</Typography>
+          <Typography color="text.secondary" sx={{ mt: 1 }}>
+            Use this only after the merchant has approved partner access, staging proof is clean, and the launch packet is attached to the handoff.
+          </Typography>
+          <Stack spacing={1.25} sx={{ mt: 2 }}>
+            {readiness.nextActions.map((item) => (
+              <TimelineRow key={item} title={item} subtitle="Partner-safe next action" status={readiness.productionPromotionReady ? 'READY' : 'NEEDS_SETUP'} />
+            ))}
+          </Stack>
+          <Button
+            variant="contained"
+            startIcon={<RocketLaunchOutlinedIcon />}
+            sx={{ mt: 2, alignSelf: 'flex-end' }}
+            onClick={() => promotionMutation.mutate()}
+            disabled={!readiness.productionPromotionAllowed || !readiness.productionPromotionReady || promotionMutation.isPending}
+          >
+            Request production promotion
+          </Button>
+        </Paper>
+      </Box>
+    </Stack>
+  )
+}
+
+function LaunchChecklist({ readiness }: { readiness: PartnerLaunchReadiness }) {
+  const items = [
+    { label: 'Merchant-approved store access', status: readiness.productionPromotionAllowed ? 'PASSED' : 'NEEDS_SETUP', detail: readiness.productionPromotionAllowed ? 'Production preparation scope is available.' : 'Merchant scope does not allow production preparation.' },
+    { label: 'Staging setup is ready', status: readiness.stagingReady ? 'PASSED' : 'NEEDS_SETUP', detail: readiness.stagingReady ? 'Install, sync, source readiness, and widget are green.' : 'Finish staging setup before promotion.' },
+    { label: 'Verification passed', status: readiness.latestVerificationStatus ?? 'NOT_RUN', detail: readiness.latestVerificationRunId ?? 'Run a launch verification pack.' },
+    { label: 'Launch evidence exported', status: readiness.evidenceReady ? 'PASSED' : 'NEEDS_SETUP', detail: readiness.latestEvidenceBundleId ?? 'Export a merchant-safe launch evidence bundle.' },
+    { label: 'Platform go-live gate', status: readiness.goLiveEligible ? 'PASSED' : 'BLOCKED', detail: readiness.goLiveEligible ? 'Platform go-live checks are eligible.' : 'Resolve the go-live blockers below.' },
+  ]
+  return (
+    <Paper sx={{ p: 2 }}>
+      <Typography variant="h3">Promotion checklist</Typography>
+      <Stack spacing={1.25} sx={{ mt: 2 }}>
+        {items.map((item) => (
+          <TimelineRow key={item.label} title={item.label} subtitle={item.detail} status={item.status} />
+        ))}
+      </Stack>
+      {readiness.blockers.length > 0 ? (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="caption" color="text.secondary">Current blockers</Typography>
+          <Stack spacing={1} sx={{ mt: 1 }}>
+            {readiness.blockers.map((blocker) => (
+              <Alert key={blocker} severity="warning">{blocker}</Alert>
+            ))}
+          </Stack>
+        </>
+      ) : null}
     </Paper>
   )
 }

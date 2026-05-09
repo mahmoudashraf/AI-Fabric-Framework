@@ -1,12 +1,12 @@
-# 009.4 Loom Companion Launch Readiness And Design-Partner Package
+# 009.4 Loom Companion Launch Readiness And Design-Partner Package - Merged Into 010
 
-Status: implementation roadmap (created 2026-05-09)
+Status: merged into [010 GTM And Partner Portal Launch Readiness](010_GTM_AND_PARTNER_PORTAL_LAUNCH_READINESS.md). Created 2026-05-09; superseded for execution by 010 on 2026-05-09.
 
 Owner mode: product launch / platform operations LLM session
 
-Roadmap phase: `009.4` - turn the 009 MCP-first implementation into a merchant-ready Loom Companion launch package.
+Roadmap phase: `009.4` - historical launch-package detail. Its active execution scope is now merged into `010`.
 
-Priority: P0 after `009.3` staging release gate. This is the next execution focus before more MCP infrastructure, new commerce verticals, or broad App Store launch.
+Priority: reference only. Do not execute this as a separate roadmap; use [010 GTM And Partner Portal Launch Readiness](010_GTM_AND_PARTNER_PORTAL_LAUNCH_READINESS.md) for active GTM, partner portal, merchant readiness, cohort, support, and evidence work.
 
 Parent plans:
 
@@ -28,6 +28,10 @@ Related references:
 ---
 
 ## Executive Decision
+
+This plan has been merged into `010`.
+
+Keep this document as the detailed launch-package reference for the thinking that became `010`; do not treat it as a separate active roadmap or a parallel workstream.
 
 009 is technically release-gated on staging for the claim-safe Loom Companion product boundary.
 
@@ -59,6 +63,7 @@ Treat these as accepted from 009.3:
 - Storefront MCP path is live-verified through Bridge -> MCP Gateway -> Shopify Storefront MCP.
 - `shopify_search_catalog` is release-gated as normalized `MCP_TOOL_RESULT` evidence.
 - Customer Account MCP read-only order-status boundary has staging bound-token proof.
+- Customer Account MCP storefront/custom domain must be per-store Platform configuration for design-partner onboarding. A Bridge-wide storefront-domain env is fallback-only and must not be used as the product model for multiple stores.
 - Checkout MCP credentials, agentic token exchange, UCP profile, direct `tools/call`, and `Shopify-Buyer-IP` semantics are verified.
 - Managed Checkout MCP public proof is accepted only with a staging development-store limitation: the dev store still redirects `/api/ucp/mcp` to `/password`, and Bridge/Gateway intentionally do not use storefront password cookies.
 - Full Platform release gate passed after 009.3 hardening.

@@ -783,6 +783,9 @@ class ShopifyStoreVectorizationServiceTest {
                 true,
                 "mkp-template-shopify-companion",
                 "",
+                "mkp-template-shopify-companion-staging",
+                "mkp-template-shopify-companion-production",
+                "",
                 List.of(
                     ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID,
                     ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID,

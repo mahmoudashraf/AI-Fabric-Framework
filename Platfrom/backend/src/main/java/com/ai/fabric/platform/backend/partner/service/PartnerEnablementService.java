@@ -35,12 +35,14 @@ import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationS
 import com.ai.fabric.platform.backend.partner.model.PartnerEligibleStoreSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleCreateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerLaunchReadinessSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialDeactivationRequest;
+import com.ai.fabric.platform.backend.partner.model.PartnerProductionPromotionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductPackageSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductSourceSettingsSummary;
@@ -96,6 +98,7 @@ import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSett
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreConnectionService;
+import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreGoLiveService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreProvisioningService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSourceSettingsService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreSupportProfileService;
@@ -225,6 +228,7 @@ public class PartnerEnablementService {
     private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
     private final ShopifyStoreSupportProfileService shopifyStoreSupportProfileService;
     private final ShopifyStoreProvisioningService shopifyStoreProvisioningService;
+    private final ShopifyStoreGoLiveService shopifyStoreGoLiveService;
     private final DeploymentPocChatService deploymentPocChatService;
     private final ObjectMapper objectMapper;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -253,6 +257,7 @@ public class PartnerEnablementService {
                                     ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
                                     ShopifyStoreSupportProfileService shopifyStoreSupportProfileService,
                                     ShopifyStoreProvisioningService shopifyStoreProvisioningService,
+                                    ShopifyStoreGoLiveService shopifyStoreGoLiveService,
                                     DeploymentPocChatService deploymentPocChatService,
                                     ObjectMapper objectMapper) {
         this.authProperties = authProperties;
@@ -279,6 +284,7 @@ public class PartnerEnablementService {
         this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
         this.shopifyStoreSupportProfileService = shopifyStoreSupportProfileService;
         this.shopifyStoreProvisioningService = shopifyStoreProvisioningService;
+        this.shopifyStoreGoLiveService = shopifyStoreGoLiveService;
         this.deploymentPocChatService = deploymentPocChatService;
         this.objectMapper = objectMapper;
     }
@@ -381,6 +387,63 @@ public class PartnerEnablementService {
     public PartnerStoreSummary getStore(String storeId) {
         PartnerContext context = requireProvisionedContext();
         return toStoreSummary(requireActiveAssignment(context.account().getId(), storeId));
+    }
+
+    @Transactional(readOnly = true)
+    public PartnerLaunchReadinessSummary getLaunchReadiness(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        return buildLaunchReadiness(context, assignment, store);
+    }
+
+    @Transactional
+    public PartnerProductionPromotionSummary requestProductionPromotion(String storeId) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
+        requireAssignmentCapability(assignment, "PRODUCT_CONFIG_PUBLISH");
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        PartnerLaunchReadinessSummary readiness = buildLaunchReadiness(context, assignment, store);
+        if (!readiness.productionPromotionReady()) {
+            audit(context, "PRODUCTION_PROMOTION_BLOCKED", "STORE_ASSIGNMENT", assignment.getId(), "BLOCKED", writeJson(Map.of(
+                "shopDomain", assignment.getShopDomain(),
+                "blockers", readiness.blockers()
+            )));
+            throw new ResponseStatusException(
+                CONFLICT,
+                readiness.blockers().isEmpty()
+                    ? "Production promotion is not ready for this store yet."
+                    : readiness.blockers().get(0)
+            );
+        }
+
+        ShopifyStoreConnectionSummary promoted;
+        try {
+            promoted = shopifyStoreGoLiveService.goLive(assignment.getShopDomain());
+        } catch (ResponseStatusException ex) {
+            audit(context, "PRODUCTION_PROMOTION_FAILED", "STORE_ASSIGNMENT", assignment.getId(), "FAILED", writeJson(Map.of(
+                "shopDomain", assignment.getShopDomain(),
+                "message", ex.getReason() == null ? "Production promotion failed." : ex.getReason()
+            )));
+            throw ex;
+        }
+        audit(context, "PRODUCTION_PROMOTION_REQUESTED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", assignment.getShopDomain(),
+            "deploymentId", promoted.deploymentId() == null ? "" : promoted.deploymentId(),
+            "onboardingStatus", promoted.onboardingStatus() == null ? "" : promoted.onboardingStatus()
+        )));
+        return new PartnerProductionPromotionSummary(
+            assignment.getId(),
+            promoted.shopDomain(),
+            "REQUESTED",
+            "Production promotion has been requested through Platform. Staging remains available while the production release is verified.",
+            promoted.onboardingStatus(),
+            promoted.latestRelease() == null ? null : promoted.latestRelease().status(),
+            promoted.latestRelease() == null ? null : promoted.latestRelease().verificationStatus(),
+            List.of(),
+            List.of("Watch production verification and keep the launch evidence bundle attached to the merchant handoff."),
+            Instant.now()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -2299,6 +2362,90 @@ public class PartnerEnablementService {
         );
     }
 
+    private PartnerLaunchReadinessSummary buildLaunchReadiness(PartnerContext context,
+                                                               PartnerStoreAssignmentEntity assignment,
+                                                               ShopifyStoreConnectionSummary store) {
+        PartnerVerificationRunEntity latestRun = verificationRunRepository
+            .findByPartnerAccountIdAndStoreAssignmentIdOrderByStartedAtDesc(context.account().getId(), assignment.getId())
+            .stream()
+            .findFirst()
+            .orElse(null);
+        PartnerEvidenceBundleEntity latestEvidence = evidenceBundleRepository
+            .findByPartnerAccountIdAndStoreAssignmentIdOrderByGeneratedAtDesc(context.account().getId(), assignment.getId())
+            .stream()
+            .findFirst()
+            .orElse(null);
+        List<String> assignmentPermissions = readList(assignment.getPermissionsJson());
+        boolean productionPromotionAllowed = assignmentPermissions.contains("PRODUCT_CONFIG_PUBLISH");
+        boolean assignmentActive = "ACTIVE".equalsIgnoreCase(assignment.getStatus());
+        boolean installed = store != null && "INSTALLED".equalsIgnoreCase(store.installStatus());
+        boolean synced = store != null && "SYNCED".equalsIgnoreCase(store.syncStatus());
+        boolean sourcesReady = store != null && "READY".equalsIgnoreCase(store.sourceReadinessStatus());
+        boolean widgetEnabled = store != null && "ENABLED".equalsIgnoreCase(store.widgetStatus());
+        boolean stagingReady = assignmentActive && installed && synced && sourcesReady && widgetEnabled;
+        boolean latestRunPassed = latestRun != null && "PASSED".equalsIgnoreCase(latestRun.getStatus());
+        boolean evidenceReady = latestEvidence != null && "READY".equalsIgnoreCase(latestEvidence.getStatus());
+        boolean goLiveEligible = store != null && store.readiness() != null && store.readiness().goLiveEligible();
+
+        List<String> blockers = new ArrayList<>();
+        if (!assignmentActive) {
+            blockers.add("Merchant-approved partner access must be active before production promotion.");
+        }
+        if (!productionPromotionAllowed) {
+            blockers.add("Merchant-approved partner scope does not include production promotion preparation.");
+        }
+        if (!installed) {
+            blockers.add("Shopify Companion must be installed before production promotion.");
+        }
+        if (!synced) {
+            blockers.add("Knowledge Sync must be complete before production promotion.");
+        }
+        if (!sourcesReady) {
+            blockers.add("Store source readiness must be READY before production promotion.");
+        }
+        if (!widgetEnabled) {
+            blockers.add("Storefront widget must be enabled before production promotion.");
+        }
+        if (!latestRunPassed) {
+            blockers.add("A passing launch verification run is required before production promotion.");
+        }
+        if (!evidenceReady) {
+            blockers.add("A merchant-safe launch evidence bundle is required before production promotion.");
+        }
+        if (!goLiveEligible && store != null && store.readiness() != null && store.readiness().goLiveBlockingReasons() != null) {
+            store.readiness().goLiveBlockingReasons().stream()
+                .filter(StringUtils::hasText)
+                .forEach(blockers::add);
+        }
+
+        boolean productionPromotionReady = stagingReady && latestRunPassed && evidenceReady && productionPromotionAllowed && goLiveEligible;
+        String status = productionPromotionReady ? "READY" : stagingReady ? "NEEDS_PROOF" : "NEEDS_SETUP";
+        List<String> nextActions = productionPromotionReady
+            ? List.of("Request production promotion through Platform and watch production verification.")
+            : blockers.stream().limit(4).toList();
+
+        return new PartnerLaunchReadinessSummary(
+            assignment.getId(),
+            assignment.getShopDomain(),
+            status,
+            stagingReady,
+            evidenceReady,
+            productionPromotionAllowed,
+            productionPromotionReady,
+            goLiveEligible,
+            List.copyOf(blockers),
+            nextActions,
+            latestRun == null ? null : latestRun.getId(),
+            latestRun == null ? null : latestRun.getStatus(),
+            latestEvidence == null ? null : latestEvidence.getId(),
+            latestEvidence == null ? null : latestEvidence.getStatus(),
+            productionPromotionReady
+                ? "Request production promotion"
+                : "Complete staging setup, verification, and launch evidence before production promotion.",
+            Instant.now()
+        );
+    }
+
     private PartnerProductControlSummary toProductControlSummary(PartnerStoreAssignmentEntity assignment,
                                                                  ShopifyStoreConnectionSummary store) {
         return toProductControlSummary(
@@ -2563,6 +2710,7 @@ public class PartnerEnablementService {
             || action.startsWith("STORE_NOTE_")
             || action.startsWith("SUPPORT_")
             || action.startsWith("PRODUCT_")
+            || action.startsWith("PRODUCTION_PROMOTION_")
             || action.startsWith("KNOWLEDGE_")
             || action.startsWith("PARTNER_MAX_WIDGET_");
     }

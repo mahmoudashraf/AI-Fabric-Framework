@@ -192,8 +192,11 @@ shopify:
       default-qdrant-cloud-provider-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_PROVIDER_ID:aws}
       default-qdrant-cloud-region-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_REGION_ID:eu-west-1}
       default-qdrant-managed-collections-enabled: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_MANAGED_COLLECTIONS_ENABLED:false}
-      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
+      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion-staging}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
+      staging-template-plugin-id: ${SHOPIFY_COMPANION_STAGING_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion-staging}
+      production-template-plugin-id: ${SHOPIFY_COMPANION_PRODUCTION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion-production}
+      go-live-target-profile-id: ${SHOPIFY_COMPANION_GO_LIVE_TARGET_PROFILE_ID:}
       default-plugin-ids:
         - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-storefront-read-mcp}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-shopify-catalog}

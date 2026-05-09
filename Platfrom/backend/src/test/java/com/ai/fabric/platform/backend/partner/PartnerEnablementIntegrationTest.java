@@ -387,6 +387,19 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.capabilities", hasItem("STOREFRONT_SURFACE_CONTROL")))
             .andExpect(jsonPath("$.supportProfile.merchantHandoffConfigured", is(false)));
 
+        mockMvc.perform(get("/api/partners/stores/{storeId}/launch-readiness", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$.stagingReady", is(true)))
+            .andExpect(jsonPath("$.productionPromotionAllowed", is(true)))
+            .andExpect(jsonPath("$.productionPromotionReady", is(false)))
+            .andExpect(jsonPath("$.blockers", hasItem("A passing launch verification run is required before production promotion.")));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/production-promotions", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isConflict());
+
         mockMvc.perform(post("/api/partners/stores/{storeId}/product-controls/widget-settings", assignmentId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -546,6 +559,13 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.bundleKind", is("LAUNCH_PACKET")))
             .andExpect(jsonPath("$.summary.widgetStatus", is("ENABLED")));
 
+        mockMvc.perform(get("/api/partners/stores/{storeId}/launch-readiness", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.latestVerificationStatus", is("PASSED")))
+            .andExpect(jsonPath("$.evidenceReady", is(true)))
+            .andExpect(jsonPath("$.latestEvidenceStatus", is("READY")));
+
         mockMvc.perform(get("/api/partners/templates")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
@@ -669,6 +689,7 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_SUPPORT_PROFILE_UPDATED")))
             .andExpect(jsonPath("$[*].action", hasItem("PARTNER_MAX_WIDGET_QUERY_RAN")))
             .andExpect(jsonPath("$[*].action", hasItem("VERIFICATION_RUN_CREATED")))
+            .andExpect(jsonPath("$[*].action", hasItem("PRODUCTION_PROMOTION_BLOCKED")))
             .andExpect(jsonPath("$[*].action", hasItem("TEMPLATE_APPLICATION_REUSED")))
             .andExpect(jsonPath("$[*].action", hasItem("SUPPORT_REPLY_CREATED")));
 
@@ -721,6 +742,7 @@ class PartnerEnablementIntegrationTest {
                 "PRODUCT_SUPPORT_PROFILE_UPDATED",
                 "PARTNER_MAX_WIDGET_QUERY_RAN",
                 "VERIFICATION_RUN_CREATED",
+                "PRODUCTION_PROMOTION_BLOCKED",
                 "EVIDENCE_BUNDLE_CREATED",
                 "TEMPLATE_APPLIED",
                 "STORE_NOTE_CREATED",

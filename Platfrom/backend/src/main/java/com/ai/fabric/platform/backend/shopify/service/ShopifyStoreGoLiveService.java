@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -44,6 +45,9 @@ public class ShopifyStoreGoLiveService {
     private final PlatformManagedProductAdminService productAdminService;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final PlatformAuditService platformAuditService;
+    private final ShopifyCompanionBootstrapProperties bootstrapProperties;
+    private final ShopifyCompanionPackageProfileCatalogService profileCatalogService;
+    private final ShopifyStoreSourcePreflightSupport detailsSupport;
 
     public ShopifyStoreGoLiveService(ShopifyStoreConnectionRepository repository,
                                      DeploymentService deploymentService,
@@ -51,7 +55,10 @@ public class ShopifyStoreGoLiveService {
                                      PlatformManagedProductServiceRepository productServiceRepository,
                                      PlatformManagedProductAdminService productAdminService,
                                      ShopifyStoreConnectionService shopifyStoreConnectionService,
-                                     PlatformAuditService platformAuditService) {
+                                     PlatformAuditService platformAuditService,
+                                     ShopifyCompanionBootstrapProperties bootstrapProperties,
+                                     ShopifyCompanionPackageProfileCatalogService profileCatalogService,
+                                     ShopifyStoreSourcePreflightSupport detailsSupport) {
         this.repository = repository;
         this.deploymentService = deploymentService;
         this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
@@ -59,6 +66,9 @@ public class ShopifyStoreGoLiveService {
         this.productAdminService = productAdminService;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.platformAuditService = platformAuditService;
+        this.bootstrapProperties = bootstrapProperties;
+        this.profileCatalogService = profileCatalogService;
+        this.detailsSupport = detailsSupport;
     }
 
     @Transactional
@@ -73,7 +83,19 @@ public class ShopifyStoreGoLiveService {
         DeploymentDraftResponse draft = ensureShopifyCompanionSecurityDefaults(store.getDeploymentId());
         draft = ensureShopifyCompanionConnectorDefaults(store, draft);
         DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
-        DeploymentReleaseSummary release = deploymentService.applyVersion(store.getDeploymentId(), version.id());
+        ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = resolveEffectiveProfile(store);
+        String productionTemplatePluginId = profile == null ? null : profile.productionTemplatePluginId();
+        String targetProfileId = firstText(
+            profile == null ? null : profile.productionTargetProfileId(),
+            bootstrapProperties == null ? null : bootstrapProperties.goLiveTargetProfileId()
+        );
+        DeploymentReleaseSummary release = deploymentService.applyVersion(
+            store.getDeploymentId(),
+            version.id(),
+            null,
+            targetProfileId,
+            null
+        );
 
         store.setOnboardingStatus("GO_LIVE_REQUESTED");
         store.setUpdatedAt(Instant.now());
@@ -88,7 +110,9 @@ public class ShopifyStoreGoLiveService {
                 "deploymentId", store.getDeploymentId(),
                 "consumerId", store.getConsumerId(),
                 "versionId", version.id(),
-                "releaseId", release.id()
+                "releaseId", release.id(),
+                "targetProfileId", targetProfileId == null ? "" : targetProfileId,
+                "productionTemplatePluginId", productionTemplatePluginId == null ? "" : productionTemplatePluginId
             )
         );
 
@@ -291,6 +315,46 @@ public class ShopifyStoreGoLiveService {
         return hasText(productServiceId) ? productServiceRepository.findById(productServiceId).orElse(null) : null;
     }
 
+    private ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile resolveEffectiveProfile(ShopifyStoreConnectionEntity store) {
+        ShopifyStorePackageState state = readPackageState(store);
+        if (!hasText(state.runtimeProfileKey())) {
+            return null;
+        }
+        return profileCatalogService.resolve(
+            state.packageKey(),
+            state.tierKey(),
+            state.runtimeProfileKey(),
+            state.vectorProfileKey()
+        );
+    }
+
+    private ShopifyStorePackageState readPackageState(ShopifyStoreConnectionEntity store) {
+        JsonNode root = detailsSupport.readJsonNode(store == null ? null : store.getDetailsJson());
+        JsonNode state = root == null ? null : root.path("packageState");
+        if (state == null || !state.isObject()) {
+            return new ShopifyStorePackageState(null, null, null, null);
+        }
+        return new ShopifyStorePackageState(
+            text(state, "packageKey"),
+            text(state, "tierKey"),
+            text(state, "runtimeProfileKey"),
+            text(state, "vectorProfileKey")
+        );
+    }
+
+    private String text(JsonNode node, String fieldName) {
+        if (node == null || !node.has(fieldName)) {
+            return null;
+        }
+        JsonNode value = node.path(fieldName);
+        return value.isTextual() && hasText(value.asText()) ? value.asText().trim() : null;
+    }
+
+    private String firstText(String first, String second) {
+        String normalizedFirst = blankToNull(first);
+        return normalizedFirst != null ? normalizedFirst : blankToNull(second);
+    }
+
     private boolean putText(ObjectNode node, String field, String value) {
         String normalized = blankToNull(value);
         String existing = blankToNull(node.path(field).asText(null));
@@ -324,4 +388,11 @@ public class ShopifyStoreGoLiveService {
         return shopDomain.trim().toLowerCase();
     }
 
+    private record ShopifyStorePackageState(
+        String packageKey,
+        String tierKey,
+        String runtimeProfileKey,
+        String vectorProfileKey
+    ) {
+    }
 }

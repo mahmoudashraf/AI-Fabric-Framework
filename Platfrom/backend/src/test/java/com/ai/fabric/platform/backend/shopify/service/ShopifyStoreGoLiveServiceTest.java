@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -95,7 +96,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1")).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -125,7 +126,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         ShopifyStoreConnectionSummary result = service.goLive("alpha.myshopify.com");
@@ -138,7 +142,7 @@ class ShopifyStoreGoLiveServiceTest {
         verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
         verify(draftCompilerService).syncDeploymentDraft("dep-1");
         verify(deploymentService).publishDraft("drf-1");
-        verify(deploymentService).applyVersion("dep-1", "ver-1");
+        verify(deploymentService).applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null);
     }
 
     @Test
@@ -204,7 +208,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1")).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -234,7 +238,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         service.goLive("alpha.myshopify.com");
@@ -273,7 +280,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
@@ -304,7 +314,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
@@ -335,7 +348,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
@@ -357,6 +373,27 @@ class ShopifyStoreGoLiveServiceTest {
         entity.setCreatedAt(Instant.parse("2026-04-18T10:00:00Z"));
         entity.setUpdatedAt(Instant.parse("2026-04-18T10:00:00Z"));
         return entity;
+    }
+
+    private ShopifyCompanionBootstrapProperties bootstrapProperties() {
+        return new ShopifyCompanionBootstrapProperties(
+            "dev",
+            "dev-openai-qdrant",
+            "EXTERNAL_EXISTING",
+            "SHARED",
+            "",
+            "",
+            "",
+            "aws",
+            "eu-west-1",
+            false,
+            "mkp-template-shopify-companion",
+            "",
+            "mkp-template-shopify-companion-staging",
+            "mkp-template-shopify-companion-production",
+            "dtp-coolify-production",
+            java.util.List.of()
+        );
     }
 
     private ShopifyStoreConnectionSummary summary(String shopDomain, String onboardingStatus) {

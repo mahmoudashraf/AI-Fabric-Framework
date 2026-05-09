@@ -112,7 +112,7 @@ public class ShopifyStoreProvisioningService {
             job.setPreviousPackageKey(previousState.packageKey());
             job.setPreviousRuntimeProfileKey(previousState.runtimeProfileKey());
             job.setPreviousVectorProfileKey(previousState.vectorProfileKey());
-            job.setRequestedTemplatePluginId(firstText(request == null ? null : request.requestedTemplatePluginId(), profile.templatePluginId()));
+            job.setRequestedTemplatePluginId(firstText(request == null ? null : request.requestedTemplatePluginId(), profile.stagingTemplatePluginId()));
             job.setRequestedTemplatePluginVersion(firstText(request == null ? null : request.requestedTemplatePluginVersion(), profile.templatePluginVersion()));
             job.setRequestedPluginIdsJson(writePluginIds(resolveRequestedPluginIds(request, profile, store)));
             job.setInstallIntentId(blankToNull(request == null ? null : request.installIntentId()));
@@ -281,8 +281,8 @@ public class ShopifyStoreProvisioningService {
                     null,
                     null,
                     null,
-                    profile.templatePluginId(),
-                    profile.templatePluginVersion(),
+                    job.getRequestedTemplatePluginId(),
+                    job.getRequestedTemplatePluginVersion(),
                     readPluginIds(job.getRequestedPluginIdsJson())
                 );
                 ShopifyStoreBootstrapSummary bootstrap = bootstrapService.bootstrap(store.getShopDomain(), request);
@@ -400,6 +400,9 @@ public class ShopifyStoreProvisioningService {
         packageState.put("vectorProvisioningMode", profile.vectorProvisioningMode());
         packageState.put("vectorStoragePosture", profile.vectorStoragePosture());
         packageState.put("verificationPackId", profile.verificationPackId());
+        packageState.put("stagingTemplatePluginId", profile.stagingTemplatePluginId());
+        packageState.put("productionTemplatePluginId", profile.productionTemplatePluginId());
+        packageState.put("productionTargetProfileId", profile.productionTargetProfileId());
         packageState.put("lastProvisioningJobId", job.getId());
         packageState.put("lastReconciledAt", Instant.now().toString());
         packageState.put("vectorReindexRequired", job.isVectorReindexRequired());
@@ -605,7 +608,11 @@ public class ShopifyStoreProvisioningService {
         if (!hasText(pluginId)) {
             return false;
         }
-        if (profile != null && pluginId.equalsIgnoreCase(profile.templatePluginId())) {
+        if (profile != null && (
+            pluginId.equalsIgnoreCase(profile.templatePluginId())
+                || pluginId.equalsIgnoreCase(profile.stagingTemplatePluginId())
+                || pluginId.equalsIgnoreCase(profile.productionTemplatePluginId())
+        )) {
             return false;
         }
         if (ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID.equalsIgnoreCase(pluginId)) {
