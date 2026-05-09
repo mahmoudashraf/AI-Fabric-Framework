@@ -1091,3 +1091,11 @@ Critical fixes that made the gate pass:
 - Strict live `scripts/verify-partner-enablement-live.sh` passed on staging after redeploying branch head. The Partner Supabase JWT had been refreshed and Platform secret `PARTNER_SUPABASE_JWT` updated without printing token material. This proved the new deployed 010.1 Partner UI and Platform UI launch-readiness asset surfaces plus the merchant approval/evidence/rollback workflow.
 - Hosted `full-platform-release-readiness` passed as `vsr-bfce955e` with 14/14 stages green. Release gate is `READY=true` / `status=READY`, completed `2026-05-09T12:35:57.277008Z`, expires `2026-05-10T00:35:57.277008Z`.
 - Production mutation remains gated and was not run. `010_1_UI_READY` is staging-verified; `010_SELF_SERVICE_PRODUCTION_READY` remains blocked only by controlled production-promotion proof, production provisioning verification, rollback/deactivation proof, and failed-promotion staging-isolation proof.
+
+## 2026-05-09 Partner UI Staging CORS Repair
+
+- Live browser-equivalent check found the Partner UI route served HTTP 200, but Platform backend rejected Partner UI browser API calls with `Invalid CORS request`.
+- Root cause was Coolify env drift: `PLATFORM_CORS_ALLOWED_ORIGINS`, `PLATFORM_CORS_ALLOWED_ORIGIN_PATTERNS`, and `PLATFORM_CORS_ALLOW_CREDENTIALS` existed only as preview env rows on `loomai-platform-backend`; the normal staging runtime did not receive the Partner UI origin.
+- Added the same narrow staging CORS values as non-preview runtime env rows, redeployed `loomai-platform-backend` through Coolify deployment `raym04qz5hwb108wtihul04t`, and verified it finished on commit `7c8d18e55`.
+- Final portal checks passed: Partner UI `/health`, `/runtime-config.js`, and `/login`; Platform UI `/` and `/shopify-launch-readiness`; Shopify Bridge `/` and `/actuator/health`.
+- Browser-equivalent CORS preflights now pass for both Partner UI and Platform UI origins with `GET,POST,PUT,PATCH,DELETE,OPTIONS`, and authenticated `GET /api/partners/session` from the Partner UI origin returns HTTP 200.
