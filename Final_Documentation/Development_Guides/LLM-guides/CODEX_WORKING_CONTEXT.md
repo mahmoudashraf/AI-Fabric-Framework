@@ -1099,3 +1099,11 @@ Critical fixes that made the gate pass:
 - Added the same narrow staging CORS values as non-preview runtime env rows, redeployed `loomai-platform-backend` through Coolify deployment `raym04qz5hwb108wtihul04t`, and verified it finished on commit `7c8d18e55`.
 - Final portal checks passed: Partner UI `/health`, `/runtime-config.js`, and `/login`; Platform UI `/` and `/shopify-launch-readiness`; Shopify Bridge `/` and `/actuator/health`.
 - Browser-equivalent CORS preflights now pass for both Partner UI and Platform UI origins with `GET,POST,PUT,PATCH,DELETE,OPTIONS`, and authenticated `GET /api/partners/session` from the Partner UI origin returns HTTP 200.
+
+## 2026-05-09 LoomAI Landing Site Package
+
+- Claim-safe landing page plan `LOOMAI_LANDING_PAGES_CONTENT_AND_STRUCTURE (1).md` now has an implementation record for `Real_Apps/loomai-landing-site`.
+- Added a neutral static Node service for the Loom Companion merchant page and the partner application page. Host-aware routing serves the partner page for `partners.*` via `Host` or `X-Forwarded-Host`, which matches proxy/Coolify deployment behavior.
+- The service includes `/health`, `/runtime-config.js`, and `/api/leads`. Runtime config exposes only public CTA URLs; optional `LOOMAI_LEAD_WEBHOOK_TOKEN` remains server-side.
+- Verification passed locally: `bash scripts/verify-loomai-landing-site.sh` including HTTP smoke and Playwright browser smoke across desktop/mobile merchant and partner pages. Screenshots were written to `/tmp/loomai-landing-site`.
+- Docker build passed from repo root: `docker build -f Real_Apps/loomai-landing-site/Dockerfile -t loomai-landing-site:local .`, followed by container health and host-aware routing checks on local port `4192`.
