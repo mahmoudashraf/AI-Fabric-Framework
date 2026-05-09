@@ -10,5 +10,7 @@ public interface PartnerSupportEscalationRepository extends JpaRepository<Partne
 
     List<PartnerSupportEscalationEntity> findByPartnerAccountIdOrderByUpdatedAtDesc(String partnerAccountId);
 
+    List<PartnerSupportEscalationEntity> findByPartnerAccountIdAndStoreAssignmentIdOrderByUpdatedAtDesc(String partnerAccountId, String storeAssignmentId);
+
     Optional<PartnerSupportEscalationEntity> findByIdAndPartnerAccountId(String id, String partnerAccountId);
 }

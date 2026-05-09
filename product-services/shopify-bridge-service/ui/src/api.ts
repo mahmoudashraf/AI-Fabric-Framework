@@ -463,6 +463,12 @@ export type ShopifyBridgePartnerAccessRequestSummary = {
   expiresAt: string
   approvedAt: string | null
   revokedAt: string | null
+  inviteRecipientEmail: string | null
+  inviteStatus: string | null
+  inviteChannel: string | null
+  inviteMessage: string | null
+  inviteSentAt: string | null
+  inviteCount: number
   updatedAt: string
 }
 
@@ -479,6 +485,23 @@ export type ShopifyBridgePartnerAccessDecisionSummary = {
   shopDomain: string
   status: string
   decidedAt: string
+}
+
+export type ShopifyBridgePartnerAccessInviteRequest = {
+  recipientEmail?: string
+}
+
+export type ShopifyBridgePartnerAccessInviteSummary = {
+  requestId: string
+  implementationRequestId: string
+  shopDomain: string
+  recipientEmail: string
+  status: string
+  channel: string
+  message: string
+  approvalUrl: string
+  sentAt: string | null
+  inviteCount: number
 }
 
 export type ShopifyBridgeStoreVectorizationRunSummary = {
@@ -771,6 +794,19 @@ export async function revokePartnerAccessRequest(
   request: ShopifyBridgePartnerAccessDecisionRequest,
 ): Promise<ShopifyBridgePartnerAccessDecisionSummary> {
   return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/revoke`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+}
+
+export async function sendPartnerAccessInvite(
+  requestId: string,
+  request: ShopifyBridgePartnerAccessInviteRequest = {},
+): Promise<ShopifyBridgePartnerAccessInviteSummary> {
+  return authenticatedFetchJson(`/api/app/store/partner-access/requests/${encodeURIComponent(requestId)}/invite`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

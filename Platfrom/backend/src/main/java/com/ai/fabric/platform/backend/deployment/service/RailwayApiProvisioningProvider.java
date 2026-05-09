@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.config.PlatformInferenceProvisioningProper
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
@@ -118,8 +119,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
     }
 
     @Override
-    public boolean supports(String mode) {
-        return "RAILWAY_API".equalsIgnoreCase(mode);
+    public DeploymentProviderType providerType() {
+        return DeploymentProviderType.RAILWAY_API;
     }
 
     @Override

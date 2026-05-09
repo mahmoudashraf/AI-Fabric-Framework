@@ -1,8 +1,8 @@
-import { Alert, Paper, Stack, Typography } from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
+import { Alert, Button, Paper, Stack, Typography } from '@mui/material'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { getClientImplementation } from '../api/implementations'
+import { getClientImplementation, sendMerchantInvite } from '../api/implementations'
 import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
@@ -15,6 +15,9 @@ export function ImplementationRequestDetailPage() {
     queryKey: ['implementation', requestId],
     queryFn: () => getClientImplementation(api, requestId),
     enabled: Boolean(requestId),
+  })
+  const inviteMutation = useMutation({
+    mutationFn: () => sendMerchantInvite(api, requestId, implementationQuery.data?.contactEmail ?? undefined),
   })
 
   if (implementationQuery.isError) {
@@ -56,6 +59,22 @@ export function ImplementationRequestDetailPage() {
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                 Merchant review expires {formatDateTime(implementation.approvalExpiresAt)}
               </Typography>
+            ) : null}
+            <Button
+              sx={{ mt: 2 }}
+              variant="contained"
+              disabled={!implementation.contactEmail || inviteMutation.isPending || implementation.status !== 'WAITING_ON_MERCHANT'}
+              onClick={() => inviteMutation.mutate()}
+            >
+              Email approval link
+            </Button>
+            {inviteMutation.isSuccess ? (
+              <Alert sx={{ mt: 2 }} severity={inviteMutation.data.status === 'SENT' ? 'success' : 'info'}>
+                {inviteMutation.data.message}
+              </Alert>
+            ) : null}
+            {inviteMutation.isError ? (
+              <Alert sx={{ mt: 2 }} severity="error">{inviteMutation.error instanceof Error ? inviteMutation.error.message : 'Approval email could not be sent.'}</Alert>
             ) : null}
           </Paper>
           <Paper sx={{ p: 2 }}>

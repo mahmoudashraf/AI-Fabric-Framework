@@ -188,6 +188,68 @@ class PlatformManagedProductAdminServiceTest {
     }
 
     @Test
+    void healthAcceptsCoolifyManagedSharedProductServiceWithoutRailwayLinkage() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/actuator/health", this::handleHealthRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedProductServiceEntity service = productService("shopify-bridge-prod");
+        service.setBaseUrl(baseUrl);
+        service.setDetailsJson("""
+            {
+              "providerType": "COOLIFY",
+              "targetProfileId": "dtp-coolify-production",
+              "coolifyApplicationUuid": "coolify-app-123"
+            }
+            """);
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        ShopifyStoreConnectionService shopifyStoreConnectionService = mock(ShopifyStoreConnectionService.class);
+
+        when(serviceService.requireService("shopify-bridge-prod")).thenReturn(service);
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            shopifyStoreConnectionService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        PlatformManagedProductServiceHealthSummary health = adminService.getHealth("shopify-bridge-prod");
+
+        assertThat(health.status()).isEqualTo("READY");
+        assertThat(health.railwayLifecycleManaged()).isFalse();
+        assertThat(health.healthProbe().status()).isEqualTo("READY");
+        assertThat(health.driftStatus()).isEqualTo("NO_DRIFT");
+        verify(serviceRepository).save(service);
+    }
+
+    @Test
     void overviewFetchesBridgeAdminOverviewUsingManagedSecret() throws Exception {
         httpServer = HttpServer.create(new InetSocketAddress(0), 0);
         httpServer.createContext("/api/admin/overview", this::handleOverviewRequest);
@@ -1169,6 +1231,10 @@ class PlatformManagedProductAdminServiceTest {
             "PASSED",
             "SUCCEEDED",
             "RAILWAY",
+            null,
+            null,
+            null,
+            null,
             "completed",
             "Release applied and verified.",
             null,

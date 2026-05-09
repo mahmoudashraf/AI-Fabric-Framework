@@ -1456,6 +1456,63 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(milvusEnv).containsEntry("AI_PROVIDERS_MILVUS_COLLECTION_PREFIX", "customer_acme__tenant_retail__");
     }
 
+    @Test
+    void buildPlanAddsMcpGatewayRuntimeEnvWhenActionsUseMcpToolAdapter() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        PlatformManagedProductServiceEntity gateway = new PlatformManagedProductServiceEntity();
+        gateway.setServiceRef("mcp-execution-gateway");
+        gateway.setServiceKind("MCP_EXECUTION_GATEWAY_SERVICE");
+        gateway.setBaseUrl("https://mcp-gateway.example");
+        gateway.setSecretName("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY");
+        when(productServiceRepository.findByServiceRefIgnoreCase("mcp-execution-gateway")).thenReturn(Optional.of(gateway));
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        ReflectionTestUtils.setField(service, "platformManagedProductServiceRepository", productServiceRepository);
+        DeploymentVersionEntity mcpVersion = version();
+        mcpVersion.setActionsConfigJson("""
+            {
+              "actions": [
+                {
+                  "name": "shopify_search_catalog",
+                  "adapterType": "mcp-tool",
+                  "execution": {
+                    "adapterType": "mcp-tool",
+                    "mcp": {"serverRef": "shopify-storefront", "toolName": "search_catalog"}
+                  }
+                }
+              ]
+            }
+            """);
+
+        Map<String, String> runtimeEnv = envMap(service.buildPlan(deployment(), mcpVersion).services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_BASE_URL", "https://mcp-gateway.example")
+            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY", "${secret:MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY}")
+            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY")
+            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute");
+    }
+
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
         return env.stream().collect(Collectors.toMap(RailwayEnvVarSummary::key, RailwayEnvVarSummary::value));
     }

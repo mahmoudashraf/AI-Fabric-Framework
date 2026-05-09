@@ -1,8 +1,10 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
@@ -18,6 +20,7 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequ
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
@@ -33,6 +36,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -43,6 +47,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -52,7 +57,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -92,12 +96,13 @@ public class DeploymentVerificationRolloutService {
     private static final int DEFAULT_BATCH_SIZE = 25;
     private static final String QDRANT_PROVIDER = "aws";
     private static final String QDRANT_REGION = "eu-west-1";
-    private static final String DEFAULT_WEAVIATE_HOST = "weaviate-external-verify-dev.up.railway.app";
+    private static final String TEST_WEAVIATE_HOST = "weaviate.example.test";
     private static final String ZILLIZ_PROJECT_ID = "proj-a58a34b87ccfe2c80d6ec2";
     private static final String ZILLIZ_REGION_ID = "aws-eu-central-1";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
+    private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentService deploymentService;
     private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
@@ -111,9 +116,48 @@ public class DeploymentVerificationRolloutService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ResourceLoader resourceLoader;
-    private final Executor rolloutExecutor;
+    private final PlatformVerificationSuiteProperties suiteProperties;
+    private final String ecommerceUpstreamBaseUrl;
 
     @Autowired
+    public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
+                                                DeploymentReleaseRepository releaseRepository,
+                                                DeploymentVersionRepository deploymentVersionRepository,
+                                                DeploymentService deploymentService,
+                                                DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
+                                                DeploymentAssignmentRepository deploymentAssignmentRepository,
+                                                DeploymentAssignmentService deploymentAssignmentService,
+                                                PlatformUserRepository platformUserRepository,
+                                                PlatformSecretService platformSecretService,
+                                                DeploymentVectorizationVerificationService deploymentVectorizationVerificationService,
+                                                VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                                VectorizationPlanRepository vectorizationPlanRepository,
+                                                VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
+                                                PlatformVerificationSuiteProperties suiteProperties,
+                                                @Value("${platform.verification.suites.ecommerce-upstream-base-url:}") String ecommerceUpstreamBaseUrl,
+                                                ObjectMapper objectMapper,
+                                                ResourceLoader resourceLoader,
+                                                @Qualifier("canonicalRolloutExecutor") Executor rolloutExecutor) {
+        this.deploymentRepository = deploymentRepository;
+        this.releaseRepository = releaseRepository;
+        this.deploymentVersionRepository = deploymentVersionRepository;
+        this.deploymentService = deploymentService;
+        this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
+        this.deploymentAssignmentRepository = deploymentAssignmentRepository;
+        this.deploymentAssignmentService = deploymentAssignmentService;
+        this.platformUserRepository = platformUserRepository;
+        this.platformSecretService = platformSecretService;
+        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
+        this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
+        this.vectorizationPlanRepository = vectorizationPlanRepository;
+        this.vectorizationPlanRevisionRepository = vectorizationPlanRevisionRepository;
+        this.objectMapper = objectMapper;
+        this.yamlMapper = new ObjectMapper(new YAMLFactory());
+        this.resourceLoader = resourceLoader;
+        this.suiteProperties = suiteProperties;
+        this.ecommerceUpstreamBaseUrl = normalizeBaseUrl(firstNonBlank(ecommerceUpstreamBaseUrl, ECOMMERCE_UPSTREAM_BASE_URL));
+    }
+
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentService deploymentService,
@@ -128,23 +172,27 @@ public class DeploymentVerificationRolloutService {
                                                 VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
                                                 ObjectMapper objectMapper,
                                                 ResourceLoader resourceLoader,
-                                                @Qualifier("canonicalRolloutExecutor") Executor rolloutExecutor) {
-        this.deploymentRepository = deploymentRepository;
-        this.releaseRepository = releaseRepository;
-        this.deploymentService = deploymentService;
-        this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
-        this.deploymentAssignmentRepository = deploymentAssignmentRepository;
-        this.deploymentAssignmentService = deploymentAssignmentService;
-        this.platformUserRepository = platformUserRepository;
-        this.platformSecretService = platformSecretService;
-        this.deploymentVectorizationVerificationService = deploymentVectorizationVerificationService;
-        this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
-        this.vectorizationPlanRepository = vectorizationPlanRepository;
-        this.vectorizationPlanRevisionRepository = vectorizationPlanRevisionRepository;
-        this.objectMapper = objectMapper;
-        this.yamlMapper = new ObjectMapper(new YAMLFactory());
-        this.resourceLoader = resourceLoader;
-        this.rolloutExecutor = rolloutExecutor != null ? rolloutExecutor : Runnable::run;
+                                                Executor rolloutExecutor) {
+        this(
+            deploymentRepository,
+            releaseRepository,
+            null,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            vectorizationSourceConnectionRepository,
+            vectorizationPlanRepository,
+            vectorizationPlanRevisionRepository,
+            defaultSuiteProperties(),
+            ECOMMERCE_UPSTREAM_BASE_URL,
+            objectMapper,
+            resourceLoader,
+            rolloutExecutor
+        );
     }
 
     public DeploymentVerificationRolloutService(DeploymentRepository deploymentRepository,
@@ -164,6 +212,7 @@ public class DeploymentVerificationRolloutService {
         this(
             deploymentRepository,
             releaseRepository,
+            null,
             deploymentService,
             deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
@@ -174,6 +223,8 @@ public class DeploymentVerificationRolloutService {
             vectorizationSourceConnectionRepository,
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
+            defaultSuiteProperties(),
+            ECOMMERCE_UPSTREAM_BASE_URL,
             objectMapper,
             resourceLoader,
             Runnable::run
@@ -196,6 +247,7 @@ public class DeploymentVerificationRolloutService {
         this(
             deploymentRepository,
             releaseRepository,
+            null,
             deploymentService,
             null,
             deploymentAssignmentRepository,
@@ -206,6 +258,8 @@ public class DeploymentVerificationRolloutService {
             vectorizationSourceConnectionRepository,
             vectorizationPlanRepository,
             vectorizationPlanRevisionRepository,
+            defaultSuiteProperties(),
+            ECOMMERCE_UPSTREAM_BASE_URL,
             objectMapper,
             resourceLoader,
             Runnable::run
@@ -222,8 +276,8 @@ public class DeploymentVerificationRolloutService {
 
     public DeploymentVerificationRolloutSummary recreateRollouts(List<String> selectedKeys) {
         List<VerificationRolloutDefinition> selected = selectedDefinitions(selectedKeys);
-        executeInParallel(selected, this::ensureDeployment, "create/apply");
-        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s) in parallel.");
+        executeSequentially(selected, this::ensureDeployment, "create/apply");
+        return buildSummary("Created or reapplied " + selected.size() + " canonical verification rollout deployment(s) sequentially.");
     }
 
     public DeploymentVerificationRolloutSummary cleanupRollouts(List<String> selectedKeys) {
@@ -413,21 +467,20 @@ public class DeploymentVerificationRolloutService {
         forceRedispatchLatestQueuedApply(deploymentId);
     }
 
-    private void executeInParallel(List<VerificationRolloutDefinition> definitions,
-                                   java.util.function.Consumer<VerificationRolloutDefinition> operation,
-                                   String operationLabel) {
+    private void executeSequentially(List<VerificationRolloutDefinition> definitions,
+                                     java.util.function.Consumer<VerificationRolloutDefinition> operation,
+                                     String operationLabel) {
         if (definitions == null || definitions.isEmpty()) {
             return;
         }
 
-        List<CompletableFuture<RolloutExecutionFailure>> futures = definitions.stream()
-            .map(definition -> CompletableFuture.supplyAsync(() -> executeOperation(definition, operation), rolloutExecutor))
-            .toList();
-
-        List<RolloutExecutionFailure> failures = futures.stream()
-            .map(CompletableFuture::join)
-            .filter(Objects::nonNull)
-            .toList();
+        List<RolloutExecutionFailure> failures = new ArrayList<>();
+        for (VerificationRolloutDefinition definition : definitions) {
+            RolloutExecutionFailure failure = executeOperation(definition, operation);
+            if (failure != null) {
+                failures.add(failure);
+            }
+        }
 
         if (!failures.isEmpty()) {
             String details = failures.stream()
@@ -559,7 +612,10 @@ public class DeploymentVerificationRolloutService {
         DeploymentReleaseEntity latestRelease = deployment == null
             ? null
             : releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
-        RolloutReadiness readiness = evaluateReadiness(deployment, latestRelease, missingPrerequisites);
+        DeploymentVersionEntity activeVersion = deployment == null || deploymentVersionRepository == null || !hasText(deployment.getActiveVersionId())
+            ? null
+            : deploymentVersionRepository.findById(deployment.getActiveVersionId()).orElse(null);
+        RolloutReadiness readiness = evaluateReadiness(definition, deployment, latestRelease, activeVersion, missingPrerequisites);
 
         return new DeploymentVerificationRolloutItemSummary(
             definition.key(),
@@ -580,12 +636,16 @@ public class DeploymentVerificationRolloutService {
             deployment == null ? null : deployment.getRuntimeBaseUrl(),
             deployment != null && hasText(deployment.getConnectorBaseUrl()),
             readiness.message(),
+            readiness.repairRecommended(),
+            readiness.repairReasons(),
             missingPrerequisites
         );
     }
 
-    private RolloutReadiness evaluateReadiness(DeploymentEntity deployment,
+    private RolloutReadiness evaluateReadiness(VerificationRolloutDefinition definition,
+                                               DeploymentEntity deployment,
                                                DeploymentReleaseEntity latestRelease,
+                                               DeploymentVersionEntity activeVersion,
                                                List<String> missingPrerequisites) {
         if (deployment == null) {
             return new RolloutReadiness(false, "This canonical rollout has not been created yet.");
@@ -622,6 +682,13 @@ public class DeploymentVerificationRolloutService {
                     + "). Resolve the latest rollout failure before using this canonical deployment as verification-ready."
             );
         }
+        List<String> configDriftReasons = canonicalConfigDriftReasons(definition, deployment, activeVersion);
+        if (!configDriftReasons.isEmpty()) {
+            return RolloutReadiness.repairable(
+                "Canonical rollout config drift detected: " + String.join(", ", configDriftReasons),
+                configDriftReasons
+            );
+        }
 
         DeploymentVectorizationVerificationSummary vectorization = deploymentVectorizationVerificationService == null
             ? null
@@ -649,6 +716,52 @@ public class DeploymentVerificationRolloutService {
         }
 
         return new RolloutReadiness(true, "Runtime and the internal connector service are live, and the rollout is ready for hosted verification.");
+    }
+
+    private List<String> canonicalConfigDriftReasons(VerificationRolloutDefinition definition,
+                                                     DeploymentEntity deployment,
+                                                     DeploymentVersionEntity activeVersion) {
+        if (definition == null || deployment == null) {
+            return List.of();
+        }
+        List<String> reasons = new ArrayList<>();
+        String expectedBaseUrl = ecommerceUpstreamBaseUrl();
+        if (activeVersion == null) {
+            if (deploymentVersionRepository == null) {
+                return reasons;
+            }
+            reasons.add("ACTIVE_VERSION_NOT_RESOLVED");
+            return reasons;
+        }
+        JsonNode routingConfig = readJson(activeVersion.getRoutingConfigJson());
+        JsonNode securityConfig = readJson(activeVersion.getSecurityConfigJson());
+        String expectedAuthzMode = expectedAuthzMode(definition);
+        if (!expectedAuthzMode.equalsIgnoreCase(securityConfig.path("authzMode").asText(""))) {
+            reasons.add("SECURITY_AUTHZ_MODE_DRIFT");
+        }
+        if (!baseUrlsEqual(expectedBaseUrl, routingConfig.path("connector").path("upstream").path("base-url").asText(""))) {
+            reasons.add("CONNECTOR_UPSTREAM_BASE_URL_DRIFT");
+        }
+        if (!baseUrlsEqual(expectedBaseUrl, routingConfig.path("authz").path("upstream").path("base-url").asText(""))) {
+            reasons.add("AUTHZ_UPSTREAM_BASE_URL_DRIFT");
+        }
+        if (ManagedDeploymentProfileCatalog.AUTHZ_MODE_REMOTE_HTTP.equals(expectedAuthzMode)
+            && !baseUrlsEqual(expectedBaseUrl, securityConfig.path("authzBaseUrl").asText(""))) {
+            reasons.add("SECURITY_AUTHZ_BASE_URL_DRIFT");
+        }
+        if (vectorizationSourceConnectionRepository != null) {
+            vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId()).ifPresent(connection -> {
+                JsonNode connectionConfig = readJson(connection.getConnectionConfigJson());
+                if (!baseUrlsEqual(expectedBaseUrl, connectionConfig.path("baseUrl").asText(""))) {
+                    reasons.add("VECTORIZATION_SOURCE_BASE_URL_DRIFT");
+                }
+            });
+        }
+        return reasons.stream().distinct().toList();
+    }
+
+    private String expectedAuthzMode(VerificationRolloutDefinition definition) {
+        return ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED;
     }
 
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {
@@ -778,7 +891,7 @@ public class DeploymentVerificationRolloutService {
                         ecommerceEntityConfig(OPENAI_VECTOR_DIMENSIONS),
                         ecommerceRoutingConfig(),
                         normalizeProviderConfig(provider, OPENAI_VECTOR_DIMENSIONS),
-                        ecommerceSecurityConfig(draft.securityConfig()),
+                        marketplaceSecurityConfig(draft.securityConfig()),
                         withDefaultPromptLatencyTuning(ensureObject(draft.promptConfig())),
                         marketplaceKnowledgeSourceConfig(),
                         marketplaceShellConfig(),
@@ -959,7 +1072,7 @@ public class DeploymentVerificationRolloutService {
         apiKey.put("value", "${CONNECTOR_API_KEY}");
 
         ObjectNode upstream = connector.with("upstream");
-        upstream.put("base-url", ECOMMERCE_UPSTREAM_BASE_URL);
+        upstream.put("base-url", ecommerceUpstreamBaseUrl());
         ObjectNode upstreamAuth = upstream.with("auth");
         if (!hasConcreteValue(upstreamAuth.path("type").asText(""))) {
             upstreamAuth.put("type", "NONE");
@@ -975,7 +1088,7 @@ public class DeploymentVerificationRolloutService {
         authz.put("enabled", true);
         authz.put("path", "/api/authz/check");
         ObjectNode authzUpstream = authz.with("upstream");
-        authzUpstream.put("base-url", ECOMMERCE_UPSTREAM_BASE_URL);
+        authzUpstream.put("base-url", ecommerceUpstreamBaseUrl());
         ObjectNode authzUpstreamAuth = authzUpstream.with("auth");
         if (!hasConcreteValue(authzUpstreamAuth.path("type").asText(""))) {
             authzUpstreamAuth.put("type", "NONE");
@@ -1071,7 +1184,7 @@ public class DeploymentVerificationRolloutService {
 
     private JsonNode canonicalVectorizationConnectionConfig() {
         ObjectNode root = objectMapper.createObjectNode();
-        root.put("baseUrl", ECOMMERCE_UPSTREAM_BASE_URL);
+        root.put("baseUrl", ecommerceUpstreamBaseUrl());
         ObjectNode datasets = root.putObject("datasets");
         datasets.set("product", canonicalDatasetConfig("/api/products?limit=500"));
         datasets.set("review", canonicalDatasetConfig("/api/reviews?limit=500"));
@@ -1171,17 +1284,35 @@ public class DeploymentVerificationRolloutService {
         }
     }
 
+    private JsonNode readJson(String json) {
+        if (!hasText(json)) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            return objectMapper.readTree(json);
+        } catch (IOException ex) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
     private ObjectNode ecommerceSecurityConfig(JsonNode source) {
         ObjectNode root = ensureObject(source);
-        root.put("authzMode", "REMOTE_HTTP");
+        root.put("authzMode", ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED);
         root.put("adminApiKeyEnabled", true);
         root.put("connectorApiKeyEnabled", true);
-        root.put("authzBaseUrl", ECOMMERCE_UPSTREAM_BASE_URL);
+        root.remove("authzBaseUrl");
         root.put("publicRuntimeBootstrapEnabled", true);
         root.put("publicRuntimeTokenIssuer", PUBLIC_RUNTIME_TOKEN_ISSUER);
         root.put("publicRuntimeAcceptedIssuers", PUBLIC_RUNTIME_ACCEPTED_ISSUERS);
         root.put("publicRuntimeAcceptedAudiences", PUBLIC_RUNTIME_ACCEPTED_AUDIENCES);
         root.put("publicRuntimeDefaultAudience", PUBLIC_RUNTIME_DEFAULT_AUDIENCE);
+        return root;
+    }
+
+    private ObjectNode marketplaceSecurityConfig(JsonNode source) {
+        ObjectNode root = ecommerceSecurityConfig(source);
+        root.put("authzMode", ManagedDeploymentProfileCatalog.AUTHZ_MODE_ALLOW_VERIFIED);
+        root.remove("authzBaseUrl");
         return root;
     }
 
@@ -1373,15 +1504,61 @@ public class DeploymentVerificationRolloutService {
     }
 
     private String verificationWeaviateHost() {
-        String override = System.getenv("PLATFORM_VERIFICATION_WEAVIATE_HOST");
+        String override = suiteProperties == null ? null : suiteProperties.weaviateHost();
+        if (!hasText(override)) {
+            override = System.getenv("PLATFORM_VERIFICATION_WEAVIATE_HOST");
+        }
         if (!hasText(override)) {
             override = System.getenv("WEAVIATE_HOST");
         }
-        return hasText(override) ? override.trim() : DEFAULT_WEAVIATE_HOST;
+        if (hasText(override)) {
+            return override.trim();
+        }
+        throw new ResponseStatusException(
+            BAD_REQUEST,
+            "PLATFORM_VERIFICATION_WEAVIATE_HOST is required before recreating the canonical Weaviate verification rollout."
+        );
+    }
+
+    private static PlatformVerificationSuiteProperties defaultSuiteProperties() {
+        return new PlatformVerificationSuiteProperties(
+            Duration.ofMinutes(180),
+            Duration.ofMinutes(12),
+            Duration.ofMinutes(20),
+            Duration.ofMinutes(75),
+            Duration.ofHours(12),
+            Duration.ofSeconds(3),
+            20,
+            12_000,
+            80_000,
+            null,
+            TEST_WEAVIATE_HOST,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     private String firstNonBlank(String value, String fallback) {
         return hasText(value) ? value : fallback;
+    }
+
+    private String ecommerceUpstreamBaseUrl() {
+        return firstNonBlank(ecommerceUpstreamBaseUrl, ECOMMERCE_UPSTREAM_BASE_URL);
+    }
+
+    private String normalizeBaseUrl(String value) {
+        if (!hasText(value)) {
+            return ECOMMERCE_UPSTREAM_BASE_URL;
+        }
+        String normalized = value.trim();
+        return normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
+    }
+
+    private boolean baseUrlsEqual(String expected, String actual) {
+        return normalizeBaseUrl(expected).equals(normalizeBaseUrl(actual));
     }
 
     private boolean hasConcreteValue(String value) {
@@ -1397,16 +1574,18 @@ public class DeploymentVerificationRolloutService {
             return false;
         }
         try {
-            JsonNode runnerService = objectMapper.readTree(latestRelease.getProvisioningDetailsJson())
-                .path("railway")
-                .path("services")
-                .path("vectorizationRunner");
-            return runnerService.isObject()
-                && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
-                && hasText(runnerService.path("deploymentStatus").asText(""));
+            JsonNode details = objectMapper.readTree(latestRelease.getProvisioningDetailsJson());
+            return runnerServiceProvisioned(details.path("railway").path("services").path("vectorizationRunner"))
+                || runnerServiceProvisioned(details.path("coolify").path("services").path("vectorizationRunner"));
         } catch (IOException ex) {
             return false;
         }
+    }
+
+    private boolean runnerServiceProvisioned(JsonNode runnerService) {
+        return runnerService.isObject()
+            && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
+            && hasText(runnerService.path("deploymentStatus").asText(""));
     }
 
     private boolean isPlaceholderExpression(String value) {
@@ -1487,7 +1666,14 @@ public class DeploymentVerificationRolloutService {
         abstract UpdateDeploymentDraftRequest updateDraft(DeploymentDraftResponse draft);
     }
 
-    private record RolloutReadiness(boolean ready, String message) {
+    private record RolloutReadiness(boolean ready, String message, boolean repairRecommended, List<String> repairReasons) {
+        RolloutReadiness(boolean ready, String message) {
+            this(ready, message, false, List.of());
+        }
+
+        static RolloutReadiness repairable(String message, List<String> repairReasons) {
+            return new RolloutReadiness(false, message, true, repairReasons == null ? List.of() : List.copyOf(repairReasons));
+        }
     }
 
     private record RolloutExecutionFailure(String displayName, String message) {

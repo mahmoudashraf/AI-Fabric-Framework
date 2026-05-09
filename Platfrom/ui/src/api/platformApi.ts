@@ -792,6 +792,7 @@ export type CreatePlatformManagedProductServiceRequest = {
   serviceRoot: string | null
   dockerfilePath: string | null
   secretName: string | null
+  targetProfileId: string | null
   shopifyBillingConfig: PlatformManagedProductServiceShopifyBillingConfig | null
 }
 
@@ -925,6 +926,19 @@ export type ShopifyStoreBindingInspectionSummary = {
   latestVersion: DeploymentVersionSummary | null
   latestRelease: DeploymentReleaseSummary | null
   warnings: string[]
+}
+
+export type ShopifyStoreCustomerAccountConfigSummary = {
+  shopDomain: string
+  storefrontDomain: string | null
+  storefrontDomainConfigured: boolean
+  effectiveStorefrontDomain: string
+  source: string
+  updatedAt: string | null
+}
+
+export type UpdateShopifyStoreCustomerAccountConfigRequest = {
+  storefrontDomain: string | null
 }
 
 export type ShopifyStoreConnectionSummary = {
@@ -1923,6 +1937,97 @@ export type DeploymentProviderConnectivitySummary = {
   summaryMessage: string
 }
 
+export type DeploymentProviderType = 'RAILWAY_STUB' | 'RAILWAY_API' | 'COOLIFY' | string
+
+export type DeploymentTargetProfileSummary = {
+  id: string
+  name: string
+  providerType: DeploymentProviderType
+  environmentName: string
+  region: string | null
+  active: boolean
+  defaultForRuntime: boolean
+  defaultForRestartableServices: boolean
+  platformServicesAllowed: boolean
+  sourceStrategy: string
+  credentialRefId: string | null
+  providerConfig: unknown
+  networkPolicy: unknown
+  resourceDefaults: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentProviderPreflightSummary = {
+  targetProfileId: string
+  providerType: DeploymentProviderType
+  status: string
+  message: string
+  baseUrl: string | null
+  version: string | null
+  checks: string[]
+  details: unknown
+  checkedAt: string
+}
+
+export type PatchDeploymentTargetProfileRequest = {
+  active?: boolean
+  defaultForRuntime?: boolean
+  defaultForRestartableServices?: boolean
+  platformServicesAllowed?: boolean
+}
+
+export type DeploymentProviderResourceHandleSummary = {
+  id: string
+  deploymentId: string
+  releaseId: string
+  targetProfileId: string
+  providerType: DeploymentProviderType
+  resourceKind: string
+  providerResourceUuid: string
+  providerProjectUuid: string | null
+  providerEnvironmentUuid: string | null
+  providerServerUuid: string | null
+  fqdn: string | null
+  status: string
+  lastObservedStatus: string | null
+  lastObservedAt: string | null
+  metadata: unknown
+  createdAt: string
+  updatedAt: string
+}
+
+export type DeploymentProviderResourceStatusSummary = {
+  handleId: string
+  providerType: DeploymentProviderType
+  providerResourceUuid: string
+  status: string
+  observedStatus: string | null
+  fqdn: string | null
+  details: unknown
+  observedAt: string
+}
+
+export type DeploymentProviderResourceActionSummary = {
+  handleId: string
+  providerType: DeploymentProviderType
+  action: string
+  status: string
+  message: string
+  providerOperationId: string | null
+  details: unknown
+  requestedAt: string
+}
+
+export type DeploymentProviderResourceLogsSummary = {
+  handleId: string
+  providerType: DeploymentProviderType
+  providerResourceUuid: string
+  lines: number
+  logs: string
+  fetchedAt: string
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -2042,7 +2147,7 @@ export type DeploymentSourceOfTruthGeneratedSummary = {
   vectorizationRunnerDockerfilePath: string | null
 }
 
-export type DeploymentRailwayLiveFieldDriftSummary = {
+export type DeploymentProviderLiveFieldDriftSummary = {
   key: string
   label: string
   expectedValue: string | null
@@ -2051,7 +2156,7 @@ export type DeploymentRailwayLiveFieldDriftSummary = {
   summaryMessage: string
 }
 
-export type DeploymentRailwayLiveEnvVarDriftSummary = {
+export type DeploymentProviderLiveEnvVarDriftSummary = {
   key: string
   sensitive: boolean
   driftState: string
@@ -2060,25 +2165,25 @@ export type DeploymentRailwayLiveEnvVarDriftSummary = {
   summaryMessage: string
 }
 
-export type DeploymentRailwayLiveServiceSummary = {
+export type DeploymentProviderLiveServiceSummary = {
   key: string
   label: string
   serviceId: string | null
   status: string
   summaryMessage: string
-  rootDirectory: DeploymentRailwayLiveFieldDriftSummary
-  dockerfilePath: DeploymentRailwayLiveFieldDriftSummary
-  repository: DeploymentRailwayLiveFieldDriftSummary
-  branch: DeploymentRailwayLiveFieldDriftSummary
-  publicBaseUrl: DeploymentRailwayLiveFieldDriftSummary
+  rootDirectory: DeploymentProviderLiveFieldDriftSummary
+  dockerfilePath: DeploymentProviderLiveFieldDriftSummary
+  repository: DeploymentProviderLiveFieldDriftSummary
+  branch: DeploymentProviderLiveFieldDriftSummary
+  publicBaseUrl: DeploymentProviderLiveFieldDriftSummary
   expectedEnvCount: number
   matchingEnvCount: number
   missingEnvCount: number
   mismatchedEnvCount: number
-  envVars: DeploymentRailwayLiveEnvVarDriftSummary[]
+  envVars: DeploymentProviderLiveEnvVarDriftSummary[]
 }
 
-export type DeploymentRailwayLiveReadbackSummary = {
+export type DeploymentProviderLiveReadbackSummary = {
   available: boolean
   status: string
   summaryMessage: string
@@ -2086,10 +2191,15 @@ export type DeploymentRailwayLiveReadbackSummary = {
   projectName: string | null
   environmentId: string | null
   environmentName: string | null
-  runtime: DeploymentRailwayLiveServiceSummary
-  restConnector: DeploymentRailwayLiveServiceSummary
-  vectorizationRunner: DeploymentRailwayLiveServiceSummary | null
+  runtime: DeploymentProviderLiveServiceSummary
+  restConnector: DeploymentProviderLiveServiceSummary
+  vectorizationRunner: DeploymentProviderLiveServiceSummary | null
 }
+
+export type DeploymentRailwayLiveFieldDriftSummary = DeploymentProviderLiveFieldDriftSummary
+export type DeploymentRailwayLiveEnvVarDriftSummary = DeploymentProviderLiveEnvVarDriftSummary
+export type DeploymentRailwayLiveServiceSummary = DeploymentProviderLiveServiceSummary
+export type DeploymentRailwayLiveReadbackSummary = DeploymentProviderLiveReadbackSummary
 
 export type DeploymentManagedVectorResourceSummary = {
   id: string
@@ -2181,7 +2291,8 @@ export type DeploymentSourceOfTruthSummary = {
   managedVector: DeploymentManagedVectorStateSummary
   tenantScopedVector: DeploymentTenantScopedVectorSummary
   generated: DeploymentSourceOfTruthGeneratedSummary
-  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary
+  liveProviderReadback?: DeploymentProviderLiveReadbackSummary | null
+  liveRailwayReadback: DeploymentProviderLiveReadbackSummary
   summaryMessage: string
 }
 
@@ -2518,24 +2629,64 @@ export type DeploymentVersionSummary = {
   publishedAt: string
 }
 
-export type RailwayEnvVarSummary = {
+export type DeploymentPlanEnvVarSummary = {
   key: string
   value: string
 }
 
-export type RailwayServicePlanSummary = {
+export type DeploymentServicePlanSummary = {
   serviceName: string
   rootDir: string | null
   dockerfilePath?: string | null
   baseUrl: string
-  env: RailwayEnvVarSummary[]
+  env: DeploymentPlanEnvVarSummary[]
 }
 
-export type RailwayProvisioningStepSummary = {
+export type DeploymentProvisioningStepSummary = {
   order: number
   key: string
   description: string
 }
+
+export type DeploymentProvisioningArtifactUrlsSummary = {
+  actions: string
+  entities: string
+  routing: string
+  prompts: string
+  knowledgeSources?: string | null
+  shell?: string | null
+  manifest: string
+}
+
+export type DeploymentProvisioningServicesSummary = {
+  runtime: DeploymentServicePlanSummary
+  restConnector: DeploymentServicePlanSummary
+  vectorizationRunner?: DeploymentServicePlanSummary | null
+  embeddingWorker?: DeploymentServicePlanSummary | null
+}
+
+export type DeploymentProvisioningPlanSummary = {
+  deploymentId: string
+  deploymentName: string
+  environment: string
+  templateId: string
+  versionId: string
+  versionLabel: string
+  configHash: string
+  mode: string
+  projectName: string
+  repository: string
+  branch: string
+  workspaceId: string | null
+  artifactStrategy: string
+  artifactUrls: DeploymentProvisioningArtifactUrlsSummary
+  services: DeploymentProvisioningServicesSummary
+  steps: DeploymentProvisioningStepSummary[]
+}
+
+export type RailwayEnvVarSummary = DeploymentPlanEnvVarSummary
+export type RailwayServicePlanSummary = DeploymentServicePlanSummary
+export type RailwayProvisioningStepSummary = DeploymentProvisioningStepSummary
 
 export type RailwayPreflightCheckSummary = {
   key: string
@@ -2611,33 +2762,7 @@ export type RailwayWorkspaceCleanupExecutionSummary = {
   skippedIds: string[]
 }
 
-export type RailwayProvisioningPlanSummary = {
-  deploymentId: string
-  deploymentName: string
-  environment: string
-  templateId: string
-  versionId: string
-  versionLabel: string
-  configHash: string
-  mode: string
-  projectName: string
-  repository: string
-  branch: string
-  workspaceId: string | null
-  artifactStrategy: string
-  artifactUrls: {
-    actions: string
-    entities: string
-    routing: string
-    prompts: string
-    manifest: string
-  }
-  services: {
-    runtime: RailwayServicePlanSummary
-    restConnector: RailwayServicePlanSummary
-  }
-  steps: RailwayProvisioningStepSummary[]
-}
+export type RailwayProvisioningPlanSummary = DeploymentProvisioningPlanSummary
 
 export type DeploymentReleaseSummary = {
   id: string
@@ -2647,6 +2772,10 @@ export type DeploymentReleaseSummary = {
   verificationStatus: string
   provisioningStatus: string
   provisioningTarget: string
+  targetProfileId: string | null
+  providerType: DeploymentProviderType | null
+  sourceArtifactId: string | null
+  providerResourceHandleId: string | null
   currentStepKey: string | null
   currentStepDescription: string | null
   errorMessage: string | null
@@ -3954,6 +4083,25 @@ export function fetchShopifyStoreBinding(shopDomain: string) {
   return request<ShopifyStoreBindingInspectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/binding`)
 }
 
+export function fetchShopifyStoreCustomerAccountConfig(shopDomain: string) {
+  return request<ShopifyStoreCustomerAccountConfigSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/customer-account-config`,
+  )
+}
+
+export function updateShopifyStoreCustomerAccountConfig(
+  shopDomain: string,
+  payload: UpdateShopifyStoreCustomerAccountConfigRequest,
+) {
+  return request<ShopifyStoreCustomerAccountConfigSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/customer-account-config`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
 export function deleteShopifyStore(shopDomain: string, force = false) {
   return request<void>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}?force=${force ? 'true' : 'false'}`, {
     method: 'DELETE',
@@ -4280,6 +4428,94 @@ export function fetchDeploymentProviderConnectivity(deploymentId: string) {
   )
 }
 
+export function fetchDeploymentTargetProfiles(providerType?: DeploymentProviderType) {
+  const suffix = providerType ? `?providerType=${encodeURIComponent(providerType)}` : ''
+  return request<DeploymentTargetProfileSummary[]>(`/api/deployment-provider/target-profiles${suffix}`)
+}
+
+export function patchDeploymentTargetProfile(targetProfileId: string, payload: PatchDeploymentTargetProfileRequest) {
+  return request<DeploymentTargetProfileSummary>(
+    `/api/deployment-provider/target-profiles/${encodeURIComponent(targetProfileId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function fetchDeploymentTargetProfilePreflight(targetProfileId: string) {
+  return request<DeploymentProviderPreflightSummary>(
+    `/api/deployment-provider/target-profiles/${encodeURIComponent(targetProfileId)}/preflight`,
+  )
+}
+
+export function fetchDeploymentProviderResources(filters?: {
+  providerType?: DeploymentProviderType
+  deploymentId?: string
+  targetProfileId?: string
+}) {
+  const params = new URLSearchParams()
+  if (filters?.providerType) {
+    params.set('providerType', filters.providerType)
+  }
+  if (filters?.deploymentId) {
+    params.set('deploymentId', filters.deploymentId)
+  }
+  if (filters?.targetProfileId) {
+    params.set('targetProfileId', filters.targetProfileId)
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ''
+  return request<DeploymentProviderResourceHandleSummary[]>(`/api/deployment-provider/resources${suffix}`)
+}
+
+export function fetchDeploymentProviderResourceStatus(handleId: string) {
+  return request<DeploymentProviderResourceStatusSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/status`,
+  )
+}
+
+export function fetchDeploymentProviderResourceLogs(handleId: string, lines = 200) {
+  return request<DeploymentProviderResourceLogsSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/logs?lines=${encodeURIComponent(String(lines))}`,
+  )
+}
+
+function deploymentProviderResourceAction(
+  handleId: string,
+  action: 'start' | 'stop' | 'restart',
+  reason?: string,
+) {
+  return request<DeploymentProviderResourceActionSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/${action}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    },
+  )
+}
+
+export function startDeploymentProviderResource(handleId: string, reason?: string) {
+  return deploymentProviderResourceAction(handleId, 'start', reason)
+}
+
+export function stopDeploymentProviderResource(handleId: string, reason?: string) {
+  return deploymentProviderResourceAction(handleId, 'stop', reason)
+}
+
+export function restartDeploymentProviderResource(handleId: string, reason?: string) {
+  return deploymentProviderResourceAction(handleId, 'restart', reason)
+}
+
+export function deleteDeploymentProviderResource(handleId: string, reason?: string) {
+  return request<DeploymentProviderResourceActionSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}`,
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    },
+  )
+}
+
 export function probeDeploymentProviderConnectivity(deploymentId: string, payload: {
   providerConfig: unknown
 }) {
@@ -4388,6 +4624,12 @@ export function fetchDeploymentVersions(deploymentId: string) {
 export function fetchRailwayProvisioningPlan(deploymentId: string, versionId: string) {
   return request<RailwayProvisioningPlanSummary>(
     `/api/deployments/${deploymentId}/versions/${versionId}/railway-plan`,
+  )
+}
+
+export function fetchDeploymentProvisioningPlan(deploymentId: string, versionId: string) {
+  return request<DeploymentProvisioningPlanSummary>(
+    `/api/deployments/${deploymentId}/versions/${versionId}/provisioning-plan`,
   )
 }
 
@@ -5127,14 +5369,27 @@ export function clearDeploymentProviderSecretBinding(deploymentId: string, secre
   })
 }
 
-export function applyDeploymentVersion(deploymentId: string, versionId: string) {
-  return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}`, {
+export function applyDeploymentVersion(deploymentId: string, versionId: string, targetProfileId?: string) {
+  const suffix = targetProfileId ? `?targetProfileId=${encodeURIComponent(targetProfileId)}` : ''
+  return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
   })
 }
 
-export function applyDeploymentVersionWithApproval(deploymentId: string, versionId: string, approvalId?: string) {
-  const suffix = approvalId ? `?approvalId=${encodeURIComponent(approvalId)}` : ''
+export function applyDeploymentVersionWithApproval(
+  deploymentId: string,
+  versionId: string,
+  approvalId?: string,
+  targetProfileId?: string,
+) {
+  const params = new URLSearchParams()
+  if (approvalId) {
+    params.set('approvalId', approvalId)
+  }
+  if (targetProfileId) {
+    params.set('targetProfileId', targetProfileId)
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ''
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
   })

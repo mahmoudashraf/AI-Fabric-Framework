@@ -14,9 +14,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 @Service
 public class ShopifyMerchantSessionTokenService {
+
+    private static final Pattern MYSHOPIFY_DOMAIN = Pattern.compile("^[a-z0-9][a-z0-9-]*\\.myshopify\\.com$");
 
     private final ShopifyBridgeProperties properties;
     private final ObjectMapper objectMapper;
@@ -40,6 +44,7 @@ public class ShopifyMerchantSessionTokenService {
         verifyWindow(payload);
         String destination = requiredText(payload, "dest", "Shopify session token destination is missing.");
         String shopDomain = normalizeShopDomain(destination);
+        verifyIssuer(payload, shopDomain);
         String userId = requiredText(payload, "sub", "Shopify session token subject is missing.");
         Instant expiresAt = Instant.ofEpochSecond(requiredLong(payload, "exp", "Shopify session token expiry is missing."));
         return new ShopifyMerchantSession(shopDomain, destination, userId, expiresAt);
@@ -119,15 +124,60 @@ public class ShopifyMerchantSessionTokenService {
     }
 
     private String normalizeShopDomain(String destination) {
-        try {
-            URI uri = URI.create(destination);
-            String host = uri.getHost();
-            if (host == null || host.isBlank()) {
-                throw unauthorized("Shopify session token destination is invalid.");
-            }
-            return host.trim().toLowerCase();
-        } catch (IllegalArgumentException ex) {
+        String host = normalizedHost(destination, "Shopify session token destination is invalid.");
+        if (!MYSHOPIFY_DOMAIN.matcher(host).matches()) {
             throw unauthorized("Shopify session token destination is invalid.");
+        }
+        return host;
+    }
+
+    private void verifyIssuer(JsonNode payload, String shopDomain) {
+        String issuer = requiredText(payload, "iss", "Shopify session token issuer is missing.");
+        String issuerHost = normalizedHost(issuer, "Shopify session token issuer is invalid.");
+        if (!shopDomain.equals(issuerHost)) {
+            throw unauthorized("Shopify session token issuer does not match destination.");
+        }
+        String issuerPath = issuerPath(issuer);
+        if (issuerPath != null && !"/admin".equals(issuerPath)) {
+            throw unauthorized("Shopify session token issuer is invalid.");
+        }
+    }
+
+    private String normalizedHost(String value, String invalidMessage) {
+        String candidate = value == null ? "" : value.trim();
+        if (candidate.isBlank()) {
+            throw unauthorized(invalidMessage);
+        }
+        try {
+            URI uri = URI.create(candidate);
+            if (uri.getScheme() != null && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw unauthorized(invalidMessage);
+            }
+            String host = uri.getHost();
+            if (host == null && uri.getScheme() == null && !candidate.contains("@") && !candidate.contains(":")) {
+                int slash = candidate.indexOf('/');
+                host = slash >= 0 ? candidate.substring(0, slash) : candidate;
+            }
+            if (host == null || host.isBlank()) {
+                throw unauthorized(invalidMessage);
+            }
+            return host.trim().toLowerCase(Locale.ROOT);
+        } catch (IllegalArgumentException ex) {
+            throw unauthorized(invalidMessage);
+        }
+    }
+
+    private String issuerPath(String issuer) {
+        String candidate = issuer == null ? "" : issuer.trim();
+        try {
+            URI uri = URI.create(candidate);
+            if (uri.getScheme() != null) {
+                return uri.getPath();
+            }
+            int slash = candidate.indexOf('/');
+            return slash >= 0 ? candidate.substring(slash) : null;
+        } catch (IllegalArgumentException ex) {
+            throw unauthorized("Shopify session token issuer is invalid.");
         }
     }
 

@@ -148,10 +148,35 @@ class MarketplaceIntegrationTest {
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-shopify-companion")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-companion-read")))
+            .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-action-shopify-storefront-read-mcp")))
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-shopify-catalog")))
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-data-shopify-policies")))
             .andExpect(jsonPath("$.versions[0].recommendedPluginIds", hasItem("mkp-inference-shared-embeddings")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-storefront-read-mcp")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-storefront-read-mcp")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_search_catalog")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_product_details")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_search_policies")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-cart-mcp")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-cart-mcp")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_cart")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_update_cart")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-customer-account-mcp")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-customer-account-mcp")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_most_recent_order_status")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_order_status")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-checkout-mcp")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-checkout-mcp")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_create_checkout")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_complete_checkout")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-companion-read")))
             .andExpect(status().isOk())
@@ -178,10 +203,18 @@ class MarketplaceIntegrationTest {
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(3))))
-            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(3))))
+            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(5))))
+            .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(7))))
             .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(5))))
             .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(8))));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-shopify-companion-staging")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-template-shopify-companion-staging")));
+
+        mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-template-shopify-companion-production")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.plugin.id", is("mkp-template-shopify-companion-production")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-inference-shared-embeddings")))
             .andExpect(status().isOk())

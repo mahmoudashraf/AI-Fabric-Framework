@@ -278,6 +278,7 @@ public class DeploymentDeletionExecutionService {
         node.put("managedSecretCount", cleanupResult.managedVector().clearedManagedSecrets().size());
         node.put("railwayDeletedProject", cleanupResult.railway().projectDeleted());
         node.put("railwayDeletedServiceCount", cleanupResult.railway().deletedServiceIds().size());
+        node.put("providerResourceDeleteCount", cleanupResult.providerResources().deletedHandleIds().size());
         return node;
     }
 

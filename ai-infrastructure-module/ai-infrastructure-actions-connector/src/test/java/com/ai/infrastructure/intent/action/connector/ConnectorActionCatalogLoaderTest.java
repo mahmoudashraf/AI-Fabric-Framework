@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -183,5 +184,25 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(list.constraints().rules().getFirst().type()).isEqualTo("PARAM_NUMERIC_UPPER_BOUND");
         assertThat(list.constraints().rules().getFirst().paramPath()).isEqualTo("maxScore");
         assertThat(list.summaries()).hasSize(1);
+    }
+
+    @Test
+    void loadActions_shouldPreserveMcpExecutionConfigForRuntimeTrace() {
+        ConnectorActionCatalogLoader loader = new ConnectorActionCatalogLoader(new DefaultResourceLoader());
+
+        AIActionCatalogProperties.ActionSourceProperties source = new AIActionCatalogProperties.ActionSourceProperties();
+        source.setType(AIActionCatalogProperties.ActionSourceType.FILE);
+        source.setPath("classpath:actions/valid-mcp-actions.yml");
+
+        List<ConnectorActionDefinition> actions = loader.loadActions(List.of(source));
+        assertThat(actions).hasSize(1);
+
+        ConnectorActionDefinition action = actions.getFirst();
+        assertThat(action.adapterType()).isEqualTo("mcp-tool");
+        assertThat(action.execution()).containsKey("mcp");
+        assertThat(action.mcpServers()).containsKey("inventory-mcp");
+        Map<String, Object> runtimeConfig = action.runtimeActionConfig();
+        assertThat(runtimeConfig).containsEntry("adapterType", "mcp-tool");
+        assertThat(runtimeConfig).containsKeys("execution", "mcpServers");
     }
 }

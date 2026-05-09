@@ -193,7 +193,7 @@ Managed provider defaults:
 - Zilliz existing cluster:
   - `milvus-e2e-49d428ec`
 - Weaviate host:
-  - `weaviate-external-verify-dev.up.railway.app`
+  - no public default; set `WEAVIATE_HOST` or `PLATFORM_VERIFICATION_WEAVIATE_HOST` to the current Weaviate Cloud REST host from the private handoff
 
 These are workflow UI defaults only. You can override them per run.
 

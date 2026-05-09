@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.web;
 
+import com.ai.fabric.platform.backend.deployment.service.CoolifyApiException;
 import com.ai.fabric.platform.backend.deployment.service.RailwayProvisioningConfigurationException;
 import com.ai.fabric.platform.backend.deployment.service.RailwayProvisioningException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -44,6 +45,14 @@ public class PlatformApiExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleRailwayProvisioningFailure(RailwayProvisioningException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorBody(
             "PROVISIONING_UPSTREAM_FAILURE",
+            ex.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(CoolifyApiException.class)
+    public ResponseEntity<Map<String, Object>> handleCoolifyApiFailure(CoolifyApiException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorBody(
+            "COOLIFY_UPSTREAM_FAILURE",
             ex.getMessage()
         ));
     }

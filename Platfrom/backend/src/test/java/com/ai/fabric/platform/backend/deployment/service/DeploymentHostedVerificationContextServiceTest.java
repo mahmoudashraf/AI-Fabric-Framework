@@ -64,6 +64,7 @@ class DeploymentHostedVerificationContextServiceTest {
         release.setDeploymentVersionId("ver-marketplace");
         release.setStatus("APPLIED_VERIFIED");
         release.setVerificationStatus("PASSED");
+        release.setTargetProfileId("dtp-coolify-staging");
 
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-marketplace");
@@ -186,6 +187,7 @@ class DeploymentHostedVerificationContextServiceTest {
 
         assertThat(context.profile()).isEqualTo("marketplace-runtime");
         assertThat(context.script()).isEqualTo("scripts/verify-ecommerce-deployment.sh");
+        assertThat(context.env()).containsEntry("PLATFORM_TARGET_PROFILE_ID", "dtp-coolify-staging");
         assertThat(context.env()).containsEntry("VERIFY_MARKETPLACE_RUNTIME", "true");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SUPPORT_CONTRACT_VERSION", "MARKETPLACE_RUNTIME_SUPPORT_V2");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SEARCH_SOURCE_DIAGNOSTICS_CONTRACT_VERSION", "SEARCH_SOURCE_DIAGNOSTICS_V1");
@@ -214,6 +216,15 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_MODEL", "gpt-4.1-mini");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_GENERATION_ENDPOINT_PROFILE", "openai-cloud-default");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_INFERENCE_EMBEDDING_ENDPOINT_PROFILE", "openai-cloud-default");
+        assertThat(context.env()).containsEntry("ECOMMERCE_RESOLVER_SMOKE_QUERY", "Check live availability for SKU-0001.");
+        assertThat(context.env()).containsEntry(
+            "ECOMMERCE_COMPARE_SMOKE_QUERY",
+            "Compare SKU-0001 with SKU-0002 and summarize the main differences."
+        );
+        assertThat(context.env()).containsEntry(
+            "ECOMMERCE_THINKER_SMOKE_QUERY",
+            "Check live availability for SKU-0001 and summarize the refund policy."
+        );
         assertThat(context.env()).containsEntry(
             "MARKETPLACE_SMOKE_QUERY",
             "Using only retrieved marketplace knowledge sources, summarize the return and refund policy."

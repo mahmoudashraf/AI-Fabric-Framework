@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +53,12 @@ class MarketplaceDatasetRuntimeSyncClientTest {
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("signing-secret");
 
-        MarketplaceDatasetRuntimeSyncClient client = new MarketplaceDatasetRuntimeSyncClient(OBJECT_MAPPER, platformSecretService);
+        MarketplaceDatasetRuntimeSyncClient client = new MarketplaceDatasetRuntimeSyncClient(
+            OBJECT_MAPPER,
+            platformSecretService,
+            3,
+            1
+        );
         DeploymentEntity deployment = deployment();
 
         int synced = client.upsertDocuments(
@@ -90,7 +97,12 @@ class MarketplaceDatasetRuntimeSyncClientTest {
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("signing-secret");
 
-        MarketplaceDatasetRuntimeSyncClient client = new MarketplaceDatasetRuntimeSyncClient(OBJECT_MAPPER, platformSecretService);
+        MarketplaceDatasetRuntimeSyncClient client = new MarketplaceDatasetRuntimeSyncClient(
+            OBJECT_MAPPER,
+            platformSecretService,
+            3,
+            1
+        );
         DeploymentEntity deployment = deployment();
 
         int deleted = client.deleteDocuments(
@@ -143,6 +155,110 @@ class MarketplaceDatasetRuntimeSyncClientTest {
 
         assertThat(synced).isEqualTo(1);
         assertThat(attempts.get()).isEqualTo(2);
+    }
+
+    @Test
+    void upsertDocuments_shouldIncludeRuntimeErrorBodyAfterExhaustingRetryable404() throws Exception {
+        AtomicInteger attempts = new AtomicInteger();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/ai/data-sync/batch", exchange -> {
+            attempts.incrementAndGet();
+            writeJson(
+                exchange,
+                404,
+                """
+                    {
+                      "success": false,
+                      "errorCode": "VECTOR_SPACE_NOT_FOUND",
+                      "message": "Unknown vectorSpace: product",
+                      "path": "/api/ai/data-sync/batch"
+                    }
+                    """
+            );
+        });
+        server.start();
+
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("signing-secret");
+
+        MarketplaceDatasetRuntimeSyncClient client = new MarketplaceDatasetRuntimeSyncClient(
+            OBJECT_MAPPER,
+            platformSecretService,
+            2,
+            1
+        );
+
+        assertThatThrownBy(() -> client.upsertDocuments(
+            deployment(),
+            "product",
+            "dataset-1",
+            "handle-1",
+            "hash-1",
+            List.of(new MarketplaceDatasetSyncService.DatasetDocument(
+                "doc-1",
+                "hello",
+                Map.of("source", "test")
+            ))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("HTTP 404")
+            .hasMessageContaining("Unknown vectorSpace: product")
+            .hasMessageContaining("errorCode=VECTOR_SPACE_NOT_FOUND")
+            .hasMessageContaining("path=/api/ai/data-sync/batch");
+        assertThat(attempts.get()).isEqualTo(2);
+    }
+
+    @Test
+    void upsertDocuments_shouldIncludeFirstFailedOperationInError() throws Exception {
+        server = server(
+            new AtomicReference<>(),
+            new AtomicReference<>(),
+            new AtomicReference<>(),
+            """
+                {
+                  "success": false,
+                  "message": "Completed with failures",
+                  "succeededOperations": 1,
+                  "failedOperations": 1,
+                  "results": [
+                    {"success": true, "id": "ok"},
+                    {
+                      "success": false,
+                      "errorCode": "VECTOR_SPACE_NOT_FOUND",
+                      "vectorSpace": "support-policy",
+                      "id": "shipping-policy",
+                      "message": "Unknown vectorSpace: support-policy"
+                    }
+                  ]
+                }
+                """
+        );
+
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn("signing-secret");
+
+        MarketplaceDatasetRuntimeSyncClient client = new MarketplaceDatasetRuntimeSyncClient(OBJECT_MAPPER, platformSecretService);
+
+        assertThatThrownBy(() -> client.upsertDocuments(
+            deployment(),
+            "support-policy",
+            "policy-folder-pack",
+            "handle-1",
+            "hash-1",
+            List.of(new MarketplaceDatasetSyncService.DatasetDocument(
+                "shipping-policy",
+                "hello",
+                Map.of("source", "test")
+            ))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Completed with failures")
+            .hasMessageContaining("errorCode=VECTOR_SPACE_NOT_FOUND")
+            .hasMessageContaining("vectorSpace=support-policy")
+            .hasMessageContaining("id=shipping-policy")
+            .hasMessageContaining("Unknown vectorSpace: support-policy");
     }
 
     private HttpServer server(AtomicReference<JsonNode> observedRequest,

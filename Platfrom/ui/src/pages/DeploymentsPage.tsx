@@ -2231,10 +2231,10 @@ export function DeploymentsPage() {
                     >
                       <Box>
                         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          Railway workspace cleanup
+                          Provider workspace cleanup
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Clean Railway resources that are not owned by current deployments, vector runner registrations, or managed product-service bindings. The backend keeps mandatory resources out of the cleanup target set.
+                          Clean provider resources that are not owned by current deployments, vector runner registrations, or managed product-service bindings. The backend keeps mandatory resources out of the cleanup target set.
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -2256,12 +2256,12 @@ export function DeploymentsPage() {
                     ) : null}
 
                     {railwayWorkspaceCleanupQuery.isLoading ? (
-                      <Typography color="text.secondary">Loading Railway workspace inventory…</Typography>
+                      <Typography color="text.secondary">Loading provider workspace inventory…</Typography>
                     ) : railwayWorkspaceCleanupQuery.isError ? (
                       <Alert severity="error">
                         {railwayWorkspaceCleanupQuery.error instanceof Error
                           ? railwayWorkspaceCleanupQuery.error.message
-                          : 'Failed to load Railway workspace cleanup inventory'}
+                          : 'Failed to load provider workspace cleanup inventory'}
                       </Alert>
                     ) : railwayWorkspaceCleanupQuery.data && !railwayWorkspaceCleanupQuery.data.available ? (
                       <Alert severity="warning">{railwayWorkspaceCleanupQuery.data.summaryMessage}</Alert>
@@ -3131,19 +3131,19 @@ export function DeploymentsPage() {
                     onChange={(event) => setDeleteHardDelete(event.target.checked)}
                   />
                 )}
-                label="Also hard delete Railway services/project and managed vector resources"
+                label="Also hard delete provider services/project and managed vector resources"
               />
             ) : null}
             {deleteHardDelete ? (
               <>
                 <Alert severity="warning">
-                  Hard delete is restricted to platform administrators. The platform will queue Railway and provider-side cleanup first, then remove platform records after teardown finishes.
+                  Hard delete is restricted to platform administrators. The platform will queue provider-side cleanup first, then remove platform records after teardown finishes.
                 </Alert>
                 <TextField
                   label="Hard delete reason"
                   value={deleteHardDeleteReason}
                   onChange={(event) => setDeleteHardDeleteReason(event.target.value)}
-                  helperText="Required for infrastructure teardown. Describe why Railway and managed provider resources should be removed."
+                  helperText="Required for infrastructure teardown. Describe why managed provider resources should be removed."
                 />
               </>
             ) : null}
@@ -3198,14 +3198,14 @@ export function DeploymentsPage() {
           }
         }}
       >
-        <DialogTitle>Delete orphan Railway resources</DialogTitle>
+        <DialogTitle>Delete orphan provider resources</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              This deletes only selected Railway projects and services that are not owned by deployments, vector runner registrations, or managed product-service bindings and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
+              This deletes only selected provider projects and services that are not owned by deployments, vector runner registrations, or managed product-service bindings and still match the platform-managed profile. Type <strong>DELETE ORPHANS</strong> and provide a reason to continue.
             </DialogContentText>
             <Alert severity="warning">
-              Selected items: <strong>{selectedOrphanCount}</strong>. Mandatory Railway resources are excluded by backend policy before deletion runs.
+              Selected items: <strong>{selectedOrphanCount}</strong>. Mandatory provider resources are excluded by backend policy before deletion runs.
             </Alert>
             <TextField
               autoFocus
@@ -3217,13 +3217,13 @@ export function DeploymentsPage() {
               label="Cleanup reason"
               value={orphanCleanupReason}
               onChange={(event) => setOrphanCleanupReason(event.target.value)}
-              helperText="Required for audit. Explain why these Railway resources are safe to remove."
+              helperText="Required for audit. Explain why these provider resources are safe to remove."
             />
             {orphanCleanupMutation.isError ? (
               <Alert severity="error">
                 {orphanCleanupMutation.error instanceof Error
                   ? orphanCleanupMutation.error.message
-                  : 'Failed to clean up orphan Railway resources'}
+                  : 'Failed to clean up orphan provider resources'}
               </Alert>
             ) : null}
           </Stack>
@@ -3268,7 +3268,7 @@ export function DeploymentsPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1, minWidth: { xs: 280, sm: 520 } }}>
             <DialogContentText>
-              This permanently deletes the selected canonical verification deployments and tears down the Railway and managed
+              This permanently deletes the selected canonical verification deployments and tears down provider-managed
               provider artifacts linked through the platform hard-delete path. Type <strong>CLEANUP ROLLOUTS</strong> to continue.
             </DialogContentText>
             <Alert severity="warning">

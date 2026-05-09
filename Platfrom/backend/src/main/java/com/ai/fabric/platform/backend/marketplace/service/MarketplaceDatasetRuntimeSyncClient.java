@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -31,20 +32,32 @@ public class MarketplaceDatasetRuntimeSyncClient {
     private static final String SCOPE_VECTORIZATION_VERIFICATION = "vectorization:verification";
     private static final String SYSTEM_ISSUER = "platform-marketplace-dataset-sync";
     private static final Duration RUNTIME_REQUEST_TIMEOUT = Duration.ofSeconds(60);
-    private static final int MAX_RUNTIME_ATTEMPTS = 5;
-    private static final long RETRY_SLEEP_MILLIS = 1500L;
+    private static final int DEFAULT_MAX_RUNTIME_ATTEMPTS = 40;
+    private static final long DEFAULT_RETRY_SLEEP_MILLIS = 3000L;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final PlatformSecretService platformSecretService;
+    private final int maxRuntimeAttempts;
+    private final long retrySleepMillis;
 
+    @Autowired
     public MarketplaceDatasetRuntimeSyncClient(ObjectMapper objectMapper,
                                                PlatformSecretService platformSecretService) {
+        this(objectMapper, platformSecretService, DEFAULT_MAX_RUNTIME_ATTEMPTS, DEFAULT_RETRY_SLEEP_MILLIS);
+    }
+
+    MarketplaceDatasetRuntimeSyncClient(ObjectMapper objectMapper,
+                                        PlatformSecretService platformSecretService,
+                                        int maxRuntimeAttempts,
+                                        long retrySleepMillis) {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
         this.objectMapper = objectMapper;
         this.platformSecretService = platformSecretService;
+        this.maxRuntimeAttempts = Math.max(1, maxRuntimeAttempts);
+        this.retrySleepMillis = Math.max(0L, retrySleepMillis);
     }
 
     public int upsertDocuments(DeploymentEntity deployment,
@@ -68,7 +81,7 @@ public class MarketplaceDatasetRuntimeSyncClient {
             if (!response.path("success").asBoolean(false) || response.path("failedOperations").asInt(0) > 0) {
                 throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Marketplace dataset sync failed for " + datasetId + ": " + response.path("message").asText("batch failure")
+                    "Marketplace dataset sync failed for " + datasetId + ": " + summarizeBatchFailure(response)
                 );
             }
             succeeded += response.path("succeededOperations").asInt(batch.size());
@@ -97,7 +110,7 @@ public class MarketplaceDatasetRuntimeSyncClient {
             if (!response.path("success").asBoolean(false) || response.path("failedOperations").asInt(0) > 0) {
                 throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Marketplace dataset delete failed for " + datasetId + ": " + response.path("message").asText("batch failure")
+                    "Marketplace dataset delete failed for " + datasetId + ": " + summarizeBatchFailure(response)
                 );
             }
             succeeded += response.path("succeededOperations").asInt(batch.size());
@@ -130,24 +143,26 @@ public class MarketplaceDatasetRuntimeSyncClient {
         HttpRequest request = requestBuilder
             .POST(HttpRequest.BodyPublishers.ofString(write(body), StandardCharsets.UTF_8))
             .build();
-        for (int attempt = 1; attempt <= MAX_RUNTIME_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= maxRuntimeAttempts; attempt++) {
             try {
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
                 if (response.statusCode() >= 200 && response.statusCode() < 300) {
                     return StringUtils.hasText(response.body()) ? objectMapper.readTree(response.body()) : objectMapper.createObjectNode();
                 }
-                if (attempt < MAX_RUNTIME_ATTEMPTS && isRetryableStatus(response.statusCode())) {
+                if (attempt < maxRuntimeAttempts && isRetryableStatus(response.statusCode())) {
                     sleepBeforeRetry();
                     continue;
                 }
                 throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Marketplace dataset sync runtime batch failed with HTTP " + response.statusCode() + "."
+                    "Marketplace dataset sync runtime batch failed with HTTP "
+                        + response.statusCode()
+                        + summarizeHttpFailure(response.body())
                 );
             } catch (ResponseStatusException ex) {
                 throw ex;
             } catch (Exception ex) {
-                if (attempt < MAX_RUNTIME_ATTEMPTS) {
+                if (attempt < maxRuntimeAttempts) {
                     sleepBeforeRetry();
                     continue;
                 }
@@ -284,13 +299,73 @@ public class MarketplaceDatasetRuntimeSyncClient {
             || statusCode == 504;
     }
 
+    private String summarizeBatchFailure(JsonNode response) {
+        String baseMessage = response == null
+            ? "batch failure"
+            : response.path("message").asText("batch failure");
+        JsonNode results = response == null ? null : response.path("results");
+        if (results == null || !results.isArray()) {
+            return baseMessage;
+        }
+        for (JsonNode result : results) {
+            if (result.path("success").asBoolean(false)) {
+                continue;
+            }
+            StringBuilder details = new StringBuilder(baseMessage);
+            appendDetail(details, "errorCode", result.path("errorCode").asText(""));
+            appendDetail(details, "vectorSpace", result.path("vectorSpace").asText(""));
+            appendDetail(details, "id", result.path("id").asText(""));
+            appendDetail(details, "message", result.path("message").asText(""));
+            return details.toString();
+        }
+        return baseMessage;
+    }
+
+    private void appendDetail(StringBuilder target, String key, String value) {
+        if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.append("; ").append(key.trim()).append("=").append(value.trim());
+    }
+
     private void sleepBeforeRetry() {
         try {
-            Thread.sleep(RETRY_SLEEP_MILLIS);
+            if (retrySleepMillis > 0) {
+                Thread.sleep(retrySleepMillis);
+            }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Marketplace dataset sync retry was interrupted.", ex);
         }
+    }
+
+    private String summarizeHttpFailure(String body) {
+        if (!StringUtils.hasText(body)) {
+            return ".";
+        }
+        String summary = null;
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            if (root.isObject()) {
+                String batchFailure = summarizeBatchFailure(root);
+                StringBuilder details = new StringBuilder(batchFailure);
+                appendDetail(details, "errorCode", root.path("errorCode").asText(""));
+                appendDetail(details, "error", root.path("error").asText(""));
+                appendDetail(details, "status", root.path("status").asText(""));
+                appendDetail(details, "path", root.path("path").asText(""));
+                summary = details.toString();
+            }
+        } catch (Exception ignored) {
+            summary = body;
+        }
+        if (!StringUtils.hasText(summary)) {
+            summary = body;
+        }
+        String normalized = summary.replaceAll("\\s+", " ").trim();
+        if (normalized.length() > 500) {
+            normalized = normalized.substring(0, 500) + "...";
+        }
+        return ": " + normalized + ".";
     }
 
     private void putIfText(ObjectNode target, String key, String value) {

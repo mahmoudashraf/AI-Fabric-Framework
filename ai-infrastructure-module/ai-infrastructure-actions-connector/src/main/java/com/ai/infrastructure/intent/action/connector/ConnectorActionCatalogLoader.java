@@ -44,10 +44,14 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_ACTIONS = "actions";
     private static final String KEY_CONFIRMATION_INTERCEPTORS = "confirmationInterceptors";
     private static final String KEY_WEBHOOK_TARGETS = "webhookTargets";
+    private static final String KEY_MCP_SERVERS = "mcpServers";
     private static final String KEY_NAME = "name";
+    private static final String KEY_SERVER_REF = "serverRef";
     private static final String KEY_DISPLAY_NAME = "displayName";
     private static final String KEY_DESCRIPTION = "description";
     private static final String KEY_CATEGORY = "category";
+    private static final String KEY_ADAPTER_TYPE = "adapterType";
+    private static final String KEY_EXECUTION = "execution";
     private static final String KEY_ACCESS_MODE = "accessMode";
     private static final String KEY_REQUIRES_CONFIRMATION = "requiresConfirmation";
     private static final String KEY_CONFIRMATION_MESSAGE = "confirmationMessage";
@@ -213,6 +217,10 @@ public class ConnectorActionCatalogLoader {
             KEY_WEBHOOK_TARGETS,
             "webhook target"
         );
+        Map<String, Object> mcpServers = indexMcpServers(
+            extractSectionMaps(rootMap.get(KEY_MCP_SERVERS), label, KEY_MCP_SERVERS, "MCP server"),
+            label
+        );
         if (actionMaps.isEmpty()) {
             log.info("No connector actions found in {}", label);
         }
@@ -222,7 +230,7 @@ public class ConnectorActionCatalogLoader {
             if (map == null || map.isEmpty()) {
                 continue;
             }
-            actions.add(parseAction(map, label));
+            actions.add(parseAction(map, label, mcpServers));
         }
 
         List<ConfirmationInterceptorRule> confirmationInterceptors = new ArrayList<>();
@@ -272,12 +280,14 @@ public class ConnectorActionCatalogLoader {
         return List.copyOf(out);
     }
 
-    private ConnectorActionDefinition parseAction(Map<String, Object> raw, String label) {
+    private ConnectorActionDefinition parseAction(Map<String, Object> raw, String label, Map<String, Object> mcpServers) {
         String name = readString(raw, KEY_NAME);
         if (!StringUtils.hasText(name)) {
             throw new IllegalStateException("Invalid action contract in " + label + ": action.name is required.");
         }
 
+        String adapterType = readString(raw, KEY_ADAPTER_TYPE);
+        Map<String, Object> execution = readOptionalObjectMap(raw.get(KEY_EXECUTION), label, "actions[" + name + "].execution");
         String displayName = readString(raw, KEY_DISPLAY_NAME);
         String description = readString(raw, KEY_DESCRIPTION);
         String category = readString(raw, KEY_CATEGORY);
@@ -325,8 +335,36 @@ public class ConnectorActionCatalogLoader {
             StringUtils.hasText(builtInCardId) ? builtInCardId.trim() : null,
             provenance,
             postPolicies,
-            llmFacts
+            llmFacts,
+            adapterType,
+            execution,
+            mcpServers
         );
+    }
+
+    private Map<String, Object> indexMcpServers(List<Map<String, Object>> serverMaps, String label) {
+        if (serverMaps == null || serverMaps.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map<String, Object> server : serverMaps) {
+            if (server == null || server.isEmpty()) {
+                continue;
+            }
+            String serverRef = readString(server, KEY_SERVER_REF);
+            if (!StringUtils.hasText(serverRef)) {
+                serverRef = readString(server, KEY_ID);
+            }
+            if (!StringUtils.hasText(serverRef)) {
+                throw new IllegalStateException("Invalid action contract in " + label + ": each MCP server must declare serverRef or id.");
+            }
+            String normalized = serverRef.trim();
+            if (out.containsKey(normalized)) {
+                throw new IllegalStateException("Invalid action contract in " + label + ": duplicate MCP serverRef: " + normalized);
+            }
+            out.put(normalized, Collections.unmodifiableMap(new LinkedHashMap<>(server)));
+        }
+        return Collections.unmodifiableMap(out);
     }
 
     private ConnectorActionLlmFactsDefinition parseLlmFacts(Object rawLlmFacts,

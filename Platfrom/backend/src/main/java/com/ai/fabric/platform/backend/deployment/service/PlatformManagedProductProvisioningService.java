@@ -4,6 +4,9 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformDeliveryProperties;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceShopifyBillingConfigSummary;
 import com.ai.fabric.platform.backend.productservice.model.PlatformManagedProductServiceSummary;
@@ -15,10 +18,12 @@ import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionR
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,10 +36,24 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 @Service
 public class PlatformManagedProductProvisioningService {
 
+    private static final String CUSTOMER_ACCOUNT_MCP_CLIENT_ID_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID";
+    private static final String CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET";
+    private static final String CUSTOMER_ACCOUNT_MCP_REDIRECT_URI_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI";
+    private static final String CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN";
+    private static final String CUSTOMER_ACCOUNT_MCP_SCOPES_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES";
+    private static final String CUSTOMER_ACCOUNT_MCP_PROTECTED_APPROVED_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED";
+    private static final String CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL";
+    private static final String CUSTOMER_ACCOUNT_MCP_SESSION_TTL_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL";
+    private static final String CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT";
+    private static final String CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT_SECRET = "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT";
+
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformProductProvisioningProperties productProvisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
     private final RailwayGraphqlClient railwayGraphqlClient;
+    private final CoolifyTargetProfileResolver coolifyTargetProfileResolver;
+    private final CoolifyApiClient coolifyApiClient;
+    private final DeploymentTargetProfileRepository targetProfileRepository;
     private final PlatformSecretService platformSecretService;
     private final PlatformManagedProductServiceRepository serviceRepository;
     private final ShopifyStoreConnectionRepository shopifyStoreConnectionRepository;
@@ -42,10 +61,14 @@ public class PlatformManagedProductProvisioningService {
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public PlatformManagedProductProvisioningService(PlatformProvisioningProperties provisioningProperties,
                                                      PlatformProductProvisioningProperties productProvisioningProperties,
                                                      PlatformDeliveryProperties deliveryProperties,
                                                      RailwayGraphqlClient railwayGraphqlClient,
+                                                     CoolifyTargetProfileResolver coolifyTargetProfileResolver,
+                                                     CoolifyApiClient coolifyApiClient,
+                                                     DeploymentTargetProfileRepository targetProfileRepository,
                                                      PlatformSecretService platformSecretService,
                                                      PlatformManagedProductServiceRepository serviceRepository,
                                                      ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
@@ -56,6 +79,9 @@ public class PlatformManagedProductProvisioningService {
         this.productProvisioningProperties = productProvisioningProperties;
         this.deliveryProperties = deliveryProperties;
         this.railwayGraphqlClient = railwayGraphqlClient;
+        this.coolifyTargetProfileResolver = coolifyTargetProfileResolver;
+        this.coolifyApiClient = coolifyApiClient;
+        this.targetProfileRepository = targetProfileRepository;
         this.platformSecretService = platformSecretService;
         this.serviceRepository = serviceRepository;
         this.shopifyStoreConnectionRepository = shopifyStoreConnectionRepository;
@@ -64,9 +90,39 @@ public class PlatformManagedProductProvisioningService {
         this.objectMapper = objectMapper;
     }
 
+    PlatformManagedProductProvisioningService(PlatformProvisioningProperties provisioningProperties,
+                                             PlatformProductProvisioningProperties productProvisioningProperties,
+                                             PlatformDeliveryProperties deliveryProperties,
+                                             RailwayGraphqlClient railwayGraphqlClient,
+                                             PlatformSecretService platformSecretService,
+                                             PlatformManagedProductServiceRepository serviceRepository,
+                                             ShopifyStoreConnectionRepository shopifyStoreConnectionRepository,
+                                             PlatformManagedProductServiceService serviceService,
+                                             PlatformAuditService platformAuditService,
+                                             ObjectMapper objectMapper) {
+        this(
+            provisioningProperties,
+            productProvisioningProperties,
+            deliveryProperties,
+            railwayGraphqlClient,
+            null,
+            null,
+            null,
+            platformSecretService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            serviceService,
+            platformAuditService,
+            objectMapper
+        );
+    }
+
     @Transactional
     public PlatformManagedProductServiceSummary reconcile(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (requiresCoolifyLifecycle(service)) {
+            return reconcileCoolify(service);
+        }
         if (!requiresRailwayLifecycle(service)) {
             if (hasText(service.getBaseUrl()) && !"ACTIVE".equalsIgnoreCase(service.getStatus())) {
                 service.setStatus("ACTIVE");
@@ -127,6 +183,9 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceSummary restart(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (requiresCoolifyLifecycle(service)) {
+            return restartCoolify(service);
+        }
         if (!requiresRailwayLifecycle(service)) {
             return serviceService.getService(serviceRef);
         }
@@ -204,6 +263,9 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceEntity refreshRailwayBindingFromWorkspace(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (isCoolifyManaged(service)) {
+            return service;
+        }
         if (!requiresRailwayLifecycle(service)) {
             return service;
         }
@@ -279,6 +341,9 @@ public class PlatformManagedProductProvisioningService {
     @Transactional
     public PlatformManagedProductServiceSummary forceRecreate(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        if (requiresCoolifyLifecycle(service)) {
+            return forceRecreateCoolify(service);
+        }
         if (!requiresRailwayLifecycle(service)) {
             return serviceService.getService(serviceRef);
         }
@@ -323,6 +388,9 @@ public class PlatformManagedProductProvisioningService {
                 "Managed product service still has " + dependentStores + " dependent store mapping(s)."
             );
         }
+        if (requiresCoolifyLifecycle(service)) {
+            return decommissionCoolify(service);
+        }
 
         if (hasText(service.getRailwayProjectId())) {
             railwayGraphqlClient.deleteProject(service.getRailwayProjectId());
@@ -361,6 +429,603 @@ public class PlatformManagedProductProvisioningService {
         return serviceService.getService(serviceRef);
     }
 
+    private PlatformManagedProductServiceSummary reconcileCoolify(PlatformManagedProductServiceEntity service) {
+        ensureCoolifySupportAvailable();
+        service.setStatus("PROVISIONING");
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+        try {
+            CoolifyBinding binding = resolveCoolifyBinding(service);
+            CoolifyApplicationSummary application = reconcileCoolifyApplication(service, binding);
+            ensureServiceSecret(service);
+            String publicBaseUrl = publicBaseUrl(application);
+            coolifyApiClient.updateEnvironmentVariables(
+                binding.connection(),
+                application.uuid(),
+                buildCoolifyServiceEnv(service, publicBaseUrl)
+            );
+            CoolifyActionResponse deployResponse = coolifyApiClient.start(binding.connection(), application.uuid(), true, true);
+            CoolifyApplicationSummary observed = awaitCoolifyDeployment(
+                binding.connection(),
+                application.uuid(),
+                application,
+                deployResponse
+            );
+            finalizeActiveCoolifyService(
+                service,
+                binding.profile().getId(),
+                binding.connection().config().projectUuid(),
+                binding.connection().config().environmentUuid(),
+                observed,
+                deployResponse,
+                publicBaseUrl(observed),
+                "Coolify product service reconciled successfully."
+            );
+            platformAuditService.record(
+                "MANAGED_PRODUCT_RECONCILED",
+                "MANAGED_PRODUCT_SERVICE",
+                service.getServiceRef(),
+                Map.of(
+                    "serviceRef", service.getServiceRef(),
+                    "providerType", "COOLIFY",
+                    "coolifyApplicationUuid", observed.uuid()
+                )
+            );
+            return serviceService.getService(service.getServiceRef());
+        } catch (RuntimeException ex) {
+            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastReconcileStatus", "lastReconcileMessage");
+            platformAuditService.record(
+                "MANAGED_PRODUCT_RECONCILE_FAILED",
+                "MANAGED_PRODUCT_SERVICE",
+                service.getServiceRef(),
+                Map.of(
+                    "serviceRef", service.getServiceRef(),
+                    "providerType", "COOLIFY",
+                    "error", blankToFallback(ex.getMessage(), ex.getClass().getSimpleName())
+                )
+            );
+            throw ex;
+        }
+    }
+
+    private PlatformManagedProductServiceSummary restartCoolify(PlatformManagedProductServiceEntity service) {
+        ensureCoolifySupportAvailable();
+        ObjectNode details = mutableDetails(service);
+        String applicationUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
+        if (!hasText(applicationUuid)) {
+            return reconcile(service.getServiceRef());
+        }
+        CoolifyBinding binding = resolveCoolifyBinding(service);
+        try {
+            CoolifyActionResponse response = coolifyApiClient.restart(binding.connection(), applicationUuid);
+            CoolifyApplicationSummary existing = coolifyApiClient.getApplication(binding.connection(), applicationUuid)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify application not found: " + applicationUuid));
+            CoolifyApplicationSummary observed = awaitCoolifyDeployment(
+                binding.connection(),
+                applicationUuid,
+                existing,
+                response
+            );
+            finalizeActiveCoolifyService(
+                service,
+                binding.profile().getId(),
+                binding.connection().config().projectUuid(),
+                binding.connection().config().environmentUuid(),
+                observed,
+                response,
+                publicBaseUrl(observed),
+                "Coolify product service restarted successfully."
+            );
+            ObjectNode updatedDetails = mutableDetails(service);
+            updatedDetails.put("lastRestartedAt", Instant.now().toString());
+            updatedDetails.put("lastRestartStatus", "SUCCESS");
+            updatedDetails.put("lastRestartMessage", "Coolify product service restarted successfully.");
+            service.setDetailsJson(updatedDetails.toPrettyString());
+            serviceRepository.save(service);
+            platformAuditService.record(
+                "MANAGED_PRODUCT_RESTARTED",
+                "MANAGED_PRODUCT_SERVICE",
+                service.getServiceRef(),
+                Map.of("serviceRef", service.getServiceRef(), "providerType", "COOLIFY")
+            );
+            return serviceService.getService(service.getServiceRef());
+        } catch (RuntimeException ex) {
+            markLifecycleFailure(service, "FAILED", ex.getMessage(), "lastRestartStatus", "lastRestartMessage");
+            throw ex;
+        }
+    }
+
+    private PlatformManagedProductServiceSummary forceRecreateCoolify(PlatformManagedProductServiceEntity service) {
+        ensureCoolifySupportAvailable();
+        platformAuditService.record(
+            "MANAGED_PRODUCT_FORCE_RECREATE_REQUESTED",
+            "MANAGED_PRODUCT_SERVICE",
+            service.getServiceRef(),
+            Map.of("serviceRef", service.getServiceRef(), "providerType", "COOLIFY")
+        );
+        CoolifyBinding binding = resolveCoolifyBinding(service);
+        ObjectNode details = mutableDetails(service);
+        String applicationUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
+        CoolifyApplicationSummary discovered = findCoolifyApplication(
+            binding,
+            sharedServiceName(service),
+            firstNonBlank(service.getBaseUrl(), coolifyDomain(service, binding.connection().config()))
+        );
+        String discoveredUuid = discovered == null ? null : trimToNull(discovered.uuid());
+        boolean deleted = false;
+        if (hasText(applicationUuid)) {
+            deleted = deleteCoolifyApplicationIfPresent(binding.connection(), applicationUuid);
+        }
+        if (!deleted && hasText(discoveredUuid) && !discoveredUuid.equals(applicationUuid)) {
+            deleteCoolifyApplicationIfPresent(binding.connection(), discoveredUuid);
+        }
+        clearCoolifyBinding(service);
+        return reconcile(service.getServiceRef());
+    }
+
+    private PlatformManagedProductServiceSummary decommissionCoolify(PlatformManagedProductServiceEntity service) {
+        ensureCoolifySupportAvailable();
+        long dependentStores = shopifyStoreConnectionRepository.countByProductServiceId(service.getId());
+        if (dependentStores > 0) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Managed product service still has " + dependentStores + " dependent store mapping(s)."
+            );
+        }
+        ObjectNode details = mutableDetails(service);
+        String applicationUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
+        if (hasText(applicationUuid)) {
+            CoolifyBinding binding = resolveCoolifyBinding(service);
+            coolifyApiClient.delete(binding.connection(), applicationUuid, true, false, true, true);
+        }
+        if (hasText(service.getSecretName()) && platformSecretService.isManagedSecretName(service.getSecretName())) {
+            platformSecretService.clearManagedSecret(
+                service.getSecretName(),
+                Map.of("serviceRef", service.getServiceRef(), "purpose", "PRODUCT_SERVICE_SECRET")
+            );
+        }
+        service.setBaseUrl(null);
+        service.setPrivateNetworkUrl(null);
+        service.setActualReplicas(0);
+        service.setStatus("DECOMMISSIONED");
+        details.remove(List.of("coolifyApplicationUuid", "coolifyProjectUuid", "coolifyEnvironmentUuid", "coolifyFqdn"));
+        details.put("providerType", "COOLIFY");
+        details.put("lastDecommissionedAt", Instant.now().toString());
+        details.put("lastDecommissionStatus", "SUCCESS");
+        details.put("lastDecommissionMessage", "Coolify product service decommissioned successfully.");
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+        platformAuditService.record(
+            "MANAGED_PRODUCT_DECOMMISSIONED",
+            "MANAGED_PRODUCT_SERVICE",
+            service.getServiceRef(),
+            Map.of("serviceRef", service.getServiceRef(), "providerType", "COOLIFY")
+        );
+        return serviceService.getService(service.getServiceRef());
+    }
+
+    private CoolifyApplicationSummary reconcileCoolifyApplication(PlatformManagedProductServiceEntity service,
+                                                                 CoolifyBinding binding) {
+        String appName = sharedServiceName(service);
+        CoolifyCreatePublicApplicationRequest request = coolifyPublicApplicationRequest(service, binding, appName);
+        ObjectNode details = mutableDetails(service);
+        String existingUuid = trimToNull(details.path("coolifyApplicationUuid").asText(null));
+        CoolifyApplicationSummary existing = null;
+        if (hasText(existingUuid)) {
+            existing = coolifyApiClient.getApplication(binding.connection(), existingUuid).orElse(null);
+        }
+        if (existing == null) {
+            existing = findCoolifyApplication(
+                binding,
+                appName,
+                firstNonBlank(service.getBaseUrl(), request.domains())
+            );
+        }
+        if (existing != null && hasText(existing.uuid())) {
+            request = request.withDomains(mergeCoolifyDomains(request.domains(), existing.fqdn()));
+            coolifyApiClient.updatePublicApplication(binding.connection(), existing.uuid(), request);
+            return coolifyApiClient.getApplication(binding.connection(), existing.uuid()).orElse(existing);
+        }
+        String uuid = coolifyApiClient.createPublicApplication(binding.connection(), request);
+        return coolifyApiClient.getApplication(binding.connection(), uuid)
+            .orElse(new CoolifyApplicationSummary(uuid, appName, request.domains(), "created", null, null, objectMapper.createObjectNode()));
+    }
+
+    private CoolifyCreatePublicApplicationRequest coolifyPublicApplicationRequest(PlatformManagedProductServiceEntity service,
+                                                                                 CoolifyBinding binding,
+                                                                                 String appName) {
+        CoolifyTargetProfileConfig config = binding.connection().config();
+        String healthPath = firstNonBlank(healthPath(service), config.defaultHealthCheckPath());
+        return new CoolifyCreatePublicApplicationRequest(
+            config.projectUuid(),
+            config.serverUuid(),
+            config.environmentName(),
+            config.environmentUuid(),
+            coolifyGitRepository(provisioningProperties.repository()),
+            provisioningProperties.branch(),
+            "dockerfile",
+            "/",
+            coolifyDockerfileLocation(dockerfilePath(service)),
+            firstNonBlank(config.defaultPortsExposes(), "8080"),
+            config.destinationUuid(),
+            appName,
+            "Managed product service " + service.getServiceRef(),
+            coolifyDomain(service, config),
+            true,
+            healthPath,
+            firstNonBlank(config.defaultHealthCheckPort(), "8080"),
+            false,
+            false,
+            config.forceHttps(),
+            config.autogenerateDomain()
+        );
+    }
+
+    private CoolifyApplicationSummary findCoolifyApplication(CoolifyBinding binding,
+                                                             String appName,
+                                                             String baseUrl) {
+        return coolifyApiClient.listApplications(binding.connection()).stream()
+            .filter(app -> appName.equalsIgnoreCase(blankToFallback(app.name(), ""))
+                || coolifyFqdnMatchesBaseUrl(app.fqdn(), baseUrl))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private void awaitCoolifyApplicationDeletion(CoolifyConnection connection, String applicationUuid) {
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            if (coolifyApiClient.getApplication(connection, applicationUuid).isEmpty()) {
+                return;
+            }
+            try {
+                Thread.sleep(Math.max(productProvisioningProperties.pollInterval().toMillis(), 0L));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for Coolify application deletion.", ex);
+            }
+        }
+        throw new ResponseStatusException(CONFLICT, "Timed out waiting for Coolify application deletion: " + applicationUuid);
+    }
+
+    private CoolifyApplicationSummary awaitCoolifyDeployment(CoolifyConnection connection,
+                                                             String applicationUuid,
+                                                             CoolifyApplicationSummary fallback,
+                                                             CoolifyActionResponse deployResponse) {
+        String deploymentUuid = deployResponse == null ? null : trimToNull(deployResponse.deploymentUuid());
+        Instant deadline = Instant.now().plus(productProvisioningProperties.requestTimeout());
+        Duration pollInterval = productProvisioningProperties.pollInterval();
+        CoolifyApplicationSummary latest = fallback;
+        CoolifyDeploymentSummary deployment = null;
+        while (Instant.now().isBefore(deadline)) {
+            if (hasText(deploymentUuid)) {
+                deployment = coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+            }
+            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+            if (coolifyDeploymentFailed(deployment)) {
+                throw new IllegalStateException(
+                    "Coolify deployment failed for managed product service application " + applicationUuid
+                        + " (deployment=" + deployment.deploymentUuid()
+                        + ", status=" + deployment.status() + ")."
+                );
+            }
+            boolean deploymentReady = !hasText(deploymentUuid) || coolifyDeploymentFinished(deployment);
+            if (deploymentReady && coolifyApplicationReady(latest)) {
+                return latest;
+            }
+            try {
+                Thread.sleep(Math.max(pollInterval.toMillis(), 250L));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for Coolify deployment.", ex);
+            }
+        }
+        throw new ResponseStatusException(CONFLICT, "Timed out waiting for Coolify deployment: " + applicationUuid);
+    }
+
+    private boolean coolifyApplicationReady(CoolifyApplicationSummary application) {
+        if (application == null || !hasText(application.status())) {
+            return false;
+        }
+        String normalized = upper(application.status());
+        return normalized.startsWith("RUNNING") && !normalized.contains("UNHEALTHY");
+    }
+
+    private boolean coolifyDeploymentFinished(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) {
+            return false;
+        }
+        String normalized = upper(deployment.status());
+        return normalized.equals("FINISHED")
+            || normalized.equals("SUCCESS")
+            || normalized.equals("SUCCEEDED")
+            || normalized.equals("COMPLETED")
+            || hasText(deployment.finishedAt()) && !coolifyDeploymentFailed(deployment);
+    }
+
+    private boolean coolifyDeploymentFailed(CoolifyDeploymentSummary deployment) {
+        if (deployment == null) {
+            return false;
+        }
+        String normalized = upper(deployment.status());
+        return normalized.contains("FAILED")
+            || normalized.contains("ERROR")
+            || normalized.contains("CANCELLED")
+            || normalized.contains("CANCELED");
+    }
+
+    private boolean deleteCoolifyApplicationIfPresent(CoolifyConnection connection, String applicationUuid) {
+        try {
+            coolifyApiClient.delete(connection, applicationUuid, true, false, true, true);
+            awaitCoolifyApplicationDeletion(connection, applicationUuid);
+            return true;
+        } catch (RuntimeException ex) {
+            String message = blankToFallback(ex.getMessage(), "").toLowerCase(Locale.ROOT);
+            if (message.contains("404") || message.contains("not found")) {
+                return false;
+            }
+            throw ex;
+        }
+    }
+
+    static String coolifyGitRepository(String repository) {
+        String normalized = trimToNull(repository);
+        if (!hasText(normalized)) {
+            throw new RailwayProvisioningConfigurationException("Coolify git repository is required.");
+        }
+        String candidate = normalized;
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("https://github.com/") || lower.startsWith("http://github.com/")) {
+            candidate = candidate.substring(candidate.indexOf("github.com/") + "github.com/".length());
+        } else if (lower.startsWith("ssh://git@github.com/")) {
+            candidate = candidate.substring("ssh://git@github.com/".length());
+        } else if (lower.startsWith("git@github.com:")) {
+            candidate = candidate.substring("git@github.com:".length());
+            candidate = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+            if (candidate.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
+                return "git@github.com:" + (candidate.endsWith(".git") ? candidate : candidate + ".git");
+            }
+            throw new RailwayProvisioningConfigurationException(
+                "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
+            );
+        } else if (lower.contains("://") || lower.startsWith("git@")) {
+            throw new RailwayProvisioningConfigurationException(
+                "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
+            );
+        }
+        String slug = candidate.replaceAll("^/+", "").replaceAll("/+$", "");
+        if (slug.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\\.git)?")) {
+            return "https://github.com/" + (slug.endsWith(".git") ? slug : slug + ".git");
+        }
+        throw new RailwayProvisioningConfigurationException(
+            "Coolify git repository must be a GitHub owner/repository slug or github.com URL."
+        );
+    }
+
+    static String coolifyDockerfileLocation(String dockerfilePath) {
+        String normalized = trimToNull(dockerfilePath);
+        if (!hasText(normalized)) {
+            throw new RailwayProvisioningConfigurationException("Coolify dockerfile path is required.");
+        }
+        return normalized.startsWith("/") ? normalized : "/" + normalized;
+    }
+
+    private List<CoolifyEnvVar> buildCoolifyServiceEnv(PlatformManagedProductServiceEntity service,
+                                                       String publicBaseUrl) {
+        return buildServiceEnv(service, publicBaseUrl).stream()
+            .map(env -> new CoolifyEnvVar(env.name(), env.value(), false, true, containsLineBreak(env.value()), false))
+            .toList();
+    }
+
+    private boolean containsLineBreak(String value) {
+        return value != null && (value.contains("\n") || value.contains("\r"));
+    }
+
+    private void finalizeActiveCoolifyService(PlatformManagedProductServiceEntity service,
+                                              String targetProfileId,
+                                              String projectUuid,
+                                              String environmentUuid,
+                                              CoolifyApplicationSummary application,
+                                              CoolifyActionResponse deployResponse,
+                                              String publicBaseUrl,
+                                              String message) {
+        service.setDesiredReplicas(desiredReplicas(service));
+        service.setActualReplicas(desiredReplicas(service));
+        service.setBaseUrl(publicBaseUrl);
+        service.setPrivateNetworkUrl(null);
+        service.setHealthPath(healthPath(service));
+        service.setServiceRoot(serviceRoot(service));
+        service.setDockerfilePath(dockerfilePath(service));
+        service.setStatus("ACTIVE");
+        ObjectNode details = buildServiceDetails(service, deployResponse == null ? null : deployResponse.deploymentUuid());
+        details.put("providerType", "COOLIFY");
+        details.put("targetProfileId", targetProfileId);
+        details.put("coolifyApplicationUuid", application.uuid());
+        details.put("coolifyProjectUuid", projectUuid);
+        details.put("coolifyEnvironmentUuid", environmentUuid);
+        details.put("coolifyFqdn", blankToFallback(application.fqdn(), ""));
+        details.put("lastObservedStatus", blankToFallback(application.status(), ""));
+        details.put("lastReconcileStatus", "SUCCESS");
+        details.put("lastReconcileMessage", blankToFallback(message, "Coolify product service is active."));
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+    }
+
+    private CoolifyBinding resolveCoolifyBinding(PlatformManagedProductServiceEntity service) {
+        ensureCoolifySupportAvailable();
+        ObjectNode details = mutableDetails(service);
+        String targetProfileId = trimToNull(details.path("targetProfileId").asText(null));
+        DeploymentTargetProfileEntity profile;
+        if (hasText(targetProfileId)) {
+            profile = targetProfileRepository.findById(targetProfileId)
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify target profile not found: " + targetProfileId));
+        } else {
+            profile = resolveDefaultCoolifyPlatformServiceProfile();
+            details.put("providerType", "COOLIFY");
+            details.put("targetProfileId", profile.getId());
+            service.setDetailsJson(details.toPrettyString());
+            serviceRepository.save(service);
+        }
+        if (!profile.isActive() || !profile.isPlatformServicesAllowed()) {
+            throw new ResponseStatusException(CONFLICT, "Coolify target profile is not active for platform services: " + profile.getId());
+        }
+        return new CoolifyBinding(profile, coolifyTargetProfileResolver.requireConnection(profile));
+    }
+
+    private DeploymentTargetProfileEntity resolveDefaultCoolifyPlatformServiceProfile() {
+        List<DeploymentTargetProfileEntity> allowedProfiles = targetProfileRepository
+            .findByProviderTypeOrderByEnvironmentNameAscUpdatedAtDesc(DeploymentProviderType.COOLIFY)
+            .stream()
+            .filter(DeploymentTargetProfileEntity::isActive)
+            .filter(DeploymentTargetProfileEntity::isPlatformServicesAllowed)
+            .toList();
+        if (allowedProfiles.isEmpty()) {
+            throw new ResponseStatusException(CONFLICT, "No active Coolify target profile allows platform services.");
+        }
+        return allowedProfiles.stream()
+            .filter(DeploymentTargetProfileEntity::isDefaultForRestartableServices)
+            .findFirst()
+            .orElseGet(() -> {
+                if (allowedProfiles.size() == 1) {
+                    return allowedProfiles.get(0);
+                }
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Multiple Coolify target profiles allow platform services. Set targetProfileId explicitly."
+                );
+            });
+    }
+
+    private String coolifyDomain(PlatformManagedProductServiceEntity service, CoolifyTargetProfileConfig config) {
+        String existingBaseUrl = trimToNull(service.getBaseUrl());
+        if (hasText(existingBaseUrl)) {
+            return existingBaseUrl.split(",")[0].trim();
+        }
+        if (config.autogenerateDomain()) {
+            return null;
+        }
+        String suffix = trimToNull(config.defaultPublicDomainSuffix());
+        if (!hasText(suffix)) {
+            return null;
+        }
+        String normalizedSuffix = suffix.startsWith(".") ? suffix.substring(1) : suffix;
+        return "https://" + normalizeToken(service.getServiceRef()) + "." + normalizedSuffix;
+    }
+
+    private String publicBaseUrl(CoolifyApplicationSummary application) {
+        if (application == null || !hasText(application.fqdn())) {
+            return null;
+        }
+        String fqdn = application.fqdn().split(",")[0].trim();
+        if (!hasText(fqdn)) {
+            return null;
+        }
+        return fqdn.startsWith("http://") || fqdn.startsWith("https://") ? fqdn : "https://" + fqdn;
+    }
+
+    private String mergeCoolifyDomains(String desiredDomains, String observedDomains) {
+        if (!hasText(desiredDomains)) {
+            return trimToNull(observedDomains);
+        }
+        List<String> merged = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        appendCoolifyDomains(merged, seen, desiredDomains);
+        if (coolifyDomainListsOverlap(desiredDomains, observedDomains)) {
+            appendCoolifyDomains(merged, seen, observedDomains);
+        }
+        return merged.isEmpty() ? trimToNull(desiredDomains) : String.join(",", merged);
+    }
+
+    private void appendCoolifyDomains(List<String> merged, java.util.Set<String> seen, String domains) {
+        if (!hasText(domains)) {
+            return;
+        }
+        for (String candidate : domains.split(",")) {
+            String normalized = trimToNull(candidate);
+            String key = coolifyDomainKey(normalized);
+            if (hasText(normalized) && hasText(key) && seen.add(key)) {
+                merged.add(normalized);
+            }
+        }
+    }
+
+    private boolean coolifyDomainListsOverlap(String left, String right) {
+        if (!hasText(left) || !hasText(right)) {
+            return false;
+        }
+        java.util.Set<String> leftKeys = new java.util.LinkedHashSet<>();
+        for (String candidate : left.split(",")) {
+            String key = coolifyDomainKey(candidate);
+            if (hasText(key)) {
+                leftKeys.add(key);
+            }
+        }
+        for (String candidate : right.split(",")) {
+            if (leftKeys.contains(coolifyDomainKey(candidate))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String coolifyDomainKey(String domain) {
+        String host = normalizedUrlHost(domain);
+        if (hasText(host)) {
+            return host.toLowerCase(Locale.ROOT);
+        }
+        String normalized = trimToNull(domain);
+        return hasText(normalized) ? normalized.toLowerCase(Locale.ROOT) : null;
+    }
+
+    private boolean coolifyFqdnMatchesBaseUrl(String fqdn, String baseUrl) {
+        String expected = normalizedUrlHost(baseUrl);
+        if (!hasText(expected) || !hasText(fqdn)) {
+            return false;
+        }
+        for (String candidate : fqdn.split(",")) {
+            if (expected.equalsIgnoreCase(normalizedUrlHost(candidate))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizedUrlHost(String value) {
+        String normalized = trimToNull(value);
+        if (!hasText(normalized)) {
+            return null;
+        }
+        normalized = normalized.replaceFirst("^https?://", "");
+        int slash = normalized.indexOf('/');
+        if (slash >= 0) {
+            normalized = normalized.substring(0, slash);
+        }
+        return trimToNull(normalized);
+    }
+
+    private void clearCoolifyBinding(PlatformManagedProductServiceEntity service) {
+        service.setBaseUrl(null);
+        service.setPrivateNetworkUrl(null);
+        service.setActualReplicas(0);
+        service.setStatus("CREATED");
+        ObjectNode details = mutableDetails(service);
+        details.remove(List.of("coolifyApplicationUuid", "coolifyProjectUuid", "coolifyEnvironmentUuid", "coolifyFqdn"));
+        details.put("providerType", "COOLIFY");
+        details.put("lastForceRecreatedAt", Instant.now().toString());
+        details.put("lastForceRecreateStatus", "SUCCESS");
+        details.put("lastForceRecreateMessage", "Coolify product service linkage was cleared and will be recreated.");
+        service.setDetailsJson(details.toPrettyString());
+        service.setUpdatedAt(Instant.now());
+        serviceRepository.save(service);
+    }
+
+    private void ensureCoolifySupportAvailable() {
+        if (coolifyTargetProfileResolver == null || coolifyApiClient == null || targetProfileRepository == null) {
+            throw new ResponseStatusException(CONFLICT, "Coolify product service lifecycle dependencies are not configured.");
+        }
+    }
+
     private void awaitProjectDeletion(String projectId, String projectName) {
         Instant deadline = Instant.now().plus(provisioningProperties.deploymentTimeout());
         while (Instant.now().isBefore(deadline)) {
@@ -395,7 +1060,24 @@ public class PlatformManagedProductProvisioningService {
     }
 
     private boolean requiresRailwayLifecycle(PlatformManagedProductServiceEntity service) {
-        return "SHOPIFY_BRIDGE_SERVICE".equals(upper(service.getServiceKind()));
+        return "SHOPIFY_BRIDGE_SERVICE".equals(upper(service.getServiceKind()))
+            && !isCoolifyManaged(service);
+    }
+
+    private boolean requiresCoolifyLifecycle(PlatformManagedProductServiceEntity service) {
+        return coolifyTargetProfileResolver != null
+            && coolifyApiClient != null
+            && targetProfileRepository != null
+            && (isCoolifyManaged(service)
+            || "SHOPIFY_BRIDGE_SERVICE".equals(upper(service.getServiceKind()))
+            || "MCP_EXECUTION_GATEWAY_SERVICE".equals(upper(service.getServiceKind())));
+    }
+
+    private boolean isCoolifyManaged(PlatformManagedProductServiceEntity service) {
+        ObjectNode details = mutableDetails(service);
+        return "COOLIFY".equalsIgnoreCase(details.path("providerType").asText(null))
+            || hasText(details.path("coolifyApplicationUuid").asText(null))
+            || details.path("targetProfileId").asText("").startsWith("dtp-coolify-");
     }
 
     private RailwayGraphqlClient.RailwayProjectSnapshot resolveCurrentProjectSnapshot(PlatformManagedProductServiceEntity service) {
@@ -536,6 +1218,8 @@ public class PlatformManagedProductProvisioningService {
         return switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" ->
                 trimProjectName(productProvisioningProperties.shopifyBridgeServiceNamePrefix() + "-" + normalizeToken(service.getServiceRef()));
+            case "MCP_EXECUTION_GATEWAY_SERVICE" ->
+                trimProjectName(productProvisioningProperties.mcpExecutionGatewayServiceNamePrefix() + "-" + normalizeToken(service.getServiceRef()));
             default -> trimProjectName("product-" + normalizeToken(service.getServiceRef()));
         };
     }
@@ -546,6 +1230,7 @@ public class PlatformManagedProductProvisioningService {
         }
         return switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> productProvisioningProperties.shopifyBridgeServiceRoot();
+            case "MCP_EXECUTION_GATEWAY_SERVICE" -> productProvisioningProperties.mcpExecutionGatewayServiceRoot();
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
         };
     }
@@ -556,6 +1241,7 @@ public class PlatformManagedProductProvisioningService {
         }
         return switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> productProvisioningProperties.shopifyBridgeDockerfilePath();
+            case "MCP_EXECUTION_GATEWAY_SERVICE" -> productProvisioningProperties.mcpExecutionGatewayDockerfilePath();
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
         };
     }
@@ -566,6 +1252,7 @@ public class PlatformManagedProductProvisioningService {
         }
         return switch (upper(service.getServiceKind())) {
             case "SHOPIFY_BRIDGE_SERVICE" -> productProvisioningProperties.shopifyBridgeHealthPath();
+            case "MCP_EXECUTION_GATEWAY_SERVICE" -> productProvisioningProperties.mcpExecutionGatewayHealthPath();
             default -> "/actuator/health";
         };
     }
@@ -601,6 +1288,24 @@ public class PlatformManagedProductProvisioningService {
                 String shopifyApiKey = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiKeySecretName());
                 String shopifyApiSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeShopifyApiSecretSecretName());
                 String webhookSharedSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeWebhookSharedSecretName());
+                String customerAccountMcpClientId = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CLIENT_ID_SECRET);
+                String customerAccountMcpClientSecret = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET_SECRET);
+                String customerAccountMcpRedirectUri = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_REDIRECT_URI_SECRET);
+                String customerAccountMcpStorefrontDomain = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN_SECRET);
+                String customerAccountMcpScopes = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SCOPES_SECRET);
+                String customerAccountMcpStateTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_STATE_TTL_SECRET);
+                String customerAccountMcpSessionTtl = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_SESSION_TTL_SECRET);
+                String customerAccountMcpConnectTimeout = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT_SECRET);
+                String customerAccountMcpReadTimeout = resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT_SECRET);
+                boolean customerAccountMcpProtectedApproved = Boolean.parseBoolean(
+                    blankToFallback(resolveOptionalSecret(CUSTOMER_ACCOUNT_MCP_PROTECTED_APPROVED_SECRET), "false")
+                );
+                boolean customerAccountMcpConfigured = customerAccountMcpProtectedApproved
+                    && hasText(customerAccountMcpClientId)
+                    && hasText(customerAccountMcpClientSecret)
+                    && hasText(customerAccountMcpRedirectUri)
+                    && hasText(customerAccountMcpScopes);
+                boolean checkoutMcpConfigured = checkoutMcpCredentialsConfigured();
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SHARED_SECRET", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_SERVICE_REF", service.getServiceRef()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_APP_NAME", blankToFallback(service.getDisplayName(), "Shopify Bridge Service")));
@@ -609,6 +1314,7 @@ public class PlatformManagedProductProvisioningService {
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_BASE_URL", deliveryProperties.publicBaseUrl()));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY", sharedSecret));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_PUBLIC_BASE_URL", blankToFallback(publicBaseUrl, "")));
+                addMcpGatewayEnv(env);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_SHOPIFY_API_KEY", shopifyApiKey);
                 addOptionalEnv(env, "SHOPIFY_BRIDGE_SHOPIFY_API_SECRET", shopifyApiSecret);
                 addOptionalEnv(
@@ -616,6 +1322,19 @@ public class PlatformManagedProductProvisioningService {
                     "SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET",
                     hasText(webhookSharedSecret) ? webhookSharedSecret : shopifyApiSecret
                 );
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED", Boolean.toString(customerAccountMcpConfigured)));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED", Boolean.toString(customerAccountMcpProtectedApproved)));
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID", customerAccountMcpClientId);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET", customerAccountMcpClientSecret);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI", customerAccountMcpRedirectUri);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN", customerAccountMcpStorefrontDomain);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES", customerAccountMcpScopes);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL", customerAccountMcpStateTtl);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL", customerAccountMcpSessionTtl);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT", customerAccountMcpConnectTimeout);
+                addOptionalEnv(env, "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT", customerAccountMcpReadTimeout);
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED", Boolean.toString(checkoutMcpConfigured)));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED", "false"));
                 PlatformManagedProductServiceShopifyBillingConfigSummary billingConfig =
                     PlatformManagedProductServiceShopifyBillingConfigSupport.summaryFromDetails(
                         objectMapper,
@@ -626,9 +1345,59 @@ public class PlatformManagedProductProvisioningService {
                     .forEach((name, value) -> env.add(new RailwayGraphqlClient.RailwayEnvVarInput(name, value)));
                 env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
             }
+            case "MCP_EXECUTION_GATEWAY_SERVICE" -> {
+                String sharedSecret = resolveSecret(service.getSecretName());
+                String checkoutClientId = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientIdSecretName());
+                String checkoutClientSecret = resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientSecretSecretName());
+                boolean checkoutMcpConfigured = hasText(checkoutClientId) && hasText(checkoutClientSecret);
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_INTERNAL_API_KEY", sharedSecret));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_SERVICE_REF", service.getServiceRef()));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SCOPE", resolveEnvironmentName(service)));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_PROTOCOL_VERSION", "2025-11-25"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_API_KEY_HEADER_ALLOWLIST", "X-API-KEY,X-MCP-API-KEY,X-LOOM-MCP-KEY"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_PROFILE_REF_ALLOWLIST", "MCP_PROFILE_SHOPIFY_UCP_AGENT,SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_PROFILE_SHOPIFY_UCP_AGENT", defaultShopifyUcpAgentProfile()));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE", defaultShopifyUcpAgentProfile()));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED", Boolean.toString(checkoutMcpConfigured)));
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_GATEWAY_ENVIRONMENT_SECRET_REF_PREFIX", "MCP_SECRET_"));
+                if (checkoutMcpConfigured) {
+                    env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID", checkoutClientId));
+                    env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET", checkoutClientSecret));
+                }
+                env.add(new RailwayGraphqlClient.RailwayEnvVarInput("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "health,info"));
+            }
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported managed product service kind: " + service.getServiceKind());
         }
         return env;
+    }
+
+    private void addMcpGatewayEnv(List<RailwayGraphqlClient.RailwayEnvVarInput> env) {
+        String gatewayRef = productProvisioningProperties.mcpExecutionGatewayServiceRef();
+        PlatformManagedProductServiceEntity gateway = serviceRepository.findByServiceRefIgnoreCase(gatewayRef)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify Bridge requires managed MCP execution gateway service: " + gatewayRef
+            ));
+        if (!hasText(gateway.getBaseUrl())) {
+            throw new ResponseStatusException(CONFLICT, "MCP execution gateway has no base URL: " + gatewayRef);
+        }
+        if (!hasText(gateway.getSecretName())) {
+            throw new ResponseStatusException(CONFLICT, "MCP execution gateway has no managed API key secret: " + gatewayRef);
+        }
+        String gatewaySecret = resolveSecret(gateway.getSecretName());
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_BASE_URL", gateway.getBaseUrl()));
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY", gatewaySecret));
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY"));
+        env.add(new RailwayGraphqlClient.RailwayEnvVarInput("SHOPIFY_BRIDGE_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute"));
+    }
+
+    private String defaultShopifyUcpAgentProfile() {
+        return "https://shopify.dev/ucp/agent-profiles/examples/2026-04-08/cart-and-checkout.json";
+    }
+
+    private boolean checkoutMcpCredentialsConfigured() {
+        return hasText(resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientIdSecretName()))
+            && hasText(resolveOptionalSecret(productProvisioningProperties.shopifyBridgeCheckoutMcpClientSecretSecretName()));
     }
 
     private String resolveSecret(String secretName) {
@@ -753,7 +1522,7 @@ public class PlatformManagedProductProvisioningService {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
-    private boolean hasText(String value) {
+    private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
@@ -761,7 +1530,11 @@ public class PlatformManagedProductProvisioningService {
         return hasText(value) ? value.trim() : fallback;
     }
 
-    private String trimToNull(String value) {
+    private String firstNonBlank(String left, String right) {
+        return hasText(left) ? left.trim() : hasText(right) ? right.trim() : null;
+    }
+
+    private static String trimToNull(String value) {
         return hasText(value) ? value.trim() : null;
     }
 
@@ -772,6 +1545,12 @@ public class PlatformManagedProductProvisioningService {
         RailwayGraphqlClient.RailwayServiceInstanceSummary instance,
         String publicBaseUrl,
         String deploymentId
+    ) {
+    }
+
+    private record CoolifyBinding(
+        DeploymentTargetProfileEntity profile,
+        CoolifyConnection connection
     ) {
     }
 }

@@ -1,0 +1,28 @@
+# Copy to terraform.tfvars or pass these values through -var arguments.
+# Do not add Hetzner tokens here. Use HCLOUD_TOKEN or HCLOUD_TOKEN_FILE.
+
+location = "nbg1"
+
+ssh_key_name   = "loom-coolify-operator"
+ssh_public_key = "ssh-ed25519 REPLACE_WITH_OPERATOR_PUBLIC_KEY"
+
+# Replace with the current operator/VPN/Tailscale egress CIDRs.
+# Public internet CIDRs are rejected by validation.
+ssh_allowed_cidrs = [
+  "203.0.113.10/32"
+]
+
+# Leave empty until Cloudflare Access, Tailscale, or an operator IP allowlist is ready.
+dashboard_allowed_cidrs = []
+
+# Optional Platform control-plane access to Coolify API port 8000.
+# Staging can be temporarily broad only when the provider has no stable egress IP.
+staging_platform_api_allowed_cidrs = []
+
+# Production must stay narrow, for example a single observed/static Platform egress /32.
+production_platform_api_allowed_cidrs = []
+
+enable_server_backups = false
+enable_data_volumes   = false
+
+dns_zone_name = "loomai.pro"

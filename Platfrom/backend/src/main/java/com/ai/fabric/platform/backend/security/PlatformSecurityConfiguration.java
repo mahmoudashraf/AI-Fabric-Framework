@@ -111,7 +111,12 @@ public class PlatformSecurityConfiguration {
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
                 "/api/vectorization/runner/**",
-                "/api/merchant/partner-access/*/approve"
+                "/api/merchant/partner-access/*/workspace",
+                "/api/merchant/partner-access/*/approve",
+                "/api/merchant/partner-access/*/deny",
+                "/api/merchant/partner-access/*/revoke",
+                "/api/merchant/partner-access/*/production-promotions",
+                "/api/merchant/partner-access/*/rollback-requests"
             ).permitAll();
             authorize.requestMatchers(
                 "/api/deployments/*/versions/*/artifacts/ai-actions.yml",

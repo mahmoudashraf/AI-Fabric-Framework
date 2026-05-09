@@ -24,19 +24,24 @@ public class PlatformVerificationSuiteScriptContextService {
     public static final String SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION = "managed-vector-provider-verification";
     public static final String SCRIPT_MARKETPLACE_INSTALL_FLOW = "marketplace-install-flow";
     public static final String SCRIPT_SHOPIFY_COMPANION_VERIFICATION = "shopify-companion-verification";
+    public static final String SCRIPT_SHOPIFY_MCP_GATEWAY_VERIFICATION = "shopify-mcp-gateway-verification";
     public static final String SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT = "shopify-first-product-readiness-audit";
     public static final String SCRIPT_PARTNER_ENABLEMENT_VERIFICATION = "partner-enablement-verification";
     public static final String SCRIPT_THINKER_RESOLVER_READINESS = "thinker-resolver-readiness";
+    public static final String SCRIPT_COOLIFY_PROVIDER_VERIFICATION = "coolify-provider-verification";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
     private static final String PARTNER_SUPABASE_JWT_SECRET_NAME = "PARTNER_SUPABASE_JWT";
+    private static final String SHOPIFY_BRIDGE_ADMIN_API_KEY_SECRET_NAME = "SHOPIFY_BRIDGE_ADMIN_API_KEY";
+    private static final String MCP_GATEWAY_API_KEY_SECRET_NAME = "MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY";
+    private static final String MCP_GATEWAY_PRODUCT_SERVICE_REF = "mcp-execution-gateway";
     private static final List<String> RELEASE_BLOCKING_PROVIDER_SECRET_NAMES = List.of(
         "QDRANT_CLOUD_MANAGEMENT_API_KEY",
         "QDRANT_API_KEY"
     );
     private static final List<String> SHOPIFY_OPTIONAL_SECRET_NAMES = List.of(
-        "SHOPIFY_BRIDGE_ADMIN_API_KEY",
+        SHOPIFY_BRIDGE_ADMIN_API_KEY_SECRET_NAME,
         "SHOPIFY_ADMIN_ACCESS_TOKEN",
         "SHOPIFY_MERCHANT_AUTHORIZATION"
     );
@@ -69,9 +74,11 @@ public class PlatformVerificationSuiteScriptContextService {
             case SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION -> buildManagedProviderVerification();
             case SCRIPT_MARKETPLACE_INSTALL_FLOW -> buildMarketplaceInstallFlow();
             case SCRIPT_SHOPIFY_COMPANION_VERIFICATION -> buildShopifyCompanionVerification();
+            case SCRIPT_SHOPIFY_MCP_GATEWAY_VERIFICATION -> buildShopifyMcpGatewayVerification();
             case SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT -> buildShopifyFirstProductReadinessAudit();
             case SCRIPT_PARTNER_ENABLEMENT_VERIFICATION -> buildPartnerEnablementVerification();
             case SCRIPT_THINKER_RESOLVER_READINESS -> buildThinkerResolverReadiness();
+            case SCRIPT_COOLIFY_PROVIDER_VERIFICATION -> buildCoolifyProviderVerification();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
         if (environmentOverrides == null || environmentOverrides.isEmpty()) {
@@ -141,9 +148,12 @@ public class PlatformVerificationSuiteScriptContextService {
     }
 
     private PlatformVerificationScriptContextSummary buildMarketplaceInstallFlow() {
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE", "false");
+
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-marketplace-install-flow.sh",
-            basePlatformEnvironment(),
+            environment,
             basePlatformSecretEnvironment()
         );
     }
@@ -167,6 +177,9 @@ public class PlatformVerificationSuiteScriptContextService {
         if (suiteProperties.shopifyEmbeddedHost() != null && !suiteProperties.shopifyEmbeddedHost().isBlank()) {
             environment.put("SHOPIFY_EMBEDDED_HOST", suiteProperties.shopifyEmbeddedHost());
         }
+        environment.put("SHOPIFY_COMPANION_ENSURE_BILLING_STATE", "true");
+        environment.put("EXPECT_BILLING_TIER", "STARTER");
+        environment.put("EXPECT_BILLING_STATUS", "ACTIVE");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
         for (String secretName : SHOPIFY_OPTIONAL_SECRET_NAMES) {
@@ -178,6 +191,44 @@ public class PlatformVerificationSuiteScriptContextService {
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-shopify-companion.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildShopifyMcpGatewayVerification() {
+        String bridgeBaseUrl = requireValue(
+            suiteProperties.shopifyBridgeBaseUrl(),
+            "platform.verification.suites.shopify-bridge-base-url must be configured for Shopify MCP Gateway verification."
+        );
+        String shopDomain = requireValue(
+            suiteProperties.shopifyShopDomain(),
+            "platform.verification.suites.shopify-shop-domain must be configured for Shopify MCP Gateway verification."
+        );
+        String bridgeAdminApiKey = requireSecret(
+            SHOPIFY_BRIDGE_ADMIN_API_KEY_SECRET_NAME,
+            "Missing required platform secret for Shopify MCP Gateway verification: " + SHOPIFY_BRIDGE_ADMIN_API_KEY_SECRET_NAME
+        );
+        String gatewayApiKey = requireSecret(
+            MCP_GATEWAY_API_KEY_SECRET_NAME,
+            "Missing required platform secret for Shopify MCP Gateway verification: " + MCP_GATEWAY_API_KEY_SECRET_NAME
+        );
+
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("SHOPIFY_BRIDGE_BASE_URL", bridgeBaseUrl);
+        environment.put("SHOP_DOMAIN", shopDomain);
+        environment.put("MCP_GATEWAY_PRODUCT_SERVICE_REF", MCP_GATEWAY_PRODUCT_SERVICE_REF);
+        environment.put("MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY");
+        if (suiteProperties.shopifyProductServiceRef() != null && !suiteProperties.shopifyProductServiceRef().isBlank()) {
+            environment.put("PRODUCT_SERVICE_REF", suiteProperties.shopifyProductServiceRef());
+        }
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
+        secretEnvironment.put(SHOPIFY_BRIDGE_ADMIN_API_KEY_SECRET_NAME, bridgeAdminApiKey);
+        secretEnvironment.put("MCP_GATEWAY_API_KEY", gatewayApiKey);
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-shopify-mcp-gateway.sh",
             environment,
             secretEnvironment
         );
@@ -282,6 +333,30 @@ public class PlatformVerificationSuiteScriptContextService {
 
         return new PlatformVerificationScriptContextSummary(
             "scripts/verify-thinker-resolver-readiness.sh",
+            environment,
+            secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildCoolifyProviderVerification() {
+        Map<String, String> environment = new LinkedHashMap<>();
+        environment.put("COOLIFY_STRICT_APPLICATION_SMOKE", "false");
+        environment.put("COOLIFY_VERIFY_PRODUCTION", "false");
+
+        Map<String, String> secretEnvironment = new LinkedHashMap<>();
+        String stagingToken = requireSecret(
+            "COOLIFY_STAGING_API_TOKEN",
+            "Missing required platform secret for Coolify provider verification: COOLIFY_STAGING_API_TOKEN"
+        );
+        String productionToken = requireSecret(
+            "COOLIFY_PRODUCTION_API_TOKEN",
+            "Missing required platform secret for Coolify provider verification: COOLIFY_PRODUCTION_API_TOKEN"
+        );
+        secretEnvironment.put("COOLIFY_STAGING_API_TOKEN", stagingToken);
+        secretEnvironment.put("COOLIFY_PRODUCTION_API_TOKEN", productionToken);
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-coolify-provider.sh",
             environment,
             secretEnvironment
         );

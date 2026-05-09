@@ -163,7 +163,7 @@ Partner Enablement is wired into the platform-owned release gate:
 - strict mode: forced by the platform suite
 - Platform UI target config: `platform.verification.suites.platform-ui-base-url`
 - Partner UI target config: `platform.verification.suites.partner-ui-base-url`
-- default Partner UI target: `https://ai-fabric-framework-production-158d.up.railway.app`
+- live URL/domain defaults are environment-driven, not embedded in Java; set `PLATFORM_UI_BASE_URL`, `PARTNER_UI_BASE_URL`, `SHOPIFY_BRIDGE_BASE_URL`, `SHOP_DOMAIN`, `PRODUCT_SERVICE_REF`, and `PLATFORM_VERIFICATION_WEAVIATE_HOST` in deployment env or the local env file before dispatching the suite
 
 Before dispatching the full release suite, store a valid short-lived test partner token as the platform secret:
 

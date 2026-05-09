@@ -18,10 +18,15 @@ public record ShopifyCompanionBootstrapProperties(
     Boolean defaultQdrantManagedCollectionsEnabled,
     String templatePluginId,
     String templatePluginVersion,
+    String stagingTemplatePluginId,
+    String productionTemplatePluginId,
+    String goLiveTargetProfileId,
     List<String> defaultPluginIds
 ) {
 
     public ShopifyCompanionBootstrapProperties {
+        String defaultStagingTemplatePluginId = "mkp-template-shopify-companion-staging";
+        stagingTemplatePluginId = normalize(stagingTemplatePluginId, defaultStagingTemplatePluginId);
         defaultEnvironment = normalize(defaultEnvironment, "dev");
         defaultTemplateId = normalize(defaultTemplateId, "dev-openai-qdrant");
         defaultVectorProvisioningMode = normalize(defaultVectorProvisioningMode, "PLATFORM_MANAGED");
@@ -34,11 +39,13 @@ public record ShopifyCompanionBootstrapProperties(
         defaultQdrantManagedCollectionsEnabled = defaultQdrantManagedCollectionsEnabled == null
             ? Boolean.TRUE
             : defaultQdrantManagedCollectionsEnabled;
-        templatePluginId = normalize(templatePluginId, "mkp-template-shopify-companion");
+        templatePluginId = normalize(templatePluginId, stagingTemplatePluginId);
         templatePluginVersion = normalize(templatePluginVersion, "");
+        productionTemplatePluginId = normalize(productionTemplatePluginId, "mkp-template-shopify-companion-production");
+        goLiveTargetProfileId = normalize(goLiveTargetProfileId, "");
         defaultPluginIds = defaultPluginIds == null
             ? List.of(
-                "mkp-action-shopify-companion-read",
+                "mkp-action-shopify-storefront-read-mcp",
                 "mkp-data-shopify-catalog",
                 "mkp-data-shopify-policies",
                 "mkp-inference-shared-embeddings"

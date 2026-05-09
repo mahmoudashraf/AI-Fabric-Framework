@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.shopify.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -95,7 +96,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1")).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -103,6 +104,10 @@ class ShopifyStoreGoLiveServiceTest {
             "PENDING",
             "QUEUED",
             "RAILWAY",
+            null,
+            null,
+            null,
+            null,
             "queue_release",
             "Apply request accepted and queued.",
             null,
@@ -121,7 +126,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         ShopifyStoreConnectionSummary result = service.goLive("alpha.myshopify.com");
@@ -134,7 +142,7 @@ class ShopifyStoreGoLiveServiceTest {
         verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
         verify(draftCompilerService).syncDeploymentDraft("dep-1");
         verify(deploymentService).publishDraft("drf-1");
-        verify(deploymentService).applyVersion("dep-1", "ver-1");
+        verify(deploymentService).applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null);
     }
 
     @Test
@@ -200,7 +208,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1")).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -208,6 +216,10 @@ class ShopifyStoreGoLiveServiceTest {
             "PENDING",
             "QUEUED",
             "RAILWAY",
+            null,
+            null,
+            null,
+            null,
             "queue_release",
             "Apply request accepted and queued.",
             null,
@@ -226,7 +238,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         service.goLive("alpha.myshopify.com");
@@ -265,7 +280,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
@@ -296,7 +314,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
@@ -327,7 +348,10 @@ class ShopifyStoreGoLiveServiceTest {
             productServiceRepository,
             productAdminService,
             connectionService,
-            auditService
+            auditService,
+            bootstrapProperties(),
+            mock(ShopifyCompanionPackageProfileCatalogService.class),
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper())
         );
 
         assertThatThrownBy(() -> service.goLive("alpha.myshopify.com"))
@@ -349,6 +373,27 @@ class ShopifyStoreGoLiveServiceTest {
         entity.setCreatedAt(Instant.parse("2026-04-18T10:00:00Z"));
         entity.setUpdatedAt(Instant.parse("2026-04-18T10:00:00Z"));
         return entity;
+    }
+
+    private ShopifyCompanionBootstrapProperties bootstrapProperties() {
+        return new ShopifyCompanionBootstrapProperties(
+            "dev",
+            "dev-openai-qdrant",
+            "EXTERNAL_EXISTING",
+            "SHARED",
+            "",
+            "",
+            "",
+            "aws",
+            "eu-west-1",
+            false,
+            "mkp-template-shopify-companion",
+            "",
+            "mkp-template-shopify-companion-staging",
+            "mkp-template-shopify-companion-production",
+            "dtp-coolify-production",
+            java.util.List.of()
+        );
     }
 
     private ShopifyStoreConnectionSummary summary(String shopDomain, String onboardingStatus) {
@@ -418,10 +463,10 @@ class ShopifyStoreGoLiveServiceTest {
         ObjectNode upstream = (ObjectNode) routing.path("connector").path("upstream");
         ObjectNode auth = (ObjectNode) upstream.path("auth");
         ObjectNode actions = (ObjectNode) routing.path("actions");
-        ObjectNode listProducts = (ObjectNode) routing.path("actions").path("list_products");
-        ObjectNode addProductToCart = (ObjectNode) routing.path("actions").path("add_product_to_cart");
-        ObjectNode requestBody = (ObjectNode) listProducts.path("request").path("body");
-        ObjectNode addRequestBody = (ObjectNode) addProductToCart.path("request").path("body");
+        ObjectNode searchCatalog = (ObjectNode) routing.path("actions").path("shopify_search_catalog");
+        ObjectNode updateCart = (ObjectNode) routing.path("actions").path("shopify_update_cart");
+        ObjectNode requestBody = (ObjectNode) searchCatalog.path("request").path("body");
+        ObjectNode updateRequestBody = (ObjectNode) updateCart.path("request").path("body");
         return "https://shopify-bridge.example.com".equals(upstream.path("base-url").asText())
             && "API_KEY".equals(auth.path("type").asText())
             && "X-BRIDGE-API-KEY".equals(auth.path("header").asText())
@@ -429,16 +474,16 @@ class ShopifyStoreGoLiveServiceTest {
             && !actions.has("find_similar_products")
             && !actions.has("compare_products")
             && actions.has("custom_unrelated_action")
-            && "POST".equals(listProducts.path("method").asText())
-            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(listProducts.path("path").asText())
-            && "POST".equals(addProductToCart.path("method").asText())
-            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(addProductToCart.path("path").asText())
+            && "POST".equals(searchCatalog.path("method").asText())
+            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(searchCatalog.path("path").asText())
+            && "POST".equals(updateCart.path("method").asText())
+            && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(updateCart.path("path").asText())
             && "{{actionId}}".equals(requestBody.path("actionId").asText())
             && "{{params}}".equals(requestBody.path("params").asText())
             && "{{idempotencyKey}}".equals(requestBody.path("idempotencyKey").asText())
             && "{{trace}}".equals(requestBody.path("trace").asText())
-            && "{{actionId}}".equals(addRequestBody.path("actionId").asText())
-            && "{{params}}".equals(addRequestBody.path("params").asText());
+            && "{{actionId}}".equals(updateRequestBody.path("actionId").asText())
+            && "{{params}}".equals(updateRequestBody.path("params").asText());
     }
 
     private ObjectNode currentActionsConfig() {

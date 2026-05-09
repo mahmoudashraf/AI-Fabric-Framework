@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.partner.entity.PartnerActionAuditEntity;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerAuditPublisher;
 import com.ai.fabric.platform.backend.partner.repository.PartnerActionAuditRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -18,6 +20,7 @@ public class DatabasePartnerAuditPublisher implements PartnerAuditPublisher {
     }
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publish(String partnerAccountId,
                         String partnerMemberId,
                         String action,

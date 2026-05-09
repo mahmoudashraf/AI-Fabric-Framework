@@ -65,6 +65,8 @@ APP_PROXY_SUBPATH="${SHOPIFY_CLI_APP_PROXY_SUBPATH:-loom-companion}"
 APP_PUBLIC_BASE_URL="$(trim_trailing_slash "${APP_PUBLIC_BASE_URL_INPUT}")"
 BRIDGE_BASE_URL="$(trim_trailing_slash "${SHOPIFY_BRIDGE_PUBLIC_BASE_URL}")"
 CALLBACK_URL="${SHOPIFY_CLI_APP_CALLBACK_URL:-${BRIDGE_BASE_URL}/auth/shopify/callback}"
+CUSTOMER_AUTH_REDIRECT_URI="${SHOPIFY_CLI_CUSTOMER_AUTH_REDIRECT_URI:-${BRIDGE_BASE_URL}/api/customer-auth/callback}"
+CUSTOMER_AUTH_JAVASCRIPT_ORIGIN="${SHOPIFY_CLI_CUSTOMER_AUTH_JAVASCRIPT_ORIGIN:-${BRIDGE_BASE_URL}}"
 DEV_STORE_URL="${SHOPIFY_CLI_DEV_STORE_URL:-}"
 
 mkdir -p "$(dirname "${OUTPUT_FILE}")"
@@ -84,6 +86,14 @@ scopes = "$(escape_toml "${APP_SCOPES}")"
 [auth]
 redirect_urls = [
   "$(escape_toml "${CALLBACK_URL}")"
+]
+
+[customer_authentication]
+redirect_uris = [
+  "$(escape_toml "${CUSTOMER_AUTH_REDIRECT_URI}")"
+]
+javascript_origins = [
+  "$(escape_toml "${CUSTOMER_AUTH_JAVASCRIPT_ORIGIN}")"
 ]
 
 [build]

@@ -49,6 +49,28 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String DEFAULT_MARKETPLACE_DATASET_CONTRACT_VERSION = "MARKETPLACE_DATASET_CONFIG_V1";
     private static final String DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION = "MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1";
     private static final String MARKETPLACE_INFERENCE_FIELD = "marketplaceInference";
+    private static final Set<String> GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS = Set.of(
+        "mkp-action-shopify-storefront-read-mcp",
+        "mkp-action-shopify-cart-mcp",
+        "mkp-action-shopify-customer-account-mcp",
+        "mkp-action-shopify-checkout-mcp"
+    );
+    private static final Set<String> GREENFIELD_SHOPIFY_ACTION_IDS = Set.of(
+        "shopify_search_catalog",
+        "shopify_lookup_catalog",
+        "shopify_get_product",
+        "shopify_get_product_details",
+        "shopify_search_policies",
+        "shopify_get_cart",
+        "shopify_update_cart",
+        "shopify_get_most_recent_order_status",
+        "shopify_get_order_status",
+        "shopify_create_checkout",
+        "shopify_get_checkout",
+        "shopify_update_checkout",
+        "shopify_complete_checkout",
+        "shopify_cancel_checkout"
+    );
 
     private final DeploymentService deploymentService;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
@@ -110,15 +132,17 @@ public class DeploymentMarketplaceDraftCompilerService {
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Deployment not found: " + deploymentId));
 
+        List<DeploymentMarketplacePluginInstallEntity> installs =
+            installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
+
         stripMarketplaceManagedActions(actionsRoot);
+        stripGreenfieldShopifyLegacyActions(actionsRoot, installs);
         stripMarketplaceManagedEntities(entityRoot);
         stripMarketplaceManagedKnowledgeSources(knowledgeSourceRoot);
         stripMarketplaceManagedShell(shellRoot);
         stripMarketplaceManagedDatasets(marketplaceDatasetRoot);
         stripMarketplaceManagedInference(providerRoot);
 
-        List<DeploymentMarketplacePluginInstallEntity> installs =
-            installRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId);
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
         Set<String> existingEntityTypes = entityTypes(entityRoot.path("ai-entities"));
         Set<String> existingKnowledgeSourceIds = knowledgeSourceIds(knowledgeSourceRoot.path("sources"));
@@ -496,6 +520,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                                    Set<String> existingActionNames) {
         ArrayNode actions = ensureArray(actionsRoot, "actions");
         ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
+        ArrayNode mcpServers = ensureArray(actionsRoot, "mcpServers");
         JsonNode installConfig = readJson(install.getConfigJson());
         JsonNode installSecretRefs = readJson(install.getSecretRefsJson());
         JsonNode webhookTargetEntries = parsed.manifest().path("contributions").path("webhookTargets");
@@ -536,6 +561,24 @@ public class DeploymentMarketplaceDraftCompilerService {
             webhookTargets.add(compiledTarget);
         }
 
+        JsonNode mcpServerEntries = parsed.manifest().path("contributions").path("mcpServers");
+        for (JsonNode serverEntry : iterable(mcpServerEntries)) {
+            if (!serverEntry.isObject()) {
+                continue;
+            }
+            String serverRef = text(serverEntry, "serverRef", "id");
+            if (!StringUtils.hasText(serverRef)) {
+                continue;
+            }
+            if (hasMcpServer(mcpServers, serverRef)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Marketplace MCP server conflicts with an existing deployment MCP server: " + serverRef
+                );
+            }
+            mcpServers.add(compileMcpServerContribution(serverEntry, installConfig, installSecretRefs, install, plugin, version));
+        }
+
         JsonNode actionEntries = parsed.manifest().path("contributions").path("actions");
         for (JsonNode actionEntry : iterable(actionEntries)) {
             if (!actionEntry.isObject()) {
@@ -546,63 +589,14 @@ public class DeploymentMarketplaceDraftCompilerService {
                 continue;
             }
             if (!existingActionNames.add(actionName)) {
-                throw new ResponseStatusException(
-                    CONFLICT,
-                    "Marketplace action conflicts with an existing deployment action: " + actionName
-                );
+                if (!replaceGreenfieldShopifyActionConflict(actions, existingActionNames, plugin.getId(), actionName)) {
+                    throw new ResponseStatusException(
+                        CONFLICT,
+                        "Marketplace action conflicts with an existing deployment action: " + actionName
+                    );
+                }
             }
-            ObjectNode compiled = objectMapper.createObjectNode();
-            compiled.put("name", actionName);
-            copyIfText(actionEntry, compiled, "description", "description");
-            if (!StringUtils.hasText(compiled.path("description").asText(""))) {
-                compiled.put("description", plugin.getDisplayName() + " action: " + actionName);
-            }
-            copyIfText(actionEntry, compiled, "category", "category");
-            if (!StringUtils.hasText(compiled.path("category").asText(""))) {
-                compiled.put("category", "marketplace");
-            }
-            if (actionEntry.path("readOnly").isBoolean()) {
-                compiled.put("accessMode", actionEntry.path("readOnly").asBoolean() ? "READ" : "WRITE_ONLY");
-            } else if (StringUtils.hasText(actionEntry.path("accessMode").asText(""))) {
-                compiled.put("accessMode", actionEntry.path("accessMode").asText("").trim());
-            }
-            if (actionEntry.path("confirmationRequired").isBoolean()) {
-                compiled.put("requiresConfirmation", actionEntry.path("confirmationRequired").asBoolean());
-            } else if (actionEntry.path("requiresConfirmation").isBoolean()) {
-                compiled.put("requiresConfirmation", actionEntry.path("requiresConfirmation").asBoolean());
-            }
-            if (actionEntry.path("anonymousAllowed").isBoolean()) {
-                compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
-            }
-            if (actionEntry.path("groundingEligible").isBoolean()) {
-                compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
-            }
-            if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
-                compiled.put(
-                    "readActionResolutionEligible",
-                    actionEntry.path("readActionResolutionEligible").asBoolean()
-                );
-            }
-            if (actionEntry.path("confirmationMessage").isTextual()) {
-                compiled.put("confirmationMessage", actionEntry.path("confirmationMessage").asText("").trim());
-            }
-            if (actionEntry.path("params").isArray()) {
-                compiled.set("params", actionEntry.path("params").deepCopy());
-            }
-            if (actionEntry.path("requiredParameters").isArray()) {
-                compiled.set("requiredParameters", actionEntry.path("requiredParameters").deepCopy());
-            }
-            if (actionEntry.path("route").isObject()) {
-                compiled.set("route", actionEntry.path("route").deepCopy());
-            }
-            if (actionEntry.path("postPolicies").isArray()) {
-                compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
-            }
-            if (actionEntry.path("llmFacts").isObject()) {
-                compiled.set("llmFacts", actionEntry.path("llmFacts").deepCopy());
-            }
-            applyMarketplaceProvenance(compiled, install, plugin, version);
-            actions.add(compiled);
+            actions.add(compileActionContribution(actionEntry, install, plugin, version));
         }
 
         applyShellContribution(
@@ -612,6 +606,140 @@ public class DeploymentMarketplaceDraftCompilerService {
             plugin,
             version
         );
+    }
+
+    ObjectNode compileActionContribution(JsonNode actionEntry,
+                                         DeploymentMarketplacePluginInstallEntity install,
+                                         MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version) {
+        String actionName = text(actionEntry, "actionId", "id");
+        ObjectNode compiled = objectMapper.createObjectNode();
+        compiled.put("name", actionName);
+        copyIfText(actionEntry, compiled, "description", "description");
+        if (!StringUtils.hasText(compiled.path("description").asText(""))) {
+            compiled.put("description", plugin.getDisplayName() + " action: " + actionName);
+        }
+        copyIfText(actionEntry, compiled, "category", "category");
+        if (!StringUtils.hasText(compiled.path("category").asText(""))) {
+            compiled.put("category", "marketplace");
+        }
+        if (StringUtils.hasText(actionEntry.path("adapterType").asText(""))) {
+            compiled.put("adapterType", actionEntry.path("adapterType").asText("").trim());
+        }
+        if (actionEntry.path("execution").isObject()) {
+            compiled.set("execution", actionEntry.path("execution").deepCopy());
+            if (!StringUtils.hasText(compiled.path("adapterType").asText(""))
+                && StringUtils.hasText(actionEntry.path("execution").path("adapterType").asText(""))) {
+                compiled.put("adapterType", actionEntry.path("execution").path("adapterType").asText("").trim());
+            }
+        }
+        if (actionEntry.path("readOnly").isBoolean()) {
+            compiled.put("accessMode", actionEntry.path("readOnly").asBoolean() ? "READ" : "WRITE_ONLY");
+        } else if (StringUtils.hasText(actionEntry.path("accessMode").asText(""))) {
+            compiled.put("accessMode", actionEntry.path("accessMode").asText("").trim());
+        }
+        if (actionEntry.path("confirmationRequired").isBoolean()) {
+            compiled.put("requiresConfirmation", actionEntry.path("confirmationRequired").asBoolean());
+        } else if (actionEntry.path("requiresConfirmation").isBoolean()) {
+            compiled.put("requiresConfirmation", actionEntry.path("requiresConfirmation").asBoolean());
+        }
+        if (actionEntry.path("anonymousAllowed").isBoolean()) {
+            compiled.put("anonymousAllowed", actionEntry.path("anonymousAllowed").asBoolean());
+        }
+        if (actionEntry.path("groundingEligible").isBoolean()) {
+            compiled.put("groundingEligible", actionEntry.path("groundingEligible").asBoolean());
+        }
+        if (actionEntry.path("readActionResolutionEligible").isBoolean()) {
+            compiled.put(
+                "readActionResolutionEligible",
+                actionEntry.path("readActionResolutionEligible").asBoolean()
+            );
+        }
+        if (actionEntry.path("confirmationMessage").isTextual()) {
+            compiled.put("confirmationMessage", actionEntry.path("confirmationMessage").asText("").trim());
+        }
+        if (actionEntry.path("params").isArray()) {
+            compiled.set("params", actionEntry.path("params").deepCopy());
+        }
+        if (actionEntry.path("requiredParameters").isArray()) {
+            compiled.set("requiredParameters", actionEntry.path("requiredParameters").deepCopy());
+        }
+        if (actionEntry.path("route").isObject()) {
+            compiled.set("route", actionEntry.path("route").deepCopy());
+        }
+        if (actionEntry.path("postPolicies").isArray()) {
+            compiled.set("postPolicies", actionEntry.path("postPolicies").deepCopy());
+        }
+        if (actionEntry.path("llmFacts").isObject()) {
+            compiled.set("llmFacts", actionEntry.path("llmFacts").deepCopy());
+        }
+        applyMarketplaceProvenance(compiled, install, plugin, version);
+        return compiled;
+    }
+
+    ObjectNode compileMcpServerContribution(JsonNode serverEntry,
+                                            JsonNode installConfig,
+                                            JsonNode installSecretRefs,
+                                            DeploymentMarketplacePluginInstallEntity install,
+                                            MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version) {
+        ObjectNode compiled = objectMapper.createObjectNode();
+        compiled.put("serverRef", text(serverEntry, "serverRef", "id"));
+        String transport = text(serverEntry, "transport", "transportType");
+        if (hasText(transport)) {
+            compiled.put("transport", transport.trim());
+        }
+        String endpointUrl = configuredText(serverEntry, installConfig, "endpointUrl", "endpointUrlField", "url", "urlField");
+        if (!hasText(endpointUrl)) {
+            endpointUrl = configuredText(serverEntry, installConfig, "discoveryUrl", "discoveryUrlField");
+        }
+        if (hasText(endpointUrl)) {
+            compiled.put("endpointUrl", endpointUrl);
+        }
+        String endpointUrlTemplate = text(serverEntry, "endpointUrlTemplate", "urlTemplate", "discoveryUrlTemplate");
+        if (hasText(endpointUrlTemplate)) {
+            compiled.put("endpointUrlTemplate", endpointUrlTemplate);
+        }
+        copyIfText(serverEntry, compiled, "authProfileRef", "authProfileRef");
+        if (serverEntry.path("allowedTools").isArray()) {
+            compiled.set("allowedTools", serverEntry.path("allowedTools").deepCopy());
+        }
+        if (serverEntry.path("verification").isObject()) {
+            compiled.set("verification", serverEntry.path("verification").deepCopy());
+        }
+        if (serverEntry.path("auth").isObject()) {
+            compiled.set("auth", compileMcpServerAuth(serverEntry.path("auth"), installSecretRefs));
+        }
+        applyMarketplaceProvenance(compiled, install, plugin, version);
+        return compiled;
+    }
+
+    private ObjectNode compileMcpServerAuth(JsonNode authEntry, JsonNode installSecretRefs) {
+        ObjectNode auth = objectMapper.createObjectNode();
+        copyIfText(authEntry, auth, "mode", "mode", "authMode");
+        copyIfText(authEntry, auth, "headerName", "headerName");
+        copyIfText(authEntry, auth, "tokenUrl", "tokenUrl");
+        copyIfText(authEntry, auth, "audience", "audience");
+        copyIfText(authEntry, auth, "clientId", "clientId");
+        String secretRef = configuredText(authEntry, installSecretRefs, "secretRef", "secretRefField");
+        if (!hasText(secretRef)) {
+            secretRef = configuredText(authEntry, installSecretRefs, "valueSecretRef", "valueSecretRefField");
+        }
+        if (hasText(secretRef)) {
+            auth.put("secretRef", secretRef);
+        }
+        String tokenSecretRef = configuredText(authEntry, installSecretRefs, "tokenSecretRef", "tokenSecretRefField");
+        if (hasText(tokenSecretRef)) {
+            auth.put("tokenSecretRef", tokenSecretRef);
+        }
+        String clientSecretRef = configuredText(authEntry, installSecretRefs, "clientSecretRef", "clientSecretRefField");
+        if (hasText(clientSecretRef)) {
+            auth.put("clientSecretRef", clientSecretRef);
+        }
+        if (authEntry.path("scopes").isArray()) {
+            auth.set("scopes", authEntry.path("scopes").deepCopy());
+        }
+        return auth;
     }
 
     private void applyDataPlugin(ObjectNode entityRoot,
@@ -855,6 +983,66 @@ public class DeploymentMarketplaceDraftCompilerService {
         removeMarketplaceManagedEntries(actions);
         ArrayNode webhookTargets = ensureArray(actionsRoot, "webhookTargets");
         removeMarketplaceManagedEntries(webhookTargets);
+        ArrayNode mcpServers = ensureArray(actionsRoot, "mcpServers");
+        removeMarketplaceManagedEntries(mcpServers);
+    }
+
+    boolean stripGreenfieldShopifyLegacyActions(ObjectNode actionsRoot,
+                                                List<DeploymentMarketplacePluginInstallEntity> installs) {
+        if (!hasEnabledGreenfieldShopifyMcpActionPlugin(installs)) {
+            return false;
+        }
+        ArrayNode actions = ensureArray(actionsRoot, "actions");
+        boolean changed = false;
+        for (int index = actions.size() - 1; index >= 0; index--) {
+            JsonNode action = actions.get(index);
+            String actionName = action == null ? "" : action.path("name").asText("").trim();
+            if (GREENFIELD_SHOPIFY_ACTION_IDS.contains(actionName)) {
+                actions.remove(index);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    boolean replaceGreenfieldShopifyActionConflict(ArrayNode actions,
+                                                   Set<String> existingActionNames,
+                                                   String pluginId,
+                                                   String actionName) {
+        if (!GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS.contains(pluginId)
+            || !GREENFIELD_SHOPIFY_ACTION_IDS.contains(actionName)) {
+            return false;
+        }
+        removeActionsByName(actions, actionName);
+        existingActionNames.remove(actionName);
+        existingActionNames.add(actionName);
+        return true;
+    }
+
+    private void removeActionsByName(ArrayNode actions, String actionName) {
+        if (actions == null || !hasText(actionName)) {
+            return;
+        }
+        for (int index = actions.size() - 1; index >= 0; index--) {
+            JsonNode action = actions.get(index);
+            if (action != null && actionName.equals(action.path("name").asText("").trim())) {
+                actions.remove(index);
+            }
+        }
+    }
+
+    private boolean hasEnabledGreenfieldShopifyMcpActionPlugin(List<DeploymentMarketplacePluginInstallEntity> installs) {
+        if (installs == null || installs.isEmpty()) {
+            return false;
+        }
+        for (DeploymentMarketplacePluginInstallEntity install : installs) {
+            if (install != null
+                && isEnabledForCompilation(install.getStatus())
+                && GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS.contains(install.getPluginId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void stripMarketplaceManagedEntities(ObjectNode entityRoot) {
@@ -932,6 +1120,20 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         for (JsonNode target : targets) {
             if (target != null && target.isObject() && targetId.trim().equalsIgnoreCase(target.path("id").asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasMcpServer(ArrayNode servers, String serverRef) {
+        if (servers == null || !hasText(serverRef)) {
+            return false;
+        }
+        for (JsonNode server : servers) {
+            if (server != null
+                && server.isObject()
+                && serverRef.trim().equalsIgnoreCase(server.path("serverRef").asText(""))) {
                 return true;
             }
         }

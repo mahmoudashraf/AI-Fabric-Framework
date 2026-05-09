@@ -9,6 +9,8 @@ SHOPIFY_APP_HANDLE="${SHOPIFY_APP_HANDLE:-loom-companion}"
 SHOPIFY_WEBHOOK_API_VERSION="${SHOPIFY_WEBHOOK_API_VERSION:-2026-04}"
 SHOPIFY_ACCESS_SCOPES="${SHOPIFY_ACCESS_SCOPES:-read_products,read_content}"
 SHOPIFY_APP_PROXY_SUBPATH="${SHOPIFY_APP_PROXY_SUBPATH:-loom-companion}"
+SHOPIFY_CUSTOMER_AUTH_REDIRECT_URI="${SHOPIFY_CUSTOMER_AUTH_REDIRECT_URI:-}"
+SHOPIFY_CUSTOMER_AUTH_JAVASCRIPT_ORIGIN="${SHOPIFY_CUSTOMER_AUTH_JAVASCRIPT_ORIGIN:-}"
 
 require_env() {
   local name="$1"
@@ -46,6 +48,14 @@ scopes = "${SHOPIFY_ACCESS_SCOPES}"
 [auth]
 redirect_urls = [
   "${bridge_base_url}/auth/shopify/callback"
+]
+
+[customer_authentication]
+redirect_uris = [
+  "${SHOPIFY_CUSTOMER_AUTH_REDIRECT_URI:-${bridge_base_url}/api/customer-auth/callback}"
+]
+javascript_origins = [
+  "${SHOPIFY_CUSTOMER_AUTH_JAVASCRIPT_ORIGIN:-${bridge_base_url}}"
 ]
 
 [webhooks]

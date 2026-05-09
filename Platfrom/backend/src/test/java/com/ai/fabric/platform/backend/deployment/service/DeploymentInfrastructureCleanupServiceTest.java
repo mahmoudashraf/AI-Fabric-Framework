@@ -2,8 +2,11 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorResourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -19,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
@@ -82,6 +86,58 @@ class DeploymentInfrastructureCleanupServiceTest {
             org.mockito.ArgumentMatchers.eq("dep-cleanup"),
             org.mockito.ArgumentMatchers.anyMap()
         );
+    }
+
+    @Test
+    void hardDeleteDeletesTrackedProviderResourcesBeforeRecordRemoval() {
+        DeploymentManagedVectorResourceService managedVectorResourceService = mock(DeploymentManagedVectorResourceService.class);
+        PineconeControlPlaneClient pineconeControlPlaneClient = mock(PineconeControlPlaneClient.class);
+        QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient = mock(QdrantCloudControlPlaneClient.class);
+        ZillizCloudControlPlaneClient zillizCloudControlPlaneClient = mock(ZillizCloudControlPlaneClient.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentProviderResourceHandleRepository providerResourceHandleRepository =
+            mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentProviderRegistry providerRegistry = mock(DeploymentProviderRegistry.class);
+        DeploymentProvisioningProvider coolifyProvider = mock(DeploymentProvisioningProvider.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        DeploymentInfrastructureCleanupService service = new DeploymentInfrastructureCleanupService(
+            managedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            providerResourceHandleRepository,
+            providerRegistry,
+            platformSecretService,
+            platformAuditService,
+            new ObjectMapper()
+        );
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-cleanup");
+        deployment.setName("Cleanup");
+        deployment.setEnvironmentName("dev");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setProvisioningDetailsJson("{}");
+        DeploymentProviderResourceHandleEntity runtimeHandle = providerHandle("dprh-runtime", "APPLICATION");
+        DeploymentProviderResourceHandleEntity connectorHandle = providerHandle("dprh-connector", "CONNECTOR_APPLICATION");
+
+        when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
+        when(providerResourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-cleanup"))
+            .thenReturn(List.of(runtimeHandle, connectorHandle));
+        when(providerRegistry.require(DeploymentProviderType.COOLIFY)).thenReturn(coolifyProvider);
+
+        DeploymentInfrastructureCleanupService.DeploymentInfrastructureCleanupResult result =
+            service.cleanupForHardDelete(deployment, release, "retire deployment");
+
+        assertThat(result.providerResources().deletedHandleIds())
+            .containsExactly("dprh-runtime", "dprh-connector");
+        verify(coolifyProvider).delete(runtimeHandle, "retire deployment");
+        verify(coolifyProvider).delete(connectorHandle, "retire deployment");
+        verify(railwayGraphqlClient, never()).deleteProject(any());
     }
 
     @Test
@@ -556,5 +612,20 @@ class DeploymentInfrastructureCleanupServiceTest {
         verify(zillizCloudControlPlaneClient).deleteCluster("cluster-1", "zc-test");
         verify(zillizCloudControlPlaneClient, never()).awaitClusterDeleted("cluster-1", "zc-test");
         verify(managedVectorResourceService).deleteResourceRecords(List.of("mvr-zilliz"));
+    }
+
+    private DeploymentProviderResourceHandleEntity providerHandle(String id, String resourceKind) {
+        DeploymentProviderResourceHandleEntity handle = new DeploymentProviderResourceHandleEntity();
+        handle.setId(id);
+        handle.setDeploymentId("dep-cleanup");
+        handle.setTargetProfileId("dtp-coolify-staging");
+        handle.setProviderType(DeploymentProviderType.COOLIFY);
+        handle.setResourceKind(resourceKind);
+        handle.setProviderResourceUuid(id + "-uuid");
+        handle.setStatus("ACTIVE");
+        handle.setMetadataJson("{}");
+        handle.setCreatedAt(Instant.parse("2026-05-01T00:00:00Z"));
+        handle.setUpdatedAt(Instant.parse("2026-05-01T00:00:00Z"));
+        return handle;
     }
 }

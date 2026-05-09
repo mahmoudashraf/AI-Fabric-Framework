@@ -23,6 +23,12 @@ public record MerchantPartnerAccessRequestSummary(
     Instant expiresAt,
     Instant approvedAt,
     Instant revokedAt,
+    String inviteRecipientEmail,
+    String inviteStatus,
+    String inviteChannel,
+    String inviteMessage,
+    Instant inviteSentAt,
+    int inviteCount,
     Instant updatedAt
 ) {
 }

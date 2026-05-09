@@ -4,10 +4,16 @@ import com.ai.fabric.platform.backend.audit.model.PlatformAuditEventSummary;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
+import com.ai.fabric.platform.backend.deployment.model.RailwayLogTagsSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayLogEntrySummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
@@ -97,6 +103,9 @@ public class PlatformManagedProductAdminService {
     private final PlatformManagedProductProvisioningService provisioningService;
     private final PlatformAuditService platformAuditService;
     private final RailwayGraphqlClient railwayGraphqlClient;
+    private final CoolifyTargetProfileResolver coolifyTargetProfileResolver;
+    private final CoolifyApiClient coolifyApiClient;
+    private final DeploymentTargetProfileRepository targetProfileRepository;
     private final PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient;
     private final ShopifyStoreSourcePreflightSupport sourcePreflightSupport;
     private final ShopifyStoreReadinessEvaluator readinessEvaluator;
@@ -117,6 +126,9 @@ public class PlatformManagedProductAdminService {
         PlatformManagedProductProvisioningService provisioningService,
         PlatformAuditService platformAuditService,
         RailwayGraphqlClient railwayGraphqlClient,
+        CoolifyTargetProfileResolver coolifyTargetProfileResolver,
+        CoolifyApiClient coolifyApiClient,
+        DeploymentTargetProfileRepository targetProfileRepository,
         PlatformManagedProductStoreSupportReadinessClientService storeSupportReadinessClient,
         ShopifyStoreSourcePreflightSupport sourcePreflightSupport,
         ShopifyStoreReadinessEvaluator readinessEvaluator,
@@ -134,6 +146,9 @@ public class PlatformManagedProductAdminService {
         this.provisioningService = provisioningService;
         this.platformAuditService = platformAuditService;
         this.railwayGraphqlClient = railwayGraphqlClient;
+        this.coolifyTargetProfileResolver = coolifyTargetProfileResolver;
+        this.coolifyApiClient = coolifyApiClient;
+        this.targetProfileRepository = targetProfileRepository;
         this.storeSupportReadinessClient = storeSupportReadinessClient;
         this.sourcePreflightSupport = sourcePreflightSupport;
         this.readinessEvaluator = readinessEvaluator;
@@ -172,6 +187,9 @@ public class PlatformManagedProductAdminService {
             provisioningService,
             platformAuditService,
             railwayGraphqlClient,
+            null,
+            null,
+            null,
             (PlatformManagedProductStoreSupportReadinessClientService) null,
             sourcePreflightSupport,
             readinessEvaluator,
@@ -208,6 +226,10 @@ public class PlatformManagedProductAdminService {
             provisioningService,
             platformAuditService,
             railwayGraphqlClient,
+            null,
+            null,
+            null,
+            (PlatformManagedProductStoreSupportReadinessClientService) null,
             sourcePreflightSupport,
             readinessEvaluator,
             objectMapper
@@ -234,6 +256,27 @@ public class PlatformManagedProductAdminService {
     public PlatformManagedProductServiceDeploymentHistorySummary getDeploymentHistory(String serviceRef, Integer limit) {
         PlatformManagedProductServiceEntity service = provisioningService.refreshRailwayBindingFromWorkspace(serviceRef);
         int requestedLimit = normalizeHistoryLimit(limit);
+        if (isCoolifyManaged(service)) {
+            JsonNode details = mutableDetails(service);
+            String applicationUuid = text(details, "coolifyApplicationUuid");
+            String lastDeploymentId = text(details, "lastDeploymentId", applicationUuid);
+            return new PlatformManagedProductServiceDeploymentHistorySummary(
+                service.getServiceRef(),
+                true,
+                "Fetched Coolify product service deployment state.",
+                text(details, "coolifyProjectUuid"),
+                text(details, "coolifyEnvironmentUuid"),
+                applicationUuid,
+                Instant.now(),
+                List.of(new PlatformManagedProductServiceRailwayDeploymentSummary(
+                    firstNonBlank(lastDeploymentId, applicationUuid),
+                    firstNonBlank(text(details, "lastObservedStatus"), service.getStatus()),
+                    service.getBaseUrl(),
+                    service.getBaseUrl(),
+                    firstNonBlank(text(details, "lastReconciledAt"), text(details, "reconciledAt"))
+                ))
+            );
+        }
         if (!hasText(service.getRailwayServiceId())) {
             return unavailableDeploymentHistory(service, "Managed product service does not have a Railway service linkage yet.");
         }
@@ -267,6 +310,78 @@ public class PlatformManagedProductAdminService {
         }
     }
 
+    private PlatformManagedProductServiceRailwayLogsSummary getCoolifyLogs(PlatformManagedProductServiceEntity service,
+                                                                           String normalizedSource,
+                                                                           String deploymentId,
+                                                                           int requestedLimit,
+                                                                           String filter,
+                                                                           String startDate,
+                                                                           String endDate) {
+        JsonNode details = mutableDetails(service);
+        String applicationUuid = text(details, "coolifyApplicationUuid");
+        if (!hasText(applicationUuid)) {
+            return unavailableRailwayLogs(
+                service,
+                normalizedSource,
+                deploymentId,
+                requestedLimit,
+                filter,
+                startDate,
+                endDate,
+                "Coolify application linkage is missing for this managed product service."
+            );
+        }
+        try {
+            CoolifyConnection connection = coolifyConnection(service);
+            String logs = coolifyApiClient.logs(connection, applicationUuid, requestedLimit);
+            List<RailwayLogEntrySummary> entries = java.util.Arrays.stream(firstNonBlank(logs, "").split("\\R"))
+                .filter(line -> hasText(line) && (filter == null || line.contains(filter)))
+                .limit(requestedLimit)
+                .map(line -> new RailwayLogEntrySummary(
+                    null,
+                    "INFO",
+                    line,
+                    new RailwayLogTagsSummary(
+                        firstNonBlank(deploymentId, text(details, "lastDeploymentId")),
+                        null,
+                        text(details, "coolifyEnvironmentUuid"),
+                        text(details, "coolifyProjectUuid"),
+                        applicationUuid,
+                        null
+                    ),
+                    List.of()
+                ))
+                .toList();
+            return new PlatformManagedProductServiceRailwayLogsSummary(
+                service.getServiceRef(),
+                "coolify",
+                true,
+                entries.isEmpty() ? "No Coolify logs were returned for the current query window." : "Fetched Coolify logs successfully.",
+                text(details, "coolifyProjectUuid"),
+                text(details, "coolifyEnvironmentUuid"),
+                applicationUuid,
+                firstNonBlank(deploymentId, text(details, "lastDeploymentId")),
+                requestedLimit,
+                trimToNull(filter),
+                trimToNull(startDate),
+                trimToNull(endDate),
+                Instant.now(),
+                entries
+            );
+        } catch (Exception ex) {
+            return unavailableRailwayLogs(
+                service,
+                normalizedSource,
+                deploymentId,
+                requestedLimit,
+                filter,
+                startDate,
+                endDate,
+                firstNonBlank(ex.getMessage(), "Failed to load Coolify logs.")
+            );
+        }
+    }
+
     public PlatformManagedProductServiceRailwayLogsSummary getRailwayLogs(String serviceRef,
                                                                           String source,
                                                                           String deploymentId,
@@ -277,6 +392,9 @@ public class PlatformManagedProductAdminService {
         PlatformManagedProductServiceEntity service = provisioningService.refreshRailwayBindingFromWorkspace(serviceRef);
         String normalizedSource = normalizeLogSource(source);
         int requestedLimit = normalizeLogLimit(limit);
+        if (isCoolifyManaged(service)) {
+            return getCoolifyLogs(service, normalizedSource, trimToNull(deploymentId), requestedLimit, filter, startDate, endDate);
+        }
         if (!hasText(service.getRailwayServiceId())) {
             return unavailableRailwayLogs(
                 service,
@@ -377,10 +495,11 @@ public class PlatformManagedProductAdminService {
     public PlatformManagedProductServiceHealthSummary getHealth(String serviceRef) {
         PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
         boolean railwayManaged = hasText(service.getRailwayServiceId()) && hasText(service.getRailwayEnvironmentId());
+        boolean providerManaged = railwayManaged || isCoolifyManaged(service);
         boolean secretConfigured = !hasText(service.getSecretName()) || platformSecretService.isSecretPresent(service.getSecretName());
 
         ProbeResult healthProbe = buildHealthProbe(service);
-        DriftResult drift = buildDrift(service, railwayManaged, secretConfigured);
+        DriftResult drift = buildDrift(service, providerManaged, secretConfigured);
         String overallStatus = summarizeStatus(healthProbe.summary.status(), drift.status);
         String overallMessage = firstNonBlank(healthProbe.summary.message(), drift.message, "Managed product service health checked.");
 
@@ -447,7 +566,7 @@ public class PlatformManagedProductAdminService {
                 .uri(URI.create(joinUrl(service.getBaseUrl(), "/api/admin/overview")))
                 .timeout(HTTP_TIMEOUT)
                 .header("Accept", "application/json")
-                .header(BRIDGE_ADMIN_API_KEY_HEADER, apiKey)
+                .header(adminApiKeyHeader(service), apiKey)
                 .GET()
                 .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -478,6 +597,15 @@ public class PlatformManagedProductAdminService {
         } catch (Exception ex) {
             return degradedOverview(service, firstNonBlank(ex.getMessage(), "Managed product overview request failed."));
         }
+    }
+
+    private String adminApiKeyHeader(PlatformManagedProductServiceEntity service) {
+        String serviceKind = service == null || service.getServiceKind() == null
+            ? ""
+            : service.getServiceKind().trim().toUpperCase(java.util.Locale.ROOT);
+        return "MCP_EXECUTION_GATEWAY_SERVICE".equals(serviceKind)
+            ? "X-MCP-GATEWAY-API-KEY"
+            : BRIDGE_ADMIN_API_KEY_HEADER;
     }
 
     @Transactional
@@ -1118,6 +1246,10 @@ public class PlatformManagedProductAdminService {
             release.getVerificationStatus(),
             release.getProvisioningStatus(),
             release.getProvisioningTarget(),
+            release.getTargetProfileId(),
+            release.getProviderType(),
+            release.getSourceArtifactId(),
+            release.getProviderResourceHandleId(),
             release.getCurrentStepKey(),
             release.getCurrentStepDescription(),
             release.getErrorMessage(),
@@ -1512,18 +1644,25 @@ public class PlatformManagedProductAdminService {
     }
 
     private DriftResult buildDrift(PlatformManagedProductServiceEntity service,
-                                   boolean railwayManaged,
+                                   boolean providerManaged,
                                    boolean secretConfigured) {
         if (!secretConfigured) {
             return new DriftResult("SECRET_DRIFT", "Managed product service secret is missing.");
         }
-        if ("SHARED_PLATFORM_SERVICE".equalsIgnoreCase(service.getDeploymentMode()) && !railwayManaged) {
+        if ("SHARED_PLATFORM_SERVICE".equalsIgnoreCase(service.getDeploymentMode()) && !providerManaged) {
             return new DriftResult("RAILWAY_LINKAGE_MISSING", "Railway linkage is missing for this managed product service.");
         }
         if (!hasText(service.getBaseUrl())) {
             return new DriftResult("BASE_URL_MISSING", "Managed product service base URL is not configured.");
         }
         return new DriftResult("NO_DRIFT", "No drift detected.");
+    }
+
+    private boolean isCoolifyManaged(PlatformManagedProductServiceEntity service) {
+        JsonNode details = mutableDetails(service);
+        return "COOLIFY".equalsIgnoreCase(text(details, "providerType"))
+            || hasText(text(details, "coolifyApplicationUuid"))
+            || blankToFallback(text(details, "targetProfileId"), "").startsWith("dtp-coolify-");
     }
 
     private String summarizeStatus(String probeStatus, String driftStatus) {
@@ -1628,6 +1767,20 @@ public class PlatformManagedProductAdminService {
             case "build", "http" -> normalized;
             default -> "deployment";
         };
+    }
+
+    private CoolifyConnection coolifyConnection(PlatformManagedProductServiceEntity service) {
+        if (coolifyTargetProfileResolver == null || targetProfileRepository == null || coolifyApiClient == null) {
+            throw new ResponseStatusException(CONFLICT, "Coolify product service administration is not configured.");
+        }
+        JsonNode details = mutableDetails(service);
+        String targetProfileId = text(details, "targetProfileId");
+        if (!hasText(targetProfileId)) {
+            throw new ResponseStatusException(CONFLICT, "Coolify target profile is missing for managed product service " + service.getServiceRef() + ".");
+        }
+        DeploymentTargetProfileEntity profile = targetProfileRepository.findById(targetProfileId)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify target profile not found: " + targetProfileId));
+        return coolifyTargetProfileResolver.requireConnection(profile);
     }
 
     private record ProbeResult(PlatformManagedProductServiceProbeSummary summary) {

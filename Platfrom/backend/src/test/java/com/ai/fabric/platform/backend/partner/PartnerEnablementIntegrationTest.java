@@ -48,6 +48,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
@@ -290,6 +291,8 @@ class PartnerEnablementIntegrationTest {
             .andReturn();
 
         String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+        String approvalUrl = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.approvalUrl");
+        String approvalCode = approvalCodeFromUrl(approvalUrl);
         mockMvc.perform(get("/api/partners/client-implementations")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
@@ -319,14 +322,34 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[0].requestId", is(accessRequestId)))
             .andExpect(jsonPath("$[0].status", is("WAITING_ON_MERCHANT")));
 
+        mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/invite", accessRequestId)
+                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
+                .param("shopDomain", "approved-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.requestId", is(accessRequestId)))
+            .andExpect(jsonPath("$.status", is("RECORDED")))
+            .andExpect(jsonPath("$.channel", is("EMAIL_DISABLED")))
+            .andExpect(jsonPath("$.recipientEmail", is("merchant@example.com")))
+            .andExpect(jsonPath("$.approvalUrl", is(approvalUrl)))
+            .andExpect(jsonPath("$.inviteCount", is(1)));
+
+        mockMvc.perform(get("/api/merchant/partner-access/{approvalCode}/workspace", approvalCode))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessRequest.requestId", is(accessRequestId)))
+            .andExpect(jsonPath("$.accessRequest.status", is("WAITING_ON_MERCHANT")))
+            .andExpect(jsonPath("$.accessRequest.inviteStatus", is("RECORDED")))
+            .andExpect(jsonPath("$.accessRequest.inviteChannel", is("EMAIL_DISABLED")))
+            .andExpect(jsonPath("$.availableActions", hasItem("APPROVE_PARTNER_ACCESS")))
+            .andExpect(jsonPath("$.availableActions", hasItem("DENY_PARTNER_ACCESS")));
+
         mockMvc.perform(get("/api/merchant/partner-access/requests")
                 .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
                 .param("shopDomain", "unassigned-client.myshopify.com"))
             .andExpect(status().isForbidden());
 
-        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
-                .header("X-PLATFORM-API-KEY", "operator-test-key")
-                .param("shopDomain", "approved-client.myshopify.com")
+        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/{approvalCode}/approve", approvalCode)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
 	                    {
@@ -340,6 +363,14 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.status", is("ACTIVE")))
             .andReturn();
         String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+        mockMvc.perform(get("/api/merchant/partner-access/{approvalCode}/workspace", approvalCode))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessRequest.status", is("APPROVED")))
+            .andExpect(jsonPath("$.store.id", is(assignmentId)))
+            .andExpect(jsonPath("$.launchReadiness.stagingReady", is(true)))
+            .andExpect(jsonPath("$.availableActions", hasItem("REVOKE_PARTNER_ACCESS")))
+            .andExpect(jsonPath("$.availableActions", hasItem("REQUEST_ROLLBACK")));
 
         mockMvc.perform(get("/api/partners/client-implementations")
                 .header("Authorization", "Bearer " + token))
@@ -385,6 +416,23 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.enabledSurfaces", hasItem("product-faq")))
             .andExpect(jsonPath("$.capabilities", hasItem("STOREFRONT_SURFACE_CONTROL")))
             .andExpect(jsonPath("$.supportProfile.merchantHandoffConfigured", is(false)));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/launch-readiness", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$.stagingReady", is(true)))
+            .andExpect(jsonPath("$.productionPromotionAllowed", is(true)))
+            .andExpect(jsonPath("$.productionPromotionReady", is(false)))
+            .andExpect(jsonPath("$.blockers", hasItem("A passing launch verification run is required before production promotion.")));
+
+        mockMvc.perform(post("/api/partners/stores/{storeId}/production-promotions", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/api/merchant/partner-access/{approvalCode}/production-promotions", approvalCode)
+                .contentType(MediaType.APPLICATION_JSON))
+            .andExpect(status().isConflict());
 
         mockMvc.perform(post("/api/partners/stores/{storeId}/product-controls/widget-settings", assignmentId)
                 .header("Authorization", "Bearer " + token)
@@ -545,6 +593,13 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.bundleKind", is("LAUNCH_PACKET")))
             .andExpect(jsonPath("$.summary.widgetStatus", is("ENABLED")));
 
+        mockMvc.perform(get("/api/partners/stores/{storeId}/launch-readiness", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.latestVerificationStatus", is("PASSED")))
+            .andExpect(jsonPath("$.evidenceReady", is(true)))
+            .andExpect(jsonPath("$.latestEvidenceStatus", is("READY")));
+
         mockMvc.perform(get("/api/partners/templates")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
@@ -597,6 +652,27 @@ class PartnerEnablementIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].bodyMarkdown", is("Partner confirmed theme placement with merchant.")));
+
+        var rollbackResult = mockMvc.perform(post("/api/merchant/partner-access/{approvalCode}/rollback-requests", approvalCode)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "requesterName": "Merchant Owner",
+                      "requesterEmail": "owner@example.com",
+                      "reason": "Merchant wants a controlled rollback after launch review."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.storeId", is(assignmentId)))
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$.status", is("REQUESTED")))
+            .andExpect(jsonPath("$.escalationId", notNullValue()))
+            .andReturn();
+        String rollbackEscalationId = JsonPath.read(rollbackResult.getResponse().getContentAsString(), "$.escalationId");
+
+        mockMvc.perform(get("/api/merchant/partner-access/{approvalCode}/workspace", approvalCode))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.supportEscalations[?(@.id == '%s')].title".formatted(rollbackEscalationId), hasItem("Merchant rollback or deactivation request")));
 
         mockMvc.perform(get("/api/partners/members")
                 .header("Authorization", "Bearer " + token))
@@ -668,12 +744,11 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$[*].action", hasItem("PRODUCT_SUPPORT_PROFILE_UPDATED")))
             .andExpect(jsonPath("$[*].action", hasItem("PARTNER_MAX_WIDGET_QUERY_RAN")))
             .andExpect(jsonPath("$[*].action", hasItem("VERIFICATION_RUN_CREATED")))
+            .andExpect(jsonPath("$[*].action", hasItem("PRODUCTION_PROMOTION_BLOCKED")))
             .andExpect(jsonPath("$[*].action", hasItem("TEMPLATE_APPLICATION_REUSED")))
             .andExpect(jsonPath("$[*].action", hasItem("SUPPORT_REPLY_CREATED")));
 
-        mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/revoke", accessRequestId)
-                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
-                .param("shopDomain", "approved-client.myshopify.com")
+        mockMvc.perform(post("/api/merchant/partner-access/{approvalCode}/revoke", approvalCode)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -720,6 +795,7 @@ class PartnerEnablementIntegrationTest {
                 "PRODUCT_SUPPORT_PROFILE_UPDATED",
                 "PARTNER_MAX_WIDGET_QUERY_RAN",
                 "VERIFICATION_RUN_CREATED",
+                "PRODUCTION_PROMOTION_BLOCKED",
                 "EVIDENCE_BUNDLE_CREATED",
                 "TEMPLATE_APPLIED",
                 "STORE_NOTE_CREATED",
@@ -733,11 +809,91 @@ class PartnerEnablementIntegrationTest {
     }
 
     @Test
+    void storeVerificationPackUsesEliteWhenLegacyFreePackExposesGovernedSurface() throws Exception {
+        String token = partnerJwt("legacy-pack-user", "legacy-pack-user@example.com");
+        completeSignup(token, "Legacy Pack Partner Workspace");
+        createShopifyStore("shopify-store-legacy-pack", "legacy-pack-client.myshopify.com", "Legacy Pack Client");
+
+        ShopifyStoreConnectionEntity store = storeConnectionRepository.findById("shopify-store-legacy-pack").orElseThrow();
+        store.setDetailsJson("""
+            {
+              "packageState": {
+                "profileKey": "LOW_COST",
+                "packageKey": "FREE",
+                "tierKey": "FREE",
+                "displayName": "Low cost",
+                "costPosture": "LOW",
+                "runtimeProfileKey": "LOW_COST",
+                "vectorProfileKey": "QDRANT_SHARED",
+                "verificationPackId": "shopify-companion-free-readiness",
+                "lastReconciledAt": "2026-04-25T22:00:00Z"
+              },
+              "widget": {
+                "settings": {
+                  "enabledSurfaces": ["ai-search", "order-lookup"],
+                  "allowedConversationModes": ["navigator"],
+                  "defaultConversationMode": "navigator"
+                }
+              }
+            }
+            """);
+        storeConnectionRepository.save(store);
+
+        var implementationResult = mockMvc.perform(post("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clientName": "Legacy Pack Client",
+                      "storeConnectionId": "shopify-store-legacy-pack"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+
+        var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "legacy-pack-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andReturn();
+        String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
+
+        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "legacy-pack-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Merchant Owner",
+                      "approverEmail": "owner@example.com",
+                      "approvedScope": "FULL_STORE_ACCESS"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+        mockMvc.perform(get("/api/partners/client-implementations/{requestId}", implementationId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("APPROVED")));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/verification-pack", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is("shopify-companion-elite-readiness")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'elite-package-profile')].status", hasItem("FAILED")))
+            .andExpect(jsonPath("$.steps[?(@.stepId == 'elite-surface-posture')].status", hasItem("PASSED")));
+    }
+
+    @Test
     void packageTrialActivationRequiresPlatformGrantedPrivilegeAndManualPastDueDeactivation() throws Exception {
         String token = partnerJwt("trial-user", "trial-user@example.com");
         String sessionPayload = completeSignup(token, "Trial Partner Workspace");
         String partnerMemberId = JsonPath.read(sessionPayload, "$.member.id");
-        HttpServer bridgeServer = startBridgeAdminServer();
+        AtomicInteger bridgeBillingStateRequests = new AtomicInteger();
+        HttpServer bridgeServer = startBridgeAdminServer(bridgeBillingStateRequests);
         try {
             createShopifyStore("shopify-store-trial", "trial-client.myshopify.com", "Trial Client");
             bindShopifyBridgeBaseUrl("http://localhost:" + bridgeServer.getAddress().getPort());
@@ -868,9 +1024,127 @@ class PartnerEnablementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tierKey", is("FREE")))
                 .andExpect(jsonPath("$.reason", is("Past due cleanup")));
+
+            assertThat(bridgeBillingStateRequests.get())
+                .as("Partner package trials must not synchronously call Bridge billing-state inside the Platform transaction")
+                .isZero();
         } finally {
             bridgeServer.stop(0);
         }
+    }
+
+    @Test
+    void packageTrialActivationReconcilesBillingDriftBeforeBlockingNewTrial() throws Exception {
+        String token = partnerJwt("trial-drift-user", "trial-drift-user@example.com");
+        String sessionPayload = completeSignup(token, "Trial Drift Partner Workspace");
+        String partnerMemberId = JsonPath.read(sessionPayload, "$.member.id");
+        createShopifyStore("shopify-store-trial-drift", "trial-drift-client.myshopify.com", "Trial Drift Client");
+
+        mockMvc.perform(post("/api/partners/client-implementations")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "clientName": "Trial Drift Client",
+                      "storeConnectionId": "shopify-store-trial-drift"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "trial-drift-client.myshopify.com"))
+            .andExpect(status().isOk())
+            .andReturn();
+        String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
+
+        var approvalResult = mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/approve", accessRequestId)
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .param("shopDomain", "trial-drift-client.myshopify.com")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "approverName": "Merchant Owner",
+                      "approverEmail": "owner@example.com",
+                      "approvedScope": "FULL_STORE_ACCESS"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        String assignmentId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.assignmentId");
+
+        mockMvc.perform(patch("/api/platform/partners/members/{memberId}", partnerMemberId)
+                .header("X-PLATFORM-API-KEY", "admin-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "privileges": ["PACKAGE_TRIAL_ACTIVATE"]
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        var firstActivation = mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tierKey": "ELITE",
+                      "trialDays": 30,
+                      "reason": "Initial design partner package trial"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activePackageTrial.tierKey", is("ELITE")))
+            .andExpect(jsonPath("$.activePackageTrial.status", is("ACTIVE")))
+            .andReturn();
+        String driftedTrialId = JsonPath.read(firstActivation.getResponse().getContentAsString(), "$.activePackageTrial.id");
+
+        mockMvc.perform(post("/api/shopify/stores/{shopDomain}/billing-state", "trial-drift-client.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "operator-test-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tierKey": "FREE",
+                      "status": "ACTIVE",
+                      "reason": "Shopify billing inspection found no active paid subscription."
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tierKey", is("FREE")));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/product-controls", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activePackageTrial").doesNotExist())
+            .andExpect(jsonPath("$.packageTrialHistory[0].status", is("BILLING_DRIFT")));
+
+        var secondActivation = mockMvc.perform(post("/api/partners/stores/{storeId}/package-trials", assignmentId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "tierKey": "STARTER",
+                      "trialDays": 7,
+                      "reason": "Reactivate after Shopify billing drift reconciliation"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activePackageTrial.tierKey", is("STARTER")))
+            .andExpect(jsonPath("$.activePackageTrial.status", is("ACTIVE")))
+            .andExpect(jsonPath("$.packageTrialHistory[1].status", is("BILLING_DRIFT")))
+            .andReturn();
+
+        String activeTrialId = JsonPath.read(secondActivation.getResponse().getContentAsString(), "$.activePackageTrial.id");
+        assertThat(packageTrialActivationRepository.findById(driftedTrialId).orElseThrow().getStatus())
+            .isEqualTo("BILLING_DRIFT");
+        assertThat(packageTrialActivationRepository.findById(activeTrialId).orElseThrow().getStatus())
+            .isEqualTo("ACTIVE");
+
+        mockMvc.perform(get("/api/shopify/stores/{shopDomain}/billing-state", "trial-drift-client.myshopify.com")
+                .header("X-PLATFORM-API-KEY", "operator-test-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tierKey", is("STARTER")))
+            .andExpect(jsonPath("$.subscriptionId", is("partner-trial-" + activeTrialId)));
     }
 
     @Test
@@ -894,18 +1168,39 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.status", is("WAITING_ON_MERCHANT")))
             .andReturn();
         String implementationId = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.id");
+        String approvalUrl = JsonPath.read(implementationResult.getResponse().getContentAsString(), "$.approvalUrl");
+        String approvalCode = approvalCodeFromUrl(approvalUrl);
+
+        mockMvc.perform(post("/api/partners/client-implementations/{requestId}/merchant-invites", implementationId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "recipientEmail": "denied-merchant@example.com"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("RECORDED")))
+            .andExpect(jsonPath("$.channel", is("EMAIL_DISABLED")))
+            .andExpect(jsonPath("$.recipientEmail", is("denied-merchant@example.com")))
+            .andExpect(jsonPath("$.approvalUrl", is(approvalUrl)))
+            .andExpect(jsonPath("$.inviteCount", is(1)));
 
         var requestsResult = mockMvc.perform(get("/api/merchant/partner-access/requests")
                 .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
                 .param("shopDomain", "denied-client.myshopify.com"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()", is(1)))
+            .andExpect(jsonPath("$[0].inviteStatus", is("RECORDED")))
             .andReturn();
         String accessRequestId = JsonPath.read(requestsResult.getResponse().getContentAsString(), "$[0].requestId");
 
-        mockMvc.perform(post("/api/merchant/partner-access/requests/{requestId}/deny", accessRequestId)
-                .header("X-PLATFORM-API-KEY", PRODUCT_SERVICE_TEST_KEY)
-                .param("shopDomain", "denied-client.myshopify.com")
+        mockMvc.perform(get("/api/merchant/partner-access/{approvalCode}/workspace", approvalCode))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessRequest.requestId", is(accessRequestId)))
+            .andExpect(jsonPath("$.availableActions", hasItem("DENY_PARTNER_ACCESS")));
+
+        mockMvc.perform(post("/api/merchant/partner-access/{approvalCode}/deny", approvalCode)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -1167,6 +1462,10 @@ class PartnerEnablementIntegrationTest {
     }
 
     private HttpServer startBridgeAdminServer() throws IOException {
+        return startBridgeAdminServer(null);
+    }
+
+    private HttpServer startBridgeAdminServer(AtomicInteger billingStateRequests) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/admin/stores", exchange -> {
             if (!"POST".equals(exchange.getRequestMethod())
@@ -1174,6 +1473,9 @@ class PartnerEnablementIntegrationTest {
                 || !exchange.getRequestURI().getPath().endsWith("/billing-state")) {
                 writeJson(exchange, 401, "{\"success\":false,\"message\":\"Unauthorized\"}");
                 return;
+            }
+            if (billingStateRequests != null) {
+                billingStateRequests.incrementAndGet();
             }
             writeJson(exchange, 200, "{\"success\":true}");
         });
@@ -1247,6 +1549,11 @@ class PartnerEnablementIntegrationTest {
         reply.setAttachmentsJson("[]");
         reply.setCreatedAt(Instant.now());
         replyRepository.save(reply);
+    }
+
+    private String approvalCodeFromUrl(String approvalUrl) {
+        int lastSlash = approvalUrl.lastIndexOf('/');
+        return lastSlash >= 0 ? approvalUrl.substring(lastSlash + 1) : approvalUrl;
     }
 
     private static String partnerJwt(String subject, String email) throws Exception {

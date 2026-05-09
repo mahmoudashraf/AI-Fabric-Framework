@@ -19,7 +19,8 @@ public class WebConfig {
                     return;
                 }
                 var registration = registry.addMapping("/api/**")
-                    .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                    // PATCH is required by Platform-managed deployment repair/reconcile APIs; origin scope stays property-driven.
+                    .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                     .allowedHeaders("*")
                     .allowCredentials(corsProperties.isAllowCredentials());
 

@@ -1,6 +1,7 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
+import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded'
 import {
   Alert,
@@ -40,6 +41,7 @@ import {
   fetchShopifyStoreVectorization,
   fetchShopifyStoreGovernedActions,
   fetchShopifyStoreBinding,
+  fetchShopifyStoreCustomerAccountConfig,
   fetchShopifyStore,
   fetchShopifyStores,
   goLiveShopifyStore,
@@ -65,6 +67,7 @@ import {
   type ShopifyStoreVectorizationSelectedEntitiesRequest,
   type UpdateShopifyStoreVectorizationPolicyRequest,
   updateShopifyStoreVectorizationPolicy,
+  updateShopifyStoreCustomerAccountConfig,
   upsertShopifyStore,
   type ShopifyStoreConnectionSummary,
   type ShopifyStoreProvisioningStatusSummary,
@@ -412,6 +415,7 @@ export function ShopifyStoresPage() {
   const [selectedReindexEntityTypes, setSelectedReindexEntityTypes] = useState<string[]>([])
   const [vectorizationPolicyDraft, setVectorizationPolicyDraft] = useState<VectorizationPolicyDraft | null>(null)
   const [selectedProvisioningProfileKey, setSelectedProvisioningProfileKey] = useState('')
+  const [customerAccountStorefrontDomainDraft, setCustomerAccountStorefrontDomainDraft] = useState('')
 
   const servicesQuery = useQuery({
     queryKey: ['product-services'],
@@ -465,6 +469,18 @@ export function ShopifyStoresPage() {
   })
 
   const selectedStore = selectedStoreQuery.data ?? selectedSummary
+
+  const selectedCustomerAccountConfigQuery = useQuery({
+    queryKey: ['shopify-stores', selectedShopDomain, 'customer-account-config'],
+    queryFn: () => fetchShopifyStoreCustomerAccountConfig(selectedShopDomain),
+    enabled: selectedShopDomain.length > 0,
+  })
+
+  const selectedCustomerAccountConfig = selectedCustomerAccountConfigQuery.data ?? null
+
+  useEffect(() => {
+    setCustomerAccountStorefrontDomainDraft(selectedCustomerAccountConfig?.storefrontDomain ?? '')
+  }, [selectedCustomerAccountConfig?.storefrontDomain, selectedShopDomain])
 
   const selectedVectorizationQuery = useQuery({
     queryKey: ['shopify-stores', selectedShopDomain, 'vectorization'],
@@ -676,6 +692,21 @@ export function ShopifyStoresPage() {
     },
   })
 
+  const updateCustomerAccountConfigMutation = useMutation({
+    mutationFn: ({ shopDomain, storefrontDomain }: { shopDomain: string; storefrontDomain: string | null }) =>
+      updateShopifyStoreCustomerAccountConfig(shopDomain, { storefrontDomain }),
+    onSuccess: async (config) => {
+      setMessage({ type: 'success', text: `Saved Customer Account MCP domain for ${config.shopDomain}.` })
+      await queryClient.invalidateQueries({ queryKey: ['shopify-stores', config.shopDomain, 'customer-account-config'] })
+    },
+    onError: (error) => {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to save Customer Account MCP domain.',
+      })
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: ({ shopDomain, force }: { shopDomain: string; force: boolean }) => deleteShopifyStore(shopDomain, force),
     onSuccess: async (_, variables) => {
@@ -841,6 +872,17 @@ export function ShopifyStoresPage() {
       })),
     }
     preflightMutation.mutate({ shopDomain: selectedStore.shopDomain, payload })
+  }
+
+  const submitCustomerAccountConfig = () => {
+    if (!selectedStore) {
+      return
+    }
+    const storefrontDomain = customerAccountStorefrontDomainDraft.trim()
+    updateCustomerAccountConfigMutation.mutate({
+      shopDomain: selectedStore.shopDomain,
+      storefrontDomain: storefrontDomain || null,
+    })
   }
 
   const updatePolicyDraftSource = (
@@ -1070,6 +1112,54 @@ export function ShopifyStoresPage() {
                       </Grid>
                     ))}
                   </Grid>
+
+                  <Stack
+                    spacing={1.5}
+                    sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <Typography sx={{ fontWeight: 700 }}>Customer Account MCP</Typography>
+                        <Chip
+                          size="small"
+                          label={selectedCustomerAccountConfig?.source ?? 'LOADING'}
+                          color={selectedCustomerAccountConfig?.storefrontDomainConfigured ? 'success' : 'default'}
+                        />
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">
+                        Effective domain {selectedCustomerAccountConfig?.effectiveStorefrontDomain ?? selectedStore.shopDomain}
+                      </Typography>
+                    </Stack>
+                    {selectedCustomerAccountConfigQuery.isError ? (
+                      <Alert severity="error">
+                        {selectedCustomerAccountConfigQuery.error instanceof Error
+                          ? selectedCustomerAccountConfigQuery.error.message
+                          : 'Failed to load Customer Account MCP store configuration.'}
+                      </Alert>
+                    ) : null}
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Storefront domain"
+                        value={customerAccountStorefrontDomainDraft}
+                        placeholder={selectedStore.shopDomain}
+                        onChange={(event) => setCustomerAccountStorefrontDomainDraft(event.target.value)}
+                        disabled={selectedCustomerAccountConfigQuery.isLoading || updateCustomerAccountConfigMutation.isPending}
+                      />
+                      <Button
+                        variant="contained"
+                        startIcon={<SaveRoundedIcon />}
+                        onClick={submitCustomerAccountConfig}
+                        disabled={selectedCustomerAccountConfigQuery.isLoading || updateCustomerAccountConfigMutation.isPending}
+                      >
+                        Save
+                      </Button>
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary">
+                      Blank uses the bridge fallback or the canonical shop domain.
+                    </Typography>
+                  </Stack>
 
                   <Card variant="outlined">
                     <CardContent>

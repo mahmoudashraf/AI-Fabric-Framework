@@ -49,6 +49,8 @@ class PlatformVerificationSuiteScriptContextServiceTest {
                     "https://runtime.example.test",
                     true,
                     "ready",
+                    false,
+                    List.of(),
                     List.of()
                 )
             )
@@ -173,6 +175,67 @@ class PlatformVerificationSuiteScriptContextServiceTest {
     }
 
     @Test
+    void buildsMarketplaceInstallFlowContextWithReleaseVectorDefaults() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_MARKETPLACE_INSTALL_FLOW
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-marketplace-install-flow.sh");
+        assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("MARKETPLACE_INSTALL_FLOW_APPLY_RELEASE", "false");
+        assertThat(context.environment()).doesNotContainKeys(
+            "VALIDATION_TEMPLATE_ID",
+            "VALIDATION_VECTOR_PROVISIONING_MODE",
+            "MARKETPLACE_INSTALL_FLOW_SHARED_VECTOR_PATCH"
+        );
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
+    }
+
+    @Test
     void buildMergesShopifyEnvironmentOverrides() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
@@ -229,6 +292,9 @@ class PlatformVerificationSuiteScriptContextServiceTest {
 
         assertThat(context.environment()).containsEntry("SHOPIFY_BRIDGE_BASE_URL", "https://bridge.example.test");
         assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.environment()).containsEntry("SHOPIFY_COMPANION_ENSURE_BILLING_STATE", "true");
+        assertThat(context.environment()).containsEntry("EXPECT_BILLING_TIER", "STARTER");
+        assertThat(context.environment()).containsEntry("EXPECT_BILLING_STATUS", "ACTIVE");
         assertThat(context.environment()).containsEntry("EXPECT_STOREFRONT_READY", "false");
         assertThat(context.environment()).containsEntry("EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT");
     }
@@ -293,6 +359,124 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThat(context.environment()).containsEntry("READINESS_AUDIT_LOCAL_GATES", "false");
         assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
         assertThat(context.secretEnvironment()).containsEntry("SHOPIFY_BRIDGE_ADMIN_API_KEY", "bridge-key");
+    }
+
+    @Test
+    void buildsShopifyMcpGatewayReleaseGateContextWithManagedSecrets() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+        when(secretService.resolveSecret("SHOPIFY_BRIDGE_ADMIN_API_KEY")).thenReturn("bridge-key");
+        when(secretService.resolveSecret("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY")).thenReturn("gateway-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_MCP_GATEWAY_VERIFICATION
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-shopify-mcp-gateway.sh");
+        assertThat(context.environment()).containsEntry("PLATFORM_BASE_URL", "https://platform.example.test");
+        assertThat(context.environment()).containsEntry("SHOPIFY_BRIDGE_BASE_URL", "https://bridge.example.test");
+        assertThat(context.environment()).containsEntry("SHOP_DOMAIN", "shop.example.test");
+        assertThat(context.environment()).containsEntry("PRODUCT_SERVICE_REF", "shopify-bridge-prod");
+        assertThat(context.environment()).containsEntry("MCP_GATEWAY_PRODUCT_SERVICE_REF", "mcp-execution-gateway");
+        assertThat(context.environment()).containsEntry("MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY");
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
+        assertThat(context.secretEnvironment()).containsEntry("SHOPIFY_BRIDGE_ADMIN_API_KEY", "bridge-key");
+        assertThat(context.secretEnvironment()).containsEntry("MCP_GATEWAY_API_KEY", "gateway-key");
+    }
+
+    @Test
+    void shopifyMcpGatewayReleaseGateRequiresManagedGatewaySecret() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+        when(secretService.resolveSecret("SHOPIFY_BRIDGE_ADMIN_API_KEY")).thenReturn("bridge-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60),
+                Duration.ofMinutes(12),
+                Duration.ofMinutes(20),
+                Duration.ofMinutes(75),
+                Duration.ofHours(12),
+                Duration.ofSeconds(3),
+                20,
+                12_000,
+                80_000,
+                "https://platform-ui.example.test",
+                "weaviate.example.test",
+                "https://bridge.example.test",
+                "shop.example.test",
+                "shopify-bridge-prod",
+                null,
+                "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true,
+                "X-PLATFORM-API-KEY",
+                true,
+                true,
+                "sid",
+                Duration.ofHours(8),
+                true,
+                "Lax",
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        assertThatThrownBy(() -> service.build(PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_MCP_GATEWAY_VERIFICATION))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY");
     }
 
     @Test

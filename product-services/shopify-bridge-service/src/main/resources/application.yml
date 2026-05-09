@@ -50,6 +50,27 @@ shopify:
     webhook-shared-secret: ${SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET:}
     admin-api-key: ${SHOPIFY_BRIDGE_SHARED_SECRET:}
     admin-api-key-header: ${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER:X-BRIDGE-API-KEY}
+    mcp-gateway:
+      base-url: ${SHOPIFY_BRIDGE_MCP_GATEWAY_BASE_URL:}
+      api-key: ${SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY:}
+      api-key-header: ${SHOPIFY_BRIDGE_MCP_GATEWAY_API_KEY_HEADER:X-MCP-GATEWAY-API-KEY}
+      execute-path: ${SHOPIFY_BRIDGE_MCP_GATEWAY_EXECUTE_PATH:/api/internal/mcp/actions/execute}
+      connect-timeout: ${SHOPIFY_BRIDGE_MCP_GATEWAY_CONNECT_TIMEOUT:PT5S}
+      read-timeout: ${SHOPIFY_BRIDGE_MCP_GATEWAY_READ_TIMEOUT:PT30S}
+    mcp-external-auth:
+      customer-account-mcp-enabled: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED:false}
+      customer-account-mcp-protected-data-approved: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED:false}
+      customer-account-mcp-client-id: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID:}
+      customer-account-mcp-client-secret: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET:}
+      customer-account-mcp-redirect-uri: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI:}
+      customer-account-mcp-storefront-domain: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN:}
+      customer-account-mcp-scopes: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES:}
+      customer-account-mcp-state-ttl: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL:PT10M}
+      customer-account-mcp-session-ttl: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL:P30D}
+      customer-account-mcp-connect-timeout: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT:PT5S}
+      customer-account-mcp-read-timeout: ${SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT:PT30S}
+      checkout-mcp-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_ENABLED:false}
+      checkout-mcp-terminal-operations-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED:false}
     billing:
       mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
       plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}

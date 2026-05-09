@@ -92,7 +92,7 @@ export function PlatformDiagnosticsPage() {
   if (auth.session?.enabled && !auth.session.canManageUsers) {
     return (
       <Alert severity="warning">
-        Platform diagnostics are restricted to platform admins because they expose platform-level Railway service details and log output.
+        Platform diagnostics are restricted to platform admins because they expose platform-level provider service details and log output.
       </Alert>
     )
   }
@@ -105,8 +105,8 @@ export function PlatformDiagnosticsPage() {
           <Typography variant="h4">Platform Diagnostics</Typography>
         </Stack>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 0.75 }}>
-          Inspect the platform deployment itself, including Railway service discovery, platform-hosted verification runs,
-          and platform Railway logs.
+          Inspect the platform deployment itself, including provider service discovery, platform-hosted verification runs,
+          and platform provider logs.
         </Typography>
       </Box>
 
@@ -160,12 +160,12 @@ export function PlatformDiagnosticsPage() {
           <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Railway Discovery</Typography>
+                <Typography variant="h6">Provider Discovery</Typography>
                 {diagnosticsQuery.data.railwayPreflightError ? (
                   <Alert severity="warning">{diagnosticsQuery.data.railwayPreflightError}</Alert>
                 ) : diagnosticsQuery.data.railwayPreflight ? (
                   <Alert severity={diagnosticsQuery.data.railwayPreflight.ready ? 'success' : 'warning'}>
-                    Railway preflight is {diagnosticsQuery.data.railwayPreflight.ready ? 'ready' : 'not ready'} for the platform workspace.
+                    Provider preflight is {diagnosticsQuery.data.railwayPreflight.ready ? 'ready' : 'not ready'} for the platform workspace.
                   </Alert>
                 ) : null}
                 <Table size="small">
@@ -238,7 +238,7 @@ export function PlatformDiagnosticsPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
-                  <Typography variant="h6">Platform Railway Logs</Typography>
+                  <Typography variant="h6">Platform Provider Logs</Typography>
                   <TextField
                     select
                     size="small"
@@ -272,10 +272,10 @@ export function PlatformDiagnosticsPage() {
                 </Stack>
 
                 {logsQuery.isLoading ? (
-                  <Alert severity="info">Loading platform Railway logs…</Alert>
+                  <Alert severity="info">Loading platform provider logs…</Alert>
                 ) : logsQuery.isError ? (
                   <Alert severity="error">
-                    {logsQuery.error instanceof Error ? logsQuery.error.message : 'Failed to load platform Railway logs'}
+                    {logsQuery.error instanceof Error ? logsQuery.error.message : 'Failed to load platform provider logs'}
                   </Alert>
                 ) : logsQuery.data ? (
                   <>

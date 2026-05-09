@@ -43,10 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -455,6 +451,8 @@ class DeploymentVerificationRolloutServiceTest {
             .isEqualTo("ecommerce-demo,runtime-public-bootstrap");
         assertThat(ecommerce.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
         assertThat(ecommerce.securityConfig().path("publicRuntimeDefaultAudience").asText()).isEqualTo("ecommerce-demo-chat");
+        assertThat(ecommerce.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(ecommerce.securityConfig().has("authzBaseUrl")).isFalse();
 
         UpdateDeploymentDraftRequest marketplace = updates.get(1);
         assertThat(marketplace.knowledgeSourceConfig().path("contractVersion").asText()).isEqualTo("KNOWLEDGE_SOURCE_CONFIG_V1");
@@ -501,6 +499,8 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(marketplace.providerConfig().path("openaiEmbeddingModel").asText()).isEqualTo("text-embedding-3-small");
         assertThat(marketplace.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(1536);
         assertThat(marketplace.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(marketplace.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(marketplace.securityConfig().has("authzBaseUrl")).isFalse();
         assertThat(marketplace.shellConfig().path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
         assertThat(marketplace.shellConfig().path("modules").isArray()).isTrue();
         assertThat(marketplace.shellConfig().path("cards").isArray()).isTrue();
@@ -525,7 +525,8 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.routingConfig().path("connector").path("upstream").path("auth").path("value").asText()).isEmpty();
         assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(qdrant.routingConfig().path("authz").path("upstream").path("auth").path("value").asText()).isEmpty();
-        assertThat(qdrant.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
+        assertThat(qdrant.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(qdrant.securityConfig().has("authzBaseUrl")).isFalse();
         assertThat(qdrant.securityConfig().path("publicRuntimeBootstrapEnabled").asBoolean(false)).isTrue();
         assertThat(qdrant.securityConfig().path("publicRuntimeTokenIssuer").asText()).isEqualTo("ecommerce-demo");
         assertThat(qdrant.securityConfig().path("publicRuntimeAcceptedAudiences").asText()).isEqualTo("ecommerce-demo-chat");
@@ -550,10 +551,11 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(milvus.entityConfig().path("ai-entities").has("review")).isTrue();
         assertThat(milvus.actionsConfig().path("actions")).isNotEmpty();
         assertThat(milvus.routingConfig().path("actions")).isNotEmpty();
-        assertThat(milvus.securityConfig().path("authzBaseUrl").asText()).isEqualTo("https://ai-fabric-framework-production-a247.up.railway.app");
+        assertThat(milvus.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
+        assertThat(milvus.securityConfig().has("authzBaseUrl")).isFalse();
 
         UpdateDeploymentDraftRequest weaviate = updates.get(5);
-        assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("weaviate-external-verify-dev.up.railway.app");
+        assertThat(weaviate.providerConfig().path("weaviateHost").asText()).isEqualTo("weaviate.example.test");
         assertThat(weaviate.providerConfig().path("vectorProvisioningMode").asText()).isEqualTo("EXTERNAL_EXISTING");
         assertThat(weaviate.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
         assertThat(weaviate.entityConfig().path("ai-entities").has("product")).isTrue();
@@ -842,7 +844,7 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
-    void recreateRolloutsCanExecuteSelectedPresetsInParallel() {
+    void recreateRolloutsExecutesSelectedPresetsSequentially() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
@@ -857,7 +859,6 @@ class DeploymentVerificationRolloutServiceTest {
         VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
         ObjectMapper objectMapper = new ObjectMapper();
         Map<String, DeploymentEntity> deploymentsById = new ConcurrentHashMap<>();
-        CountDownLatch createStarted = new CountDownLatch(2);
         AtomicInteger activeCreates = new AtomicInteger();
         AtomicInteger maxConcurrentCreates = new AtomicInteger();
 
@@ -880,8 +881,6 @@ class DeploymentVerificationRolloutServiceTest {
             CreateDeploymentRequest request = invocation.getArgument(0);
             int active = activeCreates.incrementAndGet();
             maxConcurrentCreates.accumulateAndGet(active, Math::max);
-            createStarted.countDown();
-            createStarted.await(2, TimeUnit.SECONDS);
             activeCreates.decrementAndGet();
 
             String deploymentId = rolloutDeploymentId(request);
@@ -941,33 +940,28 @@ class DeploymentVerificationRolloutServiceTest {
             return new DeploymentVersionSummary("ver-" + draftId, draftId.replace("drf-", ""), draftId, "v1", "PUBLISHED", "hash", false, Instant.now());
         });
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
-                deploymentRepository,
-                releaseRepository,
-                deploymentService,
-                deploymentReleaseRecoveryService,
-                deploymentAssignmentRepository,
-                deploymentAssignmentService,
-                platformUserRepository,
-                platformSecretService,
-                deploymentVectorizationVerificationService,
-                sourceConnectionRepository,
-                planRepository,
-                revisionRepository,
-                objectMapper,
-                new DefaultResourceLoader(),
-                executor
-            );
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentReleaseRecoveryService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            objectMapper,
+            new DefaultResourceLoader(),
+            Runnable::run
+        );
 
-            DeploymentVerificationRolloutSummary summary = service.recreateRollouts(List.of("pinecone", "weaviate"));
+        DeploymentVerificationRolloutSummary summary = service.recreateRollouts(List.of("pinecone", "weaviate"));
 
-            assertThat(summary.summaryMessage()).contains("in parallel");
-            assertThat(maxConcurrentCreates.get()).isGreaterThan(1);
-        } finally {
-            executor.shutdownNow();
-        }
+        assertThat(summary.summaryMessage()).contains("sequentially");
+        assertThat(maxConcurrentCreates.get()).isEqualTo(1);
     }
 
     @Test
@@ -1135,6 +1129,96 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentVerificationRolloutSummary summary = service.listRollouts();
         assertThat(summary.items()).filteredOn(item -> "marketplace".equals(item.key())).singleElement().satisfies(item -> {
             assertThat(item.key()).isEqualTo("marketplace");
+            assertThat(item.verificationReady()).isTrue();
+            assertThat(item.readinessMessage()).contains("vectorization runner");
+        });
+    }
+
+    @Test
+    void listRolloutsAcceptsCoolifyManagedVectorizationRunnerServiceEvidence() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentAssignmentRepository deploymentAssignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService deploymentAssignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository platformUserRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository = mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-marketplace");
+        deployment.setName("Marketplace Runtime Verification");
+        deployment.setEnvironmentName("dev");
+        deployment.setStatus("ACTIVE");
+        deployment.setActiveVersionId("ver-123");
+        deployment.setRuntimeBaseUrl("https://runtime.example");
+        deployment.setConnectorBaseUrl("https://connector.example");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-123");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setProvisioningStatus("ACTIVE");
+        release.setVerificationStatus("PASSED");
+        release.setProvisioningDetailsJson("""
+            {"coolify":{"services":{"vectorizationRunner":{"serviceId":"runner-app","serviceName":"vectorization-runner-dep-marketplace","deploymentStatus":"SUCCESS","deploymentId":"deploy-runner"}}}}
+            """);
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(deployment));
+        when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-marketplace")).thenReturn(Optional.of(release));
+        when(deploymentVectorizationVerificationService.build(eq(deployment), any())).thenReturn(
+            new DeploymentVectorizationVerificationSummary(
+                "dep-marketplace",
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                List.of("policy", "product", "review"),
+                List.of("policy", "product", "review"),
+                null,
+                null,
+                new VectorizationRunnerSummary(
+                    "vrr-123",
+                    "PLATFORM_MANAGED_AUTO",
+                    "ACTIVE",
+                    "CURRENT",
+                    "hint-1234",
+                    Instant.parse("2026-04-20T09:51:41Z"),
+                    "vectorization-runner-dep-marketplace",
+                    "2026.04.track-b",
+                    "1",
+                    Instant.parse("2026-04-21T11:30:00Z"),
+                    Instant.parse("2026-04-21T11:45:00Z"),
+                    Instant.parse("2099-04-21T17:45:00Z")
+                )
+            )
+        );
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentService,
+            deploymentAssignmentRepository,
+            deploymentAssignmentService,
+            platformUserRepository,
+            platformSecretService,
+            deploymentVectorizationVerificationService,
+            sourceConnectionRepository,
+            planRepository,
+            revisionRepository,
+            new ObjectMapper(),
+            new DefaultResourceLoader()
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.listRollouts();
+
+        assertThat(summary.items()).filteredOn(item -> "marketplace".equals(item.key())).singleElement().satisfies(item -> {
             assertThat(item.verificationReady()).isTrue();
             assertThat(item.readinessMessage()).contains("vectorization runner");
         });

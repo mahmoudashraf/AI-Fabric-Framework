@@ -172,6 +172,7 @@ public class DeploymentSourceOfTruthService {
             tenantScopedVector,
             generated,
             liveRailwayReadback,
+            liveRailwayReadback,
             summaryMessage(source, latestPublishedVersion, liveVersion, latestRelease, liveRailwayReadback, managedVector, tenantScopedVector)
         );
     }

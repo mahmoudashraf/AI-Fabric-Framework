@@ -24,13 +24,6 @@ public record PlatformVerificationSuiteProperties(
     String partnerUiBaseUrl
 ) {
 
-    private static final String DEFAULT_PLATFORM_UI_BASE_URL = "https://platform-ui-production-00e3.up.railway.app";
-    private static final String DEFAULT_WEAVIATE_HOST = "weaviate-external-verify-dev.up.railway.app";
-    private static final String DEFAULT_SHOPIFY_BRIDGE_BASE_URL = "https://shopify-bridge-shopify-bridge-pr-production.up.railway.app";
-    private static final String DEFAULT_SHOPIFY_SHOP_DOMAIN = "shopping-companion-test.myshopify.com";
-    private static final String DEFAULT_SHOPIFY_PRODUCT_SERVICE_REF = "shopify-bridge-prod";
-    private static final String DEFAULT_PARTNER_UI_BASE_URL = "https://ai-fabric-framework-production-158d.up.railway.app";
-
     public PlatformVerificationSuiteProperties {
         timeout = timeout == null || timeout.isZero() || timeout.isNegative()
             ? Duration.ofMinutes(180)
@@ -53,18 +46,13 @@ public record PlatformVerificationSuiteProperties(
         maxRecentRuns = maxRecentRuns <= 0 ? 20 : maxRecentRuns;
         maxStageLogCharacters = maxStageLogCharacters <= 0 ? 12_000 : maxStageLogCharacters;
         codeRegressionMaxLogCharacters = codeRegressionMaxLogCharacters <= 0 ? 80_000 : codeRegressionMaxLogCharacters;
-        platformUiBaseUrl = defaultValue(platformUiBaseUrl, DEFAULT_PLATFORM_UI_BASE_URL);
-        weaviateHost = defaultValue(weaviateHost, DEFAULT_WEAVIATE_HOST);
-        shopifyBridgeBaseUrl = defaultValue(shopifyBridgeBaseUrl, DEFAULT_SHOPIFY_BRIDGE_BASE_URL);
-        shopifyShopDomain = defaultValue(shopifyShopDomain, DEFAULT_SHOPIFY_SHOP_DOMAIN);
-        shopifyProductServiceRef = defaultValue(shopifyProductServiceRef, DEFAULT_SHOPIFY_PRODUCT_SERVICE_REF);
+        platformUiBaseUrl = normalize(platformUiBaseUrl);
+        weaviateHost = normalize(weaviateHost);
+        shopifyBridgeBaseUrl = normalize(shopifyBridgeBaseUrl);
+        shopifyShopDomain = normalize(shopifyShopDomain);
+        shopifyProductServiceRef = normalize(shopifyProductServiceRef);
         shopifyEmbeddedHost = normalize(shopifyEmbeddedHost);
-        partnerUiBaseUrl = defaultValue(partnerUiBaseUrl, DEFAULT_PARTNER_UI_BASE_URL);
-    }
-
-    private static String defaultValue(String value, String defaultValue) {
-        String normalized = normalize(value);
-        return normalized == null ? defaultValue : normalized;
+        partnerUiBaseUrl = normalize(partnerUiBaseUrl);
     }
 
     private static String normalize(String value) {

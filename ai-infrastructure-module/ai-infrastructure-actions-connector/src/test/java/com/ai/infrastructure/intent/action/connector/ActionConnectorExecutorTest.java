@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.action.ActionObjectPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -111,6 +112,121 @@ class ActionConnectorExecutorTest {
     }
 
     @Test
+    void execute_shouldIncludeRuntimeActionConfigInTrace() {
+        StubHttpClient stub = new StubHttpClient(List.of(
+            new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{}}", Map.of())
+        ));
+        AIActionConnectorProperties props = connectorProps("https://example", 1, Duration.ZERO);
+        props.getMcpGateway().setBaseUrl("https://mcp-gateway.internal");
+        props.getMcpGateway().setApiKey("gateway-secret");
+        ActionConnectorExecutor executor = new ActionConnectorExecutor(
+            props,
+            stub,
+            null,
+            fixedClock()
+        );
+
+        executor.execute(
+            "inventory_search",
+            ActionAccessMode.READ,
+            Map.of("query", "bag"),
+            testContext(),
+            Map.of(
+                "adapterType", "mcp-tool",
+                "execution", Map.of("mcp", Map.of("serverRef", "inventory-mcp", "toolName", "inventory.search")),
+                "mcpServers", Map.of("inventory-mcp", Map.of("endpointUrl", "https://inventory.example/mcp"))
+            )
+        );
+
+        Map<String, Object> request = readRequest(stub.lastRequestBody());
+        assertThat(stub.lastRequest().url()).isEqualTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute");
+        assertThat(stub.lastRequest().headers()).containsEntry("X-MCP-GATEWAY-API-KEY", "gateway-secret");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trace = (Map<String, Object>) request.get(ActionConnectorProtocol.KEY_TRACE);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actionConfig = (Map<String, Object>) trace.get("actionConfig");
+        assertThat(actionConfig).containsEntry("adapterType", "mcp-tool");
+        assertThat(actionConfig).containsKeys("execution", "mcpServers");
+    }
+
+    @Test
+    void execute_shouldPromoteStorefrontShopDomainAttachmentIntoMcpTrace() {
+        StubHttpClient stub = new StubHttpClient(List.of(
+            new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{}}", Map.of())
+        ));
+        AIActionConnectorProperties props = connectorProps("https://example", 1, Duration.ZERO);
+        props.getMcpGateway().setBaseUrl("https://mcp-gateway.internal");
+        props.getMcpGateway().setApiKey("gateway-secret");
+        ActionConnectorExecutor executor = new ActionConnectorExecutor(
+            props,
+            stub,
+            null,
+            fixedClock()
+        );
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user@example.com")
+            .sessionId("s1")
+            .conversationId("c1")
+            .requestId("r1")
+            .attachments(List.of(OrchestrationAttachment.builder()
+                .source("shopify-storefront-context")
+                .metadata(Map.of("shopDomain", "alpha.myshopify.com"))
+                .build()))
+            .build();
+
+        executor.execute(
+            "shopify_search_catalog",
+            ActionAccessMode.READ,
+            Map.of("query", "bag"),
+            new ActionContext(orchestrationContext, null),
+            Map.of(
+                "adapterType", "mcp-tool",
+                "execution", Map.of("mcp", Map.of(
+                    "serverRef", "shopify-storefront",
+                    "endpointKind", "STOREFRONT_STANDARD",
+                    "toolName", "search_catalog"
+                ))
+            )
+        );
+
+        Map<String, Object> request = readRequest(stub.lastRequestBody());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> trace = (Map<String, Object>) request.get(ActionConnectorProtocol.KEY_TRACE);
+        assertThat(trace).containsEntry("shopDomain", "alpha.myshopify.com");
+    }
+
+    @Test
+    void execute_shouldFailClosedForMcpToolWhenGatewayApiKeyMissing() {
+        StubHttpClient stub = new StubHttpClient(List.of());
+        AIActionConnectorProperties props = connectorProps("https://example", 1, Duration.ZERO);
+        props.getMcpGateway().setBaseUrl("https://mcp-gateway.internal");
+        ActionConnectorExecutor executor = new ActionConnectorExecutor(
+            props,
+            stub,
+            null,
+            fixedClock()
+        );
+
+        ActionResult result = executor.execute(
+            "inventory_search",
+            ActionAccessMode.READ,
+            Map.of("query", "bag"),
+            testContext(),
+            Map.of(
+                "adapterType", "mcp-tool",
+                "execution", Map.of("mcp", Map.of("serverRef", "inventory-mcp", "toolName", "inventory.search")),
+                "mcpServers", Map.of("inventory-mcp", Map.of("endpointUrl", "https://inventory.example/mcp"))
+            )
+        );
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getErrorCode()).isEqualTo("INVALID_CONFIGURATION");
+        assertThat(result.getMessage()).contains("mcp-gateway.api-key");
+        assertThat(stub.callCount()).isZero();
+    }
+
+    @Test
     void execute_shouldRetryOnRetryableErrorCodeWhenIdempotent() {
         StubHttpClient stub = new StubHttpClient(List.of(
             new OutboundHttpExecutionResponse(200, "{\"success\":false,\"errorCode\":\"SERVICE_UNAVAILABLE\",\"message\":\"temp\"}", Map.of()),
@@ -180,6 +296,7 @@ class ActionConnectorExecutorTest {
     private static final class StubHttpClient implements OutboundHttpExecutor {
         private final List<OutboundHttpExecutionResponse> responses;
         private final AtomicInteger calls = new AtomicInteger(0);
+        private volatile OutboundHttpExecutionRequest lastRequest;
         private volatile String lastRequestBody;
 
         private StubHttpClient(List<OutboundHttpExecutionResponse> responses) {
@@ -189,6 +306,7 @@ class ActionConnectorExecutorTest {
         @Override
         public OutboundHttpExecutionResponse execute(OutboundHttpExecutionRequest request) {
             int idx = calls.getAndIncrement();
+            lastRequest = request;
             lastRequestBody = request != null ? request.body() : null;
             return responses.get(Math.min(idx, responses.size() - 1));
         }
@@ -199,6 +317,10 @@ class ActionConnectorExecutorTest {
 
         String lastRequestBody() {
             return lastRequestBody;
+        }
+
+        OutboundHttpExecutionRequest lastRequest() {
+            return lastRequest;
         }
     }
 }

@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -141,7 +142,7 @@ class PlatformVerificationSuiteExecutionServiceTest {
     }
 
     @Test
-    void executeInlineRefreshesCanonicalRolloutsWhenControlledRepairIsEnabled() {
+    void executeInlineDoesNotRefreshReadyCanonicalRolloutsWhenControlledRepairIsEnabled() {
         PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
         PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
         PlatformManagedInferenceAdminService inferenceAdminService = mock(PlatformManagedInferenceAdminService.class);
@@ -201,6 +202,8 @@ class PlatformVerificationSuiteExecutionServiceTest {
                     "https://runtime.example.test/" + key,
                     true,
                     "ready",
+                    false,
+                    List.of(),
                     List.of()
                 ))
                 .toList()
@@ -211,7 +214,6 @@ class PlatformVerificationSuiteExecutionServiceTest {
         when(stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId())).thenReturn(List.of(stage));
         when(stageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(rolloutService.listRollouts()).thenReturn(rolloutSummary);
-        when(rolloutService.recreateRollouts(eq(PlatformVerificationSuiteCatalog.CANONICAL_ROLLOUT_ORDER))).thenReturn(rolloutSummary);
         for (String key : PlatformVerificationSuiteCatalog.CANONICAL_ROLLOUT_ORDER) {
             when(deploymentService.getDeploymentSecretUsage("dep-" + key)).thenReturn(
                 new DeploymentSecretUsageSummary("dep-" + key, List.of(), List.of(), 0, 0, "All required deployment secrets are configured.")
@@ -240,8 +242,8 @@ class PlatformVerificationSuiteExecutionServiceTest {
         assertThat(run.getStatus()).isEqualTo("PASSED");
         assertThat(stage.getStatus()).isEqualTo("PASSED");
         assertThat(stage.getSummaryMessage()).contains("Canonical rollout inventory is present");
-        assertThat(stage.getDetailsJson()).contains("\"repairAttempted\":true");
-        verify(rolloutService).recreateRollouts(PlatformVerificationSuiteCatalog.CANONICAL_ROLLOUT_ORDER);
+        assertThat(stage.getDetailsJson()).contains("\"repairAttempted\":false");
+        verify(rolloutService, never()).recreateRollouts(any());
     }
 
     @Test

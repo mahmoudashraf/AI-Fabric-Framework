@@ -182,7 +182,7 @@ These are the current known-good non-secret defaults as of `2026-04-21`.
 - Shopify embedded host:
   - empty by default; set only when merchant-session verification is needed
 - current Weaviate host:
-  - `weaviate-external-verify-dev.up.railway.app`
+  - environment/private-handoff driven; do not reuse the old Railway-hosted endpoint
 
 Current canonical deployment ids were:
 
@@ -220,7 +220,7 @@ export QDRANT_API_KEY="..."
 export QDRANT_CLOUD_MANAGEMENT_API_KEY="..."
 export ZILLIZ_CLOUD_API_KEY="..."
 export WEAVIATE_API_KEY="..."
-export WEAVIATE_HOST="weaviate-external-verify-dev.up.railway.app"
+export WEAVIATE_HOST="<current-weaviate-cloud-rest-host>"
 ```
 
 If platform API-key auth is enabled for the target environment, you can replace login envs with `PLATFORM_API_KEY`.
@@ -786,13 +786,11 @@ Operational rule:
   - merchant bridge preview
   - Theme Editor itself
 
-### 9.7 Weaviate default host changed
+### 9.7 Weaviate host is configuration-only
 
-The stale old host should not be reused.
+The stale old Railway-hosted endpoint should not be reused.
 
-Current default:
-
-- `weaviate-external-verify-dev.up.railway.app`
+There is no public Java default for canonical Weaviate verification rollouts. Set `PLATFORM_VERIFICATION_WEAVIATE_HOST` or `WEAVIATE_HOST` from the private handoff before recreating or dispatching Weaviate release-gate verification.
 
 ### 9.8 Partner Enablement live verifier
 
@@ -802,9 +800,20 @@ Partner Enablement is part of the primary `full-platform-release-readiness` rele
 - stage script: `scripts/verify-partner-enablement-live.sh`
 - strict mode is forced by the platform-owned suite
 - Platform UI URL is required for strict proof of `/partner-privileges`
-- default Partner UI URL: `https://ai-fabric-framework-production-158d.up.railway.app`
 - override config property: `platform.verification.suites.platform-ui-base-url`
 - override config property: `platform.verification.suites.partner-ui-base-url`
+
+The platform-owned suite no longer embeds live URL/domain defaults in Java.
+Set the target values through deployment env or the local env file before dispatching release-gate runs:
+
+```bash
+PLATFORM_UI_BASE_URL="https://platform-ui-production-00e3.up.railway.app"
+PARTNER_UI_BASE_URL="https://ai-fabric-framework-production-158d.up.railway.app"
+SHOPIFY_BRIDGE_BASE_URL="https://shopify-bridge-shopify-bridge-pr-production.up.railway.app"
+SHOP_DOMAIN="shopping-companion-test.myshopify.com"
+PRODUCT_SERVICE_REF="shopify-bridge-prod"
+PLATFORM_VERIFICATION_WEAVIATE_HOST="<current-weaviate-cloud-rest-host>"
+```
 
 The platform-owned suite requires this platform secret before the Partner Enablement stage can run:
 
@@ -897,7 +906,7 @@ Cause:
 
 Fix that was applied:
 
-- move the canonical Weaviate host to the live Railway-hosted external Weaviate endpoint
+- move the canonical Weaviate host to the current Weaviate Cloud REST endpoint from private configuration
 - refresh rollout
 - rerun verification
 

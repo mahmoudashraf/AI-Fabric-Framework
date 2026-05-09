@@ -11,6 +11,7 @@ import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionTargetRef;
+import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -94,6 +95,14 @@ public class ActionConnectorExecutor {
                                 ActionAccessMode accessMode,
                                 Map<String, Object> params,
                                 ActionContext context) {
+        return execute(actionId, accessMode, params, context, null);
+    }
+
+    public ActionResult execute(String actionId,
+                                ActionAccessMode accessMode,
+                                Map<String, Object> params,
+                                ActionContext context,
+                                Map<String, Object> actionConfig) {
         if (!StringUtils.hasText(actionId)) {
             throw new IllegalArgumentException("actionId is required");
         }
@@ -101,12 +110,16 @@ public class ActionConnectorExecutor {
             throw new IllegalArgumentException("accessMode is required");
         }
 
+        boolean mcpToolAction = isMcpToolAction(actionConfig);
         String url;
         try {
-            url = buildExecuteUrl();
+            url = mcpToolAction ? buildMcpGatewayExecuteUrl() : buildExecuteUrl();
         } catch (Exception ex) {
             String message = safeConfigErrorMessage(ex != null ? ex.getMessage() : null);
-            log.warn("Connector action '{}' skipped due to invalid connector configuration: {}", actionId, message);
+            log.warn("Connector action '{}' skipped due to invalid {} configuration: {}",
+                actionId,
+                mcpToolAction ? "MCP gateway" : "connector",
+                message);
             return failure(ERROR_INVALID_CONFIGURATION, message);
         }
         String idempotencyKey = needsIdempotency(accessMode) ? generateIdempotencyKey() : null;
@@ -117,10 +130,20 @@ public class ActionConnectorExecutor {
         if (StringUtils.hasText(idempotencyKey)) {
             request.put(ActionConnectorProtocol.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
-        request.put(ActionConnectorProtocol.KEY_TRACE, buildTrace(context));
+        request.put(ActionConnectorProtocol.KEY_TRACE, buildTrace(context, actionConfig));
 
         String body = writeJson(request);
-        HttpHeaders headers = buildHeaders(body);
+        HttpHeaders headers;
+        try {
+            headers = mcpToolAction ? buildMcpGatewayHeaders() : buildHeaders(body);
+        } catch (Exception ex) {
+            String message = safeConfigErrorMessage(ex != null ? ex.getMessage() : null);
+            log.warn("Connector action '{}' skipped due to invalid {} configuration: {}",
+                actionId,
+                mcpToolAction ? "MCP gateway" : "connector",
+                message);
+            return failure(ERROR_INVALID_CONFIGURATION, message);
+        }
         Map<String, String> headerValues = new LinkedHashMap<>();
         headers.forEach((key, values) -> {
             if (StringUtils.hasText(key) && values != null && !values.isEmpty()) {
@@ -181,8 +204,11 @@ public class ActionConnectorExecutor {
         return IDEMPOTENCY_PREFIX + ulidGenerator.nextUlid();
     }
 
-    private Map<String, Object> buildTrace(ActionContext context) {
+    private Map<String, Object> buildTrace(ActionContext context, Map<String, Object> actionConfig) {
         Map<String, Object> trace = new LinkedHashMap<>();
+        if (actionConfig != null && !actionConfig.isEmpty()) {
+            trace.put("actionConfig", new LinkedHashMap<>(actionConfig));
+        }
         if (context == null) {
             return trace;
         }
@@ -194,6 +220,7 @@ public class ActionConnectorExecutor {
         if (!authContext.isEmpty()) {
             trace.put(ActionConnectorProtocol.TRACE_AUTH_CONTEXT, authContext);
         }
+        putIfText(trace, "shopDomain", resolveShopDomainTraceValue(context));
         return trace;
     }
 
@@ -228,6 +255,45 @@ public class ActionConnectorExecutor {
         out.put(key, value.trim());
     }
 
+    private String resolveShopDomainTraceValue(ActionContext context) {
+        if (context == null) {
+            return null;
+        }
+        String value = firstText(context.metadata(), "shopDomain", "shop_domain", "storeDomain", "store_domain");
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        if (context.orchestrationContext() == null || context.orchestrationContext().getAttachments() == null) {
+            return null;
+        }
+        for (OrchestrationAttachment attachment : context.orchestrationContext().getAttachments()) {
+            if (attachment == null) {
+                continue;
+            }
+            value = firstText(attachment.getMetadata(), "shopDomain", "shop_domain", "storeDomain", "store_domain");
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String firstText(Map<String, ?> source, String... keys) {
+        if (source == null || source.isEmpty() || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            Object value = source.get(key);
+            if (value != null && StringUtils.hasText(value.toString())) {
+                return value.toString().trim();
+            }
+        }
+        return null;
+    }
+
     private String buildExecuteUrl() {
         String baseUrl = properties != null ? properties.getBaseUrl() : null;
         if (!StringUtils.hasText(baseUrl)) {
@@ -251,6 +317,32 @@ public class ActionConnectorExecutor {
             p = "/" + p;
         }
 
+        return base + p;
+    }
+
+    private String buildMcpGatewayExecuteUrl() {
+        AIActionConnectorProperties.McpGatewayProperties gateway = properties != null ? properties.getMcpGateway() : null;
+        String baseUrl = gateway != null ? gateway.getBaseUrl() : null;
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new IllegalStateException("ai.actions.connector.mcp-gateway.base-url is required to execute mcp-tool actions.");
+        }
+        String base = baseUrl.trim();
+        String baseLower = base.toLowerCase(Locale.ROOT);
+        if (!(baseLower.startsWith("http://") || baseLower.startsWith("https://"))) {
+            throw new IllegalStateException("ai.actions.connector.mcp-gateway.base-url must be an absolute URL starting with http:// or https://.");
+        }
+        if (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+
+        String path = gateway != null ? gateway.getExecutePath() : null;
+        if (!StringUtils.hasText(path)) {
+            path = "/api/internal/mcp/actions/execute";
+        }
+        String p = path.trim();
+        if (!p.startsWith("/")) {
+            p = "/" + p;
+        }
         return base + p;
     }
 
@@ -286,6 +378,39 @@ public class ActionConnectorExecutor {
         }
 
         return headers;
+    }
+
+    private HttpHeaders buildMcpGatewayHeaders() {
+        AIActionConnectorProperties.McpGatewayProperties gateway = properties != null ? properties.getMcpGateway() : null;
+        if (gateway == null || !StringUtils.hasText(gateway.getApiKey())) {
+            throw new IllegalStateException("ai.actions.connector.mcp-gateway.api-key is required to execute mcp-tool actions.");
+        }
+        String header = StringUtils.hasText(gateway.getApiKeyHeader())
+            ? gateway.getApiKeyHeader().trim()
+            : "X-MCP-GATEWAY-API-KEY";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(header, gateway.getApiKey().trim());
+        return headers;
+    }
+
+    private boolean isMcpToolAction(Map<String, Object> actionConfig) {
+        if (actionConfig == null || actionConfig.isEmpty()) {
+            return false;
+        }
+        Object adapterType = actionConfig.get("adapterType");
+        if (adapterType != null && "mcp-tool".equalsIgnoreCase(adapterType.toString().trim())) {
+            return true;
+        }
+        Object executionRaw = actionConfig.get("execution");
+        if (executionRaw instanceof Map<?, ?> execution) {
+            Object executionAdapterType = execution.get("adapterType");
+            if (executionAdapterType != null && "mcp-tool".equalsIgnoreCase(executionAdapterType.toString().trim())) {
+                return true;
+            }
+            return execution.containsKey("mcp");
+        }
+        return false;
     }
 
     private String sign(String secret, String timestamp, String nonce, String body) {

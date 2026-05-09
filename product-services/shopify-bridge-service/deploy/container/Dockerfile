@@ -1,17 +1,17 @@
 FROM node:20-alpine AS ui-build
 WORKDIR /workspace/ui
 
-COPY ui/package.json ui/package-lock.json ./
+COPY product-services/shopify-bridge-service/ui/package.json product-services/shopify-bridge-service/ui/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
-COPY ui ./
+COPY product-services/shopify-bridge-service/ui ./
 RUN npm run build
 
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
-COPY pom.xml ./
-COPY src ./src
+COPY product-services/shopify-bridge-service/pom.xml ./
+COPY product-services/shopify-bridge-service/src ./src
 
 RUN mvn -DskipTests package
 

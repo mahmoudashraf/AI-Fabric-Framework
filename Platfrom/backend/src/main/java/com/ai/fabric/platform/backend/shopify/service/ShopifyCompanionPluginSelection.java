@@ -9,7 +9,12 @@ import java.util.List;
 
 final class ShopifyCompanionPluginSelection {
 
-    static final String ACTION_READ_PLUGIN_ID = "mkp-action-shopify-companion-read";
+    static final String LEGACY_ACTION_READ_PLUGIN_ID = "mkp-action-shopify-companion-read";
+    static final String ACTION_STOREFRONT_READ_MCP_PLUGIN_ID = "mkp-action-shopify-storefront-read-mcp";
+    static final String ACTION_CART_MCP_PLUGIN_ID = "mkp-action-shopify-cart-mcp";
+    static final String ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID = "mkp-action-shopify-customer-account-mcp";
+    static final String ACTION_CHECKOUT_MCP_PLUGIN_ID = "mkp-action-shopify-checkout-mcp";
+    static final String ACTION_READ_PLUGIN_ID = ACTION_STOREFRONT_READ_MCP_PLUGIN_ID;
     static final String DATA_CATALOG_PLUGIN_ID = "mkp-data-shopify-catalog";
     static final String DATA_POLICIES_PLUGIN_ID = "mkp-data-shopify-policies";
     static final String INFERENCE_SHARED_PLUGIN_ID = "mkp-inference-shared-embeddings";
@@ -25,9 +30,13 @@ final class ShopifyCompanionPluginSelection {
             return "";
         }
         String normalized = pluginId.trim();
-        return LEGACY_INFERENCE_PLUGIN_ID.equalsIgnoreCase(normalized)
-            ? INFERENCE_SHARED_PLUGIN_ID
-            : normalized;
+        if (LEGACY_INFERENCE_PLUGIN_ID.equalsIgnoreCase(normalized)) {
+            return INFERENCE_SHARED_PLUGIN_ID;
+        }
+        if (LEGACY_ACTION_READ_PLUGIN_ID.equalsIgnoreCase(normalized)) {
+            return ACTION_STOREFRONT_READ_MCP_PLUGIN_ID;
+        }
+        return normalized;
     }
 
     static boolean requiresCatalogData(ShopifyStoreConnectionEntity store) {
@@ -102,6 +111,16 @@ final class ShopifyCompanionPluginSelection {
 
     static boolean isInferencePluginId(String pluginId) {
         return pluginId != null && pluginId.trim().toLowerCase(java.util.Locale.ROOT).startsWith("mkp-inference-");
+    }
+
+    static LinkedHashSet<String> managedActionPluginIds() {
+        LinkedHashSet<String> pluginIds = new LinkedHashSet<>();
+        pluginIds.add(LEGACY_ACTION_READ_PLUGIN_ID);
+        pluginIds.add(ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+        pluginIds.add(ACTION_CART_MCP_PLUGIN_ID);
+        pluginIds.add(ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
+        pluginIds.add(ACTION_CHECKOUT_MCP_PLUGIN_ID);
+        return pluginIds;
     }
 
     static LinkedHashSet<String> managedDataPluginIds() {
