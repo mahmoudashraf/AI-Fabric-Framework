@@ -334,14 +334,14 @@ Local verification passed:
 
 Staging verification after deployment:
 
-- Commit `bf64cff98` deployed to staging Partner UI, Platform UI, and Shopify Bridge through Coolify.
-- Coolify staging deployments finished on commit `bf64cff98`:
-  - Partner UI `xiictlx7e8vzqhfcctq9okrq`
-  - Platform UI `j8urpbbpn2myuk1aegftk0s2`
-  - Shopify Bridge `trcfvrfxqn9yzwlv1cc26re4`
-- Strict live `scripts/verify-partner-enablement-live.sh` passed after refreshing the Partner Supabase JWT and updating Platform secret `PARTNER_SUPABASE_JWT` without printing token material.
+- Implementation commit `bf64cff98` and follow-up evidence commit `bbe4af020` were pushed to `origin/Platform-V8`.
+- Coolify staging deployments finished on branch head `bbe4af020`:
+  - Partner UI `m468y41vpkqh1lgav6p0g4mp`
+  - Platform UI `hh1trad4eih1nudg1stcdwbu`
+  - Shopify Bridge `w5kcelnse9kupbfay7f7fb54`
+- Strict live `scripts/verify-partner-enablement-live.sh` passed after redeploying branch head. The Partner Supabase JWT had been refreshed and Platform secret `PARTNER_SUPABASE_JWT` updated without printing token material.
 - The live verifier proved the new deployed Partner UI 010.1 surfaces and the new Platform UI `/shopify-launch-readiness` surface.
-- Hosted `full-platform-release-readiness` passed as `vsr-16cf2a58` with 14/14 stages green. `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, completed `2026-05-09T12:23:06.695323Z`, expires `2026-05-10T00:23:06.695323Z`.
+- Hosted `full-platform-release-readiness` passed as `vsr-bfce955e` with 14/14 stages green. `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, completed `2026-05-09T12:35:57.277008Z`, expires `2026-05-10T00:35:57.277008Z`.
 
 Release-gate state after this implementation:
 
