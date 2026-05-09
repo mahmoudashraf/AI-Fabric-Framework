@@ -19,6 +19,10 @@ Parent plans:
 - [004 Partner Enablement Foundation](004_PARTNER_ENABLEMENT_FOUNDATION.md)
 - [Partner Enablement UI Design](004_PARTNER_ENABLEMENT_UI_DESIGN.md)
 
+Follow-on plans:
+
+- [010.1 Shopify Companion UI Launch Readiness](010_1_SHOPIFY_COMPANION_UI_LAUNCH_READINESS.md)
+
 Related references:
 
 - `Final_Documentation/Development_Guides/LLM-guides/Codex_Strategic_Context.md`

@@ -1071,3 +1071,10 @@ Critical fixes that made the gate pass:
 - Live proof covered merchant invite, approval deep-link workspace, merchant approval, partner assignment, package-trial privilege gating, Max widget smoke, partner product-control write/restore, verification run, evidence bundle/export, merchant workspace evidence, rollback/deactivation request, support escalation/reply, activity feed, revocation cleanup, and revoked-access denial.
 - Production promotion mutation intentionally remained skipped with `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=false`; no production deployment or production mutation was performed.
 - Unrelated local files remained outside the commit: `Final_Documentation/Development_Guides/LLM-guides/Codex_Strategic_Context.md` and `rollout-2026-05-01T11-49-46-019de328-aa7a-7162-a387-250ce1f91b76.jsonl`.
+
+## 2026-05-09 Plan 010.1 UI Launch Readiness
+
+- Created `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_1_SHOPIFY_COMPANION_UI_LAUNCH_READINESS.md` as the follow-on UI readiness plan for Plan 010.
+- Decision: onboarding/pricing/support copy, design-partner package, and App Store/private listing readiness should be implemented primarily as Merchant UI, Partner UI, and Platform/Admin UI surfaces; markdown remains backing copy and review material.
+- Next priority order recorded in 010.1: run hosted/full staging release gate after latest deployment; run controlled production-promotion proof through `dtp-coolify-production`; prove production verification, rollback/deactivation, and failed promotion leaves staging untouched; then package launch material and decide design-partner vs public App Store launch posture.
+- Production mutation remains intentionally gated; normal staging verification must not run `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true`.
