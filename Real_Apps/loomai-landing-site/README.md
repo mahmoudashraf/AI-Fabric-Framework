@@ -1,9 +1,9 @@
 # LoomAI Landing Site
 
-Claim-safe static landing package for:
+Claim-safe product-suite landing package for:
 
-- `loomai.pro` - Loom Companion merchant/design-partner page.
-- `partners.loomai.pro` - Shopify implementation partner application page.
+- `loomai.pro` - LoomAI products page for Companion, Thinker, Resolver, and the product platform.
+- `partners.loomai.pro` - partner application page focused on helping clients launch LoomAI products.
 
 The service is intentionally self-contained and does not expose Platform, Coolify, deployment IDs, or secret internals. Host-aware routing serves the partner page at `/` when the host starts with `partners.`, and also at `/partners`.
 

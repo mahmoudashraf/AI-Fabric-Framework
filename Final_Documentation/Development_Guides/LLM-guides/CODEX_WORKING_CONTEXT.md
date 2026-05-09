@@ -1110,3 +1110,11 @@ Critical fixes that made the gate pass:
 - Deployment note: first Coolify staging deploy failed because Dockerfile health checks require `curl` or `wget` inside the image. Commit `99056be7a` adds `curl` to the image. Follow-up deployment `oin8ayq4cukruir95hrvu661` reached `running:healthy`, and final branch-head deployment `e11mr5h3stxm7hh79g8np0mm` finished with the app still `running:healthy`.
 - Staging Coolify app UUID: `bdzny0asckbk7nhtukflg8fy`. Public staging URLs: `https://loomai-landing.46.224.145.148.sslip.io/` and `https://partners.loomai-landing.46.224.145.148.sslip.io/`.
 - Hosted verification passed: `/health` returned `UP`, merchant and partner pages served claim-safe copy over HTTPS, `/api/leads` accepted a synthetic staging smoke request, and Playwright browser checks passed for hosted desktop/mobile pages. Latest hosted screenshots were written to `/tmp/loomai-landing-site-hosted-final`.
+
+## 2026-05-09 LoomAI Product-Suite Landing Correction
+
+- Corrected landing direction after product feedback: the public homepage must focus on the LoomAI product suite, not only Loom Companion.
+- Updated `Real_Apps/loomai-landing-site` so the first viewport presents Companion, Thinker, and Resolver as product cards. Companion remains the first live commerce product; Thinker and Resolver are positioned as controlled rollout products with explicit readiness boundaries.
+- Updated the partner landing page to say `Help clients launch LoomAI products` and show Companion, Thinker, Resolver, and Launch Portal as partner-supported product/workflow areas.
+- Rewrote `LOOMAI_LANDING_PAGES_CONTENT_AND_STRUCTURE (1).md` as the product-suite source of truth. It now removes the previous claim that roadmap products should not appear in the first viewport.
+- Local verification passed before redeploy: `bash scripts/verify-loomai-landing-site.sh`, `docker build -f Real_Apps/loomai-landing-site/Dockerfile -t loomai-landing-site:local .`, and `git diff --check`.

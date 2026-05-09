@@ -22,10 +22,15 @@ async function assertCopy() {
   const css = await readFile(path.join(publicDir, 'styles.css'), 'utf8')
   const combined = `${merchant}\n${partner}\n${css}`
 
-  assert(merchant.includes('Loom Companion for Shopify stores.'), 'merchant headline missing')
-  assert(merchant.includes('Private/design-partner installs now'), 'launch posture copy missing')
-  assert(merchant.includes('Request Private Install'), 'merchant private install CTA missing')
-  assert(partner.includes('This is what you help clients launch.'), 'partner product-first headline missing')
+  assert(merchant.includes('LoomAI products for commerce and support work.'), 'product-suite headline missing')
+  assert(merchant.includes('Loom Companion'), 'Companion product copy missing')
+  assert(merchant.includes('Loom Thinker'), 'Thinker product copy missing')
+  assert(merchant.includes('Loom Resolver'), 'Resolver product copy missing')
+  assert(merchant.includes('Request product access'), 'product access form missing')
+  assert(partner.includes('Help clients launch LoomAI products.'), 'partner product-suite headline missing')
+  assert(partner.includes('Companion'), 'partner Companion product copy missing')
+  assert(partner.includes('Thinker'), 'partner Thinker product copy missing')
+  assert(partner.includes('Resolver'), 'partner Resolver product copy missing')
   assert(partner.includes('Partner Sign In'), 'partner sign-in CTA missing')
 
   const forbidden = [
@@ -78,11 +83,11 @@ async function assertHttp() {
     await waitForServer(server)
     const merchant = await fetch(`${baseUrl}/`)
     assert(merchant.status === 200, `merchant page returned ${merchant.status}`)
-    assert((await merchant.text()).includes('Loom Companion for Shopify stores.'), 'merchant page body mismatch')
+    assert((await merchant.text()).includes('LoomAI products for commerce and support work.'), 'merchant page body mismatch')
 
     const partner = await fetch(`${baseUrl}/`, { headers: { 'X-Forwarded-Host': `partners.localhost:${port}` } })
     assert(partner.status === 200, `partner host page returned ${partner.status}`)
-    assert((await partner.text()).includes('This is what you help clients launch.'), 'partner host body mismatch')
+    assert((await partner.text()).includes('Help clients launch LoomAI products.'), 'partner host body mismatch')
 
     const partnerPath = await fetch(`${baseUrl}/partners`)
     assert(partnerPath.status === 200, `partner path returned ${partnerPath.status}`)

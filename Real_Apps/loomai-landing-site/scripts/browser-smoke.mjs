@@ -79,24 +79,24 @@ async function runBrowserChecks() {
 
     const merchantDesktop = await desktop.newPage()
     await merchantDesktop.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' })
-    await assertPage(merchantDesktop, 'merchant desktop', 'Loom Companion for Shopify stores.')
+    await assertPage(merchantDesktop, 'merchant desktop', 'LoomAI products for commerce and support work.')
     await merchantDesktop.screenshot({ path: path.join(screenshotDir, 'merchant-desktop.png'), fullPage: true })
 
     const merchantMobile = await mobile.newPage()
     await merchantMobile.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' })
-    await assertPage(merchantMobile, 'merchant mobile', 'Loom Companion for Shopify stores.')
+    await assertPage(merchantMobile, 'merchant mobile', 'LoomAI products for commerce and support work.')
     await merchantMobile.screenshot({ path: path.join(screenshotDir, 'merchant-mobile.png'), fullPage: true })
 
     const partnerDesktop = await desktop.newPage()
     await partnerDesktop.setExtraHTTPHeaders({ 'X-Forwarded-Host': 'partners.localhost' })
     await partnerDesktop.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' })
-    await assertPage(partnerDesktop, 'partner desktop', 'This is what you help clients launch.')
+    await assertPage(partnerDesktop, 'partner desktop', 'Help clients launch LoomAI products.')
     await partnerDesktop.screenshot({ path: path.join(screenshotDir, 'partner-desktop.png'), fullPage: true })
 
     const partnerMobile = await mobile.newPage()
     await partnerMobile.setExtraHTTPHeaders({ 'X-Forwarded-Host': 'partners.localhost' })
     await partnerMobile.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' })
-    await assertPage(partnerMobile, 'partner mobile', 'This is what you help clients launch.')
+    await assertPage(partnerMobile, 'partner mobile', 'Help clients launch LoomAI products.')
     await partnerMobile.screenshot({ path: path.join(screenshotDir, 'partner-mobile.png'), fullPage: true })
   } finally {
     await browser.close()
