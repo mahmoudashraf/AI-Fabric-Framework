@@ -62,7 +62,21 @@ Use this order:
 9. Enable the theme app extension and place the intended blocks.
 10. Run indexing or reindexing only after readiness and reconcile state are clean.
 
-### 2.2 After scope changes
+### 2.2 Partner-assisted launch flow
+
+If a LoomAI implementation partner requests scoped setup access:
+
+1. Open the approval email or Shopify Admin approval link.
+2. Review the merchant launch workspace for the correct shop.
+3. Approve or deny partner access from that workspace.
+4. After approval, use the same workspace to review readiness, evidence, and support status.
+5. Request production promotion only when the workspace shows it is available.
+6. Request rollback or deactivation from the workspace if the live launch needs operator review.
+7. Revoke partner access when setup or review work is complete.
+
+The merchant workspace should not show Coolify, deployment provider, internal secret, or raw infrastructure details.
+
+### 2.3 After scope changes
 
 If the merchant changes source scope:
 

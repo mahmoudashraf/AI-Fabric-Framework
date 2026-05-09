@@ -10,6 +10,8 @@ import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleCreateR
 import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerLaunchReadinessSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessInviteRequest;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessInviteSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationRequest;
@@ -236,6 +238,13 @@ public class PartnerEnablementController {
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER')")
     public PartnerStoreAccessLinkSummary createStoreAccessLink(@PathVariable String requestId) {
         return service.createStoreAccessLink(requestId);
+    }
+
+    @PostMapping("/client-implementations/{requestId}/merchant-invites")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER')")
+    public MerchantPartnerAccessInviteSummary sendMerchantInvite(@PathVariable String requestId,
+                                                                 @Valid @RequestBody(required = false) MerchantPartnerAccessInviteRequest request) {
+        return service.sendMerchantInviteForImplementation(requestId, request == null ? new MerchantPartnerAccessInviteRequest(null) : request);
     }
 
     @GetMapping("/catalog")

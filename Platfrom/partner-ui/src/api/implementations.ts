@@ -1,6 +1,6 @@
 import type { PartnerApiClient } from '../auth/apiClient'
 import { z } from 'zod'
-import { partnerClientImplementationSchema, partnerEligibleStoreSchema, partnerStoreAccessLinkSchema } from './schemas'
+import { merchantInviteSchema, partnerClientImplementationSchema, partnerEligibleStoreSchema, partnerStoreAccessLinkSchema } from './schemas'
 
 export interface ClientImplementationPayload {
   clientName: string
@@ -37,4 +37,11 @@ export function createStoreAccessLink(api: PartnerApiClient, requestId: string) 
     partnerStoreAccessLinkSchema,
     { method: 'POST' },
   )
+}
+
+export function sendMerchantInvite(api: PartnerApiClient, requestId: string, recipientEmail?: string) {
+  return api.request(`/api/partners/client-implementations/${encodeURIComponent(requestId)}/merchant-invites`, merchantInviteSchema, {
+    method: 'POST',
+    body: JSON.stringify({ recipientEmail }),
+  })
 }

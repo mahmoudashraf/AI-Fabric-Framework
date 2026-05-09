@@ -227,11 +227,71 @@ export const partnerStoreAccessLinkSchema = z.object({
   expiresAt: z.string(),
 })
 
+export const merchantAccessRequestSchema = z.object({
+  requestId: z.string(),
+  implementationRequestId: z.string(),
+  partnerAccountId: z.string(),
+  partnerName: z.string(),
+  clientName: z.string(),
+  contactEmail: nullableString,
+  storeConnectionId: nullableString,
+  assignmentId: nullableString,
+  shopDomain: z.string(),
+  requestedTier: nullableString,
+  requestedSurfaces: z.array(z.string()),
+  knownIntegrations: z.array(z.string()),
+  notes: nullableString,
+  requestedScope: z.string(),
+  status: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+  approvedAt: nullableDateString,
+  revokedAt: nullableDateString,
+  inviteRecipientEmail: nullableString,
+  inviteStatus: nullableString,
+  inviteChannel: nullableString,
+  inviteMessage: nullableString,
+  inviteSentAt: nullableDateString,
+  inviteCount: z.number(),
+  updatedAt: z.string(),
+})
+
+export const merchantInviteSchema = z.object({
+  requestId: z.string(),
+  implementationRequestId: z.string(),
+  shopDomain: z.string(),
+  recipientEmail: z.string(),
+  status: z.string(),
+  channel: z.string(),
+  message: z.string(),
+  approvalUrl: z.string(),
+  sentAt: nullableDateString,
+  inviteCount: z.number(),
+})
+
 export const merchantApprovalSchema = z.object({
   assignmentId: z.string(),
   shopDomain: z.string(),
   status: z.string(),
   approvedAt: z.string(),
+})
+
+export const merchantDecisionSchema = z.object({
+  requestId: z.string(),
+  assignmentId: nullableString,
+  shopDomain: z.string(),
+  status: z.string(),
+  decidedAt: z.string(),
+})
+
+export const merchantRollbackRequestSchema = z.object({
+  storeId: z.string(),
+  shopDomain: z.string(),
+  status: z.string(),
+  message: z.string(),
+  escalationId: z.string(),
+  nextActions: z.array(z.string()),
+  requestedAt: z.string(),
 })
 
 export const partnerCatalogEntrySchema = z.object({
@@ -331,6 +391,17 @@ export const partnerEvidenceBundleSchema = z.object({
   attachments: z.array(z.string()),
   generatedAt: z.string(),
   expiresAt: nullableDateString,
+})
+
+export const merchantWorkspaceSchema = z.object({
+  accessRequest: merchantAccessRequestSchema,
+  store: partnerStoreSchema.nullable(),
+  launchReadiness: partnerLaunchReadinessSchema.nullable(),
+  evidenceBundles: z.array(partnerEvidenceBundleSchema),
+  supportEscalations: z.array(partnerEscalationSchema),
+  availableActions: z.array(z.string()),
+  limitations: z.array(z.string()),
+  checkedAt: z.string(),
 })
 
 export const partnerTemplateSchema = z.object({
@@ -536,6 +607,10 @@ export type PartnerClientImplementation = z.infer<typeof partnerClientImplementa
 export type PartnerEligibleStore = z.infer<typeof partnerEligibleStoreSchema>
 export type PartnerStoreAccessLink = z.infer<typeof partnerStoreAccessLinkSchema>
 export type MerchantApproval = z.infer<typeof merchantApprovalSchema>
+export type MerchantDecision = z.infer<typeof merchantDecisionSchema>
+export type MerchantWorkspace = z.infer<typeof merchantWorkspaceSchema>
+export type MerchantRollbackRequest = z.infer<typeof merchantRollbackRequestSchema>
+export type MerchantInvite = z.infer<typeof merchantInviteSchema>
 export type PartnerCatalogEntry = z.infer<typeof partnerCatalogEntrySchema>
 export type PartnerEscalation = z.infer<typeof partnerEscalationSchema>
 export type PartnerThread = z.infer<typeof partnerThreadSchema>

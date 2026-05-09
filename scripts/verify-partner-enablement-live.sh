@@ -18,6 +18,7 @@ RUN_TAG="${PARTNER_LIVE_RUN_TAG:-release-gate-$(date -u +%Y%m%dT%H%M%SZ)}"
 PACKAGE_TRIAL_PRIVILEGE="PACKAGE_TRIAL_ACTIVATE"
 TEMP_ACCESS_REQUEST_ID=""
 TEMP_ACCESS_SHOP_DOMAIN=""
+TEMP_ACCESS_APPROVAL_CODE=""
 PARTNER_TRIAL_MEMBER_ID=""
 PARTNER_TRIAL_MEMBER_ORIGINAL_PRIVILEGES=""
 PARTNER_TRIAL_MEMBER_PRIVILEGE_TOUCHED="false"
@@ -144,7 +145,18 @@ PY
       echo "WARN: partner package-trial privilege cleanup returned HTTP ${restore_status:-unknown}" >&2
     fi
   fi
-  if [[ -n "${TEMP_ACCESS_REQUEST_ID}" && -n "${TEMP_ACCESS_SHOP_DOMAIN}" && -n "${TMP_DIR}" ]] && platform_auth_available; then
+  if [[ -n "${TEMP_ACCESS_APPROVAL_CODE}" && -n "${TMP_DIR}" ]]; then
+    local cleanup_body="${TMP_DIR}/cleanup-revoke.json"
+    local cleanup_status
+    cleanup_status="$(request POST "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/revoke" "${cleanup_body}" \
+      -H "Content-Type: application/json" \
+      -d '{"approverName":"Release Gate Cleanup","approverEmail":"release-gate@loom.test","decisionReason":"Release gate temporary access cleanup."}' || true)"
+    if [[ "${cleanup_status}" == "200" ]]; then
+      echo "PASS: temporary partner access revoked during cleanup"
+    else
+      echo "WARN: temporary partner access cleanup returned HTTP ${cleanup_status:-unknown}" >&2
+    fi
+  elif [[ -n "${TEMP_ACCESS_REQUEST_ID}" && -n "${TEMP_ACCESS_SHOP_DOMAIN}" && -n "${TMP_DIR}" ]] && platform_auth_available; then
     local cleanup_body="${TMP_DIR}/cleanup-revoke.json"
     local encoded_shop
     encoded_shop="$(urlencode "${TEMP_ACCESS_SHOP_DOMAIN}")"
@@ -636,6 +648,18 @@ assert data.get("approvalUrl"), data
 print(data["id"])
 PY
 )"
+    TEMP_ACCESS_APPROVAL_CODE="$(python3 - <<'PY' "${implementation_body}"
+import json
+import pathlib
+import sys
+
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+approval_url = str(data.get("approvalUrl") or "").rstrip("/")
+approval_code = approval_url.rsplit("/", 1)[-1]
+assert approval_code, data
+print(approval_code)
+PY
+)"
     echo "PASS: partner implementation status is waiting on merchant (${implementation_id})"
 
     implementation_detail_body="${TMP_DIR}/implementation-detail-waiting.json"
@@ -668,12 +692,55 @@ PY
     TEMP_ACCESS_SHOP_DOMAIN="${TARGET_SHOP_DOMAIN}"
     echo "PASS: merchant access request is pending (${TEMP_ACCESS_REQUEST_ID})"
 
+    merchant_invite_body="${TMP_DIR}/merchant-approval-invite.json"
+    merchant_invite_status="$(partner_request POST "${BASE_URL}/api/partners/client-implementations/${implementation_id}/merchant-invites" "${merchant_invite_body}" \
+      -H "Content-Type: application/json" \
+      -d "{}")"
+    cp "${merchant_invite_body}" "${TMP_DIR}/last-body"
+    assert_status "${merchant_invite_status}" "200" "merchant approval invite requested"
+    python3 - <<'PY' "${merchant_invite_body}" "${TEMP_ACCESS_REQUEST_ID}" "${TARGET_SHOP_DOMAIN}"
+import json
+import pathlib
+import sys
+
+invite = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert invite["requestId"] == sys.argv[2], invite
+assert str(invite.get("shopDomain") or "").lower() == sys.argv[3].lower(), invite
+assert invite.get("status") in {"SENT", "RECORDED"}, invite
+assert invite.get("channel") in {"SMTP", "SMTP_DRY_RUN", "EMAIL_DISABLED"}, invite
+assert invite.get("approvalUrl"), invite
+assert invite.get("inviteCount", 0) >= 1, invite
+print("PASS: merchant approval invite has durable delivery evidence")
+PY
+
+    merchant_workspace_waiting_body="${TMP_DIR}/merchant-workspace-waiting.json"
+    merchant_workspace_waiting_status="$(request GET "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/workspace" "${merchant_workspace_waiting_body}")"
+    cp "${merchant_workspace_waiting_body}" "${TMP_DIR}/last-body"
+    assert_status "${merchant_workspace_waiting_status}" "200" "merchant approval deep-link workspace reachable"
+    python3 - <<'PY' "${merchant_workspace_waiting_body}" "${TEMP_ACCESS_REQUEST_ID}" "${TARGET_SHOP_DOMAIN}"
+import json
+import pathlib
+import sys
+
+workspace = json.loads(pathlib.Path(sys.argv[1]).read_text())
+request = workspace["accessRequest"]
+assert request["requestId"] == sys.argv[2], workspace
+assert str(request.get("shopDomain") or "").lower() == sys.argv[3].lower(), workspace
+assert request["status"] == "WAITING_ON_MERCHANT", workspace
+assert "APPROVE_PARTNER_ACCESS" in workspace.get("availableActions", []), workspace
+assert "DENY_PARTNER_ACCESS" in workspace.get("availableActions", []), workspace
+raw = json.dumps(workspace).lower()
+for forbidden in ("secret", "token", "password", "credential", "provider_resource", "coolify"):
+    assert forbidden not in raw, workspace
+print("PASS: merchant approval workspace is available without platform/provider internals")
+PY
+
     approval_body="${TMP_DIR}/merchant-access-approve.json"
-    approval_status="$(platform_request POST "${BASE_URL}/api/merchant/partner-access/requests/${TEMP_ACCESS_REQUEST_ID}/approve?shopDomain=${encoded_target_shop}" "${approval_body}" \
+    approval_status="$(request POST "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/approve" "${approval_body}" \
       -H "Content-Type: application/json" \
       -d '{"approverName":"Release Gate Merchant","approverEmail":"release-gate-merchant@loom.test","approvedScope":"FULL_STORE_ACCESS","decisionReason":"Automated release gate approval proof."}')"
     cp "${approval_body}" "${TMP_DIR}/last-body"
-    assert_status "${approval_status}" "200" "merchant access request approved"
+    assert_status "${approval_status}" "200" "merchant access request approved through approval deep-link"
     workflow_store_id="$(python3 - <<'PY' "${approval_body}" "${TARGET_SHOP_DOMAIN}"
 import json
 import pathlib
@@ -688,6 +755,25 @@ PY
 )"
     created_temp_access="true"
     echo "PASS: merchant approval created active partner assignment (${workflow_store_id})"
+
+    merchant_workspace_approved_body="${TMP_DIR}/merchant-workspace-approved.json"
+    merchant_workspace_approved_status="$(request GET "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/workspace" "${merchant_workspace_approved_body}")"
+    cp "${merchant_workspace_approved_body}" "${TMP_DIR}/last-body"
+    assert_status "${merchant_workspace_approved_status}" "200" "merchant launch workspace reachable after approval"
+    python3 - <<'PY' "${merchant_workspace_approved_body}" "${workflow_store_id}" "${TARGET_SHOP_DOMAIN}"
+import json
+import pathlib
+import sys
+
+workspace = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert workspace["accessRequest"]["status"] == "APPROVED", workspace
+assert workspace.get("store", {}).get("id") == sys.argv[2], workspace
+assert str(workspace.get("store", {}).get("shopDomain") or "").lower() == sys.argv[3].lower(), workspace
+assert workspace.get("launchReadiness", {}).get("stagingReady") is True, workspace
+assert "REVOKE_PARTNER_ACCESS" in workspace.get("availableActions", []), workspace
+assert "REQUEST_ROLLBACK" in workspace.get("availableActions", []), workspace
+print("PASS: merchant launch workspace exposes approved-store readiness and safe actions")
+PY
 
     implementation_approved_body="${TMP_DIR}/implementation-detail-approved.json"
     implementation_approved_status="$(partner_request GET "${BASE_URL}/api/partners/client-implementations/${implementation_id}" "${implementation_approved_body}")"
@@ -1304,8 +1390,36 @@ for forbidden in ("secret", "token", "password", "credential", "provider_resourc
     assert forbidden not in raw, readiness
 print("true" if readiness.get("productionPromotionReady") is True else "false")
 PY
-)"
+  )"
   echo "PASS: launch readiness reports staging proof and merchant-safe evidence"
+
+  if [[ -n "${TEMP_ACCESS_APPROVAL_CODE}" ]]; then
+    merchant_workspace_release_body="${TMP_DIR}/merchant-workspace-release.json"
+    merchant_workspace_release_status="$(request GET "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/workspace" "${merchant_workspace_release_body}")"
+    cp "${merchant_workspace_release_body}" "${TMP_DIR}/last-body"
+    assert_status "${merchant_workspace_release_status}" "200" "merchant launch workspace shows release evidence"
+    python3 - <<'PY' "${merchant_workspace_release_body}" "${workflow_store_id}" "${workflow_shop_domain}" "${launch_bundle_id}"
+import json
+import pathlib
+import sys
+
+workspace = json.loads(pathlib.Path(sys.argv[1]).read_text())
+store_id = sys.argv[2]
+shop = sys.argv[3].lower()
+bundle_id = sys.argv[4]
+assert workspace.get("store", {}).get("id") == store_id, workspace
+assert str(workspace.get("store", {}).get("shopDomain") or "").lower() == shop, workspace
+readiness = workspace.get("launchReadiness") or {}
+assert readiness.get("stagingReady") is True, workspace
+assert readiness.get("latestVerificationStatus") == "PASSED", workspace
+assert readiness.get("evidenceReady") is True, workspace
+assert any(bundle.get("id") == bundle_id for bundle in workspace.get("evidenceBundles") or []), workspace
+raw = json.dumps(workspace).lower()
+for forbidden in ("secret", "token", "password", "credential", "provider_resource", "coolify"):
+    assert forbidden not in raw, workspace
+print("PASS: merchant launch workspace exposes merchant-safe evidence and no provider internals")
+PY
+  fi
 
   if [[ "${PRODUCTION_PROMOTION_PROOF}" == "true" ]]; then
     if [[ "${production_promotion_ready}" != "true" ]]; then
@@ -1313,9 +1427,13 @@ PY
       exit 27
     fi
     production_promotion_body="${TMP_DIR}/production-promotion.json"
-    production_promotion_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/production-promotions" "${production_promotion_body}")"
+    if [[ -n "${TEMP_ACCESS_APPROVAL_CODE}" ]]; then
+      production_promotion_status="$(request POST "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/production-promotions" "${production_promotion_body}")"
+    else
+      production_promotion_status="$(partner_request POST "${BASE_URL}/api/partners/stores/${workflow_store_id}/production-promotions" "${production_promotion_body}")"
+    fi
     cp "${production_promotion_body}" "${TMP_DIR}/last-body"
-    assert_status "${production_promotion_status}" "200" "partner production promotion requested"
+    assert_status "${production_promotion_status}" "200" "production promotion requested"
     python3 - <<'PY' "${production_promotion_body}" "${workflow_store_id}" "${workflow_shop_domain}"
 import json
 import pathlib
@@ -1335,6 +1453,30 @@ print("PASS: production promotion response is merchant-safe")
 PY
   else
     echo "SKIP: production promotion mutation not run; set PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true for an intentional Go production proof."
+  fi
+
+  if [[ -n "${TEMP_ACCESS_APPROVAL_CODE}" ]]; then
+    merchant_rollback_body="${TMP_DIR}/merchant-rollback-request.json"
+    merchant_rollback_status="$(request POST "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/rollback-requests" "${merchant_rollback_body}" \
+      -H "Content-Type: application/json" \
+      -d "{\"requesterName\":\"Release Gate Merchant\",\"requesterEmail\":\"release-gate-merchant@loom.test\",\"reason\":\"Release gate proof that merchant rollback/deactivation requests are recorded without direct production mutation ${RUN_TAG}.\"}")"
+    cp "${merchant_rollback_body}" "${TMP_DIR}/last-body"
+    assert_status "${merchant_rollback_status}" "200" "merchant rollback/deactivation request recorded"
+    python3 - <<'PY' "${merchant_rollback_body}" "${workflow_store_id}" "${workflow_shop_domain}"
+import json
+import pathlib
+import sys
+
+request = json.loads(pathlib.Path(sys.argv[1]).read_text())
+assert request["storeId"] == sys.argv[2], request
+assert str(request.get("shopDomain") or "").lower() == sys.argv[3].lower(), request
+assert request["status"] == "REQUESTED", request
+assert request.get("escalationId"), request
+raw = json.dumps(request).lower()
+for forbidden in ("secret", "token", "password", "credential", "provider_resource", "coolify"):
+    assert forbidden not in raw, request
+print("PASS: merchant rollback/deactivation request is merchant-safe and recorded")
+PY
   fi
 
   evidence_list_body="${TMP_DIR}/evidence-bundles-list.json"
@@ -1580,10 +1722,16 @@ PY
 
   if [[ "${created_temp_access}" == "true" ]]; then
     revoke_body="${TMP_DIR}/merchant-access-revoke.json"
-    encoded_revoke_shop="$(urlencode "${TEMP_ACCESS_SHOP_DOMAIN}")"
-    revoke_status="$(platform_request POST "${BASE_URL}/api/merchant/partner-access/requests/${TEMP_ACCESS_REQUEST_ID}/revoke?shopDomain=${encoded_revoke_shop}" "${revoke_body}" \
-      -H "Content-Type: application/json" \
-      -d '{"approverName":"Release Gate Merchant","approverEmail":"release-gate-merchant@loom.test","decisionReason":"Release gate temporary access cleanup."}')"
+    if [[ -n "${TEMP_ACCESS_APPROVAL_CODE}" ]]; then
+      revoke_status="$(request POST "${BASE_URL}/api/merchant/partner-access/${TEMP_ACCESS_APPROVAL_CODE}/revoke" "${revoke_body}" \
+        -H "Content-Type: application/json" \
+        -d '{"approverName":"Release Gate Merchant","approverEmail":"release-gate-merchant@loom.test","decisionReason":"Release gate temporary access cleanup."}')"
+    else
+      encoded_revoke_shop="$(urlencode "${TEMP_ACCESS_SHOP_DOMAIN}")"
+      revoke_status="$(platform_request POST "${BASE_URL}/api/merchant/partner-access/requests/${TEMP_ACCESS_REQUEST_ID}/revoke?shopDomain=${encoded_revoke_shop}" "${revoke_body}" \
+        -H "Content-Type: application/json" \
+        -d '{"approverName":"Release Gate Merchant","approverEmail":"release-gate-merchant@loom.test","decisionReason":"Release gate temporary access cleanup."}')"
+    fi
     cp "${revoke_body}" "${TMP_DIR}/last-body"
     assert_status "${revoke_status}" "200" "temporary merchant access revoked"
     python3 - <<'PY' "${revoke_body}" "${workflow_store_id}" "${workflow_shop_domain}"
@@ -1621,6 +1769,7 @@ PY
     assert_status "${revoked_product_controls_status}" "403" "revoked partner product controls are forbidden"
     TEMP_ACCESS_REQUEST_ID=""
     TEMP_ACCESS_SHOP_DOMAIN=""
+    TEMP_ACCESS_APPROVAL_CODE=""
   fi
 else
   echo "SKIP: catalog/store checks need a provisioned partner workspace."

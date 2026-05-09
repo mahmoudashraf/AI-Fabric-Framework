@@ -20,13 +20,19 @@ import com.ai.fabric.platform.backend.partner.entity.PartnerVerificationRunEntit
 import com.ai.fabric.platform.backend.partner.entity.PartnerVerificationRunStepEntity;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerAuditPublisher;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerCatalogSource;
+import com.ai.fabric.platform.backend.partner.gateway.PartnerNotificationGateway;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerShopifyStoreReadModel;
 import com.ai.fabric.platform.backend.partner.gateway.PartnerStoreAccessGateway;
+import com.ai.fabric.platform.backend.partner.model.MerchantLaunchWorkspaceSummary;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessApprovalRequest;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessApprovalSummary;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessDecisionRequest;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessDecisionSummary;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessInviteRequest;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessInviteSummary;
 import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessRequestSummary;
+import com.ai.fabric.platform.backend.partner.model.MerchantRollbackRequest;
+import com.ai.fabric.platform.backend.partner.model.MerchantRollbackRequestSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerAccountSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerActivityEventSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerCatalogEntrySummary;
@@ -223,6 +229,7 @@ public class PartnerEnablementService {
     private final PartnerStoreAccessGateway storeAccessGateway;
     private final PartnerCatalogSource catalogSource;
     private final PartnerAuditPublisher auditPublisher;
+    private final PartnerNotificationGateway notificationGateway;
     private final ShopifyStoreConnectionService shopifyStoreConnectionService;
     private final ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService;
     private final ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService;
@@ -252,6 +259,7 @@ public class PartnerEnablementService {
                                     PartnerStoreAccessGateway storeAccessGateway,
                                     PartnerCatalogSource catalogSource,
                                     PartnerAuditPublisher auditPublisher,
+                                    PartnerNotificationGateway notificationGateway,
                                     ShopifyStoreConnectionService shopifyStoreConnectionService,
                                     ShopifyStoreWidgetSettingsService shopifyStoreWidgetSettingsService,
                                     ShopifyStoreSourceSettingsService shopifyStoreSourceSettingsService,
@@ -279,6 +287,7 @@ public class PartnerEnablementService {
         this.storeAccessGateway = storeAccessGateway;
         this.catalogSource = catalogSource;
         this.auditPublisher = auditPublisher;
+        this.notificationGateway = notificationGateway;
         this.shopifyStoreConnectionService = shopifyStoreConnectionService;
         this.shopifyStoreWidgetSettingsService = shopifyStoreWidgetSettingsService;
         this.shopifyStoreSourceSettingsService = shopifyStoreSourceSettingsService;
@@ -812,10 +821,90 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    public MerchantPartnerAccessInviteSummary sendMerchantInviteForImplementation(String requestId,
+                                                                                  MerchantPartnerAccessInviteRequest request) {
+        PartnerContext context = requireProvisionedContext();
+        PartnerClientImplementationRequestEntity implementation = requireImplementation(context.account().getId(), requestId);
+        PartnerStoreAccessRequestEntity accessRequest = storeAccessRequestRepository
+            .findFirstByImplementationRequestIdOrderByCreatedAtDesc(implementation.getId())
+            .orElseGet(() -> {
+                PartnerStoreAccessRequestEntity created = createAccessRequestForImplementation(context, implementation, Instant.now());
+                implementation.setStatus("WAITING_ON_MERCHANT");
+                implementation.setApprovalCode(created.getApprovalCode());
+                implementation.setApprovalUrl(created.getApprovalUrl());
+                implementation.setApprovalExpiresAt(created.getExpiresAt());
+                implementation.setUpdatedAt(Instant.now());
+                implementationRequestRepository.save(implementation);
+                return created;
+            });
+        MerchantPartnerAccessInviteSummary summary = sendMerchantInvite(
+            accessRequest,
+            request,
+            "PARTNER_IMPLEMENTATION_REQUEST",
+            context.member().getId()
+        );
+        audit(context, "MERCHANT_APPROVAL_INVITE_REQUESTED", "STORE_ACCESS_REQUEST", accessRequest.getId(), summary.status(), writeJson(Map.of(
+            "sourceFlow", "PARTNER_IMPLEMENTATION_REQUEST",
+            "recipientEmail", summary.recipientEmail(),
+            "channel", summary.channel()
+        )));
+        return summary;
+    }
+
+    @Transactional
+    public MerchantPartnerAccessInviteSummary sendMerchantInviteForAccessRequest(String requestId,
+                                                                                 String shopDomain,
+                                                                                 MerchantPartnerAccessInviteRequest request) {
+        PartnerStoreAccessRequestEntity accessRequest = requireMerchantAccessRequest(requestId, shopDomain);
+        MerchantPartnerAccessInviteSummary summary = sendMerchantInvite(accessRequest, request, "SHOPIFY_ADMIN", null);
+        audit(accessRequest.getPartnerAccountId(), null, "MERCHANT_APPROVAL_INVITE_REQUESTED", "STORE_ACCESS_REQUEST", accessRequest.getId(), summary.status(), writeJson(Map.of(
+            "sourceFlow", "SHOPIFY_ADMIN",
+            "recipientEmail", summary.recipientEmail(),
+            "channel", summary.channel()
+        )));
+        return summary;
+    }
+
+    @Transactional(readOnly = true)
+    public MerchantLaunchWorkspaceSummary getMerchantWorkspace(String approvalCode) {
+        PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
+        PartnerStoreAssignmentEntity assignment = findAssignmentForAccessRequest(accessRequest, accessRequest.getStoreConnectionId()).orElse(null);
+        PartnerStoreSummary store = assignment == null ? null : toStoreSummary(assignment);
+        PartnerLaunchReadinessSummary readiness = null;
+        List<PartnerEvidenceBundleSummary> evidence = List.of();
+        List<PartnerSupportEscalationSummary> escalations = List.of();
+        if (assignment != null) {
+            ShopifyStoreConnectionSummary liveStore = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+            readiness = buildLaunchReadiness(accessRequest.getPartnerAccountId(), assignment, liveStore);
+            evidence = evidenceBundleRepository
+                .findByPartnerAccountIdAndStoreAssignmentIdOrderByGeneratedAtDesc(accessRequest.getPartnerAccountId(), assignment.getId())
+                .stream()
+                .limit(10)
+                .map(this::toEvidenceBundleSummary)
+                .toList();
+            escalations = escalationRepository
+                .findByPartnerAccountIdAndStoreAssignmentIdOrderByUpdatedAtDesc(accessRequest.getPartnerAccountId(), assignment.getId())
+                .stream()
+                .limit(10)
+                .map(this::toEscalationSummary)
+                .toList();
+        }
+        return new MerchantLaunchWorkspaceSummary(
+            toMerchantAccessRequestSummary(accessRequest),
+            store,
+            readiness,
+            evidence,
+            escalations,
+            merchantAvailableActions(accessRequest, readiness),
+            merchantLimitations(),
+            Instant.now()
+        );
+    }
+
+    @Transactional
     public MerchantPartnerAccessApprovalSummary approveMerchantAccess(String approvalCode,
                                                                       MerchantPartnerAccessApprovalRequest request) {
-        PartnerStoreAccessRequestEntity accessRequest = storeAccessRequestRepository.findByApprovalCode(approvalCode)
-            .orElseThrow(() -> new IllegalArgumentException("Partner access approval code was not found."));
+        PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
         MerchantPartnerAccessDecisionSummary decision = approveStoreAccessRequest(
             accessRequest,
             new MerchantPartnerAccessDecisionRequest(request.approverName(), request.approverEmail(), request.approvedScope(), null),
@@ -846,6 +935,19 @@ public class PartnerEnablementService {
                                                                          String shopDomain,
                                                                          MerchantPartnerAccessDecisionRequest request) {
         PartnerStoreAccessRequestEntity accessRequest = requireMerchantAccessRequest(requestId, shopDomain);
+        return denyStoreAccessRequest(accessRequest, request, "SHOPIFY_ADMIN_APPROVAL");
+    }
+
+    @Transactional
+    public MerchantPartnerAccessDecisionSummary denyMerchantAccess(String approvalCode,
+                                                                   MerchantPartnerAccessDecisionRequest request) {
+        PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
+        return denyStoreAccessRequest(accessRequest, request, "MERCHANT_APPROVAL_LINK");
+    }
+
+    private MerchantPartnerAccessDecisionSummary denyStoreAccessRequest(PartnerStoreAccessRequestEntity accessRequest,
+                                                                        MerchantPartnerAccessDecisionRequest request,
+                                                                        String sourceFlow) {
         if (!"WAITING_ON_MERCHANT".equals(accessRequest.getStatus())) {
             throw new IllegalArgumentException("Partner access request is not waiting on merchant review.");
         }
@@ -866,10 +968,11 @@ public class PartnerEnablementService {
         implementation.setUpdatedAt(now);
         implementationRequestRepository.save(implementation);
         audit(accessRequest.getPartnerAccountId(), null, "STORE_ACCESS_DENIED", "STORE_ACCESS_REQUEST", accessRequest.getId(), "SUCCESS", writeJson(Map.of(
-            "sourceFlow", "SHOPIFY_ADMIN_APPROVAL",
+            "sourceFlow", sourceFlow,
             "approverName", clean(request.approverName(), "approverName"),
             "reason", firstNonBlank(request.decisionReason(), "not_provided")
         )));
+        notifyPartnerAccessDecision(accessRequest, "DENIED", "The merchant denied the partner access request.");
         return new MerchantPartnerAccessDecisionSummary(accessRequest.getId(), null, accessRequest.getShopDomain(), accessRequest.getStatus(), now);
     }
 
@@ -878,6 +981,19 @@ public class PartnerEnablementService {
                                                                            String shopDomain,
                                                                            MerchantPartnerAccessDecisionRequest request) {
         PartnerStoreAccessRequestEntity accessRequest = requireMerchantAccessRequest(requestId, shopDomain);
+        return revokeStoreAccessRequest(accessRequest, request, revokeSourceFlow());
+    }
+
+    @Transactional
+    public MerchantPartnerAccessDecisionSummary revokeMerchantAccess(String approvalCode,
+                                                                     MerchantPartnerAccessDecisionRequest request) {
+        PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
+        return revokeStoreAccessRequest(accessRequest, request, "MERCHANT_APPROVAL_LINK");
+    }
+
+    private MerchantPartnerAccessDecisionSummary revokeStoreAccessRequest(PartnerStoreAccessRequestEntity accessRequest,
+                                                                          MerchantPartnerAccessDecisionRequest request,
+                                                                          String sourceFlow) {
         if (!"APPROVED".equals(accessRequest.getStatus())) {
             throw new IllegalArgumentException("Partner access request does not have active access to revoke.");
         }
@@ -901,13 +1017,105 @@ public class PartnerEnablementService {
         implementation.setUpdatedAt(now);
         implementationRequestRepository.save(implementation);
 
-        String sourceFlow = revokeSourceFlow();
         audit(accessRequest.getPartnerAccountId(), null, "STORE_ACCESS_REVOKED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
             "sourceFlow", sourceFlow,
             "approverName", clean(request.approverName(), "approverName"),
             "reason", firstNonBlank(request.decisionReason(), "not_provided")
         )));
+        notifyPartnerAccessDecision(accessRequest, "REVOKED", "The merchant revoked active partner access.");
         return new MerchantPartnerAccessDecisionSummary(accessRequest.getId(), assignment.getId(), assignment.getShopDomain(), assignment.getStatus(), now);
+    }
+
+    @Transactional
+    public PartnerProductionPromotionSummary requestMerchantProductionPromotion(String approvalCode) {
+        PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignmentForAccessRequest(accessRequest);
+        ShopifyStoreConnectionSummary store = shopifyStoreConnectionService.getConnection(assignment.getShopDomain());
+        PartnerLaunchReadinessSummary readiness = buildLaunchReadiness(accessRequest.getPartnerAccountId(), assignment, store);
+        if (!readiness.productionPromotionReady()) {
+            audit(accessRequest.getPartnerAccountId(), null, "MERCHANT_PRODUCTION_PROMOTION_BLOCKED", "STORE_ASSIGNMENT", assignment.getId(), "BLOCKED", writeJson(Map.of(
+                "shopDomain", assignment.getShopDomain(),
+                "blockers", readiness.blockers()
+            )));
+            throw new ResponseStatusException(
+                CONFLICT,
+                readiness.blockers().isEmpty()
+                    ? "Production promotion is not ready for this store yet."
+                    : readiness.blockers().get(0)
+            );
+        }
+        ShopifyStoreConnectionSummary promoted = shopifyStoreGoLiveService.goLive(assignment.getShopDomain());
+        audit(accessRequest.getPartnerAccountId(), null, "MERCHANT_PRODUCTION_PROMOTION_REQUESTED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", assignment.getShopDomain(),
+            "deploymentId", promoted.deploymentId() == null ? "" : promoted.deploymentId()
+        )));
+        notifyPartnerAccessDecision(accessRequest, "PRODUCTION_REQUESTED", "The merchant requested production promotion from the merchant launch portal.");
+        return new PartnerProductionPromotionSummary(
+            assignment.getId(),
+            promoted.shopDomain(),
+            "REQUESTED",
+            "Production promotion has been requested through Platform. Staging remains available while production verification completes.",
+            promoted.onboardingStatus(),
+            promoted.latestRelease() == null ? null : promoted.latestRelease().status(),
+            promoted.latestRelease() == null ? null : promoted.latestRelease().verificationStatus(),
+            List.of(),
+            List.of("Watch production verification and keep staging available until final activation is confirmed."),
+            Instant.now()
+        );
+    }
+
+    @Transactional
+    public MerchantRollbackRequestSummary requestMerchantRollback(String approvalCode,
+                                                                  MerchantRollbackRequest request) {
+        PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
+        PartnerStoreAssignmentEntity assignment = requireActiveAssignmentForAccessRequest(accessRequest);
+        Instant now = Instant.now();
+        PartnerSupportEscalationEntity escalation = new PartnerSupportEscalationEntity();
+        escalation.setId(id("pse"));
+        escalation.setPartnerAccountId(accessRequest.getPartnerAccountId());
+        escalation.setStoreAssignmentId(assignment.getId());
+        escalation.setCreatedByMemberId(memberIdForMerchantGeneratedEscalation(accessRequest));
+        escalation.setTitle("Merchant rollback or deactivation request");
+        escalation.setSeverity("HIGH");
+        escalation.setStatus("OPEN");
+        escalation.setDescription(clean(request.reason(), "reason"));
+        escalation.setReproductionSteps("Requested from merchant launch portal by " + clean(request.requesterName(), "requesterName") + ".");
+        escalation.setExpectedBehavior("Operator reviews rollback/deactivation safely without exposing provider internals to the merchant.");
+        escalation.setActualBehavior("Rollback/deactivation request is queued as a merchant-visible support escalation.");
+        escalation.setImpact("Merchant requested production rollback or Companion deactivation.");
+        escalation.setNextAction("Operator reviews the request, confirms the intended rollback/deactivation path, and records the outcome.");
+        escalation.setEvidenceBundleIdsJson("[]");
+        escalation.setCreatedAt(now);
+        escalation.setUpdatedAt(now);
+        escalationRepository.save(escalation);
+        audit(accessRequest.getPartnerAccountId(), null, "MERCHANT_ROLLBACK_REQUESTED", "SUPPORT_ESCALATION", escalation.getId(), "SUCCESS", writeJson(Map.of(
+            "shopDomain", assignment.getShopDomain(),
+            "requesterName", request.requesterName(),
+            "requesterEmail", firstNonBlank(request.requesterEmail(), "not_provided")
+        )));
+        notifyPartnerAccessDecision(accessRequest, "ROLLBACK_REQUESTED", "The merchant requested rollback or deactivation from the merchant launch portal.");
+        return new MerchantRollbackRequestSummary(
+            assignment.getId(),
+            assignment.getShopDomain(),
+            "REQUESTED",
+            "Rollback/deactivation has been requested. Staging and production state will not be changed until an operator confirms the safe path.",
+            escalation.getId(),
+            List.of("Keep current storefront state unchanged until LoomAI support confirms the rollback/deactivation path."),
+            now
+        );
+    }
+
+    private String memberIdForMerchantGeneratedEscalation(PartnerStoreAccessRequestEntity accessRequest) {
+        if (StringUtils.hasText(accessRequest.getRequestedByMemberId())
+            && memberRepository.findByIdAndPartnerAccountId(accessRequest.getRequestedByMemberId(), accessRequest.getPartnerAccountId()).isPresent()) {
+            return accessRequest.getRequestedByMemberId();
+        }
+        return memberRepository.findByPartnerAccountIdOrderByCreatedAtAsc(accessRequest.getPartnerAccountId())
+            .stream()
+            .filter(member -> "ACTIVE".equals(member.getStatus()))
+            .findFirst()
+            .map(PartnerMemberEntity::getId)
+            .orElseThrow(() -> new IllegalArgumentException("No active partner member is available for this merchant request."));
     }
 
     private MerchantPartnerAccessDecisionSummary approveStoreAccessRequest(PartnerStoreAccessRequestEntity accessRequest,
@@ -978,6 +1186,7 @@ public class PartnerEnablementService {
             "sourceFlow", sourceFlow,
             "storeConnectionId", liveStore.storeConnectionId()
         )));
+        notifyPartnerAccessDecision(accessRequest, "APPROVED", "The merchant approved scoped partner access.");
         return new MerchantPartnerAccessDecisionSummary(accessRequest.getId(), assignment.getId(), assignment.getShopDomain(), assignment.getStatus(), now);
     }
 
@@ -2197,6 +2406,11 @@ public class PartnerEnablementService {
             .orElseThrow(() -> new PartnerForbiddenException("Client implementation request is not available to this partner."));
     }
 
+    private PartnerStoreAccessRequestEntity requireAccessRequestByApprovalCode(String approvalCode) {
+        return storeAccessRequestRepository.findByApprovalCode(clean(approvalCode, "approvalCode"))
+            .orElseThrow(() -> new IllegalArgumentException("Partner access approval code was not found."));
+    }
+
     private PartnerStoreAccessRequestEntity requireMerchantAccessRequest(String requestId, String shopDomain) {
         return storeAccessRequestRepository.findByIdAndShopDomainIgnoreCase(requestId, normalizeShopDomain(shopDomain))
             .orElseThrow(() -> new IllegalArgumentException("Partner access request was not found for this shop."));
@@ -2280,9 +2494,78 @@ public class PartnerEnablementService {
         accessRequest.setApprovalCode(approvalCode);
         accessRequest.setApprovalUrl(approvalUrl);
         accessRequest.setExpiresAt(expiresAt);
+        accessRequest.setInviteCount(0);
         accessRequest.setCreatedAt(now);
         accessRequest.setUpdatedAt(now);
         return storeAccessRequestRepository.save(accessRequest);
+    }
+
+    private MerchantPartnerAccessInviteSummary sendMerchantInvite(PartnerStoreAccessRequestEntity accessRequest,
+                                                                  MerchantPartnerAccessInviteRequest request,
+                                                                  String sourceFlow,
+                                                                  String memberId) {
+        if (!"WAITING_ON_MERCHANT".equals(accessRequest.getStatus())) {
+            throw new IllegalArgumentException("Merchant approval invite can only be sent for pending access requests.");
+        }
+        Instant now = Instant.now();
+        if (accessRequest.getExpiresAt().isBefore(now)) {
+            accessRequest.setStatus("EXPIRED");
+            accessRequest.setUpdatedAt(now);
+            storeAccessRequestRepository.save(accessRequest);
+            throw new IllegalArgumentException("Partner access request has expired.");
+        }
+        PartnerClientImplementationRequestEntity implementation = implementationRequestRepository
+            .findById(accessRequest.getImplementationRequestId())
+            .orElseThrow();
+        PartnerAccountEntity account = accountRepository
+            .findById(accessRequest.getPartnerAccountId())
+            .orElse(null);
+        String recipient = firstNonBlank(
+            request == null ? null : request.recipientEmail(),
+            implementation.getContactEmail()
+        );
+        if (!StringUtils.hasText(recipient)) {
+            throw new IllegalArgumentException("Merchant contact email is required before sending an approval invite.");
+        }
+        PartnerNotificationGateway.PartnerNotificationDeliverySummary delivery = notificationGateway.sendMerchantAccessInvite(
+            new PartnerNotificationGateway.MerchantAccessInviteMessage(
+                recipient,
+                accessRequest.getShopDomain(),
+                account == null ? "Loom Companion partner" : account.getName(),
+                implementation.getClientName(),
+                accessRequest.getApprovalUrl(),
+                accessRequest.getExpiresAt()
+            )
+        );
+        accessRequest.setInviteRecipientEmail(delivery.recipientEmail());
+        accessRequest.setInviteStatus(delivery.status());
+        accessRequest.setInviteChannel(delivery.channel());
+        accessRequest.setInviteMessage(delivery.providerMessage());
+        accessRequest.setInviteSentAt(delivery.deliveredAt());
+        accessRequest.setInviteCount(accessRequest.getInviteCount() + 1);
+        accessRequest.setUpdatedAt(now);
+        storeAccessRequestRepository.save(accessRequest);
+        audit(accessRequest.getPartnerAccountId(), memberId, "MERCHANT_APPROVAL_INVITE_DELIVERY", "STORE_ACCESS_REQUEST", accessRequest.getId(), delivery.status(), writeJson(Map.of(
+            "sourceFlow", sourceFlow,
+            "channel", delivery.channel(),
+            "recipientEmail", delivery.recipientEmail()
+        )));
+        return toMerchantInviteSummary(accessRequest);
+    }
+
+    private MerchantPartnerAccessInviteSummary toMerchantInviteSummary(PartnerStoreAccessRequestEntity accessRequest) {
+        return new MerchantPartnerAccessInviteSummary(
+            accessRequest.getId(),
+            accessRequest.getImplementationRequestId(),
+            accessRequest.getShopDomain(),
+            accessRequest.getInviteRecipientEmail(),
+            firstNonBlank(accessRequest.getInviteStatus(), "NOT_SENT"),
+            firstNonBlank(accessRequest.getInviteChannel(), "NONE"),
+            firstNonBlank(accessRequest.getInviteMessage(), "Merchant approval invite has not been sent."),
+            accessRequest.getApprovalUrl(),
+            accessRequest.getInviteSentAt(),
+            accessRequest.getInviteCount()
+        );
     }
 
     private PartnerStoreAssignmentEntity requireActiveAssignment(String accountId, String storeId) {
@@ -2365,13 +2648,19 @@ public class PartnerEnablementService {
     private PartnerLaunchReadinessSummary buildLaunchReadiness(PartnerContext context,
                                                                PartnerStoreAssignmentEntity assignment,
                                                                ShopifyStoreConnectionSummary store) {
+        return buildLaunchReadiness(context.account().getId(), assignment, store);
+    }
+
+    private PartnerLaunchReadinessSummary buildLaunchReadiness(String partnerAccountId,
+                                                               PartnerStoreAssignmentEntity assignment,
+                                                               ShopifyStoreConnectionSummary store) {
         PartnerVerificationRunEntity latestRun = verificationRunRepository
-            .findByPartnerAccountIdAndStoreAssignmentIdOrderByStartedAtDesc(context.account().getId(), assignment.getId())
+            .findByPartnerAccountIdAndStoreAssignmentIdOrderByStartedAtDesc(partnerAccountId, assignment.getId())
             .stream()
             .findFirst()
             .orElse(null);
         PartnerEvidenceBundleEntity latestEvidence = evidenceBundleRepository
-            .findByPartnerAccountIdAndStoreAssignmentIdOrderByGeneratedAtDesc(context.account().getId(), assignment.getId())
+            .findByPartnerAccountIdAndStoreAssignmentIdOrderByGeneratedAtDesc(partnerAccountId, assignment.getId())
             .stream()
             .findFirst()
             .orElse(null);
@@ -2816,8 +3105,72 @@ public class PartnerEnablementService {
             accessRequest.getExpiresAt(),
             accessRequest.getApprovedAt(),
             accessRequest.getRevokedAt(),
+            accessRequest.getInviteRecipientEmail(),
+            firstNonBlank(accessRequest.getInviteStatus(), "NOT_SENT"),
+            firstNonBlank(accessRequest.getInviteChannel(), "NONE"),
+            accessRequest.getInviteMessage(),
+            accessRequest.getInviteSentAt(),
+            accessRequest.getInviteCount(),
             accessRequest.getUpdatedAt()
         );
+    }
+
+    private List<String> merchantAvailableActions(PartnerStoreAccessRequestEntity accessRequest,
+                                                  PartnerLaunchReadinessSummary readiness) {
+        List<String> actions = new ArrayList<>();
+        boolean approvalLinkActive = accessRequest.getExpiresAt() == null || accessRequest.getExpiresAt().isAfter(Instant.now());
+        if ("WAITING_ON_MERCHANT".equals(accessRequest.getStatus()) && approvalLinkActive) {
+            actions.add("APPROVE_PARTNER_ACCESS");
+            actions.add("DENY_PARTNER_ACCESS");
+        }
+        if ("APPROVED".equals(accessRequest.getStatus())) {
+            actions.add("REVOKE_PARTNER_ACCESS");
+            actions.add("REQUEST_ROLLBACK");
+            if (readiness != null && readiness.productionPromotionReady()) {
+                actions.add("REQUEST_PRODUCTION_PROMOTION");
+            }
+        }
+        return List.copyOf(actions);
+    }
+
+    private List<String> merchantLimitations() {
+        return List.of(
+            "Loom Companion does not complete checkout on behalf of shoppers.",
+            "Refunds, returns, account changes, and protected customer data actions remain merchant-owned unless separately enabled and verified.",
+            "Production rollback or deactivation requests are reviewed before changing live storefront state."
+        );
+    }
+
+    private void notifyPartnerAccessDecision(PartnerStoreAccessRequestEntity accessRequest,
+                                             String status,
+                                             String message) {
+        PartnerClientImplementationRequestEntity implementation = implementationRequestRepository
+            .findById(accessRequest.getImplementationRequestId())
+            .orElse(null);
+        PartnerMemberEntity member = memberRepository
+            .findById(accessRequest.getRequestedByMemberId())
+            .orElse(null);
+        if (member == null || !StringUtils.hasText(member.getEmail())) {
+            audit(accessRequest.getPartnerAccountId(), null, "PARTNER_NOTIFICATION_SKIPPED", "STORE_ACCESS_REQUEST", accessRequest.getId(), "SKIPPED", writeJson(Map.of(
+                "status", status,
+                "reason", "requested partner member email is unavailable"
+            )));
+            return;
+        }
+        PartnerNotificationGateway.PartnerNotificationDeliverySummary delivery = notificationGateway.notifyPartnerAccessDecision(
+            new PartnerNotificationGateway.PartnerAccessDecisionNotification(
+                member.getEmail(),
+                accessRequest.getShopDomain(),
+                implementation == null ? accessRequest.getShopDomain() : implementation.getClientName(),
+                status,
+                message
+            )
+        );
+        audit(accessRequest.getPartnerAccountId(), member.getId(), "PARTNER_NOTIFICATION_DELIVERY", "STORE_ACCESS_REQUEST", accessRequest.getId(), delivery.status(), writeJson(Map.of(
+            "status", status,
+            "channel", delivery.channel(),
+            "recipientEmail", delivery.recipientEmail()
+        )));
     }
 
     private Optional<PartnerStoreAssignmentEntity> findAssignmentForAccessRequest(PartnerStoreAccessRequestEntity accessRequest,

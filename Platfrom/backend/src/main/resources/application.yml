@@ -101,6 +101,13 @@ platform:
   cors:
     allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,https://ai-fabric-framework-production-158d.up.railway.app}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
+  notifications:
+    merchant-email:
+      enabled: ${PLATFORM_MERCHANT_EMAIL_ENABLED:false}
+      dry-run: ${PLATFORM_MERCHANT_EMAIL_DRY_RUN:true}
+      from: ${PLATFORM_MERCHANT_EMAIL_FROM:}
+      reply-to: ${PLATFORM_MERCHANT_EMAIL_REPLY_TO:}
+      subject-prefix: ${PLATFORM_MERCHANT_EMAIL_SUBJECT_PREFIX:Loom Companion}
   poc:
     runtime-timeout: ${PLATFORM_POC_RUNTIME_TIMEOUT:60s}
   verification:

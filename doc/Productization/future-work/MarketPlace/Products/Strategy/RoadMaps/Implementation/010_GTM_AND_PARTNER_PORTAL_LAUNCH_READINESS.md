@@ -116,6 +116,51 @@ Gate status after this slice:
 - `010_SELF_SERVICE_PRODUCTION_READY`: template/profile resolution and Platform operation path are implemented and tested; live production deployment proof still needs a staging environment run with production target profile credentials/secrets present and `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true`
 - `010_DESIGN_PARTNER_ACTIVE`: still requires a real or merchant-equivalent store to complete lead/intake, merchant approval, staging verification, evidence, production promotion, support escalation, revocation, and rollback with recorded evidence
 
+Explicit not-implemented / not-proven items discovered after the first 010 slice, before the merchant-owned remediation slice:
+
+- direct merchant approval email invite from Shopify Admin is not implemented
+- direct merchant approval email invite from the partner implementation request flow is not implemented
+- merchant launch portal is only an approval page; it is not yet a merchant-scoped store workspace
+- merchant launch portal cannot yet deny or revoke partner access from the approval-code flow
+- merchant launch portal cannot yet show staging readiness, production readiness, evidence bundles, support/escalation items, or rollback/deactivation actions
+- merchant-owned Go production approval is not implemented; the current self-service production action is partner-side production-promotion request
+- production rollback/deactivation request from merchant-safe surfaces is not implemented or live-proven
+- partner/merchant notification after approval, denial, revocation, production promotion, or rollback request is not implemented as a durable notification/email flow
+- merchant magic-link/deep-link entry is not live-proven through a real browser/email path; the current verifier proves API approval only
+- live production mutation is not proven because `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true` has not been run against a production-equivalent target
+- production deployment creation/provisioning/verification through `dtp-coolify-production` is not live-proven
+- failed production-promotion behavior that leaves staging untouched is modeled but not proven through a real failed promotion attempt
+- the current production operation applies go-live through Platform services; it does not yet prove cloning approved non-secret staging configuration into a separate production draft/deployment record
+- cohort tracker, 5-10 qualified stores, 1-3 implementation partners, and weekly value review are not implemented as a closing gate
+- broad public Shopify App Store package is not release-ready until merchant-owned onboarding, production promotion, rollback, support, billing, and claim-safe collateral are proven
+
+Remediation status added by the merchant-owned launch slice:
+
+- direct merchant approval invite is implemented from both Shopify Admin and the partner implementation request flow
+- merchant approval links now open a merchant-scoped launch workspace, not only a one-shot approval page
+- merchant approval-code flow now supports approve, deny, revoke, production-promotion request, and rollback/deactivation request
+- merchant workspace shows staging/production readiness, evidence bundles, support/escalation items, limitations, and available actions without provider internals
+- merchant-owned Go production request is implemented through Platform services and remains blocked unless launch readiness says production promotion is ready
+- rollback/deactivation request is implemented as a merchant-safe support escalation and does not mutate production state
+- partner/merchant notifications are backed by durable request fields, audit evidence, and an SMTP-capable notification gateway; default configuration records/dry-runs email delivery until SMTP is explicitly enabled
+- the live verifier now proves the merchant approval deep-link API workspace path and keeps the actual production mutation behind `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true`
+
+Still not live-proven after this remediation unless the selected environment has the new build deployed and the opt-in proof is intentionally run:
+
+- real browser/email receipt of the merchant invite
+- live production deployment creation/provisioning/verification through `dtp-coolify-production`
+- rollback/deactivation operator execution after the merchant request
+- failed production-promotion behavior against a real failed production target while staging remains untouched
+- separate cloned production deployment record proof, if that becomes a hard public-launch standard
+- cohort tracker, 5-10 qualified stores, 1-3 implementation partners, weekly value review, and broad public Shopify App Store package readiness
+
+Implementation requirement for the next slice:
+
+- treat the remaining not-live-proven items above as explicit 010 release-gate blockers
+- keep production mutation behind an intentional opt-in gate during verification
+- do not add provider/Coolify/secrets/deployment internals to partner or merchant UI
+- every merchant-visible action must have durable state, audit evidence, merchant-safe wording, and fail-closed behavior
+
 Important implementation boundary:
 
 - the current production operation applies the verified deployment version through the resolved production target profile; if the release standard requires a separate cloned production deployment record before public launch, that is the next bounded 010 slice

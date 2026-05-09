@@ -5,6 +5,8 @@ import com.ai.fabric.product.shopify.bridge.client.platform.model.PlatformPublic
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessInviteRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessInviteSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCustomerAccountConfigSummary;
@@ -163,6 +165,21 @@ public class PlatformShopifyStoreClient {
             .body(request)
             .retrieve()
             .body(ShopifyBridgePartnerAccessDecisionSummary.class);
+    }
+
+    public ShopifyBridgePartnerAccessInviteSummary sendPartnerAccessInvite(String shopDomain,
+                                                                           String requestId,
+                                                                           ShopifyBridgePartnerAccessInviteRequest request) {
+        return restClient.post()
+            .uri(requirePlatformBaseUrl()
+                + "/api/merchant/partner-access/requests/"
+                + encodePath(requestId)
+                + "/invite?shopDomain="
+                + encodeQueryParam(shopDomain))
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .body(request == null ? new ShopifyBridgePartnerAccessInviteRequest(null) : request)
+            .retrieve()
+            .body(ShopifyBridgePartnerAccessInviteSummary.class);
     }
 
     public ShopifyBridgeStoreSummary upsertStore(ShopifyBridgeUpsertStoreRequest request) {

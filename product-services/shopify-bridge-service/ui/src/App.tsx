@@ -45,6 +45,7 @@ import {
   revokePartnerAccessRequest,
   retryLastFailedVectorizationAutoRunStore,
   runSourcePreflight,
+  sendPartnerAccessInvite,
   suggestMerchantPlayground,
   syncNowStore,
   updateSourceSettings,
@@ -318,6 +319,7 @@ export default function App() {
     | 'partner-access-approve'
     | 'partner-access-deny'
     | 'partner-access-revoke'
+    | 'partner-access-invite'
     | 'vectorization-reconcile'
     | 'vectorize-now'
     | 'vectorization-index-all'
@@ -674,6 +676,27 @@ export default function App() {
       setActionMessage(`Revoked partner access for ${summary.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to revoke partner access.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handlePartnerAccessInvite(request: ShopifyBridgePartnerAccessRequestSummary) {
+    setBusyAction('partner-access-invite')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const summary = await sendPartnerAccessInvite(request.requestId, {
+        recipientEmail: request.contactEmail ?? undefined,
+      })
+      await refresh()
+      setActionMessage(
+        summary.status === 'SENT'
+          ? `Approval email sent to ${summary.recipientEmail}.`
+          : `Approval invite recorded for ${summary.recipientEmail}; email delivery is ${summary.channel.toLowerCase().replace(/_/g, ' ')}.`,
+      )
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to send approval invite.')
     } finally {
       setBusyAction(null)
     }
@@ -2269,6 +2292,10 @@ export default function App() {
                                 <List.Item>Store configured surfaces: {request.requestedSurfaces.join(' · ') || 'No configured surfaces'}</List.Item>
                                 <List.Item>Requested: {formatTimestamp(request.createdAt)}</List.Item>
                                 <List.Item>Expires: {formatTimestamp(request.expiresAt)}</List.Item>
+                                <List.Item>
+                                  Invite: {request.inviteStatus ?? 'NOT_SENT'}
+                                  {request.inviteSentAt ? ` at ${formatTimestamp(request.inviteSentAt)}` : ''}
+                                </List.Item>
                                 {request.approvedAt ? <List.Item>Approved: {formatTimestamp(request.approvedAt)}</List.Item> : null}
                                 {request.revokedAt ? <List.Item>Revoked: {formatTimestamp(request.revokedAt)}</List.Item> : null}
                               </List>
@@ -2292,6 +2319,13 @@ export default function App() {
                                     loading={busyAction === 'partner-access-deny'}
                                   >
                                     Deny
+                                  </Button>
+                                  <Button
+                                    onClick={() => void handlePartnerAccessInvite(request)}
+                                    loading={busyAction === 'partner-access-invite'}
+                                    disabled={!request.contactEmail}
+                                  >
+                                    Email approval link
                                   </Button>
                                 </InlineStack>
                               ) : null}
