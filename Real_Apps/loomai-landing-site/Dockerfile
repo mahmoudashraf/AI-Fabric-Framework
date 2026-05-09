@@ -10,7 +10,8 @@ COPY Real_Apps/loomai-landing-site/server.mjs ./
 COPY Real_Apps/loomai-landing-site/public ./public
 COPY Real_Apps/loomai-landing-site/scripts ./scripts
 
-RUN addgroup -S nodeapp && adduser -S nodeapp -G nodeapp \
+RUN apk add --no-cache curl \
+  && addgroup -S nodeapp && adduser -S nodeapp -G nodeapp \
   && mkdir -p /tmp/loomai \
   && chown -R nodeapp:nodeapp /app /tmp/loomai
 
