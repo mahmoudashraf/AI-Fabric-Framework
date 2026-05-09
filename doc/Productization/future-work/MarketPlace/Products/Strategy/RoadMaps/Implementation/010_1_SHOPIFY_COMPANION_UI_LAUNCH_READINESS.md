@@ -1,6 +1,6 @@
 # 010.1 Shopify Companion UI Launch Readiness
 
-Status: implementation roadmap (created 2026-05-09)
+Status: implementation in progress (created 2026-05-09; local UI/build verification passed, staging deployment/live gate pending)
 
 Owner mode: product UI / GTM readiness / launch operations LLM session
 
@@ -237,6 +237,39 @@ Deliverable:
 
 - bounded gap list split by Merchant UI, Partner UI, Platform/Admin UI, and backend API
 
+#### Slice 0 audit result - 2026-05-09
+
+Merchant Shopify Admin UI already had the strongest launch-kit base:
+
+- onboarding, source setup, storefront activation, billing/tier posture, support profile, partner access, Go live, and support-tool tabs
+- generated launch dossier, App Store listing package, design-partner rollout packet, App Review guide, screencast script, support runbook, support bundle, and lifecycle/subscription packet
+- gap found: launch package copy was mostly in support tools/exports, so the Go live tab needed explicit onboarding/pricing/support/design-partner/rollback framing
+
+Partner UI already had:
+
+- implementation request intake
+- merchant invite/deep-link approval state
+- assigned-store workspace
+- launch readiness
+- production-promotion request
+- evidence bundle export
+- verification, support, notes, Thinker, and package-trial controls
+- gap found: partner dashboard/store workspace did not explicitly show the design-partner package, package explanation, weekly value review prompts, or App Store/private listing posture
+
+Platform/Admin UI already had:
+
+- Shopify package profiles
+- Shopify stores
+- Shopify readiness audit
+- verification ops and release-gate state
+- product-service operations
+- gap found: there was no single operator page for App Store/private listing readiness, protected-data gates, Customer Account MCP / Checkout MCP gate status, controlled production proof, release-gate evidence, and 010_SELF_SERVICE_PRODUCTION_READY blockers
+
+Backend/API gap result:
+
+- no new backend API was needed for this slice
+- existing Partner, Platform verification, Shopify package profile, Shopify readiness audit, and Bridge merchant session APIs carried the required data
+
 ### Slice 1 - Merchant Launch Kit UI
 
 Build or harden the Shopify Admin UI surfaces for:
@@ -279,6 +312,30 @@ Expose production proof state without running production mutation by default:
 - rollback/deactivation proof
 
 The mutation itself must require an intentional operator-controlled gate.
+
+### 2026-05-09 implementation record
+
+Implemented code surfaces:
+
+- Merchant Shopify Admin UI: added an explicit Go live `Launch package` card covering onboarding, package/tier posture, support path, evidence, design-partner posture, App Store/private listing claim safety, controlled production proof, and rollback/deactivation guidance.
+- Partner UI: added a dashboard launch-readiness kit and store workspace launch package with Free/Starter/Elite explanation, design-partner package terms, weekly value review prompts, App Store/private listing posture, and production proof gating language.
+- Platform/Admin UI: added `/shopify-launch-readiness` and navigation entry `Shopify Launch` with App Store/private listing readiness, protected-data gates, Customer Account MCP gate status, Checkout MCP gate status, controlled production proof state, release-gate evidence, recent verification runs, and 010_SELF_SERVICE_PRODUCTION_READY blockers.
+- Live verifier: extended `scripts/verify-partner-enablement-live.sh` so deployed Partner UI assets must include the 010.1 launch surfaces and deployed Platform UI assets must include the Shopify launch-readiness route/surfaces.
+- Docs: updated the launch/review/support exports guide so the UI ownership and launch safety rules match the implemented surfaces.
+
+Local verification passed:
+
+- `npm --prefix Platfrom/partner-ui run build`
+- `npm --prefix Platfrom/partner-ui run smoke`
+- `npm --prefix Platfrom/ui run build`
+- `npm --prefix product-services/shopify-bridge-service/ui run build`
+- `bash -n scripts/verify-partner-enablement-live.sh`
+- `git diff --check`
+
+Release-gate state after this implementation:
+
+- `010_1_UI_READY`: locally verified; staging deployment/live asset proof pending.
+- `010_SELF_SERVICE_PRODUCTION_READY`: still intentionally blocked until hosted/full staging release gate, controlled production-promotion proof, production provisioning verification, rollback/deactivation proof, and failed-promotion staging-isolation proof are recorded.
 
 ---
 

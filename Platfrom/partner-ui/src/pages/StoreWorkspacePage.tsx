@@ -93,6 +93,32 @@ const SOURCE_CATEGORIES = [
   { key: 'metaobjectsEnabled', label: 'Metaobjects' },
 ] as const
 
+const LAUNCH_PACKAGE_CARDS = [
+  {
+    title: 'Free',
+    body: 'AI search entry posture for early store fit checks. Keep claims read-only and route support cases back to merchant channels.',
+    support: 'Community and launch-triage guidance',
+  },
+  {
+    title: 'Starter',
+    body: 'Sellable design-partner tier for AI search, product insight, policy answers, product FAQ, comparison, and shopper signal review.',
+    support: 'Guided onboarding plus weekly value review',
+  },
+  {
+    title: 'Elite',
+    body: 'Merchant-approved governed commerce tier. Customer/account or checkout claims stay gated until protected-data and live proof are recorded.',
+    support: 'Priority support with explicit confirmation and audit posture',
+  },
+]
+
+const DESIGN_PARTNER_TERMS = [
+  'Target merchants have real catalog discovery, product education, or repetitive support friction.',
+  'Merchant provides storefront access, support policy truth, source review, and weekly launch feedback.',
+  'LoomAI provides staging setup, launch verification, merchant-safe evidence, support triage, and rollout guidance.',
+  'Success review tracks shopper questions, unanswered source gaps, action-intent signals, and merchant support deflection evidence.',
+  'Exit terms are explicit: continue on a paid tier, pause, or revoke partner access without affecting staging evidence.',
+]
+
 export function StoreWorkspacePage() {
   const { storeId = '' } = useParams()
   const navigate = useNavigate()
@@ -147,6 +173,7 @@ export function StoreWorkspacePage() {
           </Stack>
         </Stack>
       </Paper>
+      <PartnerLaunchKitPanel store={store} />
       <StoreCommandCenter
         store={store}
         latestRun={latestRun}
@@ -352,6 +379,74 @@ function StoreCommandCenter({
         </Stack>
       </Paper>
     </Box>
+  )
+}
+
+function PartnerLaunchKitPanel({
+  store,
+  readiness,
+}: {
+  store: PartnerStore
+  readiness?: PartnerLaunchReadiness
+}) {
+  const currentTier = store.packageProfile?.tierKey ? titleize(store.packageProfile.tierKey) : titleize(store.plan)
+  const proofStatus = readiness
+    ? readiness.productionPromotionReady
+      ? 'Promotion ready'
+      : readiness.goLiveEligible
+        ? 'Go-live eligible'
+        : 'Needs proof'
+    : store.readinessStatus === 'READY'
+      ? 'Staging ready'
+      : 'Needs setup'
+  return (
+    <Paper sx={{ p: 2, mb: 2 }}>
+      <Stack spacing={2}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ md: 'center' }}>
+          <Stack spacing={0.75}>
+            <SectionHeading icon={<WorkspacePremiumOutlinedIcon />} title="010.1 launch package" />
+            <Typography color="text.secondary">
+              Partner-facing launch material for onboarding, pricing, support, design-partner packaging, App Store/private listing readiness, and controlled production proof. It stays merchant-safe and hides provider internals.
+            </Typography>
+          </Stack>
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Chip label={`Current tier ${currentTier}`} color="primary" variant="outlined" />
+            <Chip label={proofStatus} color={readiness?.productionPromotionReady ? 'success' : 'warning'} variant="outlined" />
+          </Stack>
+        </Stack>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+          {LAUNCH_PACKAGE_CARDS.map((card) => (
+            <Paper key={card.title} variant="outlined" sx={{ p: 1.5 }}>
+              <Stack spacing={0.75}>
+                <Typography fontWeight={800}>{card.title}</Typography>
+                <Typography color="text.secondary">{card.body}</Typography>
+                <Typography variant="caption" color="text.secondary">{card.support}</Typography>
+              </Stack>
+            </Paper>
+          ))}
+        </Box>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1.5 }}>
+          <Paper variant="outlined" sx={{ p: 1.5 }}>
+            <Typography fontWeight={800}>Design-partner package</Typography>
+            <Stack spacing={1} sx={{ mt: 1 }}>
+              {DESIGN_PARTNER_TERMS.map((term) => (
+                <Typography key={term} color="text.secondary">{term}</Typography>
+              ))}
+            </Stack>
+          </Paper>
+          <Paper variant="outlined" sx={{ p: 1.5 }}>
+            <Typography fontWeight={800}>Weekly value review</Typography>
+            <Stack spacing={1} sx={{ mt: 1 }}>
+              <Typography color="text.secondary">Review shopper questions, unanswered source gaps, conversion intent, support handoffs, and merchant feedback before changing tier claims.</Typography>
+              <Typography color="text.secondary">Attach launch evidence and support/escalation notes before asking for production promotion.</Typography>
+              <Typography color="text.secondary">Public App Store launch stays blocked until production proof, rollback/deactivation proof, protected-data posture, and support packaging are evidence-backed.</Typography>
+            </Stack>
+          </Paper>
+        </Box>
+      </Stack>
+    </Paper>
   )
 }
 
@@ -853,6 +948,8 @@ function LaunchTab({ store }: { store: PartnerStore }) {
           <InfoTile label="Checked" value={formatDateTime(readiness.checkedAt)} />
         </Box>
       </Paper>
+
+      <PartnerLaunchKitPanel store={store} readiness={readiness} />
 
       {promotionMutation.isSuccess ? (
         <Alert severity="success">

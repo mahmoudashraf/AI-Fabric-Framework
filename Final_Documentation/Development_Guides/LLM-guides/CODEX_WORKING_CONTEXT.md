@@ -1078,3 +1078,13 @@ Critical fixes that made the gate pass:
 - Decision: onboarding/pricing/support copy, design-partner package, and App Store/private listing readiness should be implemented primarily as Merchant UI, Partner UI, and Platform/Admin UI surfaces; markdown remains backing copy and review material.
 - Next priority order recorded in 010.1: run hosted/full staging release gate after latest deployment; run controlled production-promotion proof through `dtp-coolify-production`; prove production verification, rollback/deactivation, and failed promotion leaves staging untouched; then package launch material and decide design-partner vs public App Store launch posture.
 - Production mutation remains intentionally gated; normal staging verification must not run `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true`.
+
+## 2026-05-09 Plan 010.1 UI Implementation
+
+- Implemented 010.1 UI launch readiness locally across Merchant Shopify Admin UI, Partner UI, Platform/Admin UI, verifier script, and launch exports guide.
+- Merchant Shopify Admin UI now has an explicit Go live `Launch package` card for onboarding, package/tier posture, support path, evidence, design-partner posture, App Store/private listing claim safety, controlled production proof, and rollback/deactivation guidance.
+- Partner UI now exposes the 010.1 launch readiness kit in the dashboard and assigned-store workspace, including Free/Starter/Elite explanation, design-partner package, weekly value review prompts, App Store/private listing posture, and production proof gating.
+- Platform/Admin UI now has `/shopify-launch-readiness` and `Shopify Launch` navigation for App Store/private listing readiness, protected-data gates, Customer Account MCP and Checkout MCP gate status, controlled production proof state, release-gate evidence, recent verification runs, and 010_SELF_SERVICE_PRODUCTION_READY blockers.
+- Live verifier script now checks deployed Partner UI assets for 010.1 launch surfaces and deployed Platform UI assets for the Shopify launch readiness route/surfaces.
+- Local verification passed: Partner UI build/smoke, Platform UI build, Shopify Bridge UI build, `bash -n scripts/verify-partner-enablement-live.sh`, and `git diff --check`.
+- Staging deployment/live gate proof still needs to run for this new UI commit; production mutation remains gated and must not be run as part of normal staging verification.

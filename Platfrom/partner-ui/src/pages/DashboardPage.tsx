@@ -5,6 +5,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Divider,
   Paper,
   Stack,
@@ -17,6 +18,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined'
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined'
+import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
@@ -32,6 +34,21 @@ import { DataTable, type DataColumn } from '../components/DataTable'
 import { PageHeader } from '../components/PageHeader'
 import { StatusChip } from '../components/StatusChip'
 import { formatDate, formatDateTime, firstName, titleize } from '../utils/format'
+
+const PARTNER_LAUNCH_PACKAGE_COPY = [
+  {
+    title: 'Onboarding',
+    body: 'Start with merchant-approved access, source readiness, storefront surfaces, verification, and evidence before asking for production promotion.',
+  },
+  {
+    title: 'Pricing and support',
+    body: 'Free is the fit-check entry posture, Starter is the sellable design-partner tier, and Elite remains gated by protected-data and governed-action proof.',
+  },
+  {
+    title: 'Private listing readiness',
+    body: 'Use design-partner packaging now. Public App Store launch waits for controlled production proof, rollback/deactivation proof, and support packaging.',
+  },
+]
 
 export function DashboardPage({ session }: { session: PartnerSession }) {
   if (session.signupRequired) {
@@ -138,6 +155,11 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
         <KpiTile label="Pending merchant approvals" value={String(pendingApprovals.length)} />
       </Box>
       <Stack spacing={3}>
+        <PartnerLaunchReadinessPanel
+          storeCount={stores.length}
+          pendingApprovals={pendingApprovals.length}
+          openEscalations={openEscalations.length}
+        />
         <Box>
           <Typography variant="h2" sx={{ mb: 1.5 }}>Implementation requests</Typography>
           {implementationsQuery.isError ? <Alert severity="error" sx={{ mb: 1.5 }}>Implementation request history could not be loaded.</Alert> : null}
@@ -172,6 +194,54 @@ function ProvisionedDashboard({ session }: { session: PartnerSession }) {
         </Box>
       </Stack>
     </>
+  )
+}
+
+function PartnerLaunchReadinessPanel({
+  storeCount,
+  pendingApprovals,
+  openEscalations,
+  compact = false,
+}: {
+  storeCount: number
+  pendingApprovals: number
+  openEscalations: number
+  compact?: boolean
+}) {
+  return (
+    <Paper sx={{ p: 2 }}>
+      <Stack spacing={1.5}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }}>
+          <Stack direction="row" spacing={1.5} alignItems="flex-start">
+            <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: 'action.hover', display: 'grid', placeItems: 'center', color: 'primary.main' }}>
+              <WorkspacePremiumOutlinedIcon />
+            </Box>
+            <Box>
+              <Typography variant="h2">010.1 launch readiness kit</Typography>
+              <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+                Use this workspace to sell Loom Companion for Shopify, run design-partner onboarding, and keep App Store/private listing readiness evidence-backed.
+              </Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Chip size="small" label={`${storeCount} stores`} color={storeCount > 0 ? 'success' : 'default'} variant="outlined" />
+            <Chip size="small" label={`${pendingApprovals} merchant approvals`} color={pendingApprovals > 0 ? 'warning' : 'default'} variant="outlined" />
+            <Chip size="small" label={`${openEscalations} escalations`} color={openEscalations > 0 ? 'warning' : 'default'} variant="outlined" />
+          </Stack>
+        </Stack>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: compact ? '1fr' : 'repeat(3, 1fr)' }, gap: 1.5 }}>
+          {PARTNER_LAUNCH_PACKAGE_COPY.map((item) => (
+            <Paper key={item.title} variant="outlined" sx={{ p: 1.5 }}>
+              <Typography fontWeight={800}>{item.title}</Typography>
+              <Typography color="text.secondary" sx={{ mt: 0.75 }}>{item.body}</Typography>
+            </Paper>
+          ))}
+        </Box>
+        <Typography variant="caption" color="text.secondary">
+          Weekly value review prompts: shopper questions, unanswered source gaps, support handoffs, action-intent signals, merchant feedback, and the next gated launch claim.
+        </Typography>
+      </Stack>
+    </Paper>
   )
 }
 
@@ -225,6 +295,12 @@ function EmptyWorkspace({
       />
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '8fr 4fr' }, gap: 3 }}>
         <Stack spacing={1.5}>
+          <PartnerLaunchReadinessPanel
+            storeCount={0}
+            pendingApprovals={pendingApprovals.length}
+            openEscalations={0}
+            compact
+          />
           <ActionRow icon={<AutoAwesomeOutlinedIcon />} index="1" title="Browse the intelligence catalog" body="Review Free and Starter-safe surfaces before proposing work." action="Open catalog" onClick={() => navigate('/catalog')} />
           <ActionRow icon={<FactCheckOutlinedIcon />} index="2" title="Review verification packs" body="Use product-safe checks before launch and when gathering evidence." action="Open verification" onClick={() => navigate('/verification')} />
           <ActionRow icon={<AddTaskOutlinedIcon />} index="3" title="Start a client implementation request" body="Generate a merchant approval link for a scoped client store assignment." action="New implementation" contained onClick={() => navigate('/implementations/new')} />

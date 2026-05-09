@@ -352,6 +352,10 @@ required = [
     "Package trial",
     "Recent trial activity",
     "PACKAGE_TRIAL_ACTIVATE",
+    "010.1 launch package",
+    "Design-partner package",
+    "Weekly value review",
+    "App Store/private listing",
 ]
 missing = [item for item in required if item not in combined]
 if missing:
@@ -434,6 +438,64 @@ if missing:
     print(f"FAIL: Platform UI deployed assets are missing partner privilege controls: {missing}", file=sys.stderr)
     raise SystemExit(1)
 print("PASS: Platform UI deployed assets include partner privilege controls")
+PY
+
+  platform_launch_body="${TMP_DIR}/platform-ui-shopify-launch.html"
+  platform_launch_status="$(request GET "${PLATFORM_UI_BASE_URL}/shopify-launch-readiness" "${platform_launch_body}")"
+  cp "${platform_launch_body}" "${TMP_DIR}/last-body"
+  assert_status "${platform_launch_status}" "200" "Platform UI Shopify launch readiness route reachable"
+  python3 - <<'PY' "${platform_launch_body}" "${PLATFORM_UI_BASE_URL}"
+from html.parser import HTMLParser
+from urllib.parse import urljoin
+from urllib.request import Request, urlopen
+import pathlib
+import sys
+
+html = pathlib.Path(sys.argv[1]).read_text(errors="replace")
+base_url = sys.argv[2].rstrip("/") + "/"
+
+class ScriptParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.sources = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "script":
+            return
+        attrs = dict(attrs)
+        src = attrs.get("src")
+        if src:
+            self.sources.append(urljoin(base_url, src))
+
+parser = ScriptParser()
+parser.feed(html)
+if not parser.sources:
+    print("FAIL: Platform UI Shopify launch route did not expose script assets", file=sys.stderr)
+    raise SystemExit(1)
+
+combined = ""
+for source in parser.sources:
+    request = Request(source, headers={"User-Agent": "partner-release-gate/1.0"})
+    with urlopen(request, timeout=20) as response:
+        if response.status != 200:
+            print(f"FAIL: Platform UI asset {source} returned HTTP {response.status}", file=sys.stderr)
+            raise SystemExit(1)
+        combined += response.read().decode("utf-8", errors="replace")
+
+required = [
+    "Shopify Launch Readiness",
+    "App Store/private listing readiness",
+    "Controlled production proof",
+    "Customer Account MCP",
+    "Checkout MCP",
+    "010_SELF_SERVICE_PRODUCTION_READY",
+    "staging remains untouched",
+]
+missing = [item for item in required if item not in combined]
+if missing:
+    print(f"FAIL: Platform UI deployed assets are missing Shopify launch readiness surfaces: {missing}", file=sys.stderr)
+    raise SystemExit(1)
+print("PASS: Platform UI deployed assets include Shopify launch readiness surfaces")
 PY
 else
   echo "BLOCKED: PLATFORM_UI_BASE_URL is not set; deployed Platform UI partner privileges route was not checked."

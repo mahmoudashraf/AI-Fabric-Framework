@@ -177,7 +177,19 @@ When email delivery is disabled or dry-run is active, Platform records the notif
 
 `scripts/verify-partner-enablement-live.sh` now checks that deployed Partner UI assets contain the Launch tab and production-promotion API wiring, proves the merchant approval-code workspace path, proves invite state, and proves merchant rollback/deactivation request recording. Set `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true` only when the run should intentionally request a real production promotion.
 
-### 3.6 Shopper-signal and ROI posture
+### 3.6 010.1 UI launch readiness surfaces
+
+Plan `010.1` moves launch packaging from docs into product UI:
+
+- Merchant Shopify Admin UI shows launch package, onboarding, package/tier posture, support path, evidence exports, design-partner posture, and rollback/deactivation guidance.
+- Partner UI shows the 010.1 launch package, Free/Starter/Elite package explanation, design-partner terms, weekly value review prompts, promotion readiness, evidence, support, and escalation surfaces.
+- Platform/Admin UI exposes `/shopify-launch-readiness` for App Store/private listing readiness, protected-data gates, Customer Account MCP and Checkout MCP gate status, hosted release-gate evidence, controlled production proof status, and operator diagnostics.
+
+Merchant and partner surfaces remain provider-safe. They must not expose Coolify, Hetzner, provider handles, deployment internals, secret names, or secret values. Provider diagnostics belong in Platform/Admin UI only.
+
+Public App Store readiness remains blocked until controlled production promotion proof, production provisioning verification, rollback/deactivation proof, protected-data claim proof, and support packaging are evidence-backed. Private/design-partner launch can proceed when the staging release gate and merchant-safe launch evidence are current.
+
+### 3.7 Shopper-signal and ROI posture
 
 Merchant value evidence comes from:
 

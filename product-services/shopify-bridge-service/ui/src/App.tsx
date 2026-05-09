@@ -2540,6 +2540,41 @@ export default function App() {
             <Box minWidth="360px">
               <Card>
                 <BlockStack gap="300">
+                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Launch package
+                    </Text>
+                    <Badge tone={goLiveChecklist.tone}>{goLiveChecklist.status}</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Merchant launch view for onboarding, pricing, support, evidence, design-partner posture, and rollback/deactivation requests. It keeps the story about Loom Companion for Shopify and avoids provider internals.
+                  </Text>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Current package: {billingSummary?.planName ?? 'Billing not loaded'} · {billingSummary?.tierKey ?? 'UNKNOWN'} · {billingSummary?.status ?? 'UNKNOWN'}
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Onboarding: connect the store, select source categories, run source preflight, sync content, enable storefront surfaces, and publish only after readiness is clean.
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Support path: use merchant handoff channels for refunds, edits, account changes, unsupported order cases, and rollback/deactivation requests.
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Design-partner package: weekly value review covers shopper questions, unanswered source gaps, support handoffs, action-intent signals, and merchant feedback.
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      App Store/private listing readiness stays claim-safe. Public launch waits for controlled production proof, protected-data proof, support packaging, and rollback evidence.
+                    </Text>
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            </Box>
+            ) : null}
+
+            {selectedSection === 'launch' ? (
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
                     Go-live readiness
                   </Text>

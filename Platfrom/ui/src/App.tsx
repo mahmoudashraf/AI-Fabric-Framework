@@ -24,6 +24,7 @@ import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
 import { ShopifyPackageProfilesPage } from './pages/ShopifyPackageProfilesPage'
+import { ShopifyLaunchReadinessPage } from './pages/ShopifyLaunchReadinessPage'
 import { ShopifyReadinessAuditPage } from './pages/ShopifyReadinessAuditPage'
 import { ShopifyStoresPage } from './pages/ShopifyStoresPage'
 import { ThinkerResolverPage } from './pages/ThinkerResolverPage'
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/product-services" element={<ProductServicesPage />} />
           <Route path="/partner-privileges" element={<PartnerPrivilegesPage />} />
           <Route path="/shopify-package-profiles" element={<ShopifyPackageProfilesPage />} />
+          <Route path="/shopify-launch-readiness" element={<ShopifyLaunchReadinessPage />} />
           <Route path="/shopify-readiness-audit" element={<ShopifyReadinessAuditPage />} />
           <Route path="/shopify-stores" element={<ShopifyStoresPage />} />
           <Route path="/thinker-resolver" element={<ThinkerResolverPage />} />
