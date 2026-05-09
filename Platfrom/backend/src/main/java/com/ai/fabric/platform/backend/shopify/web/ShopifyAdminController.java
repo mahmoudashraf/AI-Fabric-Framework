@@ -11,6 +11,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectio
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBootstrapSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCustomerAccountConfigSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreGovernedActionAuditSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreProvisioningJobSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreProvisioningStatusSummary;
@@ -21,6 +22,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSel
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSummary;
 import com.ai.fabric.platform.backend.shopify.model.SyncShopifyStoreDocumentsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreCustomerAccountConfigRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreVectorizationPolicyRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
@@ -137,6 +139,21 @@ public class ShopifyAdminController {
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
     public ShopifyStoreBillingStateSummary getBillingState(@PathVariable String shopDomain) {
         return shopifyStoreConnectionService.getBillingState(shopDomain);
+    }
+
+    @GetMapping("/{shopDomain}/customer-account-config")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)")
+    public ShopifyStoreCustomerAccountConfigSummary getCustomerAccountConfig(@PathVariable String shopDomain) {
+        return shopifyStoreConnectionService.getCustomerAccountConfig(shopDomain);
+    }
+
+    @PutMapping("/{shopDomain}/customer-account-config")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR')")
+    public ShopifyStoreCustomerAccountConfigSummary updateCustomerAccountConfig(
+        @PathVariable String shopDomain,
+        @Valid @RequestBody UpdateShopifyStoreCustomerAccountConfigRequest request
+    ) {
+        return shopifyStoreConnectionService.updateCustomerAccountConfig(shopDomain, request);
     }
 
     @PostMapping("/{shopDomain}/billing-state")

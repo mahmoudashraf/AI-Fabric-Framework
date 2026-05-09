@@ -371,7 +371,9 @@ Customer Account MCP is prepared as a fail-closed path:
 - Before OAuth/PKCE and protected customer data posture are configured, Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED`.
 - After posture is configured, Bridge returns `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
 - When a customer token is bound, MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by forwarding it as the MCP Authorization header.
-- For staging stores that use a connected custom storefront domain for Customer Account OAuth discovery, set `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN`; Bridge still stores and resolves sessions by the canonical `*.myshopify.com` shop.
+- For stores that use a connected storefront/custom domain for Customer Account OAuth discovery, configure the per-store Platform setting `customerAccountMcp.storefrontDomain` through `PUT /api/shopify/stores/{shopDomain}/customer-account-config` or the Shopify Stores admin page. Bridge resolves this per-store value before using any global fallback.
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` remains a staging/default fallback only. It must not be treated as product truth for multiple store installs.
+- Bridge still stores and resolves customer sessions by the canonical `*.myshopify.com` shop even when discovery and safe return URLs use a configured storefront domain.
 
 Checkout MCP is prepared as a managed-gateway path:
 

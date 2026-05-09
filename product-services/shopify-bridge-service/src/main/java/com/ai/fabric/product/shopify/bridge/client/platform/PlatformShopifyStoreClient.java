@@ -7,6 +7,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAcce
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvisioningJobRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCustomerAccountConfigSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningJobSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordBillingStateRequest;
@@ -91,6 +92,14 @@ public class PlatformShopifyStoreClient {
             .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
             .retrieve()
             .body(ShopifyBridgeRecordedBillingStateSummary.class);
+    }
+
+    public ShopifyBridgeCustomerAccountConfigSummary getCustomerAccountConfig(String shopDomain) {
+        return restClient.get()
+            .uri(requirePlatformBaseUrl() + "/api/shopify/stores/" + encodePath(shopDomain) + "/customer-account-config")
+            .headers(headers -> headers.set(properties.platformAdminApiKeyHeader(), requirePlatformAdminApiKey()))
+            .retrieve()
+            .body(ShopifyBridgeCustomerAccountConfigSummary.class);
     }
 
     public ShopifyBridgeRecordedBillingStateSummary recordBillingState(String shopDomain,

@@ -2,10 +2,14 @@ package com.ai.fabric.product.shopify.bridge.customeraccount.service;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyMcpExternalAuthProperties;
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.customeraccount.entity.ShopifyCustomerAccountSessionEntity;
 import com.ai.fabric.product.shopify.bridge.customeraccount.model.ShopifyCustomerAccountAuthStatus;
 import com.ai.fabric.product.shopify.bridge.customeraccount.repository.ShopifyCustomerAccountSessionRepository;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCustomerAccountConfigSummary;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -15,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -38,6 +44,8 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 @Service
 public class ShopifyCustomerAccountOAuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShopifyCustomerAccountOAuthService.class);
+
     private static final Pattern SHOP_DOMAIN_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9-]*\\.myshopify\\.com$");
     private static final Pattern CUSTOMER_ACCOUNT_DOMAIN_PATTERN =
         Pattern.compile("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$");
@@ -48,6 +56,7 @@ public class ShopifyCustomerAccountOAuthService {
     private final ShopifyMcpExternalAuthProperties authProperties;
     private final ShopifyCustomerAccountSecurityService securityService;
     private final ShopifyCustomerAccountSessionRepository repository;
+    private final PlatformShopifyStoreClient platformStoreClient;
     private final RestClient restClient;
     private final Clock clock;
 
@@ -56,12 +65,14 @@ public class ShopifyCustomerAccountOAuthService {
                                               ShopifyMcpExternalAuthProperties authProperties,
                                               ShopifyCustomerAccountSecurityService securityService,
                                               ShopifyCustomerAccountSessionRepository repository,
-                                              RestClient.Builder restClientBuilder) {
+                                              RestClient.Builder restClientBuilder,
+                                              PlatformShopifyStoreClient platformStoreClient) {
         this(
             bridgeProperties,
             authProperties,
             securityService,
             repository,
+            platformStoreClient,
             customerAccountRestClient(restClientBuilder, authProperties),
             Clock.systemUTC()
         );
@@ -78,6 +89,25 @@ public class ShopifyCustomerAccountOAuthService {
             authProperties,
             securityService,
             repository,
+            null,
+            restClientBuilder.build(),
+            clock
+        );
+    }
+
+    ShopifyCustomerAccountOAuthService(ShopifyBridgeProperties bridgeProperties,
+                                       ShopifyMcpExternalAuthProperties authProperties,
+                                       ShopifyCustomerAccountSecurityService securityService,
+                                       ShopifyCustomerAccountSessionRepository repository,
+                                       PlatformShopifyStoreClient platformStoreClient,
+                                       RestClient.Builder restClientBuilder,
+                                       Clock clock) {
+        this(
+            bridgeProperties,
+            authProperties,
+            securityService,
+            repository,
+            platformStoreClient,
             restClientBuilder.build(),
             clock
         );
@@ -87,12 +117,14 @@ public class ShopifyCustomerAccountOAuthService {
                                                ShopifyMcpExternalAuthProperties authProperties,
                                                ShopifyCustomerAccountSecurityService securityService,
                                                ShopifyCustomerAccountSessionRepository repository,
+                                               PlatformShopifyStoreClient platformStoreClient,
                                                RestClient restClient,
                                                Clock clock) {
         this.bridgeProperties = bridgeProperties;
         this.authProperties = authProperties;
         this.securityService = securityService;
         this.repository = repository;
+        this.platformStoreClient = platformStoreClient;
         this.restClient = restClient;
         this.clock = clock;
     }
@@ -435,13 +467,60 @@ public class ShopifyCustomerAccountOAuthService {
     }
 
     private String customerAccountDomainForShop(String shopDomain) {
+        Optional<String> perStoreDomain = perStoreCustomerAccountDomain(shopDomain);
+        if (perStoreDomain.isPresent()) {
+            return perStoreDomain.get();
+        }
+        return globalCustomerAccountDomain().orElse(shopDomain);
+    }
+
+    private Optional<String> perStoreCustomerAccountDomain(String shopDomain) {
+        if (platformStoreClient == null) {
+            return Optional.empty();
+        }
+        ShopifyBridgeCustomerAccountConfigSummary config;
+        try {
+            config = platformStoreClient.getCustomerAccountConfig(shopDomain);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().is4xxClientError()) {
+                log.debug("No per-store Customer Account MCP domain returned by Platform for {}: HTTP {}",
+                    shopDomain, ex.getStatusCode().value());
+            } else {
+                log.warn("Platform Customer Account MCP domain lookup failed for {} with HTTP {}.",
+                    shopDomain, ex.getStatusCode().value());
+            }
+            return Optional.empty();
+        } catch (ResponseStatusException ex) {
+            log.warn("Platform Customer Account MCP domain lookup is not available for {}: {}", shopDomain, ex.getReason());
+            return Optional.empty();
+        } catch (ResourceAccessException ex) {
+            log.warn("Platform Customer Account MCP domain lookup transport failed for {}: {}", shopDomain, ex.getMessage());
+            return Optional.empty();
+        }
+        if (config == null || !StringUtils.hasText(config.storefrontDomain())) {
+            return Optional.empty();
+        }
+        return Optional.of(normalizeCustomerAccountDomain(
+            config.storefrontDomain(),
+            "Invalid per-store Shopify Customer Account storefront domain configuration."
+        ));
+    }
+
+    private Optional<String> globalCustomerAccountDomain() {
         String configured = authProperties.customerAccountMcpStorefrontDomain();
         if (!StringUtils.hasText(configured)) {
-            return shopDomain;
+            return Optional.empty();
         }
+        return Optional.of(normalizeCustomerAccountDomain(
+            configured,
+            "Invalid Shopify Customer Account storefront domain configuration."
+        ));
+    }
+
+    private String normalizeCustomerAccountDomain(String configured, String errorMessage) {
         String normalized = configured.trim().toLowerCase(Locale.ROOT);
         if (!CUSTOMER_ACCOUNT_DOMAIN_PATTERN.matcher(normalized).matches()) {
-            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Invalid Shopify Customer Account storefront domain configuration.");
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, errorMessage);
         }
         return normalized;
     }

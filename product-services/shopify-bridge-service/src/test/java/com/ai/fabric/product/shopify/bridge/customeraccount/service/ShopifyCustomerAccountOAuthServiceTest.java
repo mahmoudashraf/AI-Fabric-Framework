@@ -2,6 +2,7 @@ package com.ai.fabric.product.shopify.bridge.customeraccount.service;
 
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyMcpExternalAuthProperties;
+import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
 import com.ai.fabric.product.shopify.bridge.customeraccount.entity.ShopifyCustomerAccountSessionEntity;
 import com.ai.fabric.product.shopify.bridge.customeraccount.model.ShopifyCustomerAccountAuthStatus;
 import com.ai.fabric.product.shopify.bridge.customeraccount.repository.ShopifyCustomerAccountSessionRepository;
@@ -248,6 +249,54 @@ class ShopifyCustomerAccountOAuthServiceTest {
         server.verify();
     }
 
+    @Test
+    void perStorePlatformStorefrontDomainOverridesGlobalFallback() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ShopifyBridgeProperties bridgeProperties = bridgeProperties();
+        PlatformShopifyStoreClient platformClient = new PlatformShopifyStoreClient(builder, bridgeProperties);
+        ShopifyCustomerAccountOAuthService service = service(
+            mock(ShopifyCustomerAccountSessionRepository.class),
+            builder,
+            "global-staging.loomai.pro",
+            platformClient,
+            bridgeProperties
+        );
+
+        server.expect(requestTo("https://platform.example/api/shopify/stores/alpha.myshopify.com/customer-account-config"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "shopDomain": "alpha.myshopify.com",
+                  "storefrontDomain": "store-alpha.example",
+                  "storefrontDomainConfigured": true,
+                  "effectiveStorefrontDomain": "store-alpha.example",
+                  "source": "STORE_CONFIG",
+                  "updatedAt": "2026-05-09T10:00:00Z"
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://store-alpha.example/.well-known/openid-configuration"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess("""
+                {
+                  "authorization_endpoint": "https://shopify.com/authentication/1/oauth/authorize",
+                  "token_endpoint": "https://shopify.com/authentication/1/oauth/token"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        URI authorization = service.beginAuthorization(
+            "alpha.myshopify.com",
+            "shopper-session-1",
+            "https://store-alpha.example/account"
+        );
+
+        assertThat(authorization.toString())
+            .startsWith("https://shopify.com/authentication/1/oauth/authorize")
+            .contains("client_id=customer-client-id");
+        server.verify();
+    }
+
     private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
                                                        RestClient.Builder builder) {
         return service(repository, builder, "");
@@ -256,23 +305,14 @@ class ShopifyCustomerAccountOAuthServiceTest {
     private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
                                                        RestClient.Builder builder,
                                                        String storefrontDomain) {
-        ShopifyBridgeProperties bridgeProperties = new ShopifyBridgeProperties(
-            "Shopify Bridge Service",
-            "shopify-bridge-test",
-            "SHOPIFY",
-            "SHOPIFY_BRIDGE_SERVICE",
-            "test",
-            "https://bridge.example",
-            "2026-04",
-            "shopify-app-key",
-            "shopify-app-secret",
-            "https://platform.example",
-            "platform-admin-key",
-            "X-PLATFORM-API-KEY",
-            "webhook-secret",
-            "bridge-admin-key",
-            "X-BRIDGE-API-KEY"
-        );
+        return service(repository, builder, storefrontDomain, null, bridgeProperties());
+    }
+
+    private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
+                                                       RestClient.Builder builder,
+                                                       String storefrontDomain,
+                                                       PlatformShopifyStoreClient platformClient,
+                                                       ShopifyBridgeProperties bridgeProperties) {
         ShopifyMcpExternalAuthProperties authProperties = new ShopifyMcpExternalAuthProperties(
             true,
             true,
@@ -293,8 +333,29 @@ class ShopifyCustomerAccountOAuthServiceTest {
             authProperties,
             new ShopifyCustomerAccountSecurityService(bridgeProperties, objectMapper),
             repository,
+            platformClient,
             builder,
             Clock.systemUTC()
+        );
+    }
+
+    private ShopifyBridgeProperties bridgeProperties() {
+        return new ShopifyBridgeProperties(
+            "Shopify Bridge Service",
+            "shopify-bridge-test",
+            "SHOPIFY",
+            "SHOPIFY_BRIDGE_SERVICE",
+            "test",
+            "https://bridge.example",
+            "2026-04",
+            "shopify-app-key",
+            "shopify-app-secret",
+            "https://platform.example",
+            "platform-admin-key",
+            "X-PLATFORM-API-KEY",
+            "webhook-secret",
+            "bridge-admin-key",
+            "X-BRIDGE-API-KEY"
         );
     }
 

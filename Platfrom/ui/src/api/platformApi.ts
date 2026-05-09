@@ -928,6 +928,19 @@ export type ShopifyStoreBindingInspectionSummary = {
   warnings: string[]
 }
 
+export type ShopifyStoreCustomerAccountConfigSummary = {
+  shopDomain: string
+  storefrontDomain: string | null
+  storefrontDomainConfigured: boolean
+  effectiveStorefrontDomain: string
+  source: string
+  updatedAt: string | null
+}
+
+export type UpdateShopifyStoreCustomerAccountConfigRequest = {
+  storefrontDomain: string | null
+}
+
 export type ShopifyStoreConnectionSummary = {
   id: string
   shopDomain: string
@@ -4068,6 +4081,25 @@ export function updatePlatformPartnerMember(memberId: string, payload: UpdatePar
 
 export function fetchShopifyStoreBinding(shopDomain: string) {
   return request<ShopifyStoreBindingInspectionSummary>(`/api/shopify/stores/${encodeURIComponent(shopDomain)}/binding`)
+}
+
+export function fetchShopifyStoreCustomerAccountConfig(shopDomain: string) {
+  return request<ShopifyStoreCustomerAccountConfigSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/customer-account-config`,
+  )
+}
+
+export function updateShopifyStoreCustomerAccountConfig(
+  shopDomain: string,
+  payload: UpdateShopifyStoreCustomerAccountConfigRequest,
+) {
+  return request<ShopifyStoreCustomerAccountConfigSummary>(
+    `/api/shopify/stores/${encodeURIComponent(shopDomain)}/customer-account-config`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function deleteShopifyStore(shopDomain: string, force = false) {

@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.shopify.entity.ShopifyStoreConnectionEntit
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectionSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreCustomerAccountConfigRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
@@ -324,6 +325,103 @@ class ShopifyStoreConnectionServiceTest {
             org.mockito.ArgumentMatchers.eq("demo.myshopify.com"),
             org.mockito.ArgumentMatchers.anyMap()
         );
+    }
+
+    @Test
+    void customerAccountConfigPersistsPerStoreStorefrontDomain() throws Exception {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+        entity.setDetailsJson("{}");
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(objectMapper),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        var saved = connectionService.updateCustomerAccountConfig(
+            "Demo.MyShopify.Com",
+            new UpdateShopifyStoreCustomerAccountConfigRequest("Shop-Staging.LoomAI.Pro")
+        );
+
+        assertThat(saved.shopDomain()).isEqualTo("demo.myshopify.com");
+        assertThat(saved.storefrontDomain()).isEqualTo("shop-staging.loomai.pro");
+        assertThat(saved.storefrontDomainConfigured()).isTrue();
+        assertThat(saved.effectiveStorefrontDomain()).isEqualTo("shop-staging.loomai.pro");
+        assertThat(saved.source()).isEqualTo("STORE_CONFIG");
+        assertThat(objectMapper.readTree(entity.getDetailsJson()).path("customerAccountMcp").path("storefrontDomain").asText())
+            .isEqualTo("shop-staging.loomai.pro");
+        verify(repository).save(entity);
+
+        var cleared = connectionService.updateCustomerAccountConfig(
+            "demo.myshopify.com",
+            new UpdateShopifyStoreCustomerAccountConfigRequest(" ")
+        );
+
+        assertThat(cleared.storefrontDomain()).isNull();
+        assertThat(cleared.storefrontDomainConfigured()).isFalse();
+        assertThat(cleared.effectiveStorefrontDomain()).isEqualTo("demo.myshopify.com");
+        assertThat(cleared.source()).isEqualTo("SHOP_DOMAIN_FALLBACK");
+        assertThat(objectMapper.readTree(entity.getDetailsJson()).has("customerAccountMcp")).isFalse();
+    }
+
+    @Test
+    void customerAccountConfigRejectsInvalidStorefrontDomain() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        assertThatThrownBy(() -> connectionService.updateCustomerAccountConfig(
+            "demo.myshopify.com",
+            new UpdateShopifyStoreCustomerAccountConfigRequest("https://shop-staging.loomai.pro")
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("valid hostname");
     }
 
     @Test

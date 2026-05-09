@@ -1052,3 +1052,10 @@ Critical fixes that made the gate pass:
 - Managed Bridge Checkout MCP probe now fails correctly with `MCP server returned HTTP 302 redirect to /password.` No password cookie or storefront-password bypass was added to Bridge or MCP Gateway.
 - Partner Supabase JWT expired during the first full-gate rerun; it was refreshed from private test-account material and stored back into Platform secret `PARTNER_SUPABASE_JWT` without printing the token. Standalone Partner suite `vsr-457143f5` passed after refresh.
 - Fresh full release gate passed as `vsr-4efedfd2` with all 14 stages green, completed `2026-05-08T23:20:46.361081Z`; `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, freshness expires `2026-05-09T11:20:46.361081Z`.
+
+## 2026-05-09 Per-Store Customer Account MCP Domain Configuration
+
+- The Bridge-wide `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` value is now fallback-only. It should not be used as the long-term model for multiple Shopify store integrations.
+- Platform owns per-store Customer Account MCP storefront/custom domain configuration under each Shopify store mapping. Operators can read/update it through `/api/shopify/stores/{shopDomain}/customer-account-config` and the Shopify Stores admin page.
+- Shopify Bridge resolves the per-store Platform config before Customer Account OAuth discovery and safe return URL handling. Customer sessions remain keyed by canonical `*.myshopify.com` shop plus shopper session.
+- This keeps test/staging domains flexible while preserving the app-level Customer Account OAuth credentials and redirect URI as app-level material.
