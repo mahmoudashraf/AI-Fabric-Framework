@@ -28,44 +28,53 @@
     </header>
 
     <main id="main">
-      <section class="hero product-hero" aria-labelledby="hero-title">
-        <div class="hero-copy">
-          <p class="eyebrow">LoomAI product suite</p>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-upper">
+          <p class="eyebrow">Product suite</p>
           <h1 id="hero-title">LoomAI products for commerce and support work.</h1>
           <p class="hero-subtitle">Companion helps shoppers. Thinker diagnoses issues with evidence. Resolver turns approved follow-up into governed action.</p>
-          <div class="hero-actions" aria-label="Primary actions">
+          <div class="hero-actions">
             <a class="button button-primary" href="#products">Explore Products</a>
             <a class="button button-secondary" href="#request-access">Request Access</a>
           </div>
           <p class="launch-note">Companion is the first live commerce product. Thinker and Resolver are controlled rollout products for evidence-backed diagnosis and governed resolution.</p>
         </div>
 
-        <div class="product-suite-scene" aria-label="LoomAI product suite preview">
-          <article class="suite-product-card suite-companion">
-            <span class="product-status">Design partner</span>
+        <div class="product-console" aria-label="LoomAI product suite preview">
+          <article class="console-pane pane-companion">
+            <div class="pane-header">
+              <span class="pane-dot"></span>
+              <span class="pane-status">Design partner</span>
+            </div>
             <h2>Companion</h2>
-            <p>Storefront intelligence for Shopify product discovery, product FAQ, comparison, policy answers, and shopper guidance.</p>
-            <div class="mini-surface" aria-hidden="true">
+            <p>Storefront intelligence for Shopify: product discovery, FAQ, comparison, policy answers, and shopper guidance.</p>
+            <div class="pane-tags" aria-hidden="true">
               <span>AI Search</span>
               <span>FAQ</span>
               <span>Compare</span>
             </div>
           </article>
-          <article class="suite-product-card suite-thinker">
-            <span class="product-status">Controlled rollout</span>
+          <article class="console-pane pane-thinker">
+            <div class="pane-header">
+              <span class="pane-dot"></span>
+              <span class="pane-status">Controlled rollout</span>
+            </div>
             <h2>Thinker</h2>
-            <p>Read-first issue diagnosis that records questions, evidence, plans, and audit trails before any follow-up work.</p>
-            <div class="mini-surface" aria-hidden="true">
+            <p>Read-first issue diagnosis with evidence, plans, and audit trails before any follow-up work.</p>
+            <div class="pane-tags" aria-hidden="true">
               <span>Evidence</span>
               <span>Plan</span>
               <span>Audit</span>
             </div>
           </article>
-          <article class="suite-product-card suite-resolver">
-            <span class="product-status">Governed</span>
+          <article class="console-pane pane-resolver">
+            <div class="pane-header">
+              <span class="pane-dot"></span>
+              <span class="pane-status">Governed</span>
+            </div>
             <h2>Resolver</h2>
-            <p>Policy, dry-run, confirmation, and execution ledger for approved low-risk resolution workflows.</p>
-            <div class="mini-surface" aria-hidden="true">
+            <p>Policy, dry-run, confirmation, and execution ledger for approved resolution workflows.</p>
+            <div class="pane-tags" aria-hidden="true">
               <span>Policy</span>
               <span>Dry-run</span>
               <span>Confirm</span>
@@ -74,11 +83,11 @@
         </div>
       </section>
 
-      <section id="products" class="section section-light" aria-labelledby="products-title">
+      <section id="products" class="section section-raised" aria-labelledby="products-title">
         <div class="section-heading">
           <p class="eyebrow">Products</p>
           <h2 id="products-title">Each product has a clear job.</h2>
-          <p>The site leads with the product line. Platform, MCP, deployment, and partner operations stay behind the scenes as the operating engine.</p>
+          <p>The platform, MCP execution, deployment profiles, and partner operations stay behind the scenes as the operating engine.</p>
         </div>
         <div class="product-grid">
           <article class="product-card">
@@ -108,7 +117,7 @@
         </div>
       </section>
 
-      <section id="companion" class="section section-ink product-detail" aria-labelledby="companion-title">
+      <section id="companion" class="section section-dark product-detail companion-detail" aria-labelledby="companion-title">
         <div class="product-detail-copy">
           <p class="eyebrow">Companion</p>
           <h2 id="companion-title">Shopper-facing intelligence for Shopify stores.</h2>
@@ -119,7 +128,7 @@
             <li>Free, Starter, and Elite package posture</li>
             <li>Private/design-partner installs now; public App Store launch after approval</li>
           </ul>
-          <div class="hero-actions">
+          <div class="hero-actions" style="justify-content:flex-start">
             <a class="button button-primary" data-config-href="demoUrl" href="https://shopping-companion-test.myshopify.com/apps/loom-companion">Try Demo</a>
             <a class="button button-secondary" href="#request-access">Request Companion Access</a>
           </div>
@@ -156,7 +165,7 @@
         </div>
       </section>
 
-      <section id="thinker" class="section section-light product-detail product-detail-reverse" aria-labelledby="thinker-title">
+      <section id="thinker" class="section section-raised product-detail product-detail-reverse thinker-detail" aria-labelledby="thinker-title">
         <div class="diagnosis-board" aria-label="Thinker diagnosis preview">
           <div class="board-header">
             <span>Thinker session</span>
@@ -179,7 +188,7 @@
           <p class="eyebrow">Thinker</p>
           <h2 id="thinker-title">Diagnosis before action.</h2>
           <p>Thinker is a governed issue-resolution product for teams that need evidence, not guesses. It records the question, safe answer, evidence, resolution plan, and audit trail.</p>
-          <ul class="feature-list light-list">
+          <ul class="feature-list">
             <li>Read-first diagnosis with RAG and eligible read-action evidence</li>
             <li>Persisted sessions, evidence items, plans, and exports</li>
             <li>Partner-safe redaction for assigned-store support</li>
@@ -188,12 +197,12 @@
         </div>
       </section>
 
-      <section id="resolver" class="section section-soft product-detail" aria-labelledby="resolver-title">
+      <section id="resolver" class="section section-dark product-detail resolver-detail" aria-labelledby="resolver-title">
         <div class="product-detail-copy">
           <p class="eyebrow">Resolver</p>
           <h2 id="resolver-title">Governed resolution when follow-up is approved.</h2>
           <p>Resolver turns a Thinker diagnosis into a controlled proposal, policy decision, dry-run, confirmation, and execution record. It is not broad autonomous automation.</p>
-          <ul class="feature-list light-list">
+          <ul class="feature-list">
             <li>Proposal and policy ledger</li>
             <li>Non-mutating dry-run before real execution</li>
             <li>Exact confirmation and idempotency controls</li>
@@ -209,11 +218,11 @@
         </div>
       </section>
 
-      <section id="platform" class="section section-light" aria-labelledby="platform-title">
+      <section id="platform" class="section section-raised" aria-labelledby="platform-title">
         <div class="section-heading">
           <p class="eyebrow">Product platform</p>
           <h2 id="platform-title">The engine is the advantage, not the headline.</h2>
-          <p>Marketplace plugins, MCP execution, RAG, deployment profiles, partner operations, merchant approvals, and release gates make the products repeatable. The landing page sells products first.</p>
+          <p>Marketplace plugins, MCP execution, RAG, deployment profiles, partner operations, merchant approvals, and release gates make the products repeatable.</p>
         </div>
         <div class="readiness-table" role="table" aria-label="Product readiness">
           <div role="row">
@@ -235,8 +244,8 @@
         </div>
       </section>
 
-      <section id="request-access" class="section section-ink" aria-labelledby="access-title">
-        <div class="split-layout">
+      <section id="request-access" class="section section-surface" aria-labelledby="access-title">
+        <div class="split-layout split-layout-form">
           <div>
             <p class="eyebrow">Access</p>
             <h2 id="access-title">Request access to the right product.</h2>
