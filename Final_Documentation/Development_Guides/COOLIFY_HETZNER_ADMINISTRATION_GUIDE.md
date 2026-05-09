@@ -30,6 +30,8 @@ Staging is the active implementation target for Shopify MCP-first Plan 009.
 - Platform backend: `https://loomai-platform-backend.46.224.145.148.sslip.io`
 - Platform UI: `https://loomai-platform-ui.46.224.145.148.sslip.io`
 - Partner UI: `https://loomai-partner-ui.46.224.145.148.sslip.io`
+- LoomAI landing site: `https://loomai-landing.46.224.145.148.sslip.io`
+- LoomAI partner landing site: `https://partners.loomai-landing.46.224.145.148.sslip.io`
 - Shopify Bridge: `https://shopify-bridge-staging.46.224.145.148.sslip.io`
 - Runtime: `https://loomai-runtime.46.224.145.148.sslip.io`
 - Ecommerce app: `https://loomai-ecommerce-store.46.224.145.148.sslip.io`

@@ -46,3 +46,8 @@ docker build -f Real_Apps/loomai-landing-site/Dockerfile -t loomai-landing-site 
 ```
 
 For production lead capture, configure either a mounted persistent `LOOMAI_LEADS_FILE` path or a Platform-owned `LOOMAI_LEAD_WEBHOOK_URL`. Do not place third-party provider credentials in browser runtime config.
+
+Current staging deployment:
+
+- Merchant page: `https://loomai-landing.46.224.145.148.sslip.io/`
+- Partner page: `https://partners.loomai-landing.46.224.145.148.sslip.io/`
