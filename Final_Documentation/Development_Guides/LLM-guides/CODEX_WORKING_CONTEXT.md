@@ -1059,3 +1059,15 @@ Critical fixes that made the gate pass:
 - Platform owns per-store Customer Account MCP storefront/custom domain configuration under each Shopify store mapping. Operators can read/update it through `/api/shopify/stores/{shopDomain}/customer-account-config` and the Shopify Stores admin page.
 - Shopify Bridge resolves the per-store Platform config before Customer Account OAuth discovery and safe return URL handling. Customer sessions remain keyed by canonical `*.myshopify.com` shop plus shopper session.
 - This keeps test/staging domains flexible while preserving the app-level Customer Account OAuth credentials and redirect URI as app-level material.
+
+## 2026-05-09 Plan 010 Merchant-Owned Launch Readiness Slice
+
+- Implemented and pushed Plan 010 merchant-owned launch readiness follow-up in commit `94dd8974a` (`Complete merchant launch readiness flows`) on `origin/Platform-V8`.
+- Scope completed: direct merchant approval invite from Partner Portal and Shopify Admin, SMTP-capable/dry-run-safe merchant notification gateway, approval-code merchant workspace, approve/deny/revoke flows, merchant Go production request, rollback/deactivation support request, evidence/readiness/support surfaces, Partner UI and Shopify Bridge UI wiring, verifier updates, and roadmap/user-guide updates.
+- Local verification passed before deployment: full Platform backend suite, full Shopify Bridge suite, Partner UI build/smoke, Shopify Bridge UI build, `bash -n scripts/verify-partner-enablement-live.sh`, and `git diff --check`.
+- Deployed to Coolify staging only. Completed deployments on commit `94dd8974a`: Platform backend `byy5k1dgpgr2347a40r9mivc`, Partner UI `bduzjlehi7x49177an1lp1xb`, Shopify Bridge `ct7rp2hidj5vt8nud6jz5anl`.
+- Staging health passed for Platform backend, Partner UI, and Shopify Bridge. Bridge root app route returned `200`; storefront bootstrap for `shopping-companion-test.myshopify.com` returned `200` and widget available.
+- Strict staging `scripts/verify-partner-enablement-live.sh` passed after refreshing the short-lived Partner Supabase JWT and reading the current staging Platform admin API key from Coolify env without printing secrets.
+- Live proof covered merchant invite, approval deep-link workspace, merchant approval, partner assignment, package-trial privilege gating, Max widget smoke, partner product-control write/restore, verification run, evidence bundle/export, merchant workspace evidence, rollback/deactivation request, support escalation/reply, activity feed, revocation cleanup, and revoked-access denial.
+- Production promotion mutation intentionally remained skipped with `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=false`; no production deployment or production mutation was performed.
+- Unrelated local files remained outside the commit: `Final_Documentation/Development_Guides/LLM-guides/Codex_Strategic_Context.md` and `rollout-2026-05-01T11-49-46-019de328-aa7a-7162-a387-250ce1f91b76.jsonl`.
