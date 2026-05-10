@@ -113,6 +113,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -138,6 +139,22 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Service
 public class PartnerEnablementService {
+
+    private static final String PARTNER_AUTHENTICATED_ACCESS =
+        "hasAnyRole('PARTNER_AUTHENTICATED','PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')";
+    private static final String PARTNER_READ_ACCESS =
+        "hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')";
+    private static final String PARTNER_WRITE_ACCESS =
+        "hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')";
+    private static final String PARTNER_IMPLEMENTER_ACCESS =
+        "hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER')";
+    private static final String PARTNER_SUPPORT_ACCESS =
+        "hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_SUPPORT')";
+    private static final String PARTNER_ADMIN_ACCESS = "hasRole('PARTNER_ADMIN')";
+    private static final String PLATFORM_ADMIN_ACCESS = "hasRole('PLATFORM_ADMIN')";
+    private static final String SHOPIFY_STORE_PLATFORM_ACCESS =
+        "hasAnyRole('PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccess(authentication, #shopDomain)";
+    private static final String PUBLIC_LINK_ACCESS = "permitAll()";
 
     private static final String PACKAGE_TRIAL_ACTIVATE = "PACKAGE_TRIAL_ACTIVATE";
     private static final String PACKAGE_TRIAL_STATUS_ACTIVE = "ACTIVE";
@@ -299,6 +316,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_AUTHENTICATED_ACCESS)
     public PartnerSessionSummary session() {
         PartnerPrincipal principal = PartnerSecurityContext.currentPrincipalOrThrow();
         Optional<PartnerMemberEntity> member = memberRepository.findBySupabaseUserId(principal.supabaseUserId());
@@ -327,6 +345,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_AUTHENTICATED_ACCESS)
     public PartnerSessionSummary completeSignup(PartnerSignupCompleteRequest request) {
         PartnerPrincipal principal = PartnerSecurityContext.currentPrincipalOrThrow();
         Optional<PartnerMemberEntity> existing = memberRepository.findBySupabaseUserId(principal.supabaseUserId());
@@ -376,6 +395,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerStoreSummary> listStores() {
         PartnerContext context = requireProvisionedContext();
         return storeAssignmentRepository.findByPartnerAccountIdOrderByCreatedAtDesc(context.account().getId()).stream()
@@ -384,6 +404,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public List<PartnerEligibleStoreSummary> listEligibleStores(String query) {
         PartnerContext context = requireProvisionedContext();
         return storeAccessGateway.listInstalledStores(query, 50).stream()
@@ -393,12 +414,14 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerStoreSummary getStore(String storeId) {
         PartnerContext context = requireProvisionedContext();
         return toStoreSummary(requireActiveAssignment(context.account().getId(), storeId));
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerLaunchReadinessSummary getLaunchReadiness(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -407,6 +430,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerProductionPromotionSummary requestProductionPromotion(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -456,6 +480,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerProductControlSummary getProductControls(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -464,6 +489,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerProductControlSummary updateProductWidgetSettings(String storeId,
                                                                     UpdateShopifyStoreWidgetSettingsRequest request) {
         PartnerContext context = requireProvisionedContext();
@@ -481,6 +507,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerProductControlSummary updateProductSourceSettings(String storeId,
                                                                     UpdateShopifyStoreSourceSettingsRequest request) {
         PartnerContext context = requireProvisionedContext();
@@ -496,6 +523,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerProductControlSummary updateProductSupportProfile(String storeId,
                                                                     UpdateShopifyStoreSupportProfileRequest request) {
         PartnerContext context = requireProvisionedContext();
@@ -515,6 +543,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerProductControlSummary activatePackageTrial(String storeId,
                                                              PartnerPackageTrialActivationRequest request) {
         PartnerContext context = requireProvisionedContext();
@@ -603,6 +632,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerProductControlSummary deactivatePackageTrial(String storeId,
                                                                String trialId,
                                                                PartnerPackageTrialDeactivationRequest request) {
@@ -681,30 +711,35 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public JsonNode getPartnerMaxWidgetRuntimeAuthContext(String storeId, DeploymentPocAuthPath authPath) {
         PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
         return deploymentPocChatService.widgetRuntimeAuthContextForTrustedPartner(context.deploymentId(), authPath);
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public JsonNode getPartnerMaxWidgetShellConfig(String storeId, DeploymentPocAuthPath authPath) {
         PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
         return deploymentPocChatService.widgetShellConfigForTrustedPartner(context.deploymentId(), authPath);
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public JsonNode listPartnerMaxWidgetConversations(String storeId, DeploymentPocAuthPath authPath) {
         PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
         return deploymentPocChatService.listConversationsForTrustedPartner(context.deploymentId(), authPath);
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public JsonNode getPartnerMaxWidgetConversation(String storeId, String conversationId, DeploymentPocAuthPath authPath) {
         PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
         return deploymentPocChatService.widgetConversationForTrustedPartner(context.deploymentId(), conversationId, authPath);
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public JsonNode queryPartnerMaxWidget(String storeId, JsonNode request, DeploymentPocAuthPath authPath) {
         PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
         JsonNode response = deploymentPocChatService.widgetQueryForTrustedPartner(context.deploymentId(), request, authPath);
@@ -717,12 +752,14 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public JsonNode suggestPartnerMaxWidget(String storeId, JsonNode request, DeploymentPocAuthPath authPath) {
         PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
         return deploymentPocChatService.widgetSuggestionsForTrustedPartner(context.deploymentId(), request, authPath);
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public void deletePartnerMaxWidgetConversation(String storeId, String conversationId, DeploymentPocAuthPath authPath) {
         PartnerMaxWidgetContext context = requirePartnerMaxWidgetContext(storeId);
         deploymentPocChatService.deleteConversationForTrustedPartner(context.deploymentId(), conversationId, authPath);
@@ -734,6 +771,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerActivityEventSummary> listActivity() {
         PartnerContext context = requireProvisionedContext();
         return actionAuditRepository.findTop20ByPartnerAccountIdOrderByCreatedAtDesc(context.account().getId()).stream()
@@ -743,6 +781,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerClientImplementationSummary createImplementation(PartnerClientImplementationRequest request) {
         PartnerContext context = requireProvisionedContext();
         Instant now = Instant.now();
@@ -779,12 +818,14 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerClientImplementationSummary getImplementation(String requestId) {
         PartnerContext context = requireProvisionedContext();
         return toImplementationSummary(requireImplementation(context.account().getId(), requestId));
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerClientImplementationSummary> listImplementations() {
         PartnerContext context = requireProvisionedContext();
         return implementationRequestRepository.findByPartnerAccountIdOrderByCreatedAtDesc(context.account().getId()).stream()
@@ -793,6 +834,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_IMPLEMENTER_ACCESS)
     public PartnerStoreAccessLinkSummary createStoreAccessLink(String requestId) {
         PartnerContext context = requireProvisionedContext();
         PartnerClientImplementationRequestEntity implementation = requireImplementation(context.account().getId(), requestId);
@@ -821,6 +863,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_IMPLEMENTER_ACCESS)
     public MerchantPartnerAccessInviteSummary sendMerchantInviteForImplementation(String requestId,
                                                                                   MerchantPartnerAccessInviteRequest request) {
         PartnerContext context = requireProvisionedContext();
@@ -852,6 +895,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(SHOPIFY_STORE_PLATFORM_ACCESS)
     public MerchantPartnerAccessInviteSummary sendMerchantInviteForAccessRequest(String requestId,
                                                                                  String shopDomain,
                                                                                  MerchantPartnerAccessInviteRequest request) {
@@ -866,6 +910,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PUBLIC_LINK_ACCESS)
     public MerchantLaunchWorkspaceSummary getMerchantWorkspace(String approvalCode) {
         PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
         PartnerStoreAssignmentEntity assignment = findAssignmentForAccessRequest(accessRequest, accessRequest.getStoreConnectionId()).orElse(null);
@@ -902,6 +947,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PUBLIC_LINK_ACCESS)
     public MerchantPartnerAccessApprovalSummary approveMerchantAccess(String approvalCode,
                                                                       MerchantPartnerAccessApprovalRequest request) {
         PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
@@ -914,6 +960,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(SHOPIFY_STORE_PLATFORM_ACCESS)
     public List<MerchantPartnerAccessRequestSummary> listMerchantAccessRequests(String shopDomain) {
         String normalizedShopDomain = normalizeShopDomain(shopDomain);
         return storeAccessRequestRepository.findByShopDomainIgnoreCaseOrderByCreatedAtDesc(normalizedShopDomain).stream()
@@ -923,6 +970,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(SHOPIFY_STORE_PLATFORM_ACCESS)
     public MerchantPartnerAccessDecisionSummary approveMerchantAccessRequest(String requestId,
                                                                             String shopDomain,
                                                                             MerchantPartnerAccessDecisionRequest request) {
@@ -931,6 +979,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(SHOPIFY_STORE_PLATFORM_ACCESS)
     public MerchantPartnerAccessDecisionSummary denyMerchantAccessRequest(String requestId,
                                                                          String shopDomain,
                                                                          MerchantPartnerAccessDecisionRequest request) {
@@ -939,6 +988,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PUBLIC_LINK_ACCESS)
     public MerchantPartnerAccessDecisionSummary denyMerchantAccess(String approvalCode,
                                                                    MerchantPartnerAccessDecisionRequest request) {
         PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
@@ -977,6 +1027,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(SHOPIFY_STORE_PLATFORM_ACCESS)
     public MerchantPartnerAccessDecisionSummary revokeMerchantAccessRequest(String requestId,
                                                                            String shopDomain,
                                                                            MerchantPartnerAccessDecisionRequest request) {
@@ -985,6 +1036,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PUBLIC_LINK_ACCESS)
     public MerchantPartnerAccessDecisionSummary revokeMerchantAccess(String approvalCode,
                                                                      MerchantPartnerAccessDecisionRequest request) {
         PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
@@ -1027,6 +1079,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PUBLIC_LINK_ACCESS)
     public PartnerProductionPromotionSummary requestMerchantProductionPromotion(String approvalCode) {
         PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
         PartnerStoreAssignmentEntity assignment = requireActiveAssignmentForAccessRequest(accessRequest);
@@ -1065,6 +1118,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PUBLIC_LINK_ACCESS)
     public MerchantRollbackRequestSummary requestMerchantRollback(String approvalCode,
                                                                   MerchantRollbackRequest request) {
         PartnerStoreAccessRequestEntity accessRequest = requireAccessRequestByApprovalCode(approvalCode);
@@ -1191,12 +1245,14 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerCatalogEntrySummary> listCatalog() {
         requireProvisionedContext();
         return catalogSource.listCatalog();
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerVerificationPackSummary> listVerificationPacks() {
         requireProvisionedContext();
         return verificationPacks().stream()
@@ -1207,6 +1263,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerVerificationPackSummary getStoreVerificationPack(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -1216,6 +1273,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerVerificationRunSummary runStoreVerification(String storeId, PartnerVerificationRunRequest request) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -1254,6 +1312,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerVerificationRunSummary> listVerificationRuns() {
         PartnerContext context = requireProvisionedContext();
         return verificationRunRepository.findByPartnerAccountIdOrderByStartedAtDesc(context.account().getId()).stream()
@@ -1262,6 +1321,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerVerificationRunSummary> listStoreVerificationRuns(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -1271,6 +1331,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerVerificationRunSummary getVerificationRun(String runId) {
         PartnerContext context = requireProvisionedContext();
         PartnerVerificationRunEntity run = requireVerificationRun(context.account().getId(), runId);
@@ -1279,6 +1340,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerVerificationRunSummary completeManualVerificationStep(String storeId,
                                                                         String stepId,
                                                                         PartnerManualVerificationStepRequest request) {
@@ -1327,6 +1389,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerEvidenceBundleSummary> listEvidenceBundles() {
         PartnerContext context = requireProvisionedContext();
         return evidenceBundleRepository.findByPartnerAccountIdOrderByGeneratedAtDesc(context.account().getId()).stream()
@@ -1335,6 +1398,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerEvidenceBundleSummary> listStoreEvidenceBundles(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -1344,6 +1408,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerEvidenceBundleSummary getEvidenceBundle(String bundleId) {
         PartnerContext context = requireProvisionedContext();
         PartnerEvidenceBundleEntity bundle = requireEvidenceBundle(context.account().getId(), bundleId);
@@ -1354,6 +1419,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerEvidenceBundleSummary createStoreEvidenceBundle(String storeId, PartnerEvidenceBundleCreateRequest request) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -1379,6 +1445,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public byte[] exportEvidenceBundle(String bundleId) {
         PartnerContext context = requireProvisionedContext();
         PartnerEvidenceBundleEntity bundle = requireEvidenceBundle(context.account().getId(), bundleId);
@@ -1389,18 +1456,21 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerTemplateSummary> listTemplates() {
         requireProvisionedContext();
         return templates();
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerTemplateSummary getTemplate(String templateId) {
         requireProvisionedContext();
         return requireTemplate(templateId);
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_WRITE_ACCESS)
     public PartnerTemplateApplicationSummary applyTemplate(String templateId, PartnerTemplateApplicationRequest request) {
         PartnerContext context = requireProvisionedContext();
         PartnerTemplateSummary template = requireTemplate(templateId);
@@ -1456,6 +1526,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerTemplateApplicationSummary> listTemplateApplications() {
         PartnerContext context = requireProvisionedContext();
         return templateApplicationRepository.findByPartnerAccountIdOrderByAppliedAtDesc(context.account().getId()).stream()
@@ -1464,6 +1535,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public List<PartnerStoreNoteSummary> listStoreNotes(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -1473,6 +1545,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerStoreNoteSummary createStoreNote(String storeId, PartnerStoreNoteRequest request) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireActiveAssignment(context.account().getId(), storeId);
@@ -1492,6 +1565,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_ADMIN_ACCESS)
     public List<PartnerMemberSummary> listMembers() {
         PartnerContext context = requireProvisionedContext();
         requireWorkspaceAdmin(context);
@@ -1501,6 +1575,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PLATFORM_ADMIN_ACCESS)
     public List<PlatformPartnerMemberSummary> listPlatformPartnerMembers() {
         Map<String, PartnerAccountEntity> accountsById = accountRepository.findAll().stream()
             .collect(java.util.stream.Collectors.toMap(PartnerAccountEntity::getId, account -> account));
@@ -1511,6 +1586,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PLATFORM_ADMIN_ACCESS)
     public PlatformPartnerMemberSummary updatePlatformPartnerMember(String memberId, PartnerMemberUpdateRequest request) {
         PartnerMemberEntity target = memberRepository.findById(clean(memberId, "memberId"))
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Partner member was not found."));
@@ -1537,6 +1613,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_READ_ACCESS)
     public PartnerMemberSummary updateProfile(PartnerProfileUpdateRequest request) {
         PartnerContext context = requireProvisionedContext();
         PartnerMemberEntity member = context.member();
@@ -1549,6 +1626,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_ADMIN_ACCESS)
     public PartnerMemberSummary updateMember(String memberId, PartnerMemberUpdateRequest request) {
         PartnerContext context = requireProvisionedContext();
         requireWorkspaceAdmin(context);
@@ -1579,6 +1657,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_SUPPORT_ACCESS)
     public List<PartnerSupportEscalationSummary> listEscalations() {
         PartnerContext context = requireProvisionedContext();
         return escalationRepository.findByPartnerAccountIdOrderByUpdatedAtDesc(context.account().getId()).stream()
@@ -1587,6 +1666,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_SUPPORT_ACCESS)
     public PartnerSupportEscalationSummary createEscalation(String storeId,
                                                             PartnerSupportEscalationCreateRequest request) {
         PartnerContext context = requireProvisionedContext();
@@ -1616,6 +1696,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize(PARTNER_SUPPORT_ACCESS)
     public PartnerSupportThreadSummary getEscalationThread(String escalationId) {
         PartnerContext context = requireProvisionedContext();
         PartnerSupportEscalationEntity escalation = requireEscalation(context.account().getId(), escalationId);
@@ -1631,6 +1712,7 @@ public class PartnerEnablementService {
     }
 
     @Transactional
+    @PreAuthorize(PARTNER_SUPPORT_ACCESS)
     public PartnerSupportReplySummary addEscalationReply(String escalationId, PartnerSupportReplyRequest request) {
         PartnerContext context = requireProvisionedContext();
         PartnerSupportEscalationEntity escalation = requireEscalation(context.account().getId(), escalationId);
