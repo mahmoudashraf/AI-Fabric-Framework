@@ -92,11 +92,13 @@ public class MarketplaceMcpDiscoveryService {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public MarketplaceMcpDiscoverySummary discover(MarketplaceMcpDiscoveryRequest request) {
         GatewayBinding gateway = resolveGateway(request.gatewayServiceRef());
+        Map<String, String> resolvedSecretValues = resolveMcpSecretValues(request.server());
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("serverRef", request.serverRef());
         payload.put("server", sanitizedServer(request.server()));
-        payload.put("trace", sanitizedTraceWithResolvedSecrets(request.trace(), request.server()));
+        payload.put("trace", sanitizedTraceWithResolvedSecrets(request.trace(), resolvedSecretValues));
         payload.put("allowedTools", request.allowedTools() == null ? List.of() : request.allowedTools());
+        auditResolvedMcpSecretsForwarded(request, gateway, resolvedSecretValues);
         JsonNode response = postGateway(gateway, "/api/internal/mcp/import/discover", payload);
         return toDiscoverySummary(response);
     }
@@ -269,14 +271,49 @@ public class MarketplaceMcpDiscoveryService {
     }
 
     private Map<String, Object> sanitizedTraceWithResolvedSecrets(Map<String, Object> trace,
-                                                                  Map<String, Object> server) {
+                                                                  Map<String, String> resolved) {
         ObjectNode out = objectMapper.valueToTree(trace == null ? Map.of() : trace);
         out.remove(List.of("mcpSecretValues", "secretValues", "resolvedSecrets"));
-        Map<String, String> resolved = resolveMcpSecretValues(server);
         if (!resolved.isEmpty()) {
             out.set("mcpSecretValues", objectMapper.valueToTree(resolved));
         }
         return objectMapper.convertValue(out, MAP_TYPE);
+    }
+
+    private void auditResolvedMcpSecretsForwarded(MarketplaceMcpDiscoveryRequest request,
+                                                  GatewayBinding gateway,
+                                                  Map<String, String> resolvedSecretValues) {
+        if (resolvedSecretValues.isEmpty()) {
+            return;
+        }
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("serverRef", request.serverRef());
+        details.put(
+            "gatewayServiceRef",
+            firstNonBlank(request.gatewayServiceRef(), productProvisioningProperties.mcpExecutionGatewayServiceRef())
+        );
+        details.put("gatewayBaseUrl", gateway.baseUrl());
+        details.put("secretRefs", List.copyOf(resolvedSecretValues.keySet()));
+        details.put("secretCount", resolvedSecretValues.size());
+        copyTraceText(details, request.trace(), "tenantId");
+        copyTraceText(details, request.trace(), "customerId");
+        copyTraceText(details, request.trace(), "deploymentId");
+        platformAuditService.record(
+            "MARKETPLACE_MCP_SECRET_REFS_FORWARDED",
+            "MCP_SERVER",
+            firstNonBlank(request.serverRef(), "unknown"),
+            details
+        );
+    }
+
+    private void copyTraceText(Map<String, Object> details, Map<String, Object> trace, String key) {
+        if (trace == null || !trace.containsKey(key)) {
+            return;
+        }
+        Object raw = trace.get(key);
+        if (raw != null && StringUtils.hasText(raw.toString())) {
+            details.put(key, raw.toString().trim());
+        }
     }
 
     private Map<String, String> resolveMcpSecretValues(Map<String, Object> server) {

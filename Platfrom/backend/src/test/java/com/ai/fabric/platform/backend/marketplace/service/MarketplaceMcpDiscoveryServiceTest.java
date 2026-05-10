@@ -27,7 +27,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MarketplaceMcpDiscoveryServiceTest {
@@ -102,6 +105,7 @@ class MarketplaceMcpDiscoveryServiceTest {
             PlatformSecretService secretService = mock(PlatformSecretService.class);
             when(secretService.resolveSecret("MCP_GATEWAY_INTERNAL_API_KEY")).thenReturn("gateway-secret");
             when(secretService.resolveSecret("MCP_SECRET_VENDOR_TOKEN")).thenReturn("resolved-vendor-token");
+            PlatformAuditService auditService = mock(PlatformAuditService.class);
 
             MarketplaceMcpDiscoveryService service = new MarketplaceMcpDiscoveryService(
                 properties(),
@@ -110,7 +114,7 @@ class MarketplaceMcpDiscoveryServiceTest {
                 mock(MarketplacePluginRepository.class),
                 mock(MarketplacePluginVersionRepository.class),
                 mock(MarketplaceManifestService.class),
-                mock(PlatformAuditService.class),
+                auditService,
                 objectMapper
             );
 
@@ -144,6 +148,19 @@ class MarketplaceMcpDiscoveryServiceTest {
             assertThat(request.path("trace").path("mcpSecretValues").path("OTHER_SECRET").isMissingNode()).isTrue();
             assertThat(request.path("server").path("auth").has("resolvedSecretValue")).isFalse();
             assertThat(request.path("server").path("auth").has("authorization")).isFalse();
+            verify(auditService).record(
+                eq("MARKETPLACE_MCP_SECRET_REFS_FORWARDED"),
+                eq("MCP_SERVER"),
+                eq("inventory-mcp"),
+                argThat(details ->
+                    "inventory-mcp".equals(details.get("serverRef"))
+                        && "mcp-execution-gateway".equals(details.get("gatewayServiceRef"))
+                        && Integer.valueOf(1).equals(details.get("secretCount"))
+                        && details.get("secretRefs") instanceof List<?> refs
+                        && refs.contains("MCP_SECRET_VENDOR_TOKEN")
+                        && !details.toString().contains("resolved-vendor-token")
+                )
+            );
         } finally {
             gateway.stop(0);
         }
