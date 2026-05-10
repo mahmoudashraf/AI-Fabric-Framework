@@ -106,12 +106,14 @@ public class MarketplaceController {
     }
 
     @PostMapping("/marketplace/mcp/discover")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public MarketplaceMcpDiscoverySummary discoverMcpServer(@Valid @RequestBody MarketplaceMcpDiscoveryRequest request) {
         return marketplaceMcpDiscoveryService.discover(request);
     }
 
     @PostMapping("/marketplace/mcp/import-draft")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public MarketplaceMcpImportDraftSummary importMcpDraft(@Valid @RequestBody MarketplaceMcpImportDraftRequest request) {
         return marketplaceMcpDiscoveryService.importDraft(request);
     }

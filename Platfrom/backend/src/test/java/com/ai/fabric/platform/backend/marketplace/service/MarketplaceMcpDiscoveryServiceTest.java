@@ -3,8 +3,10 @@ package com.ai.fabric.platform.backend.marketplace.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpDiscoveryRequest;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceMcpImportDraftRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
+import com.ai.fabric.platform.backend.marketplace.web.MarketplaceController;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.service.PlatformManagedProductServiceService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -12,8 +14,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -31,6 +35,31 @@ class MarketplaceMcpDiscoveryServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void mcpDiscoveryAndImportArePlatformAdminOnly() throws Exception {
+        Method controllerDiscover = MarketplaceController.class.getDeclaredMethod(
+            "discoverMcpServer",
+            MarketplaceMcpDiscoveryRequest.class
+        );
+        Method controllerImport = MarketplaceController.class.getDeclaredMethod(
+            "importMcpDraft",
+            MarketplaceMcpImportDraftRequest.class
+        );
+        Method serviceDiscover = MarketplaceMcpDiscoveryService.class.getDeclaredMethod(
+            "discover",
+            MarketplaceMcpDiscoveryRequest.class
+        );
+        Method serviceImport = MarketplaceMcpDiscoveryService.class.getDeclaredMethod(
+            "importDraft",
+            MarketplaceMcpImportDraftRequest.class
+        );
+
+        assertThat(controllerDiscover.getAnnotation(PreAuthorize.class).value()).isEqualTo("hasRole('PLATFORM_ADMIN')");
+        assertThat(controllerImport.getAnnotation(PreAuthorize.class).value()).isEqualTo("hasRole('PLATFORM_ADMIN')");
+        assertThat(serviceDiscover.getAnnotation(PreAuthorize.class).value()).isEqualTo("hasRole('PLATFORM_ADMIN')");
+        assertThat(serviceImport.getAnnotation(PreAuthorize.class).value()).isEqualTo("hasRole('PLATFORM_ADMIN')");
+    }
+
+    @Test
     void discoverResolvesPlatformSecretRefsAndStripsCallerSuppliedSecretValues() throws Exception {
         AtomicReference<JsonNode> gatewayRequest = new AtomicReference<>();
         HttpServer gateway = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -42,7 +71,7 @@ class MarketplaceMcpDiscoveryServiceTest {
                   "ready": true,
                   "message": "ok",
                   "serverRef": "inventory-mcp",
-                  "endpointUrl": "https://inventory.example/mcp",
+                  "endpointUrl": "https://example.com/mcp",
                   "protocolVersion": "2025-11-25",
                   "tools": [
                     {
@@ -88,7 +117,7 @@ class MarketplaceMcpDiscoveryServiceTest {
             var summary = service.discover(new MarketplaceMcpDiscoveryRequest(
                 "inventory-mcp",
                 Map.of(
-                    "endpointUrl", "https://inventory.example/mcp",
+                    "endpointUrl", "https://example.com/mcp",
                     "auth", Map.of(
                         "mode", "API_KEY_HEADER_SECRET",
                         "headerName", "X-MCP-API-KEY",
@@ -146,7 +175,7 @@ class MarketplaceMcpDiscoveryServiceTest {
         assertThatThrownBy(() -> service.discover(new MarketplaceMcpDiscoveryRequest(
             "inventory-mcp",
             Map.of(
-                "endpointUrl", "https://inventory.example/mcp",
+                "endpointUrl", "https://example.com/mcp",
                 "auth", Map.of(
                     "mode", "API_KEY_HEADER_SECRET",
                     "headerName", "X-MCP-API-KEY",
@@ -188,7 +217,41 @@ class MarketplaceMcpDiscoveryServiceTest {
 
         assertThatThrownBy(() -> service.discover(new MarketplaceMcpDiscoveryRequest(
             "inventory-mcp",
-            Map.of("endpointUrl", "https://inventory.example/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of("endpointUrl", "https://example.com/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of(),
+            List.of("inventory.search"),
+            null
+        )))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getMessage()).contains("MCP gateway product service baseUrl is not allowed"));
+    }
+
+    @Test
+    void discoverRejectsGatewayBaseUrlWhoseDnsResolvesToPrivateAddress() {
+        PlatformManagedProductServiceEntity gatewayService = new PlatformManagedProductServiceEntity();
+        gatewayService.setServiceRef("mcp-execution-gateway");
+        gatewayService.setBaseUrl("https://localhost");
+        gatewayService.setSecretName("MCP_GATEWAY_INTERNAL_API_KEY");
+
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        when(productServiceService.requireService("mcp-execution-gateway")).thenReturn(gatewayService);
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("MCP_GATEWAY_INTERNAL_API_KEY")).thenReturn("gateway-secret");
+
+        MarketplaceMcpDiscoveryService service = new MarketplaceMcpDiscoveryService(
+            properties(),
+            productServiceService,
+            secretService,
+            mock(MarketplacePluginRepository.class),
+            mock(MarketplacePluginVersionRepository.class),
+            mock(MarketplaceManifestService.class),
+            mock(PlatformAuditService.class),
+            objectMapper
+        );
+
+        assertThatThrownBy(() -> service.discover(new MarketplaceMcpDiscoveryRequest(
+            "inventory-mcp",
+            Map.of("endpointUrl", "https://example.com/mcp", "auth", Map.of("mode", "NONE")),
             Map.of(),
             List.of("inventory.search"),
             null

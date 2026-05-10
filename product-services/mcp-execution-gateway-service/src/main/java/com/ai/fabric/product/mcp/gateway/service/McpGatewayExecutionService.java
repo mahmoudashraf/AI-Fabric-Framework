@@ -33,7 +33,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -570,20 +572,54 @@ public class McpGatewayExecutionService {
             throw new IllegalArgumentException(fieldName + " must use https.");
         }
         String host = uri.getHost();
-        if (!StringUtils.hasText(host) || StringUtils.hasText(uri.getUserInfo()) || isBlockedOutboundHost(host)) {
+        if (!StringUtils.hasText(host)
+            || StringUtils.hasText(uri.getUserInfo())
+            || isBlockedOutboundHost(host)
+            || resolvesToBlockedOutboundAddress(host)) {
             throw new IllegalArgumentException(fieldName + " host is not allowed.");
         }
         return uri;
     }
 
+    private boolean resolvesToBlockedOutboundAddress(String host) {
+        String normalized = normalizeOutboundHost(host);
+        if (IPV4_LITERAL.matcher(normalized).matches() || normalized.contains(":")) {
+            return false;
+        }
+        try {
+            for (InetAddress address : InetAddress.getAllByName(normalized)) {
+                if (isBlockedOutboundAddress(address)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (UnknownHostException ex) {
+            throw new IllegalArgumentException("MCP outbound host could not be resolved.");
+        }
+    }
+
+    private boolean isBlockedOutboundAddress(InetAddress address) {
+        if (address.isAnyLocalAddress()
+            || address.isLoopbackAddress()
+            || address.isLinkLocalAddress()
+            || address.isSiteLocalAddress()
+            || address.isMulticastAddress()) {
+            return true;
+        }
+        byte[] bytes = address.getAddress();
+        if (bytes.length == 16) {
+            int first = bytes[0] & 0xff;
+            int second = bytes[1] & 0xff;
+            return first == 0
+                || first == 0xfc
+                || first == 0xfd
+                || (first == 0xfe && (second & 0xc0) == 0x80);
+        }
+        return false;
+    }
+
     private boolean isBlockedOutboundHost(String host) {
-        String normalized = host == null ? "" : host.trim().toLowerCase(Locale.ROOT);
-        if (normalized.startsWith("[") && normalized.endsWith("]")) {
-            normalized = normalized.substring(1, normalized.length() - 1);
-        }
-        while (normalized.endsWith(".")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
+        String normalized = normalizeOutboundHost(host);
         if (!StringUtils.hasText(normalized)
             || "localhost".equals(normalized)
             || normalized.endsWith(".localhost")
@@ -618,6 +654,17 @@ public class McpGatewayExecutionService {
             || normalized.startsWith("::ffff:169.254.")
             || normalized.startsWith("::ffff:10.")
             || normalized.startsWith("::ffff:192.168.");
+    }
+
+    private String normalizeOutboundHost(String host) {
+        String normalized = host == null ? "" : host.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("[") && normalized.endsWith("]")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private String renderEndpointTemplate(String template, Object request, JsonNode trace) {

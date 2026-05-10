@@ -22,8 +22,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -86,6 +89,7 @@ public class MarketplaceMcpDiscoveryService {
             .build();
     }
 
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public MarketplaceMcpDiscoverySummary discover(MarketplaceMcpDiscoveryRequest request) {
         GatewayBinding gateway = resolveGateway(request.gatewayServiceRef());
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -98,6 +102,7 @@ public class MarketplaceMcpDiscoveryService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public MarketplaceMcpImportDraftSummary importDraft(MarketplaceMcpImportDraftRequest request) {
         MarketplaceMcpDiscoverySummary discovery = discover(new MarketplaceMcpDiscoveryRequest(
             request.serverRef(),
@@ -359,10 +364,47 @@ public class MarketplaceMcpDiscoveryService {
         if ("http".equals(scheme) && loopback) {
             return uri;
         }
-        if (!"https".equals(scheme) || isBlockedGatewayHost(host)) {
+        if (!"https".equals(scheme) || isBlockedGatewayHost(host) || resolvesToBlockedGatewayAddress(host)) {
             throw new ResponseStatusException(CONFLICT, "MCP gateway product service baseUrl is not allowed.");
         }
         return uri;
+    }
+
+    private boolean resolvesToBlockedGatewayAddress(String host) {
+        String normalized = normalizeHost(host);
+        if (IPV4_LITERAL.matcher(normalized).matches() || normalized.contains(":")) {
+            return false;
+        }
+        try {
+            for (InetAddress address : InetAddress.getAllByName(normalized)) {
+                if (isBlockedGatewayAddress(address)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (UnknownHostException ex) {
+            throw new ResponseStatusException(CONFLICT, "MCP gateway product service baseUrl host could not be resolved.");
+        }
+    }
+
+    private boolean isBlockedGatewayAddress(InetAddress address) {
+        if (address.isAnyLocalAddress()
+            || address.isLoopbackAddress()
+            || address.isLinkLocalAddress()
+            || address.isSiteLocalAddress()
+            || address.isMulticastAddress()) {
+            return true;
+        }
+        byte[] bytes = address.getAddress();
+        if (bytes.length == 16) {
+            int first = bytes[0] & 0xff;
+            int second = bytes[1] & 0xff;
+            return first == 0
+                || first == 0xfc
+                || first == 0xfd
+                || (first == 0xfe && (second & 0xc0) == 0x80);
+        }
+        return false;
     }
 
     private boolean isBlockedGatewayHost(String host) {

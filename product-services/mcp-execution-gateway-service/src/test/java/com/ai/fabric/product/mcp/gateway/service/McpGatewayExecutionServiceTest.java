@@ -56,13 +56,13 @@ class McpGatewayExecutionServiceTest {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://inventory.example/mcp"),
+            URI.create("https://example.com/mcp"),
             "2025-11-25",
             "session-1",
             objectMapper.createObjectNode()
         );
         ArgumentCaptor<JsonNode> arguments = ArgumentCaptor.forClass(JsonNode.class);
-        when(client.initialize(eq(URI.create("https://inventory.example/mcp")), any())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
         when(client.toolsCall(
             eq(session),
             eq("inventory.search"),
@@ -105,12 +105,12 @@ class McpGatewayExecutionServiceTest {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://inventory.example/mcp"),
+            URI.create("https://example.com/mcp"),
             "2025-11-25",
             null,
             objectMapper.createObjectNode()
         );
-        when(client.initialize(eq(URI.create("https://inventory.example/mcp")), any())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
         when(client.toolsList(eq(session), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
@@ -131,7 +131,7 @@ class McpGatewayExecutionServiceTest {
             """));
         DiscoveryResponse first = service.discover(new DiscoveryRequest(
             "inventory-mcp",
-            Map.of("endpointUrl", "https://inventory.example/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of("endpointUrl", "https://example.com/mcp", "auth", Map.of("mode", "NONE")),
             Map.of(),
             java.util.List.of()
         ));
@@ -156,7 +156,7 @@ class McpGatewayExecutionServiceTest {
 
         DiscoveryResponse second = service.discover(new DiscoveryRequest(
             "inventory-mcp",
-            Map.of("endpointUrl", "https://inventory.example/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of("endpointUrl", "https://example.com/mcp", "auth", Map.of("mode", "NONE")),
             Map.of(),
             java.util.List.of()
         ));
@@ -186,6 +186,23 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void discoveryRejectsUnresolvableMcpEndpointBeforeOutboundRequest() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        DiscoveryResponse response = service.discover(new DiscoveryRequest(
+            "unresolved-mcp",
+            Map.of("endpointUrl", "https://does-not-resolve.invalid/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of(),
+            List.of()
+        ));
+
+        assertThat(response.ready()).isFalse();
+        assertThat(response.message()).contains("MCP outbound host could not be resolved");
+        verify(client, never()).initialize(any(), any());
+    }
+
+    @Test
     void executionRejectsPrivateOauthTokenEndpointBeforeOutboundRequest() {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
@@ -206,7 +223,7 @@ class McpGatewayExecutionServiceTest {
                     ),
                     "mcpServers", Map.of(
                         "inventory-mcp", Map.of(
-                            "endpointUrl", "https://inventory.example/mcp",
+                            "endpointUrl", "https://example.com/mcp",
                             "auth", Map.of(
                                 "mode", "OAUTH2_CLIENT_CREDENTIALS",
                                 "tokenUrl", "https://169.254.169.254/oauth/token",
@@ -246,14 +263,14 @@ class McpGatewayExecutionServiceTest {
             .withProperty("MCP_SECRET_VENDOR_TOKEN", "env-vendor-token");
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, envProperties, environment);
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://inventory.example/mcp"),
+            URI.create("https://example.com/mcp"),
             "2025-11-25",
             "session-1",
             objectMapper.createObjectNode()
         );
         ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
             ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
-        when(client.initialize(eq(URI.create("https://inventory.example/mcp")), options.capture())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/mcp")), options.capture())).thenReturn(session);
         when(client.toolsCall(eq(session), eq("inventory.search"), any(), any()))
             .thenReturn(objectMapper.readTree("""
                 {"structuredContent":{"ok":true}}
@@ -273,7 +290,7 @@ class McpGatewayExecutionServiceTest {
                 ),
                 "mcpServers", Map.of(
                     "inventory-mcp", Map.of(
-                        "endpointUrl", "https://inventory.example/mcp",
+                        "endpointUrl", "https://example.com/mcp",
                         "auth", Map.of(
                             "mode", "API_KEY_HEADER_SECRET",
                             "headerName", "X-MCP-API-KEY",
@@ -293,16 +310,16 @@ class McpGatewayExecutionServiceTest {
     void resolvesShopifyEndpointKindAndAllowlistedProfileRefs() throws Exception {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         MockEnvironment environment = new MockEnvironment()
-            .withProperty("MCP_PROFILE_SHOPIFY_UCP_AGENT", "https://profiles.example/ucp-agent.json");
+            .withProperty("MCP_PROFILE_SHOPIFY_UCP_AGENT", "https://example.com/ucp-agent.json");
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties, environment);
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://alpha.myshopify.com/api/ucp/mcp"),
+            URI.create("https://example.com/api/ucp/mcp"),
             "2025-11-25",
             "session-1",
             objectMapper.createObjectNode()
         );
         ArgumentCaptor<JsonNode> arguments = ArgumentCaptor.forClass(JsonNode.class);
-        when(client.initialize(eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")), any())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/api/ucp/mcp")), any())).thenReturn(session);
         when(client.toolsCall(eq(session), eq("search_catalog"), arguments.capture(), any()))
             .thenReturn(objectMapper.readTree("{\"content\":[{\"type\":\"text\",\"text\":\"ok\"}]}"));
 
@@ -310,7 +327,7 @@ class McpGatewayExecutionServiceTest {
             "shopify_search_catalog",
             Map.of("query", "snowboard"),
             null,
-            Map.of("shopDomain", "alpha.myshopify.com", "actionConfig", Map.of(
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
                 "execution", Map.of(
                     "adapterType", "mcp-tool",
                     "mcp", Map.of(
@@ -330,7 +347,7 @@ class McpGatewayExecutionServiceTest {
         assertThat(response.success()).isTrue();
         assertThat(arguments.getValue().path("meta").path("ucp-agent").has("profileRef")).isFalse();
         assertThat(arguments.getValue().path("meta").path("ucp-agent").path("profile").asText())
-            .isEqualTo("https://profiles.example/ucp-agent.json");
+            .isEqualTo("https://example.com/ucp-agent.json");
         assertThat(arguments.getValue().path("catalog").path("query").asText()).isEqualTo("snowboard");
     }
 
@@ -341,14 +358,14 @@ class McpGatewayExecutionServiceTest {
 
         ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
             "shopify_get_order_status",
-            Map.of("order_number", "1001", "shopDomain", "alpha.myshopify.com"),
+            Map.of("order_number", "1001", "shopDomain", "example.com"),
             null,
             Map.of("actionConfig", Map.of(
                 "execution", Map.of(
                     "adapterType", "mcp-tool",
                     "mcp", Map.of(
                         "serverRef", "shopify-customer-account",
-                        "endpointUrl", "https://alpha.myshopify.com/customer/api/mcp",
+                        "endpointUrl", "https://example.com/customer/api/mcp",
                         "authMode", "CUSTOMER_OAUTH_PKCE",
                         "toolName", "get_order_status"
                     )
@@ -368,14 +385,14 @@ class McpGatewayExecutionServiceTest {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://customer.example/mcp"),
+            URI.create("https://example.com/customer/mcp"),
             "2025-11-25",
             "session-1",
             objectMapper.createObjectNode()
         );
         ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
             ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
-        when(client.initialize(eq(URI.create("https://customer.example/mcp")), options.capture())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/customer/mcp")), options.capture())).thenReturn(session);
         when(client.toolsCall(eq(session), eq("get_order_status"), any(), any()))
             .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"status\":\"fulfilled\"}}"));
 
@@ -390,7 +407,7 @@ class McpGatewayExecutionServiceTest {
                         "adapterType", "mcp-tool",
                         "mcp", Map.of(
                             "serverRef", "shopify-customer-account",
-                            "endpointUrl", "https://customer.example/mcp",
+                            "endpointUrl", "https://example.com/customer/mcp",
                             "authMode", "CUSTOMER_OAUTH_PKCE",
                             "toolName", "get_order_status"
                         )
@@ -409,12 +426,12 @@ class McpGatewayExecutionServiceTest {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://inventory.example/mcp"),
+            URI.create("https://example.com/mcp"),
             "2025-11-25",
             "session-1",
             objectMapper.createObjectNode()
         );
-        when(client.initialize(eq(URI.create("https://inventory.example/mcp")), any())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
         when(client.toolsList(eq(session), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
@@ -449,12 +466,12 @@ class McpGatewayExecutionServiceTest {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://inventory.example/mcp"),
+            URI.create("https://example.com/mcp"),
             "2025-11-25",
             null,
             objectMapper.createObjectNode()
         );
-        when(client.initialize(eq(URI.create("https://inventory.example/mcp")), any())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
         when(client.toolsList(eq(session), any())).thenReturn(objectMapper.readTree("""
             {
               "tools": [
@@ -472,13 +489,13 @@ class McpGatewayExecutionServiceTest {
 
         DiscoveryResponse discovery = service.discover(new DiscoveryRequest(
             "inventory-mcp",
-            Map.of("endpointUrl", "https://inventory.example/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of("endpointUrl", "https://example.com/mcp", "auth", Map.of("mode", "NONE")),
             Map.of(),
             List.of()
         ));
         ServerVerificationResponse response = service.verify(new ServerVerificationRequest(
             "inventory-mcp",
-            Map.of("endpointUrl", "https://inventory.example/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of("endpointUrl", "https://example.com/mcp", "auth", Map.of("mode", "NONE")),
             Map.of(),
             List.of(new ExpectedTool(
                 "inventory.search",
@@ -497,7 +514,7 @@ class McpGatewayExecutionServiceTest {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         RestClient.Builder tokenBuilder = RestClient.builder();
         MockRestServiceServer tokenServer = MockRestServiceServer.bindTo(tokenBuilder).build();
-        tokenServer.expect(requestTo("https://auth.example/oauth/token"))
+        tokenServer.expect(requestTo("https://example.com/oauth/token"))
             .andExpect(method(org.springframework.http.HttpMethod.POST))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("grant_type=client_credentials")))
             .andRespond(withSuccess("{\"access_token\":\"oauth-access-token\",\"token_type\":\"Bearer\"}", org.springframework.http.MediaType.APPLICATION_JSON));
@@ -509,14 +526,14 @@ class McpGatewayExecutionServiceTest {
             tokenBuilder
         );
         McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
-            URI.create("https://inventory.example/mcp"),
+            URI.create("https://example.com/mcp"),
             "2025-11-25",
             "session-1",
             objectMapper.createObjectNode()
         );
         ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
             ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
-        when(client.initialize(eq(URI.create("https://inventory.example/mcp")), options.capture())).thenReturn(session);
+        when(client.initialize(eq(URI.create("https://example.com/mcp")), options.capture())).thenReturn(session);
         when(client.toolsCall(eq(session), eq("inventory.search"), any(), any()))
             .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"ok\":true}}"));
 
@@ -535,10 +552,10 @@ class McpGatewayExecutionServiceTest {
                     ),
                     "mcpServers", Map.of(
                         "inventory-mcp", Map.of(
-                            "endpointUrl", "https://inventory.example/mcp",
+                            "endpointUrl", "https://example.com/mcp",
                             "auth", Map.of(
                                 "mode", "OAUTH2_CLIENT_CREDENTIALS",
-                                "tokenUrl", "https://auth.example/oauth/token",
+                                "tokenUrl", "https://example.com/oauth/token",
                                 "clientId", "client-1",
                                 "clientSecretRef", "MCP_SECRET_CLIENT_SECRET",
                                 "scope", "catalog:read"
@@ -597,7 +614,7 @@ class McpGatewayExecutionServiceTest {
         ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
             ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
         when(client.toolsCall(
-            eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")),
+            eq(URI.create("https://example.com/api/ucp/mcp")),
             eq("get_checkout"),
             any(),
             options.capture()
@@ -609,7 +626,7 @@ class McpGatewayExecutionServiceTest {
             Map.of("id", "checkout-1"),
             null,
             Map.of(
-                "shopDomain", "alpha.myshopify.com",
+                "shopDomain", "example.com",
                 "buyerIp", "203.0.113.10",
                 "actionConfig", Map.of(
                     "execution", Map.of(
@@ -630,7 +647,7 @@ class McpGatewayExecutionServiceTest {
         assertThat(response.success()).isTrue();
         assertThat(options.getValue().headers()).containsEntry("Authorization", "Bearer shopify-checkout-token");
         assertThat(options.getValue().headers()).containsEntry("Shopify-Buyer-IP", "203.0.113.10");
-        verify(client, never()).initialize(eq(URI.create("https://alpha.myshopify.com/api/ucp/mcp")), any());
+        verify(client, never()).initialize(eq(URI.create("https://example.com/api/ucp/mcp")), any());
         tokenServer.verify();
     }
 
@@ -654,7 +671,7 @@ class McpGatewayExecutionServiceTest {
             "mcpServers", Map.of(
                 "inventory-mcp", Map.of(
                     "transport", "STREAMABLE_HTTP",
-                    "endpointUrl", "https://inventory.example/mcp",
+                    "endpointUrl", "https://example.com/mcp",
                     "auth", Map.of("mode", "NONE")
                 )
             )
@@ -676,7 +693,7 @@ class McpGatewayExecutionServiceTest {
             "mcpServers", Map.of(
                 "inventory-mcp", Map.of(
                     "transport", "STREAMABLE_HTTP",
-                    "endpointUrl", "https://inventory.example/mcp",
+                    "endpointUrl", "https://example.com/mcp",
                     "auth", Map.of("mode", "NONE")
                 )
             )
