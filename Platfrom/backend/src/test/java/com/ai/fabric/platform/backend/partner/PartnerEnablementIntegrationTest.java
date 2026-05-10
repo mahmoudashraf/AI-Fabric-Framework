@@ -453,6 +453,8 @@ class PartnerEnablementIntegrationTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.widgetSettings.launcherLabel", is("Ask Loom Companion")))
+            .andExpect(jsonPath("$.widgetSettings.assistantDockEnabled", is(true)))
+            .andExpect(jsonPath("$.widgetSettings.askAssistantLauncherEnabled", is(false)))
             .andExpect(jsonPath("$.widgetSettings.enabledSurfaces", hasItem("comparison")))
             .andExpect(jsonPath("$.enabledSurfaces", hasItem("product-faq")));
 

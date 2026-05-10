@@ -117,6 +117,7 @@ Important rule:
 
 The current merchant-placeable surface set is:
 
+- Companion dock on every page
 - AI search
 - contextual pill
 - product insight
@@ -126,6 +127,7 @@ The current merchant-placeable surface set is:
 
 Use them this way:
 
+- Companion dock is the default shopper chat entry point. It stays minimized as a bottom composer, expands when the shopper clicks the input, renders the same message/result cards as full Max Mode, and can open full Max Mode from the MAX button.
 - AI search is the Free-tier storefront wedge
 - contextual pill keeps guided prompts visible inline
 - product insight and policy strip help the shopper at the product decision point

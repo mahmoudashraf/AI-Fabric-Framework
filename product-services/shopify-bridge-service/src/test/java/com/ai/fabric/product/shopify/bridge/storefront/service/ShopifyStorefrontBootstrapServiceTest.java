@@ -90,6 +90,8 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.catalogProductCap()).isEqualTo(50);
         assertThat(response.poweredByBadgeRequired()).isTrue();
         assertThat(response.chatFallbackEnabled()).isFalse();
+        assertThat(response.assistantDockEnabled()).isTrue();
+        assertThat(response.askAssistantLauncherEnabled()).isFalse();
         assertThat(response.launcherLabel()).isEqualTo("Need help?");
         assertThat(response.welcomeMessage()).isEqualTo("Ask me about products and store policies.");
         assertThat(response.enabledSurfaces()).containsExactly("ai-search");

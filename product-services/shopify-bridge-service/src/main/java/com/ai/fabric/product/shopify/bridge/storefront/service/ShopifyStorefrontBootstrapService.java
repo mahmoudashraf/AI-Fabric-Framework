@@ -35,6 +35,8 @@ public class ShopifyStorefrontBootstrapService {
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
     private static final boolean DEFAULT_DEBUG_ENABLED = false;
+    private static final boolean DEFAULT_ASSISTANT_DOCK_ENABLED = true;
+    private static final boolean DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED = false;
     private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final String THINKER_CONVERSATION_MODE = "thinker_deep";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
@@ -134,6 +136,13 @@ public class ShopifyStorefrontBootstrapService {
         boolean debugEnabled = updated.widgetDetail() != null
             && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().debugEnabled();
+        boolean assistantDockEnabled = updated.widgetDetail() == null
+            || updated.widgetDetail().settings() == null
+            || updated.widgetDetail().settings().assistantDockEnabled() == null
+            || updated.widgetDetail().settings().assistantDockEnabled();
+        boolean askAssistantLauncherEnabled = updated.widgetDetail() != null
+            && updated.widgetDetail().settings() != null
+            && Boolean.TRUE.equals(updated.widgetDetail().settings().askAssistantLauncherEnabled());
         String configuredDefaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().defaultConversationMode() != null
             && !updated.widgetDetail().settings().defaultConversationMode().isBlank()
@@ -211,6 +220,8 @@ public class ShopifyStorefrontBootstrapService {
             welcomeMessage,
             shellModeProfile,
             debugEnabled,
+            assistantDockEnabled,
+            askAssistantLauncherEnabled,
             defaultConversationMode,
             effectiveConversationMode,
             allowedConversationModes,
@@ -261,6 +272,8 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_WELCOME_MESSAGE,
             DEFAULT_SHELL_MODE_PROFILE,
             DEFAULT_DEBUG_ENABLED,
+            DEFAULT_ASSISTANT_DOCK_ENABLED,
+            DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED,
             defaultConversationMode,
             resolveEffectiveConversationMode(
                 pageType,

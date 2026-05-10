@@ -74,6 +74,8 @@ export const partnerProductWidgetSettingsSchema = z.object({
   welcomeMessage: z.string(),
   shellModeProfile: z.string(),
   debugEnabled: z.boolean(),
+  assistantDockEnabled: z.boolean().optional(),
+  askAssistantLauncherEnabled: z.boolean().optional(),
   enabledSurfaces: z.array(z.string()),
   defaultConversationMode: z.string(),
   allowedConversationModes: z.array(z.string()),

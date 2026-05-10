@@ -169,6 +169,8 @@ export interface MaxModeHostConfig {
   initialAttachments?: MaxModeHostAttachment[];
   /** Hide POC-only utility controls when embedding in storefronts */
   showUtilityPanel?: boolean;
+  /** Render the compact storefront dock that shares the Max Mode chat runtime */
+  companionDock?: boolean;
 }
 
 export interface MaxModeWidgetConfig {
@@ -259,6 +261,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     pageModeMappings: undefined,
     initialAttachments: undefined,
     showUtilityPanel: true,
+    companionDock: false,
   },
   onEvent: undefined,
   onClose: undefined,

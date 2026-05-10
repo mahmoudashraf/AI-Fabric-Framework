@@ -115,6 +115,8 @@ export type ShopifyBridgeStoreSummary = {
       welcomeMessage: string | null
       shellModeProfile: string | null
       debugEnabled: boolean
+      assistantDockEnabled?: boolean | null
+      askAssistantLauncherEnabled?: boolean | null
       defaultConversationMode: string | null
       allowedConversationModes: string[]
       pageModeMappings: Record<string, string>
@@ -855,6 +857,8 @@ export async function updateWidgetSettings(settings: {
   welcomeMessage: string
   shellModeProfile: string
   debugEnabled: boolean
+  assistantDockEnabled: boolean
+  askAssistantLauncherEnabled: boolean
   defaultConversationMode: string
   allowedConversationModes: string[]
   pageModeMappings: Record<string, string>

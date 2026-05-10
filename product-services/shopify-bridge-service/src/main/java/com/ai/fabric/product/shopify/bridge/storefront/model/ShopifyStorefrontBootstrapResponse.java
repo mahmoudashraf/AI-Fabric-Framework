@@ -21,6 +21,8 @@ public record ShopifyStorefrontBootstrapResponse(
     String welcomeMessage,
     String shellModeProfile,
     boolean debugEnabled,
+    boolean assistantDockEnabled,
+    boolean askAssistantLauncherEnabled,
     String defaultConversationMode,
     String effectiveConversationMode,
     List<String> allowedConversationModes,

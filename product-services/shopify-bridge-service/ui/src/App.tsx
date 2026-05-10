@@ -145,6 +145,8 @@ type WidgetSettingsState = {
   welcomeMessage: string
   shellModeProfile: string
   debugEnabled: boolean
+  assistantDockEnabled: boolean
+  askAssistantLauncherEnabled: boolean
   defaultConversationMode: string
   allowedConversationModes: string[]
   pageModeMappings: Record<string, string>
@@ -253,6 +255,8 @@ function buildWidgetSettingsState(snapshot?: WidgetSettingsSnapshot | null): Wid
       snapshot?.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.',
     shellModeProfile,
     debugEnabled: snapshot?.debugEnabled === true,
+    assistantDockEnabled: snapshot?.assistantDockEnabled !== false,
+    askAssistantLauncherEnabled: snapshot?.askAssistantLauncherEnabled === true,
     defaultConversationMode,
     allowedConversationModes,
     pageModeMappings: normalizePageModeMappings(snapshot?.pageModeMappings, allowedConversationModes),
@@ -1177,6 +1181,8 @@ export default function App() {
         persisted.welcomeMessage !== widgetSettings.welcomeMessage ||
         persisted.shellModeProfile !== widgetSettings.shellModeProfile ||
         persisted.debugEnabled !== widgetSettings.debugEnabled ||
+        persisted.assistantDockEnabled !== widgetSettings.assistantDockEnabled ||
+        persisted.askAssistantLauncherEnabled !== widgetSettings.askAssistantLauncherEnabled ||
         persisted.defaultConversationMode !== widgetSettings.defaultConversationMode ||
         JSON.stringify(persisted.allowedConversationModes) !== JSON.stringify(widgetSettings.allowedConversationModes) ||
         JSON.stringify(persisted.pageModeMappings) !== JSON.stringify(widgetSettings.pageModeMappings) ||
@@ -2137,6 +2143,13 @@ export default function App() {
                         <List.Item>Launcher label: {storefrontPreview.launcherLabelDefault}</List.Item>
                         <List.Item>Welcome message: {storefrontPreview.welcomeMessageDefault}</List.Item>
                         <List.Item>Shell profile: {store?.widgetDetail?.settings?.shellModeProfile ?? 'SHOPIFY_COMPANION'}</List.Item>
+                        <List.Item>
+                          Companion dock: {store?.widgetDetail?.settings?.assistantDockEnabled === false ? 'Disabled' : 'Enabled'}
+                        </List.Item>
+                        <List.Item>
+                          Legacy Ask assistant launcher:{' '}
+                          {store?.widgetDetail?.settings?.askAssistantLauncherEnabled ? 'Enabled' : 'Disabled'}
+                        </List.Item>
                         <List.Item>
                           Debug inspector: {store?.widgetDetail?.settings?.debugEnabled ? 'Enabled' : 'Disabled'}
                         </List.Item>
@@ -3153,6 +3166,18 @@ export default function App() {
                     onChange={(checked) => setWidgetSettings((current) => ({ ...current, debugEnabled: checked }))}
                     helpText="Shows the widget debug control for request and response inspection. Keep disabled for normal shopper traffic."
                   />
+                  <Checkbox
+                    label="Companion dock on every page"
+                    checked={widgetSettings.assistantDockEnabled}
+                    onChange={(checked) => setWidgetSettings((current) => ({ ...current, assistantDockEnabled: checked }))}
+                    helpText="Shows the new bottom assistant composer globally across the storefront app embed."
+                  />
+                  <Checkbox
+                    label="Legacy Ask assistant launcher"
+                    checked={widgetSettings.askAssistantLauncherEnabled}
+                    onChange={(checked) => setWidgetSettings((current) => ({ ...current, askAssistantLauncherEnabled: checked }))}
+                    helpText="Keeps the older floating Max launcher available for stores that still want it. Leave off when the Companion dock is active."
+                  />
                   <BlockStack gap="150">
                     <Text as="p" variant="bodySm" tone="subdued">
                       Intentional advanced modes
@@ -3714,7 +3739,9 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
           {(store.widgetDetail.settings.enabledSurfaces?.length
             ? store.widgetDetail.settings.enabledSurfaces
             : DEFAULT_WIDGET_SURFACES
-          ).join(', ')} · debug {store.widgetDetail.settings.debugEnabled ? 'enabled' : 'disabled'}
+          ).join(', ')} · dock {store.widgetDetail.settings.assistantDockEnabled === false ? 'disabled' : 'enabled'} · legacy launcher{' '}
+          {store.widgetDetail.settings.askAssistantLauncherEnabled ? 'enabled' : 'disabled'} · debug{' '}
+          {store.widgetDetail.settings.debugEnabled ? 'enabled' : 'disabled'}
         </Text>
       ) : null}
       {store.syncDetail ? (
@@ -4147,6 +4174,8 @@ type WidgetSettingsSnapshot = {
   welcomeMessage?: string | null
   shellModeProfile?: string | null
   debugEnabled?: boolean
+  assistantDockEnabled?: boolean | null
+  askAssistantLauncherEnabled?: boolean | null
   defaultConversationMode?: string | null
   allowedConversationModes?: string[]
   pageModeMappings?: Record<string, string>

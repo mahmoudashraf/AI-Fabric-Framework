@@ -82,7 +82,7 @@ Shopify admin app:
 
 Theme app embed:
 
-- storefront launcher and shopper assistant UI
+- storefront Companion dock, optional legacy launcher, and shopper assistant UI
 - merchant-placeable AI search, contextual pill, product insight, policy strip, product FAQ, and comparison blocks
 
 ### 2.2 Current vectorization shape
@@ -444,6 +444,12 @@ Storefront:
 - edit bounded launcher settings:
   - launcher label
   - welcome message
+- choose storefront assistant shell posture:
+  - Companion dock on every page, enabled by default
+  - legacy Ask assistant launcher, disabled by default and kept only as an explicit compatibility toggle
+  - debug inspector, disabled for normal shopper traffic
+
+The Companion dock is the default shopper chat entry point. It mounts from the theme app embed on every storefront page where the embed is active, starts as a bottom composer, expands when the shopper focuses the input, shows the active mode and page position, and opens full Max Mode from the `MAX` button. The dock is rendered by the Max Mode widget runtime itself, so compact dock messages and full Max Mode messages share the same chat controller, result-type rendering, action-result cards, confirmation/clarification handling, and bridge-backed storefront chat endpoints.
 
 Diagnostics:
 

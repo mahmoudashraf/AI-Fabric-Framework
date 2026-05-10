@@ -541,6 +541,8 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const [shellModeProfile, setShellModeProfile] = useState('SHOPIFY_COMPANION')
   const [debugEnabled, setDebugEnabled] = useState(false)
+  const [assistantDockEnabled, setAssistantDockEnabled] = useState(true)
+  const [askAssistantLauncherEnabled, setAskAssistantLauncherEnabled] = useState(false)
   const [enabledSurfaces, setEnabledSurfaces] = useState<string[]>([])
   const [defaultConversationMode, setDefaultConversationMode] = useState('navigator')
   const [allowedConversationModes, setAllowedConversationModes] = useState<string[]>(['navigator'])
@@ -572,6 +574,8 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
     setWelcomeMessage(controls.widgetSettings.welcomeMessage)
     setShellModeProfile(controls.widgetSettings.shellModeProfile)
     setDebugEnabled(controls.widgetSettings.debugEnabled ?? false)
+    setAssistantDockEnabled(controls.widgetSettings.assistantDockEnabled ?? true)
+    setAskAssistantLauncherEnabled(controls.widgetSettings.askAssistantLauncherEnabled ?? false)
     setEnabledSurfaces(controls.widgetSettings.enabledSurfaces)
     setDefaultConversationMode(controls.widgetSettings.defaultConversationMode)
     setAllowedConversationModes(controls.widgetSettings.allowedConversationModes)
@@ -605,6 +609,8 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
       welcomeMessage,
       shellModeProfile,
       debugEnabled,
+      assistantDockEnabled,
+      askAssistantLauncherEnabled,
       enabledSurfaces,
       defaultConversationMode,
       allowedConversationModes: uniqueStrings([...allowedConversationModes, defaultConversationMode]),
@@ -700,6 +706,18 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
               label="Debug inspector"
               disabled={!canChangeWidget || widgetMutation.isPending}
             />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0.5 }}>
+              <FormControlLabel
+                control={<Checkbox checked={assistantDockEnabled} onChange={(event) => setAssistantDockEnabled(event.target.checked)} />}
+                label="Companion dock on every page"
+                disabled={!canChangeWidget || widgetMutation.isPending}
+              />
+              <FormControlLabel
+                control={<Checkbox checked={askAssistantLauncherEnabled} onChange={(event) => setAskAssistantLauncherEnabled(event.target.checked)} />}
+                label="Legacy Ask assistant launcher"
+                disabled={!canChangeWidget || widgetMutation.isPending}
+              />
+            </Box>
             <Divider />
             <Typography variant="caption" color="text.secondary">Requested surfaces</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 0.5 }}>

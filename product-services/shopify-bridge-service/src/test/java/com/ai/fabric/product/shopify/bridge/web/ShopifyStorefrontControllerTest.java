@@ -80,6 +80,8 @@ class ShopifyStorefrontControllerTest {
             "Ask me about products and policies.",
             "SHOPIFY_COMPANION",
             true,
+            true,
+            false,
             "navigator",
             "navigator",
             List.of("navigator"),

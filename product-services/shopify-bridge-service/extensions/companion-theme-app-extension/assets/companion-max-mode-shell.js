@@ -1,6 +1,7 @@
 (function () {
   var LOOM_COMPANION_SHELLS_KEY = '__loomCompanionShells'
   var MAX_MODE_SHADOW_HOST_ID = 'max-mode-widget-shadow-host'
+  var DOCK_ROOT_CLASS = 'loom-companion-dock'
   var maxModeLoadPromise = null
 
   function getShellRegistry() {
@@ -19,97 +20,136 @@
         if (!maxModeApi || typeof maxModeApi.init !== 'function') {
           throw new Error('Max Mode widget API is unavailable.')
         }
-        var resolvedLauncherLabel = (options.payload.launcherLabel || options.launcherLabel || 'Ask the store assistant').trim()
-        var shellModeProfile = normalizeShellModeProfile(options.payload.shellModeProfile)
-        var defaultConversationMode = normalizeConversationMode(
-          options.payload.defaultConversationMode || defaultLauncherMode(shellModeProfile)
-        )
-        var allowedConversationModes = normalizeAllowedConversationModes(
-          options.payload.allowedConversationModes,
-          defaultConversationMode
-        )
-        var pageModeMappings = normalizePageModeMappings(options.payload.pageModeMappings, allowedConversationModes)
-        var effectiveConversationMode = resolveEffectiveConversationMode(
-          options.storefrontContext,
-          options.payload.effectiveConversationMode,
-          defaultConversationMode,
-          allowedConversationModes,
-          pageModeMappings
-        )
-        var resolvedWelcomeMessage = deriveWelcomeMessage(options.payload, options.storefrontContext, shellModeProfile)
-        var shopperSessionId = getOrCreateShopperSessionId(options.payload.shopDomain || options.root.dataset.shopDomain || 'storefront')
-        var starterSuggestions = defaultSuggestionsForContext(options.storefrontContext, shellModeProfile)
-        var requestContext = buildRequestContext(
-          options.storefrontContext,
-          shellModeProfile,
-          effectiveConversationMode,
-          allowedConversationModes,
-          pageModeMappings
-        )
-
-        maxModeApi.init({
-          apiConfig: {
-            chatBaseUrl: options.bridgeBaseUrl,
-            defaultHeaders: {
-              'X-AI-FABRIC-SHOPPER-SESSION-ID': shopperSessionId,
-            },
-            probeShellConfigOnOpen: false,
-            runtimeRoutes: {
-              chatQueryUrl: options.payload.bridgeQueryUrl,
-              suggestionsUrl: options.payload.bridgeSuggestionsUrl,
-            },
-            runtimeAuth: {
-              probeAuthContextOnOpen: false,
-            },
-          },
-          integrationMode: 'backend-mediated-private-runtime',
-          features: {
-            cart: false,
-            debug: options.payload.debugEnabled === true,
-            conversations: false,
-            quickActions: true,
-          },
-          theme: {
-            primaryColor: '#111827',
-            borderRadius: '1rem',
-            fontFamily: '"Helvetica Neue", Arial, sans-serif',
-            darkMode: false,
-          },
-          position: 'bottom-right',
-          launcher: true,
-          host: {
-            launcherLabel: resolvedLauncherLabel,
-            launcherAriaLabel: resolvedLauncherLabel,
-            launcherVariant: 'pill',
-            assistantLabel: assistantLabelForShellModeProfile(shellModeProfile),
-            welcomeMessage: resolvedWelcomeMessage,
-            starterPrompts: starterPromptsForContext(starterSuggestions, effectiveConversationMode, options.storefrontContext),
-            starterSuggestions: starterSuggestions,
-            requestContext: requestContext,
-            defaultConversationMode: defaultConversationMode,
-            effectiveConversationMode: effectiveConversationMode,
-            allowedConversationModes: allowedConversationModes,
-            pageModeMappings: pageModeMappings,
-            showUtilityPanel: false,
-          },
-          onEvent: function (event) {
-            if (event && event.type === 'widget:opened') {
-              recordStorefrontEvent(options.payload, shopperSessionId, options.storefrontContext, 'WIDGET_OPENED')
-            }
-          },
-        })
+        var runtime = resolveShellRuntime(options)
+        maxModeApi.init(buildMaxModeConfig(options, runtime, true, false))
 
         options.root.dataset.status = 'ready'
       })
   }
 
+  function renderDock(options) {
+    teardown()
+    options.root.dataset.status = 'loading'
+    options.root.textContent = ''
+    return ensureMaxModeReady(options.maxModeScriptUrl)
+      .then(function (maxModeApi) {
+        if (!maxModeApi || typeof maxModeApi.init !== 'function') {
+          throw new Error('Max Mode widget API is unavailable.')
+        }
+        var runtime = resolveShellRuntime(options)
+        maxModeApi.init(buildMaxModeConfig(options, runtime, options.payload.askAssistantLauncherEnabled === true, true))
+        options.root.dataset.status = 'ready'
+      })
+  }
+
   function teardown() {
+    var dockRoots = document.querySelectorAll('.' + DOCK_ROOT_CLASS)
+    Array.prototype.forEach.call(dockRoots, function (dockRoot) {
+      dockRoot.remove()
+    })
     if (!document.getElementById(MAX_MODE_SHADOW_HOST_ID)) {
       return
     }
     var maxModeApi = resolveMaxModeGlobal()
     if (maxModeApi && typeof maxModeApi.destroy === 'function') {
       maxModeApi.destroy()
+    }
+  }
+
+  function resolveShellRuntime(options) {
+    var resolvedLauncherLabel = (options.payload.launcherLabel || options.launcherLabel || 'Ask the store assistant').trim()
+    var shellModeProfile = normalizeShellModeProfile(options.payload.shellModeProfile)
+    var defaultConversationMode = normalizeConversationMode(
+      options.payload.defaultConversationMode || defaultLauncherMode(shellModeProfile)
+    )
+    var allowedConversationModes = normalizeAllowedConversationModes(
+      options.payload.allowedConversationModes,
+      defaultConversationMode
+    )
+    var pageModeMappings = normalizePageModeMappings(options.payload.pageModeMappings, allowedConversationModes)
+    var effectiveConversationMode = resolveEffectiveConversationMode(
+      options.storefrontContext,
+      options.payload.effectiveConversationMode,
+      defaultConversationMode,
+      allowedConversationModes,
+      pageModeMappings
+    )
+    var resolvedWelcomeMessage = deriveWelcomeMessage(options.payload, options.storefrontContext, shellModeProfile)
+    var shopperSessionId = getOrCreateShopperSessionId(options.payload.shopDomain || options.root.dataset.shopDomain || 'storefront')
+    var starterSuggestions = defaultSuggestionsForContext(options.storefrontContext, shellModeProfile)
+    var requestContext = buildRequestContext(
+      options.storefrontContext,
+      shellModeProfile,
+      effectiveConversationMode,
+      allowedConversationModes,
+      pageModeMappings
+    )
+    return {
+      resolvedLauncherLabel: resolvedLauncherLabel,
+      shellModeProfile: shellModeProfile,
+      defaultConversationMode: defaultConversationMode,
+      allowedConversationModes: allowedConversationModes,
+      pageModeMappings: pageModeMappings,
+      effectiveConversationMode: effectiveConversationMode,
+      resolvedWelcomeMessage: resolvedWelcomeMessage,
+      shopperSessionId: shopperSessionId,
+      starterSuggestions: starterSuggestions,
+      requestContext: requestContext,
+    }
+  }
+
+  function buildMaxModeConfig(options, runtime, launcherEnabled, companionDockEnabled) {
+    return {
+      apiConfig: {
+        chatBaseUrl: options.bridgeBaseUrl,
+        defaultHeaders: {
+          'X-AI-FABRIC-SHOPPER-SESSION-ID': runtime.shopperSessionId,
+        },
+        probeShellConfigOnOpen: false,
+        runtimeRoutes: {
+          chatQueryUrl: options.payload.bridgeQueryUrl,
+          suggestionsUrl: options.payload.bridgeSuggestionsUrl,
+        },
+        runtimeAuth: {
+          probeAuthContextOnOpen: false,
+        },
+      },
+      integrationMode: 'backend-mediated-private-runtime',
+      features: {
+        cart: false,
+        debug: options.payload.debugEnabled === true,
+        conversations: false,
+        quickActions: true,
+      },
+      theme: {
+        primaryColor: '#111827',
+        borderRadius: '1rem',
+        fontFamily: '"Helvetica Neue", Arial, sans-serif',
+        darkMode: false,
+      },
+      position: 'bottom-right',
+      launcher: launcherEnabled === true,
+      host: {
+        launcherLabel: runtime.resolvedLauncherLabel,
+        launcherAriaLabel: runtime.resolvedLauncherLabel,
+        launcherVariant: 'pill',
+        assistantLabel: assistantLabelForShellModeProfile(runtime.shellModeProfile),
+        welcomeMessage: runtime.resolvedWelcomeMessage,
+        starterPrompts: starterPromptsForContext(runtime.starterSuggestions, runtime.effectiveConversationMode, options.storefrontContext),
+        starterSuggestions: runtime.starterSuggestions,
+        requestContext: runtime.requestContext,
+        defaultConversationMode: runtime.defaultConversationMode,
+        effectiveConversationMode: runtime.effectiveConversationMode,
+        allowedConversationModes: runtime.allowedConversationModes,
+        pageModeMappings: runtime.pageModeMappings,
+        showUtilityPanel: false,
+        companionDock: companionDockEnabled === true,
+      },
+      onEvent: function (event) {
+        if (event && event.type === 'widget:opened') {
+          recordStorefrontEvent(options.payload, runtime.shopperSessionId, options.storefrontContext, 'WIDGET_OPENED')
+        }
+      },
     }
   }
 
@@ -454,6 +494,10 @@
 
   getShellRegistry()['max-mode'] = {
     render: render,
+    teardown: teardown,
+  }
+  getShellRegistry()['companion-dock'] = {
+    render: renderDock,
     teardown: teardown,
   }
 })()

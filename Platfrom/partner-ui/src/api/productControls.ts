@@ -6,6 +6,8 @@ export interface UpdatePartnerWidgetSettingsPayload {
   welcomeMessage: string
   shellModeProfile: string
   debugEnabled: boolean
+  assistantDockEnabled: boolean
+  askAssistantLauncherEnabled: boolean
   enabledSurfaces: string[]
   defaultConversationMode: string
   allowedConversationModes: string[]

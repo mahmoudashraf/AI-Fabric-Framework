@@ -56,6 +56,8 @@ class ShopifyStoreWidgetSettingsServiceTest {
         assertThat(store.getDetailsJson()).contains("\"welcomeMessage\":\"Ask me about products and policies.\"");
         assertThat(store.getDetailsJson()).contains("\"shellModeProfile\":\"GUIDED_COMMERCE\"");
         assertThat(store.getDetailsJson()).contains("\"debugEnabled\":true");
+        assertThat(store.getDetailsJson()).contains("\"assistantDockEnabled\":true");
+        assertThat(store.getDetailsJson()).contains("\"askAssistantLauncherEnabled\":false");
         assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\",\"order-lookup\"]");
         assertThat(store.getDetailsJson()).contains("\"defaultConversationMode\":\"executor\"");
         assertThat(store.getDetailsJson()).contains("\"allowedConversationModes\":[\"navigator\",\"executor\"]");
