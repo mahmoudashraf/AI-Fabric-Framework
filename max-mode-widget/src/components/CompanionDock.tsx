@@ -145,7 +145,7 @@ export function CompanionDock({
         </div>
       )}
 
-      <div className="rounded-[1.5rem] border-2 border-blue-600 bg-white/98 p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950">
+      <div className="rounded-[1.5rem] border-2 border-blue-600 bg-white p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950">
         {expanded && (
           <div className="mb-2 flex flex-wrap justify-end gap-2 px-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
@@ -190,7 +190,7 @@ export function CompanionDock({
                 submit();
               }
             }}
-            className="min-h-14 flex-1 resize-none rounded-[1.15rem] border-0 bg-transparent px-4 py-4 text-base leading-relaxed text-gray-800 outline-none placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-100"
+            className="min-h-14 flex-1 resize-none rounded-[1.15rem] border border-gray-200 bg-white px-4 py-4 text-base leading-relaxed text-gray-800 shadow-inner outline-none placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
             style={{
               fontFamily:
                 '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',

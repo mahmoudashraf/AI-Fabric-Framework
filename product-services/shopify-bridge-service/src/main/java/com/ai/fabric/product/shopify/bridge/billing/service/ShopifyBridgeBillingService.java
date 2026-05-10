@@ -302,11 +302,10 @@ public class ShopifyBridgeBillingService {
         if (requested.isEmpty()) {
             return allowed;
         }
-        List<String> filtered = requested.stream()
+        return requested.stream()
             .filter(allowed::contains)
             .distinct()
             .toList();
-        return filtered.isEmpty() ? allowed : filtered;
     }
 
     public Integer catalogProductCap(String shopDomain, String accessToken) {

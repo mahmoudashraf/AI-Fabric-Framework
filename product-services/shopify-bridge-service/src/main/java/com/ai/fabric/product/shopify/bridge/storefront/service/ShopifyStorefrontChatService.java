@@ -333,10 +333,9 @@ public class ShopifyStorefrontChatService {
     }
 
     private boolean baseNavigatorSurfaceAllowed(ShopifyBridgeBillingSummary billingSummary, ShopifyBridgeStoreSummary store) {
-        List<String> allowedSurfaces = effectiveAllowedSurfaces(
-            billingSummary.allowedSurfaces(),
-            configuredEnabledSurfaces(store)
-        );
+        List<String> allowedSurfaces = billingSummary.allowedSurfaces() == null
+            ? List.of()
+            : billingSummary.allowedSurfaces();
         return allowedSurfaces.contains("ai-search");
     }
 
@@ -500,11 +499,10 @@ public class ShopifyStorefrontChatService {
         if (configured.isEmpty()) {
             return allowed;
         }
-        List<String> filtered = configured.stream()
+        return configured.stream()
             .filter(allowed::contains)
             .distinct()
             .toList();
-        return filtered.isEmpty() ? allowed : filtered;
     }
 
     private String storefrontAccessToken(String shopDomain) {

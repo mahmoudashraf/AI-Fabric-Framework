@@ -9,6 +9,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreDeploy
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSettingsSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -293,6 +295,74 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+    }
+
+    @Test
+    void queryAllowsFreeStoreMaxWidgetWhenAiSearchPlacementIsDisabled() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com"))
+            .thenReturn(store("INSTALLED", "READY", readiness("READY"), List.of("comparison")));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(freeTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Navigator answer."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Show me backpacks",
+                  "mode":"navigator",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"max-mode",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+    }
+
+    @Test
+    void queryRejectsEmbeddedAiSearchWhenPlacementIsDisabled() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com"))
+            .thenReturn(store("INSTALLED", "READY", readiness("READY"), List.of("comparison")));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(freeTierSummary());
+
+        assertThatThrownBy(() -> service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Show me backpacks",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"ai-search",
+                    "shopifyPageModeGroup":"product",
+                    "shopifyEffectiveConversationMode":"navigator",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
     @Test
@@ -1029,6 +1099,13 @@ class ShopifyStorefrontChatServiceTest {
     private ShopifyBridgeStoreSummary store(String installStatus,
                                             String sourceReadinessStatus,
                                             ShopifyBridgeStoreReadinessSummary readiness) {
+        return store(installStatus, sourceReadinessStatus, readiness, null);
+    }
+
+    private ShopifyBridgeStoreSummary store(String installStatus,
+                                            String sourceReadinessStatus,
+                                            ShopifyBridgeStoreReadinessSummary readiness,
+                                            List<String> enabledSurfaces) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
             "alpha.myshopify.com",
@@ -1068,7 +1145,24 @@ class ShopifyStorefrontChatServiceTest {
             null,
             null,
             null,
-            null,
+            enabledSurfaces == null ? null : new ShopifyBridgeStoreWidgetSummary(
+                    "ENABLED",
+                    Instant.parse("2026-04-18T00:00:00Z"),
+                    "THEME_APP_EXTENSION",
+                    "Widget enabled.",
+                    new ShopifyBridgeStoreWidgetSettingsSummary(
+                        "Ask the store assistant",
+                        "Store assistant is ready.",
+                        "SHOPIFY_COMPANION",
+                        false,
+                        enabledSurfaces,
+                        "navigator",
+                        List.of("navigator", "navigator_deep"),
+                        java.util.Map.of(),
+                        true,
+                        false
+                    )
+                ),
             null,
             readiness,
             new ShopifyBridgeStoreDeploymentVersionSummary(

@@ -54,6 +54,20 @@ class ShopifyBridgeBillingServiceTest {
     }
 
     @Test
+    void effectiveAllowedSurfacesPreservesExplicitStoreDisablement() {
+        ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
+            billingProperties("FREE", "", "", "", 0, false, false),
+            properties("https://bridge.example.com", "shopify-api-key"),
+            mock(ShopifyAdminGraphqlClient.class),
+            mock(ShopifyInstallRecordService.class),
+            null
+        );
+
+        assertThat(service.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("comparison"))).isEmpty();
+        assertThat(service.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of())).containsExactly("ai-search");
+    }
+
+    @Test
     void paidModeWithoutRecurringPricingConfigKeepsFreeTierActive() {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("SHOPIFY_APP_SUBSCRIPTION", "", "", "", 0, false, false),
