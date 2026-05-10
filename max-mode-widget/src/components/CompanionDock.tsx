@@ -164,6 +164,7 @@ export function CompanionDock({
         <div className="flex items-end gap-2">
           <textarea
             ref={controller.chatInputRef}
+            data-max-mode-autofocus="false"
             rows={1}
             value={controller.chatQuery}
             disabled={controller.oldConversationLocked}
