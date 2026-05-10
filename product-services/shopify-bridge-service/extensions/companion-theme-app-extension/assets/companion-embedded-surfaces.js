@@ -2119,7 +2119,7 @@
 
   function normalizeEnabledSurfaces(values) {
     if (!Array.isArray(values) || values.length === 0) {
-      return ['ai-search']
+      return []
     }
     return values
       .map(function (value) {
