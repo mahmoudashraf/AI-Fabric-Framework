@@ -37,6 +37,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   createProductService,
   decommissionProductService,
+  fetchDeploymentTargetProfiles,
   fetchProductServiceDeploymentHistory,
   fetchProductService,
   fetchProductServiceActivity,
@@ -55,6 +56,7 @@ import {
   scaleProductService,
   updateProductServiceShopifyBillingConfig,
   type CreatePlatformManagedProductServiceRequest,
+  type DeploymentTargetProfileSummary,
   type PlatformAuditEventSummary,
   type PlatformManagedProductServiceBillingSummary,
   type PlatformManagedProductServiceHealthSummary,
@@ -122,6 +124,14 @@ function billingSeverity(billing: PlatformManagedProductServiceBillingSummary | 
     return billing.status?.toUpperCase() === 'PAYMENT_ISSUE' ? 'error' : 'warning'
   }
   return 'info'
+}
+
+function targetProfileLabel(profile: DeploymentTargetProfileSummary): string {
+  const flags = [
+    profile.defaultForRestartableServices ? 'restartable default' : null,
+    profile.defaultForRuntime ? 'runtime default' : null,
+  ].filter(Boolean)
+  return `${profile.name} (${profile.id}, ${profile.environmentName})${flags.length > 0 ? ` - ${flags.join(', ')}` : ''}`
 }
 
 function usageBreakdownLabel(eventType: string): string {
@@ -269,7 +279,29 @@ const emptyForm: ProductServiceFormState = {
   serviceRoot: 'product-services/shopify-bridge-service',
   dockerfilePath: 'product-services/shopify-bridge-service/deploy/railway/Dockerfile',
   secretName: null,
+  targetProfileId: null,
   shopifyBillingConfig: defaultShopifyBillingConfig,
+}
+
+const productServicePresets: Record<string, Partial<ProductServiceFormState>> = {
+  SHOPIFY_BRIDGE_SERVICE: {
+    productFamily: 'SHOPIFY',
+    serviceKind: 'SHOPIFY_BRIDGE_SERVICE',
+    serviceRoot: 'product-services/shopify-bridge-service',
+    dockerfilePath: 'product-services/shopify-bridge-service/deploy/railway/Dockerfile',
+    healthPath: '/actuator/health',
+    shopifyBillingConfig: defaultShopifyBillingConfig,
+  },
+  MCP_EXECUTION_GATEWAY_SERVICE: {
+    serviceRef: 'mcp-execution-gateway',
+    displayName: 'MCP Execution Gateway',
+    productFamily: 'MCP',
+    serviceKind: 'MCP_EXECUTION_GATEWAY_SERVICE',
+    serviceRoot: 'product-services/mcp-execution-gateway-service',
+    dockerfilePath: 'product-services/mcp-execution-gateway-service/deploy/railway/Dockerfile',
+    healthPath: '/actuator/health',
+    shopifyBillingConfig: null,
+  },
 }
 
 function billingConfigOrDefault(
@@ -486,6 +518,16 @@ export function ProductServicesPage() {
     queryKey: ['product-services'],
     queryFn: fetchProductServices,
   })
+
+  const targetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles', 'COOLIFY', 'product-services'],
+    queryFn: () => fetchDeploymentTargetProfiles('COOLIFY'),
+  })
+
+  const managedServiceTargetProfiles = useMemo(
+    () => (targetProfilesQuery.data ?? []).filter((profile) => profile.active && profile.platformServicesAllowed),
+    [targetProfilesQuery.data],
+  )
 
   const selectedServiceRef = searchParams.get('service') ?? ''
 
@@ -786,7 +828,7 @@ export function ProductServicesPage() {
                           Reconcile
                         </Button>
                         <Button variant="outlined" onClick={() => setDeploymentHistoryDialogOpen(true)}>
-                          Inspect Railway deployments
+                          Inspect provider deployments
                         </Button>
                         <Button
                           variant="outlined"
@@ -856,7 +898,7 @@ export function ProductServicesPage() {
                         ['Health path', selectedService.healthPath],
                         ['Service root', selectedService.serviceRoot],
                         ['Dockerfile', selectedService.dockerfilePath],
-                        ['Railway service', selectedService.railwayServiceId],
+                        ['Provider service', selectedService.railwayServiceId],
                         ['Dependents', `${selectedService.dependentStoresCount} stores`],
                       ].map(([label, value]) => (
                         <Grid item xs={12} md={4} key={label}>
@@ -892,7 +934,7 @@ export function ProductServicesPage() {
                         Shopify billing config {selectedService.shopifyBillingConfig.mode} · Starter{' '}
                         {selectedService.shopifyBillingConfig.starterEnabled ? 'enabled' : 'off'} · Elite{' '}
                         {selectedService.shopifyBillingConfig.eliteEnabled ? 'enabled' : 'off'}. Reconcile applies these values to the
-                        Railway Bridge service on create or recreate.
+                        provider-managed Bridge service on create or recreate.
                       </Alert>
                     ) : null}
                   </Stack>
@@ -1200,9 +1242,25 @@ export function ProductServicesPage() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField select label="Product family" value={form.productFamily} onChange={(event) => setForm((current) => ({ ...current, productFamily: event.target.value }))} fullWidth>
                 <MenuItem value="SHOPIFY">SHOPIFY</MenuItem>
+                <MenuItem value="MCP">MCP</MenuItem>
                 <MenuItem value="WOOCOMMERCE">WOOCOMMERCE</MenuItem>
               </TextField>
-              <TextField label="Service kind" value={form.serviceKind} onChange={(event) => setForm((current) => ({ ...current, serviceKind: event.target.value }))} fullWidth />
+              <TextField
+                select
+                label="Service kind"
+                value={form.serviceKind}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    ...(productServicePresets[event.target.value] ?? {}),
+                    serviceKind: event.target.value,
+                  }))
+                }
+                fullWidth
+              >
+                <MenuItem value="SHOPIFY_BRIDGE_SERVICE">SHOPIFY_BRIDGE_SERVICE</MenuItem>
+                <MenuItem value="MCP_EXECUTION_GATEWAY_SERVICE">MCP_EXECUTION_GATEWAY_SERVICE</MenuItem>
+              </TextField>
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField label="Deployment mode" value={form.deploymentMode} onChange={(event) => setForm((current) => ({ ...current, deploymentMode: event.target.value }))} fullWidth />
@@ -1221,22 +1279,49 @@ export function ProductServicesPage() {
             <TextField label="Service root" value={form.serviceRoot ?? ''} onChange={(event) => setForm((current) => ({ ...current, serviceRoot: event.target.value || null }))} fullWidth />
             <TextField label="Dockerfile path" value={form.dockerfilePath ?? ''} onChange={(event) => setForm((current) => ({ ...current, dockerfilePath: event.target.value || null }))} fullWidth />
             <TextField label="Secret name (optional)" value={form.secretName ?? ''} onChange={(event) => setForm((current) => ({ ...current, secretName: event.target.value || null }))} fullWidth />
-            <Divider />
-            <Stack spacing={1}>
-              <Typography sx={{ fontWeight: 700 }}>Shopify billing</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Stored on the Platform service record and applied to Railway on reconcile, create, and recreate.
-              </Typography>
-            </Stack>
-            {shopifyBillingConfigFields(billingConfigOrDefault(form.shopifyBillingConfig), (patch) =>
-              setForm((current) => ({
-                ...current,
-                shopifyBillingConfig: {
-                  ...billingConfigOrDefault(current.shopifyBillingConfig),
-                  ...patch,
-                },
-              })),
-            )}
+            <TextField
+              select
+              label="Coolify target profile"
+              value={form.targetProfileId ?? ''}
+              onChange={(event) => setForm((current) => ({ ...current, targetProfileId: event.target.value || null }))}
+              helperText={
+                targetProfilesQuery.isError
+                  ? 'Target profiles failed to load; leave blank to use the managed-service default or enter one through the API.'
+                  : 'Leave blank for the restartable-services default. Select production only for an intentional production rollout.'
+              }
+              disabled={targetProfilesQuery.isLoading}
+              fullWidth
+            >
+              <MenuItem value="">Default managed-service profile</MenuItem>
+              {managedServiceTargetProfiles.map((profile) => (
+                <MenuItem key={profile.id} value={profile.id}>
+                  {targetProfileLabel(profile)}
+                </MenuItem>
+              ))}
+              {form.targetProfileId && !managedServiceTargetProfiles.some((profile) => profile.id === form.targetProfileId) ? (
+                <MenuItem value={form.targetProfileId}>{form.targetProfileId}</MenuItem>
+              ) : null}
+            </TextField>
+            {form.serviceKind === 'SHOPIFY_BRIDGE_SERVICE' ? (
+              <>
+                <Divider />
+                <Stack spacing={1}>
+                  <Typography sx={{ fontWeight: 700 }}>Shopify billing</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Stored on the Platform service record and applied to the managed provider on reconcile, create, and recreate.
+                  </Typography>
+                </Stack>
+                {shopifyBillingConfigFields(billingConfigOrDefault(form.shopifyBillingConfig), (patch) =>
+                  setForm((current) => ({
+                    ...current,
+                    shopifyBillingConfig: {
+                      ...billingConfigOrDefault(current.shopifyBillingConfig),
+                      ...patch,
+                    },
+                  })),
+                )}
+              </>
+            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1252,7 +1337,7 @@ export function ProductServicesPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Alert severity="info">
-              This changes the Platform-owned Bridge billing configuration. Run Reconcile after saving to update the managed Railway service
+              This changes the Platform-owned Bridge billing configuration. Run Reconcile after saving to update the managed provider service
               environment and redeploy the Bridge.
             </Alert>
             {shopifyBillingConfigFields(shopifyBillingDraft, (patch) =>
@@ -1578,17 +1663,17 @@ export function ProductServicesPage() {
       </Dialog>
 
       <Dialog open={deploymentHistoryDialogOpen} onClose={() => setDeploymentHistoryDialogOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Railway Deployment History</DialogTitle>
+        <DialogTitle>Provider Deployment History</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography variant="body2" color="text.secondary">
               Service {detailValue(selectedServiceRef)}
             </Typography>
             {deploymentHistoryQuery.isLoading ? (
-              <Alert severity="info">Loading Railway deployment history…</Alert>
+              <Alert severity="info">Loading provider deployment history…</Alert>
             ) : deploymentHistoryQuery.isError ? (
               <Alert severity="error">
-                {deploymentHistoryQuery.error instanceof Error ? deploymentHistoryQuery.error.message : 'Failed to load Railway deployment history.'}
+                {deploymentHistoryQuery.error instanceof Error ? deploymentHistoryQuery.error.message : 'Failed to load provider deployment history.'}
               </Alert>
             ) : deploymentHistoryQuery.data ? (
               <Stack spacing={1.5}>
@@ -1628,10 +1713,10 @@ export function ProductServicesPage() {
                 <Stack spacing={1.5}>
                   <Typography sx={{ fontWeight: 700 }}>Deployment logs</Typography>
                   {railwayLogsQuery.isLoading ? (
-                    <Alert severity="info">Loading Railway deployment logs…</Alert>
+                    <Alert severity="info">Loading provider deployment logs…</Alert>
                   ) : railwayLogsQuery.isError ? (
                     <Alert severity="error">
-                      {railwayLogsQuery.error instanceof Error ? railwayLogsQuery.error.message : 'Failed to load Railway deployment logs.'}
+                      {railwayLogsQuery.error instanceof Error ? railwayLogsQuery.error.message : 'Failed to load provider deployment logs.'}
                     </Alert>
                   ) : railwayLogsQuery.data ? (
                     <>
@@ -1666,12 +1751,12 @@ export function ProductServicesPage() {
                       )}
                     </>
                   ) : (
-                    <Alert severity="info">Railway logs are not available for this service yet.</Alert>
+                    <Alert severity="info">Provider logs are not available for this service yet.</Alert>
                   )}
                 </Stack>
               </Stack>
             ) : (
-              <Alert severity="info">Railway deployment history is not available for this service yet.</Alert>
+              <Alert severity="info">Provider deployment history is not available for this service yet.</Alert>
             )}
           </Stack>
         </DialogContent>
@@ -1709,7 +1794,7 @@ export function ProductServicesPage() {
         <DialogTitle>Force recreate linkage</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Type the service ref to clear Railway linkage and base URLs.
+            Type the service ref to clear provider linkage and base URLs.
           </Typography>
           <TextField
             autoFocus
@@ -1737,7 +1822,7 @@ export function ProductServicesPage() {
         <DialogTitle>Decommission service</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Type the service ref to delete the managed Railway linkage and clear the managed secret. Dependent Shopify store mappings must be removed first.
+            Type the service ref to delete the managed provider linkage and clear the managed secret. Dependent Shopify store mappings must be removed first.
           </Typography>
           {decommissionBlocked ? (
             <Alert severity="warning" sx={{ mb: 2 }}>

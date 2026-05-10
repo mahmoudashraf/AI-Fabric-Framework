@@ -2,8 +2,10 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentManagedVectorResourceSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +42,8 @@ public class DeploymentInfrastructureCleanupService {
     private final QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient;
     private final ZillizCloudControlPlaneClient zillizCloudControlPlaneClient;
     private final RailwayGraphqlClient railwayGraphqlClient;
+    private final DeploymentProviderResourceHandleRepository providerResourceHandleRepository;
+    private final DeploymentProviderRegistry providerRegistry;
     private final PlatformSecretService platformSecretService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -51,6 +55,8 @@ public class DeploymentInfrastructureCleanupService {
                                                   QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
                                                   ZillizCloudControlPlaneClient zillizCloudControlPlaneClient,
                                                   RailwayGraphqlClient railwayGraphqlClient,
+                                                  DeploymentProviderResourceHandleRepository providerResourceHandleRepository,
+                                                  DeploymentProviderRegistry providerRegistry,
                                                   PlatformSecretService platformSecretService,
                                                   PlatformAuditService platformAuditService,
                                                   ObjectMapper objectMapper) {
@@ -60,6 +66,31 @@ public class DeploymentInfrastructureCleanupService {
             qdrantCloudControlPlaneClient,
             zillizCloudControlPlaneClient,
             railwayGraphqlClient,
+            providerResourceHandleRepository,
+            providerRegistry,
+            platformSecretService,
+            platformAuditService,
+            objectMapper,
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
+        );
+    }
+
+    DeploymentInfrastructureCleanupService(DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
+                                           PineconeControlPlaneClient pineconeControlPlaneClient,
+                                           QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                           ZillizCloudControlPlaneClient zillizCloudControlPlaneClient,
+                                           RailwayGraphqlClient railwayGraphqlClient,
+                                           PlatformSecretService platformSecretService,
+                                           PlatformAuditService platformAuditService,
+                                           ObjectMapper objectMapper) {
+        this(
+            deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            null,
+            null,
             platformSecretService,
             platformAuditService,
             objectMapper,
@@ -76,11 +107,39 @@ public class DeploymentInfrastructureCleanupService {
                                            PlatformAuditService platformAuditService,
                                            ObjectMapper objectMapper,
                                            HttpClient httpClient) {
+        this(
+            deploymentManagedVectorResourceService,
+            pineconeControlPlaneClient,
+            qdrantCloudControlPlaneClient,
+            zillizCloudControlPlaneClient,
+            railwayGraphqlClient,
+            null,
+            null,
+            platformSecretService,
+            platformAuditService,
+            objectMapper,
+            httpClient
+        );
+    }
+
+    DeploymentInfrastructureCleanupService(DeploymentManagedVectorResourceService deploymentManagedVectorResourceService,
+                                           PineconeControlPlaneClient pineconeControlPlaneClient,
+                                           QdrantCloudControlPlaneClient qdrantCloudControlPlaneClient,
+                                           ZillizCloudControlPlaneClient zillizCloudControlPlaneClient,
+                                           RailwayGraphqlClient railwayGraphqlClient,
+                                           DeploymentProviderResourceHandleRepository providerResourceHandleRepository,
+                                           DeploymentProviderRegistry providerRegistry,
+                                           PlatformSecretService platformSecretService,
+                                           PlatformAuditService platformAuditService,
+                                           ObjectMapper objectMapper,
+                                           HttpClient httpClient) {
         this.deploymentManagedVectorResourceService = deploymentManagedVectorResourceService;
         this.pineconeControlPlaneClient = pineconeControlPlaneClient;
         this.qdrantCloudControlPlaneClient = qdrantCloudControlPlaneClient;
         this.zillizCloudControlPlaneClient = zillizCloudControlPlaneClient;
         this.railwayGraphqlClient = railwayGraphqlClient;
+        this.providerResourceHandleRepository = providerResourceHandleRepository;
+        this.providerRegistry = providerRegistry;
         this.platformSecretService = platformSecretService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -92,6 +151,7 @@ public class DeploymentInfrastructureCleanupService {
                                                                       String reason) {
         ManagedVectorCleanupResult managedVector = cleanupManagedVectorResources(deployment, reason);
         RailwayCleanupResult railway = cleanupRailwayResources(deployment, latestRelease);
+        ProviderResourceCleanupResult providerResources = cleanupProviderResources(deployment, reason);
         platformAuditService.record(
             "DEPLOYMENT_HARD_DELETE_INFRASTRUCTURE_CLEANED",
             "DEPLOYMENT",
@@ -100,10 +160,11 @@ public class DeploymentInfrastructureCleanupService {
                 "reason", defaultReason(reason),
                 "managedVectorResourceCount", managedVector.cleanedResourceIds().size(),
                 "railwayDeletedProject", railway.projectDeleted(),
-                "railwayDeletedServiceCount", railway.deletedServiceIds().size()
+                "railwayDeletedServiceCount", railway.deletedServiceIds().size(),
+                "providerResourceDeleteCount", providerResources.deletedHandleIds().size()
             )
         );
-        return new DeploymentInfrastructureCleanupResult(managedVector, railway);
+        return new DeploymentInfrastructureCleanupResult(managedVector, railway, providerResources);
     }
 
     private ManagedVectorCleanupResult cleanupManagedVectorResources(DeploymentEntity deployment,
@@ -228,6 +289,42 @@ public class DeploymentInfrastructureCleanupService {
         }
 
         return new RailwayCleanupResult(projectDeleted, List.copyOf(deletedServiceIds));
+    }
+
+    private ProviderResourceCleanupResult cleanupProviderResources(DeploymentEntity deployment, String reason) {
+        if (providerResourceHandleRepository == null || providerRegistry == null) {
+            return new ProviderResourceCleanupResult(List.of(), Map.of());
+        }
+        List<DeploymentProviderResourceHandleEntity> handles =
+            providerResourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId());
+        if (handles.isEmpty()) {
+            return new ProviderResourceCleanupResult(List.of(), Map.of());
+        }
+
+        List<String> deletedHandleIds = new ArrayList<>();
+        Map<String, String> failures = new LinkedHashMap<>();
+        for (DeploymentProviderResourceHandleEntity handle : handles) {
+            try {
+                providerRegistry.require(handle.getProviderType()).delete(handle, defaultReason(reason));
+                deletedHandleIds.add(handle.getId());
+            } catch (UnsupportedOperationException ex) {
+                log.debug(
+                    "Provider resource delete is not supported during hard delete: deploymentId={}, handleId={}, providerType={}",
+                    deployment.getId(),
+                    handle.getId(),
+                    handle.getProviderType()
+                );
+            } catch (RuntimeException ex) {
+                failures.put(handle.getId(), ex.getMessage());
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Provider resource cleanup failed before hard delete: " + String.join(" | ", failures.values())
+            );
+        }
+        return new ProviderResourceCleanupResult(List.copyOf(deletedHandleIds), Map.copyOf(failures));
     }
 
     private void cleanupManagedVectorResource(DeploymentManagedVectorResourceSummary resource,
@@ -635,9 +732,16 @@ public class DeploymentInfrastructureCleanupService {
     ) {
     }
 
+    record ProviderResourceCleanupResult(
+        List<String> deletedHandleIds,
+        Map<String, String> failures
+    ) {
+    }
+
     public record DeploymentInfrastructureCleanupResult(
         ManagedVectorCleanupResult managedVector,
-        RailwayCleanupResult railway
+        RailwayCleanupResult railway,
+        ProviderResourceCleanupResult providerResources
     ) {
     }
 }

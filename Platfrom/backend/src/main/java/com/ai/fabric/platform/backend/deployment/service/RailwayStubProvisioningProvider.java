@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
@@ -26,8 +27,8 @@ public class RailwayStubProvisioningProvider implements DeploymentProvisioningPr
     }
 
     @Override
-    public boolean supports(String mode) {
-        return "RAILWAY_STUB".equalsIgnoreCase(mode);
+    public DeploymentProviderType providerType() {
+        return DeploymentProviderType.RAILWAY_STUB;
     }
 
     @Override

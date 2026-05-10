@@ -25,15 +25,20 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBindingInspectio
 import com.ai.fabric.platform.backend.shopify.model.RecordShopifyStoreBillingStateRequest;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreBillingStateSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreConnectionSummary;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreCustomerAccountConfigSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedConsumerSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedCustomerSummary;
 import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreLinkedDeploymentSummary;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreCustomerAccountConfigRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpsertShopifyStoreConnectionRequest;
 import com.ai.fabric.platform.backend.shopify.repository.ShopifyStoreConnectionRepository;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformConsumerEntity;
 import com.ai.fabric.platform.backend.tenant.entity.PlatformCustomerEntity;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformConsumerRepository;
 import com.ai.fabric.platform.backend.tenant.repository.PlatformCustomerRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -54,6 +60,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class ShopifyStoreConnectionService {
+
+    private static final Pattern CUSTOMER_ACCOUNT_DOMAIN_PATTERN =
+        Pattern.compile("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$");
 
     private final ShopifyStoreConnectionRepository repository;
     private final PlatformManagedProductServiceService productServiceService;
@@ -200,9 +209,47 @@ public class ShopifyStoreConnectionService {
         return toSummary(requireConnection(shopDomain));
     }
 
+    public ShopifyStoreCustomerAccountConfigSummary getCustomerAccountConfig(String shopDomain) {
+        return summarizeCustomerAccountConfig(requireConnection(shopDomain));
+    }
+
     public ShopifyStoreBillingStateSummary getBillingState(String shopDomain) {
         ShopifyStoreConnectionEntity entity = requireConnection(shopDomain);
         return sourcePreflightSupport.summarizeBillingState(entity.getShopDomain(), entity.getDetailsJson());
+    }
+
+    @Transactional
+    public ShopifyStoreCustomerAccountConfigSummary updateCustomerAccountConfig(String shopDomain,
+                                                                               UpdateShopifyStoreCustomerAccountConfigRequest request) {
+        ShopifyStoreConnectionEntity entity = requireConnection(shopDomain);
+        String storefrontDomain = normalizeCustomerAccountStorefrontDomain(request == null ? null : request.storefrontDomain());
+        ObjectNode details = sourcePreflightSupport.mutableDetails(entity.getDetailsJson());
+        ObjectNode customerAccountMcp = customerAccountMcpDetails(details);
+        if (storefrontDomain == null) {
+            customerAccountMcp.remove("storefrontDomain");
+            customerAccountMcp.remove("updatedAt");
+        } else {
+            customerAccountMcp.put("storefrontDomain", storefrontDomain);
+            customerAccountMcp.put("updatedAt", Instant.now().toString());
+        }
+        if (customerAccountMcp.size() == 0) {
+            details.remove("customerAccountMcp");
+        } else {
+            details.set("customerAccountMcp", customerAccountMcp);
+        }
+        entity.setDetailsJson(sourcePreflightSupport.writeJson(details));
+        entity.setUpdatedAt(Instant.now());
+        repository.save(entity);
+        platformAuditService.record(
+            "SHOPIFY_STORE_CUSTOMER_ACCOUNT_CONFIG_UPDATED",
+            "SHOPIFY_STORE_CONNECTION",
+            entity.getShopDomain(),
+            java.util.Map.of(
+                "shopDomain", entity.getShopDomain(),
+                "storefrontDomainConfigured", Boolean.toString(storefrontDomain != null)
+            )
+        );
+        return summarizeCustomerAccountConfig(entity);
     }
 
     @Transactional
@@ -348,6 +395,31 @@ public class ShopifyStoreConnectionService {
     private ShopifyStoreConnectionEntity requireConnection(String shopDomain) {
         return repository.findByShopDomainIgnoreCase(normalizeShopDomain(shopDomain))
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Shopify store connection not found: " + shopDomain));
+    }
+
+    private ShopifyStoreCustomerAccountConfigSummary summarizeCustomerAccountConfig(ShopifyStoreConnectionEntity entity) {
+        JsonNode details = sourcePreflightSupport.readJsonNode(entity.getDetailsJson());
+        JsonNode customerAccountMcp = details == null ? null : details.path("customerAccountMcp");
+        String storefrontDomain = customerAccountMcp != null && customerAccountMcp.isObject()
+            ? trimToNull(customerAccountMcp.path("storefrontDomain").asText(null))
+            : null;
+        Instant updatedAt = customerAccountMcp != null && customerAccountMcp.isObject()
+            ? parseInstant(trimToNull(customerAccountMcp.path("updatedAt").asText(null)))
+            : null;
+        boolean configured = storefrontDomain != null;
+        return new ShopifyStoreCustomerAccountConfigSummary(
+            entity.getShopDomain(),
+            storefrontDomain,
+            configured,
+            configured ? storefrontDomain : entity.getShopDomain(),
+            configured ? "STORE_CONFIG" : "SHOP_DOMAIN_FALLBACK",
+            updatedAt
+        );
+    }
+
+    private ObjectNode customerAccountMcpDetails(ObjectNode details) {
+        JsonNode existing = details.path("customerAccountMcp");
+        return existing.isObject() ? (ObjectNode) existing.deepCopy() : JsonNodeFactory.instance.objectNode();
     }
 
     private ShopifyStoreConnectionSummary toSummary(ShopifyStoreConnectionEntity entity) {
@@ -729,6 +801,10 @@ public class ShopifyStoreConnectionService {
             release.getVerificationStatus(),
             release.getProvisioningStatus(),
             release.getProvisioningTarget(),
+            release.getTargetProfileId(),
+            release.getProviderType(),
+            release.getSourceArtifactId(),
+            release.getProviderResourceHandleId(),
             release.getCurrentStepKey(),
             release.getCurrentStepDescription(),
             release.getErrorMessage(),
@@ -893,6 +969,18 @@ public class ShopifyStoreConnectionService {
         return normalized;
     }
 
+    private String normalizeCustomerAccountStorefrontDomain(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        normalized = normalized.toLowerCase(Locale.ROOT);
+        if (!CUSTOMER_ACCOUNT_DOMAIN_PATTERN.matcher(normalized).matches()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Customer Account MCP storefront domain must be a valid hostname.");
+        }
+        return normalized;
+    }
+
     private String normalizeStatus(String value, String fallback) {
         return hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : fallback;
     }
@@ -928,6 +1016,14 @@ public class ShopifyStoreConnectionService {
 
     private String trimToNull(String value) {
         return hasText(value) ? value.trim() : null;
+    }
+
+    private Instant parseInstant(String value) {
+        try {
+            return hasText(value) ? Instant.parse(value) : null;
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private boolean equalsIgnoreCase(String left, String right) {

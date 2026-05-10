@@ -1,6 +1,6 @@
 # 007 Coolify Deployment Provider And Restartable Services
 
-Status: implementation roadmap (created 2026-04-29)
+Status: implementation in progress (created 2026-04-29; Slice 0/1 complete; provider core implemented, strict staging Coolify smoke passed, public Git-source parity path added, Platform staging apply proven, late verification/stale verification reconciliation added, Coolify runtime-settle wait added, runtime-plus-connector Railway parity implemented 2026-05-01, provider-neutral operator UI wired 2026-05-02, release-gate parity live-smoke verified, current Loom/Shopify Companion customer deployments migrated to Coolify staging, protected production Coolify API preflight unblocked, lightweight customer-level Coolify project grouping live-verified on staging, and Railway project `6d0590be` application services cloned into one Coolify project on both staging and production)
 
 Owner mode: technical LLM implementation session
 
@@ -129,13 +129,19 @@ Then implement:
 - `RAILWAY_STUB`
 - `COOLIFY`
 
-### 4. Image Deployment Is The Shared Path
+### 4. Source Strategy: Git First For Public Repo, Image For Hardened Release
 
-For Coolify:
+For the current public-repository phase:
+
+- Coolify should provision tenant runtimes from the same Git source metadata used by Railway.
+- Use the public Coolify application API with `build_pack=dockerfile`, repo-root build context, and the runtime Dockerfile path.
+- Disable Coolify auto-deploy by default so Platform remains the deployment initiator.
+
+For the hardened production release path:
 
 - deploy prebuilt OCI images from GHCR
 - use immutable release tags and store image digests
-- do not build from repository inside Coolify for production deployments
+- avoid building from repository inside Coolify once private registry and image provenance are ready
 
 For Railway:
 
@@ -1777,3 +1783,1290 @@ Handoff template:
 - Blockers: <none or compact blockers>.
 - Next handoff: <next concrete step>.
 ```
+
+---
+
+## 2026-05-01 Slice 0 Local Baseline
+
+Status: host automation implemented, applied to Hetzner, imported into local Terraform state, and validated with Terraform.
+
+Created a Terraform-compatible Hetzner Cloud baseline under `infra/coolify/hetzner` for:
+
+- `coolify-staging-01` on `cpx32`, Ubuntu 24.04
+- `coolify-prod-01` on `ccx23`, Ubuntu 24.04
+- `nbg1` default location, switchable to `fsn1`
+- Hetzner SSH key, shared firewall, private network/subnet, server resources, optional volumes, labels, and DNS record outputs
+- cloud-init SSH hardening, package updates, base tools, host firewall, Coolify install, production `AUTOUPDATE=false`, and bootstrap status/log files
+- secret-file based token wrapper scripts so `HCLOUD_TOKEN` can be loaded from `/tmp/hetzner_cloud_token.secret` without committing it
+- Hetzner API fallback runner for environments where Terraform/OpenTofu is unavailable locally
+
+DNS is currently output-only because no DNS provider credential was available in local context. Add a provider-specific DNS module after Cloudflare/Hetzner DNS credentials are available through the same secret-safe handling.
+
+Live resources created:
+
+- staging: `coolify-staging-01`, `cpx32`, `nbg1`, IPv4 `46.224.145.148`, IPv6 `2a01:4f8:c2c:83e2::1`
+- production: `coolify-prod-01`, `ccx23`, `nbg1`, IPv4 `46.225.162.106`, IPv6 `2a01:4f8:1c18:c04::1`
+- shared Hetzner SSH key, firewall, and private network
+- Coolify installed on both hosts; local HTTP checks returned `302`
+- generated Coolify root users created through SSH tunnels; credentials are stored only in `/tmp/coolify_admin_credentials.env`
+- Coolify API enabled on both hosts; API tokens are stored only in `/tmp/coolify_api_tokens.env`
+- Coolify version readback returned `4.0.0` for staging and production
+- Coolify projects/environments created:
+  - staging project `loom-staging` UUID `id069t43frp519u5i3dg2jpr`, environment `staging` UUID `h1433m09ezg882q7xmf3ae0x`
+  - production project `loom-production` UUID `t1400k32bg9yd764chyt1slm`, environment `production` UUID `rn5sbycbix789i973okr9ugm`
+- Coolify built-in server records now use hardened user `loomops` and validate as reachable/usable:
+  - staging server UUID `zf25hgk9694bt7q0zwb98ado`, destination UUID `xjhfu65nacrr30xax5cp0ry7`, private key UUID `n117g3g8n75p6x048drc11on`
+  - production server UUID `kvufjk78dj4wyhjgp1mlxecr`, destination UUID `r3thf2xmxcjn1tt2bclabebz`, private key UUID `bmllhht0k5m0gfkuk0ovwisz`
+- SSH root login and password login disabled; UFW active on both hosts
+- current firewall allows SSH and Coolify port `8000` only from the operator public IP used during setup, and allows public HTTP/HTTPS
+- host UFW/fail2ban allow the local Coolify Docker address pool for self-validation after root SSH was disabled
+- Coolify proxy is running and healthy on both hosts
+- Coolify SSH deployment user ACL access is configured for local `/data/coolify` resource directories so Docker-image app deployments can write generated compose files
+- local ignored Terraform state now contains the live SSH key, firewall, network, subnet, staging server, and production server
+- Terraform server resources ignore imported create-time fields (`network`, `public_net`, `ssh_keys`, `user_data`) to avoid replacing adopted hosts
+
+Verification completed:
+
+- shell syntax checks for `infra/coolify/hetzner/scripts/*.sh`, including `apply-hcloud-api-baseline.sh`
+- shell syntax check for `infra/coolify/hetzner/cloud-init/coolify-bootstrap.sh.tftpl`
+- Terraform `1.6.6` installed into `/tmp/codex-tools/bin` after clearing local Homebrew/npm/pip caches for disk space
+- `terraform init -backend=false`
+- `terraform fmt -check -recursive`
+- `terraform validate`
+- Terraform import completed for SSH key `111657146`, network `12181920`, subnet `12181920-10.44.0.0/24`, firewall `10915120`, staging server `128757995`, and production server `128758153`
+- Terraform applied one saved in-place firewall convergence plan with `0 added, 1 changed, 0 destroyed`
+- post-apply `terraform plan -detailed-exitcode` returned `0`
+- `git diff --check`
+- local secret scan over the new infra files for direct token assignments
+- Hetzner API resource readback confirmed both servers running with the requested types/region
+- SSH hardening readback confirmed `PermitRootLogin no`, `PasswordAuthentication no`, and `KbdInteractiveAuthentication no`
+- `sudo docker ps` confirmed Coolify containers healthy on both hosts
+- root-user registration forms are gone; login forms are present after generated root-user creation
+- Coolify API `/api/v1/version` returned `4.0.0` on both hosts
+- Coolify API server readback confirmed `user=loomops`, `is_reachable=true`, and `is_usable=true` on both hosts
+- strict staging disposable Docker-image smoke passed after the proxy/ACL fix: app creation, deployment, `running:unknown` status, HTTP routing through `sslip.io`, and cleanup confirmation
+
+Verification blocked:
+
+- DNS records were not created because `loomai.pro` currently uses registrar nameservers, not Hetzner DNS, and no registrar/DNS provider API credential was available.
+
+Slice 1 plan prepared:
+
+- current code anchor: `DeploymentProvisioningService` still selects providers by `PlatformProvisioningProperties.mode()`
+- current code anchor: `DeploymentProvisioningProvider` still exposes `supports(String mode)`
+- current code anchor: `DeploymentReleaseEntity` stores `provisioningTarget` but no target profile/provider/artifact/handle references yet
+- add `DeploymentProviderType` values `RAILWAY_API`, `RAILWAY_STUB`, and reserved `COOLIFY`
+- add `deployment_target_profiles` with seeded Railway-compatible defaults and inactive Coolify staging/prod profiles
+- add nullable release fields for target profile, provider type, source artifact, and provider handle while preserving `provisioningTarget`
+- introduce provider registry dispatch by target profile provider type
+- wrap current Railway API and stub providers through the registry without changing Railway behavior
+- add tests proving current Railway provisioning still works with target profiles present
+- do not add Coolify API calls in Slice 1
+
+---
+
+## 2026-05-01 Slice 1 Target Profiles And Provider Registry
+
+Status: implemented after rebasing `Platform-V8` onto `origin/main`; no Coolify app lifecycle or Platform Coolify API calls were added.
+
+Implemented:
+
+- `DeploymentProviderType` with `RAILWAY_API`, `RAILWAY_STUB`, and reserved `COOLIFY` values.
+- Provider-neutral persistence for target profiles, provider credentials, source artifacts, and provider resource handles.
+- Flyway migration `V76__deployment_target_profiles_and_provider_handles.sql`, numbered after the rebased `main` migrations through `V75`.
+- Seeded active Railway target profiles and inactive Coolify staging/production profiles using only non-secret Coolify URLs and UUID metadata.
+- Release metadata fields for target profile, provider type, source artifact, and provider resource handle while preserving legacy `provisioningTarget`.
+- `DeploymentTargetProfileService` and `DeploymentProviderRegistry` dispatch so current Railway providers are selected through target profiles.
+- Railway API/stub adapters now expose provider type while retaining legacy `supports(String mode)` compatibility.
+- Regression tests for target-profile dispatch, missing Coolify adapter behavior, migration seeds, and existing verification-suite property behavior.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentProvisioningServiceTargetProfileTest,DeploymentTargetProfileMigrationTest,PlatformVerificationSuitePropertiesTest,PlatformVerificationSuiteServiceTest,PlatformVerificationSuiteExecutionServiceTest,PlatformVerificationSuiteScriptContextServiceTest test`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner init -backend=false`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner fmt -check -recursive`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner validate`
+- `bash -n` for the Hetzner helper scripts and Coolify bootstrap template
+
+Blockers:
+
+- DNS remains skipped by request and because `loomai.pro` is not delegated to an API-backed provider in this repo context.
+- Coolify app lifecycle, GitHub/GHCR credential wiring, provider API calls, backups/restore rehearsal, and dashboard/API hardening beyond IP allowlisting remain future slices.
+
+Next handoff:
+
+- Slice 2 should add a Coolify provider adapter skeleton behind the registry, still without creating application resources until source artifact and credential contracts are finalized.
+
+---
+
+## 2026-05-01 Slice 2/3 Backend Provider Core
+
+Status: backend provider core implemented and locally/live testable; full production tenant runtime rollout remains blocked by DNS/GHCR/backup-hardening gates.
+
+Implemented:
+
+- `CoolifyApiClient` for `/api/v1` health/version, Docker image application create/update/list/get, env bulk update, start/stop/restart/delete, status, and logs.
+- `CoolifyDeploymentProvider` behind `DeploymentProviderRegistry`.
+- `CoolifyTargetProfileResolver` with secret-managed token resolution from `COOLIFY_STAGING_API_TOKEN` and `COOLIFY_PRODUCTION_API_TOKEN`.
+- Provider lifecycle defaults on `DeploymentProvisioningProvider` for preflight/start/stop/restart/delete/status/logs.
+- Source artifact records and API for Docker image artifact create/list/promote.
+- Provider resource handle action API for status/logs/start/stop/restart/delete.
+- Apply endpoint optional query params:
+  - `targetProfileId`
+  - `sourceArtifactId`
+- Release execution now captures `providerResourceHandleId` from provisioning details.
+- GitHub Actions workflow `.github/workflows/coolify-image-artifacts.yml` builds/pushes runtime and REST connector images to GHCR and uploads metadata JSON.
+- Verification suite key `coolify-provider-verification` runs `scripts/verify-coolify-provider.sh`.
+
+Live validation:
+
+- Non-strict verifier passed against staging and production Coolify hosts:
+  - staging `version=4.0.0`, `health=OK`, `applications=0`
+  - production `version=4.0.0`, `health=OK`, `applications=0`
+- Strict disposable staging smoke now creates, starts, observes `running:unknown`, and deletes an app. Cleanup confirms staging returns to zero applications.
+- The smoke unblock required starting `coolify-proxy` and granting the hardened Coolify SSH user ACL access to `/data/coolify` resource directories; both are now encoded in host bootstrap.
+- Temporary app routing uses `sslip.io` until the planned `loomai.pro` runtime wildcard DNS records are automated.
+
+Remaining blockers:
+
+- Custom DNS was intentionally skipped; without runtime DNS/FQDN, tenant runtime post-apply verification cannot be considered production-ready.
+- GHCR read credential and host registry auth are not configured in Coolify yet; this is no longer a blocker for the public Git-source path, but remains required for the hardened image-source path.
+- Coolify target profiles remain inactive in seed data until GHCR auth, DNS replacement for temporary `sslip.io`, backup/restore, and dashboard/API hardening gates are complete.
+- Backup/restore rehearsal for Coolify state, APP_KEY, SSH keys, and app volumes is still pending.
+- Operator UI integration is API-ready but not implemented in the frontend.
+
+---
+
+## 2026-05-01 Public Git-Source Railway Parity
+
+Status: implemented locally. This changes the near-term Coolify path to match Railway while the repository is public.
+
+Implemented:
+
+- Coolify provider now supports `GIT_SOURCE` target profiles using the same `RailwayProvisioningPlanService` source repo, branch, runtime Dockerfile path, and runtime environment variables.
+- Added Coolify public application create/update support through `/applications/public`.
+- Existing Docker-image app support remains available behind `IMAGE_SOURCE`.
+- Seeded Coolify staging/production target profiles are updated by `V78__coolify_public_git_source_profiles.sql` to `GIT_SOURCE` with `buildPack=dockerfile`, repo-root base directory, and the runtime Railway Dockerfile.
+- Public Git source normalizes GitHub slugs such as `owner/repo` to `https://github.com/owner/repo.git` for Coolify.
+- Coolify auto-deploy is disabled for provider-created public Git apps; Platform still triggers deployment explicitly.
+- `scripts/verify-coolify-provider.sh` has optional `COOLIFY_PUBLIC_GIT_SMOKE=true` coverage that creates and deletes a disposable staging public Git application without triggering a deployment.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+- `bash -n scripts/verify-coolify-provider.sh`
+- `COOLIFY_PUBLIC_GIT_SMOKE=true scripts/verify-coolify-provider.sh` against staging/prod Coolify `4.0.0`; it created a disposable public Git app, confirmed the Git repository readback, and cleanup returned staging to zero apps.
+
+Remaining gates:
+
+- Push/merge the deployment source branch before live Coolify Git app deployment if Coolify must build code that only exists locally.
+- Run a full public Git app build/start/health smoke through the Platform apply path after target-profile activation policy is set.
+- Replace temporary `sslip.io` runtime domains with real DNS before production tenant acceptance.
+- Keep GHCR/private registry auth as the hardened image-source follow-up, not as a blocker for public-repo Git-source testing.
+
+---
+
+## 2026-05-01 Target Profile Activation API
+
+Status: implemented locally and ready for deploy.
+
+Implemented:
+
+- `PATCH /api/deployment-provider/target-profiles/{targetProfileId}` for `PLATFORM_ADMIN`.
+- `PatchDeploymentTargetProfileRequest` with:
+  - `active`
+  - `defaultForRuntime`
+  - `defaultForRestartableServices`
+- `DeploymentTargetProfileService.patchProfile(...)` so operators can activate Coolify profiles through Platform instead of ad hoc database edits.
+- Guardrails that require a profile to be active before it can become a runtime or restartable-services default.
+- Default switching clears the previous default for the same provider type, preserving the target-profile registry contract.
+
+Live operations completed:
+
+- Stored `COOLIFY_STAGING_API_TOKEN` and `COOLIFY_PRODUCTION_API_TOKEN` in Platform secrets from `/tmp/coolify_api_tokens.env`.
+- Secret values were not printed, summarized, committed, or written into docs.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `git diff --check`
+
+Next live acceptance steps:
+
+- Push/deploy this endpoint to the Platform backend.
+- Activate `dtp-coolify-staging`.
+- Run `GET /api/deployment-provider/target-profiles/dtp-coolify-staging/preflight`.
+- Run a disposable Platform apply with `targetProfileId=dtp-coolify-staging`.
+- Verify Coolify resource status/log retrieval and delete cleanup through Platform provider resource APIs.
+- Keep production target profile non-default until DNS, backup/restore, dashboard/API hardening, and operator UI gates are complete.
+
+---
+
+## 2026-05-01 Platform Staging Smoke
+
+Status: staging provisioning path is testable through Platform and Coolify. Production remains gated.
+
+Completed:
+
+- Pushed and deployed `625032e71` with the target-profile activation API.
+- Activated `dtp-coolify-staging` through Platform.
+- Stored Coolify API tokens in Platform secrets; token values were not written to docs or committed.
+- Added a staging-only Hetzner firewall for Railway/Platform API access to staging Coolify port `8000`:
+  - live firewall name: `loom-coolify-staging-platform-api-firewall`
+  - live firewall ID: `10916648`
+  - attached only to `coolify-staging-01`
+  - production remains on the shared restricted dashboard/API allowlist
+- Encoded that staging Platform API access path in Terraform through `staging_platform_api_allowed_cidrs`.
+- Platform preflight for `dtp-coolify-staging` passed after the staging API access unblock.
+- Created a disposable Platform deployment and applied it to Coolify staging.
+- Coolify created the public Git application, built from branch `Platform-V8`, triggered deployment, exposed the temporary `sslip.io` runtime URL, and returned runtime logs through Platform.
+- Runtime health eventually passed at `/actuator/health` with HTTP `200`.
+- Cleanup deleted the disposable Coolify app and queued hard deletion for the disposable Platform deployment.
+
+Important smoke result:
+
+- The first release verification finished too early and left the release as `APPLIED_VERIFICATION_FAILED` even though the runtime became `running:healthy` shortly afterward and a later verification run passed. The provider provisioning path works, but release reconciliation needs a follow-up so late-success verification can update the release status.
+
+Security fixes from smoke:
+
+- `CoolifyDeploymentProvider.status(...)` now returns an allowlisted safe detail object instead of raw Coolify application JSON.
+- Provider action summaries now return allowlisted Coolify action fields only.
+- Tests cover redaction of generated Coolify webhook/sentinel-style fields.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner fmt -check -recursive`
+- `PATH=/tmp/codex-tools/bin:$PATH terraform -chdir=infra/coolify/hetzner validate`
+- `git diff --check`
+- changed-file long-token scan
+
+Remaining before production tenant acceptance:
+
+- Deploy and live-prove release reconciliation after a late successful verification run.
+- Real DNS replacing temporary `sslip.io`.
+- Backup/restore rehearsal for Coolify state and app data.
+- Production API/dashboard hardening before activating production.
+- Operator UI wiring for profile activation, preflight, resources, logs, and cleanup.
+
+---
+
+## 2026-05-01 Late Verification Reconciliation
+
+Status: implemented locally after the first Platform staging smoke exposed an early verification timeout followed by later runtime health.
+
+Implemented:
+
+- `DeploymentReleaseRecoveryService` can now reconcile a release in `APPLIED_VERIFICATION_FAILED` when a later verification run for the same release/version has status `PASSED`.
+- Reconciliation updates the release to `APPLIED_VERIFIED`, records the passing verification run, clears the release error, sets the current step to verification complete, and marks the deployment `ACTIVE` with the verified version.
+- `DeploymentVerificationRunRepository` now supports release-scoped newest-first lookup for reconciliation.
+- Regression coverage verifies the late-success path does not dispatch a new provider apply/verification or touch Railway.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentReleaseRecoveryServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest,DeploymentReleaseRecoveryServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `git diff --check`
+
+Updated remaining gates before production tenant acceptance:
+
+- Deploy this reconciliation patch to live Platform and rerun one disposable staging Platform apply/recheck/reconcile smoke.
+- Replace temporary `sslip.io` runtime domains with real DNS before production tenant acceptance.
+- Complete backup/restore rehearsal for Coolify state, `APP_KEY`, SSH keys, and app data.
+- Harden production dashboard/API exposure before activating `dtp-coolify-production`.
+- Add operator UI wiring for target-profile activation, preflight, provider resource status/logs/actions, and cleanup.
+
+---
+
+## 2026-05-01 Coolify Runtime Settle Before Verification
+
+Status: implemented locally after a live disposable Platform smoke reproduced the Coolify start/health timing issue.
+
+Live finding:
+
+- Disposable deployment `dep-dee1b7a8`, version `ver-1d0e1831`, and release `rel-199dae14` created a real Coolify app and route.
+- Initial Platform verification failed while Coolify still reported the app unhealthy.
+- The public runtime health endpoint later returned HTTP `200`, but an immediate deep verification recheck still failed because the app had not fully settled for all runtime/admin checks.
+- Cleanup was completed: the Coolify app was deleted, staging app count returned to `0`, Platform deployment hard-delete queued as `del-fb48bb46`, and provider resources for `dep-dee1b7a8` returned `0`.
+
+Implemented:
+
+- `CoolifyDeploymentProvider.provision(...)` now adds a `wait_for_coolify_runtime` progress step after `trigger_coolify_deploy`.
+- The provider polls the Coolify application until the status is running and not unhealthy before handing off to Platform release verification.
+- The wait is bounded by `deploySettleTimeoutSeconds` and `deploySettlePollSeconds` resource defaults, with conservative built-in defaults when the target profile does not specify them.
+- Provider resource handles now record `ACTIVE` when the observed Coolify application is already running at handoff.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest,DeploymentReleaseRecoveryServiceTest test`
+
+Next live proof:
+
+- Deploy this provider-settle patch to live Platform.
+- Rerun one disposable `dtp-coolify-staging` Platform apply.
+- Confirm the release reaches `APPLIED_VERIFIED` without racing runtime startup, then clean up the Platform deployment and Coolify app.
+
+---
+
+## 2026-05-01 Coolify Stale Verification Recovery
+
+Status: implemented locally after the second live smoke exposed a Coolify-specific recovery gap.
+
+Live finding:
+
+- Disposable deployment `dep-92d0143b` and release `rel-64e33107` were started before live Platform had picked up the provider-settle commit.
+- The release skipped `wait_for_coolify_runtime`, then a transient Platform `502` while polling left the release in `VERIFYING` at `sync_marketplace_datasets`.
+- The Coolify app was cleaned up directly and staging app count returned to `0`, but the Platform deployment record stayed undeletable because stale release recovery only considered `RAILWAY_API`.
+
+Implemented:
+
+- `DeploymentReleaseRecoveryService` now treats Coolify `VERIFYING` releases at `sync_marketplace_datasets` or `run_verification` as recovery candidates.
+- Coolify uses the same provider-neutral dataset-sync and verification retry path as Railway for those steps.
+- Regression coverage verifies a stale Coolify `sync_marketplace_datasets` release retries dataset sync and then runs release verification without Railway API calls.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentReleaseRecoveryServiceTest,CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest test`
+
+Next live proof:
+
+- Deploy this recovery patch.
+- Reconcile and delete leftover disposable Platform record `dep-92d0143b`.
+- Rerun one clean disposable `dtp-coolify-staging` smoke after live Platform serves both the provider-settle and Coolify stale-recovery fixes.
+
+---
+
+## 2026-05-01 Runtime Plus Connector Railway Parity
+
+Status: implemented, pushed, and live-smoke verified on staging after the clean Coolify smoke proved runtime health but failed Platform deep admin verification.
+
+Live finding:
+
+- Coolify created and started the runtime app, and Coolify later reported `running:healthy`.
+- Platform deep verification still failed on runtime/admin and connector/admin probes.
+- Code inspection found two Railway parity gaps:
+  - Coolify copied Railway `${secret:...}` placeholders literally instead of resolving them through Platform secrets before setting Coolify env vars.
+  - Coolify created only the runtime app, while the Railway path provisions runtime plus REST connector and wires each service to the other through env vars.
+
+Implemented:
+
+- `CoolifyDeploymentProvider` now resolves exact `${secret:...}` env placeholders through `PlatformSecretService` for Coolify env writes and marks resolved secret env vars as shown-once.
+- Git-source Coolify provisioning now creates/updates two apps when the Railway plan includes a REST connector:
+  - runtime app from the runtime Dockerfile
+  - connector app from the REST connector Dockerfile
+- Runtime env now points `ACTIONS_CONNECTOR_BASE_URL` at the connector app FQDN.
+- Connector env now points `REST_CONNECTOR_RUNTIME_PROXY_BASE_URL` at the runtime app FQDN.
+- Provider progress now starts/waits for the connector and runtime apps before returning to release verification.
+- Platform stores separate Coolify provider handles for `APPLICATION` and `CONNECTOR_APPLICATION`; release details keep the runtime handle as the primary handle and include connector handle/application metadata.
+- Hard delete now deletes tracked provider resource handles through the provider registry before Platform records are removed.
+- Coolify provider delete treats HTTP 404 as already absent so cleanup remains idempotent.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,DeploymentInfrastructureCleanupServiceTest,CoolifyTargetProfileResolverTest,DeploymentProvisioningServiceTargetProfileTest,DeploymentReleaseRecoveryServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `mvn -f Platfrom/backend/pom.xml -q test`
+- `git diff --check`
+- Exact local-secret scan for changed files
+
+Live proof:
+
+- Commit `c2ebf664c` was pushed to `Platform-V8`.
+- Disposable Platform deployment `dep-4a638d92`, version `ver-2551d85e`, release `rel-e7fd5707` applied with `targetProfileId=dtp-coolify-staging`.
+- Coolify created runtime plus REST connector apps from public Git source; both provider handles reached `ACTIVE` with `running:healthy`.
+- Platform release verification reached `APPLIED_VERIFIED/PASSED`.
+- Platform hard delete completed, provider resources returned `0`, and Coolify app matches for the disposable deployment returned `0`.
+
+Default and production profile update:
+
+- `dtp-coolify-staging` is now the runtime and restartable-services default.
+- `dtp-coolify-production` is active but explicitly non-default.
+- Live no-target default proof passed: disposable Platform deployment `dep-ac9468b9`, version `ver-76231ac5`, release `rel-e3aaf245` applied without passing `targetProfileId`; Platform selected `dtp-coolify-staging`/`COOLIFY`, reached `APPLIED_VERIFIED/PASSED`, created active `APPLICATION` and `CONNECTOR_APPLICATION` handles, reported runtime URL plus `connectorProvisioned=true`, then hard-delete `del-65ca8112` completed and provider resources returned `0`.
+- Superseded 2026-05-02: production preflight now passes through a production-only Hetzner firewall and host UFW allowlist for the observed Platform egress `/32`.
+
+Backup/restore rehearsal:
+
+- Staging host backup/restore rehearsal passed through the reusable runner at `/var/backups/loom-coolify/staging-20260501T214218Z`.
+- Production host backup/restore rehearsal passed through the reusable runner at `/var/backups/loom-coolify/production-20260501T214218Z`.
+- Each host produced root-only `coolify-db.dump`, `coolify-state-files.tgz`, `SHA256SUMS`, and `restore-rehearsal-status.json`; DB restore was tested into a temporary database and file restore was tested into a temporary directory, then temporary restore targets were removed.
+- Reusable runner added: `infra/coolify/hetzner/scripts/rehearse-coolify-backup-restore.sh`.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
+- Add GHCR/private registry auth before making the repo private or going live with private-source deployments.
+
+---
+
+## 2026-05-02 Provider-Neutral Operator UI
+
+Status: implemented locally for the Platform UI/backend API boundary.
+
+Decision:
+
+- UI surfaces must bind to deployment-provider abstractions, not directly to Railway flow names. Coolify staging remains the runtime default; operators can still explicitly choose a target profile during apply.
+- No backward-compatibility promise is needed for old Railway-labeled UI language. Railway-specific backend internals and legacy diagnostics can remain implementation details while the operator-facing workflow uses provider terms.
+
+Implemented:
+
+- Added generic backend alias `GET /api/deployments/{deploymentId}/versions/{versionId}/provisioning-plan`; the old Railway plan model remains the internal shape for now.
+- Added frontend generic API/types for deployment target profiles, provider preflight, provider resources, provider resource status/logs/start/stop/restart/delete, and `fetchDeploymentProvisioningPlan(...)`.
+- Added `DeploymentProviderOperationsPanel` with target-profile activation/default controls, profile preflight, provider resource inventory, status/log dialogs, and provider resource actions.
+- Added the provider operations panel to the Providers page for the selected deployment.
+- Revisions page now uses generic provisioning-plan API naming, shows an apply target selector backed by active target profiles, defaults to the runtime target when no explicit target is selected, and displays release `providerType`/`targetProfileId`.
+- Verification, Security, and Diagnostics pages now use the active runtime target profile preflight instead of the Railway preflight endpoint.
+- Operator-facing UI copy across deployment, diagnostics, product-service, inference-service, and platform diagnostics pages now uses provider-neutral language for provisioning/logs/live read-back/cleanup.
+
+Verification completed:
+
+- `npm --prefix Platfrom/ui run build`
+- `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`
+- `git diff --check`
+- Changed-file exact local-secret scan against `/tmp/hetzner_cloud_token.secret`, `/tmp/coolify_api_tokens.env`, `/tmp/coolify_admin_credentials.env`, `/tmp/platform_login_email.secret`, and `/tmp/platform_login_password.secret`
+- Provider-neutral UI copy scan for old Railway-facing phrases returned no matches.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
+- Add GHCR/private registry auth before making the repo private or going live with private-source deployments.
+- Later cleanup: rename backend model/service internals that still carry Railway names where they now represent a provider-neutral plan shape.
+
+---
+
+## 2026-05-02 Default Coolify Provider Live Proof
+
+Status: implemented, pushed, deployed, and live-smoke verified for staging default provisioning.
+
+Implemented:
+
+- `CoolifyDeploymentProvider` now uses each Coolify target profile's `deploymentTimeoutSeconds` and `deploymentPollIntervalSeconds` as the default application readiness-settle window.
+- Resource-level `deploySettleTimeoutSeconds` and `deploySettlePollSeconds` overrides still take precedence.
+- This fixes the prior hardcoded 6-minute wait that could fail before the REST connector/runtime finished becoming healthy.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -Dtest=CoolifyDeploymentProviderTest test`
+- `git diff --check`
+- Exact changed-file secret scan against local Hetzner, Coolify, and Platform secret files
+
+Live proof:
+
+- Commit `e1d0e173a` was pushed to `Platform-V8`; live Platform restarted and `/actuator/health` returned `UP`.
+- Disposable no-target deployment `dep-36ad13ea`, version `ver-b7e57a63`, release `rel-0d70cac1` applied without passing `targetProfileId`.
+- Platform selected `targetProfileId=dtp-coolify-staging` and `providerType=COOLIFY`.
+- Generic provisioning-plan endpoint returned the expected Git-source plan for branch `Platform-V8`, runtime service `runtime-dep-36ad13ea`, and connector service `rest-connector-dep-36ad13ea`.
+- Coolify created runtime plus REST connector apps; both reached `running:healthy`.
+- Platform release reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, and `verificationStatus=PASSED`.
+- Provider operations returned two handles:
+  - `APPLICATION` handle `dprh-e991febf`
+  - `CONNECTOR_APPLICATION` handle `dprh-5728910e`
+- Provider status endpoints returned `RUNNING_HEALTHY`; provider logs endpoints returned non-empty logs.
+- Cleanup completed: hard-delete operation `del-9fc8420a` reached `SUCCEEDED`, provider resources returned `0`, and direct Coolify app-name readback found `0` remaining smoke apps.
+
+Current readiness:
+
+- Staging Coolify is ready as the Platform runtime default for provisioning new deployments while the source repo remains public.
+- Operator UI should stay coupled to provider abstractions (`target profiles`, `provider resources`, `provisioning plan`) rather than Railway-specific flow labels.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+
+---
+
+## 2026-05-02 Protected Production Coolify API Access
+
+Status: implemented live, imported into local Terraform state, and verified from live Platform.
+
+Decision:
+
+- Production Coolify API access should remain protected by a narrow allowlist. Do not expose production dashboard/API port `8000` broadly.
+- The current protected path is an explicit Platform control-plane egress `/32` allowlist at both the Hetzner firewall layer and the host UFW layer.
+- If Railway egress changes, production preflight will fail closed and the allowlist must be updated or replaced with a stronger stable control-plane access layer such as Cloudflare Access, Tailscale, or static egress.
+
+Live access path:
+
+- Production host: `coolify-prod-01`
+- Hetzner production Platform API firewall: `loom-coolify-production-platform-api-firewall`
+- Hetzner firewall ID: `10918233`
+- Attached only to production server `128758153`
+- Rule: TCP `8000` from `52.52.45.183/32`
+- Host UFW: matching `52.52.45.183 -> 8000/tcp` allow rule with comment `Platform production Coolify API preflight`
+
+Implementation notes:
+
+- The source IP was discovered by temporarily letting packets reach the production host while UFW still blocked unknown sources, triggering live Platform production preflight, and capturing SYN packets on production port `8000`.
+- The temporary broad Hetzner rule was replaced immediately with the observed `/32`.
+- Terraform now models the production API firewall through `production_platform_api_allowed_cidrs`.
+- `infra/coolify/hetzner/terraform.tfvars.example` includes explicit staging/production Platform API allowlist variables.
+- `infra/coolify/hetzner/README.md` records the live firewall ID, observed egress `/32`, UFW rule, and Terraform import command.
+
+Terraform verification:
+
+- Imported live firewalls into local ignored Terraform state:
+  - `hcloud_firewall.coolify_staging_platform_api[0]` -> `10916648`
+  - `hcloud_firewall.coolify_production_platform_api[0]` -> `10918233`
+- Applied Terraform convergence with the live allowlist variables:
+  - `0 added, 7 changed, 0 destroyed`
+  - changes normalized labels/provider default metadata only
+- Follow-up `terraform plan -detailed-exitcode` returned no changes.
+- `terraform fmt -check -recursive` passed.
+- `terraform validate` passed.
+
+Live Platform verification:
+
+- `GET /api/deployment-provider/target-profiles/dtp-coolify-production/preflight` returned:
+  - `status=PASSED`
+  - Coolify `version=4.0.0`
+  - message `Coolify API is reachable and credentials are valid.`
+- `dtp-coolify-production` remains active but non-default.
+- `dtp-coolify-staging` remains the runtime/restartable-services default.
+
+Remaining production tenant cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+- Run an explicit production tenant smoke only after DNS/source-auth policy is accepted, because the production profile is now API-reachable but still non-default.
+
+---
+
+## 2026-05-02 Coolify Release Gate Parity
+
+Status: implemented, pushed, deployed, and live-smoke verified for staging.
+
+Implemented:
+
+- `DeploymentReleaseVerificationService` now treats `COOLIFY` as a live pre-apply gated provider.
+- Coolify releases now run the shared pre-apply checks before provisioning:
+  - artifact URL presence and fetch probes
+  - managed secret readiness
+  - private runtime token minting
+  - authz deployability
+  - tenant-scoped vector boundary checks
+  - vectorization readiness
+  - external provider connectivity probes
+- Provider-specific preflight is now selected by provider:
+  - Railway keeps the existing Railway preflight checks.
+  - Coolify resolves the selected active target profile and runs provider preflight through `DeploymentProviderRegistry`.
+- A failed Coolify target-profile preflight now fails the `provider_preflight` check and blocks the release before provisioning.
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentReleaseVerificationServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`
+- `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentReleaseVerificationServiceTest,DeploymentReleaseExecutionServiceTest,DeploymentReleaseRecoveryServiceTest,CoolifyDeploymentProviderTest,DeploymentProvisioningServiceTargetProfileTest,CoolifyTargetProfileResolverTest test`
+- `git diff --check`
+- Exact changed-file local-secret scan
+
+Live proof:
+
+- Commit `12dca128c` was pushed to `Platform-V8`; live Platform restarted and returned `UP`.
+- Disposable no-target deployment `dep-8be9835f`, version `ver-bad9ef98`, release `rel-ed09eeb8` applied without passing `targetProfileId`.
+- Platform selected `targetProfileId=dtp-coolify-staging` and `providerType=COOLIFY`.
+- PRE_APPLY verification run `vrf-2761b71c` reached `PASSED` with `24 passed, 0 failed, 8 skipped`.
+- PRE_APPLY included `provider_preflight=PASSED` and did not include any `railway_preflight_*` checks.
+- Release reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, and `verificationStatus=PASSED`.
+- Runtime and connector provider status endpoints returned `RUNNING_HEALTHY`; provider logs endpoints returned non-empty logs.
+- Cleanup completed: hard-delete operation `del-1c8ecd7c` reached `SUCCEEDED`, provider resources returned `0`, and direct Coolify app-name readback found `0` smoke apps.
+
+Current readiness:
+
+- Staging Coolify provisioning now has release-gate parity with Railway for pre-provisioning deployability checks, plus Coolify-specific target-profile preflight.
+- Superseded 2026-05-02: protected production Coolify API access is solved through a production-only Platform egress allowlist, and production preflight passes from live Platform.
+
+---
+
+## 2026-05-02 UI Abstraction Tightening After Release Gates
+
+Status: implemented locally.
+
+Decision:
+
+- Deployment operator UI should consume the provider abstraction directly. Railway-named frontend aliases may remain only as compatibility wrappers for older API shapes, not as the primary deployment UI contract.
+- Runtime diagnostics should use provider resource handles/logs because Coolify records `APPLICATION` and `CONNECTOR_APPLICATION` handles; the old deployment `/railway-logs` endpoint is not the correct abstraction for Coolify-backed deployments.
+
+Implemented:
+
+- Added `liveProviderReadback` to `DeploymentSourceOfTruthSummary`, populated from the same existing read-back object as `liveRailwayReadback` while backend read-back internals are still being renamed.
+- Added frontend provider-neutral live read-back types:
+  - `DeploymentProviderLiveFieldDriftSummary`
+  - `DeploymentProviderLiveEnvVarDriftSummary`
+  - `DeploymentProviderLiveServiceSummary`
+  - `DeploymentProviderLiveReadbackSummary`
+- Added frontend provider-neutral provisioning plan types instead of aliasing the primary deployment plan UI to `RailwayProvisioningPlanSummary`.
+- Changed Deployment Diagnostics provider logs to:
+  - list resources via `fetchDeploymentProviderResources({ deploymentId })`
+  - pick the requested service handle (`APPLICATION`, `CONNECTOR_APPLICATION`, or vectorization runner candidates)
+  - fetch logs through `fetchDeploymentProviderResourceLogs(handleId, 200)`
+- Changed Deployment Overview to read `liveProviderReadback` with a legacy fallback.
+
+Verification completed:
+
+- `npm --prefix Platfrom/ui run build`
+- `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentWorkspaceIntegrationTest,DeploymentReleaseVerificationServiceTest,DeploymentReleaseExecutionServiceTest,CoolifyDeploymentProviderTest,DeploymentProvisioningServiceTargetProfileTest,CoolifyTargetProfileResolverTest test`
+- `mvn -f Platfrom/backend/pom.xml -DskipTests clean compile`
+- `git diff --check`
+- Changed-file secret-pattern scan; no secret values were printed or found. The only pattern hit was frontend API secret metadata naming.
+
+Current readiness:
+
+- Coolify release gating remains verified by regression tests.
+- Deployment Diagnostics and Overview are now wired to the provider abstraction needed for Coolify runtime/connector resources.
+- After this patch is deployed, browser-check provider log rendering against a Coolify-backed deployment and confirm runtime plus connector handles show logs from provider resources.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+- Later cleanup: rename backend plan/read-back internals that still carry Railway class names where they now describe the generic provider contract.
+
+---
+
+## 2026-05-02 Loom Companion Customer Migration To Coolify
+
+Status: implemented, pushed, deployed, and live verified for current staging-backed Shopify Companion customers.
+
+Scope:
+
+- Migrate the current Loom/Shopify Companion customer-bound deployments from the legacy Railway release path to Coolify staging.
+- Keep this limited to deployment/runtime cutover. Real DNS, production profile activation, private registry auth, and production protected API access remain production cutover blockers.
+
+Live deployments:
+
+| Store | Deployment | Consumer | Latest Coolify release | Runtime |
+|---|---|---|---|---|
+| `shopping-companion-test.myshopify.com` | `dep-8c3e7259` | `shopify-shopping-companion-test` | `rel-e8cee807` / `ver-1b77bfba` | `http://dep-8c3e7259.46.224.145.148.sslip.io` |
+| `loom-verification-20260418.myshopify.com` | `dep-3bf25c3f` | `shopify-loom-verification-20260418` | `rel-75648f34` / `ver-ccc844b6` | `http://dep-3bf25c3f.46.224.145.148.sslip.io` |
+
+Implemented during migration:
+
+- Restored and re-bootstrapped the Loom verification deployment after it was found archived and carrying an old Qdrant endpoint.
+- Re-published the Loom deployment through the current draft after bootstrap refreshed provider/vector configuration.
+- Fixed Coolify application update payloads so existing public Git apps can be updated idempotently after first create.
+- Re-applied Loom version `ver-ccc844b6` after the fix deployed; release `rel-75648f34` reached `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, and `verificationStatus=PASSED`.
+
+Code fix:
+
+- `CoolifyApiClient` now uses separate create and update bodies.
+- Create calls keep the full Coolify payload for new app placement.
+- Update calls omit create-only fields rejected by live Coolify PATCH validation:
+  - `project_uuid`
+  - `server_uuid`
+  - `environment_name`
+  - `environment_uuid`
+  - `destination_uuid`
+  - `autogenerate_domain`
+
+Verification completed:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`
+- `git diff --check`
+- Live Platform health returned `UP` after commit `5643735cf` deployed.
+- Both current Shopify Companion deployments now have latest releases on `providerType=COOLIFY` and `targetProfileId=dtp-coolify-staging`.
+- Both store bindings report empty warnings.
+- Both stores report `STOREFRONT_READY`.
+- The Loom verification store onboarding status was advanced to `LIVE` after the verified Coolify release by replaying its existing `ENABLED` widget status.
+- Runtime and connector public health endpoints returned `200 UP` for both stores.
+
+Current readiness:
+
+- New default runtime provisioning and the current customer-bound Loom/Shopify Companion runtime deployments are on Coolify staging.
+- This is ready for staging/customer validation through the public `sslip.io` URLs while the repo remains public.
+
+Remaining production/go-live cutover work:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Keep `dtp-coolify-production` non-default until production tenant smoke passes and real DNS/private-source blockers are cleared.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+
+---
+
+## 2026-05-02 Lightweight Customer Grouping In Coolify
+
+Status: implemented, pushed, deployed, and live apply verified for current staging customer deployments.
+
+Decision:
+
+- Customers still do not access Coolify. Platform remains the source of truth for deployments, authorization, quotas, cleanup, migration, and audit.
+- Coolify grouping is an operator visibility layer only:
+
+```text
+Coolify Team
+└─ Project: customer-{platformCustomerSlug}
+   └─ Environment: staging|production
+      ├─ runtime-{deployment}
+      └─ rest-connector-{deployment}
+```
+
+Implemented:
+
+- Added Coolify API client support for native project/environment lifecycle:
+  - `GET /projects`
+  - `POST /projects`
+  - `GET /projects/{uuid}/environments`
+  - `GET /projects/{uuid}/{environment_name_or_uuid}`
+  - `POST /projects/{uuid}/environments`
+- `CoolifyDeploymentProvider` now resolves a customer resource scope before app reconciliation when `customerProjectGroupingEnabled` is true.
+- Default Platform runtime behavior enables grouping when `PlatformCustomerRepository` is available. Test-only constructors without the repository keep grouping disabled unless explicitly wired.
+- Project naming uses the Platform customer slug when available and falls back to customer ID, tenant ID, then deployment ID.
+- Runtime and connector create requests now use the resolved customer project/environment instead of the fixed target-profile project/environment.
+- Provider resource handles persist the resolved project/environment UUIDs and metadata records the Coolify grouping details.
+- Existing handles from the previous fixed target-profile project are treated as stale on the next apply: Platform deletes the old Coolify app and creates the replacement under the customer project/environment instead of PATCH-moving, because live Coolify rejected `project_uuid` on application PATCH.
+- Live first re-apply exposed Coolify's asynchronous delete behavior: a replacement create can return HTTP `409` while the old app name/domain is still settling. The provider now waits for stale app deletion and retries one conflicting create after deleting a same-name app outside the resolved customer scope.
+- Added migration `V80__coolify_customer_project_grouping.sql` to mark seeded Coolify target profiles with customer project grouping defaults without changing DNS or production default policy.
+
+Verification completed locally:
+
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyApiClientTest,CoolifyDeploymentProviderTest,DeploymentTargetProfileMigrationTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest test` after the live HTTP `409` stale-delete retry fix
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `git diff --check`
+- changed-file exact local-secret scan against Hetzner/Coolify/Platform secret files
+
+Live proof:
+
+- Commit `e0f39918a` implemented customer grouping and commit `37bcb9d6f` added the stale-delete/HTTP `409` retry fix; both were pushed to `Platform-V8`.
+- Live Platform redeployed after `37bcb9d6f` and returned `UP`.
+- First Shopping Companion apply on `e0f39918a` failed as `rel-6150ba51` with Coolify HTTP `409`; this is the covered stale app conflict that `37bcb9d6f` fixed.
+- Shopping Companion re-apply `rel-264ea467` for deployment `dep-8c3e7259` / version `ver-1b77bfba` reached `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Loom verification re-apply `rel-873fdcfb` for deployment `dep-3bf25c3f` / version `ver-ccc844b6` reached `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Staging Coolify now shows customer projects:
+  - `customer-shopify-store-shopping-companion-test-myshopify`
+  - `customer-shopify-store-loom-verification-20260418-myshopi`
+- Provider handles for both deployments now point at the customer project/environment UUIDs instead of the shared `loom-staging` project.
+- Runtime and connector health endpoints for both deployments returned HTTP `200` with `UP`.
+
+Remaining production/go-live cutover blockers stay unchanged:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Keep `dtp-coolify-production` non-default until a production tenant smoke passes.
+- Add GHCR/private registry auth before making the repo private or using private-source deployments.
+
+---
+
+## 2026-05-02 Railway Deployment Cleanup After Coolify Migration
+
+Status: completed.
+
+Scope:
+
+- Remove legacy Railway tenant/runtime deployment projects after the current customer-bound deployments were switched to Coolify.
+- Keep Railway control-plane/product-service resources because Platform backend/UI and Shopify Bridge still intentionally run on Railway.
+- Superseded later on 2026-05-02: Shopify Bridge was migrated to Coolify production. Platform backend/UI remain on Railway; the old Railway Shopify Bridge project is retained only as rollback until explicit deletion after soak.
+
+Execution:
+
+- Railway workspace inventory before cleanup found 12 projects.
+- Kept `loom-product-production-shopify-` because it hosts the Shopify Bridge product-service integration.
+- Deleted 11 platform-managed deployment projects, covering 28 Railway services. The deleted services matched only these platform deployment patterns:
+  - `runtime-dep-*`
+  - `rest-connector-dep-*`
+  - `vectorization-runner-dep-*`
+- The deleted set included the old Railway `shopify-companion-s-dev-8c3e7259` project after its active customer deployment had already been verified on Coolify.
+
+Verification:
+
+- Post-cleanup Railway readback found exactly one remaining project: `loom-product-production-shopify-`.
+- Retained Railway services stayed healthy:
+  - Shopify Bridge `/actuator/health` returned HTTP `200` with `UP`.
+  - Platform backend `/actuator/health` returned HTTP `200` with `UP`.
+  - Platform UI `/health` returned HTTP `200` with `UP`.
+- Coolify provider verification passed for staging and production: version `4.0.0`, health `OK`; staging has the expected active applications and production has zero applications.
+- Current customer-bound Coolify endpoints stayed healthy:
+  - `dep-8c3e7259` runtime and connector returned HTTP `200` with `UP`.
+  - `dep-3bf25c3f` runtime and connector returned HTTP `200` with `UP`.
+
+Audit notes:
+
+- Local inventory/result files were written under `/tmp/railway-cleanup/` and are intentionally not committed.
+- Secret values were loaded only from local/private sources and were not printed, committed, or summarized.
+- Platform session login from the private handoff returned HTTP `401`, so cleanup used direct Railway GraphQL with conservative platform-managed project matching.
+
+---
+
+## 2026-05-02 Shopify Bridge Product-Service Migration To Coolify Production
+
+Status: implemented, deployed, and live verified.
+
+Policy change:
+
+- Shopify Bridge is now a Coolify production product service instead of a Railway product service.
+- Platform backend/UI and the database still remain on Railway for now.
+- The old Railway Bridge project is rollback-only until deliberate cleanup after a short soak.
+
+Live Coolify target:
+
+- Project: `product-shopify-bridge-prod`
+- Environment: `production`
+- Application: `shopify-bridge-prod`
+- Application UUID: `wurlsp7d3bdsedy1lmn33sdc`
+- Public URL: `https://shopify-bridge-prod.46.225.162.106.sslip.io`
+- Runtime status: `running:healthy`
+
+Execution:
+
+- Created the Coolify production app from the public repo on branch `Platform-V8`, base directory `/product-services/shopify-bridge-service`, Dockerfile `/deploy/railway/Dockerfile`.
+- Migrated existing Bridge runtime variables from Railway to Coolify without printing or committing secret values.
+- Patched runtime URL, environment scope, and actuator exposure for the Coolify app.
+- Updated the Platform product-service record for `shopify-bridge-prod` to point at the Coolify app with `providerType=COOLIFY`, `targetProfileId=dtp-coolify-production`, and Coolify project/environment/application metadata.
+- Updated Shopify app config and theme-extension block defaults to use the Coolify Bridge URL.
+- Deployed the Shopify app through Shopify CLI; latest released version is `loom-companion-27`.
+
+Platform guardrails:
+
+- `PlatformManagedProductProvisioningService` now treats product services with Coolify metadata as outside the Railway lifecycle.
+- Coolify-managed product services no longer reconcile, refresh, restart, force-recreate, or decommission through Railway paths.
+- Product-service health drift accepts a Coolify binding for shared product services.
+- Railway deployment history/log endpoints return unavailable for Coolify-managed product services instead of surfacing stale Railway data.
+
+Verification:
+
+- Coolify app readback: `running:healthy`.
+- Bridge health: `GET /actuator/health` returned HTTP `200` with `UP`.
+- Bridge admin overview returned `READY`.
+- Storefront bootstrap for `shopping-companion-test.myshopify.com` returned HTTP `200` with `available=true`.
+- Shopify app proxy route exists and redirects to the dev-store password page, which is expected while the test store is password-protected.
+- Backend regression tests passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformManagedProductProvisioningServiceTest,PlatformManagedProductAdminServiceTest test`.
+- `git diff --check` passed.
+- Added-line exact local-secret scan against Hetzner, Coolify, Platform, and Shopify local secret files passed.
+
+Remaining product-service cleanup:
+
+- Do not delete `loom-product-production-shopify-` until the Coolify Bridge has soaked and Shopify callbacks/merchant traffic are confirmed off the old Railway URL.
+- Replace the temporary `sslip.io` Bridge URL with real DNS before production tenant cutover.
+- Add GHCR/private registry auth before making the repository private.
+
+---
+
+## 2026-05-02 Shopify Bridge Staging Coolify Correction
+
+Status: implemented, deployed, and live verified.
+
+Policy correction:
+
+- The same-day production Bridge migration is superseded for the active workflow. Current Shopify Bridge work is staging-only.
+- The Platform product-service ref remains `shopify-bridge-prod` for compatibility with existing store bindings, but its active provider metadata now points at the staging Coolify app.
+
+Active staging target:
+
+- Project: `product-shopify-bridge-staging`
+- Environment: `staging`
+- Application: `shopify-bridge-staging`
+- Application UUID: `c12bjqdcyqdt7tzgr48pev3z`
+- Public URL: `https://shopify-bridge-staging.46.224.145.148.sslip.io`
+- Runtime status: `running:healthy`
+
+Execution:
+
+- Updated Platform DB source-of-truth for `shopify-bridge-prod` to `providerType=COOLIFY`, `targetProfileId=dtp-coolify-staging`, and staging Coolify project/environment/application metadata.
+- Updated `shopify.app.toml`, `shopify.app.loom-companion.toml`, and all Shopify theme-extension block Bridge URL defaults to the staging Coolify URL.
+- Rendered and deployed the Shopify app through the Shopify CLI. Corrected staging release is `loom-companion-29`; `loom-companion-28` is superseded because the local deploy env still had an older Railway PR URL for app/callback/proxy fields.
+- Stopped the accidental production Coolify Bridge app after staging proof. It remains present as rollback metadata only and read back as `exited:unhealthy`.
+
+Verification:
+
+- Coolify staging app readback: `running:healthy`.
+- Bridge health: `GET /actuator/health` returned HTTP `200` with `UP`.
+- Bridge admin overview returned `READY`, `environmentScope=staging`, and the staging public base URL.
+- Storefront bootstrap for `shopping-companion-test.myshopify.com` returned HTTP `200` with `available=true`.
+- Generated Shopify session JWT proof against `GET /api/app/session` returned HTTP `200`.
+- Shopify app proxy route still redirects to the dev-store password page, which is expected while the test store is password-protected.
+- Local checks passed: `git diff --check`; backend guardrail regression tests; Shopify deploy shell syntax; Shopify CLI preflight with the staging deploy env; exact added-line local-secret scan.
+- UI build note: `npm --prefix product-services/shopify-bridge-service/ui run build` could not run because `ui/node_modules` is absent and local installs are intentionally not allowed for this session.
+
+Auth note:
+
+- Direct browser access to the deployed merchant UI outside Shopify Admin may still show `Shopify session token is unavailable`. That is expected because the built UI only accepts Shopify App Bridge `idToken()` in deployed mode; `dev_session_token` query support is local-dev only.
+
+Remaining production/go-live blockers:
+
+- Replace temporary `sslip.io` domains with real DNS.
+- Add GHCR/private registry auth before private-source deployments.
+- Keep production Bridge and production tenant cutover inactive until production smoke, backup/restore, DNS, and registry auth are complete.
+
+---
+
+## 2026-05-02 Loom Verification Store Cleanup
+
+Status: completed.
+
+Scope:
+
+- Delete the internal/dev verification store `loom-verification-20260418.myshopify.com` and its staging Coolify deployment after confirming it is not the main active customer-like store.
+- Preserve the active `shopping-companion-test.myshopify.com` deployment.
+
+Execution:
+
+- Deleted staging Coolify runtime app `yw9nm94x4cerbm9kg59lpws1` and connector app `m51na1cyv59gcsw6dsb0c3t0` for deployment `dep-3bf25c3f`.
+- Removed Platform metadata for store connection `shp-66960697`, deployment `dep-3bf25c3f`, consumer `shopify-loom-verification-20260418`, provider handles, marketplace dataset handles/sync runs, vectorization metadata, and the empty verification-only customer `cus-9c130451`.
+- Skipped shared/reused Qdrant collection deletion. The deployment had no vectorized data and direct Qdrant scoped collection checks returned missing collections, so deleting reused/shared root collections would be unsafe.
+
+Verification:
+
+- Coolify API readback reports both deleted app UUIDs absent and no remaining `loom-verification` / `dep-3bf25c3f` applications.
+- Platform DB readback counts for the store, deployment, consumer, provider handles, and customer are all `0`.
+- Deleted runtime and connector public health URLs return HTTP `404`.
+- Remaining main store `shopping-companion-test.myshopify.com` still maps to `dep-8c3e7259`; its Coolify runtime health returns HTTP `200 UP`.
+
+Audit:
+
+- Local pre-delete snapshot is stored under `/tmp/loom-verification-delete/pre-delete-snapshot.json`; it is intentionally not committed.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` One-Project Coolify Clone
+
+Status: application clone implemented and live-verified; database cutover pending.
+
+Scope:
+
+- Source Railway project: `6d0590be-3921-49b6-9fb7-75344cad0b6c`, project name `platform`.
+- Target Coolify project: `railway-platform`.
+- Target Coolify environment: `production`.
+- Shape: one Coolify project containing the migrated application services from the Railway production environment.
+
+Created Coolify application resources:
+
+| Service | Coolify URL | Verification |
+|---|---|---|
+| `platform-backend` | `https://railway-platform-backend.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `platform-ui` | `https://railway-platform-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the Coolify backend |
+| `partner-ui` | `https://railway-partner-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the Coolify backend |
+| `ecommerce-store` | `https://railway-ecommerce-store.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `runtime` | `https://railway-runtime.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Execution notes:
+
+- Railway service/source/env inventory is stored only under `/tmp/railway-migrate-6d0590be/` and must not be committed.
+- Coolify app envs were mapped without printing values. URL rewrites point Platform UI and Partner UI to the Coolify Platform backend.
+- Platform runtime-auth secrets used by the generic runtime were read from Platform DB secret storage and written only to local `/tmp` secret files before loading into Coolify.
+- Coolify container-internal health checks were disabled for Platform UI, Partner UI, and Runtime because these Docker images do not include `curl`/`wget`; external HTTP health checks passed.
+- Remote Docker build cache on `coolify-prod-01` was pruned after concurrent builds generated 9 GB of cache. No local installs were performed.
+
+Database status:
+
+- The application clone currently uses the existing Railway Postgres public connection from the source environment.
+- Source Postgres version was verified as `18.3`.
+- Coolify native Postgres/database and service API attempts on Coolify `4.0.0` created records but did not start database containers. Failed experimental records were deleted so the `railway-platform` project does not contain broken database resources.
+- Full DB migration remains pending until a Coolify Postgres 18 resource can be started reliably, restored from a Railway dump, and the cloned Platform backend can be repointed and reverified.
+
+Current cutover posture:
+
+- The Coolify application clone is testable by direct `sslip.io` URLs.
+- Do not delete the Railway project or switch public Platform/Partner UI domains yet.
+- Remaining blockers are database restore/cutover, real DNS, soak verification, and an explicit routing decision for public traffic.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` Staging Coolify Clone
+
+Status: staging application clone implemented and live-verified; database cutover pending.
+
+Scope:
+
+- Source Railway project: `6d0590be-3921-49b6-9fb7-75344cad0b6c`, project name `platform`.
+- Target Coolify host: `coolify-staging-01`.
+- Target Coolify project: `railway-platform`.
+- Target Coolify environment: `staging`.
+- Shape: same one-project grouping as production, hosted on the staging Coolify server.
+
+Created Coolify staging application resources:
+
+| Service | Coolify URL | Verification |
+|---|---|---|
+| `platform-backend` | `https://railway-platform-backend.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `platform-ui` | `https://railway-platform-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the staging Coolify backend |
+| `partner-ui` | `https://railway-partner-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200 UP`; runtime config points at the staging Coolify backend |
+| `ecommerce-store` | `https://railway-ecommerce-store.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `runtime` | `https://railway-runtime.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Execution notes:
+
+- The complete application stack only exists in the Railway `production` environment; the Railway `Prod2` environment has only a partial service set.
+- The staging clone therefore uses the complete Railway `production` source/env set with staging URL rewrites.
+- Backend bootstrap/admin/demo auto-apply flags were forced off for the staging clone to avoid startup mutations while it shares the existing Railway Postgres connection.
+- Platform UI, Partner UI, and Runtime have Coolify container-internal health checks disabled because their current Docker images do not include `curl`/`wget`; external HTTP verification passed.
+- Remote Docker build cache on `coolify-staging-01` was pruned after deployment.
+
+Database status:
+
+- Same as production clone: no Coolify Postgres cutover yet.
+- The staging clone currently uses the existing Railway Postgres public connection.
+- A real staging database split requires the pending Coolify Postgres restore/cutover work.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` Database Migration To Hetzner Coolify Hosts
+
+Status: staging and production database data copied and the Coolify application clones repointed.
+
+Scope:
+
+- Source Railway project: `6d0590be-3921-49b6-9fb7-75344cad0b6c`, project name `platform`.
+- Source database: Railway `platform-Postgres`, PostgreSQL `18.3`.
+- Staging target host: `coolify-staging-01`.
+- Production target host: `coolify-prod-01`.
+
+Target databases:
+
+| Environment | Host | Container | Database | App DB URL shape |
+|---|---|---|---|---|
+| staging | `46.224.145.148` | `railway-platform-postgres-staging` | `platform_staging` | `jdbc:postgresql://railway-platform-postgres-staging:5432/platform_staging` |
+| production | `46.225.162.106` | `railway-platform-postgres-production` | `platform_production` | `jdbc:postgresql://railway-platform-postgres-production:5432/platform_production` |
+
+Execution notes:
+
+- Coolify `/services` with base64 `docker_compose_raw` and `/databases/postgresql` were retried on staging. Both created Coolify records, but did not start a Postgres container on Coolify `4.0.0`. The broken experimental records were deleted, leaving zero `railway-platform-postgres*` Coolify database/service resources.
+- Fallback implementation is direct Docker Compose on each Hetzner Coolify host, attached to the existing `coolify` Docker network. This keeps runtime traffic host-local and Hetzner-only, but the DB containers are not first-class resources in the Coolify UI yet.
+- PostgreSQL `18` requires the persistent volume mounted at `/var/lib/postgresql`, not `/var/lib/postgresql/data`; the compose files use the Postgres 18-compatible mount.
+- DB target credentials and migration metadata are stored only under `/tmp/railway-migrate-6d0590be/db-targets/` with secret-safe permissions. Values were not printed or committed.
+- Remote migration env files and dump files were removed from both Hetzner hosts after restore. The persistent DB compose `.env` files remain on the hosts because the database containers require them.
+- Both Coolify `platform-backend` apps were repointed through Coolify envs for preview and non-preview entries, then redeployed through the Coolify application start endpoint.
+- Production clone bootstrap/admin/demo auto-apply flags were set to `false` before redeploy to avoid startup seed mutations against the restored database.
+
+Verification:
+
+- Staging and production Postgres containers are healthy.
+- Staging restore readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Production restore readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Running staging backend env readback uses `jdbc:postgresql://railway-platform-postgres-staging:5432/platform_staging`.
+- Running production backend env readback uses `jdbc:postgresql://railway-platform-postgres-production:5432/platform_production`.
+- All cloned staging endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+- All cloned production endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+
+Current cutover posture:
+
+- The staging and production Coolify clones no longer depend on the Railway Postgres public connection.
+- The original Railway project/database should remain as rollback/source-of-truth until explicit traffic routing, DNS, and soak decisions are made.
+- Follow-up: add a first-class Coolify-managed database path once the Coolify database/service API starts containers reliably, or formally document/adopt the direct Docker Compose database path into Platform provider metadata.
+
+---
+
+## 2026-05-02 Railway Project `6d0590be` First-Class Coolify Database Fix
+
+Status: direct Docker Compose fallback removed; staging and production now use first-class Coolify database resources.
+
+Root cause:
+
+- Coolify database/service API creation was valid, but start jobs failed under the hardened `loomops` Coolify SSH user.
+- The generated database/service directories under `/data/coolify/databases` and `/data/coolify/services` did not inherit writable ACLs for `loomops`.
+- Coolify queued the jobs, then failed while writing generated resource files such as `README.md` and `docker-compose.yml`.
+
+Fix:
+
+- Applied live ACL repair on both Coolify hosts:
+  - parent traversal ACL for `/data` and `/data/coolify`
+  - recursive `loomops:rwx` ACL for `/data/coolify/applications`, `/data/coolify/databases`, and `/data/coolify/services`
+  - default `loomops:rwx` ACL inheritance for new resource directories under those paths
+- Updated reproducible host bootstrap scripts so future hosts apply the same recursive/default ACL baseline.
+- Verified a disposable staging Coolify-native Postgres `18` resource could start as `running:healthy` with the generated Coolify compose using `/var/lib/postgresql` for the Postgres 18 volume.
+
+Final Coolify database resources:
+
+| Environment | Coolify resource | UUID | Status | Backend DB URL shape |
+|---|---|---|---|---|
+| staging | `railway-platform-postgres-staging` | `m58iwvqdkfie8tykohmhyj7t` | `running:healthy` | `jdbc:postgresql://m58iwvqdkfie8tykohmhyj7t:5432/platform_staging` |
+| production | `railway-platform-postgres-production` | `nkti6x5r7ovw1xx8q0ykhweq` | `running:healthy` | `jdbc:postgresql://nkti6x5r7ovw1xx8q0ykhweq:5432/platform_production` |
+
+Migration:
+
+- Created first-class Coolify Postgres `18` database resources in the existing `railway-platform` Coolify projects/environments.
+- Restored data from the temporary direct-host Postgres DBs into the first-class Coolify DB resources.
+- Repointed staging and production `platform-backend` envs to the Coolify DB UUID hostnames in preview and non-preview env entries.
+- Redeployed both Platform backend apps through Coolify.
+- Deleted the disposable staging native DB test resource.
+- Removed the temporary direct Docker Compose fallback containers, volumes, remote compose files, and remote env/dump files.
+
+Verification:
+
+- Staging Coolify database resource readback: `railway-platform-postgres-staging`, UUID `m58iwvqdkfie8tykohmhyj7t`, `running:healthy`.
+- Production Coolify database resource readback: `railway-platform-postgres-production`, UUID `nkti6x5r7ovw1xx8q0ykhweq`, `running:healthy`.
+- Staging native DB readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Production native DB readback: `87` public tables, `80` Flyway rows, max Flyway version `9`.
+- Running staging backend env readback uses `jdbc:postgresql://m58iwvqdkfie8tykohmhyj7t:5432/platform_staging`.
+- Running production backend env readback uses `jdbc:postgresql://nkti6x5r7ovw1xx8q0ykhweq:5432/platform_production`.
+- All cloned staging endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+- All cloned production endpoints returned HTTP `200` / `UP`: `platform-backend`, `platform-ui`, `partner-ui`, `ecommerce-store`, and `runtime`.
+- Shell syntax checks passed for the updated Hetzner bootstrap/API fallback scripts.
+
+Current cutover posture:
+
+- The Coolify UI/API now owns and groups the migrated Postgres resources in the `railway-platform` projects.
+- The Railway project/database should still remain until explicit traffic routing, DNS, and soak decisions are complete.
+
+---
+
+## 2026-05-02 LoomAI Coolify Naming Cutover
+
+Status: active Coolify resources renamed from `railway-*` to `loomai-*`; direct endpoint verification passed.
+
+Reason:
+
+- The platform clone originated from Railway project `6d0590be-3921-49b6-9fb7-75344cad0b6c`, but active Coolify project/app/database names and public hostnames should be LoomAI-branded while real DNS remains deferred.
+
+Live Coolify resource names:
+
+- Staging Coolify project: `loomai-platform`.
+- Production Coolify project: `loomai-platform`.
+- Staging database: `loomai-platform-postgres-staging`, UUID `m58iwvqdkfie8tykohmhyj7t`, `running:healthy`.
+- Production database: `loomai-platform-postgres-production`, UUID `nkti6x5r7ovw1xx8q0ykhweq`, `running:healthy`.
+
+Active staging application URLs:
+
+| Service | URL | Verification |
+|---|---|---|
+| `loomai-platform-backend` | `https://loomai-platform-backend.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-platform-ui` | `https://loomai-platform-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-partner-ui` | `https://loomai-partner-ui.46.224.145.148.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-ecommerce-store` | `https://loomai-ecommerce-store.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-runtime` | `https://loomai-runtime.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Active production application URLs:
+
+| Service | URL | Verification |
+|---|---|---|
+| `loomai-platform-backend` | `https://loomai-platform-backend.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-platform-ui` | `https://loomai-platform-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-partner-ui` | `https://loomai-partner-ui.46.225.162.106.sslip.io` | `/health` returned HTTP `200`; runtime config points at `loomai-platform-backend` |
+| `loomai-ecommerce-store` | `https://loomai-ecommerce-store.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+| `loomai-runtime` | `https://loomai-runtime.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP` |
+
+Env/config changes:
+
+- Platform UI and Partner UI runtime configs now point at the matching `loomai-platform-backend` domain.
+- Platform backend public URL, partner URL, and CORS origins now use `loomai-*` domains.
+- Coolify backend env readback confirms `PLATFORM_PROVISIONING_MODE=COOLIFY` in preview and non-preview env entries.
+- Native Coolify database UUID hostnames remain the backend DB connection targets:
+  - staging: `jdbc:postgresql://m58iwvqdkfie8tykohmhyj7t:5432/platform_staging`
+  - production: `jdbc:postgresql://nkti6x5r7ovw1xx8q0ykhweq:5432/platform_production`
+
+Partner Supabase auth redirect finding:
+
+- Partner UI code generates magic-link redirects from the browser origin: `window.location.origin + /auth/callback`.
+- A generated-link check with the local Supabase project secret proved Supabase still rewrites requested Coolify callback URLs to the old Partner UI Railway Site URL.
+- This is blocked on Supabase Auth URL configuration, not Coolify or partner-ui code.
+- The private handoff doc currently provides project publishable/secret keys, which are enough to diagnose/generate links, but not enough to update hosted Supabase Auth Site URL / Additional Redirect URLs.
+- Required unblock: update Supabase dashboard settings or provide a Supabase Management API personal access token for project `xazkenhomhtpejjjqtsy`.
+- Required temporary redirect allow-list while real DNS is deferred:
+  - `https://loomai-partner-ui.46.224.145.148.sslip.io/auth/callback`
+  - `https://loomai-partner-ui.46.225.162.106.sslip.io/auth/callback`
+
+Cutover posture:
+
+- Active Coolify clone naming is now LoomAI-branded.
+- Real DNS remains deferred; `sslip.io` is still the temporary hostname layer.
+- Supabase magic-link login will keep landing on the old Railway Site URL until Supabase Auth URL settings are updated.
+
+---
+
+## 2026-05-02 LoomAI Shopify Bridge Hostnames And Supabase Auth Cleanup
+
+Status: remaining active Bridge hostnames renamed; Shopify app config released; Supabase test users cleaned.
+
+Bridge Coolify resource rename:
+
+| Environment | App name | URL | Verification |
+|---|---|---|---|
+| staging | `loomai-shopify-bridge-staging` | `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io` | `/actuator/health` returned HTTP `200 UP`; Coolify status `running:healthy` |
+| production | `loomai-shopify-bridge-prod` | `https://loomai-shopify-bridge-prod.46.225.162.106.sslip.io` | `/actuator/health` returned HTTP `200 UP`; Coolify status `running:healthy` |
+
+Bridge env updates:
+
+- `SHOPIFY_BRIDGE_PUBLIC_BASE_URL` now points at the matching `loomai-shopify-bridge-*` URL.
+- `SHOPIFY_BRIDGE_PLATFORM_BASE_URL` now points at the matching `loomai-platform-backend` URL.
+- Staging inherited Railway domain env values were rewritten to the new LoomAI host or blanked where private-domain semantics no longer apply.
+- `SHOPIFY_BRIDGE_SERVICE_REF` was not renamed; it is a product-service reference, not a public hostname.
+
+Shopify app config:
+
+- Updated tracked app config and theme-extension defaults to the staging LoomAI Bridge URL:
+  - `product-services/shopify-bridge-service/shopify.app.toml`
+  - `product-services/shopify-bridge-service/shopify.app.loom-companion.toml`
+  - companion theme-extension block default Bridge URLs
+- Loaded the Shopify CLI Partner token from the private handoff into local secret/env files without printing or committing it.
+- Deployed the updated app config through explicit Node 20 with `--no-build`; latest released Shopify app version is `loom-companion-30`, message `Rename Bridge URLs to LoomAI Coolify`.
+- The repo `shopify:app:deploy` script still cannot run in this local checkout because `vite` is not installed and local installs are not allowed; direct Shopify CLI config/theme-extension deploy succeeded because this hostname/config change did not require rebuilding widget assets.
+
+Supabase cleanup:
+
+- Used Supabase project credentials from the private handoff doc without printing values.
+- Deleted `17` obvious test/automation Supabase Auth users.
+- Kept `2` real-looking Supabase Auth users.
+- Post-cleanup readback shows `0` remaining test candidates by the cleanup rules.
+
+Active hostname audit:
+
+- All active non-disposable Coolify `sslip.io` application hostnames now use `loomai-*`.
+- Disposable staging runtime/connector apps intentionally keep `dep-*` hostnames because those are deployment instance identifiers.
+
+---
+
+## 2026-05-02 Supabase Auth SMTP Production Unblock
+
+Status: Supabase Auth SMTP and rate-limit config applied; magic-link email path verified.
+
+Applied Supabase Auth settings:
+
+- Used a Supabase Management API token and Brevo SMTP credentials only through local `/tmp` secret files; no values were printed or committed.
+- Site URL remains `https://loomai-partner-ui.46.224.145.148.sslip.io`.
+- Redirect allow-list includes staging/prod LoomAI Partner UI callback URLs and the temporary `sslip.io` staging/prod hosts.
+- Custom SMTP is configured with Brevo and readback shows SMTP fields present.
+- Auth rate limits now read back as `rate_limit_email_sent=300`, `rate_limit_otp=300`, `smtp_max_frequency=60`.
+
+Verification:
+
+- Supabase Management API PATCH returned HTTP `200`.
+- Fresh Management API readback returned the updated Site URL, redirect allow-list, SMTP presence, and rate limits.
+- After Brevo SMTP authorization was fixed, direct Brevo SMTP verification sent successfully.
+- Live Supabase magic-link request to the staging LoomAI Partner UI callback returned HTTP `200`.
+- Partner UI login now handles expected Supabase per-email resend cooldowns by showing a countdown and disabling resend for the affected email instead of treating `over_email_send_rate_limit` as a hard auth failure.
+- Deployed Partner UI cooldown fix commit `41fdd4fd1` to both Coolify Partner UI apps. Staging and production `/health` returned `UP`, and served bundles contain the new resend countdown text.
+- Local verification note: `git diff --check` and changed-diff secret scan passed. `npm --prefix Platfrom/partner-ui run build` is still blocked in this checkout because `tsc` is not installed and local installs are not allowed; live Coolify remote builds/deploys succeeded.
+- Follow-up SMTP sender fix: Brevo rejected `no-reply@auth.loomai.com` because the sender/domain was not validated. Updated live Supabase Auth SMTP sender to `engmahmoudalgamal@gmail.com`; Supabase readback confirmed it, direct Brevo SMTP accepted that From address, and a Supabase magic-link request returned the normal `{}` success response.
+
+Security handoff:
+
+- Rotate the Supabase Management API token and the pasted Supabase/Brevo keys after the session, because they were shared in chat.
+
+---
+
+## 2026-05-03 Staging-Only Coolify Alignment
+
+Status: staging is the active environment for current work; staging app links and store billing were aligned.
+
+Scope:
+
+- Used only the staging Coolify API token from `/tmp/coolify_api_tokens.env`; secret values were not printed or committed.
+- Left production resources in place, but did not route current checks through production.
+
+Staging link verification:
+
+- Partner UI runtime config points to `https://loomai-platform-backend.46.224.145.148.sslip.io`.
+- Platform UI runtime config points to `https://loomai-platform-backend.46.224.145.148.sslip.io`.
+- Shopify Bridge staging env points to:
+  - `SHOPIFY_BRIDGE_PLATFORM_BASE_URL=https://loomai-platform-backend.46.224.145.148.sslip.io`
+  - `SHOPIFY_BRIDGE_PUBLIC_BASE_URL=https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io`
+  - `SHOPIFY_BRIDGE_ENVIRONMENT_SCOPE=staging`
+- `SHOPIFY_BRIDGE_SERVICE_REF=shopify-bridge-prod` is still intentional compatibility metadata, not a public production URL.
+
+Billing alignment:
+
+- The mismatch was caused by staging storefront bootstrap reading staging Bridge/Platform billing state as `FREE/ACTIVE`, while Partner UI showed an active Partner package trial.
+- Recorded `ELITE/ACTIVE` for `shopping-companion-test.myshopify.com` through the staging Bridge admin billing-state endpoint for Partner trial job `spj-4019ce4f`.
+- Public staging storefront bootstrap now returns `billingTier=ELITE`, `billingStatus=ACTIVE`, Elite surfaces including `order-lookup`, and staging Bridge chat/query URLs.
+
+Coolify env cleanup:
+
+- Updated staging ecommerce `CONNECTOR_INDEXING_RUNTIME_BASE_URL` from an old Railway REST connector URL to `https://loomai-runtime.46.224.145.148.sslip.io`; forced redeploy and verified the running container env.
+- Updated staging customer deployment `dep-8c3e7259` runtime and connector artifact/CORS envs from old Railway Platform/Partner/UI URLs to staging Coolify URLs; forced stop/start with Docker cleanup and verified both apps healthy.
+- Final staging-host env scan across checked core, Bridge, ecommerce, runtime, and connector app containers found no `.up.railway.app` or production `46.225.162.106` URL references.

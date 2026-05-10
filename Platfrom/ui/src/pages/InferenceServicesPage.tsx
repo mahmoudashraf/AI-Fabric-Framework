@@ -684,9 +684,9 @@ export function InferenceServicesPage() {
                         <Typography variant="body2"><strong>Base URL:</strong> {detailValue(selectedService.baseUrl)}</Typography>
                         <Typography variant="body2"><strong>Private URL:</strong> {detailValue(selectedService.privateNetworkUrl)}</Typography>
                         <Typography variant="body2"><strong>Health path:</strong> {detailValue(selectedService.healthPath)}</Typography>
-                        <Typography variant="body2"><strong>Railway project:</strong> {detailValue(selectedService.railwayProjectId)}</Typography>
-                        <Typography variant="body2"><strong>Railway environment:</strong> {detailValue(selectedService.railwayEnvironmentId)}</Typography>
-                        <Typography variant="body2"><strong>Railway service:</strong> {detailValue(selectedService.railwayServiceId)}</Typography>
+                        <Typography variant="body2"><strong>Provider project:</strong> {detailValue(selectedService.railwayProjectId)}</Typography>
+                        <Typography variant="body2"><strong>Provider environment:</strong> {detailValue(selectedService.railwayEnvironmentId)}</Typography>
+                        <Typography variant="body2"><strong>Provider service:</strong> {detailValue(selectedService.railwayServiceId)}</Typography>
                         <Typography variant="body2"><strong>Secret name:</strong> {detailValue(selectedService.secretName)}</Typography>
                         <Typography variant="body2"><strong>Secret configured:</strong> {selectedService.secretConfigured ? 'Yes' : 'No'}</Typography>
                       </Stack>
@@ -917,7 +917,7 @@ export function InferenceServicesPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Alert severity="error">
-              Force recreate clears the stored Railway binding and provisions the service again from scratch.
+              Force recreate clears the stored provider binding and provisions the service again from scratch.
             </Alert>
             {forceRecreateRequiresConfirmation ? (
               <>

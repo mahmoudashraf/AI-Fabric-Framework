@@ -18,6 +18,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCreateProvi
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessInviteRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessInviteSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreBootstrapResponse;
@@ -176,6 +178,18 @@ public class ShopifyBridgeMerchantStoreService {
             payload
         );
         usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_REVOKED");
+        return summary;
+    }
+
+    public ShopifyBridgePartnerAccessInviteSummary sendPartnerAccessInvite(ShopifyMerchantSession merchantSession,
+                                                                           String requestId,
+                                                                           ShopifyBridgePartnerAccessInviteRequest request) {
+        ShopifyBridgePartnerAccessInviteSummary summary = platformShopifyStoreClient.sendPartnerAccessInvite(
+            merchantSession.shopDomain(),
+            requestId,
+            request == null ? new ShopifyBridgePartnerAccessInviteRequest(null) : request
+        );
+        usageService.recordEvent(merchantSession.shopDomain(), "MERCHANT_PARTNER_ACCESS_INVITE_REQUESTED");
         return summary;
     }
 

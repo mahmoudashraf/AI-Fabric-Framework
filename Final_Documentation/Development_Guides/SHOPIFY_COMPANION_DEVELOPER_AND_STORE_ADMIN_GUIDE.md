@@ -116,6 +116,31 @@ For the full current Shopify Companion vectorization path:
 
 The merchant does not install these manually. The platform reconciles them from store scope.
 
+### 2.5 Staging and production launch templates
+
+Shopify Companion now has explicit Marketplace launch templates:
+
+- `mkp-template-shopify-companion-staging`
+- `mkp-template-shopify-companion-production`
+
+These templates must reference the same action, data, and inference plugin bundle. Do not duplicate Shopify Companion action definitions between staging and production; the environment difference belongs in target profile, domain, secret posture, billing posture, and release-gate requirements.
+
+Package profiles resolve three launch fields:
+
+- `stagingTemplatePluginId`
+- `productionTemplatePluginId`
+- `productionTargetProfileId`
+
+The backend defaults are configurable:
+
+- `SHOPIFY_COMPANION_STAGING_TEMPLATE_PLUGIN_ID`
+- `SHOPIFY_COMPANION_PRODUCTION_TEMPLATE_PLUGIN_ID`
+- `SHOPIFY_COMPANION_GO_LIVE_TARGET_PROFILE_ID`
+
+The package profile value should win over the environment fallback. Use the environment fallback only for emergency rollout or a controlled migration window.
+
+Partner and merchant UIs must call Platform APIs only for launch readiness and production promotion. They must not call Coolify, provider APIs, secret APIs, or deployment internals directly.
+
 ---
 
 ## 3) Developer And Operator Guide
@@ -132,6 +157,7 @@ Developers/operators own:
 - secret material
 - plugin manifests and plugin compilation behavior
 - vectorization runner compatibility and platform cleanup logic
+- launch-readiness and production-promotion gates
 
 Store admins own:
 
@@ -250,11 +276,11 @@ Current non-destructive verification coverage:
 Recommended repository variables for the workflow:
 
 - `PLATFORM_BASE_URL`
-  default: `https://ai-fabric-framework-production-324f.up.railway.app`
+  current staging default: `https://loomai-platform-backend.46.224.145.148.sslip.io`
 - `PLATFORM_LOGIN_EMAIL`
   default: `admin@gmail.com`
 - `SHOPIFY_BRIDGE_BASE_URL`
-  default: `https://shopify-bridge-shopify-bridge-pr-production.up.railway.app`
+  current staging default: `https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io`
 - `SHOPIFY_COMPANION_SHOP_DOMAIN`
   default: `shopping-companion-test.myshopify.com`
 - `SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN`

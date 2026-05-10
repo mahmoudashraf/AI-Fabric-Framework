@@ -62,6 +62,11 @@ public class AIActionConnectorProperties {
      */
     private HmacProperties hmac = new HmacProperties();
 
+    /**
+     * Generic MCP execution gateway used for adapterType=mcp-tool actions.
+     */
+    private McpGatewayProperties mcpGateway = new McpGatewayProperties();
+
     @Data
     public static class ApiKeyProperties {
         /**
@@ -109,5 +114,28 @@ public class AIActionConnectorProperties {
          * Signature header name.
          */
         private String signatureHeader = "X-AIFABRIC-SIGNATURE";
+    }
+
+    @Data
+    public static class McpGatewayProperties {
+        /**
+         * Internal base URL of the managed MCP execution gateway.
+         */
+        private String baseUrl;
+
+        /**
+         * Action execution endpoint path relative to {@link #baseUrl}.
+         */
+        private String executePath = "/api/internal/mcp/actions/execute";
+
+        /**
+         * Header name used by the gateway internal API key.
+         */
+        private String apiKeyHeader = "X-MCP-GATEWAY-API-KEY";
+
+        /**
+         * Internal API key value. Required when adapterType=mcp-tool actions execute.
+         */
+        private String apiKey;
     }
 }

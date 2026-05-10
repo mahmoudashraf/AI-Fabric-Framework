@@ -18,10 +18,12 @@ public record PlatformVerificationProperties(
     String runtimeActionsOverviewPath,
     String runtimeIndexingOverviewPath,
     String connectorAdminOverviewPath,
-    String connectorActionsOverviewPath
+    String connectorActionsOverviewPath,
+    Boolean livePreApplyGateEnabled
 ) {
 
     public PlatformVerificationProperties {
+        livePreApplyGateEnabled = livePreApplyGateEnabled == null ? Boolean.TRUE : livePreApplyGateEnabled;
         timeout = timeout == null ? Duration.ofSeconds(30) : timeout;
         runtimeIndexingOverviewTimeout = runtimeIndexingOverviewTimeout == null
             ? max(timeout, Duration.ofSeconds(10))

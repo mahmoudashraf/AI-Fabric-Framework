@@ -1,0 +1,36 @@
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: mcp-execution-gateway-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+mcp:
+  gateway:
+    service-ref: ${MCP_GATEWAY_SERVICE_REF:mcp-execution-gateway-local}
+    environment-scope: ${MCP_GATEWAY_ENVIRONMENT_SCOPE:local}
+    internal-api-key: ${MCP_GATEWAY_INTERNAL_API_KEY:}
+    internal-api-key-header: ${MCP_GATEWAY_INTERNAL_API_KEY_HEADER:X-MCP-GATEWAY-API-KEY}
+    protocol-version: ${MCP_GATEWAY_PROTOCOL_VERSION:2025-11-25}
+    api-key-header-allowlist: ${MCP_GATEWAY_API_KEY_HEADER_ALLOWLIST:X-API-KEY,X-MCP-API-KEY,X-LOOM-MCP-KEY}
+    profile-ref-allowlist: ${MCP_GATEWAY_PROFILE_REF_ALLOWLIST:MCP_PROFILE_SHOPIFY_UCP_AGENT,SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE}
+    environment-secret-resolution-enabled: ${MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED:false}
+    environment-secret-ref-prefix: ${MCP_GATEWAY_ENVIRONMENT_SECRET_REF_PREFIX:MCP_SECRET_}
+    connect-timeout: ${MCP_GATEWAY_CONNECT_TIMEOUT:PT5S}
+    read-timeout: ${MCP_GATEWAY_READ_TIMEOUT:PT30S}
+
+logging:
+  level:
+    com.ai.fabric.product.mcp.gateway: INFO

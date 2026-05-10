@@ -5,19 +5,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.net.URI;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -26,7 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "platform.auth.header-name=X-PLATFORM-API-KEY",
     "platform.auth.operator-api-key=operator-test-key",
     "platform.auth.admin-api-key=admin-test-key",
-    "platform.bootstrap.sample-enabled=false"
+    "platform.bootstrap.sample-enabled=false",
+    "platform.cors.allowed-origins=https://platform-ui.test",
+    "platform.cors.allow-credentials=true"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -37,6 +43,17 @@ class PlatformSecurityIntegrationTest {
 
     @Autowired
     private PlatformSecretService platformSecretService;
+
+    @Test
+    void corsPreflightAllowsPatchForPlatformUiMutations() throws Exception {
+        mockMvc.perform(options("/api/platform/partners/members/pm-test")
+                .header(HttpHeaders.ORIGIN, "https://platform-ui.test")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "PATCH")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type"))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "https://platform-ui.test"))
+            .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, containsString("PATCH")));
+    }
 
     @Test
     void sessionEndpointIsPublicAndReportsUnauthenticatedStateWithoutKey() throws Exception {

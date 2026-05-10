@@ -103,6 +103,9 @@ public class ShopifyBridgeDiagnosticsService {
                 "shopify-webhook-ingestion",
                 "sync-shell",
                 "storefront-bridge-shell",
+                "marketplace-mcp-action-gateway",
+                "generic-mcp-execution-gateway-client",
+                "shopify-mcp-readiness-via-gateway",
                 "billing-posture-summary",
                 "usage-attribution-summary"
             ),

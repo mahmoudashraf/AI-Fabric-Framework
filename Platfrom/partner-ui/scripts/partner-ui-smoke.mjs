@@ -28,7 +28,15 @@ if (!moduleMatch) {
 
 const modulePath = path.resolve('dist', moduleMatch[1].replace(/^\/+/, ''))
 const moduleSource = fs.readFileSync(modulePath, 'utf8')
-for (const expectedText of ['Live Max widget test', 'Run smoke query', 'Partner-secured routes']) {
+for (const expectedText of [
+  'Live Max widget test',
+  'Run smoke query',
+  'Partner-secured routes',
+  'Production readiness',
+  'Request production promotion',
+  '/launch-readiness',
+  '/production-promotions',
+]) {
   if (!moduleSource.includes(expectedText)) {
     console.error(`Partner UI smoke failed: missing Partner Max widget text: ${expectedText}`)
     process.exit(1)

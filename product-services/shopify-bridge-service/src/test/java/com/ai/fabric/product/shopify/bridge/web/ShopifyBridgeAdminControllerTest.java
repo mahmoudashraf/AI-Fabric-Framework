@@ -1,5 +1,6 @@
 package com.ai.fabric.product.shopify.bridge.web;
 
+import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionExecuteRequest;
 import com.ai.fabric.product.shopify.bridge.action.model.ShopifyBridgeActionResult;
 import com.ai.fabric.product.shopify.bridge.action.service.ShopifyBridgeActionExecutionService;
 import com.ai.fabric.product.shopify.bridge.analytics.model.ShopifyBridgeUsageEventCountSummary;
@@ -32,6 +33,7 @@ import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscrip
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionDiagnosticsService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -83,6 +85,12 @@ class ShopifyBridgeAdminControllerTest {
     void adminOverviewRequiresApiKey() throws Exception {
         mockMvc.perform(get("/api/admin/overview"))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unmappedApiRoutesAreDeniedByDefault() throws Exception {
+        mockMvc.perform(get("/api/internal/unknown"))
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -501,6 +509,8 @@ class ShopifyBridgeAdminControllerTest {
         mockMvc.perform(
                 post("/api/admin/stores/alpha.myshopify.com/actions/execute")
                     .header("X-BRIDGE-API-KEY", "test-admin-key")
+                    .header("X-Forwarded-For", "203.0.113.44, 10.0.0.10")
+                    .header("User-Agent", "checkout-smoke/1.0")
                     .contentType("application/json")
                     .content("""
                         {"actionId":"list_products","params":{},"trace":{}}
@@ -510,6 +520,16 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.message").value("Products"))
             .andExpect(jsonPath("$.data.count").value(1));
+
+        ArgumentCaptor<ShopifyBridgeActionExecuteRequest> requestCaptor =
+            ArgumentCaptor.forClass(ShopifyBridgeActionExecuteRequest.class);
+        verify(actionExecutionService).execute(
+            org.mockito.ArgumentMatchers.eq("alpha.myshopify.com"),
+            requestCaptor.capture()
+        );
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().trace())
+            .containsEntry("buyerIp", "203.0.113.44")
+            .containsEntry("buyerUserAgent", "checkout-smoke/1.0");
     }
 
     @Test

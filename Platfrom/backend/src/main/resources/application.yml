@@ -101,6 +101,13 @@ platform:
   cors:
     allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,https://ai-fabric-framework-production-158d.up.railway.app}
     allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
+  notifications:
+    merchant-email:
+      enabled: ${PLATFORM_MERCHANT_EMAIL_ENABLED:false}
+      dry-run: ${PLATFORM_MERCHANT_EMAIL_DRY_RUN:true}
+      from: ${PLATFORM_MERCHANT_EMAIL_FROM:}
+      reply-to: ${PLATFORM_MERCHANT_EMAIL_REPLY_TO:}
+      subject-prefix: ${PLATFORM_MERCHANT_EMAIL_SUBJECT_PREFIX:Loom Companion}
   poc:
     runtime-timeout: ${PLATFORM_POC_RUNTIME_TIMEOUT:60s}
   verification:
@@ -117,6 +124,14 @@ platform:
     runtime-indexing-overview-path: /api/admin/indexing/overview
     connector-admin-overview-path: /api/admin/connector/overview
     connector-actions-overview-path: /api/admin/connector/actions/overview
+    suites:
+      platform-ui-base-url: ${PLATFORM_UI_BASE_URL:}
+      weaviate-host: ${PLATFORM_VERIFICATION_WEAVIATE_HOST:${WEAVIATE_HOST:}}
+      shopify-bridge-base-url: ${SHOPIFY_BRIDGE_BASE_URL:}
+      shopify-shop-domain: ${SHOP_DOMAIN:}
+      shopify-product-service-ref: ${PRODUCT_SERVICE_REF:}
+      shopify-embedded-host: ${SHOPIFY_EMBEDDED_HOST:}
+      partner-ui-base-url: ${PARTNER_UI_BASE_URL:}
     runner:
       script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
       timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}
@@ -154,13 +169,20 @@ platform:
     provisioning:
       shared-project-name-prefix: ${PLATFORM_PRODUCT_SHARED_PROJECT_NAME_PREFIX:loom-product}
       shopify-bridge-service-root: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_ROOT:product-services/shopify-bridge-service}
-      shopify-bridge-dockerfile-path: ${PLATFORM_SHOPIFY_BRIDGE_DOCKERFILE_PATH:product-services/shopify-bridge-service/deploy/railway/Dockerfile}
+      shopify-bridge-dockerfile-path: ${PLATFORM_SHOPIFY_BRIDGE_DOCKERFILE_PATH:product-services/shopify-bridge-service/deploy/container/Dockerfile}
       shopify-bridge-service-name-prefix: ${PLATFORM_SHOPIFY_BRIDGE_SERVICE_NAME_PREFIX:shopify-bridge}
       shopify-bridge-health-path: ${PLATFORM_SHOPIFY_BRIDGE_HEALTH_PATH:/actuator/health}
       shopify-bridge-admin-api-version: ${PLATFORM_SHOPIFY_BRIDGE_ADMIN_API_VERSION:2026-04}
       shopify-bridge-shopify-api-key-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_KEY_SECRET_NAME:}
       shopify-bridge-shopify-api-secret-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_SHOPIFY_API_SECRET_SECRET_NAME:}
       shopify-bridge-webhook-shared-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_WEBHOOK_SHARED_SECRET_NAME:}
+      shopify-bridge-checkout-mcp-client-id-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID_SECRET_NAME:SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID}
+      shopify-bridge-checkout-mcp-client-secret-secret-name: ${PLATFORM_SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET_SECRET_NAME:SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET}
+      mcp-execution-gateway-service-ref: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_REF:mcp-execution-gateway}
+      mcp-execution-gateway-service-root: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_ROOT:product-services/mcp-execution-gateway-service}
+      mcp-execution-gateway-dockerfile-path: ${PLATFORM_MCP_EXECUTION_GATEWAY_DOCKERFILE_PATH:product-services/mcp-execution-gateway-service/deploy/container/Dockerfile}
+      mcp-execution-gateway-service-name-prefix: ${PLATFORM_MCP_EXECUTION_GATEWAY_SERVICE_NAME_PREFIX:mcp-gateway}
+      mcp-execution-gateway-health-path: ${PLATFORM_MCP_EXECUTION_GATEWAY_HEALTH_PATH:/actuator/health}
       poll-interval: ${PLATFORM_PRODUCT_PROVISIONING_POLL_INTERVAL:15s}
       request-timeout: ${PLATFORM_PRODUCT_PROVISIONING_REQUEST_TIMEOUT:5m}
 
@@ -177,10 +199,13 @@ shopify:
       default-qdrant-cloud-provider-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_PROVIDER_ID:aws}
       default-qdrant-cloud-region-id: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_CLOUD_REGION_ID:eu-west-1}
       default-qdrant-managed-collections-enabled: ${SHOPIFY_COMPANION_DEFAULT_QDRANT_MANAGED_COLLECTIONS_ENABLED:false}
-      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion}
+      template-plugin-id: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion-staging}
       template-plugin-version: ${SHOPIFY_COMPANION_TEMPLATE_PLUGIN_VERSION:}
+      staging-template-plugin-id: ${SHOPIFY_COMPANION_STAGING_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion-staging}
+      production-template-plugin-id: ${SHOPIFY_COMPANION_PRODUCTION_TEMPLATE_PLUGIN_ID:mkp-template-shopify-companion-production}
+      go-live-target-profile-id: ${SHOPIFY_COMPANION_GO_LIVE_TARGET_PROFILE_ID:}
       default-plugin-ids:
-        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-companion-read}
+        - ${SHOPIFY_COMPANION_PLUGIN_ID_1:mkp-action-shopify-storefront-read-mcp}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_2:mkp-data-shopify-catalog}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_3:mkp-data-shopify-policies}
         - ${SHOPIFY_COMPANION_PLUGIN_ID_4:mkp-inference-shared-embeddings}

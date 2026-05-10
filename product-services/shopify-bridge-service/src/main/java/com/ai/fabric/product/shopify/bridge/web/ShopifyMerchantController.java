@@ -10,6 +10,8 @@ import com.ai.fabric.product.shopify.bridge.governedaction.model.ShopifyBridgeGo
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeMerchantSessionResponse;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionRequest;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessDecisionSummary;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessInviteRequest;
+import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessInviteSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgePartnerAccessRequestSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisioningStatusSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
@@ -202,6 +204,15 @@ public class ShopifyMerchantController {
         @RequestBody(required = false) ShopifyBridgePartnerAccessDecisionRequest request
     ) {
         return merchantStoreService.revokePartnerAccessRequest(requireMerchant(authentication), requestId, request);
+    }
+
+    @PostMapping("/store/partner-access/requests/{requestId}/invite")
+    public ShopifyBridgePartnerAccessInviteSummary sendPartnerAccessInvite(
+        Authentication authentication,
+        @PathVariable String requestId,
+        @RequestBody(required = false) ShopifyBridgePartnerAccessInviteRequest request
+    ) {
+        return merchantStoreService.sendPartnerAccessInvite(requireMerchant(authentication), requestId, request);
     }
 
     @GetMapping("/store/support-readiness")

@@ -3,11 +3,14 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.config.PlatformVerificationProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderPreflightSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVectorizationVerificationSummary;
@@ -661,7 +664,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
+                    "/api/admin/connector/actions/overview",
+                    true
                 ),
                 platformSecretService,
                 new DeploymentConfigCompiler(objectMapper),
@@ -906,7 +910,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
+                    "/api/admin/connector/actions/overview",
+                    true
                 ),
                 platformSecretService,
                 new DeploymentConfigCompiler(objectMapper),
@@ -1173,7 +1178,8 @@ class DeploymentReleaseVerificationServiceTest {
                     "/api/admin/actions/overview",
                     "/api/admin/indexing/overview",
                     "/api/admin/connector/overview",
-                    "/api/admin/connector/actions/overview"
+                    "/api/admin/connector/actions/overview",
+                    true
                 ),
                 platformSecretService,
                 new DeploymentConfigCompiler(objectMapper),
@@ -1325,6 +1331,118 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("platform_authenticated_runtime_token_creation_ready", "FAILED")
                 .containsEntry("runtime_trusted_backend_api_key_available", "FAILED")
                 .containsEntry("runtime_private_assertion_signing_key_available", "FAILED");
+        } finally {
+            artifactServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyPreApplyRunsCoolifyGateAndFailsWhenTargetPreflightFails() throws Exception {
+        HttpServer artifactServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            artifactServer.createContext("/artifacts/ai-actions.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-entity-config.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/actions-routing.yml", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/ai-prompt-config.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.createContext("/artifacts/marketplace-datasets.json", exchange -> writeJson(exchange, 200, "{\"datasets\":[]}"));
+            artifactServer.createContext("/artifacts/deployment-manifest.json", exchange -> writeJson(exchange, 200, "{\"ok\":true}"));
+            artifactServer.start();
+
+            String baseUrl = "http://127.0.0.1:" + artifactServer.getAddress().getPort();
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                baseUrl + "/artifacts/ai-actions.yml",
+                baseUrl + "/artifacts/ai-entity-config.yml",
+                baseUrl + "/artifacts/actions-routing.yml",
+                baseUrl + "/artifacts/ai-prompt-config.json",
+                null,
+                null,
+                baseUrl + "/artifacts/marketplace-datasets.json",
+                baseUrl + "/artifacts/deployment-manifest.json"
+            );
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.isSecretPresent(anyString())).thenReturn(true);
+            when(platformSecretService.resolveSecret(anyString())).thenReturn("secret-value");
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+
+            RailwayPreflightService railwayPreflightService = mock(RailwayPreflightService.class);
+            DeploymentProviderConnectivityService deploymentProviderConnectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService deploymentVectorizationVerificationService = mock(DeploymentVectorizationVerificationService.class);
+            when(deploymentTenantScopedVectorService.build(any(), any())).thenReturn(dedicatedSummary());
+            when(deploymentVectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
+            when(deploymentProviderConnectivityService.probe(any(), any(), any(), any())).thenReturn(localVectorConnectivitySummary());
+
+            DeploymentTargetProfileEntity targetProfile = coolifyTargetProfile();
+            DeploymentTargetProfileService targetProfileService = mock(DeploymentTargetProfileService.class);
+            when(targetProfileService.requireActiveProfile("dtp-coolify-staging")).thenReturn(targetProfile);
+            DeploymentProvisioningProvider coolifyProvider = mock(DeploymentProvisioningProvider.class);
+            when(coolifyProvider.preflight(targetProfile)).thenReturn(new DeploymentProviderPreflightSummary(
+                "dtp-coolify-staging",
+                DeploymentProviderType.COOLIFY,
+                "FAILED",
+                "Coolify API is not reachable from Platform.",
+                "http://coolify.example:8000",
+                null,
+                List.of("credential_resolved", "coolify_api_failed"),
+                objectMapper.createObjectNode().put("errorType", "IllegalStateException"),
+                Instant.parse("2026-05-02T00:00:00Z")
+            ));
+            DeploymentProviderRegistry providerRegistry = mock(DeploymentProviderRegistry.class);
+            when(providerRegistry.require(DeploymentProviderType.COOLIFY)).thenReturn(coolifyProvider);
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                verificationProperties(Duration.ofSeconds(2)),
+                platformSecretService,
+                new DeploymentProviderSecretResolutionService(platformSecretService),
+                new DeploymentConfigCompiler(objectMapper),
+                artifactService,
+                railwayPreflightService,
+                deploymentProviderConnectivityService,
+                deploymentTenantScopedVectorService,
+                deploymentVectorizationVerificationService,
+                null,
+                null,
+                targetProfileService,
+                providerRegistry
+            );
+
+            DeploymentReleaseEntity release = release();
+            release.setProvisioningTarget("COOLIFY");
+            release.setProviderType(DeploymentProviderType.COOLIFY);
+            release.setTargetProfileId("dtp-coolify-staging");
+
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment("https://runtime.example", "https://connector.example"),
+                version(),
+                release,
+                "PRE_APPLY"
+            );
+
+            JsonNode checks = objectMapper.readTree(run.getChecksJson());
+            Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
+                .collect(Collectors.toMap(
+                    check -> check.path("name").asText(),
+                    check -> check.path("status").asText(),
+                    (left, right) -> right,
+                    LinkedHashMap::new
+                ));
+
+            assertThat(run.getStatus()).isEqualTo("FAILED");
+            assertThat(statuses)
+                .containsEntry("actions_artifact_fetch_probe", "PASSED")
+                .containsEntry("runtime_trusted_backend_api_key_available", "PASSED")
+                .containsEntry("provider_connectivity_local_vector_backend", "SKIPPED")
+                .containsEntry("provider_preflight", "FAILED")
+                .doesNotContainKey("railway_preflight_provisioning_mode")
+                .doesNotContainEntry("live_rollout_prerequisites", "SKIPPED");
         } finally {
             artifactServer.stop(0);
         }
@@ -2844,6 +2962,24 @@ class DeploymentReleaseVerificationServiceTest {
         return release;
     }
 
+    private DeploymentTargetProfileEntity coolifyTargetProfile() {
+        DeploymentTargetProfileEntity profile = new DeploymentTargetProfileEntity();
+        profile.setId("dtp-coolify-staging");
+        profile.setName("Coolify staging");
+        profile.setProviderType(DeploymentProviderType.COOLIFY);
+        profile.setEnvironmentName("staging");
+        profile.setActive(true);
+        profile.setDefaultForRuntime(true);
+        profile.setDefaultForRestartableServices(true);
+        profile.setSourceStrategy("GIT_SOURCE");
+        profile.setProviderConfigJson("{}");
+        profile.setNetworkPolicyJson("{}");
+        profile.setResourceDefaultsJson("{}");
+        profile.setCreatedAt(Instant.parse("2026-05-02T00:00:00Z"));
+        profile.setUpdatedAt(Instant.parse("2026-05-02T00:00:00Z"));
+        return profile;
+    }
+
     private String checkStatus(DeploymentVerificationRunEntity run, String checkName) throws Exception {
         JsonNode checks = objectMapper.readTree(run.getChecksJson());
         for (JsonNode check : checks) {
@@ -2911,7 +3047,8 @@ class DeploymentReleaseVerificationServiceTest {
             "/api/admin/actions/overview",
             "/api/admin/indexing/overview",
             "/api/admin/connector/overview",
-            "/api/admin/connector/actions/overview"
+            "/api/admin/connector/actions/overview",
+            true
         );
     }
 
@@ -2930,7 +3067,8 @@ class DeploymentReleaseVerificationServiceTest {
             "/api/admin/actions/overview",
             "/api/admin/indexing/overview",
             "/api/admin/connector/overview",
-            "/api/admin/connector/actions/overview"
+            "/api/admin/connector/actions/overview",
+            true
         );
     }
 
@@ -2966,6 +3104,32 @@ class DeploymentReleaseVerificationServiceTest {
                 "No shared handles."
             ),
             "Dedicated storage."
+        );
+    }
+
+    private DeploymentProviderConnectivitySummary localVectorConnectivitySummary() {
+        return new DeploymentProviderConnectivitySummary(
+            "dep-123",
+            "Sample Commerce Dev",
+            "openai",
+            "openai",
+            "lucene",
+            "LOCAL_MANAGED",
+            false,
+            "NONE",
+            List.of(),
+            "Platform-managed external vector provisioning is not enabled for this draft.",
+            List.of(
+                new DeploymentProviderConnectivityProbeSummary(
+                    "local_vector_backend",
+                    "Local vector backend",
+                    "SKIPPED",
+                    "lucene",
+                    "Selected vector backend is local to the runtime and does not require an external vendor connectivity probe."
+                )
+            ),
+            "0 ready, 0 blocked, 0 failed, 1 skipped.",
+            List.of()
         );
     }
 

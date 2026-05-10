@@ -59,6 +59,17 @@ The major export builders are:
 
 The merchant app wires them into copy/download controls from the embedded admin UI.
 
+Partner launch readiness and production-promotion review surfaces live in:
+
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/service/PartnerEnablementService.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/web/PartnerEnablementController.java`
+- `Platfrom/backend/src/main/java/com/ai/fabric/platform/backend/partner/web/MerchantPartnerAccessController.java`
+- `Platfrom/partner-ui/src/pages/StoreWorkspacePage.tsx`
+- `Platfrom/partner-ui/src/pages/MerchantApprovalPage.tsx`
+- `product-services/shopify-bridge-service/src/main/java/com/ai/fabric/product/shopify/bridge/web/ShopifyMerchantController.java`
+
+These surfaces are not export-only. They gate whether a partner can prepare production promotion from the approved store workspace without exposing provider internals.
+
 ---
 
 ## 3) Live Data Sources Behind The Exports
@@ -119,12 +130,66 @@ Operational posture comes from:
 
 This is where the exports get:
 
+- source preflight posture
+- vectorization health
+- live-update automation state
+- recent Shopify live-update events
 - webhook readiness
 - subscription webhook posture
-- live update health
 - indexing readiness
 
-### 3.5 Shopper-signal and ROI posture
+### 3.5 Partner launch readiness posture
+
+Partner production-prep posture comes from Platform partner enablement APIs:
+
+- `GET /api/partners/stores/{storeId}/launch-readiness`
+- `POST /api/partners/stores/{storeId}/production-promotions`
+- `POST /api/partners/client-implementations/{requestId}/merchant-invites`
+- `GET /api/merchant/partner-access/{approvalCode}/workspace`
+- `POST /api/merchant/partner-access/{approvalCode}/approve`
+- `POST /api/merchant/partner-access/{approvalCode}/deny`
+- `POST /api/merchant/partner-access/{approvalCode}/revoke`
+- `POST /api/merchant/partner-access/{approvalCode}/production-promotions`
+- `POST /api/merchant/partner-access/{approvalCode}/rollback-requests`
+
+The launch-readiness response combines:
+
+- active merchant-approved partner assignment
+- store install, source, sync, and widget posture
+- latest verification result
+- latest evidence-bundle state
+- go-live eligibility from the Shopify store readiness state
+- merchant-safe blockers and next actions
+
+Blocked and failed promotion attempts are written to partner audit evidence. The UI should show the merchant-safe reason and keep operator diagnostics behind Platform audit/support access.
+
+Merchant approval links now resolve to a merchant-scoped launch workspace. The workspace can approve, deny, revoke, request production promotion, and request rollback/deactivation without exposing Coolify, deployment, provider, or secret internals.
+
+Merchant approval invites can be requested from the partner implementation request flow or from Shopify Admin through the Bridge. Email delivery is controlled by:
+
+- `PLATFORM_MERCHANT_EMAIL_ENABLED`
+- `PLATFORM_MERCHANT_EMAIL_DRY_RUN`
+- `PLATFORM_MERCHANT_EMAIL_FROM`
+- `PLATFORM_MERCHANT_EMAIL_REPLY_TO`
+- `PLATFORM_MERCHANT_EMAIL_SUBJECT_PREFIX`
+
+When email delivery is disabled or dry-run is active, Platform records the notification status on the access request and emits audit evidence instead of pretending that delivery happened.
+
+`scripts/verify-partner-enablement-live.sh` now checks that deployed Partner UI assets contain the Launch tab and production-promotion API wiring, proves the merchant approval-code workspace path, proves invite state, and proves merchant rollback/deactivation request recording. Set `PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF=true` only when the run should intentionally request a real production promotion.
+
+### 3.6 010.1 UI launch readiness surfaces
+
+Plan `010.1` moves launch packaging from docs into product UI:
+
+- Merchant Shopify Admin UI shows launch package, onboarding, package/tier posture, support path, evidence exports, design-partner posture, and rollback/deactivation guidance.
+- Partner UI shows the 010.1 launch package, Free/Starter/Elite package explanation, design-partner terms, weekly value review prompts, promotion readiness, evidence, support, and escalation surfaces.
+- Platform/Admin UI exposes `/shopify-launch-readiness` for App Store/private listing readiness, protected-data gates, Customer Account MCP and Checkout MCP gate status, hosted release-gate evidence, controlled production proof status, and operator diagnostics.
+
+Merchant and partner surfaces remain provider-safe. They must not expose Coolify, Hetzner, provider handles, deployment internals, secret names, or secret values. Provider diagnostics belong in Platform/Admin UI only.
+
+Public App Store readiness remains blocked until controlled production promotion proof, production provisioning verification, rollback/deactivation proof, protected-data claim proof, and support packaging are evidence-backed. Private/design-partner launch can proceed when the staging release gate and merchant-safe launch evidence are current.
+
+### 3.7 Shopper-signal and ROI posture
 
 Merchant value evidence comes from:
 

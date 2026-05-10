@@ -35,16 +35,21 @@ import {
   executeDeploymentRemediation,
   fetchDeploymentRemediation,
   fetchDeploymentReleases,
-  fetchDeploymentRailwayLogs,
+  fetchDeploymentProviderResourceLogs,
+  fetchDeploymentProviderResources,
   fetchDeploymentSourceOfTruth,
+  fetchDeploymentTargetProfilePreflight,
+  fetchDeploymentTargetProfiles,
   fetchDeploymentVerificationRuns,
-  fetchRailwayPreflight,
+  type DeploymentProviderResourceHandleSummary,
+  type DeploymentProviderResourceLogsSummary,
+  type DeploymentProviderPreflightSummary,
   type DeploymentRemediationActionSummary,
-  type DeploymentRailwayLiveReadbackSummary,
-  type DeploymentRailwayLiveServiceSummary,
-  type DeploymentRailwayLogsResponse,
+  type DeploymentProviderLiveReadbackSummary,
+  type DeploymentProviderLiveServiceSummary,
   type PlatformAuditEventSummary,
   type DeploymentReleaseSummary,
+  type DeploymentTargetProfileSummary,
 } from '../api/platformApi'
 import {
   integrationModeColor,
@@ -83,9 +88,11 @@ type RecoveryHint = {
   severity: 'info' | 'warning' | 'error'
   title: string
   message: string
-  service: 'runtime' | 'restConnector' | 'vectorizationRunner'
+  service: ProviderLogService
   source: 'deployment' | 'build' | 'http'
 }
+
+type ProviderLogService = 'runtime' | 'restConnector' | 'vectorizationRunner'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -128,6 +135,16 @@ function joinUrl(baseUrl: string | null | undefined, path: string): string | nul
     return null
   }
   return `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+function normalizeProviderUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://')
+    ? trimmed
+    : `https://${trimmed}`
 }
 
 function summarizeProvisioningDetails(value: unknown) {
@@ -176,12 +193,19 @@ function summarizeProvisioningDetails(value: unknown) {
         ? value.railway.projectId
         : null,
     projectUrl:
-      typeof value.projectId === 'string'
-        ? `https://railway.com/project/${value.projectId}`
-        : isRecord(value.railway) && typeof value.railway.projectId === 'string'
-          ? `https://railway.com/project/${value.railway.projectId}`
-          : null,
-    projectName: typeof value.projectName === 'string' ? value.projectName : 'Unknown',
+      normalizeProviderUrl(value.consoleUrl)
+        ?? normalizeProviderUrl(value.runtimeFqdn)
+        ?? normalizeProviderUrl(value.fqdn)
+        ?? (typeof value.projectId === 'string'
+          ? `https://railway.com/project/${value.projectId}`
+          : isRecord(value.railway) && typeof value.railway.projectId === 'string'
+            ? `https://railway.com/project/${value.railway.projectId}`
+            : null),
+    projectName: typeof value.projectName === 'string'
+      ? value.projectName
+      : typeof value.applicationName === 'string'
+        ? value.applicationName
+        : 'Unknown',
     repository: typeof value.repository === 'string' ? value.repository : 'Unknown',
     branch: typeof value.branch === 'string' ? value.branch : 'Unknown',
     artifactStrategy: typeof value.artifactStrategy === 'string' ? value.artifactStrategy : 'Unknown',
@@ -366,7 +390,7 @@ function driftChipColor(state: string): 'success' | 'warning' | 'error' | 'defau
 }
 
 function summarizeEnvDrift(
-  service: DeploymentRailwayLiveServiceSummary,
+  service: DeploymentProviderLiveServiceSummary,
   state: 'MISSING' | 'MISMATCHED',
 ): string {
   const keys = service.envVars
@@ -375,12 +399,12 @@ function summarizeEnvDrift(
   return keys.length > 0 ? keys.join(', ') : 'None'
 }
 
-function driftedServices(readback: DeploymentRailwayLiveReadbackSummary | null | undefined): DeploymentRailwayLiveServiceSummary[] {
+function driftedServices(readback: DeploymentProviderLiveReadbackSummary | null | undefined): DeploymentProviderLiveServiceSummary[] {
   if (!readback?.available) {
     return []
   }
   return [readback.runtime, readback.restConnector, readback.vectorizationRunner]
-    .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+    .filter((service): service is DeploymentProviderLiveServiceSummary => Boolean(service))
     .filter((service) => service.status === 'WARNING')
 }
 
@@ -401,13 +425,38 @@ function summarizeAuditDetails(value: unknown): string {
   }
 }
 
-function summarizeLogAttributes(attributes: DeploymentRailwayLogsResponse['entries'][number]['attributes']): string {
-  if (!Array.isArray(attributes) || attributes.length === 0) {
-    return '—'
+function providerResourceKindCandidates(service: ProviderLogService): string[] {
+  switch (service) {
+    case 'restConnector':
+      return ['CONNECTOR_APPLICATION', 'REST_CONNECTOR', 'CONNECTOR']
+    case 'vectorizationRunner':
+      return ['VECTORIZATION_RUNNER', 'VECTORIZATION_RUNNER_APPLICATION']
+    case 'runtime':
+    default:
+      return ['APPLICATION', 'RUNTIME_APPLICATION', 'RUNTIME']
   }
-  return attributes
-    .map((attribute) => `${attribute.key ?? 'unknown'}=${attribute.value ?? ''}`)
-    .join(', ')
+}
+
+function selectProviderLogResource(
+  resources: DeploymentProviderResourceHandleSummary[],
+  service: ProviderLogService,
+  releaseId: string | null | undefined,
+): DeploymentProviderResourceHandleSummary | null {
+  const candidates = providerResourceKindCandidates(service)
+  const matchingResources = resources
+    .filter((resource) => resource.status !== 'DELETED' && resource.status !== 'DELETE_REQUESTED')
+    .filter((resource) => candidates.includes(resource.resourceKind))
+
+  return matchingResources.find((resource) => releaseId && resource.releaseId === releaseId)
+    ?? matchingResources[0]
+    ?? null
+}
+
+function readLiveProviderReadback(sourceOfTruth: {
+  liveProviderReadback?: DeploymentProviderLiveReadbackSummary | null
+  liveRailwayReadback?: DeploymentProviderLiveReadbackSummary | null
+} | null | undefined): DeploymentProviderLiveReadbackSummary | null {
+  return sourceOfTruth?.liveProviderReadback ?? sourceOfTruth?.liveRailwayReadback ?? null
 }
 
 function deriveFailureAnalysis(
@@ -415,7 +464,7 @@ function deriveFailureAnalysis(
   provisioningSummary: ReturnType<typeof summarizeProvisioningDetails>,
   selectedRun: { status?: string; summaryMessage?: string } | null,
   selectedRunChecks: VerificationCheck[],
-  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
+  liveProviderReadback: DeploymentProviderLiveReadbackSummary | null,
 ): FailureAnalysis {
   const verificationRun = selectedRun
   const failedProvisioningStep = provisioningSummary.progress.steps.find((step) => step.status === 'FAILED')
@@ -429,7 +478,7 @@ function deriveFailureAnalysis(
       severity: 'info',
       stage: 'No release',
       headline: 'No deployment release exists yet.',
-      reason: 'Apply a version before expecting runtime evidence, Railway logs, or verification history.',
+      reason: 'Apply a version before expecting runtime evidence, provider logs, or verification history.',
       currentStep: 'Release not started',
       recommendation: 'Publish and apply a version, then return here for operational evidence.',
     }
@@ -439,10 +488,10 @@ function deriveFailureAnalysis(
     return {
       severity: 'warning',
       stage: 'Activation not confirmed',
-      headline: 'Railway is still taking longer than expected to report a healthy active deployment.',
+      headline: 'The deployment provider is still taking longer than expected to report a healthy active deployment.',
       reason: latestRelease.currentStepDescription ?? 'Deployment activation status is not confirmed yet.',
       currentStep: provisioningSummary.progress.currentStepDescription,
-      recommendation: 'Refresh the release status or compare Railway logs before retrying apply.',
+      recommendation: 'Refresh the release status or compare provider logs before retrying apply.',
     }
   }
 
@@ -472,15 +521,15 @@ function deriveFailureAnalysis(
     }
   }
 
-  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
-    const drifted = driftedServices(liveRailwayReadback)
+  if (liveProviderReadback?.available && liveProviderReadback.status === 'WARNING') {
+    const drifted = driftedServices(liveProviderReadback)
     const driftedLabels = drifted.map((service) => service.label).join(' and ')
     return {
       severity: 'warning',
       stage: 'Provider drift',
-      headline: 'Railway live state has drifted away from the platform-managed deployment.',
-      reason: liveRailwayReadback.summaryMessage,
-      currentStep: driftedLabels.length > 0 ? driftedLabels : 'Railway live read-back',
+      headline: 'Provider live state has drifted away from the platform-managed deployment.',
+      reason: liveProviderReadback.summaryMessage,
+      currentStep: driftedLabels.length > 0 ? driftedLabels : 'Provider live read-back',
       recommendation: 'Redeploy the active version before using provider-side restarts or runtime data resets.',
     }
   }
@@ -523,7 +572,7 @@ function deriveFailureAnalysis(
 function recoveryRecommendation(reason: string): string {
   const normalized = reason.toLowerCase()
   if (normalized.includes('railway_workspace_id')) {
-    return 'Configure the Railway workspace id and API token in platform provisioning before retrying apply.'
+    return 'Configure the deployment provider workspace id and API token in platform provisioning before retrying apply.'
   }
   if (normalized.includes('routing config not found') || normalized.includes('artifact')) {
     return 'Publish a fresh version and confirm the artifact delivery base URL and routing artifact are reachable.'
@@ -546,18 +595,18 @@ function recoveryRecommendation(reason: string): string {
 function deriveRecoveryHints(
   analysis: FailureAnalysis,
   latestRelease: DeploymentReleaseSummary | null,
-  liveRailwayReadback: DeploymentRailwayLiveReadbackSummary | null,
+  liveProviderReadback: DeploymentProviderLiveReadbackSummary | null,
 ): RecoveryHint[] {
   const text = `${analysis.reason} ${analysis.currentStep} ${latestRelease?.status ?? ''}`.toLowerCase()
   const hints: RecoveryHint[] = []
 
-  if (liveRailwayReadback?.available && liveRailwayReadback.status === 'WARNING') {
-    driftedServices(liveRailwayReadback).forEach((service) => {
+  if (liveProviderReadback?.available && liveProviderReadback.status === 'WARNING') {
+    driftedServices(liveProviderReadback).forEach((service) => {
       hints.push({
         key: `provider-drift-${service.key}`,
         severity: 'warning',
         title: `Reconcile ${service.label.toLowerCase()} drift before targeted recovery`,
-        message: 'Redeploy the active version first. Provider-side restart is intentionally blocked while Railway live state differs from the platform-managed plan.',
+        message: 'Redeploy the active version first. Provider-side restart is intentionally blocked while live provider state differs from the platform-managed plan.',
         service: service.key === 'restConnector'
           ? 'restConnector'
           : service.key === 'vectorizationRunner'
@@ -637,16 +686,27 @@ export function DiagnosticsPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
   const queryClient = useQueryClient()
   const [selectedRunId, setSelectedRunId] = useState('')
-  const [selectedLogService, setSelectedLogService] = useState<'runtime' | 'restConnector' | 'vectorizationRunner'>('runtime')
-  const [selectedLogSource, setSelectedLogSource] = useState('deployment')
+  const [selectedLogService, setSelectedLogService] = useState<ProviderLogService>('runtime')
   const [selectedRemediationAction, setSelectedRemediationAction] = useState<DeploymentRemediationActionSummary | null>(null)
   const [remediationConfirmed, setRemediationConfirmed] = useState(false)
   const [remediationReason, setRemediationReason] = useState('')
   const [remediationApprovalId, setRemediationApprovalId] = useState('')
 
-  const railwayPreflightQuery = useQuery({
-    queryKey: ['railway-preflight'],
-    queryFn: fetchRailwayPreflight,
+  const targetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles'],
+    queryFn: () => fetchDeploymentTargetProfiles(),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const runtimeDefaultTargetProfile = useMemo<DeploymentTargetProfileSummary | null>(
+    () => (targetProfilesQuery.data ?? []).find((profile) => profile.active && profile.defaultForRuntime) ?? null,
+    [targetProfilesQuery.data],
+  )
+
+  const providerPreflightQuery = useQuery({
+    queryKey: ['deployment-provider-preflight', runtimeDefaultTargetProfile?.id],
+    queryFn: () => fetchDeploymentTargetProfilePreflight(runtimeDefaultTargetProfile!.id),
+    enabled: !!runtimeDefaultTargetProfile,
   })
 
   const auditEventsQuery = useQuery({
@@ -681,21 +741,22 @@ export function DiagnosticsPage() {
     refetchInterval: releasesInProgress ? 3000 : false,
   })
 
-  const railwayLogsQuery = useQuery({
-    queryKey: [
-      'deployment-railway-logs',
-      selectedDeploymentId,
-      latestRelease?.id ?? null,
-      selectedLogService,
-      selectedLogSource,
-    ],
-    queryFn: () => fetchDeploymentRailwayLogs(selectedDeploymentId, {
-      releaseId: latestRelease?.id ?? undefined,
-      service: selectedLogService,
-      source: selectedLogSource,
-      limit: 150,
-    }),
+  const providerResourcesQuery = useQuery({
+    queryKey: ['deployment-provider-resources', selectedDeploymentId],
+    queryFn: () => fetchDeploymentProviderResources({ deploymentId: selectedDeploymentId }),
     enabled: selectedDeploymentId.length > 0,
+    refetchInterval: releasesInProgress ? 5000 : false,
+  })
+
+  const selectedProviderLogResource = useMemo(
+    () => selectProviderLogResource(providerResourcesQuery.data ?? [], selectedLogService, latestRelease?.id),
+    [latestRelease?.id, providerResourcesQuery.data, selectedLogService],
+  )
+
+  const providerResourceLogsQuery = useQuery({
+    queryKey: ['deployment-provider-resource-logs', selectedProviderLogResource?.id ?? null],
+    queryFn: () => fetchDeploymentProviderResourceLogs(selectedProviderLogResource!.id, 200),
+    enabled: !!selectedProviderLogResource,
     refetchInterval: releasesInProgress ? 5000 : false,
   })
 
@@ -755,20 +816,20 @@ export function DiagnosticsPage() {
         queryClient.invalidateQueries({ queryKey: ['deployment-releases', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-verification-runs', selectedDeploymentId] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-activity', selectedDeploymentId] }),
-        queryClient.invalidateQueries({ queryKey: ['deployment-railway-logs'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-resources', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-resource-logs'] }),
       ])
     },
   })
 
   const verificationRuns = verificationRunsQuery.data ?? []
   const provisioningSummary = summarizeProvisioningDetails(latestRelease?.provisioningDetails)
-  const railwayLogs = railwayLogsQuery.data
-  const liveRailwayReadback = sourceOfTruthQuery.data?.liveRailwayReadback ?? null
+  const providerResourceLogs = providerResourceLogsQuery.data as DeploymentProviderResourceLogsSummary | undefined
+  const providerPreflight = providerPreflightQuery.data as DeploymentProviderPreflightSummary | undefined
+  const liveProviderReadback = readLiveProviderReadback(sourceOfTruthQuery.data)
   const managedVectorState = sourceOfTruthQuery.data?.managedVector ?? null
   const tenantScopedVector = sourceOfTruthQuery.data?.tenantScopedVector ?? null
-  const railwayProjectUrl = liveRailwayReadback?.projectId
-    ? `https://railway.com/project/${liveRailwayReadback.projectId}`
-    : provisioningSummary.projectUrl
+  const providerProjectUrl = provisioningSummary.projectUrl
 
   useEffect(() => {
     if (!releasesInProgress) {
@@ -806,15 +867,14 @@ export function DiagnosticsPage() {
     provisioningSummary,
     selectedRun,
     selectedRunChecks,
-    liveRailwayReadback,
+    liveProviderReadback,
   )
-  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveRailwayReadback)
+  const recoveryHints = deriveRecoveryHints(failureAnalysis, latestRelease, liveProviderReadback)
 
-  const focusLogs = (service: 'runtime' | 'restConnector' | 'vectorizationRunner', source: 'deployment' | 'build' | 'http') => {
+  const focusLogs = (service: ProviderLogService, _source: 'deployment' | 'build' | 'http') => {
     setSelectedLogService(service)
-    setSelectedLogSource(source)
     window.requestAnimationFrame(() => {
-      document.getElementById('railway-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById('provider-logs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
 
@@ -822,7 +882,7 @@ export function DiagnosticsPage() {
     <Stack spacing={3}>
       <Box>
         <Chip label="Diagnostics" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0 }}>
           Release evidence and live verification
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
@@ -844,44 +904,55 @@ export function DiagnosticsPage() {
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
               <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="h6">Railway preflight</Typography>
+                <Typography variant="h6">Provider preflight</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  Read-only provisioning readiness check for Railway API mode, workspace access, public artifact delivery,
-                  and required platform secrets.
+                  Read-only provisioning readiness check for the active runtime target profile, provider credentials,
+                  source access, and required platform secrets.
                 </Typography>
               </Box>
               <Button
                 variant="outlined"
                 startIcon={<SyncRoundedIcon />}
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['railway-preflight'] })}
-                disabled={railwayPreflightQuery.isFetching}
+                onClick={() => {
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-target-profiles'] })
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-provider-preflight'] })
+                }}
+                disabled={targetProfilesQuery.isFetching || providerPreflightQuery.isFetching}
               >
-                {railwayPreflightQuery.isFetching ? 'Refreshing...' : 'Refresh preflight'}
+                {targetProfilesQuery.isFetching || providerPreflightQuery.isFetching ? 'Refreshing...' : 'Refresh preflight'}
               </Button>
             </Stack>
 
-            {railwayPreflightQuery.isLoading ? (
-              <Typography color="text.secondary">Running Railway preflight...</Typography>
-            ) : railwayPreflightQuery.isError ? (
+            {targetProfilesQuery.isLoading || providerPreflightQuery.isLoading ? (
+              <Typography color="text.secondary">Running provider preflight...</Typography>
+            ) : targetProfilesQuery.isError ? (
               <Alert severity="error">
-                {railwayPreflightQuery.error instanceof Error
-                  ? railwayPreflightQuery.error.message
-                  : 'Failed to run Railway preflight'}
+                {targetProfilesQuery.error instanceof Error
+                  ? targetProfilesQuery.error.message
+                  : 'Failed to load deployment target profiles'}
               </Alert>
-            ) : railwayPreflightQuery.data ? (
+            ) : providerPreflightQuery.isError ? (
+              <Alert severity="error">
+                {providerPreflightQuery.error instanceof Error
+                  ? providerPreflightQuery.error.message
+                  : 'Failed to run provider preflight'}
+              </Alert>
+            ) : !runtimeDefaultTargetProfile ? (
+              <Alert severity="warning">No active runtime default target profile is configured.</Alert>
+            ) : providerPreflight ? (
               <>
                 <Stack direction="row" spacing={1} flexWrap="wrap">
                   <Chip
-                    label={railwayPreflightQuery.data.ready ? 'Ready to provision' : 'Not ready to provision'}
-                    color={railwayPreflightQuery.data.ready ? 'success' : 'warning'}
+                    label={providerPreflight.status === 'READY' ? 'Ready to provision' : 'Not ready to provision'}
+                    color={providerPreflight.status === 'READY' ? 'success' : 'warning'}
                   />
-                  <Chip label={`Mode: ${railwayPreflightQuery.data.mode}`} variant="outlined" />
+                  <Chip label={`Provider: ${providerPreflight.providerType}`} variant="outlined" />
                   <Chip
-                    label={`Workspace: ${railwayPreflightQuery.data.workspaceName ?? railwayPreflightQuery.data.workspaceId ?? 'Unresolved'}`}
+                    label={`Target: ${runtimeDefaultTargetProfile.name}`}
                     variant="outlined"
                   />
                   <Chip
-                    label={`Checked: ${formatTimestamp(railwayPreflightQuery.data.checkedAt)}`}
+                    label={`Checked: ${formatTimestamp(providerPreflight.checkedAt)}`}
                     variant="outlined"
                   />
                 </Stack>
@@ -890,13 +961,13 @@ export function DiagnosticsPage() {
                   <Grid item xs={12} md={6}>
                     <Stack spacing={1}>
                       <Typography variant="body2">
-                        Repository: <strong>{railwayPreflightQuery.data.repository}</strong>
+                        Status: <strong>{providerPreflight.status}</strong>
                       </Typography>
                       <Typography variant="body2">
-                        Branch: <strong>{railwayPreflightQuery.data.branch}</strong>
+                        Message: <strong>{providerPreflight.message}</strong>
                       </Typography>
                       <Typography variant="body2">
-                        Public base URL: <strong>{railwayPreflightQuery.data.publicBaseUrl}</strong>
+                        Base URL: <strong>{providerPreflight.baseUrl ?? 'Not reported'}</strong>
                       </Typography>
                     </Stack>
                   </Grid>
@@ -905,22 +976,12 @@ export function DiagnosticsPage() {
                       <TableHead>
                         <TableRow>
                           <TableCell>Check</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Message</TableCell>
-                          <TableCell>Details</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {railwayPreflightQuery.data.checks.map((check) => (
-                          <TableRow key={check.key} hover>
-                            <TableCell sx={{ fontFamily: 'monospace' }}>{check.key}</TableCell>
-                            <TableCell>
-                              <Chip size="small" color={statusColor(check.status)} label={check.status} />
-                            </TableCell>
-                            <TableCell>{check.message}</TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace', maxWidth: 320 }}>
-                              {check.details ?? '—'}
-                            </TableCell>
+                        {providerPreflight.checks.map((check) => (
+                          <TableRow key={check} hover>
+                            <TableCell>{check}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -953,18 +1014,13 @@ export function DiagnosticsPage() {
               <Button
                 variant="outlined"
                 startIcon={<SyncRoundedIcon />}
-                disabled={!selectedDeploymentId || railwayLogsQuery.isFetching}
-                onClick={() => queryClient.invalidateQueries({
-                  queryKey: [
-                    'deployment-railway-logs',
-                    selectedDeploymentId,
-                    latestRelease?.id ?? null,
-                    selectedLogService,
-                    selectedLogSource,
-                  ],
-                })}
+                disabled={!selectedDeploymentId || providerResourcesQuery.isFetching || providerResourceLogsQuery.isFetching}
+                onClick={() => {
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-provider-resources', selectedDeploymentId] })
+                  void queryClient.invalidateQueries({ queryKey: ['deployment-provider-resource-logs'] })
+                }}
               >
-                {railwayLogsQuery.isFetching ? 'Refreshing logs...' : 'Refresh logs'}
+                {providerResourcesQuery.isFetching || providerResourceLogsQuery.isFetching ? 'Refreshing logs...' : 'Refresh logs'}
               </Button>
             </Stack>
 
@@ -1067,14 +1123,14 @@ export function DiagnosticsPage() {
                         {hint.service} {hint.source} logs
                       </Button>
                     ))}
-                    {railwayProjectUrl ? (
+                    {providerProjectUrl ? (
                       <Button
-                        href={railwayProjectUrl}
+                        href={providerProjectUrl}
                         target="_blank"
                         rel="noreferrer"
                         variant="text"
                       >
-                        Open Railway project
+                        Open provider project
                       </Button>
                     ) : null}
                   </Stack>
@@ -1088,10 +1144,10 @@ export function DiagnosticsPage() {
               <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
                   <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="h6">Railway live drift</Typography>
+                    <Typography variant="h6">Provider live drift</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                       Live provider read-back from the deployment source of truth. This is the safety signal used to
-                      block targeted restarts when Railway settings drift away from the platform-managed plan.
+                      block targeted restarts when provider settings drift away from the platform-managed plan.
                     </Typography>
                   </Box>
                   <Button
@@ -1105,40 +1161,40 @@ export function DiagnosticsPage() {
                 </Stack>
 
                 {sourceOfTruthQuery.isLoading ? (
-                  <Typography color="text.secondary">Loading Railway live read-back...</Typography>
+                  <Typography color="text.secondary">Loading provider live read-back...</Typography>
                 ) : sourceOfTruthQuery.isError ? (
                   <Alert severity="error">
                     {sourceOfTruthQuery.error instanceof Error
                       ? sourceOfTruthQuery.error.message
-                      : 'Failed to load Railway live read-back.'}
+                      : 'Failed to load provider live read-back.'}
                   </Alert>
-                ) : liveRailwayReadback ? (
+                ) : liveProviderReadback ? (
                   <>
-                    <Alert severity={alertSeverityForStatus(liveRailwayReadback.status, liveRailwayReadback.available)}>
-                      {liveRailwayReadback.summaryMessage}
+                    <Alert severity={alertSeverityForStatus(liveProviderReadback.status, liveProviderReadback.available)}>
+                      {liveProviderReadback.summaryMessage}
                     </Alert>
 
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Chip label={`Project: ${liveRailwayReadback.projectName ?? 'Unavailable'}`} variant="outlined" />
-                      <Chip label={`Environment: ${liveRailwayReadback.environmentName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip label={`Project: ${liveProviderReadback.projectName ?? 'Unavailable'}`} variant="outlined" />
+                      <Chip label={`Environment: ${liveProviderReadback.environmentName ?? 'Unavailable'}`} variant="outlined" />
                       <Chip
-                        label={`Status: ${liveRailwayReadback.status}`}
-                        color={serviceStatusColor(liveRailwayReadback.status)}
+                        label={`Status: ${liveProviderReadback.status}`}
+                        color={serviceStatusColor(liveProviderReadback.status)}
                       />
                     </Stack>
 
-                    {railwayProjectUrl ? (
+                    {providerProjectUrl ? (
                       <Box>
-                        <Button href={railwayProjectUrl} target="_blank" rel="noreferrer" variant="text">
-                          Open Railway project
+                        <Button href={providerProjectUrl} target="_blank" rel="noreferrer" variant="text">
+                          Open provider project
                         </Button>
                       </Box>
                     ) : null}
 
-                    {liveRailwayReadback.available ? (
+                    {liveProviderReadback.available ? (
                       <Grid container spacing={2}>
-                        {[liveRailwayReadback.runtime, liveRailwayReadback.restConnector, liveRailwayReadback.vectorizationRunner]
-                          .filter((service): service is DeploymentRailwayLiveServiceSummary => Boolean(service))
+                        {[liveProviderReadback.runtime, liveProviderReadback.restConnector, liveProviderReadback.vectorizationRunner]
+                          .filter((service): service is DeploymentProviderLiveServiceSummary => Boolean(service))
                           .map((service) => (
                           <Grid item xs={12} md={6} key={`drift-${service.key}`}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
@@ -1182,7 +1238,7 @@ export function DiagnosticsPage() {
                     ) : null}
                   </>
                 ) : (
-                  <Alert severity="info">No live Railway read-back is available for this deployment yet.</Alert>
+                  <Alert severity="info">No provider live read-back is available for this deployment yet.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -1541,7 +1597,7 @@ export function DiagnosticsPage() {
             </CardContent>
           </Card>
 
-          <Card id="railway-logs" sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <Card id="provider-logs" sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
             <CardContent>
               <Stack spacing={2}>
                 <Box>
@@ -1862,116 +1918,87 @@ export function DiagnosticsPage() {
                   alignItems={{ xs: 'stretch', md: 'center' }}
                 >
                   <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="h6">Railway logs</Typography>
+                    <Typography variant="h6">Provider logs</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Release-aware deployment logs pulled through the platform backend using Railway GraphQL.
+                      Release-aware deployment logs pulled through the platform backend using the active provider API.
                     </Typography>
                   </Box>
                   <TextField
                     select
                     label="Service"
                     value={selectedLogService}
-                    onChange={(event) => setSelectedLogService(event.target.value as 'runtime' | 'restConnector' | 'vectorizationRunner')}
+                    onChange={(event) => setSelectedLogService(event.target.value as ProviderLogService)}
                     sx={{ minWidth: 180 }}
                   >
                     <MenuItem value="runtime">Runtime</MenuItem>
                     <MenuItem value="restConnector">REST connector</MenuItem>
                     <MenuItem value="vectorizationRunner">Vectorization runner</MenuItem>
                   </TextField>
-                  <TextField
-                    select
-                    label="Source"
-                    value={selectedLogSource}
-                    onChange={(event) => setSelectedLogSource(event.target.value)}
-                    sx={{ minWidth: 180 }}
-                  >
-                    <MenuItem value="deployment">Deployment</MenuItem>
-                    <MenuItem value="build">Build</MenuItem>
-                    <MenuItem value="http">HTTP</MenuItem>
-                  </TextField>
                 </Stack>
 
-                {railwayLogsQuery.isLoading ? (
-                  <Typography color="text.secondary">Loading Railway logs...</Typography>
-                ) : railwayLogsQuery.isError ? (
+                {providerResourcesQuery.isLoading || providerResourceLogsQuery.isLoading ? (
+                  <Typography color="text.secondary">Loading provider logs...</Typography>
+                ) : providerResourcesQuery.isError ? (
                   <Alert severity="error">
-                    {railwayLogsQuery.error instanceof Error
-                      ? railwayLogsQuery.error.message
-                      : 'Failed to load Railway logs'}
+                    {providerResourcesQuery.error instanceof Error
+                      ? providerResourcesQuery.error.message
+                      : 'Failed to load provider resources'}
                   </Alert>
-                ) : railwayLogs ? (
+                ) : providerResourceLogsQuery.isError ? (
+                  <Alert severity="error">
+                    {providerResourceLogsQuery.error instanceof Error
+                      ? providerResourceLogsQuery.error.message
+                      : 'Failed to load provider logs'}
+                  </Alert>
+                ) : !selectedProviderLogResource ? (
+                  <Alert severity="info">
+                    No provider resource handle is recorded for the selected service yet. Apply a provider-backed release first.
+                  </Alert>
+                ) : providerResourceLogs ? (
                   <>
                     <Stack direction="row" spacing={1} flexWrap="wrap">
-                      <Chip
-                        label={railwayLogs.available ? 'Railway logs available' : 'Railway logs unavailable'}
-                        color={railwayLogs.available ? 'success' : 'warning'}
-                      />
-                      <Chip label={`Service: ${railwayLogs.service}`} variant="outlined" />
-                      <Chip label={`Source: ${railwayLogs.source}`} variant="outlined" />
-                      <Chip label={`Limit: ${railwayLogs.requestedLimit}`} variant="outlined" />
-                      {railwayLogs.releaseId ? (
-                        <Chip label={`Release: ${railwayLogs.releaseId}`} variant="outlined" />
-                      ) : null}
+                      <Chip label="Provider logs available" color="success" />
+                      <Chip label={`Service: ${selectedLogService}`} variant="outlined" />
+                      <Chip label={`Resource: ${selectedProviderLogResource.resourceKind}`} variant="outlined" />
+                      <Chip label={`Provider: ${providerResourceLogs.providerType}`} variant="outlined" />
+                      <Chip label={`Lines: ${providerResourceLogs.lines}`} variant="outlined" />
                     </Stack>
 
                     <Typography variant="body2" color="text.secondary">
-                      {railwayLogs.message}
+                      Logs are fetched through the provider resource abstraction for handle {providerResourceLogs.handleId}.
                     </Typography>
 
                     <Stack direction="row" spacing={1} flexWrap="wrap">
                       <Chip
-                        label={`Queried: ${formatTimestamp(railwayLogs.queriedAt)}`}
+                        label={`Fetched: ${formatTimestamp(providerResourceLogs.fetchedAt)}`}
                         variant="outlined"
                       />
-                      {railwayLogs.serviceName ? (
-                        <Chip label={`Railway service: ${railwayLogs.serviceName}`} variant="outlined" />
-                      ) : null}
-                      {railwayLogs.railwayDeploymentId ? (
-                        <Chip label={`Deployment: ${railwayLogs.railwayDeploymentId}`} variant="outlined" />
+                      {selectedProviderLogResource.fqdn ? (
+                        <Chip label={`Endpoint: ${selectedProviderLogResource.fqdn}`} variant="outlined" />
                       ) : null}
                     </Stack>
 
-                    {!railwayLogs.available ? (
-                      <Alert severity="info">{railwayLogs.message}</Alert>
-                    ) : railwayLogs.entries.length === 0 ? (
-                      <Alert severity="info">No Railway log entries matched the current query.</Alert>
-                    ) : (
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Timestamp</TableCell>
-                            <TableCell>Severity</TableCell>
-                            <TableCell>Message</TableCell>
-                            <TableCell>Attributes</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {railwayLogs.entries.map((entry, index) => (
-                            <TableRow key={`${entry.timestamp ?? 'unknown'}:${index}`} hover>
-                              <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                {entry.timestamp ? formatTimestamp(entry.timestamp) : '—'}
-                              </TableCell>
-                              <TableCell>
-                                <Chip
-                                  size="small"
-                                  label={entry.severity ?? 'UNKNOWN'}
-                                  color={entry.severity === 'ERROR' ? 'error' : entry.severity === 'WARN' ? 'warning' : 'default'}
-                                />
-                              </TableCell>
-                              <TableCell sx={{ fontFamily: 'monospace', maxWidth: 520 }}>
-                                {entry.message ?? '—'}
-                              </TableCell>
-                              <TableCell sx={{ fontFamily: 'monospace', maxWidth: 360 }}>
-                                {summarizeLogAttributes(entry.attributes)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
+                    <Box
+                      component="pre"
+                      sx={{
+                        m: 0,
+                        p: 2,
+                        borderRadius: 1,
+                        bgcolor: 'grey.950',
+                        color: 'grey.100',
+                        overflow: 'auto',
+                        maxHeight: '48vh',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {providerResourceLogs.logs || 'No logs returned.'}
+                    </Box>
                   </>
                 ) : (
-                  <Alert severity="info">Apply a Railway-backed release first to inspect logs.</Alert>
+                  <Alert severity="info">Apply a provider-backed release first to inspect logs.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -2069,7 +2096,7 @@ export function DiagnosticsPage() {
                 <Box>
                   <Typography variant="h6">Provisioning step history</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Per-step progress evidence stored on the latest release while Railway apply runs.
+                    Per-step progress evidence stored on the latest release while provider apply runs.
                   </Typography>
                 </Box>
                 {latestRelease ? (

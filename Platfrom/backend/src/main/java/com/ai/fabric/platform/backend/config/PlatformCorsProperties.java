@@ -10,7 +10,20 @@ public class PlatformCorsProperties {
 
     private List<String> allowedOrigins = new ArrayList<>();
     private List<String> allowedOriginPatterns = new ArrayList<>();
-    private boolean allowCredentials = true;
+    private List<String> allowedHeaders = new ArrayList<>(List.of(
+        "Accept",
+        "Authorization",
+        "Content-Type",
+        "Origin",
+        "X-Bridge-API-KEY",
+        "X-MCP-GATEWAY-API-KEY",
+        "X-Platform-API-Key",
+        "X-Platform-Public-API-Key",
+        "X-Requested-With",
+        "X-Shopify-Hmac-Sha256",
+        "X-Shopify-Shop-Domain"
+    ));
+    private boolean allowCredentials = false;
 
     public List<String> getAllowedOrigins() {
         return allowedOrigins;
@@ -34,5 +47,13 @@ public class PlatformCorsProperties {
 
     public void setAllowCredentials(boolean allowCredentials) {
         this.allowCredentials = allowCredentials;
+    }
+
+    public List<String> getAllowedHeaders() {
+        return allowedHeaders;
+    }
+
+    public void setAllowedHeaders(List<String> allowedHeaders) {
+        this.allowedHeaders = allowedHeaders != null ? allowedHeaders : new ArrayList<>();
     }
 }

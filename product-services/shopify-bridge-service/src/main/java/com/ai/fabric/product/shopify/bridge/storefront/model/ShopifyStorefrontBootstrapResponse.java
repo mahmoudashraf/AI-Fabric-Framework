@@ -34,6 +34,8 @@ public record ShopifyStorefrontBootstrapResponse(
     String bridgeSuggestionsUrl,
     String bridgeOrderLookupUrl,
     String bridgeEventUrl,
+    String customerAccountAuthStartUrl,
+    String customerAccountAuthSessionUrl,
     boolean orderLookupEnabled,
     boolean olderOrdersRequireBroaderScope,
     String orderLookupMessage,

@@ -46,6 +46,7 @@ set -euo pipefail
 #   EXPECT_ACTION_REQUIRES_CONFIRMATION=false
 #   EXPECT_ACTION_AUDIT_AVAILABLE=false
 #   EXPECT_MAX_WIDGET_SURFACE=<optional; defaults true when chat fallback is expected>
+#   SHOPIFY_COMPANION_ENSURE_BILLING_STATE=true repairs Bridge billing state to EXPECT_BILLING_TIER/ACTIVE before assertions
 #   EXPECT_ORDER_LOOKUP_STATUS=READY
 #   EXPECT_ORDER_LOOKUP_SUPPORTED=<optional; defaults from live billing allowedSurfaces>
 #   EXPECT_ORDER_LOOKUP_SCOPE_GRANTED=<optional expected live scope grant>
@@ -106,7 +107,9 @@ EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED="${EXPECT_ORDER_LOOKUP_MERCHANT_
 EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
 EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-}"
 EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE:-}"
-EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-list_products,search_products,get_product_details,check_availability,get_policy}"
+EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-shopify_search_catalog,shopify_get_product_details,shopify_search_policies,shopify_get_cart,shopify_update_cart}"
+SHOPIFY_COMPANION_ENSURE_BILLING_STATE="${SHOPIFY_COMPANION_ENSURE_BILLING_STATE:-false}"
+SHOPIFY_COMPANION_BILLING_STATE_REASON="${SHOPIFY_COMPANION_BILLING_STATE_REASON:-Shopify Companion live verification requires the configured release-gate billing posture.}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
@@ -118,6 +121,8 @@ ORDER_LOOKUP_EMAIL="${ORDER_LOOKUP_EMAIL:-}"
 ORDER_LOOKUP_SAMPLE_SOURCE="none"
 STOREFRONT_QUERY_RETRY_ATTEMPTS="${STOREFRONT_QUERY_RETRY_ATTEMPTS:-3}"
 STOREFRONT_QUERY_RETRY_SLEEP_SECONDS="${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS:-2}"
+PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS="${PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS:-12}"
+PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS="${PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS:-10}"
 TEMP_PLATFORM_COOKIE_JAR=""
 
 cleanup() {
@@ -515,6 +520,54 @@ PY
   fi
 }
 
+ensure_companion_billing_state() {
+  if [[ "${SHOPIFY_COMPANION_ENSURE_BILLING_STATE}" != "true" ]]; then
+    return
+  fi
+  if [[ -z "${EXPECT_BILLING_TIER}" ]]; then
+    echo "FAIL: EXPECT_BILLING_TIER is required when SHOPIFY_COMPANION_ENSURE_BILLING_STATE=true" >&2
+    exit 2
+  fi
+  if [[ -z "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
+    echo "FAIL: SHOPIFY_BRIDGE_ADMIN_API_KEY is required when SHOPIFY_COMPANION_ENSURE_BILLING_STATE=true" >&2
+    exit 2
+  fi
+
+  local target_status="${EXPECT_BILLING_STATUS:-ACTIVE}"
+  http_request GET "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/billing-summary" "" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge billing state preflight status"
+
+  local current_tier current_status
+  current_tier="$(json_get "${HTTP_BODY}" "tierKey")"
+  current_status="$(json_get "${HTTP_BODY}" "status")"
+  if [[ "${current_tier}" == "${EXPECT_BILLING_TIER}" && "${current_status}" == "${target_status}" ]]; then
+    echo "PASS: bridge billing posture already ${EXPECT_BILLING_TIER}/${target_status}"
+    return
+  fi
+
+  local payload
+  payload="$(python3 - <<'PY' "${EXPECT_BILLING_TIER}" "${target_status}" "${SHOPIFY_COMPANION_BILLING_STATE_REASON}"
+import json
+import sys
+tier = sys.argv[1]
+status = sys.argv[2]
+reason = sys.argv[3]
+print(json.dumps({
+    "tierKey": tier,
+    "status": status,
+    "subscriptionId": f"release-gate-{tier.lower()}",
+    "subscriptionName": f"Loom Companion {tier.title()}",
+    "reason": reason,
+}))
+PY
+  )"
+  http_request POST "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/billing-state" "${payload}" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+  assert_equals "${HTTP_STATUS}" "200" "bridge billing state repair status"
+  assert_equals "$(json_get "${HTTP_BODY}" "tierKey")" "${EXPECT_BILLING_TIER}" "bridge billing state repaired tier"
+  assert_equals "$(json_get "${HTTP_BODY}" "status")" "${target_status}" "bridge billing state repaired status"
+  echo "PASS: bridge billing posture set to ${EXPECT_BILLING_TIER}/${target_status}"
+}
+
 http_request() {
   local method="$1"
   local url="$2"
@@ -774,6 +827,7 @@ http_request GET "${bridge_base}/actuator/health" ""
 assert_equals "${HTTP_STATUS}" "200" "bridge actuator health status"
 bridge_health_json="${HTTP_BODY}"
 assert_equals "$(json_get "${bridge_health_json}" "status")" "UP" "bridge actuator health payload"
+ensure_companion_billing_state
 
 echo "== Platform product service summary =="
 platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}" "" "${platform_headers[@]-}"
@@ -811,9 +865,21 @@ assert_nonempty "$(json_get "${product_service_deployments_json}" "deployments.0
 
 echo "== Platform product service Railway logs =="
 latest_product_service_deployment_id="$(json_get "${product_service_deployments_json}" "deployments.0.id")"
-platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]-}"
+for ((product_service_logs_attempt = 1; product_service_logs_attempt <= PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS; product_service_logs_attempt++)); do
+  platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/railway/logs?source=deployment&deploymentId=${latest_product_service_deployment_id}&limit=50" "" "${platform_headers[@]-}"
+  product_service_logs_json="${HTTP_BODY}"
+  product_service_logs_available="$(json_get "${product_service_logs_json}" "available")"
+  product_service_logs_message="$(json_get "${product_service_logs_json}" "message")"
+  if [[ "${HTTP_STATUS}" == "200" && "${product_service_logs_available}" == "true" ]]; then
+    break
+  fi
+  if [[ "${product_service_logs_message}" == *"HTTP 429"* && "${product_service_logs_attempt}" -lt "${PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS}" ]]; then
+    sleep "${PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS}"
+    continue
+  fi
+  break
+done
 assert_equals "${HTTP_STATUS}" "200" "product service Railway logs status"
-product_service_logs_json="${HTTP_BODY}"
 assert_equals "$(json_get "${product_service_logs_json}" "serviceRef")" "${PRODUCT_SERVICE_REF}" "product service Railway logs serviceRef"
 assert_equals "$(json_get "${product_service_logs_json}" "available")" "true" "product service Railway logs availability"
 assert_equals "$(json_get "${product_service_logs_json}" "railwayDeploymentId")" "${latest_product_service_deployment_id}" "product service Railway logs deployment id"
@@ -1307,41 +1373,112 @@ PY
 
   if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
     echo "== Storefront comparison resolver query =="
-    http_request POST "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/actions/execute" '{"actionId":"list_products","params":{"query":""}}' "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
-    assert_equals "${HTTP_STATUS}" "200" "bridge admin list products status"
-    comparison_skus_csv="$(JSON_PAYLOAD="${HTTP_BODY}" python3 - <<'PY'
+    comparison_action_payload="$(python3 - <<'PY' "${SHOP_DOMAIN}"
+import json
+import sys
+
+shop_domain = sys.argv[1]
+print(json.dumps({
+    "actionId": "shopify_search_catalog",
+    "params": {
+        "query": "shirt",
+        "country": "US",
+        "intent": "product comparison",
+        "limit": 5
+    },
+    "trace": {
+        "shopDomain": shop_domain,
+        "actionConfig": {
+            "adapterType": "mcp-tool",
+            "execution": {
+                "adapterType": "mcp-tool",
+                "mcp": {
+                    "serverRef": "shopify-storefront",
+                    "endpointKind": "STOREFRONT_STANDARD",
+                    "toolName": "search_catalog",
+                    "argumentTemplate": {
+                        "catalog": {
+                            "query": "{{params.query}}",
+                            "context": {
+                                "address_country": "{{params.country}}",
+                                "intent": "{{params.intent}}"
+                            },
+                            "pagination": {
+                                "limit": "{{params.limit}}"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}))
+PY
+)"
+    http_request POST "${bridge_base}/api/admin/stores/${SHOP_DOMAIN}/actions/execute" "${comparison_action_payload}" "${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER}: ${SHOPIFY_BRIDGE_ADMIN_API_KEY}"
+    assert_equals "${HTTP_STATUS}" "200" "bridge admin search catalog status"
+    comparison_terms_csv="$(JSON_PAYLOAD="${HTTP_BODY}" python3 - <<'PY'
 import json
 import os
 
 payload = json.loads(os.environ["JSON_PAYLOAD"])
-items = (((payload or {}).get("data") or {}).get("items") or [])
-skus = []
-for item in items:
+terms = []
+
+def add(value):
+    value = str(value or "").strip()
+    if value and value not in terms:
+        terms.append(value)
+
+for item in (((payload or {}).get("data") or {}).get("items") or []):
     if not isinstance(item, dict):
         continue
-    sku = str(item.get("primarySku") or "").strip()
-    if sku and sku not in skus:
-        skus.append(sku)
-    if len(skus) >= 2:
+    add(item.get("primarySku"))
+    add(item.get("title"))
+
+tool_result = ((payload or {}).get("data") or {}).get("toolResult") or {}
+for content_item in tool_result.get("content") or []:
+    if not isinstance(content_item, dict) or content_item.get("type") != "text":
+        continue
+    try:
+        catalog_payload = json.loads(content_item.get("text") or "{}")
+    except json.JSONDecodeError:
+        continue
+    for product in catalog_payload.get("products") or []:
+        if not isinstance(product, dict):
+            continue
+        product_title = str(product.get("title") or "").strip()
+        add(product_title)
+        for variant in product.get("variants") or []:
+            if not isinstance(variant, dict):
+                continue
+            variant_title = str(variant.get("title") or "").strip()
+            add(" ".join(part for part in [product_title, variant_title] if part))
+            add(variant.get("id"))
+            if len(terms) >= 2:
+                break
+        if len(terms) >= 2:
+            break
+    if len(terms) >= 2:
         break
-print(",".join(skus))
+
+print(",".join(terms[:2]))
 PY
 )"
-    assert_nonempty "${comparison_skus_csv}" "bridge admin comparison SKU sample"
-    comparison_reference_sku="${comparison_skus_csv%%,*}"
-    comparison_secondary_sku="${comparison_skus_csv#*,}"
-    assert_nonempty "${comparison_reference_sku}" "comparison reference SKU"
-    assert_nonempty "${comparison_secondary_sku}" "comparison secondary SKU"
+    assert_nonempty "${comparison_terms_csv}" "bridge admin comparison product sample"
+    comparison_reference_term="${comparison_terms_csv%%,*}"
+    comparison_secondary_term="${comparison_terms_csv#*,}"
+    assert_nonempty "${comparison_reference_term}" "comparison reference product"
+    assert_nonempty "${comparison_secondary_term}" "comparison secondary product"
 
-    comparison_resolver_payload="$(python3 - <<'PY' "${comparison_reference_sku}" "${comparison_secondary_sku}" "${SHOPIFY_COMPARISON_MODE}"
+    comparison_resolver_payload="$(python3 - <<'PY' "${comparison_reference_term}" "${comparison_secondary_term}" "${SHOPIFY_COMPARISON_MODE}"
 import json
 import sys
 
-reference_sku = sys.argv[1]
-comparison_sku = sys.argv[2]
+reference_term = sys.argv[1]
+comparison_term = sys.argv[2]
 mode = sys.argv[3]
 print(json.dumps({
-    "query": f"Compare products with SKU {reference_sku} and SKU {comparison_sku} and explain the tradeoffs.",
+    "query": f"Compare {reference_term} and {comparison_term} and explain the tradeoffs.",
     "mode": mode,
     "storefrontContext": {
         "pageType": "product",

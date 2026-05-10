@@ -45,6 +45,7 @@ import {
   revokePartnerAccessRequest,
   retryLastFailedVectorizationAutoRunStore,
   runSourcePreflight,
+  sendPartnerAccessInvite,
   suggestMerchantPlayground,
   syncNowStore,
   updateSourceSettings,
@@ -318,6 +319,7 @@ export default function App() {
     | 'partner-access-approve'
     | 'partner-access-deny'
     | 'partner-access-revoke'
+    | 'partner-access-invite'
     | 'vectorization-reconcile'
     | 'vectorize-now'
     | 'vectorization-index-all'
@@ -674,6 +676,27 @@ export default function App() {
       setActionMessage(`Revoked partner access for ${summary.shopDomain}.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to revoke partner access.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handlePartnerAccessInvite(request: ShopifyBridgePartnerAccessRequestSummary) {
+    setBusyAction('partner-access-invite')
+    setActionError(null)
+    setActionMessage(null)
+    try {
+      const summary = await sendPartnerAccessInvite(request.requestId, {
+        recipientEmail: request.contactEmail ?? undefined,
+      })
+      await refresh()
+      setActionMessage(
+        summary.status === 'SENT'
+          ? `Approval email sent to ${summary.recipientEmail}.`
+          : `Approval invite recorded for ${summary.recipientEmail}; email delivery is ${summary.channel.toLowerCase().replace(/_/g, ' ')}.`,
+      )
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to send approval invite.')
     } finally {
       setBusyAction(null)
     }
@@ -2269,6 +2292,10 @@ export default function App() {
                                 <List.Item>Store configured surfaces: {request.requestedSurfaces.join(' · ') || 'No configured surfaces'}</List.Item>
                                 <List.Item>Requested: {formatTimestamp(request.createdAt)}</List.Item>
                                 <List.Item>Expires: {formatTimestamp(request.expiresAt)}</List.Item>
+                                <List.Item>
+                                  Invite: {request.inviteStatus ?? 'NOT_SENT'}
+                                  {request.inviteSentAt ? ` at ${formatTimestamp(request.inviteSentAt)}` : ''}
+                                </List.Item>
                                 {request.approvedAt ? <List.Item>Approved: {formatTimestamp(request.approvedAt)}</List.Item> : null}
                                 {request.revokedAt ? <List.Item>Revoked: {formatTimestamp(request.revokedAt)}</List.Item> : null}
                               </List>
@@ -2292,6 +2319,13 @@ export default function App() {
                                     loading={busyAction === 'partner-access-deny'}
                                   >
                                     Deny
+                                  </Button>
+                                  <Button
+                                    onClick={() => void handlePartnerAccessInvite(request)}
+                                    loading={busyAction === 'partner-access-invite'}
+                                    disabled={!request.contactEmail}
+                                  >
+                                    Email approval link
                                   </Button>
                                 </InlineStack>
                               ) : null}
@@ -2497,6 +2531,41 @@ export default function App() {
                       Governed commerce actions will appear here after real Elite storefront actions run through the live bridge.
                     </Text>
                   ) : null}
+                </BlockStack>
+              </Card>
+            </Box>
+            ) : null}
+
+            {selectedSection === 'launch' ? (
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Launch package
+                    </Text>
+                    <Badge tone={goLiveChecklist.tone}>{goLiveChecklist.status}</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Merchant launch view for onboarding, pricing, support, evidence, design-partner posture, and rollback/deactivation requests. It keeps the story about Loom Companion for Shopify and avoids provider internals.
+                  </Text>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Current package: {billingSummary?.planName ?? 'Billing not loaded'} · {billingSummary?.tierKey ?? 'UNKNOWN'} · {billingSummary?.status ?? 'UNKNOWN'}
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Onboarding: connect the store, select source categories, run source preflight, sync content, enable storefront surfaces, and publish only after readiness is clean.
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Support path: use merchant handoff channels for refunds, edits, account changes, unsupported order cases, and rollback/deactivation requests.
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Design-partner package: weekly value review covers shopper questions, unanswered source gaps, support handoffs, action-intent signals, and merchant feedback.
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      App Store/private listing readiness stays claim-safe. Public launch waits for controlled production proof, protected-data proof, support packaging, and rollback evidence.
+                    </Text>
+                  </BlockStack>
                 </BlockStack>
               </Card>
             </Box>

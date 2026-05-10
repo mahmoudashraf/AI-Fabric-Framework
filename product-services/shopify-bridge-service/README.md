@@ -57,9 +57,11 @@ If the merchant UI is served from the same host as the backend, set both values 
 
 Default deploy posture in this repo:
 
-- the Railway image builds `ui/`
+- the provider-neutral container image builds `ui/`
 - the built merchant UI is copied into the Shopify Bridge container
 - the bridge service serves the embedded app shell and `/assets/**` from that bundled UI directory
+- Coolify, Railway, local Docker, and CI should use `deploy/container/Dockerfile`
+- Railway support must point at the same neutral Dockerfile with provider-specific env, domain, healthcheck, and resource settings managed in Railway
 
 ## Important boundary
 

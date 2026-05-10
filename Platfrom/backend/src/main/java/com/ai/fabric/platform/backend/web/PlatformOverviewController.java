@@ -63,6 +63,7 @@ public class PlatformOverviewController {
                 "artifact-delivery",
                 "signed-artifact-delivery",
                 "provisioning-provider-abstraction",
+                "provider-preflight",
                 "railway-plan-preview",
                 "railway-api-provider",
                 "railway-preflight",

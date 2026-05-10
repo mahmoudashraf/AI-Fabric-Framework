@@ -167,6 +167,9 @@ class ShopifyCompanionPackageProfileOptionsServiceTest {
             false,
             "mkp-template-shopify-companion",
             "",
+            "mkp-template-shopify-companion-staging",
+            "mkp-template-shopify-companion-production",
+            "",
             List.of("mkp-inference-shared-embeddings")
         );
     }

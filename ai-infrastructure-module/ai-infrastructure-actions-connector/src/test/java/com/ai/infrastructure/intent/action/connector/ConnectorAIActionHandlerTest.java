@@ -220,6 +220,54 @@ class ConnectorAIActionHandlerTest {
             .doesNotContainKey("ignoredNestedList");
     }
 
+    @Test
+    void shouldExposeMcpToolTextJsonAsFallbackDocuments() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("MCP tool result")
+            .data(ActionPayload.object(Map.of(
+                "adapterType", "mcp-tool",
+                "mcpToolName", "search_shop_policies_and_faqs",
+                "evidenceType", "MCP_TOOL_RESULT",
+                "toolResult", Map.of(
+                    "content", List.of(Map.of(
+                        "type", "text",
+                        "text", """
+                            [
+                              {
+                                "question": "Do you allow customers to request and manage their own returns?",
+                                "answer": "Customers must contact the merchant to request a return."
+                              },
+                              {
+                                "question": "Do you accept store credit?",
+                                "answer": "The store accepts store credit as a payment method."
+                              }
+                            ]
+                            """
+                    )),
+                    "isError", false
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        assertThat(facts.get()).containsEntry("documentsCount", 2);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
+        assertThat(documents.getFirst())
+            .containsEntry("question", "Do you allow customers to request and manage their own returns?")
+            .containsEntry("answer", "Customers must contact the merchant to request a return.");
+    }
+
     private AIActionMetaData metadata() {
         return AIActionMetaData.builder()
             .name("search_records")

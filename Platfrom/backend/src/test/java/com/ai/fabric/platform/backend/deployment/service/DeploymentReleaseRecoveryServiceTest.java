@@ -3,14 +3,18 @@ package com.ai.fabric.platform.backend.deployment.service;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,11 +37,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -88,11 +94,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -135,11 +143,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -169,11 +179,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -203,16 +215,61 @@ class DeploymentReleaseRecoveryServiceTest {
     }
 
     @Test
-    void reconcileLatestInProgressReleaseIgnoresFreshRelease() {
+    void reconcileLatestInProgressReleaseRetriesCoolifyMarketplaceDatasetSyncBeforeVerificationWhenSummaryIsMissing() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = staleMarketplaceDatasetSyncRelease(false);
+        release.setProvisioningTarget("COOLIFY");
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        InOrder inOrder = inOrder(deploymentReleaseExecutionService);
+        inOrder.verify(deploymentReleaseExecutionService).syncMarketplaceDatasets(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        inOrder.verify(deploymentReleaseExecutionService).runVerification(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
+    void reconcileLatestInProgressReleaseIgnoresFreshRelease() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -238,11 +295,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -291,11 +350,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -332,16 +393,67 @@ class DeploymentReleaseRecoveryServiceTest {
     }
 
     @Test
-    void reconcileLatestInProgressReleaseFailsStalePreApplyVerificationStep() {
+    void reconcileLatestInProgressReleaseRedispatchesStaleCoolifyQueuedApply() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-coolify-queued");
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId("ver-coolify-queued");
+        release.setStatus("APPLY_REQUESTED");
+        release.setProvisioningTarget("COOLIFY");
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setProvisioningStatus("QUEUED");
+        release.setCurrentStepKey("queue_release");
+        release.setUpdatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        when(deploymentReleaseExecutionService.tryDispatchApplyAsync(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        )).thenReturn(true);
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService).tryDispatchApplyAsync(
+            deployment.getId(),
+            release.getDeploymentVersionId(),
+            release.getId()
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
+    void reconcileLatestInProgressReleaseFailsStalePreApplyVerificationStep() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -380,11 +492,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -417,11 +531,13 @@ class DeploymentReleaseRecoveryServiceTest {
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
         RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
 
         DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
             deploymentRepository,
             releaseRepository,
             deploymentReleaseExecutionService,
+            verificationRunRepository,
             railwayGraphqlClient,
             provisioningProperties(),
             objectMapper
@@ -445,6 +561,46 @@ class DeploymentReleaseRecoveryServiceTest {
                 && ex.getMessage() != null
                 && ex.getMessage().contains("ensure_vector_backend"))
         );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
+    void reconcileLatestInProgressReleasePromotesFailedReleaseWhenLaterVerificationPassed() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            verificationRunRepository,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = failedCoolifyVerificationRelease();
+        DeploymentVerificationRunEntity passedRun = passedVerificationRun(release);
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+        when(verificationRunRepository.findByReleaseIdOrderByCreatedAtDesc(release.getId())).thenReturn(List.of(passedRun));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId());
+
+        assertThat(recovered).isTrue();
+        assertThat(release.getStatus()).isEqualTo("APPLIED_VERIFIED");
+        assertThat(release.getVerificationStatus()).isEqualTo("PASSED");
+        assertThat(release.getVerificationRunId()).isEqualTo(passedRun.getId());
+        assertThat(deployment.getStatus()).isEqualTo("ACTIVE");
+        assertThat(deployment.getActiveVersionId()).isEqualTo(release.getDeploymentVersionId());
+        verify(releaseRepository).save(release);
+        verify(deploymentRepository).save(deployment);
+        verify(deploymentReleaseExecutionService, never()).runVerification(any(), any(), any());
         verifyNoRailwayInteractions(railwayGraphqlClient);
     }
 
@@ -489,6 +645,38 @@ class DeploymentReleaseRecoveryServiceTest {
             }
             """);
         return release;
+    }
+
+    private DeploymentReleaseEntity failedCoolifyVerificationRelease() {
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-coolify");
+        release.setDeploymentId("dep-123");
+        release.setDeploymentVersionId("ver-coolify");
+        release.setStatus("APPLIED_VERIFICATION_FAILED");
+        release.setProvisioningTarget("COOLIFY");
+        release.setProvisioningStatus("DEPLOY_REQUESTED");
+        release.setVerificationStatus("FAILED");
+        release.setVerificationRunId("vrf-failed");
+        release.setCurrentStepKey("run_verification");
+        release.setCurrentStepDescription("Run post-deploy verification.");
+        release.setUpdatedAt(Instant.now());
+        release.setProvisioningDetailsJson("{}");
+        return release;
+    }
+
+    private DeploymentVerificationRunEntity passedVerificationRun(DeploymentReleaseEntity release) {
+        DeploymentVerificationRunEntity run = new DeploymentVerificationRunEntity();
+        run.setId("vrf-passed");
+        run.setDeploymentId(release.getDeploymentId());
+        run.setReleaseId(release.getId());
+        run.setDeploymentVersionId(release.getDeploymentVersionId());
+        run.setVerificationType("MANUAL_RERUN");
+        run.setStatus("PASSED");
+        run.setSummaryMessage("Runtime verification passed after Coolify startup settled.");
+        run.setChecksJson("[]");
+        run.setCreatedAt(Instant.now());
+        run.setCompletedAt(Instant.now());
+        return run;
     }
 
     private DeploymentReleaseEntity staleMarketplaceDatasetSyncRelease(boolean withSummary) {

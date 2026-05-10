@@ -28,6 +28,19 @@ dev2.env
 dev*.env
 scripts/*.env
 
+# Terraform local state, provider cache, and secret var files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
 # Logs
 *.log
 logs/

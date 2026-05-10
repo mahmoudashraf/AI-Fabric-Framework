@@ -4,7 +4,7 @@ This guide defines where each credential belongs in Platform V2.
 
 The most important rule is:
 
-- Railway service env vars configure the platform service itself
+- platform host service env vars configure the platform service itself
 - platform `Secrets` workspace stores deployment-facing and vendor-facing secrets
 - platform API auth keys authenticate callers to the platform API
 - deployment draft JSON must not contain live secret values
@@ -13,27 +13,27 @@ The most important rule is:
 
 ### 1.1 Platform service environment variables
 
-These are set on the Railway deployment for the platform backend itself.
+These are set on the platform backend host service itself. In current staging this is the Coolify Platform backend application; older Railway references are deployment-provider compatibility, not the staging source of truth.
 
 Examples:
 
 - `PLATFORM_DB_URL`
 - `PLATFORM_DB_USERNAME`
 - `PLATFORM_DB_PASSWORD`
-- `RAILWAY_API_TOKEN`
-- `RAILWAY_WORKSPACE_ID`
 - `PLATFORM_DEPLOY_REPOSITORY`
 - `PLATFORM_DEPLOY_BRANCH`
 - `PLATFORM_PUBLIC_BASE_URL`
 - `PLATFORM_PROVISIONING_MODE`
+- provider-specific tokens or workspace ids only when that provider is active
 
 These do not belong in the platform `Secrets` workspace.
 
 Why:
 
 - `PLATFORM_DB_*` configures the platform application datasource
-- `RAILWAY_API_TOKEN` and `RAILWAY_WORKSPACE_ID` configure the platform provisioning provider
+- provider-specific tokens configure the platform provisioning provider
 - repository, branch, and public base URL are platform runtime settings, not deployment secrets
+- on Coolify, `PLATFORM_DEPLOY_REPOSITORY`, `PLATFORM_DEPLOY_BRANCH`, and `PLATFORM_PROVISIONING_MODE` must be non-preview env vars on the Platform backend app; preview-only rows do not drive normal managed product-service reconciliation
 
 ### 1.2 Platform API authentication keys
 
@@ -157,22 +157,36 @@ Examples:
 
 These are internal managed secrets and are not entered manually by operators in most cases.
 
+### 1.8 Managed product service internal API secrets
+
+Platform-managed product services have one internal API secret per service record. The service record field is `secretName`; Platform resolves that secret and injects it into the deployed service.
+
+Examples:
+
+- `MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY`
+- `MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY`
+- `MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_PRODUCTION_API_KEY`
+- `MANAGED_PRODUCT_SHOPIFY_BRIDGE_PRODUCTION_API_KEY`
+
+These are service-to-service/admin keys, not Platform API keys and not vendor keys.
+
+See `Final_Documentation/Development_Guides/MANAGED_PRODUCT_SERVICES_AUTH_GUIDE.md`.
+
 ## 2. What Goes Where
 
-### 2.1 Railway env on the platform backend service
+### 2.1 Platform backend host env
 
-Put these in Railway env for the platform backend:
+Put these in the platform backend host env:
 
 - `PLATFORM_DB_URL`
 - `PLATFORM_DB_USERNAME`
 - `PLATFORM_DB_PASSWORD`
-- `RAILWAY_API_TOKEN`
-- `RAILWAY_WORKSPACE_ID`
 - `PLATFORM_DEPLOY_REPOSITORY`
 - `PLATFORM_DEPLOY_BRANCH`
 - `PLATFORM_PUBLIC_BASE_URL`
 - `PLATFORM_PROVISIONING_MODE`
 - optional platform auth env values
+- provider-specific token/workspace env values only for the active provider
 
 Do not put them in deployment drafts.
 
@@ -194,6 +208,7 @@ Put these in the platform `Secrets` workspace:
 - `MILVUS_PASSWORD`
 - optional `PLATFORM_OPERATOR_API_KEY`
 - optional `PLATFORM_ADMIN_API_KEY`
+- managed product-service internal API keys such as `MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY`
 
 ### 2.3 Do not put these in draft config JSON
 

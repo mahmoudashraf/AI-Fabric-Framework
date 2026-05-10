@@ -18,9 +18,11 @@ public class WebConfig {
                     && corsProperties.getAllowedOriginPatterns().isEmpty())) {
                     return;
                 }
+                validateCorsConfiguration(corsProperties);
                 var registration = registry.addMapping("/api/**")
-                    .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                    .allowedHeaders("*")
+                    // PATCH is required by Platform-managed deployment repair/reconcile APIs; origin scope stays property-driven.
+                    .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                    .allowedHeaders(corsProperties.getAllowedHeaders().toArray(String[]::new))
                     .allowCredentials(corsProperties.isAllowCredentials());
 
                 if (!corsProperties.getAllowedOrigins().isEmpty()) {
@@ -31,5 +33,22 @@ public class WebConfig {
                 }
             }
         };
+    }
+
+    private void validateCorsConfiguration(PlatformCorsProperties corsProperties) {
+        if (!corsProperties.isAllowCredentials()) {
+            return;
+        }
+        boolean wildcardOrigin = corsProperties.getAllowedOrigins().stream()
+            .anyMatch("*"::equals)
+            || corsProperties.getAllowedOriginPatterns().stream()
+            .anyMatch("*"::equals);
+        if (wildcardOrigin) {
+            throw new IllegalStateException("CORS credentials cannot be enabled with wildcard origins.");
+        }
+        if (corsProperties.getAllowedHeaders().isEmpty()
+            || corsProperties.getAllowedHeaders().stream().anyMatch("*"::equals)) {
+            throw new IllegalStateException("CORS credentials require an explicit allowed header list.");
+        }
     }
 }

@@ -101,4 +101,18 @@ class PlatformSecretServiceTest {
             .extracting(PlatformSecretSummary::name)
             .contains("PARTNER_SUPABASE_JWT");
     }
+
+    @Test
+    void listSecretsIncludesCoolifyProviderTokens() {
+        PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
+        when(repository.findAll()).thenReturn(List.of());
+        when(repository.findById("COOLIFY_STAGING_API_TOKEN")).thenReturn(Optional.empty());
+        MockEnvironment environment = new MockEnvironment().withProperty("COOLIFY_STAGING_API_TOKEN", "coolify-token");
+        PlatformSecretService service = new PlatformSecretService(repository, mock(PlatformAuditService.class), environment);
+
+        assertThat(service.resolveSecret("COOLIFY_STAGING_API_TOKEN")).isEqualTo("coolify-token");
+        assertThat(service.listSecrets())
+            .extracting(PlatformSecretSummary::name)
+            .contains("COOLIFY_STAGING_API_TOKEN", "COOLIFY_PRODUCTION_API_TOKEN");
+    }
 }

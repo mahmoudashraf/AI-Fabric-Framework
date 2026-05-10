@@ -30,15 +30,17 @@ import {
   clearPlatformDeploymentOverrideSecret,
   clearPlatformSecret,
   fetchDeploymentDraft,
+  fetchDeploymentTargetProfilePreflight,
+  fetchDeploymentTargetProfiles,
   fetchDeploymentProviderSecretBindings,
   fetchDeploymentSecurityGovernance,
   fetchDeploymentSecretUsage,
   fetchPlatformDeploymentOverrideSecrets,
   fetchPlatformSecretAuditEvents,
   fetchPlatformSecrets,
-  fetchRailwayPreflight,
   upsertDeploymentProviderSecretBinding,
   upsertPlatformDeploymentOverrideSecret,
+  type DeploymentTargetProfileSummary,
   type PlatformAuditEventSummary,
   updateDeploymentGuardrails,
   updatePlatformSecret,
@@ -328,9 +330,21 @@ export function SecurityPage() {
     enabled: canManageSecrets,
   })
 
-  const railwayPreflightQuery = useQuery({
-    queryKey: ['railway-preflight'],
-    queryFn: fetchRailwayPreflight,
+  const targetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles'],
+    queryFn: () => fetchDeploymentTargetProfiles(),
+    enabled: selectedDeploymentId.length > 0,
+  })
+
+  const runtimeDefaultTargetProfile = useMemo<DeploymentTargetProfileSummary | null>(
+    () => (targetProfilesQuery.data ?? []).find((profile) => profile.active && profile.defaultForRuntime) ?? null,
+    [targetProfilesQuery.data],
+  )
+
+  const providerPreflightQuery = useQuery({
+    queryKey: ['deployment-provider-preflight', runtimeDefaultTargetProfile?.id],
+    queryFn: () => fetchDeploymentTargetProfilePreflight(runtimeDefaultTargetProfile!.id),
+    enabled: !!runtimeDefaultTargetProfile,
   })
 
   const secretUsageQuery = useQuery({
@@ -447,7 +461,7 @@ export function SecurityPage() {
       }))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
-        queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-preflight'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
       ])
     },
@@ -465,7 +479,7 @@ export function SecurityPage() {
       }))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['platform-secrets'] }),
-        queryClient.invalidateQueries({ queryKey: ['railway-preflight'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-provider-preflight'] }),
         queryClient.invalidateQueries({ queryKey: ['deployment-secret-usage', selectedDeploymentId] }),
       ])
     },
@@ -577,7 +591,7 @@ export function SecurityPage() {
     <Stack spacing={3}>
       <Box>
         <Chip label="Security" color="primary" sx={{ mb: 1.5, fontWeight: 700 }} />
-        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: -0.8 }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0 }}>
           Security config editor
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1.25, maxWidth: 980 }}>
@@ -1512,9 +1526,8 @@ export function SecurityPage() {
             <Box>
               <Typography variant="h6">Platform deployment secrets</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 920 }}>
-                Phase 12 moves required deployment secrets into the platform layer. Railway provisioning now
-                resolves required secret placeholders from this store first, with process env as a fallback for
-                local development and transition.
+                Required deployment secrets resolve through the platform layer before the active deployment
+                provider reconciles services. Process env remains a local development fallback.
               </Typography>
             </Box>
 
@@ -1525,19 +1538,22 @@ export function SecurityPage() {
 
             <Alert severity="info">
               Secret changes do not use drafts or publishing. Save the secret here, then re-apply the current
-              version when you want Railway deployments to receive the new value.
+              version when you want provider-managed deployments to receive the new value.
             </Alert>
 
-            {railwayPreflightQuery.data ? (
+            {providerPreflightQuery.data ? (
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 <Chip
-                  label={railwayPreflightQuery.data.ready ? 'Railway Preflight Ready' : 'Railway Preflight Blocked'}
-                  color={railwayPreflightQuery.data.ready ? 'success' : 'warning'}
+                  label={providerPreflightQuery.data.status === 'READY' ? 'Provider Preflight Ready' : 'Provider Preflight Blocked'}
+                  color={providerPreflightQuery.data.status === 'READY' ? 'success' : 'warning'}
                 />
                 <Chip
-                  label={`Mode: ${railwayPreflightQuery.data.mode}`}
+                  label={`Provider: ${providerPreflightQuery.data.providerType}`}
                   variant="outlined"
                 />
+                {runtimeDefaultTargetProfile ? (
+                  <Chip label={`Target: ${runtimeDefaultTargetProfile.name}`} variant="outlined" />
+                ) : null}
               </Stack>
             ) : null}
 
@@ -1727,7 +1743,7 @@ export function SecurityPage() {
 
                   <Alert severity={draftDirty ? 'warning' : 'info'}>
                     {draftDirty
-                      ? 'These security settings are draft-backed config. Save the draft first, then publish a version, then apply it to Railway.'
+                      ? 'These security settings are draft-backed config. Save the draft first, then publish a version, then apply it through the selected deployment provider.'
                       : 'These settings are versioned config. Any future change here will require Save Draft, Publish, and Apply.'}
                   </Alert>
 

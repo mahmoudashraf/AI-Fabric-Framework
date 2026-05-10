@@ -434,6 +434,12 @@ class ShopifyMerchantControllerTest {
                 Instant.parse("2026-05-25T12:00:00Z"),
                 null,
                 null,
+                "merchant@example.com",
+                "RECORDED",
+                "EMAIL_DISABLED",
+                "Email delivery is disabled; notification was recorded but not sent.",
+                Instant.parse("2026-04-25T12:30:00Z"),
+                1,
                 Instant.parse("2026-04-25T12:00:00Z")
             )
         ));

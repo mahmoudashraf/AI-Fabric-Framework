@@ -1,0 +1,26 @@
+actions:
+  - name: inventory_search
+    displayName: Inventory Search
+    description: Search inventory through MCP.
+    category: inventory
+    adapterType: mcp-tool
+    accessMode: READ
+    execution:
+      adapterType: mcp-tool
+      mcp:
+        serverRef: inventory-mcp
+        toolName: inventory.search
+        argumentTemplate:
+          query: "{{params.query}}"
+        responseMapping:
+          resultPath: "$.structuredContent.products"
+    params:
+      - name: query
+        type: STRING
+        required: true
+mcpServers:
+  - serverRef: inventory-mcp
+    transport: STREAMABLE_HTTP
+    endpointUrl: https://inventory.example/mcp
+    auth:
+      mode: NONE

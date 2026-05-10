@@ -1,0 +1,63 @@
+#cloud-config
+hostname: ${host_name}
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - default
+  - name: ${admin_user}
+    gecos: LoomAI Coolify Operator
+    groups:
+      - adm
+      - sudo
+    lock_passwd: true
+    shell: /bin/bash
+    sudo:
+      - ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+%{ for key in ssh_authorized_keys ~}
+      - ${key}
+%{ endfor ~}
+
+package_update: true
+package_upgrade: true
+packages:
+  - acl
+  - ca-certificates
+  - curl
+  - fail2ban
+  - git
+  - gnupg
+  - htop
+  - jq
+  - lsb-release
+  - rsync
+  - ufw
+  - unattended-upgrades
+  - unzip
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-loom-hardening.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      PubkeyAuthentication yes
+      X11Forwarding no
+      AllowTcpForwarding yes
+      MaxAuthTries 3
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+  - path: /usr/local/sbin/loom-coolify-bootstrap.sh
+    owner: root:root
+    permissions: "0755"
+    content: |
+${bootstrap_script}
+
+runcmd:
+  - [bash, -lc, "/usr/local/sbin/loom-coolify-bootstrap.sh"]
+
+final_message: "LoomAI Coolify host bootstrap finished after $UPTIME seconds"

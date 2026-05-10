@@ -8,12 +8,16 @@ import com.ai.fabric.platform.backend.partner.model.PartnerClientImplementationS
 import com.ai.fabric.platform.backend.partner.model.PartnerEligibleStoreSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleCreateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerEvidenceBundleSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerLaunchReadinessSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerManualVerificationStepRequest;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessInviteRequest;
+import com.ai.fabric.platform.backend.partner.model.MerchantPartnerAccessInviteSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerMemberUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialActivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerPackageTrialDeactivationRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerProductionPromotionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
@@ -88,6 +92,18 @@ public class PartnerEnablementController {
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
     public PartnerStoreSummary getStore(@PathVariable String storeId) {
         return service.getStore(storeId);
+    }
+
+    @GetMapping("/stores/{storeId}/launch-readiness")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerLaunchReadinessSummary getLaunchReadiness(@PathVariable String storeId) {
+        return service.getLaunchReadiness(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/production-promotions")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerProductionPromotionSummary requestProductionPromotion(@PathVariable String storeId) {
+        return service.requestProductionPromotion(storeId);
     }
 
     @GetMapping("/stores/{storeId}/product-controls")
@@ -222,6 +238,13 @@ public class PartnerEnablementController {
     @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER')")
     public PartnerStoreAccessLinkSummary createStoreAccessLink(@PathVariable String requestId) {
         return service.createStoreAccessLink(requestId);
+    }
+
+    @PostMapping("/client-implementations/{requestId}/merchant-invites")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER')")
+    public MerchantPartnerAccessInviteSummary sendMerchantInvite(@PathVariable String requestId,
+                                                                 @Valid @RequestBody(required = false) MerchantPartnerAccessInviteRequest request) {
+        return service.sendMerchantInviteForImplementation(requestId, request == null ? new MerchantPartnerAccessInviteRequest(null) : request);
     }
 
     @GetMapping("/catalog")
