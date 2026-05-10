@@ -55,6 +55,9 @@ public class McpGatewayExecutionService {
     private static final Pattern EXACT_TEMPLATE = Pattern.compile("^\\{\\{\\s*([^{}]+?)\\s*}}$");
     private static final Pattern TEMPLATE = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
     private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]{1,127}");
+    private static final Pattern IPV4_LITERAL = Pattern.compile(
+        "^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$"
+    );
     private static final Set<String> BLOCKED_HEADER_NAMES = Set.of(
         "AUTHORIZATION",
         "COOKIE",
@@ -557,12 +560,64 @@ public class McpGatewayExecutionService {
         if (!StringUtils.hasText(endpoint)) {
             throw new IllegalArgumentException("MCP server endpoint is required for " + firstNonBlank(serverRef, "server") + ".");
         }
-        URI uri = URI.create(endpoint.trim());
+        return requirePublicHttpsUri(endpoint, "MCP server endpoint");
+    }
+
+    private URI requirePublicHttpsUri(String rawUri, String fieldName) {
+        URI uri = URI.create(rawUri.trim());
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-        if (!"https".equals(scheme) && !"http".equals(scheme)) {
-            throw new IllegalArgumentException("MCP server endpoint must be http or https.");
+        if (!"https".equals(scheme)) {
+            throw new IllegalArgumentException(fieldName + " must use https.");
+        }
+        String host = uri.getHost();
+        if (!StringUtils.hasText(host) || StringUtils.hasText(uri.getUserInfo()) || isBlockedOutboundHost(host)) {
+            throw new IllegalArgumentException(fieldName + " host is not allowed.");
         }
         return uri;
+    }
+
+    private boolean isBlockedOutboundHost(String host) {
+        String normalized = host == null ? "" : host.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("[") && normalized.endsWith("]")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (!StringUtils.hasText(normalized)
+            || "localhost".equals(normalized)
+            || normalized.endsWith(".localhost")
+            || normalized.endsWith(".local")
+            || normalized.endsWith(".internal")
+            || "metadata.google.internal".equals(normalized)) {
+            return true;
+        }
+        if (IPV4_LITERAL.matcher(normalized).matches()) {
+            String[] parts = normalized.split("\\.");
+            int first = Integer.parseInt(parts[0]);
+            int second = Integer.parseInt(parts[1]);
+            return first == 0
+                || first == 10
+                || first == 127
+                || first == 169 && second == 254
+                || first == 172 && second >= 16 && second <= 31
+                || first == 192 && second == 168
+                || first >= 224;
+        }
+        if (!normalized.contains(":")) {
+            return false;
+        }
+        return "::".equals(normalized)
+            || "::1".equals(normalized)
+            || normalized.startsWith("0:")
+            || normalized.startsWith("fc")
+            || normalized.startsWith("fd")
+            || normalized.startsWith("fe80:")
+            || normalized.startsWith("::ffff:0:")
+            || normalized.startsWith("::ffff:127.")
+            || normalized.startsWith("::ffff:169.254.")
+            || normalized.startsWith("::ffff:10.")
+            || normalized.startsWith("::ffff:192.168.");
     }
 
     private String renderEndpointTemplate(String template, Object request, JsonNode trace) {
@@ -931,10 +986,7 @@ public class McpGatewayExecutionService {
         if (!StringUtils.hasText(tokenUrl)) {
             throw new IllegalArgumentException("MCP OAuth2 client credentials auth requires tokenUrl.");
         }
-        URI tokenUri = URI.create(tokenUrl.trim());
-        if (!"https".equalsIgnoreCase(tokenUri.getScheme())) {
-            throw new IllegalArgumentException("MCP OAuth2 tokenUrl must use https.");
-        }
+        URI tokenUri = requirePublicHttpsUri(tokenUrl, "MCP OAuth2 tokenUrl");
         String clientId = firstNonBlank(
             text(auth, "clientId"),
             firstNonBlank(

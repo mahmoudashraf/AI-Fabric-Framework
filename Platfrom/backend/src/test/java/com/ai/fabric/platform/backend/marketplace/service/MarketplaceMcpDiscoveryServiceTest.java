@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -116,6 +118,83 @@ class MarketplaceMcpDiscoveryServiceTest {
         } finally {
             gateway.stop(0);
         }
+    }
+
+    @Test
+    void discoverRejectsNonMcpSecretRefWithoutLeakingRequestedSecretName() {
+        PlatformManagedProductServiceEntity gatewayService = new PlatformManagedProductServiceEntity();
+        gatewayService.setServiceRef("mcp-execution-gateway");
+        gatewayService.setBaseUrl("http://127.0.0.1:1");
+        gatewayService.setSecretName("MCP_GATEWAY_INTERNAL_API_KEY");
+
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        when(productServiceService.requireService("mcp-execution-gateway")).thenReturn(gatewayService);
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("MCP_GATEWAY_INTERNAL_API_KEY")).thenReturn("gateway-secret");
+
+        MarketplaceMcpDiscoveryService service = new MarketplaceMcpDiscoveryService(
+            properties(),
+            productServiceService,
+            secretService,
+            mock(MarketplacePluginRepository.class),
+            mock(MarketplacePluginVersionRepository.class),
+            mock(MarketplaceManifestService.class),
+            mock(PlatformAuditService.class),
+            objectMapper
+        );
+
+        assertThatThrownBy(() -> service.discover(new MarketplaceMcpDiscoveryRequest(
+            "inventory-mcp",
+            Map.of(
+                "endpointUrl", "https://inventory.example/mcp",
+                "auth", Map.of(
+                    "mode", "API_KEY_HEADER_SECRET",
+                    "headerName", "X-MCP-API-KEY",
+                    "secretRef", "MANAGED_PINECONE_API_KEY_DEP_OTHER"
+                )
+            ),
+            Map.of(),
+            List.of("inventory.search"),
+            null
+        )))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                assertThat(exception.getMessage()).contains("MCP auth secretRef is invalid: secretRef");
+                assertThat(exception.getMessage()).doesNotContain("MANAGED_PINECONE_API_KEY_DEP_OTHER");
+            });
+    }
+
+    @Test
+    void discoverRejectsPrivateGatewayBaseUrl() {
+        PlatformManagedProductServiceEntity gatewayService = new PlatformManagedProductServiceEntity();
+        gatewayService.setServiceRef("mcp-execution-gateway");
+        gatewayService.setBaseUrl("http://169.254.169.254");
+        gatewayService.setSecretName("MCP_GATEWAY_INTERNAL_API_KEY");
+
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        when(productServiceService.requireService("mcp-execution-gateway")).thenReturn(gatewayService);
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.resolveSecret("MCP_GATEWAY_INTERNAL_API_KEY")).thenReturn("gateway-secret");
+
+        MarketplaceMcpDiscoveryService service = new MarketplaceMcpDiscoveryService(
+            properties(),
+            productServiceService,
+            secretService,
+            mock(MarketplacePluginRepository.class),
+            mock(MarketplacePluginVersionRepository.class),
+            mock(MarketplaceManifestService.class),
+            mock(PlatformAuditService.class),
+            objectMapper
+        );
+
+        assertThatThrownBy(() -> service.discover(new MarketplaceMcpDiscoveryRequest(
+            "inventory-mcp",
+            Map.of("endpointUrl", "https://inventory.example/mcp", "auth", Map.of("mode", "NONE")),
+            Map.of(),
+            List.of("inventory.search"),
+            null
+        )))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getMessage()).contains("MCP gateway product service baseUrl is not allowed"));
     }
 
     private PlatformProductProvisioningProperties properties() {

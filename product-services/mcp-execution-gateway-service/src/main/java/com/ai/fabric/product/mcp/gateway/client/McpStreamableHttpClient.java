@@ -16,8 +16,11 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 
@@ -26,6 +29,34 @@ public class McpStreamableHttpClient {
 
     public static final String MCP_SESSION_ID_HEADER = "MCP-Session-Id";
     public static final String MCP_PROTOCOL_VERSION_HEADER = "MCP-Protocol-Version";
+    private static final Pattern HEADER_NAME = Pattern.compile("[!#$%&'*+.^_`|~0-9A-Za-z-]+");
+    private static final Set<String> BLOCKED_OPTION_HEADER_NAMES = Set.of(
+        "ACCEPT",
+        "CONNECTION",
+        "CONTENT-LENGTH",
+        "CONTENT-TYPE",
+        "COOKIE",
+        "EXPECT",
+        "FORWARDED",
+        "HOST",
+        "MCP-PROTOCOL-VERSION",
+        "MCP-SESSION-ID",
+        "ORIGIN",
+        "REFERER",
+        "SET-COOKIE",
+        "TE",
+        "TRAILER",
+        "TRANSFER-ENCODING",
+        "UPGRADE",
+        "X-FORWARDED-FOR",
+        "X-FORWARDED-HOST",
+        "X-FORWARDED-PROTO",
+        "X-MCP-GATEWAY-API-KEY"
+    );
+    private static final Set<String> BUILTIN_ALLOWED_OPTION_HEADER_NAMES = Set.of(
+        "AUTHORIZATION",
+        "SHOPIFY-BUYER-IP"
+    );
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -193,9 +224,43 @@ public class McpStreamableHttpClient {
         }
         options.headers().forEach((name, value) -> {
             if (StringUtils.hasText(name) && StringUtils.hasText(value)) {
-                headers.set(name.trim(), value.trim());
+                String headerName = validateOutboundHeaderName(name);
+                String headerValue = validateOutboundHeaderValue(value);
+                headers.set(headerName, headerValue);
             }
         });
+    }
+
+    private String validateOutboundHeaderName(String rawName) {
+        String name = rawName == null ? "" : rawName.trim();
+        String normalized = name.toUpperCase(Locale.ROOT);
+        if (!StringUtils.hasText(name)
+            || !HEADER_NAME.matcher(name).matches()
+            || BLOCKED_OPTION_HEADER_NAMES.contains(normalized)) {
+            throw new ResponseStatusException(BAD_GATEWAY, "MCP outbound header is not allowed.");
+        }
+        boolean allowed = BUILTIN_ALLOWED_OPTION_HEADER_NAMES.contains(normalized)
+            || properties.apiKeyHeaderAllowlist().stream()
+            .map(value -> value.trim().toUpperCase(Locale.ROOT))
+            .anyMatch(normalized::equals);
+        if (!allowed) {
+            throw new ResponseStatusException(BAD_GATEWAY, "MCP outbound header is not allowlisted.");
+        }
+        return name;
+    }
+
+    private String validateOutboundHeaderValue(String rawValue) {
+        String value = rawValue == null ? "" : rawValue.trim();
+        if (!StringUtils.hasText(value)) {
+            throw new ResponseStatusException(BAD_GATEWAY, "MCP outbound header value is required.");
+        }
+        for (int index = 0; index < value.length(); index++) {
+            char ch = value.charAt(index);
+            if (ch == '\r' || ch == '\n' || ch == 0 || (Character.isISOControl(ch) && ch != '\t')) {
+                throw new ResponseStatusException(BAD_GATEWAY, "MCP outbound header value is invalid.");
+            }
+        }
+        return value;
     }
 
     private JsonNode readJsonRpcMessage(ResponseEntity<String> response) {

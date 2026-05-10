@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProf
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -46,6 +47,7 @@ public class DeploymentProviderResourceActionService {
         this.objectMapper = objectMapper;
     }
 
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public List<DeploymentProviderResourceHandleSummary> listResources(DeploymentProviderType providerType,
                                                                        String deploymentId,
                                                                        String targetProfileId) {
@@ -64,6 +66,7 @@ public class DeploymentProviderResourceActionService {
         return handles.stream().map(this::toSummary).toList();
     }
 
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderPreflightSummary preflight(String targetProfileId) {
         DeploymentTargetProfileEntity profile = targetProfileRepository.findById(targetProfileId)
             .orElseThrow(() -> new ResponseStatusException(
@@ -74,30 +77,35 @@ public class DeploymentProviderResourceActionService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceActionSummary start(String handleId, DeploymentProviderResourceActionRequest request) {
         return recordAction(handleId, "START", request, handle -> providerRegistry.require(handle.getProviderType())
             .start(handle, reason(request)));
     }
 
     @Transactional
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceActionSummary stop(String handleId, DeploymentProviderResourceActionRequest request) {
         return recordAction(handleId, "STOP", request, handle -> providerRegistry.require(handle.getProviderType())
             .stop(handle, reason(request)));
     }
 
     @Transactional
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceActionSummary restart(String handleId, DeploymentProviderResourceActionRequest request) {
         return recordAction(handleId, "RESTART", request, handle -> providerRegistry.require(handle.getProviderType())
             .restart(handle, reason(request)));
     }
 
     @Transactional
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceActionSummary delete(String handleId, DeploymentProviderResourceActionRequest request) {
         return recordAction(handleId, "DELETE", request, handle -> providerRegistry.require(handle.getProviderType())
             .delete(handle, reason(request)));
     }
 
     @Transactional
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceStatusSummary status(String handleId) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
         DeploymentProviderResourceStatusSummary status = providerRegistry.require(handle.getProviderType()).status(handle);
@@ -110,6 +118,7 @@ public class DeploymentProviderResourceActionService {
         return status;
     }
 
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceLogsSummary logs(String handleId, int lines) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
         DeploymentProviderResourceLogsSummary logs = providerRegistry.require(handle.getProviderType()).logs(handle, lines);

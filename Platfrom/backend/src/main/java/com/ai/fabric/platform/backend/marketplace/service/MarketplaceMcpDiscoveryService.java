@@ -46,7 +46,11 @@ public class MarketplaceMcpDiscoveryService {
 
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(45);
     private static final String GATEWAY_API_KEY_HEADER = "X-MCP-GATEWAY-API-KEY";
+    private static final String MCP_SECRET_REF_PREFIX = "MCP_SECRET_";
     private static final Pattern SECRET_REF_PATTERN = Pattern.compile("[A-Z][A-Z0-9_]{1,127}");
+    private static final Pattern IPV4_LITERAL = Pattern.compile(
+        "^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$"
+    );
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
@@ -295,12 +299,12 @@ public class MarketplaceMcpDiscoveryService {
         if (!StringUtils.hasText(secretRef)) {
             return;
         }
-        if (!SECRET_REF_PATTERN.matcher(secretRef).matches()) {
+        if (!SECRET_REF_PATTERN.matcher(secretRef).matches() || !secretRef.startsWith(MCP_SECRET_REF_PREFIX)) {
             throw new ResponseStatusException(CONFLICT, "MCP auth secretRef is invalid: " + key);
         }
         String secretValue = platformSecretService.resolveSecret(secretRef);
         if (!StringUtils.hasText(secretValue)) {
-            throw new ResponseStatusException(CONFLICT, "MCP auth secretRef is missing: " + secretRef);
+            throw new ResponseStatusException(CONFLICT, "MCP auth secretRef is unavailable: " + key);
         }
         out.put(secretRef, secretValue.trim());
     }
@@ -316,9 +320,10 @@ public class MarketplaceMcpDiscoveryService {
         }
         String apiKey = platformSecretService.resolveSecret(service.getSecretName());
         if (!StringUtils.hasText(apiKey)) {
-            throw new ResponseStatusException(CONFLICT, "MCP gateway product service secret is missing: " + service.getSecretName());
+            throw new ResponseStatusException(CONFLICT, "MCP gateway product service secret is missing.");
         }
-        return new GatewayBinding(service.getBaseUrl().trim(), apiKey.trim());
+        URI baseUri = requireGatewayBaseUri(service.getBaseUrl());
+        return new GatewayBinding(baseUri.toString(), apiKey.trim());
     }
 
     private JsonNode postGateway(GatewayBinding gateway, String path, Map<String, Object> payload) {
@@ -341,6 +346,73 @@ public class MarketplaceMcpDiscoveryService {
         } catch (Exception ex) {
             throw new ResponseStatusException(CONFLICT, "MCP gateway request failed: " + ex.getMessage(), ex);
         }
+    }
+
+    private URI requireGatewayBaseUri(String rawBaseUrl) {
+        URI uri = URI.create(rawBaseUrl.trim());
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        String host = uri.getHost();
+        if (!StringUtils.hasText(host) || StringUtils.hasText(uri.getUserInfo())) {
+            throw new ResponseStatusException(CONFLICT, "MCP gateway product service baseUrl is invalid.");
+        }
+        boolean loopback = isLoopbackHost(host);
+        if ("http".equals(scheme) && loopback) {
+            return uri;
+        }
+        if (!"https".equals(scheme) || isBlockedGatewayHost(host)) {
+            throw new ResponseStatusException(CONFLICT, "MCP gateway product service baseUrl is not allowed.");
+        }
+        return uri;
+    }
+
+    private boolean isBlockedGatewayHost(String host) {
+        String normalized = normalizeHost(host);
+        if (!StringUtils.hasText(normalized)
+            || "metadata.google.internal".equals(normalized)
+            || normalized.endsWith(".local")
+            || normalized.endsWith(".internal")
+            || normalized.endsWith(".localhost")) {
+            return true;
+        }
+        if (IPV4_LITERAL.matcher(normalized).matches()) {
+            String[] parts = normalized.split("\\.");
+            int first = Integer.parseInt(parts[0]);
+            int second = Integer.parseInt(parts[1]);
+            return first == 0
+                || first == 10
+                || first == 127
+                || first == 169 && second == 254
+                || first == 172 && second >= 16 && second <= 31
+                || first == 192 && second == 168
+                || first >= 224;
+        }
+        if (!normalized.contains(":")) {
+            return false;
+        }
+        return "::".equals(normalized)
+            || "::1".equals(normalized)
+            || normalized.startsWith("0:")
+            || normalized.startsWith("fc")
+            || normalized.startsWith("fd")
+            || normalized.startsWith("fe80:");
+    }
+
+    private boolean isLoopbackHost(String host) {
+        String normalized = normalizeHost(host);
+        return "localhost".equals(normalized)
+            || "127.0.0.1".equals(normalized)
+            || "::1".equals(normalized);
+    }
+
+    private String normalizeHost(String host) {
+        String normalized = host == null ? "" : host.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("[") && normalized.endsWith("]")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private MarketplaceMcpDiscoverySummary toDiscoverySummary(JsonNode node) {

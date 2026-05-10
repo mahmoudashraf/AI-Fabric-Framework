@@ -13,6 +13,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -59,6 +60,44 @@ class McpStreamableHttpClientTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
                     assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY);
                     assertThat(exception).hasMessageContaining("MCP server returned HTTP 302 redirect to /password");
+                });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void rejectsBlockedAndMalformedOutboundHeadersBeforeSendingRequest() throws Exception {
+        HttpServer server = slowMcpServer(Duration.ZERO);
+        try {
+            McpStreamableHttpClient client = new McpStreamableHttpClient(
+                RestClient.builder(),
+                objectMapper,
+                properties(Duration.ofMillis(500), Duration.ofMillis(500))
+            );
+
+            assertThatThrownBy(() -> client.initialize(
+                endpoint(server),
+                McpStreamableHttpClient.McpRequestOptions.withHeaders(
+                    "2025-11-25",
+                    Map.of("Host", "attacker.example")
+                )
+            ))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY);
+                    assertThat(exception).hasMessageContaining("MCP outbound header is not allowed");
+                });
+
+            assertThatThrownBy(() -> client.initialize(
+                endpoint(server),
+                McpStreamableHttpClient.McpRequestOptions.withHeaders(
+                    "2025-11-25",
+                    Map.of("X-MCP-API-KEY", "safe\r\nInjected: yes")
+                )
+            ))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY);
+                    assertThat(exception).hasMessageContaining("MCP outbound header value is invalid");
                 });
         } finally {
             server.stop(0);

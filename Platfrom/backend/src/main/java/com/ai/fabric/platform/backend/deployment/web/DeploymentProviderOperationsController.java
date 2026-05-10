@@ -84,6 +84,7 @@ public class DeploymentProviderOperationsController {
     }
 
     @GetMapping("/resources")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public List<DeploymentProviderResourceHandleSummary> listResources(@RequestParam(required = false) DeploymentProviderType providerType,
                                                                        @RequestParam(required = false) String deploymentId,
                                                                        @RequestParam(required = false) String targetProfileId) {
@@ -91,29 +92,34 @@ public class DeploymentProviderOperationsController {
     }
 
     @GetMapping("/resources/{handleId}/status")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceStatusSummary resourceStatus(@PathVariable String handleId) {
         return providerResourceActionService.status(handleId);
     }
 
     @GetMapping("/resources/{handleId}/logs")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceLogsSummary resourceLogs(@PathVariable String handleId,
                                                               @RequestParam(defaultValue = "200") int lines) {
         return providerResourceActionService.logs(handleId, lines);
     }
 
     @PostMapping("/resources/{handleId}/start")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceActionSummary startResource(@PathVariable String handleId,
                                                                  @RequestBody(required = false) DeploymentProviderResourceActionRequest request) {
         return providerResourceActionService.start(handleId, request);
     }
 
     @PostMapping("/resources/{handleId}/stop")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceActionSummary stopResource(@PathVariable String handleId,
                                                                 @RequestBody(required = false) DeploymentProviderResourceActionRequest request) {
         return providerResourceActionService.stop(handleId, request);
     }
 
     @PostMapping("/resources/{handleId}/restart")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceActionSummary restartResource(@PathVariable String handleId,
                                                                    @RequestBody(required = false) DeploymentProviderResourceActionRequest request) {
         return providerResourceActionService.restart(handleId, request);

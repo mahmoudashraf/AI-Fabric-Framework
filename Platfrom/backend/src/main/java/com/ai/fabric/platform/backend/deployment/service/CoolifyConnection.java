@@ -5,4 +5,9 @@ public record CoolifyConnection(
     String token,
     CoolifyTargetProfileConfig config
 ) {
+
+    @Override
+    public String toString() {
+        return "CoolifyConnection[baseUrl=%s, token=***, config=%s]".formatted(baseUrl, config);
+    }
 }

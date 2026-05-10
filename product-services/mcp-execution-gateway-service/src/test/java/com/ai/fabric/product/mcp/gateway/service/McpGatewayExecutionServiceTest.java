@@ -169,6 +169,64 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void discoveryRejectsNonPublicMcpEndpointBeforeOutboundRequest() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        DiscoveryResponse response = service.discover(new DiscoveryRequest(
+            "metadata-mcp",
+            Map.of("endpointUrl", "https://169.254.169.254/latest", "auth", Map.of("mode", "NONE")),
+            Map.of(),
+            List.of()
+        ));
+
+        assertThat(response.ready()).isFalse();
+        assertThat(response.message()).contains("MCP server endpoint host is not allowed");
+        verify(client, never()).initialize(any(), any());
+    }
+
+    @Test
+    void executionRejectsPrivateOauthTokenEndpointBeforeOutboundRequest() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "inventory_search",
+            Map.of("query", "bag"),
+            null,
+            Map.of(
+                "mcpSecretValues", Map.of("MCP_SECRET_CLIENT_SECRET", "client-secret"),
+                "actionConfig", Map.of(
+                    "execution", Map.of(
+                        "adapterType", "mcp-tool",
+                        "mcp", Map.of(
+                            "serverRef", "inventory-mcp",
+                            "toolName", "inventory.search"
+                        )
+                    ),
+                    "mcpServers", Map.of(
+                        "inventory-mcp", Map.of(
+                            "endpointUrl", "https://inventory.example/mcp",
+                            "auth", Map.of(
+                                "mode", "OAUTH2_CLIENT_CREDENTIALS",
+                                "tokenUrl", "https://169.254.169.254/oauth/token",
+                                "clientId", "client-1",
+                                "clientSecretRef", "MCP_SECRET_CLIENT_SECRET"
+                            )
+                        )
+                    )
+                )
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_CONFIG");
+        assertThat(response.message()).contains("MCP OAuth2 tokenUrl host is not allowed");
+        verify(client, never()).initialize(any(), any());
+    }
+
+    @Test
     void executesWithEnvironmentSecretResolutionOnlyWhenExplicitlyEnabledAndPrefixed() throws Exception {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayProperties envProperties = new McpGatewayProperties(
