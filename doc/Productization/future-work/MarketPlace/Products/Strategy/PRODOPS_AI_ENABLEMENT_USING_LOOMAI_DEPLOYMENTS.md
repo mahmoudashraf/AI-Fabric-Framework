@@ -1,659 +1,608 @@
-# ProdOps AI Enablement Plan - Using LoomAI Deployments
+# ProdOps AI Enablement Plan - Integrating with LoomAI Runtime
 
-## The Model
+## The Correct Model
 
-ProdOps is not a new AI build. It is a new application deployed on the **existing LoomAI Product Platform** - the same managed runtime that already runs Companion for Shopify commerce.
+ProdOps is an **independent product** that integrates with a **LoomAI deployment** as its AI service provider. ProdOps owns its own infrastructure, database, frontend, backend, and business logic. It configures a LoomAI instance to use internally as an AI tool - the same way a product uses Stripe for payments or Algolia for search.
 
-The LoomAI platform is already deployed on Coolify/Hetzner with:
-- Thinker service (diagnosis sessions, evidence, plans, audit)
-- Resolver service (proposals, policy, dry-run, confirmation, execution)
-- Companion service (RAG-powered intelligent search and answers)
-- MCP execution engine (tool discovery, invocation, governance)
-- RAG pipeline (vector indexing, semantic retrieval, grounding)
-- Action registry (registered actions with schema, policy, execution)
-- Marketplace plugin system (capability packaging)
-- Deployment profiles (managed provisioning per product)
-- Partner/merchant approval workflows
-- Verification gates
-
-ProdOps **consumes these as deployed services**. It does not rebuild them. It configures them with productization-specific data, plugins, and policies.
+LoomAI is not running ProdOps. LoomAI is **selling AI runtime capabilities** to ProdOps as a customer.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                  LoomAI Product Platform                  │
-│              (Coolify / Hetzner / Managed)                │
-├─────────────────────────────────────────────────────────┤
+┌──────────────────────────────────────────────────────────┐
+│                  ProdOps Network                          │
+│            (Independent Product / Company)                │
 │                                                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
-│  │ Companion│  │ Thinker  │  │ Resolver │              │
-│  │ Service  │  │ Service  │  │ Service  │              │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘              │
-│       │              │              │                    │
-│  ┌────┴──────────────┴──────────────┴────┐              │
-│  │         MCP Execution Engine          │              │
-│  │    (Actions / Tools / Governance)     │              │
-│  └────────────────┬──────────────────────┘              │
-│                   │                                      │
-│  ┌────────────────┴──────────────────────┐              │
-│  │         RAG Pipeline + Vector Store    │              │
-│  └────────────────┬──────────────────────┘              │
-│                   │                                      │
-│  ┌────────────────┴──────────────────────┐              │
-│  │    Marketplace Plugins / Profiles      │              │
-│  └───────────────────────────────────────┘              │
+│  Own hosting ─ Own database ─ Own UI ─ Own backend       │
+│  Own business logic ─ Own marketplace ─ Own billing      │
 │                                                          │
-├──────────────────────────────────────────────────────────┤
-│  APPS RUNNING ON THE PLATFORM:                           │
+│  Needs AI capabilities for:                              │
+│  • Product diagnosis                                     │
+│  • Package governance                                    │
+│  • Service discovery                                     │
+│  • Team matching                                         │
+│  • Deliverable assessment                                │
+│  • Workspace intelligence                                │
 │                                                          │
-│  ┌────────────┐  ┌────────────┐  ┌────────────────┐    │
-│  │  Loom      │  │  ProdOps   │  │  Future Apps   │    │
-│  │  Companion │  │  Network   │  │  (220 products)│    │
-│  │  (Shopify) │  │  (Product- │  │                │    │
-│  │            │  │   ization) │  │                │    │
-│  └────────────┘  └────────────┘  └────────────────┘    │
+└────────────────────────┬─────────────────────────────────┘
+                         │
+                    Integrates with
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────┐
+│              LoomAI Runtime Deployment                    │
+│           (AI Service Provider to ProdOps)                │
 │                                                          │
+│  ProdOps configures its own LoomAI instance with:        │
+│  • Productization-specific RAG data                      │
+│  • Domain-specific Thinker session types                 │
+│  • ProdOps policy rules for Resolver                     │
+│  • Productization MCP tool registrations                 │
+│  • Service catalog as Companion knowledge base           │
+│                                                          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │ Thinker  │ │ Resolver │ │Companion │ │   MCP    │   │
+│  │   API    │ │   API    │ │   API    │ │  Engine  │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
+│                      ┌──────────┐                        │
+│                      │   RAG    │                        │
+│                      │ Pipeline │                        │
+│                      └──────────┘                        │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## What ProdOps Deploys vs. What It Consumes
+## What LoomAI Sells to ProdOps
 
-| Need | Consumes from LoomAI Platform | ProdOps builds only |
-|---|---|---|
-| Product diagnosis | Thinker deployment (create sessions, add evidence, generate plans) | Productization-specific question templates |
-| Package governance | Resolver deployment (proposals, policy check, dry-run, confirm) | Package policy rules and templates |
-| Service discovery | Companion deployment (RAG search, grounded answers) | Service taxonomy data + dependency rules |
-| Repo/deployment scanning | MCP execution engine (invoke registered tools) | GitHub/deployment tool registrations |
-| Knowledge base | RAG pipeline (index documents, semantic search) | Productization corpus (templates, cases, checklists) |
-| Team capabilities | Marketplace plugin system (capability registration) | Team capability schema and verification plugins |
-| Team/owner access | Partner/merchant approval workflows | ProdOps-specific roles (owner, team, expert) |
-| Workspace hosting | Deployment profiles (managed provisioning) | Workspace UI and collaboration logic |
-| Quality checks | Verification gates | Productization-specific gate criteria |
+LoomAI is a product that ProdOps purchases and deploys. The commercial relationship:
 
-**ProdOps builds the UI, the data, and the domain rules. LoomAI provides all AI execution.**
+| What LoomAI provides | What ProdOps gets |
+|---|---|
+| Thinker API | Evidence-backed diagnosis engine for any domain |
+| Resolver API | Governed execution with policy/dry-run/confirm for any workflow |
+| Companion API | RAG-powered intelligent search and grounded answers |
+| MCP Engine | Register and execute domain-specific tools with governance |
+| RAG Pipeline | Index domain data, retrieve semantically |
+| Configuration interface | Set up session types, policies, tools, knowledge bases |
 
----
+LoomAI earns recurring revenue from ProdOps through:
+- Deployment license / subscription
+- Usage-based pricing (per session, per query, per execution)
+- Or a combination
 
-## Thinker Deployment for ProdOps
-
-### How ProdOps uses the deployed Thinker service
-
-Thinker already exposes:
-- Create session
-- Add evidence (with source, type, content)
-- Generate plan (from evidence)
-- Export session (audit trail)
-- Redacted partner views
-
-ProdOps calls these APIs directly:
-
-### Use Case 1: Product Health Diagnosis
-
-```
-POST /thinker/sessions
-{
-  "context": "prodops-product-intake",
-  "question": "What is the productization state of this product?",
-  "product_id": "owner-product-123"
-}
-
-POST /thinker/sessions/{id}/evidence
-{
-  "type": "repo-scan",
-  "source": "mcp:github.repo.analyze",
-  "content": { ... scan results ... }
-}
-
-POST /thinker/sessions/{id}/evidence
-{
-  "type": "deployment-probe",
-  "source": "mcp:deployment.health",
-  "content": { ... probe results ... }
-}
-
-POST /thinker/sessions/{id}/plan
-→ Returns: structured diagnosis with service recommendations
-```
-
-**Result:** Owner sees a full evidence-backed health report. Each finding links to real evidence (repo scan, deployment probe, dependency audit). The plan recommends specific productization services.
-
-### Use Case 2: Deliverable Assessment
-
-```
-POST /thinker/sessions
-{
-  "context": "prodops-milestone-review",
-  "question": "Does this deliverable meet the acceptance criteria?",
-  "milestone_id": "milestone-456",
-  "acceptance_criteria": ["CI passing", "Tests > 80%", "No critical vulns", "Docs present"]
-}
-
-POST /thinker/sessions/{id}/evidence
-[... automated MCP checks for each criterion ...]
-
-POST /thinker/sessions/{id}/plan
-→ Returns: completeness assessment with pass/fail per criterion
-```
-
-### Use Case 3: Team Capability Assessment
-
-```
-POST /thinker/sessions
-{
-  "context": "prodops-team-verification",
-  "question": "What service categories is this team qualified for?",
-  "team_id": "team-789"
-}
-
-POST /thinker/sessions/{id}/evidence
-{
-  "type": "portfolio-analysis",
-  "source": "mcp:github.repos.scan",
-  "content": { ... repos analysis ... }
-}
-
-POST /thinker/sessions/{id}/plan
-→ Returns: recommended service categories with evidence
-```
+ProdOps is one customer. Any other product can do the same integration.
 
 ---
 
-## Resolver Deployment for ProdOps
+## What ProdOps Owns (Everything Except AI Runtime)
 
-### How ProdOps uses the deployed Resolver service
-
-Resolver already exposes:
-- Create proposal (connected to Thinker evidence)
-- Policy check (evaluate against rules)
-- Dry-run (preview expected outcomes)
-- Confirmation (exact confirmation with idempotency)
-- Execute (audited action)
-- Execution evidence (proof of what happened)
-
-ProdOps uses this for every governed decision:
-
-### Use Case 1: Package Creation
+ProdOps is a full product with its own stack:
 
 ```
-POST /resolver/proposals
-{
-  "context": "prodops-package-creation",
-  "thinker_session": "session-123",  ← links to product diagnosis
-  "action": "create-package",
-  "payload": {
-    "services": ["cloud-deployment", "security-hardening", "ci-cd"],
-    "dependencies_added": ["monitoring", "backup-restore"],
-    "milestones": [...],
-    "budget_estimate": { "min": 8000, "max": 15000 },
-    "timeline_estimate": "6-8 weeks"
+ProdOps (independent)
+├── Infrastructure: own hosting (any provider)
+├── Database: own PostgreSQL / whatever they choose
+├── Frontend: own React/Next.js app
+│   ├── Owner portal
+│   ├── Team portal
+│   ├── Admin portal
+│   └── Public marketing site
+├── Backend: own API service
+│   ├── User management / auth
+│   ├── Service catalog logic
+│   ├── Package builder logic
+│   ├── Team network management
+│   ├── Collaboration workspace
+│   ├── Contracts / payments
+│   ├── Reputation system
+│   └── AI integration layer (calls LoomAI)
+├── Business logic: marketplace rules, pricing, matching weights
+├── Data: service taxonomy, templates, team profiles, projects
+└── Billing: Stripe or similar for owner/team payments
+```
+
+The **AI integration layer** is the part of ProdOps backend that calls the LoomAI deployment. It's a client library / SDK integration.
+
+---
+
+## How ProdOps Configures Its LoomAI Deployment
+
+ProdOps spins up (or subscribes to) a LoomAI instance and configures it for productization:
+
+### 1. RAG Configuration
+
+ProdOps indexes its domain knowledge into the LoomAI RAG pipeline:
+
+```
+ProdOps → LoomAI RAG API
+
+Index: Service taxonomy
+  - 8 categories, 40+ modules, descriptions, dependencies
+  - Inputs/outputs/deliverables per service
+  - Budget/timeline ranges
+
+Index: Package templates
+  - MVP Stabilization, SaaS Launch Readiness, Security Hardening...
+  - Milestone structures, acceptance criteria, handoff checklists
+
+Index: Case patterns (grows over time)
+  - Anonymized completed packages
+  - Common risk patterns by product type
+  - Success/failure patterns
+
+Index: Team knowledge (grows over time)
+  - Team capability descriptions
+  - Portfolio summaries
+  - Outcome data
+```
+
+### 2. Thinker Configuration
+
+ProdOps defines session types for its domain:
+
+```
+Session type: product-health-diagnosis
+  - Question template: "What is the productization state of {product}?"
+  - Expected evidence types: repo-scan, deployment-probe, dependency-audit
+  - Plan output format: service recommendations with priority
+
+Session type: deliverable-assessment
+  - Question template: "Does {deliverable} meet {acceptance_criteria}?"
+  - Expected evidence types: ci-status, test-coverage, security-scan, docs-check
+  - Plan output format: pass/fail per criterion with evidence
+
+Session type: team-capability-assessment
+  - Question template: "What service categories is {team} qualified for?"
+  - Expected evidence types: portfolio-analysis, repo-scan, outcome-history
+  - Plan output format: eligible categories with confidence
+```
+
+### 3. Resolver Configuration
+
+ProdOps defines policies and governed workflows:
+
+```
+Policy: package-creation
+  - Rule: all dependency services must be present or explicitly declined
+  - Rule: budget estimate must be within market range for scope
+  - Rule: timeline must be feasible (min days per service layer)
+  - Rule: no unsupported capability claims
+  - Dry-run: show complete package preview before creation
+
+Policy: team-assignment
+  - Rule: team must be verified for assigned service categories
+  - Rule: team must have available capacity
+  - Rule: no conflict of interest
+  - Rule: budget alignment within 20% of team's range
+  - Dry-run: show match reasoning and alternatives
+
+Policy: handoff-approval
+  - Rule: all required checklist items must have evidence
+  - Rule: Thinker assessment must show no critical gaps
+  - Rule: both owner and team must confirm
+  - Dry-run: show checklist completeness report
+```
+
+### 4. MCP Tool Registration
+
+ProdOps registers its domain-specific tools in the LoomAI MCP engine:
+
+```
+Tool: prodops.repo.analyze
+  - Input: { repo_url, access_token }
+  - Output: { languages, frameworks, dependencies, ci_config, test_coverage }
+  - Governance: read-only, requires owner consent
+
+Tool: prodops.deploy.probe
+  - Input: { url }
+  - Output: { status, ssl, headers, response_time, uptime }
+  - Governance: read-only, no auth needed
+
+Tool: prodops.deps.audit
+  - Input: { repo_url, package_manager }
+  - Output: { vulnerabilities, outdated, risk_level }
+  - Governance: read-only, requires owner consent
+
+Tool: prodops.match.score
+  - Input: { package_profile, team_profiles[], weights }
+  - Output: { ranked_teams[], scores[], explanations[] }
+  - Governance: internal only, no external access
+
+Tool: prodops.package.estimate
+  - Input: { services[], complexity_signals }
+  - Output: { budget_range, timeline_range, confidence }
+  - Governance: uses RAG case patterns
+```
+
+### 5. Companion Configuration
+
+ProdOps configures the Companion search/answer engine with its data:
+
+```
+Companion instance for ProdOps:
+  - Knowledge source: prodops service taxonomy (from RAG)
+  - Knowledge source: prodops package templates (from RAG)
+  - Knowledge source: workspace documents (per-workspace context)
+  - Answer grounding: must cite service taxonomy or template source
+  - Scope: only answer from indexed ProdOps knowledge, not general
+```
+
+---
+
+## ProdOps Backend Integration Patterns
+
+### Pattern: Product Diagnosis
+
+```javascript
+// ProdOps backend calls its LoomAI deployment
+
+async function diagnoseProduct(product) {
+  // 1. Create Thinker session
+  const session = await loomaiClient.thinker.createSession({
+    type: 'product-health-diagnosis',
+    question: `What is the productization state of ${product.name}?`,
+    metadata: { product_id: product.id }
+  });
+
+  // 2. Gather evidence using MCP tools
+  if (product.repoUrl) {
+    const repoAnalysis = await loomaiClient.mcp.execute('prodops.repo.analyze', {
+      repo_url: product.repoUrl,
+      access_token: product.githubToken
+    });
+    await loomaiClient.thinker.addEvidence(session.id, {
+      type: 'repo-scan',
+      source: 'prodops.repo.analyze',
+      content: repoAnalysis
+    });
   }
+
+  if (product.deploymentUrl) {
+    const deployProbe = await loomaiClient.mcp.execute('prodops.deploy.probe', {
+      url: product.deploymentUrl
+    });
+    await loomaiClient.thinker.addEvidence(session.id, {
+      type: 'deployment-probe',
+      source: 'prodops.deploy.probe',
+      content: deployProbe
+    });
+  }
+
+  // 3. Generate diagnosis plan
+  const diagnosis = await loomaiClient.thinker.generatePlan(session.id);
+
+  // 4. Store result in ProdOps own database
+  await db.productDiagnosis.save({
+    product_id: product.id,
+    thinker_session_id: session.id,
+    services_recommended: diagnosis.plan.services,
+    risk_level: diagnosis.plan.risk_level,
+    evidence_summary: diagnosis.plan.evidence_summary
+  });
+
+  return diagnosis;
+}
+```
+
+### Pattern: Service Discovery
+
+```javascript
+// Owner asks a question about what services they need
+
+async function discoverServices(query, context) {
+  const result = await loomaiClient.companion.query({
+    query: query,
+    grounding: ['service-taxonomy', 'dependency-rules', 'case-patterns'],
+    context: context  // e.g., product tech stack, business stage
+  });
+
+  // ProdOps formats and enriches the response with its own data
+  const services = result.citations.map(citation => ({
+    ...citation,
+    ...await db.services.findByTaxonomyId(citation.source_id),
+    available_teams: await db.teams.countByCategory(citation.category)
+  }));
+
+  return { answer: result.answer, services };
+}
+```
+
+### Pattern: Package Governance
+
+```javascript
+// Create a governed package through Resolver
+
+async function createPackage(owner, packageDraft) {
+  // 1. Submit proposal to Resolver
+  const proposal = await loomaiClient.resolver.createProposal({
+    policy: 'package-creation',
+    thinker_session: packageDraft.diagnosis_session_id,
+    action: 'create-package',
+    payload: {
+      services: packageDraft.services,
+      milestones: packageDraft.milestones,
+      budget_estimate: packageDraft.budget,
+      timeline_estimate: packageDraft.timeline
+    }
+  });
+
+  // 2. Run policy check
+  const policyResult = await loomaiClient.resolver.checkPolicy(proposal.id);
+  if (!policyResult.passed) {
+    return { status: 'policy-failed', issues: policyResult.violations };
+  }
+
+  // 3. Dry-run for owner preview
+  const preview = await loomaiClient.resolver.dryRun(proposal.id);
+
+  // 4. Return preview to ProdOps UI - owner decides
+  return { status: 'awaiting-confirmation', preview, proposal_id: proposal.id };
 }
 
-POST /resolver/proposals/{id}/policy
-→ Checks: all dependency rules satisfied, budget range realistic,
-          timeline feasible for scope, no unsupported claims
+// After owner confirms in ProdOps UI:
+async function confirmPackage(proposalId) {
+  await loomaiClient.resolver.confirm(proposalId);
+  const result = await loomaiClient.resolver.execute(proposalId);
 
-POST /resolver/proposals/{id}/dry-run
-→ Preview: "This package will have 5 service layers, 8 milestones,
-           estimated $8K-15K, 6-8 weeks. Missing: support handoff layer."
-
-POST /resolver/proposals/{id}/confirm
-→ Owner confirms the package
-
-POST /resolver/proposals/{id}/execute
-→ Package created, workspace provisioned, team matching triggered
-```
-
-### Use Case 2: Team Assignment
-
-```
-POST /resolver/proposals
-{
-  "context": "prodops-team-assignment",
-  "action": "assign-team",
-  "payload": {
-    "package_id": "pkg-456",
-    "team_id": "team-789",
-    "layers": ["cloud-deployment", "ci-cd"],
-    "match_evidence": { "score": 0.92, "reasons": [...] }
-  }
+  // ProdOps creates the package in its own database
+  await db.packages.create({
+    resolver_execution_id: result.execution_id,
+    ...result.payload
+  });
 }
-
-POST /resolver/proposals/{id}/policy
-→ Checks: team verified for these categories, capacity available,
-          no conflict of interest, budget alignment
-
-POST /resolver/proposals/{id}/dry-run
-→ Preview: "Team X will own cloud-deployment and ci-cd layers.
-           They have 92% match score. 3 similar projects completed."
-
-POST /resolver/proposals/{id}/confirm
-→ Owner confirms team selection
-
-POST /resolver/proposals/{id}/execute
-→ Team assigned, workspace access granted, notification sent
 ```
 
-### Use Case 3: Handoff Gate
+### Pattern: Team Matching
 
+```javascript
+// Score and explain team matches
+
+async function matchTeams(packageProfile) {
+  // 1. Score using MCP tool
+  const teams = await db.teams.findEligible(packageProfile.categories);
+  const scores = await loomaiClient.mcp.execute('prodops.match.score', {
+    package_profile: packageProfile,
+    team_profiles: teams.map(t => t.profile),
+    weights: { category_fit: 0.3, stack_fit: 0.25, reputation: 0.2, availability: 0.15, budget: 0.1 }
+  });
+
+  // 2. Generate explanations using Companion
+  const explanations = await Promise.all(
+    scores.ranked_teams.slice(0, 5).map(team =>
+      loomaiClient.companion.query({
+        query: `Why is ${team.name} a good fit for this package?`,
+        grounding: ['team-profiles', 'team-portfolios'],
+        context: { package: packageProfile, team: team.profile }
+      })
+    )
+  );
+
+  return scores.ranked_teams.map((team, i) => ({
+    ...team,
+    explanation: explanations[i].answer
+  }));
+}
 ```
-POST /resolver/proposals
-{
-  "context": "prodops-handoff",
-  "thinker_session": "deliverable-assessment-session",
-  "action": "approve-handoff",
-  "payload": {
-    "package_id": "pkg-456",
-    "checklist": {
-      "deployment_docs": true,
-      "monitoring_configured": true,
-      "backup_verified": true,
-      "known_issues_listed": true,
-      "support_sla_defined": true
+
+### Pattern: Deliverable Review
+
+```javascript
+// Automated milestone assessment
+
+async function reviewDeliverable(milestone) {
+  // 1. Create Thinker session for assessment
+  const session = await loomaiClient.thinker.createSession({
+    type: 'deliverable-assessment',
+    question: `Does this deliverable meet the acceptance criteria?`,
+    metadata: { milestone_id: milestone.id, criteria: milestone.acceptance_criteria }
+  });
+
+  // 2. Run automated checks via MCP
+  for (const criterion of milestone.acceptance_criteria) {
+    const tool = mapCriterionToTool(criterion);  // ProdOps logic
+    if (tool) {
+      const result = await loomaiClient.mcp.execute(tool.name, tool.params);
+      await loomaiClient.thinker.addEvidence(session.id, {
+        type: criterion.type,
+        source: tool.name,
+        content: result
+      });
     }
   }
-}
 
-POST /resolver/proposals/{id}/policy
-→ Checks: all required checklist items present,
-          Thinker evidence confirms each item
+  // 3. Generate assessment plan
+  const assessment = await loomaiClient.thinker.generatePlan(session.id);
 
-POST /resolver/proposals/{id}/execute
-→ Handoff approved, workspace transitions to support mode
-```
+  // 4. Store in ProdOps - owner still makes final accept/reject decision
+  await db.milestoneReviews.save({
+    milestone_id: milestone.id,
+    thinker_session_id: session.id,
+    criteria_results: assessment.plan.criteria_results,
+    gaps: assessment.plan.gaps,
+    recommendation: assessment.plan.recommendation
+  });
 
----
-
-## Companion Deployment for ProdOps
-
-### How ProdOps uses the deployed Companion service
-
-Companion already exposes:
-- Natural language search over indexed data
-- Grounded answers (RAG-backed, cites sources)
-- Context-aware responses
-- FAQ/comparison/policy answers
-
-ProdOps configures Companion with productization data:
-
-### Use Case 1: Service Catalog Discovery
-
-**Owner asks:** "My Next.js app needs to handle enterprise customers"
-
-```
-POST /companion/query
-{
-  "context": "prodops-service-catalog",
-  "store_id": "prodops",  ← ProdOps is the "store" in Companion terms
-  "query": "My Next.js app needs to handle enterprise customers",
-  "grounding_sources": ["service-taxonomy", "dependency-rules", "case-patterns"]
-}
-
-→ Response:
-{
-  "answer": "Enterprise readiness typically requires 4 service layers...",
-  "services_identified": [
-    { "name": "SaaS Launch Readiness", "confidence": 0.95, "source": "service-taxonomy" },
-    { "name": "Security Hardening", "confidence": 0.91, "source": "dependency-rule: enterprise→security" },
-    { "name": "Database Scaling", "confidence": 0.82, "source": "case-pattern: next.js-enterprise" }
-  ],
-  "citations": [...]
+  return assessment;
 }
 ```
 
-### Use Case 2: Workspace Assistant
+### Pattern: Workspace Assistant
 
-**Team member asks in workspace:** "What are the acceptance criteria for the deployment milestone?"
+```javascript
+// Answer questions within a collaboration workspace
 
-```
-POST /companion/query
-{
-  "context": "prodops-workspace",
-  "workspace_id": "ws-456",
-  "query": "What are the acceptance criteria for the deployment milestone?",
-  "grounding_sources": ["package-brief", "milestone-definition", "handoff-template"]
-}
+async function workspaceQuery(workspaceId, userQuery) {
+  const workspace = await db.workspaces.findWithDocuments(workspaceId);
 
-→ Response grounded in the actual package documents
-```
+  // Index workspace-specific documents into RAG (if not already)
+  await ensureWorkspaceIndexed(workspace);
 
-### Use Case 3: Team Discovery
+  const result = await loomaiClient.companion.query({
+    query: userQuery,
+    grounding: ['workspace-documents', 'package-templates', 'service-taxonomy'],
+    context: {
+      workspace_id: workspaceId,
+      package_brief: workspace.package_brief,
+      milestones: workspace.milestones,
+      current_status: workspace.status
+    }
+  });
 
-**Owner asks:** "Who has experience with fintech security on Node.js?"
-
-```
-POST /companion/query
-{
-  "context": "prodops-team-search",
-  "query": "fintech security experience with Node.js",
-  "grounding_sources": ["team-profiles", "team-portfolios", "team-outcomes"]
-}
-
-→ Response with specific teams, grounded in their actual portfolio data
-```
-
----
-
-## MCP Execution for ProdOps
-
-### How ProdOps registers productization-specific MCP tools
-
-The MCP execution engine is already deployed. ProdOps registers new tools specific to productization assessment:
-
-### Tool Registry (ProdOps Marketplace Plugins)
-
-```
-Plugin: prodops-github-assessment
-Tools:
-  - prodops.repo.languages      → Detect tech stack from repo
-  - prodops.repo.dependencies   → List and audit dependencies
-  - prodops.repo.ci_status      → Check CI/CD configuration and status
-  - prodops.repo.test_coverage  → Extract test coverage metrics
-  - prodops.repo.security_alerts → Get open security advisories
-  - prodops.repo.docs_presence  → Check for README, API docs, deploy docs
-
-Plugin: prodops-deployment-assessment
-Tools:
-  - prodops.deploy.health_probe → HTTP health check + SSL + headers
-  - prodops.deploy.uptime_check → Basic availability verification
-  - prodops.deploy.performance  → Response time and basic load metrics
-
-Plugin: prodops-package-intelligence
-Tools:
-  - prodops.package.dependency_check → Run dependency rule engine
-  - prodops.package.estimate         → Generate budget/timeline estimate
-  - prodops.package.similar_cases    → Find similar completed packages
-
-Plugin: prodops-team-matching
-Tools:
-  - prodops.match.score         → Multi-dimensional team scoring
-  - prodops.match.explain       → Generate match explanation
-  - prodops.match.availability  → Check team capacity
-```
-
-### MCP Governance (Already Built)
-
-Every tool invocation goes through the platform's existing governance:
-- Tool must be registered in the marketplace
-- Action must have defined schema (inputs/outputs)
-- Execution follows the policy → dry-run → confirm → execute model
-- All invocations are audited
-- Owner must grant access (connect repo, provide URL)
-
----
-
-## RAG Pipeline for ProdOps
-
-### How ProdOps uses the deployed RAG infrastructure
-
-The RAG pipeline is already deployed with vector indexing and semantic retrieval. ProdOps creates a new **index namespace** with productization-specific documents:
-
-### ProdOps RAG Namespaces
-
-```
-Namespace: prodops-service-taxonomy
-Documents:
-  - 8 service categories with full descriptions
-  - 40+ service modules with inputs/outputs/deliverables
-  - Dependency rules (structured: "if X then recommend Y because Z")
-  - Acceptance criteria templates per service type
-  - Timeline/budget ranges per service type
-
-Namespace: prodops-package-templates
-Documents:
-  - MVP Stabilization template (milestones, deliverables, criteria)
-  - SaaS Launch Readiness template
-  - Scale Readiness template
-  - Security Hardening template
-  - No-Code Migration template
-  - Custom Package structure
-
-Namespace: prodops-case-patterns
-Documents:
-  - Anonymized completed packages (stack, services, timeline, outcome)
-  - Common risk patterns by product type
-  - Failure patterns (what went wrong and why)
-  - Success patterns (what worked and why)
-
-Namespace: prodops-team-profiles
-Documents:
-  - Team capabilities (indexed for semantic search)
-  - Portfolio items (tech stacks, domains, project types)
-  - Outcome data (completion rates, satisfaction, specializations)
-
-Namespace: prodops-checklists
-Documents:
-  - Security launch checklist
-  - Deployment readiness checklist
-  - Handoff documentation checklist
-  - Support transition checklist
-  - Per-stack productization guides
-```
-
-### Indexing happens through the existing RAG pipeline:
-
-```
-POST /rag/index
-{
-  "namespace": "prodops-service-taxonomy",
-  "document_id": "cloud-deployment-module",
-  "content": "Cloud deployment service module. Includes production environment setup...",
-  "metadata": {
-    "category": "cloud-devops",
-    "dependencies": ["ci-cd", "monitoring", "backup-restore"],
-    "typical_timeline": "2-4 weeks",
-    "typical_budget": "$3000-$8000"
-  }
+  return result;
 }
 ```
 
 ---
 
-## Deployment Profile for ProdOps
+## What LoomAI Needs to Expose for This Model
 
-### How ProdOps is provisioned on the platform
+For ProdOps (and any future customer) to integrate, LoomAI must provide:
 
-The LoomAI platform already manages deployment profiles for products. ProdOps gets its own profile:
+### API Endpoints
 
 ```
-Deployment Profile: prodops-network
-├── App: prodops-web (Next.js frontend)
-├── App: prodops-api (backend service)
-├── Companion config: prodops service catalog + workspace grounding
-├── Thinker config: prodops session types (intake, review, verification)
-├── Resolver config: prodops policies (package, assignment, handoff)
-├── MCP plugins: prodops-github, prodops-deployment, prodops-package, prodops-match
-├── RAG namespaces: prodops-service-taxonomy, prodops-templates, prodops-cases, prodops-teams
-├── Roles: owner, team-manager, specialist, expert, admin
-├── Approval workflows: team verification, package approval, handoff gate
-└── Verification gates: team eligibility, milestone acceptance, handoff readiness
+Thinker API:
+  POST   /api/thinker/sessions              Create session
+  POST   /api/thinker/sessions/:id/evidence  Add evidence
+  POST   /api/thinker/sessions/:id/plan      Generate plan
+  GET    /api/thinker/sessions/:id           Get session with evidence
+  GET    /api/thinker/sessions/:id/export    Export full audit trail
+
+Resolver API:
+  POST   /api/resolver/proposals             Create proposal
+  POST   /api/resolver/proposals/:id/policy  Run policy check
+  POST   /api/resolver/proposals/:id/dry-run Preview execution
+  POST   /api/resolver/proposals/:id/confirm Confirm execution
+  POST   /api/resolver/proposals/:id/execute Execute with audit
+  GET    /api/resolver/proposals/:id         Get proposal state
+
+Companion API:
+  POST   /api/companion/query               Ask question with RAG grounding
+  POST   /api/companion/index               Index documents
+  DELETE /api/companion/index/:doc_id        Remove document
+
+MCP API:
+  POST   /api/mcp/tools                     Register tool
+  POST   /api/mcp/execute                   Execute tool (governed)
+  GET    /api/mcp/tools                     List registered tools
+
+RAG API:
+  POST   /api/rag/index                     Index document
+  POST   /api/rag/search                    Semantic search
+  DELETE /api/rag/documents/:id             Remove document
+  GET    /api/rag/namespaces                List namespaces
+
+Configuration API:
+  POST   /api/config/thinker/session-types  Define session types
+  POST   /api/config/resolver/policies      Define policies
+  POST   /api/config/companion/sources      Define knowledge sources
 ```
 
-The platform provisions all of this through the same Coolify deployment pipeline that provisions Companion for Shopify stores.
+### SDK / Client Library
+
+```
+npm install @loomai/sdk
+
+import { LoomAI } from '@loomai/sdk';
+
+const loomaiClient = new LoomAI({
+  endpoint: 'https://my-prodops-instance.loomai.pro',
+  apiKey: 'prodops-api-key',
+  project: 'prodops-network'
+});
+```
+
+### Configuration Dashboard
+
+A web interface where ProdOps admins can:
+- Define Thinker session types
+- Define Resolver policies
+- Register MCP tools
+- Manage RAG namespaces and documents
+- Monitor usage and costs
+- View audit trails
 
 ---
 
-## What ProdOps Actually Builds (New Code)
+## LoomAI Revenue from ProdOps
 
-ProdOps builds ONLY the domain-specific layer:
-
-### ProdOps Application Code
-
-```
-prodops-web/          (Frontend - new build)
-├── pages/
-│   ├── owner/        Owner portal
-│   │   ├── intake    Product intake wizard (calls Thinker)
-│   │   ├── packages  Package view (calls Resolver)
-│   │   ├── teams     Team discovery (calls Companion)
-│   │   └── workspace Collaboration (calls Companion + MCP)
-│   ├── team/         Team portal
-│   │   ├── profile   Capability management
-│   │   ├── matches   Opportunity feed (calls matching tools)
-│   │   └── workspace Delivery workspace
-│   └── admin/        Platform admin
-│       ├── catalog   Service taxonomy editor → indexes to RAG
-│       ├── teams     Verification workflow → calls Thinker
-│       └── packages  Package template editor → indexes to RAG
-
-prodops-api/          (Backend - new build)
-├── routes/
-│   ├── intake/       Calls Thinker API for product diagnosis
-│   ├── packages/     Calls Resolver API for package governance
-│   ├── discovery/    Calls Companion API for search
-│   ├── matching/     Calls MCP tools for team scoring
-│   ├── workspace/    Calls Companion for workspace Q&A
-│   ├── review/       Calls Thinker + MCP for deliverable checks
-│   └── handoff/      Calls Resolver for handoff gate
-├── data/
-│   ├── service-taxonomy.json       → Indexed into RAG
-│   ├── dependency-rules.json       → Used by package policy
-│   ├── package-templates/          → Indexed into RAG
-│   └── checklists/                 → Indexed into RAG
-└── plugins/
-    ├── prodops-github-assessment/  → Registered as MCP tools
-    ├── prodops-deployment-probe/   → Registered as MCP tools
-    └── prodops-matching-engine/    → Registered as MCP tools
-```
-
-**Total new code: ~30-40% of a typical app.** The AI layer is already deployed and running.
-
----
-
-## End-to-End Flow (Deployments Used)
-
-### Owner submits product for diagnosis
-
-```
-1. Owner → ProdOps Web (new UI)
-2. ProdOps API → POST /thinker/sessions (DEPLOYED Thinker)
-3. ProdOps API → POST /mcp/execute (DEPLOYED MCP engine)
-   → Tool: prodops.repo.languages (via GitHub API)
-   → Tool: prodops.repo.dependencies
-   → Tool: prodops.deploy.health_probe
-4. ProdOps API → POST /thinker/sessions/{id}/evidence × N (DEPLOYED Thinker)
-5. ProdOps API → POST /thinker/sessions/{id}/plan (DEPLOYED Thinker)
-6. Owner sees evidence-backed health report
-```
-
-### Owner searches for services
-
-```
-1. Owner types: "need to make my app secure for enterprise"
-2. ProdOps API → POST /companion/query (DEPLOYED Companion)
-   → RAG retrieval from prodops-service-taxonomy namespace
-   → Grounded answer with specific services + dependencies
-3. Owner sees recommended services with citations
-```
-
-### Package gets created
-
-```
-1. ProdOps API → POST /resolver/proposals (DEPLOYED Resolver)
-   → Links to Thinker diagnosis session as evidence
-   → Includes recommended services, milestones, estimates
-2. ProdOps API → POST /resolver/proposals/{id}/policy (DEPLOYED Resolver)
-   → ProdOps dependency rules evaluated
-3. ProdOps API → POST /resolver/proposals/{id}/dry-run (DEPLOYED Resolver)
-   → Preview shown to owner
-4. Owner confirms → POST /resolver/proposals/{id}/confirm
-5. Package created → POST /resolver/proposals/{id}/execute
-```
-
-### Team gets matched
-
-```
-1. ProdOps API → POST /mcp/execute (DEPLOYED MCP engine)
-   → Tool: prodops.match.score (scores all eligible teams)
-2. ProdOps API → POST /companion/query (DEPLOYED Companion)
-   → RAG retrieval from prodops-team-profiles namespace
-   → "Why is Team X a good fit?" with portfolio evidence
-3. ProdOps API → POST /resolver/proposals (DEPLOYED Resolver)
-   → Team assignment with policy check and confirmation
-```
-
-### Milestone gets reviewed
-
-```
-1. Team submits milestone
-2. ProdOps API → POST /thinker/sessions (DEPLOYED Thinker)
-3. ProdOps API → POST /mcp/execute (DEPLOYED MCP)
-   → Tool: prodops.repo.ci_status
-   → Tool: prodops.repo.test_coverage
-   → Tool: prodops.repo.security_alerts
-   → Tool: prodops.deploy.health_probe
-4. Each result → POST /thinker/sessions/{id}/evidence (DEPLOYED Thinker)
-5. ProdOps API → POST /thinker/sessions/{id}/plan (DEPLOYED Thinker)
-   → "4/5 acceptance criteria met. Missing: documentation."
-6. Owner reviews evidence report and decides
-```
-
----
-
-## Cost Model
-
-ProdOps pays LoomAI platform fees - just like merchants pay for Companion:
-
-| Platform Service Used | ProdOps Pays |
+| Revenue Stream | Model |
 |---|---|
-| Thinker sessions (product diagnosis, reviews) | Per session or monthly allocation |
-| Resolver executions (packages, assignments, handoffs) | Per execution |
-| Companion queries (service discovery, workspace Q&A) | Per query or monthly allocation |
-| MCP tool invocations (repo scans, deployment probes) | Per invocation |
-| RAG indexing and retrieval | Per document indexed + per query |
-| Deployment hosting | Monthly infrastructure |
+| Deployment license | Monthly subscription for a LoomAI instance |
+| Thinker sessions | Per session or monthly allocation (e.g., 1000 sessions/month) |
+| Resolver executions | Per execution or included in tier |
+| Companion queries | Per query or monthly allocation |
+| MCP tool invocations | Per invocation |
+| RAG storage + retrieval | Per GB indexed + per query |
+| Support / SLA | Tier-based (standard, priority, dedicated) |
 
-This means **LoomAI earns platform revenue from ProdOps** in addition to ProdOps earning marketplace revenue from owners/teams. Two revenue layers on one infrastructure.
+Example pricing tiers for LoomAI as a service:
+
+```
+Starter:     $299/month  - 500 Thinker sessions, 2000 Companion queries,
+                           500 Resolver executions, 5GB RAG, standard support
+
+Growth:      $999/month  - 5000 sessions, 20K queries, 5000 executions,
+                           50GB RAG, priority support
+
+Enterprise:  Custom      - Unlimited, dedicated instance, SLA,
+                           custom integrations, dedicated support
+```
 
 ---
 
-## Build Timeline (Using Existing Deployments)
+## What This Means for LoomAI's Business
 
-Because the AI layer already exists, ProdOps builds much faster:
+LoomAI is not running ProdOps. LoomAI is **selling AI runtime** to ProdOps.
 
-| Phase | Weeks | What ProdOps builds | What it consumes (already deployed) |
+The same deployment model works for any customer:
+- ProdOps uses LoomAI for productization AI
+- A legal tech startup uses LoomAI for case diagnosis + document governance
+- A healthcare company uses LoomAI for patient triage + treatment protocols
+- An education platform uses LoomAI for learning path recommendation + assessment
+- An HR tool uses LoomAI for candidate evaluation + hiring governance
+
+Each customer:
+1. Deploys (or subscribes to) a LoomAI instance
+2. Configures it with their domain data (RAG), session types (Thinker), policies (Resolver), and tools (MCP)
+3. Integrates via SDK from their own product
+4. Pays LoomAI subscription + usage fees
+
+**LoomAI's job:** Make the runtime so capable, well-documented, and easy to integrate that products choose LoomAI over building their own AI layer.
+
+**ProdOps's job:** Build the best productization marketplace. AI capabilities come from LoomAI, not from ProdOps engineering AI infrastructure.
+
+---
+
+## ProdOps Build Timeline (With LoomAI Integration)
+
+ProdOps builds its product independently. The AI integration is just one layer of its backend:
+
+| Phase | Weeks | ProdOps Builds | LoomAI Integration |
 |---|---|---|---|
-| **0: Data** | 2-3 | Service taxonomy, dependency rules, package templates | RAG indexing |
-| **1: Intake** | 3-4 | Owner portal + intake wizard UI | Thinker sessions, MCP tools, Companion search |
-| **2: Packages** | 3-4 | Package builder UI + policy rules | Resolver governance, RAG retrieval |
-| **3: Teams** | 4-5 | Team portal + matching UI + verification | MCP matching tools, Thinker assessment, Companion search |
-| **4: Workspace** | 4-5 | Collaboration UI + milestone tracking | Companion workspace Q&A, Thinker reviews, MCP checks |
-| **5: Handoff** | 2-3 | Handoff UI + support transition | Resolver handoff gate, Thinker evidence |
+| **0: Foundation** | 3-4 | Auth, database, basic owner/team portals | Deploy LoomAI instance, configure SDK |
+| **1: Service Catalog** | 3-4 | Catalog UI, service taxonomy, dependency rules | Index taxonomy into RAG, configure Companion |
+| **2: Intake + Diagnosis** | 4-5 | Intake wizard, product profile, repo connection | Thinker sessions, MCP tool registrations |
+| **3: Package Builder** | 4-5 | Package UI, milestone editor, SOW generator | Resolver policies, Companion for estimation |
+| **4: Team Network** | 4-5 | Team profiles, verification, matching UI | Thinker for assessment, MCP for scoring |
+| **5: Workspace** | 5-6 | Collaboration UI, milestones, documents, messages | Companion workspace Q&A, Thinker for reviews |
+| **6: Commerce** | 4-5 | Quotes, contracts, invoices, payments | Resolver for governed financial actions |
 
-**Total: ~18-24 weeks** instead of 42+ weeks. Because you're not building AI infrastructure - you're configuring existing deployments.
+**Total ProdOps build: ~27-34 weeks** (comparable to any marketplace build)
 
----
-
-## What This Proves
-
-ProdOps running on LoomAI deployments proves:
-
-1. **The platform is real** - it's not just for commerce, it works for any domain
-2. **The "220 products" vision works** - each product is a new app on the same platform
-3. **Revenue compounds** - LoomAI earns from Companion merchants AND from ProdOps usage AND ProdOps earns from owners/teams
-4. **Marginal cost of new products drops** - the next product after ProdOps is even faster (15-18 weeks)
-5. **The AI Fabric Framework thesis is validated** - one AI platform, many domain applications
+**LoomAI integration effort within that: ~20% of backend work** (calling APIs, configuring policies/tools, indexing data). Not 0% (it's still integration work), but dramatically less than building AI from scratch.
 
 ---
 
 ## Summary
 
-ProdOps does NOT build:
-- ❌ Its own RAG pipeline
-- ❌ Its own diagnosis engine
-- ❌ Its own governance model
-- ❌ Its own MCP execution
-- ❌ Its own tool framework
-- ❌ Its own deployment infrastructure
+| | ProdOps Owns | LoomAI Provides |
+|---|---|---|
+| **Infrastructure** | Own servers, own choice | Deployed instance (self-hosted or managed) |
+| **Database** | Own PostgreSQL, own schema | RAG vector store for indexed domain knowledge |
+| **UI** | Full owner/team/admin portals | Configuration dashboard for AI setup |
+| **Business logic** | Marketplace rules, pricing, workflows | None - LoomAI is domain-agnostic |
+| **AI capabilities** | Calls LoomAI APIs from backend | Thinker, Resolver, Companion, MCP, RAG |
+| **Domain data** | Service taxonomy, templates, team data | Stores what ProdOps indexes, returns on query |
+| **Revenue** | Marketplace fees from owners/teams | Subscription + usage fees from ProdOps |
 
-ProdOps DOES build:
-- ✅ Service taxonomy and dependency rules (data)
-- ✅ Package templates and checklists (data)
-- ✅ Owner portal and team portal (UI)
-- ✅ Collaboration workspace (UI)
-- ✅ Productization-specific MCP tool implementations (plugins)
-- ✅ Domain-specific policy rules for Resolver (config)
-- ✅ Team matching scoring logic (plugin)
-
-Everything else is already deployed and running.
+ProdOps is a customer. LoomAI is a vendor. Clear boundary.
