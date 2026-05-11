@@ -1193,6 +1193,48 @@ class ShopifyStorefrontChatServiceTest {
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
+    @Test
+    void queryMapsAccountOutOfScopeRuntimeAnswerToStoreSupportGuidance() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"OUT_OF_SCOPE",
+                "success":false,
+                "message":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Help with my order.",
+                  "mode":"executor",
+                  "storefrontContext":{
+                    "pageType":"account",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).contains("order lookup block", "store support");
+        assertThat(answer).doesNotContain("indexed knowledge base");
+        verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
     private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);

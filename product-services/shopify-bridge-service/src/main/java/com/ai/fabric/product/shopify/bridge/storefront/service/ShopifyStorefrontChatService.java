@@ -575,6 +575,18 @@ public class ShopifyStorefrontChatService {
                                               ShopifyBridgeStoreSummary store,
                                               ShopifyBridgeBillingSummary billingSummary) {
         String selectedAction = selectedActionId(response);
+        if (selectedAction == null
+            && isRuntimeOutOfScope(response)
+            && isAccountOrSupportContext(request)) {
+            if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
+                return policyStorefrontAnswer(
+                    "For order status, use this store's order lookup block with the exact order number and checkout email. For refunds, cancellations, or order edits, contact the store support team so they can review the request safely."
+                );
+            }
+            return policyStorefrontAnswer(
+                "Order-specific help is handled by store support for this page. Contact the store support team with your order number and checkout email."
+            );
+        }
         if (selectedAction == null) {
             return null;
         }
@@ -595,6 +607,11 @@ public class ShopifyStorefrontChatService {
             );
         }
         return null;
+    }
+
+    private boolean isRuntimeOutOfScope(JsonNode response) {
+        String type = nestedText(response, "result.type");
+        return "out_of_scope".equals(normalizeSurfaceEntry(type));
     }
 
     private String selectedActionId(JsonNode response) {
