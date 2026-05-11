@@ -397,5 +397,6 @@ Bridge policy is structured:
 - Storefront chat lets runtime select an action, then checks the selected action ID and page context.
 - Unapproved stores deny structured order mutation action IDs with customer-safe support guidance.
 - Approved stores with `order-self-service` may pass configured order self-service action IDs to the Marketplace/MCP execution path.
-- Currently configured concrete order self-service actions are `shopify_start_return_request` through Customer Account MCP and `shopify_cancel_checkout` through Checkout MCP.
-- Post-order refund/cancel/edit actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge.
+- Currently configured concrete order self-service action is `shopify_cancel_checkout` through Checkout MCP.
+- The live Customer Account MCP Marketplace bundle currently exposes only read-only order-status actions: `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
+- Post-order refund/cancel/edit/return-start actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge.

@@ -76,14 +76,16 @@ public class ShopifyStorefrontChatService {
         "shopify_cart_create",
         "shopify_cart_update"
     );
-    private static final Set<String> STOREFRONT_ORDER_MUTATION_ACTION_IDS = Set.of(
+    private static final Set<String> REVIEWED_ORDER_SELF_SERVICE_ACTION_IDS = Set.of(
+        "shopify_cancel_checkout"
+    );
+    private static final Set<String> UNCONFIGURED_POST_ORDER_MUTATION_ACTION_IDS = Set.of(
         "shopify_cancel_order",
         "shopify_refund_order",
         "shopify_edit_order",
         "shopify_update_order",
         "shopify_change_order_address",
-        "shopify_start_return_request",
-        "shopify_cancel_checkout"
+        "shopify_start_return_request"
     );
     private static final Set<String> APPROVED_ORDER_SELF_SERVICE_ACTION_PACKAGES = Set.of(
         "order-self-service",
@@ -460,7 +462,7 @@ public class ShopifyStorefrontChatService {
         metadata.put("cartActionsAllowed", false);
         metadata.put("orderSelfServiceApproved", orderSelfServiceApproved);
         ArrayNode deniedActions = metadata.putArray("deniedOrderSelfServiceActionsWhenUnapproved");
-        STOREFRONT_ORDER_MUTATION_ACTION_IDS.forEach(deniedActions::add);
+        UNCONFIGURED_POST_ORDER_MUTATION_ACTION_IDS.forEach(deniedActions::add);
 
         JsonNode existingAttachments = request.get("attachments");
         ArrayNode attachments = objectMapper.createArrayNode();
@@ -582,7 +584,7 @@ public class ShopifyStorefrontChatService {
             && isAccountOrSupportContext(request)) {
             if (orderMutationSelfServiceApproved(billingSummary)) {
                 return policyStorefrontAnswer(
-                    "This store supports approved order self-service where Shopify exposes the required action. Use order lookup or customer-account return actions when available; unsupported order changes still route to store support."
+                    "This store supports approved checkout self-service where Shopify exposes the required action. Post-order refunds, cancellations, returns, and order edits still route to store support until Shopify exposes a reviewed MCP tool for this store."
                 );
             }
             if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
@@ -597,7 +599,12 @@ public class ShopifyStorefrontChatService {
         if (selectedAction == null) {
             return null;
         }
-        if (STOREFRONT_ORDER_MUTATION_ACTION_IDS.contains(selectedAction)
+        if (UNCONFIGURED_POST_ORDER_MUTATION_ACTION_IDS.contains(selectedAction)) {
+            return policyStorefrontAnswer(
+                "This store does not have a reviewed Marketplace MCP action for that post-order change yet. Contact the store support team so they can review the request safely."
+            );
+        }
+        if (REVIEWED_ORDER_SELF_SERVICE_ACTION_IDS.contains(selectedAction)
             && !orderMutationSelfServiceApproved(billingSummary)) {
             return policyStorefrontAnswer(
                 "This store has not enabled self-service order changes in chat. Contact the store support team so they can review the request safely."

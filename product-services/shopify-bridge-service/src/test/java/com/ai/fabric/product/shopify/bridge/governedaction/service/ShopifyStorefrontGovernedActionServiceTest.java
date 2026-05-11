@@ -57,7 +57,7 @@ class ShopifyStorefrontGovernedActionServiceTest {
         assertThat(capability.requiresExplicitConfirmation()).isTrue();
         assertThat(capability.auditTrailAvailable()).isTrue();
         assertThat(capability.allowedActionTypes())
-            .containsExactly("ADD_TO_CART", "UPDATE_CART_QUANTITY", "START_RETURN_REQUEST", "CANCEL_CHECKOUT");
+            .containsExactly("ADD_TO_CART", "UPDATE_CART_QUANTITY", "CANCEL_CHECKOUT");
         assertThat(capability.grantUrl()).contains("/actions/grant");
         assertThat(capability.completeUrl()).contains("/actions/complete");
     }
@@ -155,10 +155,10 @@ class ShopifyStorefrontGovernedActionServiceTest {
             "shopper-session-1",
             "order-self-service",
             "account",
-            "START_RETURN_REQUEST",
+            "CANCEL_CHECKOUT",
             true,
             true,
-            "Start this return request?"
+            "Cancel this checkout?"
         ))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Approved order self-service actions are not active");
@@ -192,17 +192,17 @@ class ShopifyStorefrontGovernedActionServiceTest {
             "shopper-session-1",
             "order-self-service",
             "account",
-            "START_RETURN_REQUEST",
+            "CANCEL_CHECKOUT",
             true,
             true,
-            "Start this return request?"
+            "Cancel this checkout?"
         );
 
-        assertThat(audit.actionType()).isEqualTo("START_RETURN_REQUEST");
+        assertThat(audit.actionType()).isEqualTo("CANCEL_CHECKOUT");
         assertThat(audit.actionPackage()).isEqualTo("order-self-service");
         assertThat(audit.confirmationRequired()).isTrue();
         assertThat(savedAudit.get().getStatus()).isEqualTo("STARTED");
-        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_STARTED_START_RETURN_REQUEST");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_STARTED_CANCEL_CHECKOUT");
     }
 
     private ShopifyBridgeInstallCredentialService emptyCredentialService() {

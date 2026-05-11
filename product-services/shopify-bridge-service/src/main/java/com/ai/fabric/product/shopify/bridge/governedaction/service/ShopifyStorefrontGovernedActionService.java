@@ -37,7 +37,7 @@ public class ShopifyStorefrontGovernedActionService {
     private static final String GUIDED_COMMERCE_PACKAGE = "guided-commerce";
     private static final String ORDER_SELF_SERVICE_PACKAGE = "order-self-service";
     private static final List<String> GUIDED_COMMERCE_ACTION_TYPES = List.of("ADD_TO_CART", "UPDATE_CART_QUANTITY");
-    private static final List<String> ORDER_SELF_SERVICE_ACTION_TYPES = List.of("START_RETURN_REQUEST", "CANCEL_CHECKOUT");
+    private static final List<String> ORDER_SELF_SERVICE_ACTION_TYPES = List.of("CANCEL_CHECKOUT");
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -374,7 +374,6 @@ public class ShopifyStorefrontGovernedActionService {
         if (!List.of(
             "GET_CART",
             "UPDATE_CART",
-            "START_RETURN_REQUEST",
             "CREATE_CHECKOUT",
             "UPDATE_CHECKOUT",
             "COMPLETE_CHECKOUT",

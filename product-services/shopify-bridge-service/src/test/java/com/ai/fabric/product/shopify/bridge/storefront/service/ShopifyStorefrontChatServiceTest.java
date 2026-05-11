@@ -1143,13 +1143,13 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("not enabled self-service order changes", "support team");
+        assertThat(answer).contains("does not have a reviewed Marketplace MCP action", "support team");
         assertThat(answer).doesNotContain("Refund this order?", "Action executed");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
     @Test
-    void queryAllowsApprovedOrderSelfServiceActionSelectedByRuntimePolicy() throws Exception {
+    void queryRejectsUnconfiguredPostOrderMutationEvenWhenOrderPackageEnabled() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -1186,10 +1186,54 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).contains("does not have a reviewed Marketplace MCP action", "support team");
+        assertThat(answer).doesNotContain("Refund this order?", "Action executed");
+        verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
+    void queryAllowsReviewedOrderSelfServiceActionSelectedByRuntimePolicy() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null))
+            .thenReturn(eliteTierSummary(List.of("guided-commerce", "order-self-service")));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"CONFIRMATION_REQUIRED",
+                "success":false,
+                "message":"Cancel this checkout?",
+                "data":{"actionId":"shopify_cancel_checkout"}
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Cancel this checkout.",
+                  "mode":"executor",
+                  "storefrontContext":{
+                    "pageType":"account",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
-        assertThat(response.path("result").path("message").asText()).isEqualTo("Refund this order?");
+        assertThat(response.path("result").path("message").asText()).isEqualTo("Cancel this checkout?");
         assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
-            .isEqualTo("Refund this order?");
+            .isEqualTo("Cancel this checkout?");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
