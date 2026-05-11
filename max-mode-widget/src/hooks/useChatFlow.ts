@@ -6,6 +6,7 @@ import { emitEvent } from "@/config";
 import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
+import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
 
 export function useChatFlow({
   chatQuery,
@@ -232,6 +233,10 @@ export function useChatFlow({
           messageContent = data.result.sanitizedPayload.message || "I processed your query successfully.";
           result = data.result;
           resultType = data.result.type;
+          messageContent =
+            summarizeShopifyMcpCatalogResult(data.result.sanitizedPayload.data) ||
+            summarizeShopifyMcpCatalogResult(data.result.data) ||
+            messageContent;
 
           // Strip empty smart suggestions
           if (result.smartSuggestion) {
