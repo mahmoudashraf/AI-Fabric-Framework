@@ -515,6 +515,13 @@
     return value.slice(0, maxLength - 1).trimEnd() + '…'
   }
 
+  function trimValue(value) {
+    if (value == null) {
+      return ''
+    }
+    return String(value).trim()
+  }
+
   getShellRegistry()['max-mode'] = {
     render: render,
     teardown: teardown,
