@@ -184,16 +184,17 @@ const STARTER_SURFACE_IDS = [
 ]
 
 const SHELL_MODE_PROFILE_OPTIONS = [
-  { label: 'Shopify Companion', value: 'SHOPIFY_COMPANION' },
-  { label: 'Guided Commerce', value: 'GUIDED_COMMERCE' },
-  { label: 'Guided Support', value: 'GUIDED_SUPPORT' },
+  { label: 'Loom Companion two-mode routing', value: 'SHOPIFY_COMPANION' },
+  { label: 'Shopping Assistant emphasis', value: 'GUIDED_COMMERCE' },
+  { label: 'Account & Order Assistant emphasis', value: 'GUIDED_SUPPORT' },
 ]
 
 const CONVERSATION_MODE_OPTIONS = [
-  { label: 'Navigator', value: 'navigator' },
-  { label: 'Deep', value: 'navigator_deep' },
-  { label: 'Assistant', value: 'cart_assistant' },
-  { label: 'Resolver', value: 'executor' },
+  { label: 'Shopping Assistant lite', value: 'navigator' },
+  { label: 'Shopping Assistant depth', value: 'navigator_deep' },
+  { label: 'Companion Thinker', value: 'thinker_deep' },
+  { label: 'Account & Order Assistant', value: 'cart_assistant' },
+  { label: 'Companion Resolver', value: 'executor' },
 ]
 
 const PAGE_MODE_OPTIONS = [
@@ -203,6 +204,7 @@ const PAGE_MODE_OPTIONS = [
   { label: 'Search pages', value: 'search', helpText: 'Search results and search-led discovery flows.' },
   { label: 'Cart pages', value: 'cart', helpText: 'Cart review and checkout-adjacent pages.' },
   { label: 'Account pages', value: 'account', helpText: 'Customer account, orders, and login/register flows.' },
+  { label: 'Support pages', value: 'support', helpText: 'Contact, help, returns, and support pages.' },
   { label: 'Content pages', value: 'content', helpText: 'Articles, blogs, and CMS pages.' },
 ]
 
@@ -218,13 +220,13 @@ const ADMIN_TABS = [
 ]
 
 function defaultConversationModeForShellProfile(shellModeProfile?: string | null): string {
-  return shellModeProfile === 'GUIDED_SUPPORT' ? 'navigator_deep' : 'navigator'
+  return 'thinker_deep'
 }
 
 function normalizeAllowedConversationModes(values: string[] | null | undefined, fallback: string): string[] {
   const normalized = (values ?? [])
     .filter((value): value is string => Boolean(value && value.trim()))
-    .map((value) => value.trim())
+    .map((value) => value.trim().toLowerCase())
     .filter((value, index, array) => array.indexOf(value) === index)
   if (!normalized.includes(fallback)) {
     normalized.push(fallback)
@@ -236,8 +238,11 @@ function normalizePageModeMappings(values: Record<string, string> | null | undef
   if (!values) {
     return {}
   }
+  const normalizedAllowedModes = allowedModes.map((value) => value.trim().toLowerCase())
   return Object.fromEntries(
-    Object.entries(values).filter(([pageKey, mode]) => Boolean(pageKey) && Boolean(mode) && allowedModes.includes(mode))
+    Object.entries(values)
+      .map(([pageKey, mode]) => [pageKey.trim().toLowerCase(), mode.trim().toLowerCase()])
+      .filter(([pageKey, mode]) => Boolean(pageKey) && Boolean(mode) && normalizedAllowedModes.includes(mode))
   )
 }
 
@@ -1129,6 +1134,11 @@ export default function App() {
   const installRecoveryRequired = Boolean(session?.installRecoveryRequired)
   const installRecoveryUrl = session?.installRecoveryUrl ?? null
   const orderLookupTierAllowed = billingAllowedSurfaces.includes('order-lookup')
+  const shoppingAssistantEnabled = widgetSettings.assistantDockEnabled
+  const accountOrderAssistantEnabled =
+    widgetSettings.allowedConversationModes.includes('executor') ||
+    widgetSettings.allowedConversationModes.includes('cart_assistant') ||
+    widgetSettings.enabledSurfaces.includes('order-lookup')
   const scopeGrantRequired = Boolean(orderLookupTierAllowed && supportReadiness?.scopeGrantRequired)
   const scopeGrantUrl = supportReadiness?.scopeGrantUrl ?? null
   const supportReadinessLaunchBlocked =
@@ -1781,6 +1791,113 @@ export default function App() {
                       Billing appears after the current merchant session resolves.
                     </Text>
                   )}
+                </BlockStack>
+              </Card>
+            </Box>
+            ) : null}
+
+            {selectedSection === 'advanced' ? (
+            <Box minWidth="360px">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Advanced assistant routing
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Operator-only controls for raw runtime modes, debug inspection, and page-to-mode overrides. Normal merchant setup should use the two assistant cards.
+                  </Text>
+                  <Select
+                    label="Default internal mode"
+                    options={CONVERSATION_MODE_OPTIONS}
+                    value={widgetSettings.defaultConversationMode}
+                    onChange={(value) =>
+                      setWidgetSettings((current) => ({
+                        ...current,
+                        defaultConversationMode: value,
+                        allowedConversationModes: normalizeAllowedConversationModes(
+                          current.allowedConversationModes,
+                          value
+                        ),
+                      }))
+                    }
+                    helpText="Raw runtime mode used before page routing. Use only for operator diagnostics."
+                  />
+                  <Checkbox
+                    label="Debug inspector"
+                    checked={widgetSettings.debugEnabled}
+                    onChange={(checked) => setWidgetSettings((current) => ({ ...current, debugEnabled: checked }))}
+                    helpText="Shows widget request/response inspection for operator diagnostics."
+                  />
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Internal mode allowlist
+                    </Text>
+                    {CONVERSATION_MODE_OPTIONS.map((mode) => (
+                      <Checkbox
+                        key={mode.value}
+                        label={mode.label}
+                        checked={widgetSettings.allowedConversationModes.includes(mode.value)}
+                        disabled={mode.value === widgetSettings.defaultConversationMode}
+                        onChange={(checked) =>
+                          setWidgetSettings((current) => {
+                            const nextAllowed = checked
+                              ? normalizeAllowedConversationModes(
+                                  [...current.allowedConversationModes, mode.value],
+                                  current.defaultConversationMode
+                                )
+                              : current.allowedConversationModes.filter((value) => value !== mode.value)
+                            return {
+                              ...current,
+                              allowedConversationModes: nextAllowed,
+                              pageModeMappings: normalizePageModeMappings(current.pageModeMappings, nextAllowed),
+                            }
+                          })
+                        }
+                      />
+                    ))}
+                  </BlockStack>
+                  <BlockStack gap="150">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Page routing overrides
+                    </Text>
+                    {PAGE_MODE_OPTIONS.map((pageOption) => (
+                      <Select
+                        key={pageOption.value}
+                        label={pageOption.label}
+                        options={[
+                          { label: 'Use canonical two-mode routing', value: '' },
+                          ...CONVERSATION_MODE_OPTIONS.filter((mode) =>
+                            widgetSettings.allowedConversationModes.includes(mode.value)
+                          ),
+                        ]}
+                        value={widgetSettings.pageModeMappings[pageOption.value] ?? ''}
+                        onChange={(value) =>
+                          setWidgetSettings((current) => {
+                            const nextMappings = { ...current.pageModeMappings }
+                            if (!value) {
+                              delete nextMappings[pageOption.value]
+                            } else {
+                              nextMappings[pageOption.value] = value
+                            }
+                            return {
+                              ...current,
+                              pageModeMappings: nextMappings,
+                            }
+                          })
+                        }
+                        helpText={pageOption.helpText}
+                      />
+                    ))}
+                  </BlockStack>
+                  <InlineStack gap="200">
+                    <Button
+                      onClick={() => void handleWidgetSettingsSave()}
+                      loading={busyWidgetSettings}
+                      disabled={!session || installRecoveryRequired || !widgetSettingsDirty}
+                    >
+                      Save advanced routing
+                    </Button>
+                  </InlineStack>
                 </BlockStack>
               </Card>
             </Box>
@@ -3114,8 +3231,93 @@ export default function App() {
                     Widget settings
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
-                    Companion owns bounded launcher content, shell persona, and the embedded intelligence surfaces that appear before chat fallback.
+                    Configure Loom Companion as two shopper-understandable modes: Shopping Assistant for product discovery and Account & Order Assistant for gated support resolution.
                   </Text>
+                  <InlineStack gap="200">
+                    <Badge tone={shoppingAssistantEnabled ? 'success' : 'attention'}>
+                      {shoppingAssistantEnabled ? 'Shopping Assistant enabled' : 'Shopping Assistant disabled'}
+                    </Badge>
+                    <Badge tone={accountOrderAssistantEnabled && orderLookupTierAllowed ? 'success' : accountOrderAssistantEnabled ? 'attention' : 'critical'}>
+                      {accountOrderAssistantEnabled ? 'Account & Order Assistant configured' : 'Account & Order Assistant off'}
+                    </Badge>
+                  </InlineStack>
+                  <Divider />
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">
+                      Shopping Assistant
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Companion Thinker answers shopping, product, comparison, FAQ, and policy questions on storefront pages.
+                    </Text>
+                    <Checkbox
+                      label="Enable Shopping Assistant dock on storefront pages"
+                      checked={widgetSettings.assistantDockEnabled}
+                      onChange={(checked) =>
+                        setWidgetSettings((current) => ({
+                          ...current,
+                          assistantDockEnabled: checked,
+                          defaultConversationMode: 'thinker_deep',
+                          allowedConversationModes: normalizeAllowedConversationModes(
+                            current.allowedConversationModes.filter((mode) => mode !== 'navigator' && mode !== 'navigator_deep'),
+                            'thinker_deep',
+                          ),
+                          pageModeMappings: {
+                            ...current.pageModeMappings,
+                            landing: 'thinker_deep',
+                            product: 'thinker_deep',
+                            collection: 'thinker_deep',
+                            search: 'thinker_deep',
+                            content: 'thinker_deep',
+                          },
+                        }))
+                      }
+                      helpText="This is the normal shopping mode. It stays read-first and does not claim order changes, refunds, or account updates."
+                    />
+                  </BlockStack>
+                  <Divider />
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">
+                      Account & Order Assistant
+                    </Text>
+                    <Text as="p" variant="bodySm" tone={orderLookupTierAllowed ? 'subdued' : 'critical'}>
+                      {orderLookupTierAllowed
+                        ? supportReadiness?.message ?? 'Companion Resolver can be enabled when support handoff, Shopify scopes, and live verification are ready.'
+                        : 'Available on Elite after protected customer/order readiness, Shopify scopes, support handoff, and live verification are ready.'}
+                    </Text>
+                    <Checkbox
+                      label="Enable Account & Order Assistant routing when gates pass"
+                      checked={accountOrderAssistantEnabled}
+                      disabled={!orderLookupTierAllowed}
+                      onChange={(checked) =>
+                        setWidgetSettings((current) => {
+                          const nextAllowed = checked
+                            ? normalizeAllowedConversationModes([...current.allowedConversationModes, 'executor'], current.defaultConversationMode)
+                            : current.allowedConversationModes.filter((mode) => mode !== 'executor' && mode !== 'cart_assistant')
+                          const nextMappings = { ...current.pageModeMappings }
+                          if (checked) {
+                            nextMappings.cart = 'executor'
+                            nextMappings.account = 'executor'
+                            nextMappings.support = 'executor'
+                          } else {
+                            delete nextMappings.cart
+                            delete nextMappings.account
+                            delete nextMappings.support
+                          }
+                          return {
+                            ...current,
+                            allowedConversationModes: nextAllowed,
+                            pageModeMappings: normalizePageModeMappings(nextMappings, nextAllowed),
+                            enabledSurfaces:
+                              checked && billingAllowedSurfaces.includes('order-lookup')
+                                ? [...current.enabledSurfaces, 'order-lookup'].filter((value, index, values) => values.indexOf(value) === index)
+                                : current.enabledSurfaces.filter((surface) => surface !== 'order-lookup'),
+                          }
+                        })
+                      }
+                      helpText="Resolver pages fail closed to policy and merchant handoff when package, auth, scope, protected-data, or verification gates are missing."
+                    />
+                  </BlockStack>
+                  <Divider />
                   <TextField
                     label="Launcher label"
                     autoComplete="off"
@@ -3133,44 +3335,16 @@ export default function App() {
                     helpText="This becomes the first assistant message when the storefront launcher opens."
                   />
                   <Select
-                    label="Shell profile"
+                    label="Assistant copy profile"
                     options={SHELL_MODE_PROFILE_OPTIONS}
                     value={widgetSettings.shellModeProfile}
                     onChange={(value) => setWidgetSettings((current) => ({ ...current, shellModeProfile: value }))}
                     helpText={
                       billingSummary?.chatFallbackEnabled === false
                         ? 'Current tier is embedded-surface only. Chat fallback is disabled until a paid tier is active.'
-                        : 'This controls how the storefront surfaces phrase prompts and shopper guidance.'
+                        : 'This controls tone only. Page routing still resolves to Shopping Assistant or Account & Order Assistant.'
                     }
                     disabled={billingSummary?.chatFallbackEnabled === false}
-                  />
-                  <Select
-                    label="Default mode"
-                    options={CONVERSATION_MODE_OPTIONS}
-                    value={widgetSettings.defaultConversationMode}
-                    onChange={(value) =>
-                      setWidgetSettings((current) => ({
-                        ...current,
-                        defaultConversationMode: value,
-                        allowedConversationModes: normalizeAllowedConversationModes(
-                          current.allowedConversationModes,
-                          value
-                        ),
-                      }))
-                    }
-                    helpText="This is the default Max widget mode before page-specific routing or shopper selection changes it."
-                  />
-                  <Checkbox
-                    label="Debug inspector"
-                    checked={widgetSettings.debugEnabled}
-                    onChange={(checked) => setWidgetSettings((current) => ({ ...current, debugEnabled: checked }))}
-                    helpText="Shows the widget debug control for request and response inspection. Keep disabled for normal shopper traffic."
-                  />
-                  <Checkbox
-                    label="Companion dock on every page"
-                    checked={widgetSettings.assistantDockEnabled}
-                    onChange={(checked) => setWidgetSettings((current) => ({ ...current, assistantDockEnabled: checked }))}
-                    helpText="Shows the new bottom assistant composer globally across the storefront app embed."
                   />
                   <Checkbox
                     label="Legacy Ask assistant launcher"
@@ -3178,67 +3352,6 @@ export default function App() {
                     onChange={(checked) => setWidgetSettings((current) => ({ ...current, askAssistantLauncherEnabled: checked }))}
                     helpText="Keeps the older floating Max launcher available for stores that still want it. Leave off when the Companion dock is active."
                   />
-                  <BlockStack gap="150">
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Intentional advanced modes
-                    </Text>
-                    {CONVERSATION_MODE_OPTIONS.map((mode) => (
-                      <Checkbox
-                        key={mode.value}
-                        label={mode.label}
-                        checked={widgetSettings.allowedConversationModes.includes(mode.value)}
-                        disabled={mode.value === widgetSettings.defaultConversationMode}
-                        onChange={(checked) =>
-                          setWidgetSettings((current) => {
-                            const nextAllowed = checked
-                              ? normalizeAllowedConversationModes(
-                                  [...current.allowedConversationModes, mode.value],
-                                  current.defaultConversationMode
-                                )
-                              : current.allowedConversationModes.filter((value) => value !== mode.value)
-                            return {
-                              ...current,
-                              allowedConversationModes: nextAllowed,
-                              pageModeMappings: normalizePageModeMappings(current.pageModeMappings, nextAllowed),
-                            }
-                          })
-                        }
-                      />
-                    ))}
-                  </BlockStack>
-                  <BlockStack gap="150">
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Page-aware mode routing
-                    </Text>
-                    {PAGE_MODE_OPTIONS.map((pageOption) => (
-                      <Select
-                        key={pageOption.value}
-                        label={pageOption.label}
-                        options={[
-                          { label: 'Use default mode', value: '' },
-                          ...CONVERSATION_MODE_OPTIONS.filter((mode) =>
-                            widgetSettings.allowedConversationModes.includes(mode.value)
-                          ),
-                        ]}
-                        value={widgetSettings.pageModeMappings[pageOption.value] ?? ''}
-                        onChange={(value) =>
-                          setWidgetSettings((current) => {
-                            const nextMappings = { ...current.pageModeMappings }
-                            if (!value) {
-                              delete nextMappings[pageOption.value]
-                            } else {
-                              nextMappings[pageOption.value] = value
-                            }
-                            return {
-                              ...current,
-                              pageModeMappings: nextMappings,
-                            }
-                          })
-                        }
-                        helpText={pageOption.helpText}
-                      />
-                    ))}
-                  </BlockStack>
                   <BlockStack gap="150">
                     <Text as="p" variant="bodySm" tone="subdued">
                       Embedded surfaces · current tier allows {billingAllowedSurfaces.join(' · ')}

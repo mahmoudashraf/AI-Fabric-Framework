@@ -8,16 +8,27 @@ import { Button } from "@/ui/button";
 
 function modeLabel(mode: MaxModeMode) {
   switch (mode) {
-    case "navigator_deep":
-      return "Deep";
-    case "thinker_deep":
-      return "Thinker";
     case "cart_assistant":
-      return "Cart";
     case "executor":
-      return "Action";
+      return "Account & Order Assistant";
+    case "navigator_deep":
+    case "thinker_deep":
+    case "navigator":
     default:
-      return "Guide";
+      return "Shopping Assistant";
+  }
+}
+
+function positionLabel(position: string) {
+  switch (position) {
+    case "catalog":
+      return "shopping page";
+    case "search":
+      return "search page";
+    case "cart":
+      return "account/order page";
+    default:
+      return "landing page";
   }
 }
 
@@ -156,7 +167,7 @@ export function CompanionDock({
               Assist
             </span>
             <span className="rounded-full bg-green-500 px-3 py-1 text-xs font-bold text-white">
-              {controller.currentPosition}
+              {positionLabel(controller.currentPosition)}
             </span>
           </div>
         )}

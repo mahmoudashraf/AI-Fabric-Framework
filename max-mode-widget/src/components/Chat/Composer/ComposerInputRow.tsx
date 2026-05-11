@@ -9,6 +9,19 @@ import { Button } from "@/ui/button";
 import { Textarea } from "@/ui/textarea";
 import { ModeSelector } from "./ModeSelector";
 
+function positionLabel(position: MaxModePosition) {
+  switch (position) {
+    case "catalog":
+      return "shopping page";
+    case "search":
+      return "search page";
+    case "cart":
+      return "account/order page";
+    default:
+      return "landing page";
+  }
+}
+
 export function ComposerInputRow({
   searchCategory,
   hasAiSearch,
@@ -70,7 +83,7 @@ export function ComposerInputRow({
                   : "bg-green-500 text-white"
           }`}
         >
-          {currentPosition}
+          {positionLabel(currentPosition)}
         </span>
         {debugEnabled && (
           <button
@@ -166,7 +179,7 @@ export function ComposerInputRow({
                     : "bg-green-500 text-white"
             }`}
           >
-            {currentPosition}
+            {positionLabel(currentPosition)}
           </span>
           {debugEnabled && (
             <button

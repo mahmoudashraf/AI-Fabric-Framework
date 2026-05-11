@@ -45,9 +45,9 @@ class ShopifyStoreWidgetSettingsServiceTest {
                 "GUIDED_COMMERCE",
                 true,
                 List.of("ai-search", "comparison", "order-lookup"),
-                "executor",
-                List.of("navigator", "executor"),
-                Map.of("account", "executor", "landing", "navigator")
+                "thinker_deep",
+                List.of("thinker_deep", "executor"),
+                Map.of("account", "executor", "landing", "thinker_deep")
             )
         );
 
@@ -59,11 +59,11 @@ class ShopifyStoreWidgetSettingsServiceTest {
         assertThat(store.getDetailsJson()).contains("\"assistantDockEnabled\":true");
         assertThat(store.getDetailsJson()).contains("\"askAssistantLauncherEnabled\":false");
         assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\",\"order-lookup\"]");
-        assertThat(store.getDetailsJson()).contains("\"defaultConversationMode\":\"executor\"");
-        assertThat(store.getDetailsJson()).contains("\"allowedConversationModes\":[\"navigator\",\"executor\"]");
+        assertThat(store.getDetailsJson()).contains("\"defaultConversationMode\":\"thinker_deep\"");
+        assertThat(store.getDetailsJson()).contains("\"allowedConversationModes\":[\"thinker_deep\",\"executor\"]");
         assertThat(store.getDetailsJson()).contains("\"pageModeMappings\":");
         assertThat(store.getDetailsJson()).contains("\"account\":\"executor\"");
-        assertThat(store.getDetailsJson()).contains("\"landing\":\"navigator\"");
+        assertThat(store.getDetailsJson()).contains("\"landing\":\"thinker_deep\"");
     }
 
     private ShopifyStoreConnectionEntity store() {

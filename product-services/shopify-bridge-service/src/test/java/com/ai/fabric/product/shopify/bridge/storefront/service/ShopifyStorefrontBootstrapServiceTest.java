@@ -102,7 +102,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.defaultConversationMode()).isEqualTo("navigator");
         assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
         assertThat(response.allowedConversationModes()).containsExactly("navigator");
-        assertThat(response.pageModeMappings()).isEmpty();
+        assertThat(response.pageModeMappings()).containsEntry("product", "navigator");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
@@ -187,6 +187,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.available()).isTrue();
         assertThat(response.orderLookupEnabled()).isFalse();
         assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
+        assertThat(response.pageModeMappings()).containsEntry("account", "navigator");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
     }
 
@@ -239,6 +240,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.defaultConversationMode()).isEqualTo("thinker_deep");
         assertThat(response.allowedConversationModes()).containsExactly("navigator", "executor", "thinker_deep");
         assertThat(response.pageModeMappings()).containsEntry("account", "executor");
+        assertThat(response.pageModeMappings()).containsEntry("product", "thinker_deep");
         assertThat(response.effectiveConversationMode()).isEqualTo("executor");
     }
 

@@ -34,7 +34,7 @@ public class ShopifyStoreWidgetSettingsService {
     private static final boolean DEFAULT_DEBUG_ENABLED = false;
     private static final boolean DEFAULT_ASSISTANT_DOCK_ENABLED = true;
     private static final boolean DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED = false;
-    private static final String DEFAULT_CONVERSATION_MODE = "navigator";
+    private static final String DEFAULT_CONVERSATION_MODE = "thinker_deep";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
         "ai-search",
         "contextual-pill",
@@ -60,6 +60,7 @@ public class ShopifyStoreWidgetSettingsService {
     private static final Set<String> ALLOWED_CONVERSATION_MODES = Set.of(
         "navigator",
         "navigator_deep",
+        "thinker_deep",
         "cart_assistant",
         "executor"
     );
@@ -70,6 +71,7 @@ public class ShopifyStoreWidgetSettingsService {
         "search",
         "cart",
         "account",
+        "support",
         "content"
     );
 
@@ -282,9 +284,6 @@ public class ShopifyStoreWidgetSettingsService {
     }
 
     private String defaultConversationModeForShellProfile(String shellModeProfile) {
-        if ("GUIDED_SUPPORT".equalsIgnoreCase(shellModeProfile)) {
-            return "navigator_deep";
-        }
         return DEFAULT_CONVERSATION_MODE;
     }
 

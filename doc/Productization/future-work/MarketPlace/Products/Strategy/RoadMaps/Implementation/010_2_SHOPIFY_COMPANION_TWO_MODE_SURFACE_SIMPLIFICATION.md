@@ -1,6 +1,6 @@
 # 010.2 Shopify Companion Two-Mode Surface Simplification
 
-Status: implementation roadmap (created 2026-05-10)
+Status: implemented in code; live staging verification in progress (created 2026-05-10, updated 2026-05-11)
 
 Owner mode: product simplification / storefront mode routing / merchant configuration LLM session
 
@@ -316,14 +316,16 @@ The codebase already has most of the primitives:
 - Thinker/Resolver persistence, policy, dry-run, and support escalation execution exist
 - order lookup surface exists as a gated widget surface
 
-Known simplification gaps:
+010.2 implementation status:
 
-- `ShopifyStoreWidgetSettingsService` does not currently allow `thinker_deep` as a merchant-configurable mode
-- Shopify merchant UI still exposes technical mode labels such as `Navigator`, `Deep`, `Assistant`, and `Resolver`
-- widget mode selector can expose raw mode labels to shoppers
-- Resolver is still visually tied to `executor` instead of the simpler `Account & Order Assistant` concept
-- page routing is available, but the canonical business routing is not yet expressed as the simple Thinker/Resolver page model
-- account/order resolution copy must avoid refund/cancellation/support-desk automation claims
+- `ShopifyStoreWidgetSettingsService` accepts `thinker_deep` as the normal merchant-configurable shopping mode
+- Shopify Bridge storefront bootstrap defaults chat-capable shopping pages to Companion Thinker and keeps free/no-chat fallback stores on the base navigator posture
+- account, cart, and support page routing resolves to Companion Resolver only when package, storefront readiness, and go-live gates pass
+- gated Resolver failures fall back to the safe shopping/handoff posture instead of exposing action modes
+- Shopify merchant setup shows two normal cards: Shopping Assistant and Account & Order Assistant
+- raw technical mode ids remain in advanced/operator routing controls and diagnostics
+- max-mode dock, composer, page pills, and theme-app shell use shopper-friendly labels instead of raw mode names
+- Account & Order Assistant copy avoids refund, cancellation, address-change, order-edit, and unrestricted support-desk automation claims
 
 ---
 

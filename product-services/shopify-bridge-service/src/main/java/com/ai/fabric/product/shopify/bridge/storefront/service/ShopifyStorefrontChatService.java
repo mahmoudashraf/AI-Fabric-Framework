@@ -355,11 +355,11 @@ public class ShopifyStorefrontChatService {
             request.put("mode", platformConversationMode(effectiveDepthConversationMode(contextMode, billingSummary)));
             return;
         }
-        request.put("mode", platformConversationMode(effectiveDepthConversationMode("navigator_deep", billingSummary)));
+        request.put("mode", platformConversationMode(effectiveDepthConversationMode("thinker_deep", billingSummary)));
     }
 
     private String effectiveDepthConversationMode(String normalizedMode, ShopifyBridgeBillingSummary billingSummary) {
-        if ("thinker_deep".equals(normalizedMode) && (billingSummary == null || !billingSummary.actionCapable())) {
+        if ("thinker_deep".equals(normalizedMode) && (billingSummary == null || !billingSummary.chatFallbackEnabled())) {
             return "navigator_deep";
         }
         return normalizedMode;

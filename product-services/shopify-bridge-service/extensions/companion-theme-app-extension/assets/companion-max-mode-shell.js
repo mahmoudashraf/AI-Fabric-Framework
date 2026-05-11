@@ -74,9 +74,14 @@
       allowedConversationModes,
       pageModeMappings
     )
-    var resolvedWelcomeMessage = deriveWelcomeMessage(options.payload, options.storefrontContext, shellModeProfile)
+    var resolvedWelcomeMessage = deriveWelcomeMessage(
+      options.payload,
+      options.storefrontContext,
+      shellModeProfile,
+      effectiveConversationMode
+    )
     var shopperSessionId = getOrCreateShopperSessionId(options.payload.shopDomain || options.root.dataset.shopDomain || 'storefront')
-    var starterSuggestions = defaultSuggestionsForContext(options.storefrontContext, shellModeProfile)
+    var starterSuggestions = defaultSuggestionsForContext(options.storefrontContext, shellModeProfile, effectiveConversationMode)
     var requestContext = buildRequestContext(
       options.storefrontContext,
       shellModeProfile,
@@ -133,7 +138,7 @@
         launcherLabel: runtime.resolvedLauncherLabel,
         launcherAriaLabel: runtime.resolvedLauncherLabel,
         launcherVariant: 'pill',
-        assistantLabel: assistantLabelForShellModeProfile(runtime.shellModeProfile),
+        assistantLabel: assistantLabelForConversationMode(runtime.effectiveConversationMode),
         welcomeMessage: runtime.resolvedWelcomeMessage,
         starterPrompts: starterPromptsForContext(runtime.starterSuggestions, runtime.effectiveConversationMode, options.storefrontContext),
         starterSuggestions: runtime.starterSuggestions,
@@ -224,10 +229,13 @@
     return null
   }
 
-  function deriveWelcomeMessage(payload, storefrontContext, shellModeProfile) {
+  function deriveWelcomeMessage(payload, storefrontContext, shellModeProfile, conversationMode) {
     var fallback = (payload.welcomeMessage || payload.message || '').trim()
     if (fallback && !isGenericWelcomeMessage(fallback)) {
       return fallback
+    }
+    if (isAccountOrderMode(conversationMode)) {
+      return 'Account & Order Assistant is ready. Ask about orders, delivery, returns, or support handoff. Refunds, cancellations, address changes, and account-specific updates still go through merchant support.'
     }
     if (storefrontContext.product && storefrontContext.product.title) {
       if (shellModeProfile === 'GUIDED_SUPPORT') {
@@ -256,14 +264,23 @@
     if (shellModeProfile === 'GUIDED_COMMERCE') {
       return 'Store buying guide is ready. Ask about products, compare options, or narrow the catalog faster.'
     }
-    return 'Store assistant is ready. Ask about products, policies, or collections.'
+    return 'Shopping Assistant is ready. Ask about products, policies, or collections.'
   }
 
   function isGenericWelcomeMessage(value) {
-    return value === 'Store assistant is ready. Ask about products, policies, or collections.'
+    return value === 'Store assistant is ready. Ask about products, policies, or collections.' ||
+      value === 'Shopping Assistant is ready. Ask about products, policies, or collections.'
   }
 
-  function defaultSuggestionsForContext(storefrontContext, shellModeProfile) {
+  function defaultSuggestionsForContext(storefrontContext, shellModeProfile, conversationMode) {
+    if (isAccountOrderMode(conversationMode)) {
+      return [
+        'Where can I get help with my order?',
+        'What is your return policy?',
+        'How do I contact support?',
+        'Can you explain delivery and refund options?',
+      ]
+    }
     if (storefrontContext.product && storefrontContext.product.title) {
       if (shellModeProfile === 'GUIDED_SUPPORT') {
         return [
@@ -354,11 +371,12 @@
     return 'Store assistant'
   }
 
+  function assistantLabelForConversationMode(conversationMode) {
+    return isAccountOrderMode(conversationMode) ? 'Account & Order Assistant' : 'Shopping Assistant'
+  }
+
   function defaultLauncherMode(shellModeProfile) {
-    if (shellModeProfile === 'GUIDED_SUPPORT') {
-      return 'navigator_deep'
-    }
-    return 'navigator'
+    return 'thinker_deep'
   }
 
   function normalizeConversationMode(value) {
@@ -369,6 +387,11 @@
       return value
     }
     return 'navigator'
+  }
+
+  function isAccountOrderMode(value) {
+    var mode = normalizeConversationMode(value)
+    return mode === 'executor' || mode === 'cart_assistant'
   }
 
   function normalizeAllowedConversationModes(values, defaultConversationMode) {

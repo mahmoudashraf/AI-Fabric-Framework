@@ -559,7 +559,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryDefaultsStorefrontLauncherChatToNavigatorDeepWhenNoModeWasSelected() throws Exception {
+    void queryDefaultsStorefrontLauncherChatToCompanionThinkerWhenNoModeWasSelected() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -570,7 +570,7 @@ class ShopifyStorefrontChatServiceTest {
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Compare this product with similar items",
-              "mode":"navigator_deep",
+              "mode":"THINKER_DEEP",
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
