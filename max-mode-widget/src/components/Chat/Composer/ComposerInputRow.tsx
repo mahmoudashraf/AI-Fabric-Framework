@@ -41,6 +41,7 @@ export function ComposerInputRow({
   availableModes,
   onModeChange,
   debugEnabled,
+  conversationsEnabled,
   onOpenDebug,
   nonAiAttachmentsCount,
   onSubmit,
@@ -63,6 +64,7 @@ export function ComposerInputRow({
   availableModes: MaxModeMode[];
   onModeChange: (mode: MaxModeMode) => void;
   debugEnabled: boolean;
+  conversationsEnabled: boolean;
   onOpenDebug: () => void;
   nonAiAttachmentsCount: number;
   onSubmit: () => void;
@@ -98,15 +100,17 @@ export function ComposerInputRow({
 
       {/* Input row */}
       <div className="flex items-center gap-2 md:gap-3">
-      <Button
-        size="icon"
-        variant="outline"
-        onClick={onOpenHistory}
-        className="h-12 w-12 md:h-14 md:w-14 rounded-2xl border-2 border-purple-400/50 bg-white shadow-lg transition-all hover:scale-105 hover:border-purple-500 hover:bg-purple-50 dark:bg-gray-900 dark:hover:bg-purple-900/30 flex-shrink-0"
-        title="Chat History"
-      >
-        <History className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
-      </Button>
+      {conversationsEnabled && (
+        <Button
+          size="icon"
+          variant="outline"
+          onClick={onOpenHistory}
+          className="h-12 w-12 md:h-14 md:w-14 rounded-2xl border-2 border-purple-400/50 bg-white shadow-lg transition-all hover:scale-105 hover:border-purple-500 hover:bg-purple-50 dark:bg-gray-900 dark:hover:bg-purple-900/30 flex-shrink-0"
+          title="Chat History"
+        >
+          <History className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
+        </Button>
+      )}
 
       <div className="relative flex-1">
         {searchCategory && !hasAiSearch && (

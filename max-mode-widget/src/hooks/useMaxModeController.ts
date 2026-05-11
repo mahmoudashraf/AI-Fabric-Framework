@@ -348,6 +348,7 @@ export function useMaxModeController({
   const widgetConfig = getWidgetConfig();
   const hostConfig = widgetConfig.host;
   const debugEnabled = widgetConfig.features?.debug === true;
+  const conversationsEnabled = widgetConfig.features?.conversations ?? true;
   const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
   const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
   const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
@@ -482,6 +483,7 @@ export function useMaxModeController({
     startNewConversation,
     openConversationsPanel,
   } = useConversationsController({
+    enabled: conversationsEnabled,
     isOpen,
     chatMessagesLength: chatMessages.length,
     currentConversationId,
@@ -1061,6 +1063,7 @@ export function useMaxModeController({
     setLastRequestData,
     lastResponseData,
     setLastResponseData,
+    conversationsEnabled,
     isConversationsOpen,
     setIsConversationsOpen,
     conversations,

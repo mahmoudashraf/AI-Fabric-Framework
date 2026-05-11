@@ -6,6 +6,7 @@ import type { ChatMessage } from "@/types";
 import { deleteConversation, getConversation, listConversations } from "@/api/conversations";
 
 export function useConversationsController({
+  enabled = true,
   isOpen,
   chatMessagesLength,
   currentConversationId,
@@ -17,6 +18,7 @@ export function useConversationsController({
   setContextDocuments,
   toast,
 }: {
+  enabled?: boolean;
   isOpen: boolean;
   chatMessagesLength: number;
   currentConversationId: string | null;
@@ -35,6 +37,10 @@ export function useConversationsController({
   const [oldConversationLocked, setOldConversationLocked] = useState(false);
 
   const loadConversations = useCallback(async () => {
+    if (!enabled) {
+      setConversations([]);
+      return;
+    }
     setIsLoadingConversations(true);
     try {
       const data = await listConversations();
@@ -49,7 +55,7 @@ export function useConversationsController({
     } finally {
       setIsLoadingConversations(false);
     }
-  }, [toast]);
+  }, [enabled, toast]);
 
   const startNewConversation = useCallback(() => {
     setChatMessages([]);
@@ -137,12 +143,20 @@ export function useConversationsController({
   );
 
   const openConversationsPanel = useCallback(() => {
+    if (!enabled) {
+      setIsConversationsOpen(false);
+      return;
+    }
     void loadConversations();
     setIsConversationsOpen(true);
-  }, [loadConversations]);
+  }, [enabled, loadConversations]);
 
   const hasLoadedRecentConversation = useRef(false);
   useEffect(() => {
+    if (!enabled) {
+      hasLoadedRecentConversation.current = true;
+      return;
+    }
     if (!isOpen || hasLoadedRecentConversation.current) return;
     if (chatMessagesLength > 0) {
       hasLoadedRecentConversation.current = true;
@@ -192,7 +206,7 @@ export function useConversationsController({
     };
 
     void loadRecentConversation();
-  }, [chatMessagesLength, isOpen, setChatMessages, setCurrentConversationId]);
+  }, [chatMessagesLength, enabled, isOpen, setChatMessages, setCurrentConversationId]);
 
   return {
     isConversationsOpen,
