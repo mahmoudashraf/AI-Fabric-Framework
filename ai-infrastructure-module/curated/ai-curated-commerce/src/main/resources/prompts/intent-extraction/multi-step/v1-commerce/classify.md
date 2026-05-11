@@ -47,7 +47,9 @@ Rules:
 - Set requiresTargetResolution=true when the request depends on resolving specific target(s) from attachments or prior retrieved results.
   - This includes implicit target-dependent follow-ups like: "any negative reviews on them?", "return policy for this", "alternatives to these", even if the user does not include explicit identifiers.
 - Optional: set metadata.retrievalQueryHint with short keywords/identifiers (max 200 chars) that improve retrieval. Never include emails/phones/addresses.
-- Use OUT_OF_SCOPE only when the request is clearly unrelated to the system or asks for an unsupported action. When using OUT_OF_SCOPE, include actionParams.userMessage as a shopper-safe one-sentence response that redirects to products, policies, comparisons, cart, or order help. Do not mention implementation terms, internal systems, retrieval, vector spaces, providers, or knowledge bases.
+- Use OUT_OF_SCOPE only when the request is clearly unrelated to the store assistant, asks for an unsupported action, asks for professional/legal/medical/financial advice, or asks about assistant implementation/infrastructure such as runtime behavior, vectorization, providers, platform internals, logs, deployments, or secrets.
+- When using OUT_OF_SCOPE, include actionParams.userMessage as a shopper-safe one-sentence response that redirects to this store's products, policies, comparisons, cart, or order help.
+- OUT_OF_SCOPE userMessage must not repeat or quote the unsupported topic/request, and must not mention implementation terms, internal systems, retrieval, vector spaces, providers, or knowledge bases.
 - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 
 USER REQUEST:

@@ -66,7 +66,11 @@ class CommerceCuratedPackTest {
             new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
             promptBundle
         );
-        assertThat(resolver.resolve("intent-extraction/multi-step", "classify").template().key().version()).isEqualTo("v1-commerce");
+        var classifierTemplate = resolver.resolve("intent-extraction/multi-step", "classify").template();
+        assertThat(classifierTemplate.key().version()).isEqualTo("v1-commerce");
+        assertThat(classifierTemplate.template())
+            .contains("asks about assistant implementation/infrastructure")
+            .contains("must not repeat or quote the unsupported topic/request");
         assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
             .contains("Use only the relevant commerce context above")
             .contains("no safest option can be identified from the available live store data")
