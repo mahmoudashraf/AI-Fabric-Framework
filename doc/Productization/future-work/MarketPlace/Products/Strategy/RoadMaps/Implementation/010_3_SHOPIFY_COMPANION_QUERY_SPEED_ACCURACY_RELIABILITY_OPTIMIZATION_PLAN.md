@@ -222,6 +222,7 @@ Fix direction:
 - Bridge forwards trusted cart id context into attachment metadata and summary text so runtime can fill cart read/action parameters from the storefront session context.
 - Bridge maps structured Customer Account auth error codes to shopper-safe sign-in/support copy while preserving internal diagnostics outside the public storefront response.
 - The canonical answer-quality query pack now includes the additional ski-search, priced-search, and Customer Account auth-safe-copy probes.
+- Platform vectorization readiness now prefers enabled canonical Marketplace installs over disabled legacy aliases when plugin ids canonicalize to the same current plugin id. This prevents disabled `mkp-action-shopify-companion-read` records from masking the enabled `mkp-action-shopify-storefront-read-mcp` install during readiness checks.
 
 Needs work:
 

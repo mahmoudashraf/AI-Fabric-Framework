@@ -680,9 +680,25 @@ public class ShopifyStoreVectorizationService {
     private Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId(DeploymentEntity deployment) {
         LinkedHashMap<String, DeploymentMarketplaceInstallSummary> installs = new LinkedHashMap<>();
         for (DeploymentMarketplaceInstallSummary install : deploymentMarketplaceInstallService.listInstallsForTrustedCaller(deployment)) {
-            installs.put(normalizePluginId(install.pluginId()), install);
+            String pluginId = normalizePluginId(install.pluginId());
+            DeploymentMarketplaceInstallSummary existing = installs.get(pluginId);
+            if (existing == null || shouldReplaceCanonicalInstall(existing, install)) {
+                installs.put(pluginId, install);
+            }
         }
         return installs;
+    }
+
+    private boolean shouldReplaceCanonicalInstall(DeploymentMarketplaceInstallSummary existing,
+                                                  DeploymentMarketplaceInstallSummary candidate) {
+        boolean existingEnabled = "ENABLED".equalsIgnoreCase(existing.status());
+        boolean candidateEnabled = "ENABLED".equalsIgnoreCase(candidate.status());
+        if (existingEnabled != candidateEnabled) {
+            return candidateEnabled;
+        }
+        boolean existingCanonical = normalizePluginId(existing.pluginId()).equalsIgnoreCase(existing.pluginId());
+        boolean candidateCanonical = normalizePluginId(candidate.pluginId()).equalsIgnoreCase(candidate.pluginId());
+        return !existingCanonical && candidateCanonical;
     }
 
     private void ensureDeploymentRunnerSupport(DeploymentEntity deployment,

@@ -130,6 +130,107 @@ class ShopifyStoreVectorizationServiceTest {
     }
 
     @Test
+    void getSummaryPrefersEnabledCanonicalReadMcpInstallOverDisabledLegacyAlias() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentMarketplaceInstallService installService = mock(DeploymentMarketplaceInstallService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformManagedProductServiceRepository productServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+        VectorizationService vectorizationService = mock(VectorizationService.class);
+        ShopifyStoreVectorizationPolicyService policyService = mock(ShopifyStoreVectorizationPolicyService.class);
+        ShopifyStoreVectorizationFieldCatalogService fieldCatalogService = mock(ShopifyStoreVectorizationFieldCatalogService.class);
+        ShopifyStoreVectorizationEventService eventService = mock(ShopifyStoreVectorizationEventService.class);
+        ShopifyBridgeAdminClient bridgeAdminClient = mock(ShopifyBridgeAdminClient.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        ShopifyStoreConnectionEntity store = store("alpha.myshopify.com");
+        store.setDeploymentId("dep-123");
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setCustomerId("cus-123");
+        deployment.setTenantId("ten-123");
+
+        VectorizationSourceConnectionSummary connection = new VectorizationSourceConnectionSummary(
+            "vcn-123", "dep-123", "Shopify store alpha.myshopify.com", "REST_API", "API_KEY",
+            "READY", JSON.objectNode(), JSON.objectNode(), JSON.objectNode(), Instant.now(), Instant.now()
+        );
+        VectorizationPlanRevisionSummary revision = new VectorizationPlanRevisionSummary(
+            "vpr-123", 1, "ACTIVE", "vcn-123", JSON.arrayNode().add("product").add("support-policy"),
+            JSON.objectNode(), JSON.objectNode(), "hash-123", Instant.now(), Instant.now()
+        );
+        VectorizationPlanSummary plan = new VectorizationPlanSummary(
+            "vpl-123", "dep-123", "Shopify store vectorization", "ACTIVE", "PLATFORM_MANAGED_AUTO", "IN_SYNC",
+            List.of(), JSON.objectNode(), "hash-123", "hash-123", "vpr-123", "vcn-123",
+            null, null, null, null, revision, Instant.now(), Instant.now()
+        );
+        VectorizationOverviewSummary overview = new VectorizationOverviewSummary(
+            "dep-123",
+            "cus-123",
+            "ten-123",
+            "ver-123",
+            "v1",
+            "cfg-123",
+            connection,
+            plan,
+            new VectorizationRunnerSummary(
+                "vrr-123",
+                "PLATFORM_MANAGED_AUTO",
+                "ACTIVE",
+                "COMPATIBLE",
+                "hint",
+                Instant.now().plusSeconds(3600),
+                "vectorization-runner-dep-123",
+                "2026.04.track-b",
+                "1",
+                Instant.now(),
+                Instant.now(),
+                Instant.now().plusSeconds(300)
+            ),
+            List.of()
+        );
+
+        when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
+        when(installService.listInstallsForTrustedCaller(deployment)).thenReturn(List.of(
+            install("mpi-read-mcp", ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID, "ENABLED"),
+            install("mpi-cart", ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID, "ENABLED"),
+            install("mpi-customer", ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID, "ENABLED"),
+            install("mpi-checkout", ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID, "ENABLED"),
+            install("mpi-catalog", ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID, "ENABLED"),
+            install("mpi-policies", ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID, "ENABLED"),
+            install("mpi-legacy-read", ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID, "DISABLED")
+        ));
+        when(vectorizationService.getOverviewForTrustedCaller(deployment)).thenReturn(overview);
+        stubSummaryCollaborators(policyService, fieldCatalogService, eventService, overview);
+
+        ShopifyStoreVectorizationService service = service(
+            repository,
+            deploymentRepository,
+            deploymentReleaseRepository,
+            deploymentService,
+            installService,
+            marketplaceCatalogService,
+            productServiceRepository,
+            vectorizationService,
+            policyService,
+            fieldCatalogService,
+            eventService,
+            bridgeAdminClient,
+            auditService
+        );
+
+        ShopifyStoreVectorizationSummary summary = service.getSummary("alpha.myshopify.com");
+
+        assertThat(summary.readyToRun()).isTrue();
+        assertThat(summary.installedPluginIds()).contains(ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+        assertThat(summary.disabledPluginIds()).doesNotContain(ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+        assertThat(summary.blockingReasons()).noneMatch(reason -> reason.contains("missing required Shopify"));
+    }
+
+    @Test
     void reconcileInstallsRequiredShopifyDataPluginsAndConfiguresPlan() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
