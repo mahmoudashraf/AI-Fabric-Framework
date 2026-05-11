@@ -472,6 +472,13 @@ class ShopifyBridgeAdminControllerTest {
                     "Shoes",
                     null,
                     null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null
                 ))
             ));

@@ -391,6 +391,11 @@ class ShopifyStoreVectorizationServiceTest {
         verify(vectorizationService).upsertPlan(eq("dep-123"), argThat(request ->
             "PLATFORM_MANAGED_AUTO".equals(request.runnerMode())
                 && "title".equals(request.mappingConfig().path("entityMappings").path("product").path("entityFieldMappings").path("name").asText())
+                && "priceRange".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("priceRange").asText())
+                && "availability".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("availability").asText())
+                && "variantSummary".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("variantSummary").asText())
+                && "totalInventory".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("totalInventory").asText())
+                && "availableVariantCount".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("availableVariantCount").asText())
                 && "content".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("entityFieldMappings").path("description").asText())
                 && request.executionConfig().path("batchSize").asInt() == 50
         ));

@@ -192,6 +192,13 @@ public class ShopifyBridgeAdminClient {
         putIfPresent(values, "vendor", text(node, "vendor"));
         putIfPresent(values, "productType", text(node, "productType"));
         putIfPresent(values, "policyType", text(node, "policyType"));
+        putIfPresent(values, "priceRange", text(node, "priceRange"));
+        putIfPresent(values, "currencyCode", text(node, "currencyCode"));
+        putIfPresent(values, "availability", text(node, "availability"));
+        putIfPresent(values, "variantSummary", text(node, "variantSummary"));
+        putIfPresent(values, "variantCount", integerValue(node, "variantCount"));
+        putIfPresent(values, "totalInventory", integerValue(node, "totalInventory"));
+        putIfPresent(values, "availableVariantCount", integerValue(node, "availableVariantCount"));
         putIfPresent(values, "updatedAt", text(node, "updatedAt"));
         return new ShopifyStoreVectorizationSourceRecordSnapshot(
             text(node, "id"),
@@ -308,6 +315,12 @@ public class ShopifyBridgeAdminClient {
 
     private void putIfPresent(Map<String, Object> target, String key, String value) {
         if (value != null && !value.isBlank()) {
+            target.put(key, value);
+        }
+    }
+
+    private void putIfPresent(Map<String, Object> target, String key, Integer value) {
+        if (value != null) {
             target.put(key, value);
         }
     }

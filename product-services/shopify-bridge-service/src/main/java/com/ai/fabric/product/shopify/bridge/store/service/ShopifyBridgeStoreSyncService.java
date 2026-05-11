@@ -42,6 +42,33 @@ public class ShopifyBridgeStoreSyncService {
                 vendor
                 productType
                 tags
+                totalInventory
+                priceRangeV2 {
+                  minVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                  maxVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                }
+                variants(first: 20) {
+                  edges {
+                    node {
+                      id
+                      title
+                      sku
+                      availableForSale
+                      price
+                      compareAtPrice
+                      selectedOptions {
+                        name
+                        value
+                      }
+                    }
+                  }
+                }
                 metafields(first: 12) {
                   edges {
                     node {
@@ -227,6 +254,7 @@ public class ShopifyBridgeStoreSyncService {
                     "updatedAt", text(node, "updatedAt"),
                     "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle")))
                 ));
+                metadata.putAll(ShopifyProductCommerceEvidence.metadata(node));
                 metadata.putAll(reviewSignals.metadata());
                 return new ShopifyBridgeStoreSyncDocument(
                     requiredText(node, "id"),
@@ -238,6 +266,7 @@ public class ShopifyBridgeStoreSyncService {
                         text(node, "vendor"),
                         text(node, "productType"),
                         joinTags(node.get("tags")),
+                        ShopifyProductCommerceEvidence.content(node),
                         sanitizeRichText(text(node, "descriptionHtml")),
                         ShopifyProductReviewSignals.content(node),
                         ShopifyKeyProductMetafields.content(node)

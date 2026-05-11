@@ -13,6 +13,13 @@ public record ShopifyBridgeVectorizationSourceRecord(
     String productType,
     String policyType,
     String metaobjectType,
-    String definitionName
+    String definitionName,
+    String priceRange,
+    String currencyCode,
+    String availability,
+    String variantSummary,
+    Integer variantCount,
+    Integer totalInventory,
+    Integer availableVariantCount
 ) {
 }

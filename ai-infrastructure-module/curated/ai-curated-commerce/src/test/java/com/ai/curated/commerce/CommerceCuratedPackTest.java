@@ -81,6 +81,7 @@ class CommerceCuratedPackTest {
             .contains("Do not recommend checking another website, contacting support, contacting a vendor/manufacturer")
             .contains("Do not add next-step or handoff sentences for missing live data")
             .contains("Do not substitute price, availability, vendor, or product title as safety evidence")
+            .contains("present explicit price, availability, variant, shipping-policy, review-signal")
             .contains("Do not append generic closers");
     }
 }

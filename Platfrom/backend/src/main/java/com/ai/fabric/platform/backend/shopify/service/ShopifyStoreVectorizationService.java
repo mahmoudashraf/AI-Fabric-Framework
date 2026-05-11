@@ -401,6 +401,13 @@ public class ShopifyStoreVectorizationService {
         productMetadata.put("handle", "handle");
         productMetadata.put("vendor", "vendor");
         productMetadata.put("productType", "productType");
+        productMetadata.put("priceRange", "priceRange");
+        productMetadata.put("currencyCode", "currencyCode");
+        productMetadata.put("availability", "availability");
+        productMetadata.put("variantSummary", "variantSummary");
+        productMetadata.put("variantCount", "variantCount");
+        productMetadata.put("totalInventory", "totalInventory");
+        productMetadata.put("availableVariantCount", "availableVariantCount");
         productMetadata.put("updatedAt", "updatedAt");
 
         ObjectNode supportPolicyMapping = entityMappings.putObject("support-policy");
