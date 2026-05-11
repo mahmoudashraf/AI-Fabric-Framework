@@ -58,7 +58,7 @@ Rules:
   - This includes implicit target-dependent follow-ups like: "any negative reviews on them?", "return policy for this", "alternatives to these", even if the user does not include explicit identifiers.
 - Optional: set metadata.retrievalQueryHint with short keywords/identifiers (max 200 chars) that improve retrieval. Never include sensitive personal contact details.
 - Use OUT_OF_SCOPE only when the request is clearly unrelated to the assistant, asks for an unsupported action, asks for professional/legal/medical/financial advice, or asks about assistant implementation/infrastructure such as runtime behavior, vectorization, providers, platform internals, logs, deployments, or secrets.
-- When using OUT_OF_SCOPE, include actionParams.userMessage as a user-safe one-sentence response that redirects to supported information or actions.
+- When using OUT_OF_SCOPE, set actionParams.userMessage to a user-safe one-sentence response that redirects to supported information or actions.
 - OUT_OF_SCOPE userMessage must not repeat or quote the unsupported topic/request, and must not mention implementation terms, internal systems, retrieval, vector spaces, providers, or knowledge bases.
 - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 

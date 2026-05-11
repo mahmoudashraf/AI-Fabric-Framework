@@ -91,7 +91,7 @@ public class ShopifyStorefrontChatService {
     );
     private static final String ACCOUNT_ACTION_POLICY_NO_SELF_SERVICE = "Account/order/support context: cart actions are not valid here. "
         + "Refund/cancel/edit-order self-service actions are not approved for this store; use order lookup or support handoff.";
-    private static final String ACCOUNT_ACTION_POLICY_SELF_SERVICE_APPROVED = "Account/order/support context: cart actions are not valid here. "
+    private static final String ACCOUNT_ACTION_POLICY_SELF_SERVICE_APPROVED = "Account/order/support context: cart actions are not valid for order requests here. "
         + "Approved order self-service actions may be selected only for explicit customer requests with required parameters, confirmation, audit, and available customer/order auth.";
     private static final String ORDER_LOOKUP_GUIDANCE = "Use this store's order lookup block with the exact order number and checkout email. "
         + "For refunds, cancellations, or order edits, contact the store support team unless the assistant shows a reviewed confirmation flow for that exact request.";

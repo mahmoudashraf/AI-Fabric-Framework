@@ -167,6 +167,69 @@ class IntentHandlingStepFanOutTest {
     }
 
     @Test
+    void shouldLetGenerationHandleWeakFanOutEvidenceWhenGenerationRequested() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(
+            RAGResponse.builder()
+                .documents(List.of(doc("d1", 0.1d, "low score")))
+                .success(true)
+                .build()
+        );
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateTextResponse(anyString(), eq(LlmPurpose.GENERATION))).thenReturn(
+            AIGenerationResponse.builder()
+                .content("Generated safe answer")
+                .build()
+        );
+
+        VectorSpaceRoutingProperties routingProperties = new VectorSpaceRoutingProperties();
+        routingProperties.setClarificationThreshold(0.4d);
+        routingProperties.setFanOutTopKPerSpace(1);
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            mock(AIActionRegistry.class),
+            providerOf(ragProvider),
+            aiCoreService,
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            routingProperties,
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("refund_policy")
+            .vectorSpace("faq,policies")
+            .requiresGeneration(true)
+            .build();
+
+        PipelineContext context = PipelineContext.from("q", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
+        assertThat(result.getMessage()).isEqualTo("Generated safe answer");
+        assertThat(result.getData()).containsEntry("vectorSpaceRoutingStrategy", "FAN_OUT");
+        assertThat(result.getData()).containsEntry("bestScore", 0.1d);
+        verify(aiCoreService).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
+    }
+
+    @Test
     void shouldUseGenerationPurposeWhenGeneratingFanOutAnswer() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         when(ragProvider.performRAGQuery(any(RAGRequest.class))).thenReturn(

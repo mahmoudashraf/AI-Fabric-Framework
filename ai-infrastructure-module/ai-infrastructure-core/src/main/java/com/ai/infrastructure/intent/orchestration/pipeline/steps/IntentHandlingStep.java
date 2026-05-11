@@ -3170,9 +3170,11 @@ public class IntentHandlingStep implements PipelineStep {
             && readActionResolution.hasGroundingEvidence()
             && StringUtils.hasText(readActionResolution.evidenceContext());
 
+        boolean weakFanOutEvidence = merged.isEmpty() || (bestScore != null && bestScore < threshold);
         if (!deterministic
-            && (merged.isEmpty() || (bestScore != null && bestScore < threshold))
-            && !hasReadActionEvidence) {
+            && weakFanOutEvidence
+            && !hasReadActionEvidence
+            && !needsGeneration) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_CANDIDATE_VECTOR_SPACES, vectorSpaces);
             data.put(DATA_KEY_ROUTING_STRATEGY, "FAN_OUT");
@@ -3189,8 +3191,11 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
-        if (!deterministic && hasReadActionEvidence && (merged.isEmpty() || (bestScore != null && bestScore < threshold))) {
-            metadata.put("fanoutClarificationSuppressedByReadActionEvidence", true);
+        if (!deterministic && weakFanOutEvidence && (hasReadActionEvidence || needsGeneration)) {
+            metadata.put(
+                hasReadActionEvidence ? "fanoutClarificationSuppressedByReadActionEvidence" : "fanoutClarificationSuppressedByGeneration",
+                true
+            );
             if (bestScore != null) {
                 metadata.put("fanoutSuppressedBestScore", bestScore);
             }
@@ -4405,9 +4410,6 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private String outOfScopeUserMessage(Intent intent) {
-        if (intent != null && StringUtils.hasText(intent.getDirectAnswer())) {
-            return intent.getDirectAnswer().trim();
-        }
         if (intent != null && intent.getActionParams() != null && !intent.getActionParams().isEmpty()) {
             for (String key : List.of("userMessage", "message", "answer", "response")) {
                 Object value = intent.getActionParams().get(key);
