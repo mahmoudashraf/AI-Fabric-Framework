@@ -76,13 +76,21 @@ public class ShopifyStorefrontChatService {
         "shopify_cart_create",
         "shopify_cart_update"
     );
-    private static final Set<String> UNAPPROVED_STOREFRONT_ORDER_MUTATION_ACTION_IDS = Set.of(
+    private static final Set<String> STOREFRONT_ORDER_MUTATION_ACTION_IDS = Set.of(
         "shopify_cancel_order",
         "shopify_refund_order",
         "shopify_edit_order",
         "shopify_update_order",
         "shopify_change_order_address"
     );
+    private static final Set<String> APPROVED_ORDER_SELF_SERVICE_ACTION_PACKAGES = Set.of(
+        "order-self-service",
+        "customer-order-self-service"
+    );
+    private static final String ACCOUNT_ACTION_POLICY_NO_SELF_SERVICE = "Account/order/support context: cart actions are not valid here. "
+        + "Refund/cancel/edit-order self-service actions are not approved for this store; use order lookup or support handoff.";
+    private static final String ACCOUNT_ACTION_POLICY_SELF_SERVICE_APPROVED = "Account/order/support context: cart actions are not valid here. "
+        + "Approved order self-service actions may be selected only for explicit customer requests with required parameters, confirmation, audit, and available customer/order auth.";
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -102,6 +110,7 @@ public class ShopifyStorefrontChatService {
         ObjectNode normalizedRequest = normalizeRequest(request, store.shopDomain());
         ShopifyBridgeBillingSummary billingSummary = storefrontBillingSummary(store, normalizedRequest);
         enforceSurfaceEntitlement(store, normalizedRequest, billingSummary);
+        appendStorefrontActionPolicyAttachment(normalizedRequest, billingSummary);
         applyStorefrontConversationMode(normalizedRequest, billingSummary);
         JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
         return shapeStorefrontResponse(response, normalizedRequest, store, billingSummary);
@@ -189,7 +198,6 @@ public class ShopifyStorefrontChatService {
                 copyLimitedTextField(rawDocument, metadata, "url", "documentUrl");
             }
         }
-
         String contentText = storefrontContextSummary(metadata);
         if (!StringUtils.hasText(contentText) && metadata.isEmpty()) {
             return null;
@@ -435,6 +443,45 @@ public class ShopifyStorefrontChatService {
         return effectiveAllowedSurfaces(billingSummary.allowedSurfaces(), configuredEnabledSurfaces(store)).contains(surfaceId);
     }
 
+    private void appendStorefrontActionPolicyAttachment(ObjectNode request, ShopifyBridgeBillingSummary billingSummary) {
+        if (!isAccountOrSupportContext(request)) {
+            return;
+        }
+        boolean orderSelfServiceApproved = orderMutationSelfServiceApproved(billingSummary);
+        ObjectNode attachment = objectMapper.createObjectNode();
+        attachment.put("source", "shopify-storefront-action-policy");
+        attachment.put(
+            "contentText",
+            orderSelfServiceApproved ? ACCOUNT_ACTION_POLICY_SELF_SERVICE_APPROVED : ACCOUNT_ACTION_POLICY_NO_SELF_SERVICE
+        );
+        ObjectNode metadata = attachment.putObject("metadata");
+        metadata.put("cartActionsAllowed", false);
+        metadata.put("orderSelfServiceApproved", orderSelfServiceApproved);
+        ArrayNode deniedActions = metadata.putArray("deniedOrderSelfServiceActionsWhenUnapproved");
+        STOREFRONT_ORDER_MUTATION_ACTION_IDS.forEach(deniedActions::add);
+
+        JsonNode existingAttachments = request.get("attachments");
+        ArrayNode attachments = objectMapper.createArrayNode();
+        if (existingAttachments != null && existingAttachments.isArray()) {
+            attachments.addAll((ArrayNode) existingAttachments);
+        }
+        attachments.add(attachment);
+        request.set("attachments", attachments);
+    }
+
+    private boolean orderMutationSelfServiceApproved(ShopifyBridgeBillingSummary billingSummary) {
+        if (billingSummary == null
+            || !billingSummary.actionCapable()
+            || !billingSummary.requiresExplicitConfirmation()
+            || !billingSummary.auditTrailAvailable()) {
+            return false;
+        }
+        List<String> packages = billingSummary.actionPackages() == null ? List.of() : billingSummary.actionPackages();
+        return packages.stream()
+            .map(this::normalizeSurfaceEntry)
+            .anyMatch(APPROVED_ORDER_SELF_SERVICE_ACTION_PACKAGES::contains);
+    }
+
     private ObjectNode storefrontContextFromAttachments(ObjectNode request) {
         JsonNode attachments = request.get("attachments");
         if (attachments == null || !attachments.isArray()) {
@@ -531,7 +578,8 @@ public class ShopifyStorefrontChatService {
         if (selectedAction == null) {
             return null;
         }
-        if (UNAPPROVED_STOREFRONT_ORDER_MUTATION_ACTION_IDS.contains(selectedAction)) {
+        if (STOREFRONT_ORDER_MUTATION_ACTION_IDS.contains(selectedAction)
+            && !orderMutationSelfServiceApproved(billingSummary)) {
             return policyStorefrontAnswer(
                 "This store has not enabled self-service order changes in chat. Contact the store support team so they can review the request safely."
             );
@@ -574,7 +622,12 @@ public class ShopifyStorefrontChatService {
         ObjectNode context = storefrontContextFromAttachments(request);
         String pageType = normalizeSurfaceEntry(textOrNull(context, "pageType"));
         String pageGroup = normalizeSurfaceEntry(textOrNull(context, "shopifyPageModeGroup"));
-        return ACCOUNT_AND_SUPPORT_PAGE_GROUPS.contains(pageType) || ACCOUNT_AND_SUPPORT_PAGE_GROUPS.contains(pageGroup);
+        return containsNonNull(ACCOUNT_AND_SUPPORT_PAGE_GROUPS, pageType)
+            || containsNonNull(ACCOUNT_AND_SUPPORT_PAGE_GROUPS, pageGroup);
+    }
+
+    private boolean containsNonNull(Set<String> values, String value) {
+        return value != null && values.contains(value);
     }
 
     private JsonNode ensureWidgetSanitizedPayload(JsonNode response, String answer) {

@@ -30,7 +30,7 @@ Staging now passes the critical release behavior checks:
 - no `Thinker deep diagnosis requires Shopify Companion Elite` conflict
 - storefront bootstrap reports `ELITE`, `ACTIVE`, `thinker_deep` for shopping pages, `executor` for account/cart/support pages
 - account/order/support page runtime selections no longer leak into cart actions
-- unsupported order mutation actions are denied only when runtime selects an unapproved order-mutation action ID
+- unsupported order mutation actions are denied only when runtime selects an order-mutation action ID that is not covered by an approved store action package
 - public storefront chat responses do not expose runtime auth context, raw document metadata, parameter schemas, deployment IDs, tenant IDs, or provider internals
 
 ## Query Set Used
@@ -84,13 +84,13 @@ Fix:
 
 Problem:
 
-- Refund/cancel/order-edit are not currently approved customer self-service mutations, and a future or misconfigured runtime catalog could select one of those mutation action IDs.
+- Refund/cancel/order-edit are not currently approved customer self-service mutations for the current launch package, and a future or misconfigured runtime catalog could select one of those mutation action IDs.
 
 Fix:
 
 - Bridge no longer blocks shopper text before runtime action selection.
-- Bridge denies only structured unapproved order-mutation action IDs selected by runtime policy, such as cancellation, refund, address change, or order edit actions.
-- If those capabilities become merchant-approved and governed later, they should be enabled by action/catalog policy, not by changing phrase matching.
+- Bridge denies only structured order-mutation action IDs selected by runtime policy when the store is not entitled to an approved order self-service action package.
+- If those capabilities become merchant-approved and governed later, they are enabled by action/catalog package policy, not by changing phrase matching.
 - Added storefront chat test coverage.
 
 ### Public response sanitization
@@ -134,7 +134,7 @@ Good:
 - noisy uppercase wax query still returns relevant catalog results.
 - internal implementation question is answered safely without provider details.
 - order/account page cart-action selections are now mapped to the correct order lookup/support posture.
-- unsupported order mutation action selections are denied in customer-safe wording.
+- unsupported order mutation action selections are denied in customer-safe wording; approved order self-service packages can allow those actions with confirmation/audit.
 
 Needs work:
 
@@ -201,7 +201,7 @@ Needs work:
 3. Add staging gate script for the query set in this plan.
 4. Fail closed when order/customer/checkout auth is unavailable.
 5. Keep Free hidden/disabled in package selection while preserving legacy records as Elite-default launch posture.
-6. Do not add query-text phrase guards for refund/cancel/edit-order; use structured action IDs, explicit UI events, page context, and merchant-approved capability policy.
+6. Do not add query-text phrase guards for refund/cancel/edit-order; use structured action IDs, explicit UI events, page context, and merchant-approved action package policy.
 
 ## Release Gate Additions
 
@@ -211,7 +211,7 @@ Add these checks to the 010 release gate:
 - `QUERY_MATRIX_NO_500`: all listed probes return non-5xx.
 - `QUERY_MATRIX_NO_ENTITLEMENT_CONFLICT`: no shopper query returns Elite entitlement conflict.
 - `ORDER_CONTEXT_NO_CART_ROUTE`: account/order/support page runtime selections do not expose cart actions or `shopperSessionId`.
-- `ORDER_MUTATION_ACTION_POLICY`: unapproved refund/cancel/order-edit action IDs are denied after runtime/action selection and before action execution.
+- `ORDER_MUTATION_ACTION_POLICY`: refund/cancel/order-edit action IDs are denied after runtime/action selection unless the store has an approved order self-service action package.
 - `STOREFRONT_RESPONSE_PUBLIC_SAFE`: public JSON contains no runtime auth context, deployment/tenant/customer IDs, raw document metadata, parameter schemas, provider diagnostics, or secret references.
 - `CATALOG_RESULT_RENDERABLE`: catalog results include shopper-safe titles and storefront URLs where available.
 
@@ -223,6 +223,6 @@ Implement structured storefront fast paths without shopper-text phrase matching:
 - comparison -> catalog evidence first, then bounded compare synthesis
 - source-gap -> evidence/no-evidence answer template
 - order lookup block entry -> order lookup guidance or direct order lookup flow, never cart action
-- unsupported order mutation action IDs -> customer-safe support handoff unless merchant-approved governance is implemented
+- order mutation action IDs -> customer-safe support handoff unless a merchant-approved order self-service action package is active
 
 The router should preserve governed action confirmation for true cart actions, but it should make the confirmation product-specific before calling `shopify_update_cart`.
