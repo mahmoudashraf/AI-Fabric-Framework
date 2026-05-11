@@ -41,7 +41,8 @@ public class ShopifyStoreWidgetSettingsService {
         "product-insight",
         "policy-strip",
         "product-faq",
-        "comparison"
+        "comparison",
+        "order-lookup"
     );
     private static final Set<String> ALLOWED_SHELL_MODE_PROFILES = Set.of(
         "SHOPIFY_COMPANION",

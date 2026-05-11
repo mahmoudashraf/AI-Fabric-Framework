@@ -162,6 +162,12 @@ const UPDATE_TRIGGER_OPTIONS = [
 
 const DEFAULT_WIDGET_SURFACES = [
   'ai-search',
+  'contextual-pill',
+  'product-insight',
+  'policy-strip',
+  'product-faq',
+  'comparison',
+  'order-lookup',
 ]
 
 const WIDGET_SURFACE_OPTIONS = [
