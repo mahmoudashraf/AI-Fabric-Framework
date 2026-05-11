@@ -151,9 +151,12 @@ Fix:
 - Runtime injects `shopperSessionId` from trusted orchestration context for actions that require it, so the shopper is not asked for an internal session parameter.
 - Runtime redacts system-context-only missing parameters from public clarification copy and validation metadata.
 - Runtime out-of-scope and policy-miss messages are shopper-safe and can use LLM-supplied `actionParams.userMessage`; prompts now require that user-safe message for OUT_OF_SCOPE.
+- Runtime generation now handles weak fan-out evidence when generation is requested instead of returning code-authored vector-space/domain clarification to shoppers.
+- OUT_OF_SCOPE handling ignores schema-invalid `directAnswer` and uses `actionParams.userMessage` or the store-safe default. Commerce generation prompts redirect internal/professional-advice requests without echoing the unsupported topic.
 - Bridge still enforces structured governance after runtime action selection: unapproved order-mutation action IDs and cart actions selected on account/order/support pages are denied or redirected by page/action policy, not by shopper text matching.
 - The answer-quality query pack now forbids `Search completed.`, `shopperSessionId`, `missingRequiredParameters`, `authContext`, vector-space wording, deployment IDs, and tenant IDs.
 - Added cart-action coverage to the query pack.
+- Final staging live gate passed 11/11 with audit output `/tmp/shopify-answer-quality-20260511112039`.
 
 ## Observations
 
@@ -183,6 +186,7 @@ Good:
 - wax search returns `Selling Plans Ski Wax` with Shopify catalog source.
 - noisy uppercase wax query still returns relevant catalog results.
 - internal implementation question is answered safely without provider details.
+- weak fan-out/internal queries no longer ask shoppers to choose `product` or `support-policy` domains.
 - order/account page cart-action selections are now mapped to the correct order lookup/support posture.
 - unsupported order mutation action selections are denied in customer-safe wording; approved order self-service packages can allow those actions with confirmation/audit.
 
@@ -202,6 +206,7 @@ Fixed:
 - no Elite entitlement conflict
 - no order lookup to cart misroute
 - no public runtime metadata leak in the smoke
+- final live answer-quality audit passed all 11 canonical queries on staging after runtime/Bridge redeploy.
 
 Needs work:
 
