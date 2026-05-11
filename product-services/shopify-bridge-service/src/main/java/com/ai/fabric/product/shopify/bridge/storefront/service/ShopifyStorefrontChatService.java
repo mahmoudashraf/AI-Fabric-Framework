@@ -565,6 +565,7 @@ public class ShopifyStorefrontChatService {
         ObjectNode shaped = (ObjectNode) response.deepCopy();
         shaped.remove("authContext");
         ObjectNode result = objectChild(shaped, "result");
+        result.remove(List.of("metadata", "nextSteps", "children"));
         ObjectNode sanitizedPayload = objectChild(result, "sanitizedPayload");
         String resultType = trimToNull(textOrNull(result, "type"));
         if (trimToNull(textOrNull(sanitizedPayload, "type")) == null) {

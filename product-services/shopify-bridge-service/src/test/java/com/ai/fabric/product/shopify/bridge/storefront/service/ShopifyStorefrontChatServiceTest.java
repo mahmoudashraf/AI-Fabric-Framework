@@ -767,6 +767,7 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         assertThat(response.has("authContext")).isFalse();
+        assertThat(response.path("result").has("metadata")).isFalse();
         JsonNode safeDocument = response.path("result").path("sanitizedPayload").path("data").path("documents").path(0);
         assertThat(safeDocument.path("title").asText()).isEqualTo("Selling Plans Ski Wax");
         assertThat(safeDocument.path("storefrontUrl").asText()).contains("/products/selling-plans-ski-wax");
