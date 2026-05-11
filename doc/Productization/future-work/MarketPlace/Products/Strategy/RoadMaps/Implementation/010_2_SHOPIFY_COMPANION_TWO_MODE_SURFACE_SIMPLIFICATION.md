@@ -1,6 +1,6 @@
 # 010.2 Shopify Companion Two-Mode Surface Simplification
 
-Status: implemented in code; live staging verification in progress (created 2026-05-10, updated 2026-05-11)
+Status: implemented and live-verified on staging (created 2026-05-10, updated 2026-05-11)
 
 Owner mode: product simplification / storefront mode routing / merchant configuration LLM session
 
@@ -326,6 +326,25 @@ The codebase already has most of the primitives:
 - raw technical mode ids remain in advanced/operator routing controls and diagnostics
 - max-mode dock, composer, page pills, and theme-app shell use shopper-friendly labels instead of raw mode names
 - Account & Order Assistant copy avoids refund, cancellation, address-change, order-edit, and unrestricted support-desk automation claims
+
+010.2 staging verification status:
+
+- Platform backend staging deployed successfully at commit `b489ef994`.
+- Shopify Bridge staging deployed successfully at commit `8d8a01e5`.
+- Shopify theme app extension released as `loom-companion-40`.
+- Storefront live proof on `https://shop-staging.loomai.pro/?country=US` passed:
+  - MAX launcher opens the new chat surface.
+  - shopper-visible copy uses `Shopping Assistant`.
+  - page pill copy uses friendly page labels such as `landing page`.
+  - raw mode labels such as `navigator_deep`, `thinker_deep`, `cart_assistant`, and `executor` are not shopper-visible.
+  - unsupported storefront conversation history is hidden and no `/chat/me/conversations` CORS call is made.
+  - live query `Search products for wax` executes `shopify_search_catalog` through the MCP path and renders shopper-safe product output for `Selling Plans Ski Wax`.
+  - MCP adapter/server/tool evidence details are not rendered as shopper-facing chat content.
+- Merchant app live proof against the deployed Bridge UI and live `/api/app/*` APIs passed with an authenticated merchant-session token:
+  - Setup tab renders `Shopping Assistant` and `Account & Order Assistant`.
+  - normal merchant setup copy explains Loom Companion as two shopper-understandable modes.
+  - raw technical ids are not visible in the normal Setup tab content.
+- Current staging store package remains Free, so live storefront bootstrap still exposes only the base shopping fallback internally. That is expected; the UI maps it to `Shopping Assistant`, and `Account & Order Assistant` storefront behavior remains gated until the store is entitled and resolver-ready.
 
 ---
 
