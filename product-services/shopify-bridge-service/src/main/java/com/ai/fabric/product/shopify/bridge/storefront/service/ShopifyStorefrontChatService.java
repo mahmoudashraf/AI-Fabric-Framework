@@ -93,11 +93,8 @@ public class ShopifyStorefrontChatService {
         + "Refund/cancel/edit-order self-service actions are not approved for this store; use order lookup or support handoff.";
     private static final String ACCOUNT_ACTION_POLICY_SELF_SERVICE_APPROVED = "Account/order/support context: cart actions are not valid here. "
         + "Approved order self-service actions may be selected only for explicit customer requests with required parameters, confirmation, audit, and available customer/order auth.";
-    private static final String GENERIC_SEARCH_COMPLETED = "Search completed.";
-    private static final String INTERNAL_SESSION_PARAM = "shopperSessionId";
     private static final String ORDER_LOOKUP_GUIDANCE = "Use this store's order lookup block with the exact order number and checkout email. "
         + "For refunds, cancellations, or order edits, contact the store support team unless the assistant shows a reviewed confirmation flow for that exact request.";
-    private static final String STORE_ASSISTANT_SCOPE_GUIDANCE = "I can help with this store's products, policies, comparisons, and shopping tasks using merchant-approved information.";
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -573,7 +570,7 @@ public class ShopifyStorefrontChatService {
         if (policyResponse != null) {
             return policyResponse;
         }
-        String answer = storefrontAnswerOverride(response, request, extractAnswer(response));
+        String answer = extractAnswer(response);
         return ensureWidgetSanitizedPayload(response, answer);
     }
 
@@ -582,21 +579,6 @@ public class ShopifyStorefrontChatService {
                                               ShopifyBridgeStoreSummary store,
                                               ShopifyBridgeBillingSummary billingSummary) {
         String selectedAction = selectedActionId(response);
-        if (selectedAction == null
-            && (isRuntimeOutOfScope(response) || isOrderLookupRetrievalPolicyMiss(response, request))
-            && isAccountOrSupportContext(request)) {
-            if (orderMutationSelfServiceApproved(billingSummary)) {
-                return policyStorefrontAnswer(
-                    "This store supports approved checkout self-service where Shopify exposes the required action. Post-order refunds, cancellations, returns, and order edits still route to store support until Shopify exposes a reviewed MCP tool for this store."
-                );
-            }
-            if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
-                return policyStorefrontAnswer(ORDER_LOOKUP_GUIDANCE);
-            }
-            return policyStorefrontAnswer(
-                "Order-specific help is handled by store support for this page. Contact the store support team with your order number and checkout email."
-            );
-        }
         if (selectedAction == null) {
             return null;
         }
@@ -615,23 +597,6 @@ public class ShopifyStorefrontChatService {
             );
         }
         return null;
-    }
-
-    private boolean isOrderLookupRetrievalPolicyMiss(JsonNode response, ObjectNode request) {
-        if (!"order-lookup".equals(normalizeSurfaceEntry(textOrNull(storefrontContextFromAttachments(request), "shopifySurfaceEntry")))) {
-            return false;
-        }
-        String type = normalizeSurfaceEntry(nestedText(response, "result.type"));
-        String reason = normalizeSurfaceEntry(firstNonBlank(
-            nestedText(response, "result.data.reason"),
-            nestedText(response, "result.sanitizedPayload.data.reason")
-        ));
-        return "clarification_required".equals(type) && "vector_space_not_allowed_by_policy".equals(reason);
-    }
-
-    private boolean isRuntimeOutOfScope(JsonNode response) {
-        String type = nestedText(response, "result.type");
-        return "out_of_scope".equals(normalizeSurfaceEntry(type));
     }
 
     private String selectedActionId(JsonNode response) {
@@ -698,134 +663,6 @@ public class ShopifyStorefrontChatService {
             sanitizedPayload.set("data", safeData.deepCopy());
         }
         return shaped;
-    }
-
-    private String storefrontAnswerOverride(JsonNode response, ObjectNode request, String answer) {
-        if (hasOnlyInternalMissingRequiredParameter(response, INTERNAL_SESSION_PARAM)) {
-            return "I can help with cart changes after the product or variant is selected and confirmed. Please choose the item you want to update and try again.";
-        }
-        if (isRuntimeOutOfScope(response)) {
-            return STORE_ASSISTANT_SCOPE_GUIDANCE;
-        }
-        if (isInternalRetrievalClarification(response)) {
-            if (isAccountOrSupportContext(request)
-                || "order-lookup".equals(normalizeSurfaceEntry(textOrNull(storefrontContextFromAttachments(request), "shopifySurfaceEntry")))) {
-                return ORDER_LOOKUP_GUIDANCE;
-            }
-            return STORE_ASSISTANT_SCOPE_GUIDANCE;
-        }
-        if (GENERIC_SEARCH_COMPLETED.equals(trimToNull(answer))) {
-            String summary = summarizeRetrievedEvidence(response);
-            if (summary != null) {
-                return summary;
-            }
-        }
-        return answer;
-    }
-
-    private boolean hasOnlyInternalMissingRequiredParameter(JsonNode response, String paramName) {
-        if (!StringUtils.hasText(paramName)) {
-            return false;
-        }
-        for (String path : List.of(
-            "result.data.missingRequiredParameters",
-            "result.sanitizedPayload.data.missingRequiredParameters"
-        )) {
-            JsonNode node = nestedNode(response, path);
-            if (node == null || !node.isArray() || node.isEmpty()) {
-                continue;
-            }
-            if (node.size() == 1 && paramName.equals(node.get(0).asText(null))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isInternalRetrievalClarification(JsonNode response) {
-        String type = normalizeSurfaceEntry(nestedText(response, "result.type"));
-        String reason = normalizeSurfaceEntry(firstNonBlank(
-            nestedText(response, "result.data.reason"),
-            nestedText(response, "result.sanitizedPayload.data.reason")
-        ));
-        return "clarification_required".equals(type) && (
-            "vector_space_not_allowed_by_policy".equals(reason)
-                || "vector_space_required_by_policy".equals(reason)
-                || nestedNode(response, "result.data.allowedVectorSpaces") != null
-                || nestedNode(response, "result.sanitizedPayload.data.allowedVectorSpaces") != null
-                || nestedNode(response, "result.data.candidateVectorSpaces") != null
-                || nestedNode(response, "result.sanitizedPayload.data.candidateVectorSpaces") != null
-        );
-    }
-
-    private String summarizeRetrievedEvidence(JsonNode response) {
-        JsonNode documents = firstArray(
-            nestedNode(response, "result.data.documents"),
-            nestedNode(response, "result.sanitizedPayload.data.documents"),
-            nestedNode(response, "result.data.ragResponse.documents"),
-            nestedNode(response, "result.sanitizedPayload.data.ragResponse.documents")
-        );
-        if (documents == null || documents.isEmpty()) {
-            return null;
-        }
-        List<String> productTitles = new ArrayList<>();
-        List<String> infoTitles = new ArrayList<>();
-        for (JsonNode document : documents) {
-            if (document == null || !document.isObject()) {
-                continue;
-            }
-            String title = firstNonBlank(
-                textOrNull(document, "title"),
-                textOrNull(document.path("metadata"), "shopifyDocumentTitle"),
-                textOrNull(document.path("metadata"), "title")
-            );
-            if (title == null || productTitles.contains(title) || infoTitles.contains(title)) {
-                continue;
-            }
-            String type = normalizeSurfaceEntry(textOrNull(document, "type"));
-            if ("product".equals(type)) {
-                productTitles.add(title);
-            } else {
-                infoTitles.add(title);
-            }
-            if (productTitles.size() + infoTitles.size() >= 3) {
-                break;
-            }
-        }
-        if (!productTitles.isEmpty()) {
-            return "I found relevant products: " + joinTitles(productTitles)
-                + ". Open a product to confirm price, variants, and availability before checkout.";
-        }
-        if (!infoTitles.isEmpty()) {
-            return "I found relevant store information: " + joinTitles(infoTitles)
-                + ". Check those details before deciding.";
-        }
-        return null;
-    }
-
-    private String joinTitles(List<String> titles) {
-        if (titles == null || titles.isEmpty()) {
-            return "";
-        }
-        if (titles.size() == 1) {
-            return titles.get(0);
-        }
-        if (titles.size() == 2) {
-            return titles.get(0) + " and " + titles.get(1);
-        }
-        return String.join(", ", titles.subList(0, titles.size() - 1)) + ", and " + titles.get(titles.size() - 1);
-    }
-
-    private JsonNode firstArray(JsonNode... nodes) {
-        if (nodes == null) {
-            return null;
-        }
-        for (JsonNode node : nodes) {
-            if (node != null && node.isArray()) {
-                return node;
-            }
-        }
-        return null;
     }
 
     private JsonNode firstPresent(JsonNode first, JsonNode second) {

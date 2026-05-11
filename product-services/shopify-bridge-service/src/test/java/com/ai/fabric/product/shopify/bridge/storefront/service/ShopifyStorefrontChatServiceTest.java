@@ -730,7 +730,7 @@ class ShopifyStorefrontChatServiceTest {
               "result":{
                 "type":"INFORMATION_PROVIDED",
                 "success":true,
-                "message":"Search completed.",
+                "message":"Selling Plans Ski Wax is relevant to wax searches from store evidence.",
                 "data":{
                   "documents":[
                     {
@@ -773,12 +773,12 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(safeDocument.path("storefrontUrl").asText()).contains("/products/selling-plans-ski-wax");
         assertThat(safeDocument.has("metadata")).isFalse();
         assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
-            .contains("I found relevant products", "Selling Plans Ski Wax");
+            .isEqualTo("Selling Plans Ski Wax is relevant to wax searches from store evidence.");
         assertThat(response.toString()).doesNotContain("tenant-secret", "runtime", "knowledgeSourceHandleRef", "plugin/private/path");
     }
 
     @Test
-    void queryReplacesGenericSearchCompletedWithEvidenceSummary() throws Exception {
+    void queryDoesNotInventEvidenceSummaryWhenRuntimeAnswerIsGeneric() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -821,8 +821,7 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("I found relevant products", "Selling Plans Ski Wax", "The Out of Stock Snowboard");
-        assertThat(answer).doesNotContain("Search completed");
+        assertThat(answer).isEqualTo("Search completed.");
         assertThat(response.path("result").path("message").asText()).isEqualTo(answer);
     }
 
@@ -908,7 +907,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryPreservesInternalRuntimeDenialInsteadOfInventingStorefrontAnswer() throws Exception {
+    void queryPreservesRuntimeDenialInsteadOfInventingStorefrontAnswer() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -922,7 +921,7 @@ class ShopifyStorefrontChatServiceTest {
               "conversationId":"conv-1",
               "result":{
                 "sanitizedPayload":{
-                  "safeSummary":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+                  "safeSummary":"I can help with this store's products, policies, comparisons, cart, and order questions."
                 }
               }
             }
@@ -943,7 +942,8 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("indexed knowledge base", "available action", "rephrase");
+        assertThat(answer).contains("store", "products", "policies");
+        assertThat(answer).doesNotContain("indexed knowledge base", "vector space", "runtime", "provider");
     }
 
     @Test
@@ -1076,7 +1076,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryHidesInternalShopperSessionParamClarification() throws Exception {
+    void querySanitizesInternalShopperSessionParamWhenRuntimeHandlesClarification() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -1091,7 +1091,7 @@ class ShopifyStorefrontChatServiceTest {
               "result":{
                 "type":"CLARIFICATION_REQUIRED",
                 "success":false,
-                "message":"To proceed, please provide: shopperSessionId.",
+                "message":"This action needs storefront session context before it can proceed. Please reopen the assistant and try again.",
                 "data":{
                   "action":"shopify_update_cart",
                   "missingRequiredParameters":["shopperSessionId"]
@@ -1117,8 +1117,8 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("cart changes", "product or variant");
-        assertThat(answer).doesNotContain("shopperSessionId");
+        assertThat(answer).contains("storefront session context");
+        assertThat(response.toString()).doesNotContain("shopperSessionId", "missingRequiredParameters");
     }
 
     @Test
@@ -1178,7 +1178,7 @@ class ShopifyStorefrontChatServiceTest {
               "conversationId":"conv-1",
               "result":{
                 "sanitizedPayload":{
-                  "safeSummary":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+                  "safeSummary":"I can help with this store's products, policies, comparisons, cart, and order questions."
                 }
               }
             }
@@ -1199,7 +1199,8 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("indexed knowledge base", "available action", "rephrase");
+        assertThat(answer).contains("store", "products", "policies");
+        assertThat(answer).doesNotContain("indexed knowledge base", "vector space", "runtime", "provider");
     }
 
     @Test
@@ -1336,7 +1337,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryMapsAccountOutOfScopeRuntimeAnswerToStoreSupportGuidance() throws Exception {
+    void queryPreservesAccountOutOfScopeRuntimeAnswerWithoutBridgeRewrite() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -1351,7 +1352,7 @@ class ShopifyStorefrontChatServiceTest {
               "result":{
                 "type":"OUT_OF_SCOPE",
                 "success":false,
-                "message":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+                "message":"I can help with order questions when this store exposes approved order evidence."
               }
             }
             """));
@@ -1372,13 +1373,13 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("order lookup block", "store support");
-        assertThat(answer).doesNotContain("indexed knowledge base");
+        assertThat(answer).contains("order", "store");
+        assertThat(answer).doesNotContain("indexed knowledge base", "order lookup block");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
     @Test
-    void queryMapsOrderLookupVectorPolicyMissToShopperGuidance() throws Exception {
+    void queryPreservesRuntimePolicyMissAnswerWithoutBridgeRewrite() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -1393,7 +1394,7 @@ class ShopifyStorefrontChatServiceTest {
               "result":{
                 "type":"CLARIFICATION_REQUIRED",
                 "success":false,
-                "message":"That request requires retrieval from a vector space that is not allowed in this mode.",
+                "message":"I can answer order questions when approved order evidence is available for this store.",
                 "data":{"reason":"VECTOR_SPACE_NOT_ALLOWED_BY_POLICY"}
               }
             }
@@ -1415,12 +1416,12 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("order lookup block", "checkout email");
-        assertThat(answer).doesNotContain("vector space", "runtime");
+        assertThat(answer).contains("order", "approved order evidence");
+        assertThat(answer).doesNotContain("vector space", "runtime", "checkout email");
     }
 
     @Test
-    void queryMapsGeneralOutOfScopeRuntimeAnswerToStoreScopeGuidance() throws Exception {
+    void queryPreservesGeneralOutOfScopeRuntimeAnswerWithoutBridgeRewrite() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -1435,7 +1436,7 @@ class ShopifyStorefrontChatServiceTest {
               "result":{
                 "type":"OUT_OF_SCOPE",
                 "success":false,
-                "message":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+                "message":"I can help with this store's products, policies, comparisons, cart, and order questions."
               }
             }
             """));

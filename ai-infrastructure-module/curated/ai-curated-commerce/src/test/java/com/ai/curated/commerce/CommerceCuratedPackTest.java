@@ -33,6 +33,7 @@ class CommerceCuratedPackTest {
             .orElseThrow(() -> new IllegalStateException("Failed to bind ai.orchestration"));
 
         assertThat(props.getProfile()).isEqualTo(OrchestrationProfile.PRODUCTION_CHAT);
+        assertThat(props.isAlwaysGenerateInformation()).isTrue();
         assertThat(props.getModes()).containsKey("navigator");
         assertThat(props.getModes()).containsKey("navigator_deep");
         assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);

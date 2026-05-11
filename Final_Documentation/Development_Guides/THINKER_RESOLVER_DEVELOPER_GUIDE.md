@@ -225,6 +225,8 @@ Rules:
 - RAG can run with read actions and can be used again when action evidence is insufficient.
 - If read actions return structured evidence, runtime should generate the final user answer from that evidence.
 - Bridge should surface diagnostics or pass through generated answers; it should not replace them with product-domain fallback text.
+- Shopify Companion uses the commerce-curated runtime pack with information retrieval configured to generate a final answer, so retrieval-only placeholders such as `Search completed.` are runtime configuration defects, not Bridge UI copy problems.
+- System context parameters such as shopper session identifiers must be injected by trusted runtime context or hidden from public clarification payloads; never ask shoppers to provide internal parameter names.
 
 Known disabled path:
 

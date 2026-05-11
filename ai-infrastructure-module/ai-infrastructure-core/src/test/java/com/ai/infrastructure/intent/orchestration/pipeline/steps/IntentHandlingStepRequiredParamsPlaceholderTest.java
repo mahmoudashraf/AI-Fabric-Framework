@@ -424,6 +424,64 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
     }
 
     @Test
+    void shouldNotExposeSystemContextParamWhenTrustedSessionIsMissing() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("shopify_update_cart")
+            .description("Update Shopify cart")
+            .category("shopify")
+            .anonymousAllowed(true)
+            .parameters(Map.of("shopperSessionId", "Bridge shopper session identifier (required)"))
+            .requiredParameters(Set.of("shopperSessionId"))
+            .build();
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(meta));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of())
+            .build();
+
+        PipelineContext context = PipelineContext.from("add this to my cart", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
+        assertThat(result.getMessage()).contains("storefront session context");
+        assertThat(result.toString()).doesNotContain("shopperSessionId");
+        assertThat(result.getData()).containsEntry("missingRequiredParameters", List.of());
+        verify(handler, org.mockito.Mockito.never()).executeAction(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void shouldInjectShopperSessionIdFromTrustedRuntimeContext() {
         AIActionRegistry registry = mock(AIActionRegistry.class);
         AIActionHandler handler = mock(AIActionHandler.class);

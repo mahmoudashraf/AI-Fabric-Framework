@@ -5,6 +5,7 @@ ai:
         - v1-commerce
   orchestration:
     profile: PRODUCTION_CHAT
+    always-generate-information: true
     default-mode: navigator
     modes:
       navigator:

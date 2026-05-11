@@ -175,7 +175,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String ERROR_MSG_ACTION_NOT_PERMITTED_USER = "Action not permitted for this user.";
     private static final String MSG_SEARCH_COMPLETED = "Search completed.";
     private static final String MSG_OUT_OF_SCOPE =
-        "Sorry — I can’t help with that request. If you rephrase it into a task related to your indexed knowledge base (search/summarize/explain) or an available action, I’ll do my best to help.";
+        "I can help with approved product, policy, comparison, cart, and order questions using information available to this assistant.";
     private static final String MSG_ALL_PROCESSED = "All intents processed successfully.";
     private static final String MSG_SOME_FAILED = "Some intents failed. See results for details.";
     
@@ -459,25 +459,27 @@ public class IntentHandlingStep implements PipelineStep {
 
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_ACTION, actionName);
-            data.put(DATA_KEY_MISSING_REQUIRED_PARAMETERS, List.copyOf(missingRequired));
+            List<String> userMissingRequired = publicMissingRequiredParameters(missingRequired);
+            data.put(DATA_KEY_MISSING_REQUIRED_PARAMETERS, List.copyOf(userMissingRequired));
             data.put(DATA_KEY_PROVIDED_PARAMETERS, Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)));
-            if (meta != null) {
-                data.put(DATA_KEY_METADATA, meta);
-            }
 
-            String message = "To proceed, please provide: " + String.join(", ", missingRequired) + ".";
+            String message = userMissingRequired.isEmpty()
+                ? "This action needs storefront session context before it can proceed. Please reopen the assistant and try again."
+                : "To proceed, please provide: " + String.join(", ", userMissingRequired) + ".";
             List<NextStepRecommendation> nextSteps = new ArrayList<>(extractNextSteps(intent));
-            nextSteps.add(NextStepRecommendation.builder()
-                .intent("provide_missing_action_params")
-                .query("Please provide: " + String.join(", ", missingRequired) + ".")
-                .rationale("These parameters are required to execute the requested action.")
-                .confidence(1.0d)
-                .build());
+            if (!userMissingRequired.isEmpty()) {
+                nextSteps.add(NextStepRecommendation.builder()
+                    .intent("provide_missing_action_params")
+                    .query("Please provide: " + String.join(", ", userMissingRequired) + ".")
+                    .rationale("These parameters are required to execute the requested action.")
+                    .confidence(1.0d)
+                    .build());
+            }
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                 .success(false)
                 .message(message)
-                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
+                .metadata(publicActionParamValidationMetadata(validation))
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(Collections.unmodifiableList(nextSteps))
                 .build();
@@ -547,7 +549,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .success(false)
                 .message(message)
                 .data(Collections.unmodifiableMap(data))
-                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
+                .metadata(publicActionParamValidationMetadata(validation))
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
@@ -601,7 +603,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.ACTION_EXECUTED)
                 .success(success)
                 .message(message)
-                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
+                .metadata(publicActionParamValidationMetadata(validation))
                 .data(resultData)
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -619,7 +621,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.ERROR)
                 .success(false)
                 .message(errorResult != null ? errorResult.getMessage() : ex.getMessage())
-                .metadata(validation != null ? Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, validation.debugMetadata()) : Map.of())
+                .metadata(publicActionParamValidationMetadata(validation))
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -781,6 +783,46 @@ public class IntentHandlingStep implements PipelineStep {
             return updated;
         }
         return params;
+    }
+
+    private List<String> publicMissingRequiredParameters(List<String> missingRequired) {
+        if (missingRequired == null || missingRequired.isEmpty()) {
+            return List.of();
+        }
+        return missingRequired.stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .filter(parameter -> !isSystemContextParameter(parameter))
+            .toList();
+    }
+
+    private Map<String, Object> publicActionParamValidationMetadata(ActionParamValidation validation) {
+        if (validation == null) {
+            return Map.of();
+        }
+        Map<String, Object> debug = new LinkedHashMap<>();
+        Map<String, Object> rawDebug = validation.debugMetadata();
+        if (rawDebug != null) {
+            rawDebug.forEach((key, value) -> {
+                if (!"missing".equals(key) && !"provenanceMissing".equals(key)) {
+                    debug.put(key, value);
+                }
+            });
+        }
+        debug.put("missing", publicMissingRequiredParameters(validation.missingRequired()));
+        debug.put("provenanceMissing", publicMissingRequiredParameters(validation.provenanceMissing()));
+        long hiddenSystemContextMissing = countSystemContextParameters(validation.missingRequired());
+        if (hiddenSystemContextMissing > 0) {
+            debug.put("hiddenSystemContextMissingCount", hiddenSystemContextMissing);
+        }
+        return Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, Collections.unmodifiableMap(debug));
+    }
+
+    private long countSystemContextParameters(List<String> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return 0;
+        }
+        return parameters.stream().filter(this::isSystemContextParameter).count();
     }
 
     private boolean hasParamValue(Map<String, Object> params, String key) {
@@ -2520,7 +2562,7 @@ public class IntentHandlingStep implements PipelineStep {
                 return OrchestrationResult.builder()
                     .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                     .success(false)
-                    .message("That request requires retrieval from a vector space that is not allowed in this mode.")
+                    .message("I can answer using the information approved for this assistant, including products, policies, comparisons, cart, and approved order help.")
                     .data(Collections.unmodifiableMap(data))
                     .nextSteps(extractNextSteps(intent))
                     .build();
@@ -4352,13 +4394,29 @@ public class IntentHandlingStep implements PipelineStep {
         if (!CollectionUtils.isEmpty(intent.getActionParams())) {
             data.put(DATA_KEY_DETAILS, intent.getActionParams());
         }
+        String userMessage = outOfScopeUserMessage(intent);
         return OrchestrationResult.builder()
             .type(OrchestrationResultType.OUT_OF_SCOPE)
             .success(true)
-            .message(MSG_OUT_OF_SCOPE)
+            .message(userMessage)
             .data(Collections.unmodifiableMap(data))
             .nextSteps(extractNextSteps(intent))
             .build();
+    }
+
+    private String outOfScopeUserMessage(Intent intent) {
+        if (intent != null && StringUtils.hasText(intent.getDirectAnswer())) {
+            return intent.getDirectAnswer().trim();
+        }
+        if (intent != null && intent.getActionParams() != null && !intent.getActionParams().isEmpty()) {
+            for (String key : List.of("userMessage", "message", "answer", "response")) {
+                Object value = intent.getActionParams().get(key);
+                if (value != null && StringUtils.hasText(value.toString())) {
+                    return value.toString().trim();
+                }
+            }
+        }
+        return MSG_OUT_OF_SCOPE;
     }
     
     private OrchestrationResult handleCompoundIntents(MultiIntentResponse response, OrchestrationContext context, PipelineContext pipelineContext) {

@@ -1120,3 +1120,12 @@ Critical fixes that made the gate pass:
 - Local verification passed before redeploy: `bash scripts/verify-loomai-landing-site.sh`, `docker build -f Real_Apps/loomai-landing-site/Dockerfile -t loomai-landing-site:local .`, and `git diff --check`.
 - Pushed commits `a9755fc3a` and `8e335c085`, then redeployed the existing staging Coolify landing app (`bdzny0asckbk7nhtukflg8fy`). Final deployment `vez7uc4yvkxuyba04py4xngw` finished and the app returned to `running:healthy`.
 - Hosted product-suite verification passed on staging: `/health` returned `UP`, merchant page contains `LoomAI products for commerce and support work`, partner page contains `Help clients launch LoomAI products`, and Playwright desktop/mobile checks passed with screenshots in `/tmp/loomai-landing-site-product-suite-hosted`.
+
+## 2026-05-11 Shopify Companion Runtime-Led Answer Quality
+
+- Corrected the 010.3 answer-quality fix to align with the architecture rule: Shopify Bridge must not invent semantic fallback answers from shopper text, generic `Search completed.` responses, out-of-scope runtime results, or vector-space policy misses.
+- Commerce runtime pack now sets `ai.orchestration.always-generate-information=true`, so Companion retrieval flows produce LLM-generated answers from retrieved evidence instead of relying on Bridge-side summaries.
+- Runtime now hides system-context-only missing action parameters such as `shopperSessionId` from public clarification text/validation metadata; trusted storefront session context is still injected before validation when present.
+- Runtime OUT_OF_SCOPE handling can use LLM-provided `actionParams.userMessage`, and commerce/default intent prompts now require safe user-facing OUT_OF_SCOPE copy without implementation terms.
+- Bridge remains responsible for public response sanitization and structured governance after runtime action selection: action ID/package/page-context policy, not shopper text matching.
+- Focused verification passed locally: `ShopifyStorefrontChatServiceTest`, `IntentHandlingStepAlwaysGenerateInformationTest`, `IntentHandlingStepRequiredParamsPlaceholderTest`, `RAGOrchestratorTest`, and `CommerceCuratedPackTest`.

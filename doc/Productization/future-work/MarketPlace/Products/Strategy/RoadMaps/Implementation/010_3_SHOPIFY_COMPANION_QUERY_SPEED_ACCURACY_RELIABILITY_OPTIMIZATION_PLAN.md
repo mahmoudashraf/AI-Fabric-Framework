@@ -42,9 +42,10 @@ Follow-up response-quality audit result:
 - deterministic HTTP/safety pass was `11/11`, but manual answer review found release-relevant quality defects:
   - product/read-action paths could return only `Search completed.`
   - cart action clarification could ask the shopper for internal `shopperSessionId`
-  - order lookup fallback could expose internal vector-space policy wording
+  - order lookup/runtime policy misses could expose internal vector-space policy wording
   - return-policy and comparison answers were safe but too shallow for launch-quality merchant proof
-- deployed code now fixes the first three issues and adds regression tests; the tightened answer-quality gate passed `11/11` on staging after Bridge/runtime redeploy.
+- deployed code fixed the first three issues and added regression tests; the tightened answer-quality gate passed `11/11` on staging after Bridge/runtime redeploy.
+- follow-up correction: answer-quality ownership must stay in Runtime/Thinker. Bridge must not invent deterministic semantic fallback answers such as document-title summaries or store-scope copy for successful runtime responses. Current implementation direction is runtime-led generation plus Bridge public-response sanitization and structured action governance only.
 - broader `scripts/verify-shopify-companion.sh` still found a separate support-readiness mismatch: Platform support readiness reports `orderLookupSupported=false`, while storefront bootstrap exposes `orderLookupEnabled=true`. Treat this as a release-gate consistency item outside the chat-quality answer pass.
 
 ## Query Set Used
@@ -136,18 +137,21 @@ Fix:
 - Bridge replaces document payloads with shopper-safe fields only: `id`, `type`, `score`, `similarity`, `source`, `title`, `storefrontUrl`, `url`, and bounded `content`.
 - Added storefront chat test coverage.
 
-### Response-quality shaping
+### Runtime-led response quality
 
 Problem:
 
 - Public chat answers could be technically successful but low quality or internal-facing: generic `Search completed.`, `shopperSessionId` clarification, and vector-space policy text.
+- A Bridge-side deterministic answer replacement fixed symptoms but violated the product rule that Runtime/Thinker owns final semantic answers.
 
 Fix:
 
-- Bridge replaces generic search-completed responses with a deterministic shopper-safe evidence summary when retrieved documents are present.
+- Commerce runtime pack sets `ai.orchestration.always-generate-information=true`, so retrieved evidence is passed to LLM generation instead of returning retrieval-only `Search completed.` for Companion flows.
+- Bridge no longer rewrites generic runtime answers, out-of-scope answers, or vector-policy misses into semantic storefront fallback copy. It passes through runtime answers after strict public JSON sanitization.
 - Runtime injects `shopperSessionId` from trusted orchestration context for actions that require it, so the shopper is not asked for an internal session parameter.
-- Bridge hides any remaining single-param `shopperSessionId` clarification from the public storefront response.
-- Bridge maps vector-space policy misses into storefront/order-lookup guidance based on structured runtime fields and Shopify surface context.
+- Runtime redacts system-context-only missing parameters from public clarification copy and validation metadata.
+- Runtime out-of-scope and policy-miss messages are shopper-safe and can use LLM-supplied `actionParams.userMessage`; prompts now require that user-safe message for OUT_OF_SCOPE.
+- Bridge still enforces structured governance after runtime action selection: unapproved order-mutation action IDs and cart actions selected on account/order/support pages are denied or redirected by page/action policy, not by shopper text matching.
 - The answer-quality query pack now forbids `Search completed.`, `shopperSessionId`, `missingRequiredParameters`, `authContext`, vector-space wording, deployment IDs, and tenant IDs.
 - Added cart-action coverage to the query pack.
 
@@ -225,11 +229,7 @@ Needs work:
 
 ### P0 Accuracy
 
-1. Replace generic `Search completed.` with a shopper answer built from safe documents:
-   - product title
-   - product type/vendor when available
-   - storefront link
-   - concise next step
+1. Keep generic `Search completed.` out of Companion by forcing runtime LLM answer generation from retrieved product/policy/action evidence.
 2. Force comparison surface to use product/catalog evidence, not only page context.
 3. Add source-gap response template:
    - verified evidence found
@@ -242,10 +242,11 @@ Needs work:
 
 Implemented in current local fix pass:
 
-- generic `Search completed.` is replaced with a safe document-title summary when documents are present.
-- `shopperSessionId` is injected from trusted runtime context and hidden from public fallback responses.
-- vector-space policy language is mapped to storefront/order-lookup guidance.
-- structured `OUT_OF_SCOPE` responses are mapped to store-scoped guidance instead of runtime/internal wording.
+- Companion commerce runtime now always generates an answer after retrieval; Bridge does not synthesize document-title summaries.
+- `shopperSessionId` is injected from trusted runtime context and runtime hides system-context-only missing parameter names from public clarification payloads.
+- vector-space policy language is converted in runtime to shopper-safe capability guidance.
+- structured `OUT_OF_SCOPE` responses can carry LLM-supplied `actionParams.userMessage`; static fallback copy is reserved for the hard policy path only.
+- Bridge semantic fallback rewrites were removed; Bridge remains the public sanitization and structured action-governance boundary.
 - the answer-quality query pack now matches the current launch posture: Free is disabled, Elite is active, and `ai-search` is not probed as an enabled storefront surface.
 
 Still open:
