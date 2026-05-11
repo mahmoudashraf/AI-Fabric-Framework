@@ -185,6 +185,12 @@ public class ShopifyStorefrontChatService {
                 copyLimitedTextField(rawProduct, metadata, "type", "productType");
                 copyLimitedTextField(rawProduct, metadata, "priceCents", "productPriceCents");
             }
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "productId");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "productHandle");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "productTitle");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "productVendor");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "productType");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "productPriceCents");
 
             JsonNode rawCollection = rawContext.get("collection");
             if (rawCollection != null && rawCollection.isObject()) {
@@ -192,6 +198,9 @@ public class ShopifyStorefrontChatService {
                 copyLimitedTextField(rawCollection, metadata, "handle", "collectionHandle");
                 copyLimitedTextField(rawCollection, metadata, "title", "collectionTitle");
             }
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "collectionId");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "collectionHandle");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "collectionTitle");
 
             JsonNode rawDocument = rawContext.get("document");
             if (rawDocument != null && rawDocument.isObject()) {
@@ -224,6 +233,13 @@ public class ShopifyStorefrontChatService {
     private void copyLimitedTextField(JsonNode source, ObjectNode target, String sourceField, String targetField) {
         String value = trimToNull(textOrNull(source, sourceField));
         putLimitedTextField(target, targetField, value);
+    }
+
+    private void copyLimitedTextFieldIfMissing(JsonNode source, ObjectNode target, String field) {
+        if (target == null || !StringUtils.hasText(field) || target.hasNonNull(field)) {
+            return;
+        }
+        copyLimitedTextField(source, target, field);
     }
 
     private void putLimitedTextField(ObjectNode target, String targetField, String value) {

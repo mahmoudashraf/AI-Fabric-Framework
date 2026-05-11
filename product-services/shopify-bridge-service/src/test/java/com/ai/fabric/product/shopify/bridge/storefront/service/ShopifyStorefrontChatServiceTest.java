@@ -14,6 +14,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidget
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -92,6 +93,40 @@ class ShopifyStorefrontChatServiceTest {
               ]
             }
             """), "shopper-session-1");
+    }
+
+    @Test
+    void queryNormalizesFlatProductContextForAssistantGrounding() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"ok"}}
+            """));
+
+        service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Add this to my cart",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "productTitle":"Travel Pack",
+                    "productHandle":"travel-pack"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        ArgumentCaptor<JsonNode> requestCaptor = ArgumentCaptor.forClass(JsonNode.class);
+        verify(platformClient).queryConsumerBridgeChat(anyString(), requestCaptor.capture(), anyString());
+        JsonNode attachment = requestCaptor.getValue().path("attachments").path(0);
+        assertThat(attachment.path("contentText").asText())
+            .contains("Product: Travel Pack")
+            .contains("Product handle: travel-pack");
+        assertThat(attachment.path("metadata").path("productTitle").asText()).isEqualTo("Travel Pack");
+        assertThat(attachment.path("metadata").path("productHandle").asText()).isEqualTo("travel-pack");
     }
 
     @Test

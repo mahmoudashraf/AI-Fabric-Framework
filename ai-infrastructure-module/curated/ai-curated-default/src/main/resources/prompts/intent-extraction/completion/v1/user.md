@@ -15,3 +15,5 @@ PARTIAL JSON (to complete):
 
 Notes:
 - If the USER REQUEST includes attachments, use their metadata/contentText as the primary source for completing identifiers instead of guessing.
+- Optional actionParams may be completed when their parameter description says they improve presentation, confirmation copy, or safe display and the value can be faithfully derived from the USER REQUEST or authoritative attachments.
+- Presentation-only optional params must not invent executable identifiers, prices, availability, discounts, or order data.

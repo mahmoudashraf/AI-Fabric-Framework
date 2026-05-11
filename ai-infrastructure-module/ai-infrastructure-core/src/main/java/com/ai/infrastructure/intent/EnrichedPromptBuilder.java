@@ -187,7 +187,7 @@ public class EnrichedPromptBuilder {
         String suffix = Boolean.TRUE.equals(schema.getRequired()) ? "!" : "";
         String batch = Boolean.TRUE.equals(schema.getBatchTargets()) ? " [batchTargets]" : "";
 
-        return switch (type) {
+        String summary = switch (type) {
             case STRING -> "string" + suffix + batch;
             case INTEGER -> "integer" + suffix + batch;
             case NUMBER -> "number" + suffix + batch;
@@ -209,6 +209,14 @@ public class EnrichedPromptBuilder {
             }
             case UNKNOWN -> "unknown" + suffix + batch;
         };
+        if (!StringUtils.hasText(schema.getDescription())) {
+            return summary;
+        }
+        String description = schema.getDescription().trim().replaceAll("\\s+", " ");
+        if (description.length() > 220) {
+            description = description.substring(0, 217) + "...";
+        }
+        return summary + " - " + description;
     }
 
     private String buildKnowledgeBaseOverviewSection(SystemContext context) {
