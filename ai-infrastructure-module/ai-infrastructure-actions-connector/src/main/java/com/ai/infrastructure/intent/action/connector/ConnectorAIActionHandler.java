@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private static final String REDACTED = "[REDACTED]";
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)(?:\\s*\\|\\s*([^{}]*?))?\\s*}}");
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int FALLBACK_MAX_RECORDS = 5;
     private static final int FALLBACK_MAX_SCALAR_FIELDS = 16;
@@ -823,30 +823,38 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         StringBuffer out = new StringBuffer();
         while (matcher.find()) {
             String name = matcher.group(1);
-            String replacement = renderValue(name, params);
+            String fallback = matcher.group(2);
+            String replacement = renderValue(name, fallback, params);
             matcher.appendReplacement(out, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(out);
         return out.toString();
     }
 
-    private String renderValue(String name, Map<String, Object> params) {
+    private String renderValue(String name, String fallback, Map<String, Object> params) {
         if (!StringUtils.hasText(name)) {
             return "";
         }
         String key = name.trim();
+        Object raw = params != null ? params.get(key) : null;
+        if (raw == null) {
+            return renderFallback(fallback);
+        }
         if (sensitiveParams.contains(key)) {
             return REDACTED;
         }
-        Object raw = params != null ? params.get(key) : null;
-        if (raw == null) {
-            return "";
-        }
         String s = raw.toString();
         if (!StringUtils.hasText(s)) {
-            return "";
+            return renderFallback(fallback);
         }
         return escapeHtml(s.trim());
+    }
+
+    private String renderFallback(String fallback) {
+        if (!StringUtils.hasText(fallback)) {
+            return "";
+        }
+        return escapeHtml(fallback.trim());
     }
 
     private String defaultConfirmationMessage(Map<String, Object> params) {

@@ -37,7 +37,7 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(action.provenance()).isNotNull();
         assertThat(action.provenance().getSourceType()).isEqualTo("ACTION_CATALOG");
         assertThat(action.provenance().getPublisher()).isEqualTo("internal-test");
-        assertThat(action.confirmationMessage()).contains("{{quantity}}").contains("{{sku}}");
+        assertThat(action.confirmationMessage()).contains("{{quantity|1}}").contains("{{sku}}");
         assertThat(action.params()).hasSize(2);
         assertThat(action.postPolicies()).hasSize(1);
         assertThat(action.postPolicies().getFirst().type()).isEqualTo("webhook");

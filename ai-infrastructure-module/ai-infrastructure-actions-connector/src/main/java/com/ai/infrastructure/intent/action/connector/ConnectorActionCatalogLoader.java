@@ -125,7 +125,7 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_POP_CURRENT = "popCurrent";
     private static final String KEY_POP_PREVIOUS_IF_ACTION_IN = "popPreviousIfActionIn";
 
-    private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
+    private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)(?:\\s*\\|\\s*([^{}]*?))?\\s*}}");
     private static final Pattern INTERCEPTION_TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
     private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]*");

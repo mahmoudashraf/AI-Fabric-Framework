@@ -189,6 +189,7 @@ Good:
 - weak fan-out/internal queries no longer ask shoppers to choose `product` or `support-policy` domains.
 - order/account page cart-action selections are now mapped to the correct order lookup/support posture.
 - unsupported order mutation action selections are denied in customer-safe wording; approved order self-service packages can allow those actions with confirmation/audit.
+- add-to-cart confirmation copy is now Marketplace-config driven: `shopify_update_cart` exposes a confirmation-only display parameter so Runtime/LLM can ask for the resolved product/variant, for example `Add 1 Selling Plans Ski Wax to your cart?`, while MCP execution still receives only the configured Shopify tool arguments.
 
 Needs work:
 
@@ -196,7 +197,6 @@ Needs work:
 - comparison surface in `navigator_deep` uses weak context and does not force product/catalog evidence.
 - `What products are available under $20?` returns a search result but does not prove price filtering in the answer.
 - allergy/certification asks for a source gap, but the answer should explicitly say there is no verified certification evidence in the store data.
-- add-to-cart now avoids internal session leakage but still returns generic `Update your cart?`; it should resolve a concrete product/variant and confirm `Add Selling Plans Ski Wax to cart?`.
 
 ### Reliability
 

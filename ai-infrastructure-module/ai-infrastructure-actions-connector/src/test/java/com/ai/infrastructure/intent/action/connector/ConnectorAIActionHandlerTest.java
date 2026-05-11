@@ -19,6 +19,48 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ConnectorAIActionHandlerTest {
 
     @Test
+    void shouldRenderConfirmationTemplateWithFallbackPlaceholder() {
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            AIActionMetaData.builder()
+                .name("shopify_update_cart")
+                .category("shopify")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .build(),
+            true,
+            "{{cart_update_confirmation|Update your cart}}?",
+            Set.of(),
+            null
+        );
+
+        assertThat(handler.getConfirmationMessage(
+            Map.of("cart_update_confirmation", "Add 1 Selling Plans Ski Wax to your cart"),
+            null
+        )).isEqualTo("Add 1 Selling Plans Ski Wax to your cart?");
+        assertThat(handler.getConfirmationMessage(Map.of(), null)).isEqualTo("Update your cart?");
+    }
+
+    @Test
+    void shouldEscapeConfirmationFallbackAndResolvedValue() {
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            AIActionMetaData.builder()
+                .name("shopify_update_cart")
+                .category("shopify")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .build(),
+            true,
+            "{{cart_update_confirmation|Add <item> to cart}}?",
+            Set.of(),
+            null
+        );
+
+        assertThat(handler.getConfirmationMessage(
+            Map.of("cart_update_confirmation", "Add <Wax> to your cart"),
+            null
+        )).isEqualTo("Add &lt;Wax&gt; to your cart?");
+        assertThat(handler.getConfirmationMessage(Map.of(), null)).isEqualTo("Add &lt;item&gt; to cart?");
+    }
+
+    @Test
     void shouldBuildCompactLlmFactsFromConfiguredProjection() {
         ActionResult actionResult = ActionResult.builder()
             .success(true)

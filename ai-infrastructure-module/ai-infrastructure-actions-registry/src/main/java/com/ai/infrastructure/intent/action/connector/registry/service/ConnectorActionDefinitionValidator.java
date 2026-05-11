@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 @Service
 public class ConnectorActionDefinitionValidator {
 
-    private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
+    private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)(?:\\s*\\|\\s*([^{}]*?))?\\s*}}");
 
     public void validate(ConnectorActionDefinition definition) {
         if (definition == null) {
@@ -73,4 +73,3 @@ public class ConnectorActionDefinitionValidator {
         }
     }
 }
-
