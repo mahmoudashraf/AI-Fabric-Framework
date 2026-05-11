@@ -1,6 +1,6 @@
 # 010.3 Shopify Companion Query Speed, Accuracy, And Reliability Optimization Plan
 
-Status: active optimization plan, live probe plus first response-quality fix pass completed on staging/local code 2026-05-11
+Status: active optimization plan, response-quality live gate passed on staging 2026-05-11
 
 Parent plans:
 
@@ -25,6 +25,8 @@ Live probe files:
 - `/tmp/loomai-shopify-query-probes-20260511-sanitized-smoke.json`
 - `/tmp/loomai-chat-quality-audit-20260511T070939Z/quality-results.json`
 - `/tmp/loomai-chat-quality-audit-20260511T070939Z/quality-audit.md`
+- `/tmp/shopify-answer-quality-20260511T073835Z/answer-quality-results.json`
+- `/tmp/shopify-answer-quality-20260511T073835Z/answer-quality-audit.md`
 
 Staging now passes the critical release behavior checks:
 
@@ -42,7 +44,8 @@ Follow-up response-quality audit result:
   - cart action clarification could ask the shopper for internal `shopperSessionId`
   - order lookup fallback could expose internal vector-space policy wording
   - return-policy and comparison answers were safe but too shallow for launch-quality merchant proof
-- local code now fixes the first three issues and adds regression tests; live staging recheck is required after Bridge/runtime redeploy.
+- deployed code now fixes the first three issues and adds regression tests; the tightened answer-quality gate passed `11/11` on staging after Bridge/runtime redeploy.
+- broader `scripts/verify-shopify-companion.sh` still found a separate support-readiness mismatch: Platform support readiness reports `orderLookupSupported=false`, while storefront bootstrap exposes `orderLookupEnabled=true`. Treat this as a release-gate consistency item outside the chat-quality answer pass.
 
 ## Query Set Used
 
@@ -181,11 +184,11 @@ Good:
 
 Needs work:
 
-- post-deploy live verification must prove product search no longer says `Search completed.`
+- product search no longer says `Search completed.` in the tightened live answer gate.
 - comparison surface in `navigator_deep` uses weak context and does not force product/catalog evidence.
 - `What products are available under $20?` returns a search result but does not prove price filtering in the answer.
 - allergy/certification asks for a source gap, but the answer should explicitly say there is no verified certification evidence in the store data.
-- add-to-cart should resolve a concrete product/variant and confirm `Add Selling Plans Ski Wax to cart?`; current fix removes internal session leakage but does not yet make the confirmation product-specific.
+- add-to-cart now avoids internal session leakage but still returns generic `Update your cart?`; it should resolve a concrete product/variant and confirm `Add Selling Plans Ski Wax to cart?`.
 
 ### Reliability
 
@@ -242,6 +245,8 @@ Implemented in current local fix pass:
 - generic `Search completed.` is replaced with a safe document-title summary when documents are present.
 - `shopperSessionId` is injected from trusted runtime context and hidden from public fallback responses.
 - vector-space policy language is mapped to storefront/order-lookup guidance.
+- structured `OUT_OF_SCOPE` responses are mapped to store-scoped guidance instead of runtime/internal wording.
+- the answer-quality query pack now matches the current launch posture: Free is disabled, Elite is active, and `ai-search` is not probed as an enabled storefront surface.
 
 Still open:
 
@@ -249,6 +254,7 @@ Still open:
 - product-specific cart confirmation.
 - comparison answer synthesis from multiple product evidence records.
 - policy/source-gap answer templates backed by explicit policy documents.
+- release-gate consistency between Platform support readiness and storefront bootstrap for order lookup.
 
 ### P0 Reliability And Security
 
