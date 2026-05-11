@@ -121,18 +121,27 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
                                                              CreateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        return createInstallForDeployment(deployment, request, false);
+        return createInstallForDeployment(deployment, request, false, true);
     }
 
     @Transactional
     public DeploymentMarketplaceInstallSummary createInstallForTrustedCaller(DeploymentEntity deployment,
                                                                             CreateDeploymentMarketplaceInstallRequest request) {
-        return createInstallForDeployment(deployment, request, true);
+        return createInstallForDeployment(deployment, request, true, true);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary createInstallForTrustedCallerWithoutDraftSync(
+        DeploymentEntity deployment,
+        CreateDeploymentMarketplaceInstallRequest request
+    ) {
+        return createInstallForDeployment(deployment, request, true, false);
     }
 
     private DeploymentMarketplaceInstallSummary createInstallForDeployment(DeploymentEntity deployment,
                                                                           CreateDeploymentMarketplaceInstallRequest request,
-                                                                          boolean trustedCaller) {
+                                                                          boolean trustedCaller,
+                                                                          boolean syncDraft) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(request.pluginId());
         MarketplacePluginVersionEntity version = marketplaceCatalogService.requirePluginVersionEntity(
             plugin.getId(),
@@ -187,7 +196,9 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
-        syncDeploymentDraft(deployment.getId(), trustedCaller);
+        if (syncDraft) {
+            syncDeploymentDraft(deployment.getId(), trustedCaller);
+        }
 
         return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }
@@ -197,20 +208,30 @@ public class DeploymentMarketplaceInstallService {
                                                              String installId,
                                                              UpdateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        return updateInstallForDeployment(deployment, installId, request, false);
+        return updateInstallForDeployment(deployment, installId, request, false, true);
     }
 
     @Transactional
     public DeploymentMarketplaceInstallSummary updateInstallForTrustedCaller(DeploymentEntity deployment,
                                                                             String installId,
                                                                             UpdateDeploymentMarketplaceInstallRequest request) {
-        return updateInstallForDeployment(deployment, installId, request, true);
+        return updateInstallForDeployment(deployment, installId, request, true, true);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateInstallForTrustedCallerWithoutDraftSync(
+        DeploymentEntity deployment,
+        String installId,
+        UpdateDeploymentMarketplaceInstallRequest request
+    ) {
+        return updateInstallForDeployment(deployment, installId, request, true, false);
     }
 
     private DeploymentMarketplaceInstallSummary updateInstallForDeployment(DeploymentEntity deployment,
                                                                           String installId,
                                                                           UpdateDeploymentMarketplaceInstallRequest request,
-                                                                          boolean trustedCaller) {
+                                                                          boolean trustedCaller,
+                                                                          boolean syncDraft) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());
@@ -255,7 +276,9 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
-        syncDeploymentDraft(deployment.getId(), trustedCaller);
+        if (syncDraft) {
+            syncDeploymentDraft(deployment.getId(), trustedCaller);
+        }
 
         return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }

@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -102,21 +103,106 @@ class ShopifyStoreProvisioningServiceTest {
         verify(vectorizationService).reconcileForTrustedCaller("alpha.myshopify.com");
         verify(vectorizationService, never()).reconcile("alpha.myshopify.com");
         verify(bootstrapService, never()).bootstrap(any(), any());
-        verify(marketplaceInstallService).updateInstallForTrustedCaller(
+        verify(marketplaceInstallService).updateInstallForTrustedCallerWithoutDraftSync(
             eq(deployment),
             eq("mpi-legacy-read"),
             argThat(request -> request != null && "DISABLED".equals(request.status()))
         );
-        verify(marketplaceInstallService).createInstallForTrustedCaller(
+        verify(marketplaceInstallService).createInstallForTrustedCallerWithoutDraftSync(
             eq(deployment),
             argThat(request -> request != null
                 && "mkp-action-shopify-storefront-read-mcp".equals(request.pluginId()))
         );
-        verify(marketplaceInstallService).createInstallForTrustedCaller(
+        verify(marketplaceInstallService).createInstallForTrustedCallerWithoutDraftSync(
             eq(deployment),
             argThat(request -> request != null
                 && "mkp-action-shopify-cart-mcp".equals(request.pluginId()))
         );
+    }
+
+    @Test
+    void processProfileChangeBatchesMarketplaceMutationsBeforeFinalDraftSync() {
+        ShopifyStoreProvisioningJobRepository jobRepository = mock(ShopifyStoreProvisioningJobRepository.class);
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        ShopifyStoreBootstrapService bootstrapService = mock(ShopifyStoreBootstrapService.class);
+        ShopifyStoreVectorizationService vectorizationService = mock(ShopifyStoreVectorizationService.class);
+        ShopifyStoreSourcePreflightSupport detailsSupport =
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper().findAndRegisterModules());
+        ShopifyCompanionPackageProfileCatalogService profileCatalogService = mock(ShopifyCompanionPackageProfileCatalogService.class);
+        DeploymentMarketplaceInstallService marketplaceInstallService = mock(DeploymentMarketplaceInstallService.class);
+        DeploymentMarketplaceDraftCompilerService draftCompilerService = mock(DeploymentMarketplaceDraftCompilerService.class);
+        MarketplaceCatalogService marketplaceCatalogService = mock(MarketplaceCatalogService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+
+        ShopifyStoreConnectionEntity store = store();
+        store.setDetailsJson("""
+            {"packageState":{"packageKey":"FREE","tierKey":"FREE","runtimeProfileKey":"LOW_COST","vectorProfileKey":"QDRANT_SHARED"}}
+            """.trim());
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        ShopifyStoreProvisioningJobEntity job = job();
+        job.setJobType("PACKAGE_CHANGE");
+        job.setPreviousPackageKey("FREE");
+        job.setPreviousRuntimeProfileKey("LOW_COST");
+        job.setProfileChangeStrategy("REPLACE_INFERENCE_PROFILE");
+        ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = profile();
+
+        when(jobRepository.findById("spj-123")).thenReturn(Optional.of(job));
+        when(jobRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(storeRepository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(store));
+        when(storeRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(profileCatalogService.resolve("ELITE", "ELITE", "HIGH_QUALITY", "QDRANT_SHARED")).thenReturn(profile);
+        when(marketplaceInstallService.listInstallsForTrustedCaller(deployment)).thenReturn(
+            List.of(
+                install("mpi-local", "mkp-inference-local-embeddings", "ENABLED", "INFERENCE_PROFILE"),
+                install("mpi-premium", "mkp-inference-premium-hybrid", "DISABLED", "INFERENCE_PROFILE"),
+                install("mpi-cart", "mkp-action-shopify-cart-mcp", "DISABLED", "ACTION")
+            ),
+            List.of(
+                install("mpi-local", "mkp-inference-local-embeddings", "DISABLED", "INFERENCE_PROFILE"),
+                install("mpi-premium", "mkp-inference-premium-hybrid", "DISABLED", "INFERENCE_PROFILE"),
+                install("mpi-cart", "mkp-action-shopify-cart-mcp", "DISABLED", "ACTION")
+            )
+        );
+
+        ShopifyStoreProvisioningService service = new ShopifyStoreProvisioningService(
+            jobRepository,
+            storeRepository,
+            deploymentRepository,
+            bootstrapService,
+            vectorizationService,
+            detailsSupport,
+            profileCatalogService,
+            marketplaceInstallService,
+            draftCompilerService,
+            marketplaceCatalogService,
+            auditService,
+            new TransactionTemplate(transactionManager)
+        );
+
+        ShopifyStoreProvisioningJobSummary summary = service.processJobNow("alpha.myshopify.com", "spj-123");
+
+        assertThat(summary.status()).isEqualTo("READY");
+        verify(marketplaceInstallService).updateInstallForTrustedCallerWithoutDraftSync(
+            eq(deployment),
+            eq("mpi-local"),
+            argThat(request -> request != null && "DISABLED".equals(request.status()))
+        );
+        verify(marketplaceInstallService).updateInstallForTrustedCallerWithoutDraftSync(
+            eq(deployment),
+            eq("mpi-premium"),
+            argThat(request -> request != null && "ENABLED".equals(request.status()))
+        );
+        verify(marketplaceInstallService).updateInstallForTrustedCallerWithoutDraftSync(
+            eq(deployment),
+            eq("mpi-cart"),
+            argThat(request -> request != null && "ENABLED".equals(request.status()))
+        );
+        verify(draftCompilerService, times(1)).syncDeploymentDraftForTrustedCaller("dep-123");
     }
 
     @Test

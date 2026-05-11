@@ -336,7 +336,7 @@ public class ShopifyStoreProvisioningService {
             boolean disabledByProfile = disabledPluginIds.stream().anyMatch(disabled -> disabled.equalsIgnoreCase(pluginId));
             boolean noLongerDesired = desiredPluginIds.stream().noneMatch(desired -> desired.equalsIgnoreCase(pluginId));
             if (disabledByProfile || noLongerDesired) {
-                marketplaceInstallService.updateInstallForTrustedCaller(
+                marketplaceInstallService.updateInstallForTrustedCallerWithoutDraftSync(
                     deployment,
                     install.id(),
                     new UpdateDeploymentMarketplaceInstallRequest(null, "DISABLED", null, null)
@@ -361,7 +361,7 @@ public class ShopifyStoreProvisioningService {
                 .orElse(null);
             if (existing == null) {
                 String version = marketplaceCatalogService.resolveLatestPublishedVersionLabel(desiredPluginId);
-                marketplaceInstallService.createInstallForTrustedCaller(
+                marketplaceInstallService.createInstallForTrustedCallerWithoutDraftSync(
                     deployment,
                     new CreateDeploymentMarketplaceInstallRequest(
                         desiredPluginId,
@@ -371,7 +371,7 @@ public class ShopifyStoreProvisioningService {
                     )
                 );
             } else {
-                marketplaceInstallService.updateInstallForTrustedCaller(
+                marketplaceInstallService.updateInstallForTrustedCallerWithoutDraftSync(
                     deployment,
                     existing.id(),
                     new UpdateDeploymentMarketplaceInstallRequest(null, "ENABLED", null, null)
