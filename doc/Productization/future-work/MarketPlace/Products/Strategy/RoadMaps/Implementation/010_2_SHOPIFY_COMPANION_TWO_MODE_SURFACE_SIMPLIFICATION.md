@@ -17,6 +17,7 @@ Related implementation references:
 
 - [006 Thinker Resolver Governed Issue Resolution Blueprint](006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md)
 - [006.4 Productized Resolution Assistant Readiness And Rollout](006_4_PRODUCTIZED_RESOLUTION_ASSISTANT_READINESS_AND_ROLLOUT.md)
+- [010.3 Shopify Companion Query Speed, Accuracy, And Reliability Optimization Plan](010_3_SHOPIFY_COMPANION_QUERY_SPEED_ACCURACY_RELIABILITY_OPTIMIZATION_PLAN.md)
 - `Final_Documentation/User_Guides/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
 - `Final_Documentation/User_Guides/SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md`
 - `Final_Documentation/User_Guides/THINKER_RESOLVER_USER_GUIDE.md`
@@ -344,7 +345,7 @@ The codebase already has most of the primitives:
   - Setup tab renders `Shopping Assistant` and `Account & Order Assistant`.
   - normal merchant setup copy explains Loom Companion as two shopper-understandable modes.
   - raw technical ids are not visible in the normal Setup tab content.
-- Current staging store package remains Free, so live storefront bootstrap still exposes only the base shopping fallback internally. That is expected; the UI maps it to `Shopping Assistant`, and `Account & Order Assistant` storefront behavior remains gated until the store is entitled and resolver-ready.
+- Current launch posture keeps the Free package retained but disabled. Staging bootstrap now reports `ELITE` / `ACTIVE`; shopping pages route to `thinker_deep`, while account/cart/support pages route to `executor` only through the governed Account & Order Assistant posture. Follow-up query optimization results are tracked in `010.3`.
 
 ---
 
