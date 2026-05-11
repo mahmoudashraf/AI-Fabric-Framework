@@ -232,7 +232,7 @@ class ShopifyBridgeAdminControllerTest {
                     true,
                     true,
                     true,
-                    List.of("guided-commerce"),
+                    List.of("guided-commerce", "order-self-service"),
                     List.of("ai-search", "comparison"),
                     "Elite guided commerce is available for merchant approval."
                 )
@@ -277,7 +277,7 @@ class ShopifyBridgeAdminControllerTest {
             true,
             true,
             true,
-            List.of("guided-commerce"),
+            List.of("guided-commerce", "order-self-service"),
             List.of("ai-search", "comparison", "order-lookup"),
             List.of(),
             "Elite tier is active for this store from recorded Shopify billing state."

@@ -80,17 +80,18 @@ Fix:
 - If runtime selects a cart action while the request context is account/order/support, Bridge returns order lookup block guidance or support guidance instead of exposing cart/session internals.
 - Added storefront chat test coverage.
 
-### Unsupported order mutation action policy
+### Package-gated order self-service action policy
 
 Problem:
 
-- Refund/cancel/order-edit are not currently approved customer self-service mutations for the current launch package, and a future or misconfigured runtime catalog could select one of those mutation action IDs.
+- Return/cancel/order-edit requests must not be controlled by shopper text matching, and they must not bypass merchant/package approval, explicit confirmation, customer/checkout auth, or audit when a runtime catalog selects a mutation action.
 
 Fix:
 
 - Bridge no longer blocks shopper text before runtime action selection.
 - Bridge denies only structured order-mutation action IDs selected by runtime policy when the store is not entitled to an approved order self-service action package.
-- If those capabilities become merchant-approved and governed later, they are enabled by action/catalog package policy, not by changing phrase matching.
+- Elite now includes the `order-self-service` action package by default. When that package is present, Bridge allows the governed order self-service action IDs through to the Marketplace/MCP execution path and still depends on the configured action plugin, MCP server, session auth, explicit confirmation, and audit trail.
+- Current concrete Marketplace-configured order self-service actions are `shopify_start_return_request` through Customer Account MCP and `shopify_cancel_checkout` through Checkout MCP. Post-order refund/cancel/edit actions remain discovery/tool-gated until a real Shopify MCP tool and plugin action are introduced; do not invent tool names or add direct GraphQL behavior in Bridge.
 - Added storefront chat test coverage.
 
 ### Public response sanitization
@@ -211,7 +212,7 @@ Add these checks to the 010 release gate:
 - `QUERY_MATRIX_NO_500`: all listed probes return non-5xx.
 - `QUERY_MATRIX_NO_ENTITLEMENT_CONFLICT`: no shopper query returns Elite entitlement conflict.
 - `ORDER_CONTEXT_NO_CART_ROUTE`: account/order/support page runtime selections do not expose cart actions or `shopperSessionId`.
-- `ORDER_MUTATION_ACTION_POLICY`: refund/cancel/order-edit action IDs are denied after runtime/action selection unless the store has an approved order self-service action package.
+- `ORDER_MUTATION_ACTION_POLICY`: refund/cancel/order-edit action IDs are governed after runtime/action selection; unapproved stores are denied, approved stores may proceed only through configured Marketplace/MCP actions with confirmation/auth/audit.
 - `STOREFRONT_RESPONSE_PUBLIC_SAFE`: public JSON contains no runtime auth context, deployment/tenant/customer IDs, raw document metadata, parameter schemas, provider diagnostics, or secret references.
 - `CATALOG_RESULT_RENDERABLE`: catalog results include shopper-safe titles and storefront URLs where available.
 

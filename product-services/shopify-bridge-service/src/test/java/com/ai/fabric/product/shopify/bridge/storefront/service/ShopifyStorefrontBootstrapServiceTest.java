@@ -304,7 +304,7 @@ class ShopifyStorefrontBootstrapServiceTest {
             true,
             true,
             true,
-            List.of("guided-commerce"),
+            List.of("guided-commerce", "order-self-service"),
             List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
             List.of(),
             "Elite tier is active."

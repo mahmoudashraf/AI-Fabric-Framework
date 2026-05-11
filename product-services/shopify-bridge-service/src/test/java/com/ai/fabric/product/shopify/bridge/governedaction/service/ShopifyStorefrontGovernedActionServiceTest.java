@@ -14,6 +14,7 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstall
 import com.ai.fabric.product.shopify.bridge.governedaction.repository.ShopifyBridgeGovernedActionAuditRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -23,6 +24,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -54,7 +56,8 @@ class ShopifyStorefrontGovernedActionServiceTest {
         assertThat(capability.available()).isTrue();
         assertThat(capability.requiresExplicitConfirmation()).isTrue();
         assertThat(capability.auditTrailAvailable()).isTrue();
-        assertThat(capability.allowedActionTypes()).containsExactly("ADD_TO_CART", "UPDATE_CART_QUANTITY");
+        assertThat(capability.allowedActionTypes())
+            .containsExactly("ADD_TO_CART", "UPDATE_CART_QUANTITY", "START_RETURN_REQUEST", "CANCEL_CHECKOUT");
         assertThat(capability.grantUrl()).contains("/actions/grant");
         assertThat(capability.completeUrl()).contains("/actions/complete");
     }
@@ -131,6 +134,77 @@ class ShopifyStorefrontGovernedActionServiceTest {
         verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_COMPLETED_PRODUCT_INSIGHT");
     }
 
+    @Test
+    void beginMcpToolRejectsOrderSelfServiceActionsWithoutOrderPackage() {
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        when(billingService.summarizeForShop("alpha.myshopify.com", null))
+            .thenReturn(eliteSummary(List.of("guided-commerce")));
+
+        ShopifyStorefrontGovernedActionService service = new ShopifyStorefrontGovernedActionService(
+            mock(PlatformShopifyStoreClient.class),
+            emptyCredentialService(),
+            billingService,
+            mock(ShopifyBridgeGovernedActionAuditRepository.class),
+            tokenService(),
+            mock(ShopifyBridgeUsageService.class),
+            fixedClock()
+        );
+
+        assertThatThrownBy(() -> service.beginMcpTool(
+            "alpha.myshopify.com",
+            "shopper-session-1",
+            "order-self-service",
+            "account",
+            "START_RETURN_REQUEST",
+            true,
+            true,
+            "Start this return request?"
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Approved order self-service actions are not active");
+    }
+
+    @Test
+    void beginMcpToolAllowsOrderSelfServiceActionsWhenOrderPackageIsEnabled() {
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyBridgeGovernedActionAuditRepository repository = mock(ShopifyBridgeGovernedActionAuditRepository.class);
+        AtomicReference<ShopifyBridgeGovernedActionAuditEntity> savedAudit = new AtomicReference<>();
+        when(repository.save(any(ShopifyBridgeGovernedActionAuditEntity.class))).thenAnswer(invocation -> {
+            ShopifyBridgeGovernedActionAuditEntity entity = invocation.getArgument(0);
+            savedAudit.set(entity);
+            return entity;
+        });
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteSummary());
+
+        ShopifyStorefrontGovernedActionService service = new ShopifyStorefrontGovernedActionService(
+            mock(PlatformShopifyStoreClient.class),
+            emptyCredentialService(),
+            billingService,
+            repository,
+            tokenService(),
+            usageService,
+            fixedClock()
+        );
+
+        var audit = service.beginMcpTool(
+            "alpha.myshopify.com",
+            "shopper-session-1",
+            "order-self-service",
+            "account",
+            "START_RETURN_REQUEST",
+            true,
+            true,
+            "Start this return request?"
+        );
+
+        assertThat(audit.actionType()).isEqualTo("START_RETURN_REQUEST");
+        assertThat(audit.actionPackage()).isEqualTo("order-self-service");
+        assertThat(audit.confirmationRequired()).isTrue();
+        assertThat(savedAudit.get().getStatus()).isEqualTo("STARTED");
+        verify(usageService).recordEvent("alpha.myshopify.com", "STOREFRONT_ACTION_STARTED_START_RETURN_REQUEST");
+    }
+
     private ShopifyBridgeInstallCredentialService emptyCredentialService() {
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
@@ -166,6 +240,10 @@ class ShopifyStorefrontGovernedActionServiceTest {
     }
 
     private ShopifyBridgeBillingSummary eliteSummary() {
+        return eliteSummary(List.of("guided-commerce", "order-self-service"));
+    }
+
+    private ShopifyBridgeBillingSummary eliteSummary(List<String> actionPackages) {
         return new ShopifyBridgeBillingSummary(
             "SHOPIFY_APP_SUBSCRIPTION",
             "ELITE",
@@ -181,7 +259,7 @@ class ShopifyStorefrontGovernedActionServiceTest {
             true,
             true,
             true,
-            List.of("guided-commerce"),
+            actionPackages,
             List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
             List.of(
                 new ShopifyBridgeBillingPlanSummary(
@@ -200,7 +278,7 @@ class ShopifyStorefrontGovernedActionServiceTest {
                     true,
                     true,
                     true,
-                    List.of("guided-commerce"),
+                    actionPackages,
                     List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
                     "Elite tier is active."
                 )

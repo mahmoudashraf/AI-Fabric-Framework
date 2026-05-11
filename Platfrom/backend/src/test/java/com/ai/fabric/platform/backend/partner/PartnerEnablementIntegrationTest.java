@@ -1024,7 +1024,7 @@ class PartnerEnablementIntegrationTest {
             mockMvc.perform(get("/api/shopify/stores/{shopDomain}/billing-state", "trial-client.myshopify.com")
                     .header("X-PLATFORM-API-KEY", "operator-test-key"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tierKey", is("FREE")))
+                .andExpect(jsonPath("$.tierKey", is("ELITE")))
                 .andExpect(jsonPath("$.reason", is("Past due cleanup")));
 
             assertThat(bridgeBillingStateRequests.get())

@@ -81,7 +81,9 @@ public class ShopifyStorefrontChatService {
         "shopify_refund_order",
         "shopify_edit_order",
         "shopify_update_order",
-        "shopify_change_order_address"
+        "shopify_change_order_address",
+        "shopify_start_return_request",
+        "shopify_cancel_checkout"
     );
     private static final Set<String> APPROVED_ORDER_SELF_SERVICE_ACTION_PACKAGES = Set.of(
         "order-self-service",
@@ -578,6 +580,11 @@ public class ShopifyStorefrontChatService {
         if (selectedAction == null
             && isRuntimeOutOfScope(response)
             && isAccountOrSupportContext(request)) {
+            if (orderMutationSelfServiceApproved(billingSummary)) {
+                return policyStorefrontAnswer(
+                    "This store supports approved order self-service where Shopify exposes the required action. Use order lookup or customer-account return actions when available; unsupported order changes still route to store support."
+                );
+            }
             if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
                 return policyStorefrontAnswer(
                     "For order status, use this store's order lookup block with the exact order number and checkout email. For refunds, cancellations, or order edits, contact the store support team so they can review the request safely."

@@ -49,7 +49,7 @@ public class ShopifyBridgeBillingService {
         "order-lookup"
     );
     private static final List<String> NO_ACTION_PACKAGES = List.of();
-    private static final List<String> ELITE_ACTION_PACKAGES = List.of("guided-commerce");
+    private static final List<String> ELITE_ACTION_PACKAGES = List.of("guided-commerce", "order-self-service");
 
     private static final String ACTIVE_SUBSCRIPTIONS_QUERY = """
         query ShopifyBridgeActiveSubscriptions {

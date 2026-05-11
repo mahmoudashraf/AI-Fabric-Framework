@@ -50,6 +50,7 @@ Key behavior:
 - Runtime `actionsConfig` preserves `execution.mcp.serverRef`, `toolName`, `argumentTemplate`, drift policy, and response mapping.
 - `shopify_search_catalog`, `shopify_search_policies`, and `shopify_get_product_details` use Shopify Storefront MCP tools.
 - Customer Account and Checkout MCP plugin bundles exist and are gated by external Shopify auth/readiness material.
+- The Shopify Companion Elite launch profile includes `guided-commerce` and `order-self-service` action packages. Order self-service is still governed by package entitlement, explicit confirmation, customer/checkout auth, audit, and real Marketplace/MCP action config.
 - Legacy Shopify customer-facing aliases are not preserved for greenfield action execution.
 
 Important migrations:
@@ -386,3 +387,15 @@ Checkout MCP is prepared as a managed-gateway path:
 - Terminal checkout actions require the separate `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` flag and must stay disabled for normal staging verification.
 - If Checkout MCP `tools/list` or `tools/call` fails with a redirect to `/password`, the Shopify online store password is still enabled. Unlock the staging storefront in Shopify Admin before claiming live Checkout MCP evidence.
 - A storefront password can unlock a local browser/curl session for direct diagnosis, but it is not a production server-to-server credential and must not be built into Bridge or MCP Gateway as a bypass.
+
+### Order Self-Service Policy
+
+Do not use shopper query text to allow or block refunds, cancellations, returns, or order edits.
+
+Bridge policy is structured:
+
+- Storefront chat lets runtime select an action, then checks the selected action ID and page context.
+- Unapproved stores deny structured order mutation action IDs with customer-safe support guidance.
+- Approved stores with `order-self-service` may pass configured order self-service action IDs to the Marketplace/MCP execution path.
+- Currently configured concrete order self-service actions are `shopify_start_return_request` through Customer Account MCP and `shopify_cancel_checkout` through Checkout MCP.
+- Post-order refund/cancel/edit actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge.

@@ -44,6 +44,7 @@ class ShopifyBridgeBillingServiceTest {
         assertThat(summary.merchantApprovalRequired()).isFalse();
         assertThat(summary.catalogProductCap()).isNull();
         assertThat(summary.actionCapable()).isTrue();
+        assertThat(summary.actionPackages()).contains("guided-commerce", "order-self-service");
         assertThat(summary.allowedSurfaces()).contains("ai-search", "comparison", "order-lookup");
         assertThat(summary.availablePlans())
             .anySatisfy(plan -> {

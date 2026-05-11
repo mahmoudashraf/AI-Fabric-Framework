@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -34,7 +35,9 @@ public class ShopifyStorefrontGovernedActionService {
     private static final int MIN_RECENT_ACTION_LIMIT = 1;
     private static final int MAX_RECENT_ACTION_LIMIT = 25;
     private static final String GUIDED_COMMERCE_PACKAGE = "guided-commerce";
-    private static final List<String> ALLOWED_ACTION_TYPES = List.of("ADD_TO_CART", "UPDATE_CART_QUANTITY");
+    private static final String ORDER_SELF_SERVICE_PACKAGE = "order-self-service";
+    private static final List<String> GUIDED_COMMERCE_ACTION_TYPES = List.of("ADD_TO_CART", "UPDATE_CART_QUANTITY");
+    private static final List<String> ORDER_SELF_SERVICE_ACTION_TYPES = List.of("START_RETURN_REQUEST", "CANCEL_CHECKOUT");
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -74,18 +77,21 @@ public class ShopifyStorefrontGovernedActionService {
                                                                 String grantUrl,
                                                                 String completeUrl) {
         ShopifyBridgeBillingSummary billingSummary = resolveBillingSummary(shopDomain);
+        List<String> actionPackages = billingSummary.actionPackages() == null
+            ? List.of()
+            : List.copyOf(billingSummary.actionPackages());
         boolean guidedCommerceAvailable = billingSummary.actionCapable()
             && billingSummary.auditTrailAvailable()
-            && billingSummary.actionPackages().contains(GUIDED_COMMERCE_PACKAGE);
+            && hasActionPackage(billingSummary, GUIDED_COMMERCE_PACKAGE);
         String message = guidedCommerceAvailable
-            ? "Elite guided commerce actions are enabled for this store."
+            ? "Elite governed shopper actions are enabled for this store."
             : "Activate Elite to unlock governed shopper actions with explicit confirmation and audit trail.";
         return new ShopifyStorefrontGovernedActionCapability(
             guidedCommerceAvailable,
             billingSummary.requiresExplicitConfirmation(),
             billingSummary.auditTrailAvailable(),
-            List.copyOf(billingSummary.actionPackages()),
-            guidedCommerceAvailable ? ALLOWED_ACTION_TYPES : List.of(),
+            actionPackages,
+            guidedCommerceAvailable ? allowedActionTypes(billingSummary) : List.of(),
             guidedCommerceAvailable ? grantUrl : null,
             guidedCommerceAvailable ? completeUrl : null,
             message
@@ -277,13 +283,15 @@ public class ShopifyStorefrontGovernedActionService {
         if (confirmationRequired && !confirmationAccepted) {
             throw new ResponseStatusException(CONFLICT, "Elite guided commerce actions require explicit shopper confirmation.");
         }
+        String normalizedActionType = normalizeMcpToolActionType(actionType);
+        requireMcpActionPackageEnabled(billingSummary, normalizedActionType);
 
         Instant now = clock.instant();
         ShopifyBridgeGovernedActionAuditEntity entity = new ShopifyBridgeGovernedActionAuditEntity();
         entity.setId(nextAuditId());
         entity.setShopDomain(normalizedShop);
         entity.setShopperSessionId(normalizedSession);
-        entity.setActionType(normalizeMcpToolActionType(actionType));
+        entity.setActionType(normalizedActionType);
         entity.setActionPackage(normalizeMcpActionPackage(actionPackage));
         entity.setSurfaceId("MAX_MODE");
         entity.setPageType(normalizeEnumLike(pageType, "CART"));
@@ -333,8 +341,16 @@ public class ShopifyStorefrontGovernedActionService {
     private void requireGuidedCommerceEnabled(ShopifyBridgeBillingSummary billingSummary) {
         if (!billingSummary.actionCapable()
             || !billingSummary.auditTrailAvailable()
-            || !billingSummary.actionPackages().contains(GUIDED_COMMERCE_PACKAGE)) {
+            || !hasActionPackage(billingSummary, GUIDED_COMMERCE_PACKAGE)) {
             throw new ResponseStatusException(CONFLICT, "Elite guided commerce actions are not active for this store.");
+        }
+    }
+
+    private void requireMcpActionPackageEnabled(ShopifyBridgeBillingSummary billingSummary,
+                                                String normalizedActionType) {
+        if (ORDER_SELF_SERVICE_ACTION_TYPES.contains(normalizedActionType)
+            && !hasActionPackage(billingSummary, ORDER_SELF_SERVICE_PACKAGE)) {
+            throw new ResponseStatusException(CONFLICT, "Approved order self-service actions are not active for this store.");
         }
     }
 
@@ -367,6 +383,29 @@ public class ShopifyStorefrontGovernedActionService {
             throw new ResponseStatusException(CONFLICT, "Unsupported Shopify MCP governed action: " + normalized);
         }
         return normalized;
+    }
+
+    private List<String> allowedActionTypes(ShopifyBridgeBillingSummary billingSummary) {
+        if (billingSummary == null || billingSummary.actionPackages() == null) {
+            return GUIDED_COMMERCE_ACTION_TYPES;
+        }
+        if (hasActionPackage(billingSummary, ORDER_SELF_SERVICE_PACKAGE)) {
+            List<String> actionTypes = new ArrayList<>(GUIDED_COMMERCE_ACTION_TYPES);
+            actionTypes.addAll(ORDER_SELF_SERVICE_ACTION_TYPES);
+            return List.copyOf(actionTypes);
+        }
+        return GUIDED_COMMERCE_ACTION_TYPES;
+    }
+
+    private boolean hasActionPackage(ShopifyBridgeBillingSummary billingSummary, String packageKey) {
+        if (billingSummary == null || billingSummary.actionPackages() == null || packageKey == null) {
+            return false;
+        }
+        String normalizedPackageKey = packageKey.trim().toLowerCase(Locale.ROOT);
+        return billingSummary.actionPackages().stream()
+            .filter(value -> value != null && !value.isBlank())
+            .map(value -> value.trim().toLowerCase(Locale.ROOT))
+            .anyMatch(normalizedPackageKey::equals);
     }
 
     private String normalizeMcpActionPackage(String value) {
