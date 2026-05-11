@@ -93,6 +93,11 @@ public class ShopifyStorefrontChatService {
         + "Refund/cancel/edit-order self-service actions are not approved for this store; use order lookup or support handoff.";
     private static final String ACCOUNT_ACTION_POLICY_SELF_SERVICE_APPROVED = "Account/order/support context: cart actions are not valid here. "
         + "Approved order self-service actions may be selected only for explicit customer requests with required parameters, confirmation, audit, and available customer/order auth.";
+    private static final String GENERIC_SEARCH_COMPLETED = "Search completed.";
+    private static final String INTERNAL_SESSION_PARAM = "shopperSessionId";
+    private static final String ORDER_LOOKUP_GUIDANCE = "Use this store's order lookup block with the exact order number and checkout email. "
+        + "For refunds, cancellations, or order edits, contact the store support team unless the assistant shows a reviewed confirmation flow for that exact request.";
+    private static final String STORE_ASSISTANT_SCOPE_GUIDANCE = "I can help with this store's products, policies, comparisons, and shopping tasks using merchant-approved information.";
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -568,7 +573,7 @@ public class ShopifyStorefrontChatService {
         if (policyResponse != null) {
             return policyResponse;
         }
-        String answer = extractAnswer(response);
+        String answer = storefrontAnswerOverride(response, request, extractAnswer(response));
         return ensureWidgetSanitizedPayload(response, answer);
     }
 
@@ -578,7 +583,7 @@ public class ShopifyStorefrontChatService {
                                               ShopifyBridgeBillingSummary billingSummary) {
         String selectedAction = selectedActionId(response);
         if (selectedAction == null
-            && isRuntimeOutOfScope(response)
+            && (isRuntimeOutOfScope(response) || isOrderLookupRetrievalPolicyMiss(response, request))
             && isAccountOrSupportContext(request)) {
             if (orderMutationSelfServiceApproved(billingSummary)) {
                 return policyStorefrontAnswer(
@@ -586,9 +591,7 @@ public class ShopifyStorefrontChatService {
                 );
             }
             if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
-                return policyStorefrontAnswer(
-                    "For order status, use this store's order lookup block with the exact order number and checkout email. For refunds, cancellations, or order edits, contact the store support team so they can review the request safely."
-                );
+                return policyStorefrontAnswer(ORDER_LOOKUP_GUIDANCE);
             }
             return policyStorefrontAnswer(
                 "Order-specific help is handled by store support for this page. Contact the store support team with your order number and checkout email."
@@ -605,15 +608,25 @@ public class ShopifyStorefrontChatService {
         }
         if (CART_ACTION_IDS.contains(selectedAction) && isAccountOrSupportContext(request)) {
             if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
-                return policyStorefrontAnswer(
-                    "Order lookup is available through this store's order lookup block. Use the exact order number and checkout email there. Cart actions are not used for account or order-status help."
-                );
+                return policyStorefrontAnswer(ORDER_LOOKUP_GUIDANCE);
             }
             return policyStorefrontAnswer(
-                "Order-specific help is handled by store support for this page. Cart actions are not used for account or order-status help."
+                "Order-specific help is handled by store support for this page. Contact the store support team with your order number and checkout email."
             );
         }
         return null;
+    }
+
+    private boolean isOrderLookupRetrievalPolicyMiss(JsonNode response, ObjectNode request) {
+        if (!"order-lookup".equals(normalizeSurfaceEntry(textOrNull(storefrontContextFromAttachments(request), "shopifySurfaceEntry")))) {
+            return false;
+        }
+        String type = normalizeSurfaceEntry(nestedText(response, "result.type"));
+        String reason = normalizeSurfaceEntry(firstNonBlank(
+            nestedText(response, "result.data.reason"),
+            nestedText(response, "result.sanitizedPayload.data.reason")
+        ));
+        return "clarification_required".equals(type) && "vector_space_not_allowed_by_policy".equals(reason);
     }
 
     private boolean isRuntimeOutOfScope(JsonNode response) {
@@ -673,13 +686,10 @@ public class ShopifyStorefrontChatService {
                 : shaped.path("success").asBoolean(true);
             sanitizedPayload.put("success", success);
         }
-        if (answer != null && trimToNull(textOrNull(sanitizedPayload, "message")) == null) {
+        if (answer != null) {
+            result.put("message", answer);
             sanitizedPayload.put("message", answer);
-        }
-        if (answer != null && trimToNull(textOrNull(sanitizedPayload, "safeSummary")) == null) {
             sanitizedPayload.put("safeSummary", answer);
-        }
-        if (answer != null && trimToNull(textOrNull(sanitizedPayload, "answer")) == null) {
             sanitizedPayload.put("answer", answer);
         }
         JsonNode safeData = storefrontSafeData(firstPresent(result.get("data"), sanitizedPayload.get("data")));
@@ -688,6 +698,130 @@ public class ShopifyStorefrontChatService {
             sanitizedPayload.set("data", safeData.deepCopy());
         }
         return shaped;
+    }
+
+    private String storefrontAnswerOverride(JsonNode response, ObjectNode request, String answer) {
+        if (hasOnlyInternalMissingRequiredParameter(response, INTERNAL_SESSION_PARAM)) {
+            return "I can help with cart changes after the product or variant is selected and confirmed. Please choose the item you want to update and try again.";
+        }
+        if (isInternalRetrievalClarification(response)) {
+            if ("order-lookup".equals(normalizeSurfaceEntry(textOrNull(storefrontContextFromAttachments(request), "shopifySurfaceEntry")))) {
+                return ORDER_LOOKUP_GUIDANCE;
+            }
+            return STORE_ASSISTANT_SCOPE_GUIDANCE;
+        }
+        if (GENERIC_SEARCH_COMPLETED.equals(trimToNull(answer))) {
+            String summary = summarizeRetrievedEvidence(response);
+            if (summary != null) {
+                return summary;
+            }
+        }
+        return answer;
+    }
+
+    private boolean hasOnlyInternalMissingRequiredParameter(JsonNode response, String paramName) {
+        if (!StringUtils.hasText(paramName)) {
+            return false;
+        }
+        for (String path : List.of(
+            "result.data.missingRequiredParameters",
+            "result.sanitizedPayload.data.missingRequiredParameters"
+        )) {
+            JsonNode node = nestedNode(response, path);
+            if (node == null || !node.isArray() || node.isEmpty()) {
+                continue;
+            }
+            if (node.size() == 1 && paramName.equals(node.get(0).asText(null))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isInternalRetrievalClarification(JsonNode response) {
+        String type = normalizeSurfaceEntry(nestedText(response, "result.type"));
+        String reason = normalizeSurfaceEntry(firstNonBlank(
+            nestedText(response, "result.data.reason"),
+            nestedText(response, "result.sanitizedPayload.data.reason")
+        ));
+        return "clarification_required".equals(type) && (
+            "vector_space_not_allowed_by_policy".equals(reason)
+                || "vector_space_required_by_policy".equals(reason)
+                || nestedNode(response, "result.data.allowedVectorSpaces") != null
+                || nestedNode(response, "result.sanitizedPayload.data.allowedVectorSpaces") != null
+                || nestedNode(response, "result.data.candidateVectorSpaces") != null
+                || nestedNode(response, "result.sanitizedPayload.data.candidateVectorSpaces") != null
+        );
+    }
+
+    private String summarizeRetrievedEvidence(JsonNode response) {
+        JsonNode documents = firstArray(
+            nestedNode(response, "result.data.documents"),
+            nestedNode(response, "result.sanitizedPayload.data.documents"),
+            nestedNode(response, "result.data.ragResponse.documents"),
+            nestedNode(response, "result.sanitizedPayload.data.ragResponse.documents")
+        );
+        if (documents == null || documents.isEmpty()) {
+            return null;
+        }
+        List<String> productTitles = new ArrayList<>();
+        List<String> infoTitles = new ArrayList<>();
+        for (JsonNode document : documents) {
+            if (document == null || !document.isObject()) {
+                continue;
+            }
+            String title = firstNonBlank(
+                textOrNull(document, "title"),
+                textOrNull(document.path("metadata"), "shopifyDocumentTitle"),
+                textOrNull(document.path("metadata"), "title")
+            );
+            if (title == null || productTitles.contains(title) || infoTitles.contains(title)) {
+                continue;
+            }
+            String type = normalizeSurfaceEntry(textOrNull(document, "type"));
+            if ("product".equals(type)) {
+                productTitles.add(title);
+            } else {
+                infoTitles.add(title);
+            }
+            if (productTitles.size() + infoTitles.size() >= 3) {
+                break;
+            }
+        }
+        if (!productTitles.isEmpty()) {
+            return "I found relevant products: " + joinTitles(productTitles)
+                + ". Open a product to confirm price, variants, and availability before checkout.";
+        }
+        if (!infoTitles.isEmpty()) {
+            return "I found relevant store information: " + joinTitles(infoTitles)
+                + ". Check those details before deciding.";
+        }
+        return null;
+    }
+
+    private String joinTitles(List<String> titles) {
+        if (titles == null || titles.isEmpty()) {
+            return "";
+        }
+        if (titles.size() == 1) {
+            return titles.get(0);
+        }
+        if (titles.size() == 2) {
+            return titles.get(0) + " and " + titles.get(1);
+        }
+        return String.join(", ", titles.subList(0, titles.size() - 1)) + ", and " + titles.get(titles.size() - 1);
+    }
+
+    private JsonNode firstArray(JsonNode... nodes) {
+        if (nodes == null) {
+            return null;
+        }
+        for (JsonNode node : nodes) {
+            if (node != null && node.isArray()) {
+                return node;
+            }
+        }
+        return null;
     }
 
     private JsonNode firstPresent(JsonNode first, JsonNode second) {
@@ -830,15 +964,23 @@ public class ShopifyStorefrontChatService {
     }
 
     private String nestedText(JsonNode node, String dottedPath) {
+        JsonNode current = nestedNode(node, dottedPath);
+        String value = current == null || current.isNull() || !current.isValueNode() ? null : current.asText(null);
+        return trimToNull(value);
+    }
+
+    private JsonNode nestedNode(JsonNode node, String dottedPath) {
         JsonNode current = node;
+        if (!StringUtils.hasText(dottedPath)) {
+            return current;
+        }
         for (String part : dottedPath.split("\\.")) {
             if (current == null || !current.isObject()) {
                 return null;
             }
             current = current.get(part);
         }
-        String value = current == null || current.isNull() || !current.isValueNode() ? null : current.asText(null);
-        return trimToNull(value);
+        return current;
     }
 
 }

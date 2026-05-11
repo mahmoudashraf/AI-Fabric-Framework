@@ -142,6 +142,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CANDIDATE_VECTOR_SPACES = "candidateVectorSpaces";
     private static final String DATA_KEY_ROUTING_STRATEGY = "vectorSpaceRoutingStrategy";
     private static final String METADATA_KEY_ACTION_PARAM_VALIDATION = "actionParamValidation";
+    private static final Set<String> SYSTEM_CONTEXT_PARAMETER_NAMES = Set.of("shopperSessionId");
 
     // Advanced RAG data keys
     private static final String DATA_KEY_EXPANDED_QUERIES = "expandedQueries";
@@ -438,6 +439,7 @@ public class IntentHandlingStep implements PipelineStep {
         postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams, meta, policy);
 
         effectiveParams = applyBatchTargetsDefaulting(meta, effectiveParams, pipelineContext);
+        effectiveParams = applySystemContextActionParams(meta, effectiveParams, context);
         actionContext = actionContext.withActionParams(effectiveParams);
 
         ActionParamValidation validation = validateRequiredActionParams(meta, effectiveParams, pipelineContext);
@@ -761,6 +763,32 @@ public class IntentHandlingStep implements PipelineStep {
         Map<String, Object> updated = new LinkedHashMap<>(params);
         updated.put(batchSpec.paramName(), Collections.unmodifiableList(merged));
         return updated;
+    }
+
+    private Map<String, Object> applySystemContextActionParams(AIActionMetaData meta,
+                                                              Map<String, Object> effectiveParams,
+                                                              OrchestrationContext context) {
+        if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
+            return effectiveParams;
+        }
+        Map<String, Object> params = effectiveParams != null ? effectiveParams : new LinkedHashMap<>();
+        if (meta.getRequiredParameters().contains("shopperSessionId")
+            && !hasParamValue(params, "shopperSessionId")
+            && context != null
+            && StringUtils.hasText(context.getSessionId())) {
+            Map<String, Object> updated = new LinkedHashMap<>(params);
+            updated.put("shopperSessionId", context.getSessionId().trim());
+            return updated;
+        }
+        return params;
+    }
+
+    private boolean hasParamValue(Map<String, Object> params, String key) {
+        if (params == null || !StringUtils.hasText(key)) {
+            return false;
+        }
+        Object value = params.get(key);
+        return value != null && StringUtils.hasText(value.toString());
     }
 
     private String getMetadataValueIgnoreCase(Map<String, String> metadata, String key) {
@@ -4657,7 +4685,7 @@ public class IntentHandlingStep implements PipelineStep {
             }
 
             // Provenance validation: for string params, value must appear in user text history OR pinned targets.
-            if (value instanceof String) {
+            if (value instanceof String && !isSystemContextParameter(required)) {
                 String needle = raw.trim().toLowerCase(java.util.Locale.ROOT);
                 if (StringUtils.hasText(needle)
                     && !userEvidenceLower.contains(needle)
@@ -4677,6 +4705,10 @@ public class IntentHandlingStep implements PipelineStep {
             List.copyOf(provenanceMissing),
             Collections.unmodifiableMap(debug)
         );
+    }
+
+    private boolean isSystemContextParameter(String required) {
+        return StringUtils.hasText(required) && SYSTEM_CONTEXT_PARAMETER_NAMES.contains(required.trim());
     }
 
     private EvidenceBundle buildEvidenceBundle(PipelineContext pipelineContext) {

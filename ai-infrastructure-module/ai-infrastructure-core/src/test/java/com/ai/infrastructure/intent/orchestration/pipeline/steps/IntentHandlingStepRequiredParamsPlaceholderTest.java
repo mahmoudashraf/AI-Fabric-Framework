@@ -423,6 +423,70 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
         assertThat(result.getData()).containsEntry("missingRequiredParameters", List.of("sku"));
     }
 
+    @Test
+    void shouldInjectShopperSessionIdFromTrustedRuntimeContext() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(ActionResult.builder().success(true).message("Cart update queued.").build());
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("shopify_update_cart")
+            .description("Update Shopify cart")
+            .category("shopify")
+            .anonymousAllowed(true)
+            .parameters(Map.of(
+                "shopperSessionId", "Bridge shopper session identifier (required)",
+                "add_items", "Items to add (optional)"
+            ))
+            .requiredParameters(Set.of("shopperSessionId"))
+            .build();
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(meta));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of("add_items", List.of(Map.of("merchandiseId", "gid://shopify/ProductVariant/1", "quantity", 1))))
+            .build();
+
+        PipelineContext context = PipelineContext.from("add this to my cart", OrchestrationContext.forSession("shopper-session-123"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+        verify(handler).executeAction(org.mockito.ArgumentMatchers.argThat(map ->
+            map != null && "shopper-session-123".equals(map.get("shopperSessionId"))
+        ), org.mockito.ArgumentMatchers.any());
+    }
+
     private PromptTemplateResolver promptTemplateResolver() {
         return new PromptTemplateResolver(
             new ClasspathPromptTemplateStore(new DefaultResourceLoader()),

@@ -772,7 +772,58 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(safeDocument.path("title").asText()).isEqualTo("Selling Plans Ski Wax");
         assertThat(safeDocument.path("storefrontUrl").asText()).contains("/products/selling-plans-ski-wax");
         assertThat(safeDocument.has("metadata")).isFalse();
+        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+            .contains("I found relevant products", "Selling Plans Ski Wax");
         assertThat(response.toString()).doesNotContain("tenant-secret", "runtime", "knowledgeSourceHandleRef", "plugin/private/path");
+    }
+
+    @Test
+    void queryReplacesGenericSearchCompletedWithEvidenceSummary() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"INFORMATION_PROVIDED",
+                "success":true,
+                "message":"Search completed.",
+                "sanitizedPayload":{"safeSummary":"Search completed."},
+                "data":{
+                  "documents":[
+                    {"title":"Selling Plans Ski Wax","type":"product","storefrontUrl":"https://alpha.myshopify.com/products/selling-plans-ski-wax"},
+                    {"title":"The Out of Stock Snowboard","type":"product","storefrontUrl":"https://alpha.myshopify.com/products/out-of-stock"}
+                  ]
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Find a product for winter sports",
+                  "mode":"thinker_deep",
+                  "storefrontContext":{
+                    "pageType":"search",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).contains("I found relevant products", "Selling Plans Ski Wax", "The Out of Stock Snowboard");
+        assertThat(answer).doesNotContain("Search completed");
+        assertThat(response.path("result").path("message").asText()).isEqualTo(answer);
     }
 
     @Test
@@ -975,8 +1026,8 @@ class ShopifyStorefrontChatServiceTest {
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
         assertThat(response.path("conversationId").asText()).isNotBlank();
-        assertThat(answer).contains("Order-specific help", "Cart actions are not used");
-        assertThat(answer).doesNotContain("shopperSessionId", "I found your order");
+        assertThat(answer).contains("Order-specific help", "store support");
+        assertThat(answer.toLowerCase(java.util.Locale.ROOT)).doesNotContain("cart", "shoppersessionid");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
@@ -1019,9 +1070,55 @@ class ShopifyStorefrontChatServiceTest {
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
         assertThat(response.path("conversationId").asText()).isNotBlank();
-        assertThat(answer).contains("Order lookup", "order lookup block", "checkout email");
-        assertThat(answer).doesNotContain("cart", "shopperSessionId");
+        assertThat(answer).contains("order lookup block", "checkout email");
+        assertThat(answer.toLowerCase(java.util.Locale.ROOT)).doesNotContain("cart", "shoppersessionid");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
+    void queryHidesInternalShopperSessionParamClarification() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"CLARIFICATION_REQUIRED",
+                "success":false,
+                "message":"To proceed, please provide: shopperSessionId.",
+                "data":{
+                  "action":"shopify_update_cart",
+                  "missingRequiredParameters":["shopperSessionId"]
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Add the selected product to my cart.",
+                  "mode":"executor",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"max-mode",
+                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).contains("cart changes", "product or variant");
+        assertThat(answer).doesNotContain("shopperSessionId");
     }
 
     @Test
@@ -1278,6 +1375,48 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(answer).contains("order lookup block", "store support");
         assertThat(answer).doesNotContain("indexed knowledge base");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
+    void queryMapsOrderLookupVectorPolicyMissToShopperGuidance() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"CLARIFICATION_REQUIRED",
+                "success":false,
+                "message":"That request requires retrieval from a vector space that is not allowed in this mode.",
+                "data":{"reason":"VECTOR_SPACE_NOT_ALLOWED_BY_POLICY"}
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Where is order 1001?",
+                  "mode":"executor",
+                  "storefrontContext":{
+                    "pageType":"account",
+                    "shopifySurfaceEntry":"order-lookup"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).contains("order lookup block", "checkout email");
+        assertThat(answer).doesNotContain("vector space", "runtime");
     }
 
     private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {
