@@ -255,7 +255,7 @@
       }
       return 'Ask for the best options in ' + storefrontContext.collection.title + ', compare products, or check store policies before you buy.'
     }
-    if (fallback) {
+    if (fallback && !isGenericWelcomeMessage(fallback)) {
       return fallback
     }
     if (shellModeProfile === 'GUIDED_SUPPORT') {
