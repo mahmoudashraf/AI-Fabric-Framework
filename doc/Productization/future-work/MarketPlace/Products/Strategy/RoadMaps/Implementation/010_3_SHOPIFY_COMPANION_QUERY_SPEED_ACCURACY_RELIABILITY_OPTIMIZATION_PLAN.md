@@ -27,6 +27,8 @@ Live probe files:
 - `/tmp/loomai-chat-quality-audit-20260511T070939Z/quality-audit.md`
 - `/tmp/shopify-answer-quality-20260511T073835Z/answer-quality-results.json`
 - `/tmp/shopify-answer-quality-20260511T073835Z/answer-quality-audit.md`
+- `/tmp/shopify-answer-quality-20260511T212114Z-expanded-final/answer-quality-results.json`
+- `/tmp/shopify-answer-quality-20260511T212114Z-expanded-final/answer-quality-audit.md`
 
 Staging now passes the critical release behavior checks:
 
@@ -36,6 +38,9 @@ Staging now passes the critical release behavior checks:
 - account/order/support page runtime selections no longer leak into cart actions
 - unsupported order mutation actions are denied only when runtime selects an order-mutation action ID that is not covered by an approved store action package
 - public storefront chat responses do not expose runtime auth context, raw document metadata, parameter schemas, deployment IDs, tenant IDs, or provider internals
+- expanded search/action/cart/auth answer-quality gate passed `15/15` on staging after commits `b6ee0c348`, `8143bc11a`, and `aa21c681a`
+- deployment version `ver-d0e6c12d` applied as release `rel-a58bfa25` with `APPLIED_VERIFIED` / `PASSED`
+- vectorization readiness recovered from legacy-alias masking and full reindex run `vrn-8a3a6f55` completed with `IN_SYNC`
 
 Follow-up response-quality audit result:
 
