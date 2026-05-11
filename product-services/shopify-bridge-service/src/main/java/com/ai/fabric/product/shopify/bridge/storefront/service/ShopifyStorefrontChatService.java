@@ -60,6 +60,29 @@ public class ShopifyStorefrontChatService {
         "cart_assistant",
         "executor"
     );
+    private static final Set<String> ACCOUNT_AND_SUPPORT_PAGE_GROUPS = Set.of(
+        "account",
+        "order",
+        "orders",
+        "support",
+        "contact",
+        "returns",
+        "help"
+    );
+    private static final Set<String> CART_ACTION_IDS = Set.of(
+        "shopify_get_cart",
+        "shopify_create_cart",
+        "shopify_update_cart",
+        "shopify_cart_create",
+        "shopify_cart_update"
+    );
+    private static final Set<String> UNAPPROVED_STOREFRONT_ORDER_MUTATION_ACTION_IDS = Set.of(
+        "shopify_cancel_order",
+        "shopify_refund_order",
+        "shopify_edit_order",
+        "shopify_update_order",
+        "shopify_change_order_address"
+    );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
     private final ShopifyBridgeInstallCredentialService installCredentialService;
@@ -79,13 +102,9 @@ public class ShopifyStorefrontChatService {
         ObjectNode normalizedRequest = normalizeRequest(request, store.shopDomain());
         ShopifyBridgeBillingSummary billingSummary = storefrontBillingSummary(store, normalizedRequest);
         enforceSurfaceEntitlement(store, normalizedRequest, billingSummary);
-        JsonNode guardResponse = storefrontGuardResponse(store, normalizedRequest, billingSummary);
-        if (guardResponse != null) {
-            return guardResponse;
-        }
         applyStorefrontConversationMode(normalizedRequest, billingSummary);
         JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
-        return shapeStorefrontResponse(response);
+        return shapeStorefrontResponse(response, normalizedRequest, store, billingSummary);
     }
 
     public JsonNode suggestions(String shopDomain, JsonNode request, String shopperSessionId) {
@@ -394,54 +413,7 @@ public class ShopifyStorefrontChatService {
         return "thinker_deep".equals(normalizedMode) ? THINKER_MODE : normalizedMode;
     }
 
-    private JsonNode storefrontGuardResponse(ShopifyBridgeStoreSummary store,
-                                             ObjectNode request,
-                                             ShopifyBridgeBillingSummary billingSummary) {
-        ObjectNode context = storefrontContextFromAttachments(request);
-        String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
-        if (surfaceEntry == null || !DEPTH_SURFACE_ENTRIES.contains(surfaceEntry)) {
-            return null;
-        }
-
-        String query = normalize(textOrNull(request, "query"));
-        if (query == null) {
-            return null;
-        }
-        if (containsAny(query, "vectorization", "runtime", "provider", "railway", "replay queue",
-            "admin secret", "platform secret", "qdrant", "pinecone", "weaviate", "milvus")) {
-            return guardedStorefrontAnswer(
-                "I can answer store-facing product, policy, and shopping questions, but I do not expose internal implementation details. Ask a store question and I will keep it grounded in merchant-approved information."
-            );
-        }
-        if (containsAny(query, "legal advice", "legal guidance", "importing products", "lawyer", "lawsuit")) {
-            return guardedStorefrontAnswer(
-                "I cannot provide legal guidance. I can help with this store's products, policies, shipping, returns, and shopping questions using available store information."
-            );
-        }
-        boolean orderMutationIntent = containsAny(query,
-            "cancel my order", "cancel order", "refund my order", "refund it", "change my order",
-            "update my order", "change address", "edit my order"
-        ) || (containsAny(query, "cancel", "refund") && containsAny(query, "order", "purchase"));
-        if (orderMutationIntent) {
-            return guardedStorefrontAnswer(
-                "I cannot cancel, refund, or change orders from this store chat. For order changes, contact the store support team so they can review the request safely."
-            );
-        }
-        if (containsAny(query, "order", "tracking", "delivery")
-            && containsAny(query, "where", "lookup", "look up", "status", "track", "tracking")) {
-            if (billingSummary == null || !surfaceAllowed(billingSummary, store, "order-lookup")) {
-                return guardedStorefrontAnswer(
-                    "Order lookup is not enabled for this store's current plan. For order-specific help, contact the store support team with your order number and email."
-                );
-            }
-            return guardedStorefrontAnswer(
-                "Order lookup is available through this store's order lookup block. Use the exact order number and checkout email there. I cannot refund, cancel, edit, or change orders from chat."
-            );
-        }
-        return null;
-    }
-
-    private JsonNode guardedStorefrontAnswer(String message) {
+    private JsonNode policyStorefrontAnswer(String message) {
         ObjectNode response = objectMapper.createObjectNode();
         response.put("success", true);
         response.put("conversationId", "chat-" + UUID.randomUUID());
@@ -461,20 +433,6 @@ public class ShopifyStorefrontChatService {
                                    ShopifyBridgeStoreSummary store,
                                    String surfaceId) {
         return effectiveAllowedSurfaces(billingSummary.allowedSurfaces(), configuredEnabledSurfaces(store)).contains(surfaceId);
-    }
-
-    private boolean containsAny(String value, String... needles) {
-        for (String needle : needles) {
-            if (needle != null && value.contains(needle)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String normalize(String value) {
-        String normalized = trimToNull(value);
-        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
     private ObjectNode storefrontContextFromAttachments(ObjectNode request) {
@@ -553,9 +511,70 @@ public class ShopifyStorefrontChatService {
         return new ResponseStatusException(HttpStatus.FORBIDDEN, message);
     }
 
-    private JsonNode shapeStorefrontResponse(JsonNode response) {
+    private JsonNode shapeStorefrontResponse(JsonNode response,
+                                             ObjectNode request,
+                                             ShopifyBridgeStoreSummary store,
+                                             ShopifyBridgeBillingSummary billingSummary) {
+        JsonNode policyResponse = storefrontPolicyResponse(response, request, store, billingSummary);
+        if (policyResponse != null) {
+            return policyResponse;
+        }
         String answer = extractAnswer(response);
         return ensureWidgetSanitizedPayload(response, answer);
+    }
+
+    private JsonNode storefrontPolicyResponse(JsonNode response,
+                                              ObjectNode request,
+                                              ShopifyBridgeStoreSummary store,
+                                              ShopifyBridgeBillingSummary billingSummary) {
+        String selectedAction = selectedActionId(response);
+        if (selectedAction == null) {
+            return null;
+        }
+        if (UNAPPROVED_STOREFRONT_ORDER_MUTATION_ACTION_IDS.contains(selectedAction)) {
+            return policyStorefrontAnswer(
+                "This store has not enabled self-service order changes in chat. Contact the store support team so they can review the request safely."
+            );
+        }
+        if (CART_ACTION_IDS.contains(selectedAction) && isAccountOrSupportContext(request)) {
+            if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
+                return policyStorefrontAnswer(
+                    "Order lookup is available through this store's order lookup block. Use the exact order number and checkout email there. Cart actions are not used for account or order-status help."
+                );
+            }
+            return policyStorefrontAnswer(
+                "Order-specific help is handled by store support for this page. Cart actions are not used for account or order-status help."
+            );
+        }
+        return null;
+    }
+
+    private String selectedActionId(JsonNode response) {
+        for (String path : List.of(
+            "result.data.action",
+            "result.data.actionId",
+            "result.data.action.id",
+            "result.sanitizedPayload.data.action",
+            "result.sanitizedPayload.data.actionId",
+            "result.sanitizedPayload.data.action.id",
+            "result.data.actionResult.data.action",
+            "result.data.actionResult.data.actionId",
+            "result.sanitizedPayload.data.actionResult.data.action",
+            "result.sanitizedPayload.data.actionResult.data.actionId"
+        )) {
+            String value = nestedText(response, path);
+            if (value != null) {
+                return value.trim().toLowerCase(Locale.ROOT);
+            }
+        }
+        return null;
+    }
+
+    private boolean isAccountOrSupportContext(ObjectNode request) {
+        ObjectNode context = storefrontContextFromAttachments(request);
+        String pageType = normalizeSurfaceEntry(textOrNull(context, "pageType"));
+        String pageGroup = normalizeSurfaceEntry(textOrNull(context, "shopifyPageModeGroup"));
+        return ACCOUNT_AND_SUPPORT_PAGE_GROUPS.contains(pageType) || ACCOUNT_AND_SUPPORT_PAGE_GROUPS.contains(pageGroup);
     }
 
     private JsonNode ensureWidgetSanitizedPayload(JsonNode response, String answer) {
