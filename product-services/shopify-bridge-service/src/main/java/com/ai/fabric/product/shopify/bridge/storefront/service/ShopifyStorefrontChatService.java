@@ -625,6 +625,11 @@ public class ShopifyStorefrontChatService {
                 "Please sign in to your store account to view or manage orders. If you still need help, contact the store support team with your order number and checkout email."
             );
         }
+        if ("shopify_get_cart".equals(selectedAction) && genericMcpToolResult(response)) {
+            return policyStorefrontAnswer(
+                "I could not find cart details from the current cart session. Open your cart or add an item, then ask again."
+            );
+        }
         if (CART_ACTION_IDS.contains(selectedAction) && isAccountOrSupportContext(request)) {
             if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
                 return policyStorefrontAnswer(ORDER_LOOKUP_GUIDANCE);
@@ -634,6 +639,23 @@ public class ShopifyStorefrontChatService {
             );
         }
         return null;
+    }
+
+    private boolean genericMcpToolResult(JsonNode response) {
+        for (String path : List.of(
+            "result.sanitizedPayload.safeSummary",
+            "result.sanitizedPayload.message",
+            "result.sanitizedPayload.answer",
+            "result.data.actionResult.message",
+            "result.sanitizedPayload.data.actionResult.message",
+            "result.message"
+        )) {
+            String value = nestedText(response, path);
+            if ("MCP tool result".equalsIgnoreCase(value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String selectedErrorCode(JsonNode response) {

@@ -221,7 +221,8 @@ Fix direction:
 - Runtime extraction prompts and Marketplace search param guidance explicitly tell the LLM to fill required catalog/search `query` from the shopper's product-search phrase, including price/size/preference words when no dedicated structured parameter exists.
 - Bridge forwards trusted cart id context into attachment metadata and summary text so runtime can fill cart read/action parameters from the storefront session context.
 - Bridge maps structured Customer Account auth error codes to shopper-safe sign-in/support copy while preserving internal diagnostics outside the public storefront response.
-- The canonical answer-quality query pack now includes the additional ski-search, priced-search, and Customer Account auth-safe-copy probes.
+- Bridge maps the structured `shopify_get_cart` + generic internal MCP result sentinel to shopper-safe cart guidance, so public cart-read responses do not expose `MCP tool result` even when the upstream tool returns no renderable cart details.
+- The canonical answer-quality query pack now includes the additional ski-search, priced-search, cart-context, and Customer Account auth-safe-copy probes.
 - Platform vectorization readiness now prefers enabled canonical Marketplace installs over disabled legacy aliases when plugin ids canonicalize to the same current plugin id. This prevents disabled `mkp-action-shopify-companion-read` records from masking the enabled `mkp-action-shopify-storefront-read-mcp` install during readiness checks.
 
 Needs work:

@@ -31,6 +31,10 @@
     "candidateVectorSpaces",
     "tenantId",
     "deploymentId",
+    "MCP",
+    "OAuth",
+    "PKCE",
+    "access token",
     "qdrant",
     "pinecone",
     "weaviate",
@@ -228,6 +232,25 @@
       "expectedBehavior": "governed_cart_action_or_safe_clarification",
       "requiredConcepts": ["cart"],
       "forbiddenClaims": ["shopperSessionId"],
+      "expectedDenial": false,
+      "groundingRequired": false
+    },
+    {
+      "queryId": "cart-read-context-safe-copy",
+      "productRef": "shopify-companion",
+      "targetStore": "shopping-companion-test.myshopify.com",
+      "tierProfile": "ELITE",
+      "surface": "max-mode",
+      "query": "What's in my cart?",
+      "storefrontContext": {
+        "pageType": "cart",
+        "shopifySurfaceEntry": "max-mode",
+        "shopifyEffectiveConversationMode": "executor",
+        "cartId": "gid://shopify/Cart/staging-test-cart?key=not-real"
+      },
+      "expectedBehavior": "cart_context_forwarded_safe_copy",
+      "requiredConcepts": ["cart"],
+      "forbiddenClaims": ["tool result", "cart_id", "cart id"],
       "expectedDenial": false,
       "groundingRequired": false
     },
