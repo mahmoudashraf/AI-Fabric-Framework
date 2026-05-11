@@ -710,6 +710,71 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryRemovesRuntimeAuthContextAndRawDocumentMetadataFromStorefrontResponse() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "authContext":{
+                "deploymentId":"dep-secret",
+                "tenantId":"tenant-secret",
+                "grantedScopes":["chat:query"]
+              },
+              "result":{
+                "type":"INFORMATION_PROVIDED",
+                "success":true,
+                "message":"Search completed.",
+                "data":{
+                  "documents":[
+                    {
+                      "id":"gid://shopify/Product/1",
+                      "content":"Selling Plans Ski Wax\\n\\nAccessory, Sport, Winter",
+                      "type":"product",
+                      "score":0.9,
+                      "metadata":{
+                        "shopifyDocumentTitle":"Selling Plans Ski Wax",
+                        "storefrontUrl":"https://alpha.myshopify.com/products/selling-plans-ski-wax",
+                        "raw":"{\\"tenantId\\":\\"tenant-secret\\",\\"runtime\\":\\"internal\\"}",
+                        "knowledgeSourceHandleRef":"plugin/private/path"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Search products for wax",
+                  "mode":"thinker_deep",
+                  "storefrontContext":{
+                    "pageType":"search",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.has("authContext")).isFalse();
+        JsonNode safeDocument = response.path("result").path("sanitizedPayload").path("data").path("documents").path(0);
+        assertThat(safeDocument.path("title").asText()).isEqualTo("Selling Plans Ski Wax");
+        assertThat(safeDocument.path("storefrontUrl").asText()).contains("/products/selling-plans-ski-wax");
+        assertThat(safeDocument.has("metadata")).isFalse();
+        assertThat(response.toString()).doesNotContain("tenant-secret", "runtime", "knowledgeSourceHandleRef", "plugin/private/path");
+    }
+
+    @Test
     void queryPreservesExplicitActionModeForStorefrontLauncherChat() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);

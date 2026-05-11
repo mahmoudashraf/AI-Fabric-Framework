@@ -258,6 +258,19 @@ public class ShopifyStorefrontChatService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String normalized = trimToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
     private ShopifyBridgeBillingSummary storefrontBillingSummary(ShopifyBridgeStoreSummary store, ObjectNode request) {
         ObjectNode context = storefrontContextFromAttachments(request);
         String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
@@ -550,6 +563,7 @@ public class ShopifyStorefrontChatService {
             return response;
         }
         ObjectNode shaped = (ObjectNode) response.deepCopy();
+        shaped.remove("authContext");
         ObjectNode result = objectChild(shaped, "result");
         ObjectNode sanitizedPayload = objectChild(result, "sanitizedPayload");
         String resultType = trimToNull(textOrNull(result, "type"));
@@ -571,11 +585,124 @@ public class ShopifyStorefrontChatService {
         if (answer != null && trimToNull(textOrNull(sanitizedPayload, "answer")) == null) {
             sanitizedPayload.put("answer", answer);
         }
-        JsonNode resultData = result.get("data");
-        if (!sanitizedPayload.has("data") && resultData != null && !resultData.isNull()) {
-            sanitizedPayload.set("data", resultData.deepCopy());
+        JsonNode safeData = storefrontSafeData(firstPresent(result.get("data"), sanitizedPayload.get("data")));
+        if (safeData != null && !safeData.isNull()) {
+            result.set("data", safeData.deepCopy());
+            sanitizedPayload.set("data", safeData.deepCopy());
         }
         return shaped;
+    }
+
+    private JsonNode firstPresent(JsonNode first, JsonNode second) {
+        return first != null && !first.isNull() ? first : second;
+    }
+
+    private JsonNode storefrontSafeData(JsonNode data) {
+        if (data == null || data.isNull()) {
+            return data;
+        }
+        if (!data.isObject()) {
+            return data.deepCopy();
+        }
+        ObjectNode safe = objectMapper.createObjectNode();
+        copySafeValue(data, safe, "answer");
+        copySafeValue(data, safe, "query");
+        copySafeValue(data, safe, "response");
+        copySafeValue(data, safe, "action");
+        copySafeValue(data, safe, "requiresConfirmation");
+        copySafeValue(data, safe, "confirmationRequired");
+        copySafeValue(data, safe, "confirmationToken");
+        copySafeValue(data, safe, "confirmationPrompt");
+        copySafeValue(data, safe, "confirmationMessage");
+        JsonNode actionResult = data.get("actionResult");
+        if (actionResult != null && !actionResult.isNull()) {
+            safe.set("actionResult", storefrontSafeActionResult(actionResult));
+        }
+        JsonNode documents = data.get("documents");
+        if (documents != null && documents.isArray()) {
+            safe.set("documents", storefrontSafeDocuments(documents));
+        }
+        JsonNode ragResponse = data.get("ragResponse");
+        if (ragResponse != null && ragResponse.isObject()) {
+            ObjectNode safeRag = objectMapper.createObjectNode();
+            copySafeValue(ragResponse, safeRag, "answer");
+            copySafeValue(ragResponse, safeRag, "query");
+            copySafeValue(ragResponse, safeRag, "response");
+            JsonNode ragDocuments = ragResponse.get("documents");
+            if (ragDocuments != null && ragDocuments.isArray()) {
+                safeRag.set("documents", storefrontSafeDocuments(ragDocuments));
+            }
+            safe.set("ragResponse", safeRag);
+        }
+        return safe;
+    }
+
+    private JsonNode storefrontSafeActionResult(JsonNode actionResult) {
+        if (!actionResult.isObject()) {
+            return actionResult.deepCopy();
+        }
+        ObjectNode safe = objectMapper.createObjectNode();
+        copySafeValue(actionResult, safe, "success");
+        copySafeValue(actionResult, safe, "message");
+        copySafeValue(actionResult, safe, "errorCode");
+        JsonNode data = actionResult.get("data");
+        if (data != null && !data.isNull()) {
+            safe.set("data", storefrontSafeData(data));
+        }
+        return safe;
+    }
+
+    private ArrayNode storefrontSafeDocuments(JsonNode documents) {
+        ArrayNode safeDocuments = objectMapper.createArrayNode();
+        if (documents == null || !documents.isArray()) {
+            return safeDocuments;
+        }
+        for (JsonNode document : documents) {
+            if (document == null || !document.isObject()) {
+                continue;
+            }
+            ObjectNode safeDocument = objectMapper.createObjectNode();
+            copySafeValue(document, safeDocument, "id");
+            copySafeValue(document, safeDocument, "type");
+            copySafeValue(document, safeDocument, "score");
+            copySafeValue(document, safeDocument, "similarity");
+            copySafeValue(document, safeDocument, "source");
+            copySafeValue(document, safeDocument, "url");
+            String title = firstNonBlank(
+                textOrNull(document, "title"),
+                textOrNull(document.path("metadata"), "shopifyDocumentTitle"),
+                textOrNull(document.path("metadata"), "title")
+            );
+            if (title != null) {
+                safeDocument.put("title", title);
+            }
+            String storefrontUrl = firstNonBlank(
+                textOrNull(document, "storefrontUrl"),
+                textOrNull(document.path("metadata"), "storefrontUrl"),
+                textOrNull(document, "url")
+            );
+            if (storefrontUrl != null) {
+                safeDocument.put("storefrontUrl", storefrontUrl);
+                safeDocument.put("url", storefrontUrl);
+            }
+            String content = trimToNull(textOrNull(document, "content"));
+            if (content != null) {
+                safeDocument.put("content", content.length() > 600 ? content.substring(0, 600) : content);
+            }
+            safeDocuments.add(safeDocument);
+        }
+        return safeDocuments;
+    }
+
+    private void copySafeValue(JsonNode source, ObjectNode target, String field) {
+        if (source == null || target == null || !source.has(field)) {
+            return;
+        }
+        JsonNode value = source.get(field);
+        if (value == null || value.isNull() || value.isContainerNode()) {
+            return;
+        }
+        target.set(field, value.deepCopy());
     }
 
     private ObjectNode objectChild(ObjectNode parent, String field) {
