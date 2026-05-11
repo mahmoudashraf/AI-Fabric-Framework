@@ -892,6 +892,38 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryReturnsOrderLookupBlockGuidanceForEliteInsteadOfRoutingToCartActions() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Where is my order? My order number is 1001 and my email is shopper@example.com.",
+                  "mode":"executor",
+                  "storefrontContext":{
+                    "pageType":"account",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(response.path("conversationId").asText()).isNotBlank();
+        assertThat(answer).contains("Order lookup", "order lookup block", "checkout email");
+        assertThat(answer).doesNotContain("cart", "shopperSessionId");
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
+    }
+
+    @Test
     void queryReturnsStoreSafeGuardForInternalImplementationQuestion() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
@@ -962,7 +994,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryDoesNotInventMutationBlockWhenRuntimeReturnsGenericActionMessage() throws Exception {
+    void queryBlocksOrderMutationBeforeRuntimeActionSelection() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -970,9 +1002,6 @@ class ShopifyStorefrontChatServiceTest {
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
         when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
         when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
-        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
-            {"success":true,"conversationId":"conv-1","result":{"message":"Action executed."}}
-            """));
 
         JsonNode response = service.query(
             "alpha.myshopify.com",
@@ -990,7 +1019,9 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).isEqualTo("Action executed.");
+        assertThat(answer).contains("cannot cancel, refund, or change orders", "store support");
+        assertThat(answer).doesNotContain("Action executed");
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
     private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {

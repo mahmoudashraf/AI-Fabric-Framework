@@ -410,12 +410,9 @@ public class ShopifyStorefrontChatService {
             "update my order", "change address", "edit my order"
         ) || (containsAny(query, "cancel", "refund") && containsAny(query, "order", "purchase"));
         if (orderMutationIntent) {
-            if (billingSummary == null || !billingSummary.actionCapable()) {
-                return guardedStorefrontAnswer(
-                    "I cannot cancel, refund, or change orders from this store chat. For order changes, contact the store support team so they can review the request safely."
-                );
-            }
-            return null;
+            return guardedStorefrontAnswer(
+                "I cannot cancel, refund, or change orders from this store chat. For order changes, contact the store support team so they can review the request safely."
+            );
         }
         if (containsAny(query, "order", "tracking", "delivery")
             && containsAny(query, "where", "lookup", "look up", "status", "track", "tracking")) {
@@ -424,6 +421,9 @@ public class ShopifyStorefrontChatService {
                     "Order lookup is not enabled for this store's current plan. For order-specific help, contact the store support team with your order number and email."
                 );
             }
+            return guardedStorefrontAnswer(
+                "Order lookup is available through this store's order lookup block. Use the exact order number and checkout email there. I cannot refund, cancel, edit, or change orders from chat."
+            );
         }
         return null;
     }
