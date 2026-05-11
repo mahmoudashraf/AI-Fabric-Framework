@@ -23,6 +23,7 @@
     "shopperSessionId",
     "missingRequiredParameters",
     "authContext",
+    "indexed knowledge base",
     "vector space",
     "allowedVectorSpaces",
     "candidateVectorSpaces",
@@ -35,18 +36,19 @@
   ],
   "queries": [
     {
-      "queryId": "product-search-travel",
+      "queryId": "product-search-wax",
       "productRef": "shopify-companion",
       "targetStore": "shopping-companion-test.myshopify.com",
-      "tierProfile": "FREE",
-      "surface": "ai-search",
-      "query": "I need something useful for travel",
+      "tierProfile": "ELITE",
+      "surface": "max-mode",
+      "query": "Search products for wax",
       "storefrontContext": {
         "pageType": "collection",
-        "shopifySurfaceEntry": "ai-search"
+        "shopifySurfaceEntry": "max-mode",
+        "shopifyEffectiveConversationMode": "thinker_deep"
       },
       "expectedBehavior": "grounded_product_guidance",
-      "requiredConcepts": ["travel"],
+      "requiredConcepts": ["wax"],
       "forbiddenClaims": [],
       "expectedDenial": false,
       "groundingRequired": true

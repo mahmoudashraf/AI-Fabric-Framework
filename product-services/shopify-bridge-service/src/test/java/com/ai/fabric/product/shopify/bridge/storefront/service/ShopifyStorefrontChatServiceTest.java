@@ -1407,7 +1407,7 @@ class ShopifyStorefrontChatServiceTest {
                   "mode":"executor",
                   "storefrontContext":{
                     "pageType":"account",
-                    "shopifySurfaceEntry":"order-lookup"
+                    "shopifySurfaceEntry":"max-mode"
                   }
                 }
                 """),
@@ -1417,6 +1417,47 @@ class ShopifyStorefrontChatServiceTest {
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
         assertThat(answer).contains("order lookup block", "checkout email");
         assertThat(answer).doesNotContain("vector space", "runtime");
+    }
+
+    @Test
+    void queryMapsGeneralOutOfScopeRuntimeAnswerToStoreScopeGuidance() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"OUT_OF_SCOPE",
+                "success":false,
+                "message":"Sorry, rephrase it into a task related to your indexed knowledge base or an available action."
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Give me legal advice about importing products.",
+                  "mode":"thinker_deep",
+                  "storefrontContext":{
+                    "pageType":"storefront",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).contains("this store", "products", "policies");
+        assertThat(answer).doesNotContain("indexed knowledge base", "runtime");
     }
 
     private ShopifyStorefrontChatService service(PlatformShopifyStoreClient platformClient) {

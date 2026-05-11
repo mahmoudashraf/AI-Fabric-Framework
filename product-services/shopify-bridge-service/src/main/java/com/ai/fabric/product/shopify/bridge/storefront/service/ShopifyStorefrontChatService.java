@@ -704,8 +704,12 @@ public class ShopifyStorefrontChatService {
         if (hasOnlyInternalMissingRequiredParameter(response, INTERNAL_SESSION_PARAM)) {
             return "I can help with cart changes after the product or variant is selected and confirmed. Please choose the item you want to update and try again.";
         }
+        if (isRuntimeOutOfScope(response)) {
+            return STORE_ASSISTANT_SCOPE_GUIDANCE;
+        }
         if (isInternalRetrievalClarification(response)) {
-            if ("order-lookup".equals(normalizeSurfaceEntry(textOrNull(storefrontContextFromAttachments(request), "shopifySurfaceEntry")))) {
+            if (isAccountOrSupportContext(request)
+                || "order-lookup".equals(normalizeSurfaceEntry(textOrNull(storefrontContextFromAttachments(request), "shopifySurfaceEntry")))) {
                 return ORDER_LOOKUP_GUIDANCE;
             }
             return STORE_ASSISTANT_SCOPE_GUIDANCE;
