@@ -871,12 +871,29 @@ public class DeploymentDraftValidationService {
                                                           JsonNode providerNode,
                                                           List<DraftValidationIssue> issues) {
         String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode);
+        int vectorDimensions = entityNode.path("ai-config").path("vector-dimensions").asInt(0);
+        int openAiEmbeddingDimensions = 0;
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
+            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
+        )) {
+            openAiEmbeddingDimensions = ManagedDeploymentProfileCatalog.configuredOpenAiEmbeddingDimensions(providerNode);
+            if (vectorDimensions > 0
+                && openAiEmbeddingDimensions > 0
+                && vectorDimensions != openAiEmbeddingDimensions) {
+                issues.add(error(
+                    "knowledge",
+                    "EMBEDDING_DIMENSIONS_MISMATCH",
+                    "$.ai-config.vector-dimensions",
+                    "vector-dimensions must match openaiEmbeddingDimensions so runtime embeddings fit the vector store."
+                ));
+            }
+        }
+
         int maxVectorDimensions = ManagedDeploymentProfileCatalog.maxVectorDimensions(vectorStrategy);
         if (maxVectorDimensions == Integer.MAX_VALUE) {
             return;
         }
 
-        int vectorDimensions = entityNode.path("ai-config").path("vector-dimensions").asInt(0);
         if (vectorDimensions > maxVectorDimensions) {
             issues.add(error(
                 "knowledge",
@@ -886,10 +903,7 @@ public class DeploymentDraftValidationService {
             ));
         }
 
-        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(
-            ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerNode)
-        )) {
-            int openAiEmbeddingDimensions = ManagedDeploymentProfileCatalog.configuredOpenAiEmbeddingDimensions(providerNode);
+        if (openAiEmbeddingDimensions > 0) {
             if (openAiEmbeddingDimensions > maxVectorDimensions) {
                 issues.add(error(
                     "providers",

@@ -756,6 +756,77 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsEntityAndOpenAiEmbeddingDimensionDrift() {
+        DraftValidationResponse response = service.validate(draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "list_products",
+                      "description": "List products"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 1536 },
+                  "ai-entities": {
+                    "product": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    },
+                    "upstream": {
+                      "base-url": "https://customer.example"
+                    }
+                  },
+                  "actions": {
+                    "list_products": {
+                      "method": "GET",
+                      "path": "/api/products/search"
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "qdrant",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted",
+                  "openaiEmbeddingDimensions": 3072
+                }
+                """,
+            """
+                {
+                  "authzMode": "REMOTE_HTTP",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        ));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("EMBEDDING_DIMENSIONS_MISMATCH");
+    }
+
+    @Test
     void validateAcceptsPromptRagSimilarityThresholdWithinRange() {
         DraftValidationResponse response = service.validate(draft(
             """

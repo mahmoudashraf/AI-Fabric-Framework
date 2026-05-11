@@ -203,6 +203,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
 
+        synchronizeEntityVectorDimensions(entityRoot, providerRoot);
         boolean routingChanged = pruneRoutesWithoutActions(routingRoot, actionNames(actionsRoot.path("actions")));
         UpdateDeploymentDraftRequest updateRequest = new UpdateDeploymentDraftRequest(
             actionsRoot,
@@ -1286,6 +1287,29 @@ public class DeploymentMarketplaceDraftCompilerService {
         ensureObjectNode(root, "ai-config");
         ensureObjectNode(root, "ai-entities");
         return root;
+    }
+
+    private void synchronizeEntityVectorDimensions(ObjectNode entityRoot, ObjectNode providerRoot) {
+        if (!providerRoot.path(MARKETPLACE_INFERENCE_FIELD).path(MARKETPLACE_MANAGED_FIELD).asBoolean(false)) {
+            return;
+        }
+        int dimensions = resolvedManagedEmbeddingDimensions(providerRoot);
+        if (dimensions <= 0) {
+            return;
+        }
+        ensureObjectNode(entityRoot, "ai-config").put("vector-dimensions", dimensions);
+    }
+
+    private int resolvedManagedEmbeddingDimensions(JsonNode providerRoot) {
+        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerRoot);
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerRoot);
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
+            int configured = ManagedDeploymentProfileCatalog.configuredOpenAiEmbeddingDimensions(providerRoot);
+            return configured > 0
+                ? ManagedDeploymentProfileCatalog.clampVectorDimensions(configured, vectorStrategy)
+                : ManagedDeploymentProfileCatalog.defaultVectorDimensions(embeddingProvider, vectorStrategy);
+        }
+        return 0;
     }
 
     private ObjectNode normalizeShellRoot(JsonNode candidate) {
