@@ -337,7 +337,7 @@ select
             "readOnly": false,
             "anonymousAllowed": true,
             "requiresConfirmation": true,
-            "confirmationMessage": "{{cart_update_confirmation|Update your cart}}?",
+            "confirmationMessage": "Update your cart?",
             "groundingEligible": false,
             "readActionResolutionEligible": false,
             "adapterType": "mcp-tool",
@@ -350,7 +350,6 @@ select
               {"name": "update_items", "description": "Existing line items to update", "type": "ARRAY", "required": false},
               {"name": "remove_line_ids", "description": "Existing cart line identifiers to remove", "type": "ARRAY", "required": false},
               {"name": "shopperSessionId", "description": "Bridge shopper session identifier for governance and audit", "type": "STRING", "required": true},
-              {"name": "cart_update_confirmation", "description": "Confirmation-only shopper-facing phrase with no trailing punctuation. Resolve exact product or variant title and quantity from catalog/product context, for example: Add 1 Selling Plans Ski Wax to your cart. Leave blank if unresolved. This field is not sent to the MCP tool.", "type": "STRING", "required": false},
               {"name": "confirmationAccepted", "description": "Explicit shopper confirmation flag", "type": "BOOLEAN", "required": true}
             ],
             "execution": {
