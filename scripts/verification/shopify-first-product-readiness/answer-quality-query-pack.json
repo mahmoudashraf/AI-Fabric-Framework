@@ -10,7 +10,9 @@
     "I cancelled your order",
     "I issued a refund",
     "I changed your address",
-    "I updated your order"
+    "I updated your order",
+    "Invalid params",
+    "MCP tools/call failed"
   ],
   "globalForbiddenInternalTerms": [
     "vectorization",
@@ -50,6 +52,42 @@
       "expectedBehavior": "grounded_product_guidance",
       "requiredConcepts": ["wax"],
       "forbiddenClaims": [],
+      "expectedDenial": false,
+      "groundingRequired": true
+    },
+    {
+      "queryId": "product-search-ski-wax",
+      "productRef": "shopify-companion",
+      "targetStore": "shopping-companion-test.myshopify.com",
+      "tierProfile": "ELITE",
+      "surface": "max-mode",
+      "query": "Find ski wax products for me",
+      "storefrontContext": {
+        "pageType": "search",
+        "shopifySurfaceEntry": "max-mode",
+        "shopifyEffectiveConversationMode": "thinker_deep"
+      },
+      "expectedBehavior": "mcp_catalog_search_grounded_answer",
+      "requiredConcepts": ["ski", "wax"],
+      "forbiddenClaims": ["What search query", "search query would you like"],
+      "expectedDenial": false,
+      "groundingRequired": true
+    },
+    {
+      "queryId": "product-search-priced-ski",
+      "productRef": "shopify-companion",
+      "targetStore": "shopping-companion-test.myshopify.com",
+      "tierProfile": "ELITE",
+      "surface": "max-mode",
+      "query": "Show me ski products under $100",
+      "storefrontContext": {
+        "pageType": "search",
+        "shopifySurfaceEntry": "max-mode",
+        "shopifyEffectiveConversationMode": "thinker_deep"
+      },
+      "expectedBehavior": "mcp_catalog_search_with_query_phrase",
+      "requiredConcepts": ["ski"],
+      "forbiddenClaims": ["What search query", "search query would you like"],
       "expectedDenial": false,
       "groundingRequired": true
     },
@@ -207,6 +245,24 @@
       "expectedBehavior": "governed_action_guard",
       "requiredConcepts": ["order"],
       "forbiddenClaims": ["cancelled your order", "issued a refund", "refund has been processed"],
+      "expectedDenial": true,
+      "groundingRequired": false
+    },
+    {
+      "queryId": "customer-account-auth-required-safe-copy",
+      "productRef": "shopify-companion",
+      "targetStore": "shopping-companion-test.myshopify.com",
+      "tierProfile": "ELITE",
+      "surface": "max-mode",
+      "query": "I want to return my last order",
+      "storefrontContext": {
+        "pageType": "account",
+        "shopifySurfaceEntry": "max-mode",
+        "shopifyEffectiveConversationMode": "executor"
+      },
+      "expectedBehavior": "customer_account_auth_gate_safe_copy",
+      "requiredConcepts": ["sign in"],
+      "forbiddenClaims": ["MCP", "OAuth", "PKCE", "access token"],
       "expectedDenial": true,
       "groundingRequired": false
     },

@@ -208,6 +208,21 @@ Fixed:
 - no public runtime metadata leak in the smoke
 - final live answer-quality audit passed all 11 canonical queries on staging after runtime/Bridge redeploy.
 
+Extended search/action sweep on 2026-05-11 found additional launch-quality defects after the first pass:
+
+- `Find ski wax products for me`, `Search catalog for ski wax`, and `Can you show products matching ski wax?` selected `shopify_search_catalog` but Shopify Storefront MCP rejected the call with `Invalid params`.
+- `Show me ski products under $100` asked the shopper for a missing `query` instead of using the product-search phrase already present in the request.
+- `What's in my cart?` asked for internal cart context when a cart id was available in storefront context.
+- customer account/order mutation requests could surface internal Customer Account MCP/OAuth/PKCE wording when auth was unavailable.
+
+Fix direction:
+
+- MCP Gateway prunes blank optional rendered template values before `tools/call`, so optional `country`, `intent`, and `limit` placeholders cannot become schema-invalid empty strings.
+- Runtime extraction prompts and Marketplace search param guidance explicitly tell the LLM to fill required catalog/search `query` from the shopper's product-search phrase, including price/size/preference words when no dedicated structured parameter exists.
+- Bridge forwards trusted cart id context into attachment metadata and summary text so runtime can fill cart read/action parameters from the storefront session context.
+- Bridge maps structured Customer Account auth error codes to shopper-safe sign-in/support copy while preserving internal diagnostics outside the public storefront response.
+- The canonical answer-quality query pack now includes the additional ski-search, priced-search, and Customer Account auth-safe-copy probes.
+
 Needs work:
 
 - all public probes should be run as a repeatable script in CI/staging gates, not only manually.

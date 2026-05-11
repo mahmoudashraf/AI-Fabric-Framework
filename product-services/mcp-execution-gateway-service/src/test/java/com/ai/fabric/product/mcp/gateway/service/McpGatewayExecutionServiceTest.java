@@ -352,6 +352,54 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void omitsBlankOptionalTemplateArgumentsBeforeToolsCall() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://example.com/api/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        ArgumentCaptor<JsonNode> arguments = ArgumentCaptor.forClass(JsonNode.class);
+        when(client.initialize(eq(URI.create("https://example.com/api/mcp")), any())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("search_catalog"), arguments.capture(), any()))
+            .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"ok\":true}}"));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_search_catalog",
+            Map.of("query", "ski wax"),
+            null,
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "search_catalog",
+                        "argumentTemplate", Map.of(
+                            "catalog", Map.of(
+                                "query", "{{params.query}}",
+                                "context", Map.of(
+                                    "address_country", "{{params.country}}",
+                                    "intent", "{{params.intent}}"
+                                ),
+                                "pagination", Map.of("limit", "{{params.limit}}")
+                            )
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isTrue();
+        assertThat(arguments.getValue().path("catalog").path("query").asText()).isEqualTo("ski wax");
+        assertThat(arguments.getValue().path("catalog").has("context")).isFalse();
+        assertThat(arguments.getValue().path("catalog").has("pagination")).isFalse();
+    }
+
+    @Test
     void failsClosedForMcpAuthModeWithoutConcreteCredentialBinding() {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);

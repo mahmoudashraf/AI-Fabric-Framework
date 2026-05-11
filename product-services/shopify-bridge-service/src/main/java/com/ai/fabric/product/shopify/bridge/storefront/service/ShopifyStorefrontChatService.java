@@ -31,6 +31,9 @@ public class ShopifyStorefrontChatService {
         "product",
         "collection",
         "document",
+        "cart",
+        "cartId",
+        "cart_id",
         "shopifyShellModeProfile",
         "shopifySurfaceEntry",
         "shopifyPageModeGroup",
@@ -176,6 +179,15 @@ public class ShopifyStorefrontChatService {
             copyLimitedTextField(rawContext, metadata, "shopifyPageModeGroup");
             copyLimitedTextField(rawContext, metadata, "shopifyEffectiveConversationMode");
 
+            JsonNode rawCart = rawContext.get("cart");
+            if (rawCart != null && rawCart.isObject()) {
+                copyLimitedTextField(rawCart, metadata, "id", "cart_id");
+                copyLimitedTextField(rawCart, metadata, "cartId", "cart_id");
+                copyLimitedTextField(rawCart, metadata, "cart_id", "cart_id");
+            }
+            copyLimitedTextField(rawContext, metadata, "cartId", "cart_id");
+            copyLimitedTextFieldIfMissing(rawContext, metadata, "cart_id");
+
             JsonNode rawProduct = rawContext.get("product");
             if (rawProduct != null && rawProduct.isObject()) {
                 copyLimitedTextField(rawProduct, metadata, "id", "productId");
@@ -267,6 +279,7 @@ public class ShopifyStorefrontChatService {
         addSummaryPart(parts, metadata, "shopifySurfaceEntry", "Shopify surface");
         addSummaryPart(parts, metadata, "shopifyPageModeGroup", "Shopify page group");
         addSummaryPart(parts, metadata, "shopifyEffectiveConversationMode", "Shopify mode");
+        addSummaryPart(parts, metadata, "cart_id", "Cart id");
         addSummaryPart(parts, metadata, "productTitle", "Product");
         addSummaryPart(parts, metadata, "productHandle", "Product handle");
         addSummaryPart(parts, metadata, "productVendor", "Product vendor");
@@ -604,6 +617,14 @@ public class ShopifyStorefrontChatService {
                 "This store has not enabled self-service order changes in chat. Contact the store support team so they can review the request safely."
             );
         }
+        String errorCode = selectedErrorCode(response);
+        if ("CUSTOMER_ACCOUNT_AUTH_REQUIRED".equals(errorCode)
+            || "INVALID_CUSTOMER_ACCOUNT_SESSION".equals(errorCode)
+            || "CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED".equals(errorCode)) {
+            return policyStorefrontAnswer(
+                "Please sign in to your store account to view or manage orders. If you still need help, contact the store support team with your order number and checkout email."
+            );
+        }
         if (CART_ACTION_IDS.contains(selectedAction) && isAccountOrSupportContext(request)) {
             if (billingSummary != null && surfaceAllowed(billingSummary, store, "order-lookup")) {
                 return policyStorefrontAnswer(ORDER_LOOKUP_GUIDANCE);
@@ -611,6 +632,22 @@ public class ShopifyStorefrontChatService {
             return policyStorefrontAnswer(
                 "Order-specific help is handled by store support for this page. Contact the store support team with your order number and checkout email."
             );
+        }
+        return null;
+    }
+
+    private String selectedErrorCode(JsonNode response) {
+        for (String path : List.of(
+            "result.data.actionResult.errorCode",
+            "result.sanitizedPayload.data.actionResult.errorCode",
+            "result.data.errorCode",
+            "result.sanitizedPayload.data.errorCode",
+            "errorCode"
+        )) {
+            String value = nestedText(response, path);
+            if (value != null) {
+                return value.trim().toUpperCase(Locale.ROOT);
+            }
         }
         return null;
     }

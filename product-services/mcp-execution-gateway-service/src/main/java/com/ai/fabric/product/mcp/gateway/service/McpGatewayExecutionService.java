@@ -689,7 +689,9 @@ public class McpGatewayExecutionService {
         if (!argumentTemplate.isObject()) {
             throw new IllegalArgumentException("MCP argumentTemplate must be an object.");
         }
-        return resolveProfileRefs(renderTemplateNode(argumentTemplate, request, trace), trace);
+        JsonNode rendered = resolveProfileRefs(renderTemplateNode(argumentTemplate, request, trace), trace);
+        JsonNode pruned = pruneEmptyArgumentValues(rendered);
+        return pruned != null && pruned.isObject() ? pruned : objectMapper.createObjectNode();
     }
 
     private String endpointForKind(String endpointKind, Object request, JsonNode trace) {
@@ -793,6 +795,36 @@ public class McpGatewayExecutionService {
         }
         matcher.appendTail(out);
         return objectMapper.getNodeFactory().textNode(out.toString());
+    }
+
+    private JsonNode pruneEmptyArgumentValues(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (node.isTextual() && !StringUtils.hasText(node.asText())) {
+            return null;
+        }
+        if (node.isObject()) {
+            ObjectNode out = objectMapper.createObjectNode();
+            node.fields().forEachRemaining(entry -> {
+                JsonNode pruned = pruneEmptyArgumentValues(entry.getValue());
+                if (pruned != null) {
+                    out.set(entry.getKey(), pruned);
+                }
+            });
+            return out.isEmpty() ? null : out;
+        }
+        if (node.isArray()) {
+            ArrayNode out = objectMapper.createArrayNode();
+            for (JsonNode child : node) {
+                JsonNode pruned = pruneEmptyArgumentValues(child);
+                if (pruned != null) {
+                    out.add(pruned);
+                }
+            }
+            return out.isEmpty() ? null : out;
+        }
+        return node.deepCopy();
     }
 
     private JsonNode resolveProfileRefs(JsonNode node, JsonNode trace) {

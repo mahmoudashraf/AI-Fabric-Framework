@@ -222,7 +222,8 @@ class MultiStepIntentExtractionStrategyTest {
         verify(aiCoreService, times(3)).generateContent(requestCaptor.capture(), eq(LlmPurpose.ORCHESTRATION));
         assertThat(requestCaptor.getAllValues().get(2).getPrompt())
             .contains("cart_update_confirmation: string - Presentation-only shopper-facing confirmation phrase")
-            .contains("Fill optional parameters when the paramsSchema/description says they improve presentation");
+            .contains("Fill optional parameters when the paramsSchema/description says they improve presentation")
+            .contains("For catalog/search actions with a valid required `query` parameter");
     }
 
     private String classificationWithAction() {
