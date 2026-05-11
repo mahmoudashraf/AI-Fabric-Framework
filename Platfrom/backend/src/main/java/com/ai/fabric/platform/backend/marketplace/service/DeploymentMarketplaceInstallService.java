@@ -341,6 +341,22 @@ public class DeploymentMarketplaceInstallService {
                                                                  String installId,
                                                                  UpdateDeploymentMarketplaceEntitlementRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return updateEntitlementForDeployment(deployment, installId, request, true);
+    }
+
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateEntitlementForTrustedCallerWithoutDraftSync(
+        DeploymentEntity deployment,
+        String installId,
+        UpdateDeploymentMarketplaceEntitlementRequest request
+    ) {
+        return updateEntitlementForDeployment(deployment, installId, request, false);
+    }
+
+    private DeploymentMarketplaceInstallSummary updateEntitlementForDeployment(DeploymentEntity deployment,
+                                                                              String installId,
+                                                                              UpdateDeploymentMarketplaceEntitlementRequest request,
+                                                                              boolean syncDraft) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
@@ -357,7 +373,9 @@ public class DeploymentMarketplaceInstallService {
                 "pluginVersion", version.getVersion()
             )
         );
-        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        if (syncDraft) {
+            deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        }
         return toSummary(deployment, resolveActiveDraft(deployment), resolveActiveVersion(deployment), install);
     }
 
