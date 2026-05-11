@@ -1143,13 +1143,13 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("does not have a reviewed Marketplace MCP action", "support team");
+        assertThat(answer).contains("not enabled self-service order changes", "support team");
         assertThat(answer).doesNotContain("Refund this order?", "Action executed");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
 
     @Test
-    void queryRejectsUnconfiguredPostOrderMutationEvenWhenOrderPackageEnabled() throws Exception {
+    void queryAllowsMarketplaceMcpPostOrderActionSelectedByRuntimePolicyWhenPackageEnabled() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -1186,9 +1186,10 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("does not have a reviewed Marketplace MCP action", "support team");
-        assertThat(answer).doesNotContain("Refund this order?", "Action executed");
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        assertThat(response.path("result").path("message").asText()).isEqualTo("Refund this order?");
+        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+            .isEqualTo("Refund this order?");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
 

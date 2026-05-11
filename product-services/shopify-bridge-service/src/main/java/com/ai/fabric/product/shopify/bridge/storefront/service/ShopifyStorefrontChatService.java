@@ -76,10 +76,8 @@ public class ShopifyStorefrontChatService {
         "shopify_cart_create",
         "shopify_cart_update"
     );
-    private static final Set<String> REVIEWED_ORDER_SELF_SERVICE_ACTION_IDS = Set.of(
-        "shopify_cancel_checkout"
-    );
-    private static final Set<String> UNCONFIGURED_POST_ORDER_MUTATION_ACTION_IDS = Set.of(
+    private static final Set<String> MARKETPLACE_ORDER_SELF_SERVICE_ACTION_IDS = Set.of(
+        "shopify_cancel_checkout",
         "shopify_cancel_order",
         "shopify_refund_order",
         "shopify_edit_order",
@@ -462,7 +460,7 @@ public class ShopifyStorefrontChatService {
         metadata.put("cartActionsAllowed", false);
         metadata.put("orderSelfServiceApproved", orderSelfServiceApproved);
         ArrayNode deniedActions = metadata.putArray("deniedOrderSelfServiceActionsWhenUnapproved");
-        UNCONFIGURED_POST_ORDER_MUTATION_ACTION_IDS.forEach(deniedActions::add);
+        MARKETPLACE_ORDER_SELF_SERVICE_ACTION_IDS.forEach(deniedActions::add);
 
         JsonNode existingAttachments = request.get("attachments");
         ArrayNode attachments = objectMapper.createArrayNode();
@@ -599,12 +597,7 @@ public class ShopifyStorefrontChatService {
         if (selectedAction == null) {
             return null;
         }
-        if (UNCONFIGURED_POST_ORDER_MUTATION_ACTION_IDS.contains(selectedAction)) {
-            return policyStorefrontAnswer(
-                "This store does not have a reviewed Marketplace MCP action for that post-order change yet. Contact the store support team so they can review the request safely."
-            );
-        }
-        if (REVIEWED_ORDER_SELF_SERVICE_ACTION_IDS.contains(selectedAction)
+        if (MARKETPLACE_ORDER_SELF_SERVICE_ACTION_IDS.contains(selectedAction)
             && !orderMutationSelfServiceApproved(billingSummary)) {
             return policyStorefrontAnswer(
                 "This store has not enabled self-service order changes in chat. Contact the store support team so they can review the request safely."

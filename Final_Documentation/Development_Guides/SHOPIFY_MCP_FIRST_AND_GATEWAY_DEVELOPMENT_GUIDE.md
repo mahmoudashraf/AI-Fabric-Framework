@@ -400,3 +400,4 @@ Bridge policy is structured:
 - Currently configured concrete order self-service action is `shopify_cancel_checkout` through Checkout MCP.
 - The live Customer Account MCP Marketplace bundle currently exposes only read-only order-status actions: `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
 - Post-order refund/cancel/edit/return-start actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge.
+- Bridge must not hard-block future post-order action IDs once runtime selected them from the compiled Marketplace catalog. Package entitlement, confirmation, audit, MCP session auth, and the action catalog remain the gates.

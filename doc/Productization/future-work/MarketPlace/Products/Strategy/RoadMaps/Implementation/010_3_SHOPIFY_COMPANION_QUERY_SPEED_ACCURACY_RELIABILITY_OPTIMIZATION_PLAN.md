@@ -91,7 +91,7 @@ Fix:
 - Bridge no longer blocks shopper text before runtime action selection.
 - Bridge denies only structured order-mutation action IDs selected by runtime policy when the store is not entitled to an approved order self-service action package.
 - Elite now includes the `order-self-service` action package by default. When that package is present, Bridge allows the governed order self-service action IDs through to the Marketplace/MCP execution path and still depends on the configured action plugin, MCP server, session auth, explicit confirmation, and audit trail.
-- Current concrete Marketplace-configured order self-service action is `shopify_cancel_checkout` through Checkout MCP. The live Customer Account MCP Marketplace bundle currently exposes only read-only order-status actions. Post-order refund/cancel/edit/return-start actions remain discovery/tool-gated until a real Shopify MCP tool and plugin action are introduced; do not invent tool names or add direct GraphQL behavior in Bridge.
+- Current concrete Marketplace-configured order self-service action is `shopify_cancel_checkout` through Checkout MCP. The live Customer Account MCP Marketplace bundle currently exposes only read-only order-status actions. Post-order refund/cancel/edit/return-start actions remain discovery/tool-gated until a real Shopify MCP tool and plugin action are introduced; do not invent tool names or add direct GraphQL behavior in Bridge. Once runtime selects a real compiled Marketplace MCP post-order action, Bridge must allow it through the package/confirmation/audit/MCP-auth path without another action-specific code change.
 - Added storefront chat test coverage.
 
 ### Public response sanitization
