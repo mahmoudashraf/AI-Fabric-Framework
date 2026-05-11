@@ -103,21 +103,23 @@ class ShopifyCompanionPackageProfileCatalogServiceTest {
     }
 
     @Test
-    void fallsBackToBalancedProfileWhenSeedRowsAreUnavailable() {
+    void fallsBackToHighQualityProfileWhenSeedRowsAreUnavailable() {
         ShopifyCompanionPackageProfileRepository repository = mock(ShopifyCompanionPackageProfileRepository.class);
-        when(repository.findByProfileKeyIgnoreCase("BALANCED")).thenReturn(Optional.empty());
+        when(repository.findByProfileKeyIgnoreCase("HIGH_QUALITY")).thenReturn(Optional.empty());
 
         ShopifyCompanionPackageProfileCatalogService service = service(repository, mock(PlatformAuditService.class));
 
         ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile resolved =
             service.resolve(null, null, null, null);
 
-        assertThat(resolved.profileKey()).isEqualTo("BALANCED");
+        assertThat(resolved.profileKey()).isEqualTo("HIGH_QUALITY");
         assertThat(resolved.deploymentTemplateId()).isEqualTo("dev-openai-qdrant");
-        assertThat(resolved.inferencePluginId()).isEqualTo("mkp-inference-shared-embeddings");
+        assertThat(resolved.inferencePluginId()).isEqualTo("mkp-inference-premium-hybrid");
         assertThat(resolved.vectorProvisioningMode()).isEqualTo("EXTERNAL_EXISTING");
         assertThat(resolved.requiredPluginIds()).contains("mkp-action-shopify-storefront-read-mcp");
-        assertThat(resolved.disabledPluginIds()).contains("mkp-action-shopify-cart-mcp");
+        assertThat(resolved.requiredPluginIds()).contains("mkp-action-shopify-cart-mcp");
+        assertThat(resolved.requiredPluginIds()).contains("mkp-action-shopify-customer-account-mcp");
+        assertThat(resolved.requiredPluginIds()).contains("mkp-action-shopify-checkout-mcp");
     }
 
     @Test

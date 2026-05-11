@@ -73,6 +73,8 @@ shopify:
       checkout-mcp-terminal-operations-enabled: ${SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED:false}
     billing:
       mode: ${SHOPIFY_BRIDGE_BILLING_MODE:FREE}
+      default-tier: ${SHOPIFY_BRIDGE_BILLING_DEFAULT_TIER:ELITE}
+      free-enabled: ${SHOPIFY_BRIDGE_BILLING_FREE_ENABLED:false}
       plan-name: ${SHOPIFY_BRIDGE_BILLING_PLAN_NAME:Companion Free}
       app-subscription-plan-handle: ${SHOPIFY_BRIDGE_BILLING_PLAN_HANDLE:}
       app-subscription-amount: ${SHOPIFY_BRIDGE_BILLING_AMOUNT:}

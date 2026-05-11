@@ -986,7 +986,7 @@ public class ShopifyStoreConnectionService {
     }
 
     private String normalizeBillingTier(String value) {
-        String tierKey = hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "FREE";
+        String tierKey = hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "ELITE";
         if (!List.of("FREE", "STARTER", "ELITE").contains(tierKey)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unsupported Shopify Companion billing tier: " + value);
         }

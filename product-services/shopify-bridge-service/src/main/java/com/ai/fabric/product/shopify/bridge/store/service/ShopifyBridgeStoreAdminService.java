@@ -215,7 +215,7 @@ public class ShopifyBridgeStoreAdminService {
     }
 
     private String normalizeTierKey(String value) {
-        String tierKey = value == null || value.isBlank() ? "FREE" : value.trim().toUpperCase(Locale.ROOT);
+        String tierKey = value == null || value.isBlank() ? "ELITE" : value.trim().toUpperCase(Locale.ROOT);
         if (!List.of("FREE", "STARTER", "ELITE", "ENTERPRISE").contains(tierKey)) {
             throw new ResponseStatusException(BAD_REQUEST, "Unsupported Shopify Companion billing tier: " + value);
         }

@@ -29,7 +29,8 @@ import java.util.regex.Pattern;
 @Service
 public class ShopifyCompanionPackageProfileCatalogService {
 
-    public static final String DEFAULT_PROFILE_KEY = "BALANCED";
+    public static final String STARTER_PROFILE_KEY = "BALANCED";
+    public static final String DEFAULT_PROFILE_KEY = "HIGH_QUALITY";
     private static final Pattern KEY_PATTERN = Pattern.compile("[A-Z0-9_][A-Z0-9_-]{1,63}");
     private static final Set<String> PROFILE_STATUSES = Set.of("DRAFT", "ACTIVE", "DISABLED");
     private static final Set<String> COST_POSTURES = Set.of("LOW", "STANDARD", "HIGH", "QUALITY", "ENTERPRISE");
@@ -270,12 +271,15 @@ public class ShopifyCompanionPackageProfileCatalogService {
             return Optional.empty();
         }
         String profileKey = switch (normalized) {
-            case "FREE" -> "LOW_COST";
-            case "STARTER" -> DEFAULT_PROFILE_KEY;
+            case "FREE" -> null;
+            case "STARTER" -> STARTER_PROFILE_KEY;
             case "ELITE" -> "HIGH_QUALITY";
             case "ENTERPRISE" -> "ENTERPRISE_DEDICATED";
             default -> DEFAULT_PROFILE_KEY;
         };
+        if (profileKey == null) {
+            return Optional.empty();
+        }
         return repository.findByProfileKeyIgnoreCase(profileKey)
             .filter(this::isActiveProfile);
     }
@@ -426,26 +430,26 @@ public class ShopifyCompanionPackageProfileCatalogService {
     private ShopifyCompanionPackageProfileEntity fallbackBalancedProfile() {
         Instant now = Instant.now();
         ShopifyCompanionPackageProfileEntity entity = new ShopifyCompanionPackageProfileEntity();
-        entity.setId("scp-fallback-balanced");
+        entity.setId("scp-fallback-high-quality");
         entity.setProfileKey(DEFAULT_PROFILE_KEY);
-        entity.setPackageKey("STARTER");
-        entity.setTierKey("STARTER");
+        entity.setPackageKey("ELITE");
+        entity.setTierKey("ELITE");
         entity.setRuntimeProfileKey(DEFAULT_PROFILE_KEY);
         entity.setVectorProfileKey("QDRANT_SHARED");
-        entity.setDisplayName("Balanced");
-        entity.setDescription("Default Shopify Companion profile.");
-        entity.setCostPosture("STANDARD");
+        entity.setDisplayName("High quality");
+        entity.setDescription("Default high-capability Shopify Companion profile.");
+        entity.setCostPosture("QUALITY");
         entity.setTemplatePluginId(bootstrapProperties.templatePluginId());
         entity.setTemplatePluginVersion(blankToNull(bootstrapProperties.templatePluginVersion()));
         entity.setDeploymentTemplateId(bootstrapProperties.defaultTemplateId());
-        entity.setInferencePluginId("mkp-inference-shared-embeddings");
+        entity.setInferencePluginId("mkp-inference-premium-hybrid");
         entity.setVectorStrategy("qdrant");
         entity.setVectorProvisioningMode("EXTERNAL_EXISTING");
         entity.setVectorStoragePosture("SHARED");
-        entity.setVerificationPackId("starter-launch-readiness");
+        entity.setVerificationPackId("shopify-companion-elite-readiness");
         entity.setStatus("ACTIVE");
         entity.setDetailsJson("""
-            {"merchantVisible":true,"requiresBilling":false,"requiresReindexOnEmbeddingChange":false,"requiredPluginIds":["mkp-action-shopify-storefront-read-mcp","mkp-data-shopify-catalog","mkp-data-shopify-policies","mkp-inference-shared-embeddings"],"disabledPluginIds":["mkp-action-shopify-companion-read","mkp-action-shopify-cart-mcp","mkp-action-shopify-customer-account-mcp","mkp-action-shopify-checkout-mcp"]}
+            {"merchantVisible":true,"defaultPackage":true,"requiresBilling":false,"requiresReindexOnEmbeddingChange":true,"enableCustomerAccountMcp":true,"enableCheckoutMcp":true,"requiredPluginIds":["mkp-action-shopify-storefront-read-mcp","mkp-action-shopify-cart-mcp","mkp-action-shopify-customer-account-mcp","mkp-action-shopify-checkout-mcp","mkp-data-shopify-catalog","mkp-data-shopify-policies","mkp-inference-premium-hybrid"],"disabledPluginIds":["mkp-action-shopify-companion-read"]}
             """.trim());
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);

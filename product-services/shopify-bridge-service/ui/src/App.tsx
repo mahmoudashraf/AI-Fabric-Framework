@@ -4476,10 +4476,11 @@ function buildLaunchReadiness(
   const productSurfaceReady = requiredProductSurfaces.every((surfaceId) => placementIds.has(surfaceId))
   const supportSurfaceReady = placementIds.has('order-lookup')
   const tierKeys = new Set((billingSummary?.availablePlans ?? []).map((plan) => plan.tierKey))
-  const starterPlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'STARTER') ?? null
+  const freePlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'FREE') ?? null
   const elitePlan = billingSummary?.availablePlans?.find((plan) => plan.tierKey === 'ELITE') ?? null
-  const starterCommercialReady = Boolean(starterPlan?.commerciallyAvailable)
-  const tierLadderReady = tierKeys.has('FREE') && tierKeys.has('STARTER') && tierKeys.has('ELITE') && starterCommercialReady
+  const freeDisabled = Boolean(freePlan && !freePlan.commerciallyAvailable)
+  const paidPackageVisible = tierKeys.has('STARTER') && tierKeys.has('ELITE')
+  const tierLadderReady = tierKeys.has('FREE') && freeDisabled && paidPackageVisible
   const eliteGovernanceReady = Boolean(
     elitePlan?.actionCapable &&
       elitePlan?.requiresExplicitConfirmation &&
@@ -4550,9 +4551,9 @@ function buildLaunchReadiness(
       tone: tierLadderReady ? 'success' : 'attention',
       detail: tierLadderReady
         ? eliteGovernanceReady
-          ? `Free, Starter, and Elite are visible to merchants, and Elite is packaged as the governed action tier for ${elitePlan?.actionPackages?.join(' and ') ?? 'merchant-approved actions'}.`
-          : 'Free, Starter, and Elite are visible to merchants. Starter is commercially available, while Elite action claims stay gated until the live contract is verified.'
-        : 'The merchant tier ladder is not fully legible yet or Starter is not commercially available in the live billing contract.',
+          ? `Free is disabled but retained for legacy records, and Elite is packaged as the default governed action tier for ${elitePlan?.actionPackages?.join(' and ') ?? 'merchant-approved actions'}.`
+          : 'Free is disabled but retained for legacy records. Keep Elite action claims gated until the live contract is verified.'
+        : 'The merchant tier ladder is not fully legible yet or Free is still active in the live billing contract.',
     },
     {
       label: 'Launch gate',
@@ -4677,7 +4678,7 @@ function buildLaunchPacket(
   }
 
   const commercialNotes = [
-    'Free: AI search only, powered-by posture enforced when required.',
+    'Free: retained for legacy records but disabled for new launch posture.',
     'Starter: full read-only store intelligence with embedded shopper guidance surfaces.',
     hasEliteGovernance
       ? `Elite: governed action packaging for ${billingSummary?.actionPackages.join(' and ') ?? 'bounded commerce'} is technically real.`

@@ -2,9 +2,13 @@ package com.ai.fabric.product.shopify.bridge.billing.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.Locale;
+
 @ConfigurationProperties(prefix = "shopify.bridge.billing")
 public record ShopifyBridgeBillingProperties(
     String mode,
+    String defaultTier,
+    boolean freeEnabled,
     String planName,
     String appSubscriptionPlanHandle,
     String appSubscriptionAmount,
@@ -32,6 +36,7 @@ public record ShopifyBridgeBillingProperties(
 
     public ShopifyBridgeBillingProperties {
         mode = normalize(mode, "FREE");
+        defaultTier = normalizeTier(defaultTier, "ELITE");
         planName = normalize(planName, "Companion Free");
         appSubscriptionPlanHandle = normalize(appSubscriptionPlanHandle, "");
         appSubscriptionAmount = normalize(appSubscriptionAmount, "");
@@ -57,6 +62,14 @@ public record ShopifyBridgeBillingProperties(
 
     private static String normalize(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private static String normalizeTier(String value, String fallback) {
+        String normalized = normalize(value, fallback).toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "FREE", "STARTER", "ELITE" -> normalized;
+            default -> fallback;
+        };
     }
 
     private static boolean hasAnyValue(String... values) {

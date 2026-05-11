@@ -252,7 +252,7 @@ public class ShopifyStoreSourcePreflightSupport {
             }
             return new ShopifyStoreBillingStateSummary(
                 shopDomain,
-                text(billingState, "tierKey") == null ? "FREE" : text(billingState, "tierKey"),
+                text(billingState, "tierKey") == null ? "ELITE" : text(billingState, "tierKey"),
                 text(billingState, "status") == null ? "ACTIVE" : text(billingState, "status"),
                 text(billingState, "subscriptionId"),
                 text(billingState, "subscriptionName"),
@@ -341,6 +341,6 @@ public class ShopifyStoreSourcePreflightSupport {
     }
 
     private ShopifyStoreBillingStateSummary defaultBillingState(String shopDomain) {
-        return new ShopifyStoreBillingStateSummary(shopDomain, "FREE", "ACTIVE", null, null, null, null);
+        return new ShopifyStoreBillingStateSummary(shopDomain, "ELITE", "ACTIVE", null, null, null, null);
     }
 }
