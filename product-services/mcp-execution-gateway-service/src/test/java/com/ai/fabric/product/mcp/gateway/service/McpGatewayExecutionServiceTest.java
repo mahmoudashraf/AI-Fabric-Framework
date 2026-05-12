@@ -436,6 +436,59 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void failsClosedWhenArrayArgumentItemMissesRequiredProperties() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_update_cart",
+            Map.of(
+                "add_items", List.of(Map.of("product_id", "gid://shopify/Product/1", "quantity", 1)),
+                "shopperSessionId", "session-1",
+                "confirmationAccepted", true
+            ),
+            null,
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
+                "params", List.of(Map.of(
+                    "name", "add_items",
+                    "type", "ARRAY",
+                    "items", Map.of(
+                        "type", "OBJECT",
+                        "requiredProperties", List.of("product_variant_id", "quantity"),
+                        "properties", Map.of(
+                            "product_variant_id", Map.of("type", "STRING", "required", true),
+                            "quantity", Map.of("type", "INTEGER", "required", true)
+                        )
+                    )
+                )),
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "update_cart",
+                        "requiredAnyArguments", List.of("add_items", "update_items", "remove_line_ids"),
+                        "argumentTemplate", Map.of(
+                            "add_items", "{{params.add_items}}",
+                            "update_items", "{{params.update_items}}",
+                            "remove_line_ids", "{{params.remove_line_ids}}"
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_ARGUMENTS");
+        assertThat(response.message()).contains("add_items[0]");
+        assertThat(response.message()).contains("product_variant_id");
+        verify(client, never()).initialize(any(), any());
+        verify(client, never()).toolsCall(any(McpStreamableHttpClient.McpSession.class), any(), any(), any());
+        verify(client, never()).toolsCall(any(URI.class), any(), any(), any());
+    }
+
+    @Test
     void failsClosedForMcpAuthModeWithoutConcreteCredentialBinding() {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);

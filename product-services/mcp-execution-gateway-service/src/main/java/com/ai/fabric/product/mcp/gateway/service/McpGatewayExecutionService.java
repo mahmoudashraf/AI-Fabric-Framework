@@ -298,6 +298,7 @@ public class McpGatewayExecutionService {
             URI endpoint = resolveEndpoint(serverRef, request, trace, mcp, serverBinding);
             JsonNode arguments = renderArguments(request, trace, mcp.path("argumentTemplate"));
             validateRequiredAnyArguments(mcp, arguments);
+            validateArgumentsAgainstActionParams(actionConfig, arguments);
             Map<String, String> headers = resolveAuthHeaders(trace, mcpAuthConfig(mcp, serverBinding));
             McpStreamableHttpClient.McpRequestOptions options =
                 McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
@@ -463,6 +464,74 @@ public class McpGatewayExecutionService {
                 "MCP action requires at least one non-empty argument: " + String.join(", ", names) + "."
             );
         }
+    }
+
+    private void validateArgumentsAgainstActionParams(JsonNode actionConfig, JsonNode arguments) {
+        JsonNode params = actionConfig.path("params");
+        if (!params.isArray() || params.isEmpty() || arguments == null || !arguments.isObject()) {
+            return;
+        }
+        for (JsonNode param : params) {
+            String name = text(param, "name");
+            if (!StringUtils.hasText(name)) {
+                continue;
+            }
+            JsonNode argument = arguments.path(name);
+            if (argument.isMissingNode() || argument.isNull()) {
+                continue;
+            }
+            validateArgumentAgainstParamSchema(name, argument, param);
+        }
+    }
+
+    private void validateArgumentAgainstParamSchema(String path, JsonNode argument, JsonNode param) {
+        String type = normalizedEnum(text(param, "type"));
+        if ("ARRAY".equals(type)) {
+            if (!argument.isArray()) {
+                throw invalidMcpArgument(path, "must be an array");
+            }
+            JsonNode itemSchema = param.path("items");
+            if (itemSchema.isObject()) {
+                for (int i = 0; i < argument.size(); i++) {
+                    JsonNode item = argument.get(i);
+                    validateObjectRequiredProperties(path + "[" + i + "]", item, itemSchema);
+                }
+            }
+            return;
+        }
+        if ("OBJECT".equals(type)) {
+            validateObjectRequiredProperties(path, argument, param);
+        }
+    }
+
+    private void validateObjectRequiredProperties(String path, JsonNode value, JsonNode schema) {
+        JsonNode required = schema.path("requiredProperties");
+        if (!required.isArray() || required.isEmpty()) {
+            return;
+        }
+        if (!value.isObject()) {
+            throw invalidMcpArgument(path, "must be an object");
+        }
+        List<String> missing = new ArrayList<>();
+        for (JsonNode entry : required) {
+            if (!entry.isTextual() || !StringUtils.hasText(entry.asText())) {
+                continue;
+            }
+            String property = entry.asText().trim();
+            if (!hasMeaningfulValue(value.path(property))) {
+                missing.add(property);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw invalidMcpArgument(path, "is missing required properties: " + String.join(", ", missing));
+        }
+    }
+
+    private McpArgumentGateException invalidMcpArgument(String path, String reason) {
+        return new McpArgumentGateException(
+            "INVALID_MCP_ACTION_ARGUMENTS",
+            "MCP action argument " + path + " " + reason + "."
+        );
     }
 
     private boolean hasMeaningfulValue(JsonNode node) {
