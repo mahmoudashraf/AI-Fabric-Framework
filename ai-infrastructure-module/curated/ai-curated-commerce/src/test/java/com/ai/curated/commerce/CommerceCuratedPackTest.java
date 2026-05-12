@@ -72,10 +72,12 @@ class CommerceCuratedPackTest {
             .contains("asks about assistant implementation/infrastructure")
             .contains("Never use directAnswer to discuss assistant implementation")
             .contains("answer only the shopper-safe capability or use OUT_OF_SCOPE")
+            .contains("Do not retrieve or substitute another product")
             .contains("I can help with this store's products, policies, comparisons, cart, and approved order help.")
             .contains("must not repeat or quote the unsupported topic/request");
         assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
             .contains("Use only the relevant commerce context above")
+            .contains("Do not repeat labels such as \"Current page\"")
             .contains("asks for professional advice or asks about assistant implementation")
             .contains("no safest option can be identified from the available live store data")
             .contains("state that it is not available in the live store data")

@@ -76,14 +76,16 @@ class ShopifyCompanionReadinessAuditServiceTest {
 
         assertThat(service.definition().suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY);
         assertThat(service.definition().checklist()).hasSize(10);
-        assertThat(service.definition().queryPack()).hasSize(13);
+        assertThat(service.definition().queryPack()).hasSize(15);
         assertThat(service.definition().queryPack()).extracting("queryId")
             .contains(
                 "comparison-price-availability-internal-language-guard",
                 "governed-cart-add-stability-repeat",
+                "medical-product-claim-guard",
+                "missing-current-product-context",
                 "internal-tool-language-guard"
             );
-        assertThat(service.definition().forbiddenInternalTerms()).contains("vectorization", "Railway");
+        assertThat(service.definition().forbiddenInternalTerms()).contains("vectorization", "Railway", "Current page:");
         assertThat(service.latest().latestRun().id()).isEqualTo("vsr-readiness");
         assertThat(service.latest().decision()).isEqualTo("DESIGN_PARTNER_READY");
         assertThat(service.latest().checklistResults()).hasSize(10);

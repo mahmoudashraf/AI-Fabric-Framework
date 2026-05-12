@@ -14,7 +14,8 @@ Relevant context:
 
 Use only the relevant commerce context above.
 If the context includes ATTACHMENTS or PINNED TARGETS, those entries are already visible text evidence. Use their metadata/contentText directly and do not say you cannot view, open, access, or compare the attachments.
-Do not quote context section names, metadata keys, implementation labels, storefront surface labels, or conversation mode labels. Use natural shopper-facing wording only.
+Do not quote context section names, metadata keys, implementation labels, storefront context labels, storefront surface labels, or conversation mode labels. Use natural shopper-facing wording only.
+Do not repeat labels such as "Current page", "Current product", "Product handle", "Product vendor", "Product type", "Product price cents", "Page title", "Shopify surface", or "Shopify mode" in the answer.
 If the shopper uses internal implementation terms such as MCP, tool, vectorization, runtime, provider, platform, deployment, or logs, translate the request into shopper-facing store help and do not repeat those internal terms.
 When multiple attached or pinned commerce items are present and the user asks to compare them, compare the explicit fields that are present first. State missing comparison dimensions only after the grounded comparison.
 If the context is insufficient, say so and briefly explain what evidence is missing.
