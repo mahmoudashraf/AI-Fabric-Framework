@@ -238,6 +238,94 @@ class McpActionExecutionGatewayTest {
     }
 
     @Test
+    void executeForwardsRuntimeParamSchemaToGatewayActionConfig() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            objectMapper,
+            builder
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andExpect(content().json("""
+                {
+                  "actionId": "shopify_update_cart",
+                  "params": {
+                    "add_items": [
+                      {"product_id": "gid://shopify/Product/1", "quantity": 1}
+                    ]
+                  },
+                  "trace": {
+                    "shopDomain": "alpha.myshopify.com",
+                    "actionConfig": {
+                      "params": [
+                        {
+                          "name": "add_items",
+                          "type": "ARRAY",
+                          "items": {
+                            "type": "OBJECT",
+                            "requiredProperties": ["product_variant_id", "quantity"]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "actionConfig": {
+                    "params": [
+                      {
+                        "name": "add_items",
+                        "type": "ARRAY",
+                        "items": {
+                          "type": "OBJECT",
+                          "requiredProperties": ["product_variant_id", "quantity"]
+                        }
+                      }
+                    ]
+                  }
+                }
+                """))
+            .andRespond(withSuccess("""
+                {
+                  "success": false,
+                  "message": "add_items[0] is missing required property product_variant_id.",
+                  "errorCode": "INVALID_MCP_ACTION_ARGUMENTS"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_update_cart",
+                Map.of("add_items", List.of(Map.of("product_id", "gid://shopify/Product/1", "quantity", 1))),
+                "idem-1",
+                Map.of("actionConfig", Map.of(
+                    "params", List.of(Map.of(
+                        "name", "add_items",
+                        "type", "ARRAY",
+                        "items", Map.of(
+                            "type", "OBJECT",
+                            "requiredProperties", List.of("product_variant_id", "quantity")
+                        )
+                    )),
+                    "execution", Map.of("mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "update_cart"
+                    ))
+                ))
+            )
+        );
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("INVALID_MCP_ACTION_ARGUMENTS");
+        assertThat(result.message()).contains("product_variant_id");
+        server.verify();
+    }
+
+    @Test
     void checkoutMcpFailsClosedUntilClientCredentialsAreConfigured() {
         McpActionExecutionGateway gateway = new McpActionExecutionGateway(
             properties("https://mcp-gateway.internal", "secret"),

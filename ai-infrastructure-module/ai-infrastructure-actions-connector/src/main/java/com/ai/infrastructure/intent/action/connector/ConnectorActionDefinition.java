@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import com.ai.infrastructure.intent.action.AIContributionProvenance;
 
@@ -98,6 +99,69 @@ public record ConnectorActionDefinition(
         if (mcpServers != null && !mcpServers.isEmpty()) {
             out.put("mcpServers", mcpServers);
         }
+        if (!out.isEmpty() && params != null && !params.isEmpty()) {
+            out.put("params", params.stream()
+                .map(ConnectorActionDefinition::paramRuntimeConfig)
+                .toList());
+        }
         return out.isEmpty() ? Map.of() : Map.copyOf(out);
+    }
+
+    private static Map<String, Object> paramRuntimeConfig(ConnectorActionParamDefinition param) {
+        if (param == null) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        putIfText(out, "name", param.name());
+        putIfText(out, "description", param.description());
+        putIfPresent(out, "type", paramType(param.type()));
+        out.put("required", param.required());
+        if (param.batchTargets()) {
+            out.put("batchTargets", true);
+        }
+        putIfText(out, "pattern", param.pattern());
+        if (param.allowedValues() != null && !param.allowedValues().isEmpty()) {
+            out.put("allowedValues", param.allowedValues());
+        }
+        if (param.min() != null) {
+            out.put("min", param.min());
+        }
+        if (param.max() != null) {
+            out.put("max", param.max());
+        }
+        if (param.items() != null) {
+            out.put("items", paramRuntimeConfig(param.items()));
+        }
+        if (param.properties() != null && !param.properties().isEmpty()) {
+            Map<String, Object> properties = new LinkedHashMap<>();
+            param.properties().forEach((name, schema) -> {
+                if (name != null && schema != null) {
+                    properties.put(name, paramRuntimeConfig(schema));
+                }
+            });
+            if (!properties.isEmpty()) {
+                out.put("properties", properties);
+            }
+        }
+        if (param.requiredProperties() != null && !param.requiredProperties().isEmpty()) {
+            out.put("requiredProperties", param.requiredProperties());
+        }
+        return Map.copyOf(out);
+    }
+
+    private static String paramType(AIActionParamType type) {
+        return type == null ? null : type.name();
+    }
+
+    private static void putIfText(Map<String, Object> out, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            out.put(key, value.trim());
+        }
+    }
+
+    private static void putIfPresent(Map<String, Object> out, String key, Object value) {
+        if (value != null) {
+            out.put(key, value);
+        }
     }
 }

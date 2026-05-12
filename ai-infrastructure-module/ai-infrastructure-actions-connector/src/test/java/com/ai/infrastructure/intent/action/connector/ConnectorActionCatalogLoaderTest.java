@@ -215,6 +215,22 @@ class ConnectorActionCatalogLoaderTest {
             .containsKeys("product_variant_id", "quantity");
         Map<String, Object> runtimeConfig = action.runtimeActionConfig();
         assertThat(runtimeConfig).containsEntry("adapterType", "mcp-tool");
-        assertThat(runtimeConfig).containsKeys("execution", "mcpServers");
+        assertThat(runtimeConfig).containsKeys("execution", "mcpServers", "params");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> runtimeParams = (List<Map<String, Object>>) runtimeConfig.get("params");
+        Map<String, Object> runtimeSelectedItems = runtimeParams.stream()
+            .filter(param -> "selected_items".equals(param.get("name")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(runtimeSelectedItems)
+            .containsEntry("type", "ARRAY")
+            .containsEntry("batchTargets", true);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeItems = (Map<String, Object>) runtimeSelectedItems.get("items");
+        assertThat(runtimeItems).containsEntry("type", "OBJECT");
+        assertThat(runtimeItems).containsEntry("requiredProperties", List.of("product_variant_id", "quantity"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeProperties = (Map<String, Object>) runtimeItems.get("properties");
+        assertThat(runtimeProperties).containsKeys("product_variant_id", "quantity");
     }
 }
