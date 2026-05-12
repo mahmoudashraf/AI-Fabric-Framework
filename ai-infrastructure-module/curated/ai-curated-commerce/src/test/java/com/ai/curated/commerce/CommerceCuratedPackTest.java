@@ -70,6 +70,8 @@ class CommerceCuratedPackTest {
         assertThat(classifierTemplate.key().version()).isEqualTo("v1-commerce");
         assertThat(classifierTemplate.template())
             .contains("asks about assistant implementation/infrastructure")
+            .contains("Never use directAnswer to discuss assistant implementation")
+            .contains("answer only the shopper-safe capability or use OUT_OF_SCOPE")
             .contains("I can help with this store's products, policies, comparisons, cart, and approved order help.")
             .contains("must not repeat or quote the unsupported topic/request");
         assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
