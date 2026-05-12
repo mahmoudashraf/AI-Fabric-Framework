@@ -127,7 +127,25 @@ public class ShopifyCompanionReadinessAuditService {
         return List.of(
             query("product-search-travel", "FREE", "ai-search", "I need something useful for travel", Map.of("pageType", "collection", "shopifySurfaceEntry", "ai-search"), "grounded_product_guidance", List.of("travel"), List.of(), false, true),
             query("product-page-fit-gift", "STARTER", "product-insight", "Would this product be a good gift?", Map.of("pageType", "product", "shopifySurfaceEntry", "product-insight", "shopifyPageModeGroup", "product"), "contextual_product_guidance", List.of("gift"), List.of(), false, true),
-            query("product-faq-material", "STARTER", "product-faq", "What is this product made from?", Map.of("pageType", "product", "shopifySurfaceEntry", "product-faq", "shopifyPageModeGroup", "product"), "grounded_product_faq", List.of("product"), List.of(), false, true),
+            query(
+                "product-faq-material",
+                "STARTER",
+                "product-faq",
+                "What is this product built for?",
+                Map.of(
+                    "pageType", "product",
+                    "productId", "gid://shopify/Product/7939426025555",
+                    "productTitle", "Nimbus Air 13 Laptop",
+                    "productHandle", "nimbus-air-13-laptop",
+                    "shopifySurfaceEntry", "product-faq",
+                    "shopifyPageModeGroup", "product"
+                ),
+                "grounded_product_faq",
+                List.of("travel"),
+                List.of(),
+                false,
+                true
+            ),
             query("comparison-alternatives", "STARTER", "comparison", "Compare this with similar options and tell me who should choose each one.", Map.of("pageType", "product", "shopifySurfaceEntry", "comparison", "shopifyEffectiveConversationMode", "navigator_deep"), "bounded_comparison", List.of("compare"), List.of(), false, true),
             query("comparison-price-availability-internal-language-guard", "ELITE", "comparison", "Compare The Compare at Price Snowboard with The 3p Fulfilled Snowboard on price and availability.", Map.of("pageType", "product", "shopifySurfaceEntry", "comparison", "shopifyEffectiveConversationMode", "navigator_deep"), "price_availability_comparison_without_internal_context_labels", List.of("Compare at Price Snowboard", "3p Fulfilled Snowboard", "$"), List.of("authoritative context", "Page type:", "Shopify surface:", "Shopify mode:"), false, true),
             query("policy-return-window", "STARTER", "policy-strip", "What is the return policy?", Map.of("pageType", "policy", "shopifySurfaceEntry", "policy-strip"), "grounded_policy_answer", List.of("return"), List.of(), false, true),

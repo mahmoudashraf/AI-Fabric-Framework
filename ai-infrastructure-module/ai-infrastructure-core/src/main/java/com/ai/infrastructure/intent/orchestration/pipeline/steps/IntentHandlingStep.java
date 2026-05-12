@@ -784,15 +784,105 @@ public class IntentHandlingStep implements PipelineStep {
             return effectiveParams;
         }
         Map<String, Object> params = effectiveParams != null ? effectiveParams : new LinkedHashMap<>();
+        Map<String, Object> updated = null;
         if (meta.getRequiredParameters().contains("shopperSessionId")
             && !hasParamValue(params, "shopperSessionId")
             && context != null
             && StringUtils.hasText(context.getSessionId())) {
-            Map<String, Object> updated = new LinkedHashMap<>(params);
+            updated = new LinkedHashMap<>(params);
             updated.put("shopperSessionId", context.getSessionId().trim());
-            return updated;
         }
-        return params;
+        Map<String, Object> current = updated != null ? updated : params;
+        for (String required : meta.getRequiredParameters()) {
+            if (!StringUtils.hasText(required) || hasParamValue(current, required) || isSystemContextParameter(required)) {
+                continue;
+            }
+            String value = resolveAttachmentContextParam(context, required);
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            if (updated == null) {
+                updated = new LinkedHashMap<>(params);
+            }
+            updated.put(required.trim(), value.trim());
+            current = updated;
+        }
+        return updated != null ? updated : params;
+    }
+
+    private String resolveAttachmentContextParam(OrchestrationContext context, String required) {
+        if (context == null || !StringUtils.hasText(required)) {
+            return null;
+        }
+        List<NormalizedAttachment> attachments = context.getAttachmentsNormalized();
+        if (attachments == null || attachments.isEmpty()) {
+            return null;
+        }
+        List<String> candidateKeys = attachmentContextCandidateKeys(required);
+        for (NormalizedAttachment attachment : attachments) {
+            String value = metadataValueByCandidateKeys(attachment != null ? attachment.getMetadata() : null, candidateKeys);
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        if (attachments.size() == 1 && required.trim().toLowerCase(Locale.ROOT).endsWith("_id")) {
+            NormalizedAttachment only = attachments.get(0);
+            if (only != null && StringUtils.hasText(only.getId())) {
+                return only.getId();
+            }
+        }
+        return null;
+    }
+
+    private List<String> attachmentContextCandidateKeys(String required) {
+        String normalized = required.trim();
+        List<String> keys = new ArrayList<>();
+        keys.add(normalized);
+        String camel = snakeToCamel(normalized);
+        if (!camel.equals(normalized)) {
+            keys.add(camel);
+        }
+        if (normalized.endsWith("_id")) {
+            String base = normalized.substring(0, normalized.length() - "_id".length());
+            String baseCamel = snakeToCamel(base);
+            keys.add(baseCamel + "Id");
+            keys.add(baseCamel + "ID");
+            keys.add(baseCamel + "Gid");
+        }
+        return keys.stream()
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+    }
+
+    private String snakeToCamel(String value) {
+        if (!StringUtils.hasText(value) || !value.contains("_")) {
+            return value;
+        }
+        StringBuilder sb = new StringBuilder(value.length());
+        boolean upperNext = false;
+        for (char ch : value.toCharArray()) {
+            if (ch == '_') {
+                upperNext = true;
+                continue;
+            }
+            sb.append(upperNext ? Character.toUpperCase(ch) : ch);
+            upperNext = false;
+        }
+        return sb.toString();
+    }
+
+    private String metadataValueByCandidateKeys(Map<String, String> metadata, List<String> candidateKeys) {
+        if (metadata == null || metadata.isEmpty() || candidateKeys == null || candidateKeys.isEmpty()) {
+            return null;
+        }
+        for (String key : candidateKeys) {
+            String value = getMetadataValueIgnoreCase(metadata, key);
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private List<String> publicMissingRequiredParameters(List<String> missingRequired) {

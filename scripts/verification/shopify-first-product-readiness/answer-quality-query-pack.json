@@ -125,14 +125,21 @@
       "targetStore": "shopping-companion-test.myshopify.com",
       "tierProfile": "STARTER",
       "surface": "product-faq",
-      "query": "What is this product made from?",
+      "query": "What is this product built for?",
       "storefrontContext": {
         "pageType": "product",
+        "product": {
+          "id": "gid://shopify/Product/7939426025555",
+          "title": "Nimbus Air 13 Laptop",
+          "handle": "nimbus-air-13-laptop",
+          "type": "laptop",
+          "vendor": "LoomAI Demo"
+        },
         "shopifySurfaceEntry": "product-faq",
         "shopifyPageModeGroup": "product"
       },
       "expectedBehavior": "grounded_product_faq",
-      "requiredConcepts": ["material"],
+      "requiredConcepts": ["travel"],
       "forbiddenClaims": [],
       "expectedDenial": false,
       "groundingRequired": true
