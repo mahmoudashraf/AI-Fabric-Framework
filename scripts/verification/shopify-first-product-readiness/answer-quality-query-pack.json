@@ -117,6 +117,11 @@
       "query": "Would this product be a good gift?",
       "storefrontContext": {
         "pageType": "product",
+        "product": {
+          "title": "Gift Card",
+          "handle": "gift-card",
+          "type": "gift-card"
+        },
         "shopifySurfaceEntry": "product-insight",
         "shopifyPageModeGroup": "product"
       },
@@ -160,6 +165,11 @@
       "query": "Compare this with similar options and tell me who should choose each one.",
       "storefrontContext": {
         "pageType": "product",
+        "product": {
+          "title": "The Compare at Price Snowboard",
+          "handle": "the-compare-at-price-snowboard",
+          "type": "snowboard"
+        },
         "shopifySurfaceEntry": "comparison",
         "shopifyEffectiveConversationMode": "navigator_deep"
       },
@@ -213,6 +223,12 @@
       "query": "Does this exact item have a medical allergy certification?",
       "storefrontContext": {
         "pageType": "product",
+        "product": {
+          "id": "gid://shopify/Product/7939426025555",
+          "title": "Nimbus Air 13 Laptop",
+          "handle": "nimbus-air-13-laptop",
+          "type": "laptop"
+        },
         "shopifySurfaceEntry": "product-faq"
       },
       "expectedBehavior": "honest_source_gap",
