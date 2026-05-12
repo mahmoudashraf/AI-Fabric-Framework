@@ -54,6 +54,12 @@ public class ShopifyStorefrontChatService {
         "depth",
         "comparison"
     );
+    private static final Set<String> PRODUCT_CONTEXT_REQUIRED_SURFACE_ENTRIES = Set.of(
+        "product-insight",
+        "product-faq"
+    );
+    private static final String PRODUCT_CONTEXT_REQUIRED_MESSAGE =
+        "Open a product page or select a product so I can answer about that item.";
     private static final String THINKER_MODE = "THINKER_DEEP";
     private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
         "navigator",
@@ -117,6 +123,10 @@ public class ShopifyStorefrontChatService {
         ObjectNode normalizedRequest = normalizeRequest(request, store.shopDomain());
         ShopifyBridgeBillingSummary billingSummary = storefrontBillingSummary(store, normalizedRequest);
         enforceSurfaceEntitlement(store, normalizedRequest, billingSummary);
+        JsonNode productContextResponse = productContextRequiredResponse(normalizedRequest);
+        if (productContextResponse != null) {
+            return productContextResponse;
+        }
         appendStorefrontActionPolicyAttachment(normalizedRequest, billingSummary);
         applyStorefrontConversationMode(normalizedRequest, billingSummary);
         JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
@@ -705,6 +715,24 @@ public class ShopifyStorefrontChatService {
 
     private boolean containsNonNull(Set<String> values, String value) {
         return value != null && values.contains(value);
+    }
+
+    private JsonNode productContextRequiredResponse(ObjectNode request) {
+        ObjectNode context = storefrontContextFromAttachments(request);
+        String surfaceEntry = normalizeSurfaceEntry(textOrNull(context, "shopifySurfaceEntry"));
+        if (!containsNonNull(PRODUCT_CONTEXT_REQUIRED_SURFACE_ENTRIES, surfaceEntry)) {
+            return null;
+        }
+        if (hasCurrentProductIdentity(context)) {
+            return null;
+        }
+        return policyStorefrontAnswer(PRODUCT_CONTEXT_REQUIRED_MESSAGE);
+    }
+
+    private boolean hasCurrentProductIdentity(ObjectNode context) {
+        return StringUtils.hasText(textOrNull(context, "productId"))
+            || StringUtils.hasText(textOrNull(context, "productHandle"))
+            || StringUtils.hasText(textOrNull(context, "productTitle"));
     }
 
     private JsonNode ensureWidgetSanitizedPayload(JsonNode response, String answer) {

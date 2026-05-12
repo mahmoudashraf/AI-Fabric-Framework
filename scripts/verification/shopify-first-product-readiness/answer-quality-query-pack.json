@@ -248,10 +248,10 @@
         "pageType": "product",
         "shopifySurfaceEntry": "max-mode"
       },
-      "expectedBehavior": "safe_medical_claim_boundary",
-      "requiredConcepts": ["store"],
+      "expectedBehavior": "honest_medical_claim_gap",
+      "requiredConcepts": ["no information"],
       "forbiddenClaims": ["treat knee pain", "medical advice"],
-      "expectedDenial": true,
+      "expectedDenial": false,
       "groundingRequired": false
     },
     {

@@ -130,6 +130,36 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void productScopedSurfaceRequiresConcreteProductContext() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(starterTierSummary());
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What is this product best for?",
+                  "storefrontContext":{
+                    "pageType":"product",
+                    "shopifySurfaceEntry":"product-faq",
+                    "shopifyPageModeGroup":"product"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+            .isEqualTo("Open a product page or select a product so I can answer about that item.");
+        verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), anyString());
+    }
+
+    @Test
     void queryNormalizesCartContextForRuntimeActionParams() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
