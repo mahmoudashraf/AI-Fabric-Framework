@@ -110,6 +110,9 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_TYPE = "type";
     private static final String KEY_REQUIRED = "required";
     private static final String KEY_BATCH_TARGETS = "batchTargets";
+    private static final String KEY_ITEMS = "items";
+    private static final String KEY_PROPERTIES = "properties";
+    private static final String KEY_REQUIRED_PROPERTIES = "requiredProperties";
     private static final String KEY_PATTERN = "pattern";
     private static final String KEY_ALLOWED_VALUES = "allowedValues";
     private static final String KEY_MIN = "min";
@@ -801,7 +804,17 @@ public class ConnectorActionCatalogLoader {
     }
 
     private ConnectorActionParamDefinition parseParam(Map<String, Object> raw, String label, String actionName) {
+        return parseParam(raw, label, actionName, null);
+    }
+
+    private ConnectorActionParamDefinition parseParam(Map<String, Object> raw,
+                                                      String label,
+                                                      String actionName,
+                                                      String defaultName) {
         String name = readString(raw, KEY_NAME);
+        if (!StringUtils.hasText(name) && StringUtils.hasText(defaultName)) {
+            name = defaultName.trim();
+        }
         if (!StringUtils.hasText(name)) {
             throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName + "': param.name is required.");
         }
@@ -821,6 +834,9 @@ public class ConnectorActionCatalogLoader {
         Long min = readLong(raw.get(KEY_MIN), label, actionName, name, KEY_MIN);
         Long max = readLong(raw.get(KEY_MAX), label, actionName, name, KEY_MAX);
         boolean sensitive = readBoolean(raw, KEY_SENSITIVE, false);
+        ConnectorActionParamDefinition items = parseItemSchema(raw.get(KEY_ITEMS), label, actionName, name);
+        Map<String, ConnectorActionParamDefinition> properties = parsePropertySchemas(raw.get(KEY_PROPERTIES), label, actionName, name);
+        List<String> requiredProperties = readStringList(raw.get(KEY_REQUIRED_PROPERTIES));
 
         return new ConnectorActionParamDefinition(
             name.trim(),
@@ -832,8 +848,53 @@ public class ConnectorActionCatalogLoader {
             allowedValues,
             min,
             max,
-            sensitive
+            sensitive,
+            items,
+            properties,
+            requiredProperties
         );
+    }
+
+    private ConnectorActionParamDefinition parseItemSchema(Object raw,
+                                                           String label,
+                                                           String actionName,
+                                                           String parentName) {
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof Map<?, ?> map)) {
+            throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
+                + "', param '" + parentName + "': items must be an object.");
+        }
+        Map<String, Object> item = new LinkedHashMap<>(toStringKeyedMap(map));
+        return parseParam(item, label, actionName, parentName + "Item");
+    }
+
+    private Map<String, ConnectorActionParamDefinition> parsePropertySchemas(Object raw,
+                                                                             String label,
+                                                                             String actionName,
+                                                                             String parentName) {
+        if (raw == null) {
+            return Map.of();
+        }
+        if (!(raw instanceof Map<?, ?> map)) {
+            throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
+                + "', param '" + parentName + "': properties must be an object.");
+        }
+        LinkedHashMap<String, ConnectorActionParamDefinition> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : toStringKeyedMap(map).entrySet()) {
+            if (!StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            if (!(entry.getValue() instanceof Map<?, ?> propertyMap)) {
+                throw new IllegalStateException("Invalid action contract in " + label + " for action '" + actionName
+                    + "', param '" + parentName + "': property '" + entry.getKey() + "' must be an object.");
+            }
+            Map<String, Object> property = new LinkedHashMap<>(toStringKeyedMap(propertyMap));
+            property.putIfAbsent(KEY_NAME, entry.getKey().trim());
+            out.put(entry.getKey().trim(), parseParam(property, label, actionName, entry.getKey().trim()));
+        }
+        return Map.copyOf(out);
     }
 
     private void validateConfirmationTemplate(String actionName,

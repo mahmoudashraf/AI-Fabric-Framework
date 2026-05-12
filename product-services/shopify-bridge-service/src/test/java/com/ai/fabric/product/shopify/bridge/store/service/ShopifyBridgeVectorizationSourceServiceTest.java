@@ -104,6 +104,9 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             assertThat(item.totalInventory()).isEqualTo(8);
             assertThat(item.availableVariantCount()).isEqualTo(1);
             assertThat(item.variantSummary()).isEqualTo("Default variant, SKU SHOE-TRAIL, price 120.00 USD, available");
+            assertThat(item.productVariantId()).isEqualTo("gid://shopify/ProductVariant/1");
+            assertThat(item.firstAvailableVariantId()).isEqualTo("gid://shopify/ProductVariant/1");
+            assertThat(item.firstAvailableVariantTitle()).isEqualTo("Default variant");
             assertThat(item.content()).contains("Price range: 120.00 USD.");
             assertThat(item.content()).contains("Total inventory: 8.");
             assertThat(item.content()).contains("Availability: available.");

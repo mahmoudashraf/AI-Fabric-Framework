@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
@@ -201,6 +202,17 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(action.adapterType()).isEqualTo("mcp-tool");
         assertThat(action.execution()).containsKey("mcp");
         assertThat(action.mcpServers()).containsKey("inventory-mcp");
+        ConnectorActionParamDefinition selectedItems = action.params().stream()
+            .filter(param -> "selected_items".equals(param.name()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(selectedItems.batchTargets()).isTrue();
+        assertThat(selectedItems.items()).isNotNull();
+        assertThat(selectedItems.items().properties()).containsKeys("product_variant_id", "quantity");
+        assertThat(selectedItems.items().requiredProperties()).containsExactly("product_variant_id", "quantity");
+        AIActionMetaData metadata = ConnectorActionMetadataMapper.toMetadata(action);
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties())
+            .containsKeys("product_variant_id", "quantity");
         Map<String, Object> runtimeConfig = action.runtimeActionConfig();
         assertThat(runtimeConfig).containsEntry("adapterType", "mcp-tool");
         assertThat(runtimeConfig).containsKeys("execution", "mcpServers");

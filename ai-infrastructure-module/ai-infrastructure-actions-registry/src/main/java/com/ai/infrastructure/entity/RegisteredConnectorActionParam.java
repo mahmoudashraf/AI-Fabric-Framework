@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Getter
@@ -100,8 +101,10 @@ public class RegisteredConnectorActionParam {
             allowedValues != null ? List.copyOf(allowedValues) : List.of(),
             min,
             max,
-            sensitive
+            sensitive,
+            null,
+            Map.of(),
+            List.of()
         );
     }
 }
-

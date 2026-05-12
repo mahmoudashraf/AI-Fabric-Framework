@@ -597,7 +597,7 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
             .action("shopify_update_cart")
-            .actionParams(Map.of("add_items", List.of(Map.of("merchandiseId", "gid://shopify/ProductVariant/1", "quantity", 1))))
+            .actionParams(Map.of("add_items", List.of(Map.of("product_variant_id", "gid://shopify/ProductVariant/1", "quantity", 1))))
             .build();
 
         PipelineContext context = PipelineContext.from("add this to my cart", OrchestrationContext.forSession("shopper-session-123"))

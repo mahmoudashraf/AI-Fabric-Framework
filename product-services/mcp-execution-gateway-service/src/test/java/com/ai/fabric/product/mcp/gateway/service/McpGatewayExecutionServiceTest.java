@@ -400,6 +400,42 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void failsClosedWhenRequiredAnyArgumentsAreEmpty() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_update_cart",
+            Map.of("shopperSessionId", "session-1", "confirmationAccepted", true),
+            null,
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "update_cart",
+                        "requiredAnyArguments", List.of("add_items", "update_items", "remove_line_ids"),
+                        "argumentTemplate", Map.of(
+                            "add_items", "{{params.add_items}}",
+                            "update_items", "{{params.update_items}}",
+                            "remove_line_ids", "{{params.remove_line_ids}}"
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_ARGUMENTS");
+        assertThat(response.message()).contains("add_items");
+        verify(client, never()).initialize(any(), any());
+        verify(client, never()).toolsCall(any(McpStreamableHttpClient.McpSession.class), any(), any(), any());
+        verify(client, never()).toolsCall(any(URI.class), any(), any(), any());
+    }
+
+    @Test
     void failsClosedForMcpAuthModeWithoutConcreteCredentialBinding() {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);

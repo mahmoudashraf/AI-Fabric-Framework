@@ -619,6 +619,9 @@ public class ShopifyBridgeVectorizationSourceService {
             ShopifyProductCommerceEvidence.currencyCode(node),
             ShopifyProductCommerceEvidence.availability(node),
             ShopifyProductCommerceEvidence.variantSummary(node),
+            ShopifyProductCommerceEvidence.productVariantId(node),
+            ShopifyProductCommerceEvidence.productVariantId(node),
+            ShopifyProductCommerceEvidence.productVariantTitle(node),
             ShopifyProductCommerceEvidence.variantCount(node),
             ShopifyProductCommerceEvidence.totalInventory(node),
             ShopifyProductCommerceEvidence.availableVariantCount(node)

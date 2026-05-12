@@ -758,7 +758,7 @@ public class IntentHandlingStep implements PipelineStep {
                 }
             }
 
-            if (item.isEmpty()) {
+            if (item.isEmpty() || missingRequiredBatchItemProperties(item, itemSchema)) {
                 continue;
             }
 
@@ -775,6 +775,44 @@ public class IntentHandlingStep implements PipelineStep {
         Map<String, Object> updated = new LinkedHashMap<>(params);
         updated.put(batchSpec.paramName(), Collections.unmodifiableList(merged));
         return updated;
+    }
+
+    private boolean missingRequiredBatchItemProperties(Map<String, Object> item,
+                                                       com.ai.infrastructure.intent.action.AIActionParamSchema itemSchema) {
+        if (item == null || itemSchema == null || itemSchema.getRequiredProperties() == null
+            || itemSchema.getRequiredProperties().isEmpty()) {
+            return false;
+        }
+        for (String required : itemSchema.getRequiredProperties()) {
+            if (!StringUtils.hasText(required)) {
+                continue;
+            }
+            if (!hasMeaningfulBatchValue(item.get(required.trim()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasMeaningfulBatchValue(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof CharSequence text) {
+            return StringUtils.hasText(text.toString());
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.values().stream().anyMatch(this::hasMeaningfulBatchValue);
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (hasMeaningfulBatchValue(item)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
     }
 
     private Map<String, Object> applySystemContextActionParams(AIActionMetaData meta,

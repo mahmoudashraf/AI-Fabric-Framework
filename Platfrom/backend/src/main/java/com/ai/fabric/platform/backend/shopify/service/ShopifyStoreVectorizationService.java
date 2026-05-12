@@ -405,6 +405,10 @@ public class ShopifyStoreVectorizationService {
         productMetadata.put("currencyCode", "currencyCode");
         productMetadata.put("availability", "availability");
         productMetadata.put("variantSummary", "variantSummary");
+        productMetadata.put("product_variant_id", "productVariantId");
+        productMetadata.put("productVariantId", "productVariantId");
+        productMetadata.put("firstAvailableVariantId", "firstAvailableVariantId");
+        productMetadata.put("firstAvailableVariantTitle", "firstAvailableVariantTitle");
         productMetadata.put("variantCount", "variantCount");
         productMetadata.put("totalInventory", "totalInventory");
         productMetadata.put("availableVariantCount", "availableVariantCount");

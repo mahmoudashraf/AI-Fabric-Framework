@@ -50,19 +50,7 @@ public final class ConnectorActionMetadataMapper {
             desc = desc + (param.required() ? " (required)" : " (optional)");
             parameters.put(name, desc);
 
-            AIActionParamSchema schema = AIActionParamSchema.builder()
-                .name(name)
-                .description(StringUtils.hasText(param.description()) ? param.description().trim() : null)
-                .type(param.type())
-                .required(param.required())
-                .batchTargets(param.batchTargets())
-                .pattern(StringUtils.hasText(param.pattern()) ? param.pattern().trim() : null)
-                .allowedValues(param.allowedValues() != null ? List.copyOf(param.allowedValues()) : List.of())
-                .min(param.min())
-                .max(param.max())
-                .build();
-
-            schemas.put(name, schema);
+            schemas.put(name, toParamSchema(param));
             if (param.required()) {
                 required.add(name);
             }
@@ -87,6 +75,35 @@ public final class ConnectorActionMetadataMapper {
             .parameters(Collections.unmodifiableMap(parameters))
             .parameterSchemas(Collections.unmodifiableMap(schemas))
             .requiredParameters(Collections.unmodifiableSet(required))
+            .build();
+    }
+
+    private static AIActionParamSchema toParamSchema(ConnectorActionParamDefinition param) {
+        if (param == null) {
+            return null;
+        }
+        LinkedHashMap<String, AIActionParamSchema> properties = new LinkedHashMap<>();
+        if (param.properties() != null) {
+            for (Map.Entry<String, ConnectorActionParamDefinition> entry : param.properties().entrySet()) {
+                if (entry == null || !StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                    continue;
+                }
+                properties.put(entry.getKey().trim(), toParamSchema(entry.getValue()));
+            }
+        }
+        return AIActionParamSchema.builder()
+            .name(StringUtils.hasText(param.name()) ? param.name().trim() : null)
+            .description(StringUtils.hasText(param.description()) ? param.description().trim() : null)
+            .type(param.type())
+            .required(param.required())
+            .batchTargets(param.batchTargets())
+            .items(toParamSchema(param.items()))
+            .properties(properties.isEmpty() ? Map.of() : Map.copyOf(properties))
+            .requiredProperties(param.requiredProperties() != null ? List.copyOf(param.requiredProperties()) : List.of())
+            .pattern(StringUtils.hasText(param.pattern()) ? param.pattern().trim() : null)
+            .allowedValues(param.allowedValues() != null ? List.copyOf(param.allowedValues()) : List.of())
+            .min(param.min())
+            .max(param.max())
             .build();
     }
 

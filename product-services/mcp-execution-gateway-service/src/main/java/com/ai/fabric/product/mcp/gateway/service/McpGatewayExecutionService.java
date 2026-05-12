@@ -297,6 +297,7 @@ public class McpGatewayExecutionService {
             JsonNode serverBinding = findServerBinding(trace, actionConfig, serverRef);
             URI endpoint = resolveEndpoint(serverRef, request, trace, mcp, serverBinding);
             JsonNode arguments = renderArguments(request, trace, mcp.path("argumentTemplate"));
+            validateRequiredAnyArguments(mcp, arguments);
             Map<String, String> headers = resolveAuthHeaders(trace, mcpAuthConfig(mcp, serverBinding));
             McpStreamableHttpClient.McpRequestOptions options =
                 McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
@@ -317,6 +318,8 @@ public class McpGatewayExecutionService {
             }
             return normalizeResult(serverRef, toolName, mcp, result, drift);
         } catch (McpAuthGateException ex) {
+            return failure(ex.errorCode(), ex.getMessage());
+        } catch (McpArgumentGateException ex) {
             return failure(ex.errorCode(), ex.getMessage());
         } catch (IllegalArgumentException ex) {
             return failure("INVALID_MCP_ACTION_CONFIG", ex.getMessage());
@@ -435,6 +438,58 @@ public class McpGatewayExecutionService {
             policy,
             present ? schemaMatches ? "OK" : "SCHEMA_DRIFT" : "TOOL_MISSING"
         );
+    }
+
+    private void validateRequiredAnyArguments(JsonNode mcp, JsonNode arguments) {
+        JsonNode requiredAny = mcp.path("requiredAnyArguments");
+        if (!requiredAny.isArray() || requiredAny.isEmpty()) {
+            return;
+        }
+        List<String> names = new ArrayList<>();
+        for (JsonNode entry : requiredAny) {
+            String raw = entry.isTextual() ? entry.asText() : null;
+            if (!StringUtils.hasText(raw)) {
+                continue;
+            }
+            String path = raw.trim().startsWith("$") ? raw.trim() : "$." + raw.trim();
+            names.add(raw.trim());
+            if (hasMeaningfulValue(readRestrictedJsonPath(arguments, path))) {
+                return;
+            }
+        }
+        if (!names.isEmpty()) {
+            throw new McpArgumentGateException(
+                "INVALID_MCP_ACTION_ARGUMENTS",
+                "MCP action requires at least one non-empty argument: " + String.join(", ", names) + "."
+            );
+        }
+    }
+
+    private boolean hasMeaningfulValue(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return false;
+        }
+        if (node.isTextual()) {
+            return StringUtils.hasText(node.asText());
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                if (hasMeaningfulValue(child)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node.isObject()) {
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                if (hasMeaningfulValue(fields.next().getValue())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
     }
 
     private ActionExecuteResponse normalizeResult(String serverRef,
@@ -1321,6 +1376,19 @@ public class McpGatewayExecutionService {
         private final String errorCode;
 
         McpAuthGateException(String errorCode, String message) {
+            super(message);
+            this.errorCode = errorCode;
+        }
+
+        String errorCode() {
+            return errorCode;
+        }
+    }
+
+    private static class McpArgumentGateException extends RuntimeException {
+        private final String errorCode;
+
+        McpArgumentGateException(String errorCode, String message) {
             super(message);
             this.errorCode = errorCode;
         }

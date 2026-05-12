@@ -43,6 +43,10 @@ final class ShopifyProductCommerceEvidence {
         put(metadata, "variantCount", evidence.variantCount());
         put(metadata, "availableVariantCount", evidence.availableVariantCount());
         put(metadata, "variantSummary", evidence.variantSummary());
+        put(metadata, "product_variant_id", evidence.productVariantId());
+        put(metadata, "productVariantId", evidence.productVariantId());
+        put(metadata, "firstAvailableVariantId", evidence.productVariantId());
+        put(metadata, "firstAvailableVariantTitle", evidence.productVariantTitle());
         return Map.copyOf(metadata);
     }
 
@@ -74,6 +78,14 @@ final class ShopifyProductCommerceEvidence {
         return summarize(product).variantCount();
     }
 
+    static String productVariantId(Map<String, Object> product) {
+        return summarize(product).productVariantId();
+    }
+
+    static String productVariantTitle(Map<String, Object> product) {
+        return summarize(product).productVariantTitle();
+    }
+
     private static Evidence summarize(Map<String, Object> product) {
         PriceRange priceRange = priceRangeFrom(product);
         List<Map<String, Object>> variants = variantNodes(product);
@@ -81,12 +93,20 @@ final class ShopifyProductCommerceEvidence {
         int availableCount = 0;
         boolean sawAvailability = false;
         List<String> variantSummaries = new ArrayList<>();
+        Map<String, Object> firstVariant = null;
+        Map<String, Object> firstAvailableVariant = null;
         for (Map<String, Object> variant : variants) {
+            if (firstVariant == null && text(variant.get("id")) != null) {
+                firstVariant = variant;
+            }
             Boolean available = bool(variant.get("availableForSale"));
             if (available != null) {
                 sawAvailability = true;
                 if (available) {
                     availableCount++;
+                    if (firstAvailableVariant == null && text(variant.get("id")) != null) {
+                        firstAvailableVariant = variant;
+                    }
                 }
             }
             if (variantSummaries.size() < MAX_VARIANT_SUMMARY_ITEMS) {
@@ -101,6 +121,7 @@ final class ShopifyProductCommerceEvidence {
         if (variantSummary != null && variants.size() > MAX_VARIANT_SUMMARY_ITEMS) {
             variantSummary += "; " + (variants.size() - MAX_VARIANT_SUMMARY_ITEMS) + " more variants not shown";
         }
+        Map<String, Object> selectedVariant = firstAvailableVariant != null ? firstAvailableVariant : firstVariant;
         return new Evidence(
             priceRange.minPrice(),
             priceRange.maxPrice(),
@@ -110,7 +131,9 @@ final class ShopifyProductCommerceEvidence {
             availability,
             variants.isEmpty() ? null : variants.size(),
             sawAvailability ? availableCount : null,
-            variantSummary
+            variantSummary,
+            selectedVariant == null ? null : text(selectedVariant.get("id")),
+            selectedVariant == null ? null : variantTitle(selectedVariant)
         );
     }
 
@@ -169,15 +192,7 @@ final class ShopifyProductCommerceEvidence {
 
     private static String variantSummary(Map<String, Object> variant, String fallbackCurrency) {
         List<String> parts = new ArrayList<>();
-        String title = text(variant.get("title"));
-        String optionSummary = optionSummary(variant.get("selectedOptions"));
-        if (title != null && !"default title".equals(title.toLowerCase(Locale.ROOT))) {
-            parts.add(title);
-        } else if (optionSummary != null) {
-            parts.add(optionSummary);
-        } else {
-            parts.add("Default variant");
-        }
+        parts.add(variantTitle(variant));
         String sku = text(variant.get("sku"));
         if (sku != null) {
             parts.add("SKU " + sku);
@@ -195,6 +210,18 @@ final class ShopifyProductCommerceEvidence {
             parts.add(available ? "available" : "not currently available");
         }
         return parts.isEmpty() ? null : String.join(", ", parts);
+    }
+
+    private static String variantTitle(Map<String, Object> variant) {
+        String title = text(variant.get("title"));
+        String optionSummary = optionSummary(variant.get("selectedOptions"));
+        if (title != null && !"default title".equals(title.toLowerCase(Locale.ROOT))) {
+            return title;
+        }
+        if (optionSummary != null) {
+            return optionSummary;
+        }
+        return "Default variant";
     }
 
     @SuppressWarnings("unchecked")
@@ -313,6 +340,8 @@ final class ShopifyProductCommerceEvidence {
                             String availability,
                             Integer variantCount,
                             Integer availableVariantCount,
-                            String variantSummary) {
+                            String variantSummary,
+                            String productVariantId,
+                            String productVariantTitle) {
     }
 }

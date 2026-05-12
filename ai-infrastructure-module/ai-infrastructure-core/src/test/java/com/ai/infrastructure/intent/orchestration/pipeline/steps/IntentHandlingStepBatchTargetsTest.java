@@ -155,6 +155,90 @@ class IntentHandlingStepBatchTargetsTest {
         assertThat(items).hasSize(2);
     }
 
+    @Test
+    void shouldDefaultMcpCartAddItemsFromProductVariantMetadata() {
+        AIActionMetaData meta = shopifyCartMeta();
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("ok")
+            .data(ActionResultContracts.object(Map.of()))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(meta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of())
+            .build();
+
+        PipelineContext context = PipelineContext.from("add this to cart", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .resolvedTargets(List.of(
+                target("gid://shopify/Product/1", Map.of("product_variant_id", "gid://shopify/ProductVariant/1"))
+            ))
+            .build();
+
+        newStep(registry).process(context);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).executeAction(paramsCaptor.capture(), any());
+
+        Object raw = paramsCaptor.getValue().get("add_items");
+        assertThat(raw).isInstanceOf(List.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) raw;
+        assertThat(items).singleElement().satisfies(item -> assertThat(item)
+            .containsEntry("product_variant_id", "gid://shopify/ProductVariant/1")
+            .containsEntry("quantity", 1));
+    }
+
+    @Test
+    void shouldNotDefaultMcpCartAddItemWhenRequiredVariantMetadataIsMissing() {
+        AIActionMetaData meta = shopifyCartMeta();
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("ok")
+            .data(ActionResultContracts.object(Map.of()))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(meta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of())
+            .build();
+
+        PipelineContext context = PipelineContext.from("add this to cart", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .resolvedTargets(List.of(
+                target("gid://shopify/Product/1", Map.of("title", "The Minimal Snowboard"))
+            ))
+            .build();
+
+        newStep(registry).process(context);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).executeAction(paramsCaptor.capture(), any());
+
+        assertThat(paramsCaptor.getValue()).doesNotContainKey("add_items");
+    }
+
     private IntentHandlingStep newStep(AIActionRegistry registry) {
         return new IntentHandlingStep(
             registry,
@@ -205,6 +289,36 @@ class IntentHandlingStepBatchTargetsTest {
             .accessMode(ActionAccessMode.WRITE_ONLY)
             .parameterSchemas(Map.of("items", items))
             .requiredParameters(Set.of("items"))
+            .build();
+    }
+
+    private AIActionMetaData shopifyCartMeta() {
+        AIActionParamSchema variantId = AIActionParamSchema.builder()
+            .name("product_variant_id")
+            .type(AIActionParamType.STRING)
+            .build();
+        AIActionParamSchema quantity = AIActionParamSchema.builder()
+            .name("quantity")
+            .type(AIActionParamType.INTEGER)
+            .build();
+        AIActionParamSchema item = AIActionParamSchema.builder()
+            .type(AIActionParamType.OBJECT)
+            .properties(Map.of("product_variant_id", variantId, "quantity", quantity))
+            .requiredProperties(List.of("product_variant_id", "quantity"))
+            .build();
+        AIActionParamSchema addItems = AIActionParamSchema.builder()
+            .name("add_items")
+            .type(AIActionParamType.ARRAY)
+            .batchTargets(true)
+            .items(item)
+            .build();
+
+        return AIActionMetaData.builder()
+            .name("shopify_update_cart")
+            .description("Update Shopify cart")
+            .category("shopify")
+            .accessMode(ActionAccessMode.WRITE_ONLY)
+            .parameterSchemas(Map.of("add_items", addItems))
             .build();
     }
 

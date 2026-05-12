@@ -9,6 +9,7 @@ import com.ai.infrastructure.intent.action.connector.ConnectorActionParamDefinit
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,7 +36,10 @@ class RegisteredConnectorActionMappingTest {
                     List.of(),
                     null,
                     null,
-                    false
+                    false,
+                    null,
+                    Map.of(),
+                    List.of()
                 ),
                 new ConnectorActionParamDefinition(
                     "quantity",
@@ -47,7 +51,10 @@ class RegisteredConnectorActionMappingTest {
                     List.of(),
                     1L,
                     100L,
-                    false
+                    false,
+                    null,
+                    Map.of(),
+                    List.of()
                 )
             ),
             true,

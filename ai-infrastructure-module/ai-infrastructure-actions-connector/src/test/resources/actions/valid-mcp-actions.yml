@@ -18,6 +18,23 @@ actions:
       - name: query
         type: STRING
         required: true
+      - name: selected_items
+        type: ARRAY
+        required: false
+        batchTargets: true
+        items:
+          type: OBJECT
+          requiredProperties:
+            - product_variant_id
+            - quantity
+          properties:
+            product_variant_id:
+              type: STRING
+              required: true
+            quantity:
+              type: INTEGER
+              required: true
+              min: 1
 mcpServers:
   - serverRef: inventory-mcp
     transport: STREAMABLE_HTTP
