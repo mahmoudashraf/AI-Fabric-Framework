@@ -1168,3 +1168,12 @@ Critical fixes that made the gate pass:
 - Coolify app label was cleaned to `shopify-bridge-shopify-bridge-staging` with description `Managed product service shopify-bridge-staging`.
 - Final Platform vectorization proof through the renamed binding passed: reindex run `vrn-43385c9f` completed with `processedRecords=80`, `succeededRecords=80`, `failedRecords=0`, and store `syncState=IN_SYNC`.
 - Operational script defaults and guides now use `shopify-bridge-staging` for staging. Production records should use explicit production refs such as `shopify-bridge-production`; do not reuse staging service refs or staging managed secret names for production.
+
+## 2026-05-12 Shopify Companion Expanded Answer-Quality Gate
+
+- Expanded the canonical Shopify Companion answer-quality pack to 20 live queries covering search, product FAQ, comparison, policy gaps, cart actions, cart reads, Customer Account auth gates, medical/product-claim gaps, missing current-product context, and internal implementation-language guards.
+- Bridge now enforces a structural product-context guard for product-scoped surfaces (`product-insight`, `product-faq`) when no concrete product id/handle/title is present. This prevents random catalog substitution for prompts like `this product` without adding shopper text matching.
+- Internal implementation-language handling remains runtime/LLM-led. Do not add Bridge-side semantic keyword routing for shopper queries; the Bridge test `queryForwardsInternalImplementationQuestionToRuntimePolicyInsteadOfBridgeTextMatching` must stay valid.
+- Commerce curated prompts now put internal implementation/runtime/tool-status requests at highest priority for safe shopper-facing redirection, and answer prompts explicitly avoid treating those requests as missing product/policy evidence.
+- Canonical readiness context was corrected so product-page tests that are meant to exercise product behavior include concrete product context. The separate missing-current-product query proves the Bridge structural guard.
+- Live staging proof after deploy: Platform backend and active runtime were redeployed to `2d293b2b8`; Shopify Bridge retained the deployed structural guard from `6986ca6b4`. Health checks passed for Platform backend, Bridge, and runtime. Final live gate output `/tmp/shopify-answer-quality-20260512T143924Z-expanded-canonical-final` returned `PASS (20/20 passed)`.
