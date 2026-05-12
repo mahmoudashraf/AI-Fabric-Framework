@@ -482,6 +482,75 @@ class IntentHandlingStepRequiredParamsPlaceholderTest {
     }
 
     @Test
+    void shouldNotExposeConfirmationAcceptedAsMissingUserParameter() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(handler));
+        when(handler.validateActionAllowed(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(true);
+        when(handler.getConfirmationMessage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn("Add Selling Plans Ski Wax to my cart?");
+
+        AIActionMetaData meta = AIActionMetaData.builder()
+            .name("shopify_update_cart")
+            .description("Update Shopify cart")
+            .category("shopify")
+            .anonymousAllowed(true)
+            .confirmationRequired(true)
+            .parameters(Map.of(
+                "cart_update_confirmation", "Presentation-only shopper-facing confirmation phrase",
+                "confirmationAccepted", "Explicit shopper confirmation flag"
+            ))
+            .requiredParameters(Set.of("confirmationAccepted"))
+            .build();
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(meta));
+
+        InMemoryPendingActionStore pendingActionStore = new InMemoryPendingActionStore();
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf(mock(RAGProvider.class)),
+            mock(AICoreService.class),
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            pendingActionStore,
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of("cart_update_confirmation", "Add Selling Plans Ski Wax to my cart"))
+            .build();
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user")
+            .conversationId("chat-cart-confirmation")
+            .build();
+        PipelineContext context = PipelineContext.from("Add Selling Plans Ski Wax to my cart", orchestrationContext)
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = step.process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.CONFIRMATION_REQUIRED);
+        assertThat(result.getMessage()).isEqualTo("Add Selling Plans Ski Wax to my cart?");
+        assertThat(result.toString()).doesNotContain("confirmationAccepted");
+        assertThat(pendingActionStore.peekPendingAction("chat-cart-confirmation", "user")).isPresent();
+        verify(handler, org.mockito.Mockito.never()).executeAction(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void shouldInjectShopperSessionIdFromTrustedRuntimeContext() {
         AIActionRegistry registry = mock(AIActionRegistry.class);
         AIActionHandler handler = mock(AIActionHandler.class);

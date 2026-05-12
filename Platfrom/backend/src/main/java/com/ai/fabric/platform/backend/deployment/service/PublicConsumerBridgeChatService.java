@@ -48,6 +48,15 @@ public class PublicConsumerBridgeChatService {
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
     private static final int MAX_ATTACHMENT_METADATA_ENTRIES = 12;
+    private static final String SHOPIFY_STOREFRONT_CONTEXT_SOURCE = "shopify-storefront-context";
+    private static final java.util.Set<String> SHOPIFY_INTERNAL_CONTEXT_METADATA_KEYS = java.util.Set.of(
+        "shopifyShellModeProfile",
+        "shopifySurfaceEntry",
+        "shopifyPageModeGroup",
+        "shopifyEffectiveConversationMode",
+        "shopifyAllowedConversationModes",
+        "shopifyPageModeMappings"
+    );
 
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PublicProvisioningApiService publicProvisioningApiService;
@@ -457,16 +466,19 @@ public class PublicConsumerBridgeChatService {
             return null;
         }
         ObjectNode sanitized = objectMapper.createObjectNode();
+        boolean shopifyStorefrontContext = isShopifyStorefrontContext(rawAttachment);
         copyLimitedTextField(rawAttachment, sanitized, "id");
         copyLimitedTextField(rawAttachment, sanitized, "vectorSpace");
-        copyLimitedTextField(rawAttachment, sanitized, "contentText");
+        if (!shopifyStorefrontContext) {
+            copyLimitedTextField(rawAttachment, sanitized, "contentText");
+        }
         copyLimitedTextField(rawAttachment, sanitized, "source");
         copyLimitedTextField(rawAttachment, sanitized, "url");
         copyLimitedTextField(rawAttachment, sanitized, "imageUrl");
 
+        ObjectNode metadata = objectMapper.createObjectNode();
         JsonNode rawMetadata = rawAttachment.get("metadata");
         if (rawMetadata != null && rawMetadata.isObject()) {
-            ObjectNode metadata = objectMapper.createObjectNode();
             int count = 0;
             for (var entry : iterable(rawMetadata.fields())) {
                 if (count >= MAX_ATTACHMENT_METADATA_ENTRIES) {
@@ -475,6 +487,9 @@ public class PublicConsumerBridgeChatService {
                 String key = trimToNull(entry.getKey());
                 JsonNode valueNode = entry.getValue();
                 if (key == null || valueNode == null || valueNode.isNull() || !valueNode.isValueNode()) {
+                    continue;
+                }
+                if (shopifyStorefrontContext && isInternalShopifyContextMetadataKey(key)) {
                     continue;
                 }
                 String value = trimToNull(valueNode.asText(null));
@@ -487,12 +502,26 @@ public class PublicConsumerBridgeChatService {
                 metadata.put(key, value);
                 count++;
             }
-            if (!metadata.isEmpty()) {
-                sanitized.set("metadata", metadata);
+        }
+        if (shopifyStorefrontContext) {
+            String contentText = storefrontContextSummary(metadata);
+            if (StringUtils.hasText(contentText)) {
+                sanitized.put("contentText", contentText);
             }
+        }
+        if (!metadata.isEmpty()) {
+            sanitized.set("metadata", metadata);
         }
 
         return sanitized.isEmpty() ? null : sanitized;
+    }
+
+    private boolean isShopifyStorefrontContext(JsonNode rawAttachment) {
+        return SHOPIFY_STOREFRONT_CONTEXT_SOURCE.equals(trimToNull(textOrNull(rawAttachment, "source")));
+    }
+
+    private boolean isInternalShopifyContextMetadataKey(String key) {
+        return StringUtils.hasText(key) && SHOPIFY_INTERNAL_CONTEXT_METADATA_KEYS.contains(key.trim());
     }
 
     private String storefrontContextSummary(ObjectNode metadata) {
@@ -500,14 +529,14 @@ public class PublicConsumerBridgeChatService {
             return null;
         }
         List<String> parts = new ArrayList<>();
-        addSummaryPart(parts, metadata, "pageType", "Page type");
+        addSummaryPart(parts, metadata, "pageType", "Current page");
         addSummaryPart(parts, metadata, "pageTitle", "Page title");
-        addSummaryPart(parts, metadata, "productTitle", "Product");
+        addSummaryPart(parts, metadata, "productTitle", "Current product");
         addSummaryPart(parts, metadata, "productHandle", "Product handle");
         addSummaryPart(parts, metadata, "productVendor", "Product vendor");
         addSummaryPart(parts, metadata, "productType", "Product type");
         addSummaryPart(parts, metadata, "productPriceCents", "Product price cents");
-        addSummaryPart(parts, metadata, "collectionTitle", "Collection");
+        addSummaryPart(parts, metadata, "collectionTitle", "Current collection");
         addSummaryPart(parts, metadata, "collectionHandle", "Collection handle");
         if (parts.isEmpty()) {
             return null;

@@ -120,8 +120,8 @@ class PublicConsumerBridgeChatServiceTest {
             assertThat(requestBody.path("attachments").size()).isEqualTo(1);
             JsonNode attachment = requestBody.path("attachments").get(0);
             assertThat(attachment.path("source").asText()).isEqualTo("shopify-storefront-context");
-            assertThat(attachment.path("contentText").asText()).contains("Page type: product");
-            assertThat(attachment.path("contentText").asText()).contains("Product: ");
+            assertThat(attachment.path("contentText").asText()).contains("Current page: product");
+            assertThat(attachment.path("contentText").asText()).contains("Current product: ");
             assertThat(attachment.path("metadata").path("pageType").asText()).isEqualTo("product");
             assertThat(attachment.path("metadata").path("pageTitle").asText()).isEqualTo("Laptop Bags Collection");
             assertThat(attachment.path("metadata").path("ignoredField").isMissingNode()).isTrue();
@@ -142,6 +142,70 @@ class PublicConsumerBridgeChatServiceTest {
             assertThat(assertion).containsEntry("iss", "platform-consumer-bridge");
             assertThat(assertion.get("sessionId")).isEqualTo("shopper-session-alpha");
             assertThat(assertion.get("scopes")).isEqualTo(List.of("chat:query"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void querySanitizesShopifyStorefrontContextAttachmentsBeforeRuntime() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(exchange, 200, """
+                    {"success":true,"conversationId":"conv-1","result":{"message":"Compared products."}}
+                    """);
+            });
+            server.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("trusted-backend-key");
+            when(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME)).thenReturn("private-signing-key");
+            when(platformSecretService.resolveSecret(RuntimePublicTokenSigningService.SECRET_NAME)).thenReturn("public-signing-key");
+
+            PublicConsumerBridgeChatService service = new PublicConsumerBridgeChatService(
+                consumerService(server),
+                credentialsService(privateAccess(server)),
+                platformSecretService,
+                new RuntimePrivateAssertionSigningService(platformSecretService, objectMapper),
+                new RuntimePublicTokenSigningService(platformSecretService, objectMapper),
+                null,
+                objectMapper
+            );
+
+            service.query(
+                "consumer-alpha",
+                objectMapper.readTree("""
+                    {
+                      "query":"Compare these products",
+                      "attachments":[
+                        {
+                          "source":"shopify-storefront-context",
+                          "contentText":"Page type: product. Shopify surface: comparison. Shopify mode: navigator_deep. Product: Travel Pack.",
+                          "metadata":{
+                            "shopDomain":"alpha.myshopify.com",
+                            "pageType":"product",
+                            "shopifySurfaceEntry":"comparison",
+                            "shopifyEffectiveConversationMode":"navigator_deep",
+                            "productTitle":"Travel Pack",
+                            "productHandle":"travel-pack"
+                          }
+                        }
+                      ]
+                    }
+                    """),
+                "shopper-session-alpha"
+            );
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            JsonNode attachment = requestBody.path("attachments").get(0);
+            assertThat(attachment.path("contentText").asText())
+                .isEqualTo("Current page: product. Current product: Travel Pack. Product handle: travel-pack");
+            assertThat(attachment.path("metadata").path("shopifySurfaceEntry").isMissingNode()).isTrue();
+            assertThat(attachment.path("metadata").path("shopifyEffectiveConversationMode").isMissingNode()).isTrue();
+            assertThat(requestBody.toString()).doesNotContain("Page type", "Shopify surface", "Shopify mode", "authoritative context");
         } finally {
             server.stop(0);
         }
@@ -211,7 +275,7 @@ class PublicConsumerBridgeChatServiceTest {
             assertThat(requestBody.path("attachments").size()).isEqualTo(1);
             JsonNode attachment = requestBody.path("attachments").get(0);
             assertThat(attachment.path("source").asText()).isEqualTo("shopify-storefront-context");
-            assertThat(attachment.path("contentText").asText()).contains("Page type: collection");
+            assertThat(attachment.path("contentText").asText()).contains("Current page: collection");
             assertThat(attachment.path("metadata").path("pageType").asText()).isEqualTo("collection");
             assertThat(attachment.path("metadata").path("pageTitle").asText()).isEqualTo("Backpacks");
             assertThat(attachment.path("metadata").path("collectionId").asText()).isEqualTo("gid://shopify/Collection/1");

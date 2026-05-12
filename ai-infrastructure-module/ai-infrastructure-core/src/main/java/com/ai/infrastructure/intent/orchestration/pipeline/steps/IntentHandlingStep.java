@@ -142,7 +142,11 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CANDIDATE_VECTOR_SPACES = "candidateVectorSpaces";
     private static final String DATA_KEY_ROUTING_STRATEGY = "vectorSpaceRoutingStrategy";
     private static final String METADATA_KEY_ACTION_PARAM_VALIDATION = "actionParamValidation";
-    private static final Set<String> SYSTEM_CONTEXT_PARAMETER_NAMES = Set.of("shopperSessionId");
+    private static final String CONFIRMATION_ACCEPTED_PARAMETER = "confirmationAccepted";
+    private static final Set<String> SYSTEM_CONTEXT_PARAMETER_NAMES = Set.of(
+        "shopperSessionId",
+        CONFIRMATION_ACCEPTED_PARAMETER
+    );
 
     // Advanced RAG data keys
     private static final String DATA_KEY_EXPANDED_QUERIES = "expandedQueries";
@@ -425,7 +429,7 @@ public class IntentHandlingStep implements PipelineStep {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_ACTION, actionName);
             if (metadata != null) {
-                data.put(DATA_KEY_METADATA, metadata);
+                data.put(DATA_KEY_METADATA, publicActionMetadata(metadata));
             }
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.ACTION_DENIED)
@@ -442,7 +446,17 @@ public class IntentHandlingStep implements PipelineStep {
         effectiveParams = applySystemContextActionParams(meta, effectiveParams, context);
         actionContext = actionContext.withActionParams(effectiveParams);
 
+        boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
+        boolean requiresConfirmation = requiresActionConfirmation(handler);
+        if (requiresConfirmation && confirmedThisRequest && hasActionParameter(meta, CONFIRMATION_ACCEPTED_PARAMETER)) {
+            Map<String, Object> updated = new LinkedHashMap<>(effectiveParams);
+            updated.put(CONFIRMATION_ACCEPTED_PARAMETER, true);
+            effectiveParams = updated;
+            actionContext = actionContext.withActionParams(effectiveParams);
+        }
+
         ActionParamValidation validation = validateRequiredActionParams(meta, effectiveParams, pipelineContext);
+        validation = suppressConfirmationGateParameter(validation, requiresConfirmation);
         List<String> missingRequired = validation != null ? validation.missingRequired() : List.of();
         if (!missingRequired.isEmpty()) {
             if (context.hasConversation() && actionDraftStore != null) {
@@ -484,10 +498,6 @@ public class IntentHandlingStep implements PipelineStep {
                 .nextSteps(Collections.unmodifiableList(nextSteps))
                 .build();
         }
-
-        boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
-        
-        boolean requiresConfirmation = requiresActionConfirmation(handler);
 
         // Confirmation message is only meaningful for confirmable actions.
         // For safe actions, expose a deterministic execution indicator (used by tests/UI).
@@ -538,7 +548,7 @@ public class IntentHandlingStep implements PipelineStep {
             data.put(DATA_KEY_ACTION, actionName);
             data.put(DATA_KEY_CONFIRMATION_MESSAGE, confirmationMessage);
             data.put(DATA_KEY_CONFIRMATION_REQUIRED, true);
-            data.put(DATA_KEY_METADATA, getMetadataForAction(actionName));
+            data.put(DATA_KEY_METADATA, publicActionMetadata(getMetadataForAction(actionName)));
 
             String message = StringUtils.hasText(confirmationMessage)
                 ? confirmationMessage
@@ -564,7 +574,7 @@ public class IntentHandlingStep implements PipelineStep {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_ACTION, actionName);
             data.put(DATA_KEY_CONFIRMATION_MESSAGE, confirmationMessage);
-            data.put(DATA_KEY_METADATA, getMetadataForAction(actionName));
+            data.put(DATA_KEY_METADATA, publicActionMetadata(getMetadataForAction(actionName)));
             if (actionResult != null) {
                 data.put(DATA_KEY_ACTION_RESULT, actionResult);
             }
@@ -613,7 +623,7 @@ public class IntentHandlingStep implements PipelineStep {
             ActionResult errorResult = handler.handleError(ex, actionContext);
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_ACTION, actionName);
-            data.put(DATA_KEY_METADATA, getMetadataForAction(actionName));
+            data.put(DATA_KEY_METADATA, publicActionMetadata(getMetadataForAction(actionName)));
             if (errorResult != null) {
                 data.put(DATA_KEY_ACTION_RESULT, errorResult);
             }
@@ -796,6 +806,86 @@ public class IntentHandlingStep implements PipelineStep {
             .toList();
     }
 
+    private AIActionMetaData publicActionMetadata(AIActionMetaData metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        Map<String, String> publicParameters = filterPublicParameterMap(metadata.getParameters());
+        Map<String, com.ai.infrastructure.intent.action.AIActionParamSchema> publicSchemas =
+            filterPublicParameterMap(metadata.getParameterSchemas());
+        Set<String> publicRequired = metadata.getRequiredParameters() == null
+            ? Set.of()
+            : metadata.getRequiredParameters().stream()
+                .filter(parameter -> !isSystemContextParameter(parameter))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return AIActionMetaData.builder()
+            .name(metadata.getName())
+            .displayName(metadata.getDisplayName())
+            .description(metadata.getDescription())
+            .category(metadata.getCategory())
+            .accessMode(metadata.getAccessMode())
+            .anonymousAllowed(metadata.isAnonymousAllowed())
+            .confirmationRequired(metadata.isConfirmationRequired())
+            .groundingEligible(metadata.isGroundingEligible())
+            .readActionResolutionEligible(metadata.isReadActionResolutionEligible())
+            .sideEffectLevel(metadata.getSideEffectLevel())
+            .resultPresentationHint(metadata.getResultPresentationHint())
+            .builtInModuleId(metadata.getBuiltInModuleId())
+            .builtInCardId(metadata.getBuiltInCardId())
+            .provenance(metadata.getProvenance())
+            .parameters(publicParameters)
+            .parameterSchemas(publicSchemas)
+            .requiredParameters(publicRequired)
+            .build();
+    }
+
+    private <T> Map<String, T> filterPublicParameterMap(Map<String, T> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, T> out = new LinkedHashMap<>();
+        values.forEach((key, value) -> {
+            if (StringUtils.hasText(key) && !isSystemContextParameter(key)) {
+                out.put(key, value);
+            }
+        });
+        return Collections.unmodifiableMap(out);
+    }
+
+    private ActionParamValidation suppressConfirmationGateParameter(ActionParamValidation validation,
+                                                                    boolean requiresConfirmation) {
+        if (validation == null || !requiresConfirmation) {
+            return validation;
+        }
+        List<String> missingRequired = withoutConfirmationGateParameter(validation.missingRequired());
+        List<String> provenanceMissing = withoutConfirmationGateParameter(validation.provenanceMissing());
+        if (missingRequired.equals(validation.missingRequired())
+            && provenanceMissing.equals(validation.provenanceMissing())) {
+            return validation;
+        }
+        Map<String, Object> debug = new LinkedHashMap<>();
+        if (validation.debugMetadata() != null) {
+            debug.putAll(validation.debugMetadata());
+        }
+        debug.put("missing", List.copyOf(missingRequired));
+        debug.put("provenanceMissing", List.copyOf(provenanceMissing));
+        debug.put("confirmationGateHidden", true);
+        return new ActionParamValidation(
+            List.copyOf(missingRequired),
+            List.copyOf(provenanceMissing),
+            Collections.unmodifiableMap(debug)
+        );
+    }
+
+    private List<String> withoutConfirmationGateParameter(List<String> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return List.of();
+        }
+        return parameters.stream()
+            .filter(parameter -> !isConfirmationAcceptedParameter(parameter))
+            .toList();
+    }
+
     private Map<String, Object> publicActionParamValidationMetadata(ActionParamValidation validation) {
         if (validation == null) {
             return Map.of();
@@ -831,6 +921,18 @@ public class IntentHandlingStep implements PipelineStep {
         }
         Object value = params.get(key);
         return value != null && StringUtils.hasText(value.toString());
+    }
+
+    private boolean hasActionParameter(AIActionMetaData meta, String key) {
+        if (meta == null || !StringUtils.hasText(key)) {
+            return false;
+        }
+        String normalized = key.trim();
+        if (meta.getRequiredParameters() != null
+            && meta.getRequiredParameters().stream().anyMatch(parameter -> normalized.equals(parameter))) {
+            return true;
+        }
+        return meta.getParameters() != null && meta.getParameters().containsKey(normalized);
     }
 
     private String getMetadataValueIgnoreCase(Map<String, String> metadata, String key) {
@@ -4769,6 +4871,10 @@ public class IntentHandlingStep implements PipelineStep {
 
     private boolean isSystemContextParameter(String required) {
         return StringUtils.hasText(required) && SYSTEM_CONTEXT_PARAMETER_NAMES.contains(required.trim());
+    }
+
+    private boolean isConfirmationAcceptedParameter(String required) {
+        return StringUtils.hasText(required) && CONFIRMATION_ACCEPTED_PARAMETER.equals(required.trim());
     }
 
     private EvidenceBundle buildEvidenceBundle(PipelineContext pipelineContext) {
