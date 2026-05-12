@@ -26,6 +26,7 @@ Output MUST be valid JSON and MUST match the following schema:
 Rules:
 - Keep it simple and deterministic.
 - Do NOT invent action names; for ACTION use actionHint only.
+- Highest priority: if the USER REQUEST asks about assistant implementation, infrastructure, internal status, runtime behavior, tool status, vectorization, providers, platform internals, logs, deployments, or secrets, output OUT_OF_SCOPE. Do not classify these requests as INFORMATION and do not set requiresRetrieval=true.
 - The USER REQUEST may include a "PENDING ACTION (requires confirmation)" section describing an action awaiting approval.
   - If the user is clearly approving/confirming the pending action, output a single intent with type=CONFIRMATION_POSITIVE.
   - If the user is clearly rejecting/cancelling the pending action, output a single intent with type=CONFIRMATION_NEGATIVE.

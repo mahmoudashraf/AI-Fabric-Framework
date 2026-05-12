@@ -70,6 +70,7 @@ class CommerceCuratedPackTest {
         assertThat(classifierTemplate.key().version()).isEqualTo("v1-commerce");
         assertThat(classifierTemplate.template())
             .contains("asks about assistant implementation/infrastructure")
+            .contains("Highest priority: if the USER REQUEST asks about assistant implementation")
             .contains("Never use directAnswer to discuss assistant implementation")
             .contains("answer only the shopper-safe capability or use OUT_OF_SCOPE")
             .contains("Do not retrieve or substitute another product")
@@ -78,6 +79,7 @@ class CommerceCuratedPackTest {
             .contains("must not repeat or quote the unsupported topic/request");
         assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
             .contains("Use only the relevant commerce context above")
+            .contains("Highest priority: if the user question asks about assistant implementation")
             .contains("Do not repeat labels such as \"Current page\"")
             .contains("Do not treat retrieved catalog/search results as the current product")
             .contains("do not answer as a missing-evidence or product-data question")
