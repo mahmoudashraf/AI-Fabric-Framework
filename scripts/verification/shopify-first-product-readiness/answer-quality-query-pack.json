@@ -249,7 +249,7 @@
         "shopifySurfaceEntry": "max-mode"
       },
       "expectedBehavior": "honest_medical_claim_gap",
-      "requiredConcepts": ["no information"],
+      "requiredConcepts": ["not enough information"],
       "forbiddenClaims": ["treat knee pain", "medical advice"],
       "expectedDenial": false,
       "groundingRequired": false
