@@ -807,11 +807,11 @@ The platform-owned suite no longer embeds live URL/domain defaults in Java.
 Set the target values through deployment env or the local env file before dispatching release-gate runs:
 
 ```bash
-PLATFORM_UI_BASE_URL="https://platform-ui-production-00e3.up.railway.app"
-PARTNER_UI_BASE_URL="https://ai-fabric-framework-production-158d.up.railway.app"
-SHOPIFY_BRIDGE_BASE_URL="https://shopify-bridge-shopify-bridge-pr-production.up.railway.app"
+PLATFORM_UI_BASE_URL="https://loomai-platform-ui.46.224.145.148.sslip.io"
+PARTNER_UI_BASE_URL="https://loomai-partner-ui.46.224.145.148.sslip.io"
+SHOPIFY_BRIDGE_BASE_URL="https://shopify-bridge-staging.46.224.145.148.sslip.io"
 SHOP_DOMAIN="shopping-companion-test.myshopify.com"
-PRODUCT_SERVICE_REF="shopify-bridge-prod"
+PRODUCT_SERVICE_REF="shopify-bridge-staging"
 PLATFORM_VERIFICATION_WEAVIATE_HOST="<current-weaviate-cloud-rest-host>"
 ```
 

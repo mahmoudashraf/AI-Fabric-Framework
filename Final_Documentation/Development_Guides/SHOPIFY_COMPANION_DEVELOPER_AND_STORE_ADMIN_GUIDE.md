@@ -286,7 +286,7 @@ Recommended repository variables for the workflow:
 - `SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN`
   default: empty; must be set explicitly for uninstall verification
 - `SHOPIFY_PRODUCT_SERVICE_REF`
-  default: `shopify-bridge-prod`
+  default: `shopify-bridge-staging`
 - `SHOPIFY_EMBEDDED_HOST`
   default: empty; set only when merchant-session coverage is needed
 

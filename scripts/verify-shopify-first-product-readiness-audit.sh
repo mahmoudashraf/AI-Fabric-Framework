@@ -13,7 +13,7 @@ set -euo pipefail
 #
 # Optional:
 #   SHOPIFY_BRIDGE_ADMIN_API_KEY / *_FILE for bridge admin coverage and release-gate billing posture repair
-#   PRODUCT_SERVICE_REF=shopify-bridge-prod
+#   PRODUCT_SERVICE_REF=shopify-bridge-staging
 #   READINESS_AUDIT_OUT=/tmp/shopify-first-product-readiness-audit
 #   READINESS_AUDIT_QUERY_PACK=scripts/verification/shopify-first-product-readiness/answer-quality-query-pack.json
 #   READINESS_AUDIT_LOCAL_GATES=true to run local build/test gates inside this script
@@ -26,7 +26,7 @@ QUERY_PACK="${READINESS_AUDIT_QUERY_PACK:-${REPO_ROOT}/scripts/verification/shop
 SHOP_DOMAIN="${SHOP_DOMAIN:-${SHOPIFY_TEST_SHOP_DOMAIN:-shopping-companion-test.myshopify.com}}"
 SHOPIFY_BRIDGE_BASE_URL="${SHOPIFY_BRIDGE_BASE_URL:-}"
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
-PRODUCT_SERVICE_REF="${PRODUCT_SERVICE_REF:-shopify-bridge-prod}"
+PRODUCT_SERVICE_REF="${PRODUCT_SERVICE_REF:-shopify-bridge-staging}"
 READINESS_AUDIT_LOCAL_GATES="${READINESS_AUDIT_LOCAL_GATES:-false}"
 READINESS_AUDIT_REQUIRED_BILLING_TIER="${READINESS_AUDIT_REQUIRED_BILLING_TIER:-STARTER}"
 READINESS_AUDIT_ENSURE_BILLING_STATE="${READINESS_AUDIT_ENSURE_BILLING_STATE:-true}"

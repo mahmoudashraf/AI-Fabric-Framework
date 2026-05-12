@@ -252,15 +252,15 @@ mcp-execution-gateway
   healthPath: /actuator/health
   secretName: MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY
 
-shopify-bridge-prod
+shopify-bridge-staging
   serviceKind: SHOPIFY_BRIDGE_SERVICE
   environmentScope: staging
   baseUrl: https://shopify-bridge-staging.46.224.145.148.sslip.io
   healthPath: /actuator/health
-  secretName: MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY
+  secretName: MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY
 ```
 
-The service ref `shopify-bridge-prod` is a compatibility name in the current staging record. New production records should use explicit production refs and production secret names.
+The staging Bridge service ref is `shopify-bridge-staging`. Production records must use explicit production refs and production secret names, for example `shopify-bridge-production`, rather than reusing staging records.
 
 ## 9. Verification
 
@@ -295,7 +295,7 @@ curl -fsS -b "$PLATFORM_COOKIE_JAR" \
   https://loomai-platform-backend.46.224.145.148.sslip.io/api/product-services/mcp-execution-gateway/health
 
 curl -fsS -b "$PLATFORM_COOKIE_JAR" \
-  https://loomai-platform-backend.46.224.145.148.sslip.io/api/product-services/shopify-bridge-prod/health
+  https://loomai-platform-backend.46.224.145.148.sslip.io/api/product-services/shopify-bridge-staging/health
 ```
 
 Do not print raw secret values during verification.

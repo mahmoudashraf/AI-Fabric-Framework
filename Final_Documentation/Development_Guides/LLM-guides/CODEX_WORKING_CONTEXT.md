@@ -1159,3 +1159,12 @@ Critical fixes that made the gate pass:
 - Live proof after deploy: Platform backend `8143bc11a`, Runtime/MCP Gateway `b6ee0c348`, and Bridge `aa21c681a` were healthy on staging. Deployment version `ver-d0e6c12d` applied as release `rel-a58bfa25` with `APPLIED_VERIFIED` / `PASSED`.
 - Vectorization proof: readiness changed from blocked to `readyToRun=true`, then full reindex run `vrn-8a3a6f55` completed and the store returned `syncState=IN_SYNC`.
 - Expanded answer-quality proof: `/tmp/shopify-answer-quality-20260511T212114Z-expanded-final` passed `15/15`, including ski wax search, priced ski search, gift card, return/shipping source-gap behavior, cart confirmation, cart-context safe copy, customer-account auth safe copy, and internal-language guard.
+
+## 2026-05-12 Shopify Bridge Staging Service Ref Cleanup
+
+- Staging Platform product-service naming drift was corrected in place: the lifecycle-owning record `psv-48d286fa` now uses `serviceRef=shopify-bridge-staging`, display name `Shopify Bridge Service - Staging`, `environmentScope=staging`, and `secretName=MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY`.
+- The transient duplicate staging record was removed, the staging shop `shopping-companion-test.myshopify.com` remains bound to `psv-48d286fa`, and `/api/product-services/shopify-bridge-prod` now returns `404` on staging.
+- Bridge Coolify env `SHOPIFY_BRIDGE_SERVICE_REF` was changed to `shopify-bridge-staging`; Bridge was redeployed through Coolify deployment `t140poe2e0n1icri5e0et87y` and `/api/admin/overview` reported `serviceRef=shopify-bridge-staging`, `environmentScope=staging`, and `status=READY`.
+- Coolify app label was cleaned to `shopify-bridge-shopify-bridge-staging` with description `Managed product service shopify-bridge-staging`.
+- Final Platform vectorization proof through the renamed binding passed: reindex run `vrn-43385c9f` completed with `processedRecords=80`, `succeededRecords=80`, `failedRecords=0`, and store `syncState=IN_SYNC`.
+- Operational script defaults and guides now use `shopify-bridge-staging` for staging. Production records should use explicit production refs such as `shopify-bridge-production`; do not reuse staging service refs or staging managed secret names for production.

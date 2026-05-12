@@ -506,11 +506,11 @@ Operator helper now available:
 Current intended usage:
 
 ```bash
-PLATFORM_BASE_URL=https://ai-fabric-framework-production-324f.up.railway.app \
-SHOPIFY_BRIDGE_BASE_URL=https://shopify-bridge-shopify-bridge-pr-production.up.railway.app \
+PLATFORM_BASE_URL=https://loomai-platform-backend.46.224.145.148.sslip.io \
+SHOPIFY_BRIDGE_BASE_URL=https://shopify-bridge-staging.46.224.145.148.sslip.io \
 SHOP_DOMAIN=shopping-companion-test.myshopify.com \
 PLATFORM_SESSION_COOKIE_JAR=/tmp/platform-shopify.cookies \
-PRODUCT_SERVICE_REF=shopify-bridge-prod \
+PRODUCT_SERVICE_REF=shopify-bridge-staging \
 bash scripts/run-shopify-companion-rollout.sh
 ```
 
