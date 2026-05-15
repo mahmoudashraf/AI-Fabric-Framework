@@ -7,6 +7,7 @@ import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
+import { extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 
 export function useChatFlow({
   chatQuery,
@@ -234,8 +235,10 @@ export function useChatFlow({
         let resultType: ResultType | undefined;
         let messageDocs: Document[] | undefined;
 
+        const customerAccountConnect = extractCustomerAccountConnectAction(data);
+
         if (data.result && data.result.sanitizedPayload) {
-          messageContent = data.result.sanitizedPayload.message || "I processed your query successfully.";
+          messageContent = extractChatResultMessage(data, "I processed your query successfully.");
           result = data.result;
           resultType = data.result.type;
           messageContent =
@@ -313,7 +316,7 @@ export function useChatFlow({
             messageDocs = [...(messageDocs || []), ...normalizedSugDocs];
           }
         } else {
-          messageContent = data.response || data.message || "I processed your query successfully.";
+          messageContent = extractChatResultMessage(data, "I processed your query successfully.");
         }
 
         emitEvent("message:received", {
@@ -348,6 +351,7 @@ export function useChatFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          customerAccountConnect,
           documents: messageDocs,
           debugData: messageDebugData,
         };

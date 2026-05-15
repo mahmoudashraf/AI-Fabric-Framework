@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
+import { extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -56,12 +57,14 @@ export function useClarificationFlow({
         let result: ChatResult | undefined;
         let resultType: ResultType | undefined;
 
+        const customerAccountConnect = extractCustomerAccountConnectAction(data);
+
         if (data.result && data.result.sanitizedPayload) {
-          messageContent = data.result.sanitizedPayload.message || "Action processed.";
+          messageContent = extractChatResultMessage(data, "Action processed.");
           result = data.result;
           resultType = data.result.type;
         } else {
-          messageContent = data.response || data.message || "Action processed.";
+          messageContent = extractChatResultMessage(data, "Action processed.");
         }
 
         const aiMessage: ChatMessage = {
@@ -71,6 +74,7 @@ export function useClarificationFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          customerAccountConnect,
         };
 
         setChatMessages((prev) => [...prev, aiMessage]);

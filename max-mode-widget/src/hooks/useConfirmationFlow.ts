@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
+import { extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -60,12 +61,14 @@ export function useConfirmationFlow({
         let result: ChatResult | undefined;
         let resultType: ResultType | undefined;
 
+        const customerAccountConnect = extractCustomerAccountConnectAction(data);
+
         if (data.result && data.result.sanitizedPayload) {
-          messageContent = data.result.sanitizedPayload.message || "I processed your confirmation.";
+          messageContent = extractChatResultMessage(data, "I processed your confirmation.");
           result = data.result;
           resultType = data.result.type;
         } else {
-          messageContent = data.response || data.message || "I processed your confirmation.";
+          messageContent = extractChatResultMessage(data, "I processed your confirmation.");
         }
 
         const aiMessage: ChatMessage = {
@@ -75,6 +78,7 @@ export function useConfirmationFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          customerAccountConnect,
         };
 
         setChatMessages((prev) => [...prev, aiMessage]);

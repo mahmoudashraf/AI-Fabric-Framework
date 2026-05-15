@@ -149,6 +149,12 @@
         pageModeMappings: runtime.pageModeMappings,
         showUtilityPanel: false,
         companionDock: companionDockEnabled === true,
+        customerAccountAuth: {
+          startUrl: options.payload.customerAccountAuthStartUrl || null,
+          sessionUrl: options.payload.customerAccountAuthSessionUrl || null,
+          shopperSessionId: runtime.shopperSessionId,
+          returnTo: window.location.href,
+        },
       },
       onEvent: function (event) {
         if (event && event.type === 'widget:opened') {

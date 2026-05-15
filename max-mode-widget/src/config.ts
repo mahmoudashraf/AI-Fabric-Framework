@@ -140,6 +140,17 @@ export interface MaxModeHostStarterPrompt {
   mode?: MaxModeMode;
 }
 
+export interface MaxModeHostCustomerAccountAuthConfig {
+  /** Bridge Customer Account OAuth start URL exposed by the Shopify bootstrap */
+  startUrl?: string;
+  /** Optional Bridge Customer Account session-status URL for host probes */
+  sessionUrl?: string;
+  /** Stable storefront shopper session id sent with chat requests */
+  shopperSessionId?: string;
+  /** Optional return URL after Shopify Customer Account authorization */
+  returnTo?: string;
+}
+
 export interface MaxModeHostConfig {
   /** Visible launcher label for storefront/product hosts */
   launcherLabel?: string;
@@ -171,6 +182,8 @@ export interface MaxModeHostConfig {
   showUtilityPanel?: boolean;
   /** Render the compact storefront dock that shares the Max Mode chat runtime */
   companionDock?: boolean;
+  /** Optional Shopify Customer Account auth handoff used for customer-owned resources */
+  customerAccountAuth?: MaxModeHostCustomerAccountAuthConfig;
 }
 
 export interface MaxModeWidgetConfig {
@@ -206,6 +219,7 @@ export type MaxModeEventType =
   | "widget:closed"
   | "message:sent"
   | "message:received"
+  | "customer-account-auth:start"
   | "cart:add"
   | "cart:remove"
   | "cart:checkout"
@@ -262,6 +276,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     initialAttachments: undefined,
     showUtilityPanel: true,
     companionDock: false,
+    customerAccountAuth: undefined,
   },
   onEvent: undefined,
   onClose: undefined,

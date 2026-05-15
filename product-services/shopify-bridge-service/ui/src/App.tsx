@@ -3907,9 +3907,20 @@ function extractAssistantMessage(payload: unknown): string {
   if (!payload || typeof payload !== 'object') {
     return 'I could not process that request.'
   }
-  const result = (payload as { result?: { sanitizedPayload?: { message?: unknown }; message?: unknown } }).result
+  const result = (payload as {
+    result?: {
+      sanitizedPayload?: { safeSummary?: unknown; message?: unknown; answer?: unknown }
+      message?: unknown
+    }
+  }).result
+  if (typeof result?.sanitizedPayload?.safeSummary === 'string' && result.sanitizedPayload.safeSummary.trim()) {
+    return result.sanitizedPayload.safeSummary.trim()
+  }
   if (typeof result?.sanitizedPayload?.message === 'string' && result.sanitizedPayload.message.trim()) {
     return result.sanitizedPayload.message.trim()
+  }
+  if (typeof result?.sanitizedPayload?.answer === 'string' && result.sanitizedPayload.answer.trim()) {
+    return result.sanitizedPayload.answer.trim()
   }
   if (typeof result?.message === 'string' && result.message.trim()) {
     return result.message.trim()

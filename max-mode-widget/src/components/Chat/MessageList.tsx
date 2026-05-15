@@ -2,7 +2,7 @@ import type { RefObject } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
 
-import type { ChatMessage, ResultType } from "@/types";
+import type { ChatMessage, CustomerAccountConnectAction, ResultType } from "@/types";
 import type { AiStyles } from "./MessageBubble";
 import { MessageBubble } from "./MessageBubble";
 import { AIThinkingAnimation } from "./AIThinkingAnimation";
@@ -29,6 +29,7 @@ export function MessageList({
   isItemAttached,
   onAttachActionResultItem,
   onNextStepClick,
+  onCustomerAccountConnect,
   onClarificationSubmit,
 }: {
   containerClassName: string;
@@ -52,6 +53,7 @@ export function MessageList({
   isItemAttached: (itemId: string) => boolean;
   onAttachActionResultItem: (item: any) => void;
   onNextStepClick: (query: string) => void;
+  onCustomerAccountConnect: (action: CustomerAccountConnectAction) => void;
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
 }) {
   return (
@@ -84,6 +86,7 @@ export function MessageList({
                 isItemAttached={isItemAttached}
                 onAttachActionResultItem={onAttachActionResultItem}
                 onNextStepClick={onNextStepClick}
+                onCustomerAccountConnect={onCustomerAccountConnect}
                 onClarificationSubmit={onClarificationSubmit}
               />
             );

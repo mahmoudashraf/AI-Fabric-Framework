@@ -465,6 +465,10 @@ public class ShopifyStorefrontChatService {
     }
 
     private JsonNode policyStorefrontAnswer(String message) {
+        return policyStorefrontAnswer(message, null);
+    }
+
+    private JsonNode policyStorefrontAnswer(String message, String customerActionRequirement) {
         ObjectNode response = objectMapper.createObjectNode();
         response.put("success", true);
         response.put("conversationId", "chat-" + UUID.randomUUID());
@@ -475,8 +479,18 @@ public class ShopifyStorefrontChatService {
         ObjectNode sanitizedPayload = result.putObject("sanitizedPayload");
         sanitizedPayload.put("type", "INFORMATION_PROVIDED");
         sanitizedPayload.put("success", true);
+        sanitizedPayload.put("message", message);
         sanitizedPayload.put("safeSummary", message);
         sanitizedPayload.put("answer", message);
+        if ("CUSTOMER_ACCOUNT_AUTH_REQUIRED".equals(customerActionRequirement)) {
+            ObjectNode data = sanitizedPayload.putObject("data");
+            data.put("errorCode", "CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+            data.put("customerAccountAuthRequired", true);
+            ObjectNode customerAccountAuth = data.putObject("customerAccountAuth");
+            customerAccountAuth.put("required", true);
+            customerAccountAuth.put("reason", "ORDER_LOOKUP");
+            result.set("data", data.deepCopy());
+        }
         return response;
     }
 
@@ -618,6 +632,19 @@ public class ShopifyStorefrontChatService {
                                               ShopifyBridgeStoreSummary store,
                                               ShopifyBridgeBillingSummary billingSummary) {
         String selectedAction = selectedActionId(response);
+        String errorCode = selectedErrorCode(response);
+        if ("CUSTOMER_ACCOUNT_AUTH_REQUIRED".equals(errorCode)
+            || "INVALID_CUSTOMER_ACCOUNT_SESSION".equals(errorCode)) {
+            return policyStorefrontAnswer(
+                "Connect your store account to view or manage your orders. If you still need help, contact the store support team with your order number and checkout email.",
+                "CUSTOMER_ACCOUNT_AUTH_REQUIRED"
+            );
+        }
+        if ("CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED".equals(errorCode)) {
+            return policyStorefrontAnswer(
+                "Customer account order lookup is not available for this store yet. Contact the store support team with your order number and checkout email."
+            );
+        }
         if (selectedAction == null) {
             return null;
         }
@@ -625,14 +652,6 @@ public class ShopifyStorefrontChatService {
             && !orderMutationSelfServiceApproved(billingSummary)) {
             return policyStorefrontAnswer(
                 "This store has not enabled self-service order changes in chat. Contact the store support team so they can review the request safely."
-            );
-        }
-        String errorCode = selectedErrorCode(response);
-        if ("CUSTOMER_ACCOUNT_AUTH_REQUIRED".equals(errorCode)
-            || "INVALID_CUSTOMER_ACCOUNT_SESSION".equals(errorCode)
-            || "CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED".equals(errorCode)) {
-            return policyStorefrontAnswer(
-                "Please sign in to your store account to view or manage orders. If you still need help, contact the store support team with your order number and checkout email."
             );
         }
         if ("shopify_get_cart".equals(selectedAction) && genericMcpToolResult(response)) {
@@ -784,11 +803,22 @@ public class ShopifyStorefrontChatService {
         copySafeValue(data, safe, "query");
         copySafeValue(data, safe, "response");
         copySafeValue(data, safe, "action");
+        copySafeValue(data, safe, "errorCode");
+        copySafeValue(data, safe, "customerAccountAuthRequired");
         copySafeValue(data, safe, "requiresConfirmation");
         copySafeValue(data, safe, "confirmationRequired");
         copySafeValue(data, safe, "confirmationToken");
         copySafeValue(data, safe, "confirmationPrompt");
         copySafeValue(data, safe, "confirmationMessage");
+        JsonNode customerAccountAuth = data.get("customerAccountAuth");
+        if (customerAccountAuth != null && customerAccountAuth.isObject()) {
+            ObjectNode safeCustomerAccountAuth = objectMapper.createObjectNode();
+            copySafeValue(customerAccountAuth, safeCustomerAccountAuth, "required");
+            copySafeValue(customerAccountAuth, safeCustomerAccountAuth, "reason");
+            if (!safeCustomerAccountAuth.isEmpty()) {
+                safe.set("customerAccountAuth", safeCustomerAccountAuth);
+            }
+        }
         JsonNode actionResult = data.get("actionResult");
         if (actionResult != null && !actionResult.isNull()) {
             safe.set("actionResult", storefrontSafeActionResult(actionResult));

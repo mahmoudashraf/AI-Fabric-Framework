@@ -127,6 +127,7 @@ export function CompanionDock({
                 onNextStepClick={(query) => {
                   void controller.resendChatQuery(query);
                 }}
+                onCustomerAccountConnect={controller.connectCustomerAccount}
                 onClarificationSubmit={controller.handleClarificationSubmit}
               />
             )}

@@ -15,11 +15,13 @@ import {
   HelpCircle,
   Info,
   Lightbulb,
+  LogIn,
   Paperclip,
   Plus,
   RotateCcw,
   Search,
   Send,
+  ShieldCheck,
   Sparkles,
   Star,
   XCircle,
@@ -31,7 +33,7 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/ui/button";
 
 import { getActionIcon, parseActionMessage } from "@/actionMessage";
-import type { ChatMessage, Document } from "@/types";
+import type { ChatMessage, CustomerAccountConnectAction, Document } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 import { ActionResultRenderer } from "../ActionResultRenderer";
 
@@ -65,6 +67,7 @@ export function MessageBubble({
   isItemAttached,
   onAttachActionResultItem,
   onNextStepClick,
+  onCustomerAccountConnect,
   onClarificationSubmit,
 }: {
   message: ChatMessage;
@@ -86,6 +89,7 @@ export function MessageBubble({
   isItemAttached: (itemId: string) => boolean;
   onAttachActionResultItem: (item: any) => void;
   onNextStepClick: (query: string) => void;
+  onCustomerAccountConnect: (action: CustomerAccountConnectAction) => void;
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
 }) {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -241,6 +245,32 @@ export function MessageBubble({
               </p>
             );
           })()}
+
+          {message.type === "ai" && message.customerAccountConnect && (
+            <div className="mt-4 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-3 shadow-sm dark:border-blue-900/60 dark:from-blue-950/40 dark:to-indigo-950/30">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm dark:bg-blue-950 dark:text-blue-300">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Account connection required</p>
+                  <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                    {message.customerAccountConnect.description ||
+                      "Authorize the assistant to read your customer account securely, then ask again."}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => onCustomerAccountConnect(message.customerAccountConnect!)}
+                    className="mt-3 rounded-full bg-blue-700 px-4 text-white shadow-sm hover:bg-blue-800"
+                  >
+                    <LogIn className="mr-2 h-4 w-4" />
+                    {message.customerAccountConnect.label || "Connect store account"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {message.resultType === "CONFIRMATION_REQUIRED" &&
             confirmationStatus[message.id] !== "confirmed" &&

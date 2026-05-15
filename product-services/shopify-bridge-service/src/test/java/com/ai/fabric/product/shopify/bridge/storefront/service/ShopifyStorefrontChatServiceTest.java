@@ -229,8 +229,54 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
-        assertThat(answer).contains("sign in", "store support team");
+        assertThat(answer).contains("Connect your store account", "store support team");
         assertThat(answer).doesNotContain("MCP", "OAuth", "PKCE", "token");
+        JsonNode safeData = response.path("result").path("sanitizedPayload").path("data");
+        assertThat(safeData.path("errorCode").asText()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+        assertThat(safeData.path("customerAccountAuthRequired").asBoolean()).isTrue();
+        assertThat(safeData.path("customerAccountAuth").path("required").asBoolean()).isTrue();
+    }
+
+    @Test
+    void queryDoesNotOfferCustomerAuthConnectWhenCustomerAccountMcpIsNotConfigured() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"ACTION_EXECUTED",
+                "success":false,
+                "message":"Customer Account MCP is not configured.",
+                "data":{
+                  "action":"shopify_get_most_recent_order_status",
+                  "actionResult":{
+                    "success":false,
+                    "errorCode":"CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED",
+                    "message":"Customer Account MCP is not configured."
+                  }
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Where is my order?",
+                  "storefrontContext":{"pageType":"account"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        JsonNode safeData = response.path("result").path("sanitizedPayload").path("data");
+        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+            .contains("not available", "store support team");
+        assertThat(safeData.path("customerAccountAuthRequired").asBoolean(false)).isFalse();
     }
 
     @Test

@@ -15,7 +15,15 @@ import {
   type MaxModeHostConfig,
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
-import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
+import { buildCustomerAccountConnectUrl } from "@/chatResult";
+import type {
+  ChatMessage,
+  CustomerAccountConnectAction,
+  Document,
+  ResultType,
+  RuntimeAuthContextSummary,
+  RuntimeShellConfigSummary,
+} from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
 import { useChatFlow } from "./useChatFlow";
@@ -892,6 +900,20 @@ export function useMaxModeController({
     setFocusedMessageId(messageId);
   }, []);
 
+  const connectCustomerAccount = useCallback((action: CustomerAccountConnectAction) => {
+    const targetUrl = buildCustomerAccountConnectUrl(action);
+    if (!targetUrl) {
+      toast({
+        title: "Account connection unavailable",
+        description: "This store has not published a customer account connection URL yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+    emitEvent("customer-account-auth:start");
+    window.location.assign(targetUrl);
+  }, [toast]);
+
   const expandActionResults = useCallback((messageId: string, nextCount: number) => {
     setExpandedActions((prev) => ({
       ...prev,
@@ -1141,6 +1163,7 @@ export function useMaxModeController({
     reattachItemWithToast,
     openSourcesMobile,
     openSourcesDesktop,
+    connectCustomerAccount,
     expandActionResults,
     removeNonAiAttachmentByIndex,
     removeAiSearchAttachment,
