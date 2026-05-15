@@ -21,9 +21,11 @@
           throw new Error('Max Mode widget API is unavailable.')
         }
         var runtime = resolveShellRuntime(options)
-        maxModeApi.init(buildMaxModeConfig(options, runtime, true, false))
-
-        options.root.dataset.status = 'ready'
+        return completeCustomerAuthClaimIfPresent(options.payload, runtime.shopperSessionId)
+          .then(function () {
+            maxModeApi.init(buildMaxModeConfig(options, runtime, true, false))
+            options.root.dataset.status = 'ready'
+          })
       })
   }
 
@@ -37,8 +39,11 @@
           throw new Error('Max Mode widget API is unavailable.')
         }
         var runtime = resolveShellRuntime(options)
-        maxModeApi.init(buildMaxModeConfig(options, runtime, options.payload.askAssistantLauncherEnabled === true, true))
-        options.root.dataset.status = 'ready'
+        return completeCustomerAuthClaimIfPresent(options.payload, runtime.shopperSessionId)
+          .then(function () {
+            maxModeApi.init(buildMaxModeConfig(options, runtime, options.payload.askAssistantLauncherEnabled === true, true))
+            options.root.dataset.status = 'ready'
+          })
       })
   }
 
@@ -161,6 +166,74 @@
           recordStorefrontEvent(options.payload, runtime.shopperSessionId, options.storefrontContext, 'WIDGET_OPENED')
         }
       },
+    }
+  }
+
+  function completeCustomerAuthClaimIfPresent(payload, shopperSessionId) {
+    var claimId = currentCustomerAuthClaim()
+    if (!claimId || !shopperSessionId || !payload || !payload.customerAccountAuthStartUrl) {
+      return Promise.resolve()
+    }
+    var claimUrl = buildCustomerAccountClaimUrl(payload.customerAccountAuthStartUrl, claimId, shopperSessionId)
+    if (!claimUrl) {
+      cleanCustomerAuthClaimUrl()
+      return Promise.resolve()
+    }
+    return fetch(claimUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'X-AI-FABRIC-SHOPPER-SESSION-ID': shopperSessionId,
+      },
+    }).then(function (response) {
+      if (response.ok || response.status === 409 || response.status === 400) {
+        cleanCustomerAuthClaimUrl()
+      }
+      return null
+    }).catch(function () {
+      return null
+    })
+  }
+
+  function currentCustomerAuthClaim() {
+    try {
+      var url = new URL(window.location.href)
+      if (url.searchParams.get('loomCustomerAuth') !== 'connected') {
+        return null
+      }
+      var claim = (url.searchParams.get('loomCustomerAuthClaim') || '').trim()
+      return /^scac-[A-Za-z0-9]{32}$/.test(claim) ? claim : null
+    } catch (_error) {
+      return null
+    }
+  }
+
+  function buildCustomerAccountClaimUrl(startUrl, claimId, shopperSessionId) {
+    try {
+      var url = new URL(startUrl, window.location.href)
+      url.pathname = url.pathname.replace(/\/start$/, '/claim')
+      if (!/\/claim$/.test(url.pathname)) {
+        return null
+      }
+      url.searchParams.set('claim', claimId)
+      url.searchParams.set('shopperSessionId', shopperSessionId)
+      return url.toString()
+    } catch (_error) {
+      return null
+    }
+  }
+
+  function cleanCustomerAuthClaimUrl() {
+    try {
+      if (!window.history || typeof window.history.replaceState !== 'function') {
+        return
+      }
+      var url = new URL(window.location.href)
+      url.searchParams.delete('loomCustomerAuthClaim')
+      url.searchParams.delete('loomCustomerAuth')
+      window.history.replaceState(window.history.state, document.title, url.toString())
+    } catch (_error) {
+      return null
     }
   }
 

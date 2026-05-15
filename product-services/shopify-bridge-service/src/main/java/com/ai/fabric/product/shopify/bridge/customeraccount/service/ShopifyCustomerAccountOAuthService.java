@@ -3,8 +3,10 @@ package com.ai.fabric.product.shopify.bridge.customeraccount.service;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyMcpExternalAuthProperties;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.customeraccount.entity.ShopifyCustomerAccountAuthClaimEntity;
 import com.ai.fabric.product.shopify.bridge.customeraccount.entity.ShopifyCustomerAccountSessionEntity;
 import com.ai.fabric.product.shopify.bridge.customeraccount.model.ShopifyCustomerAccountAuthStatus;
+import com.ai.fabric.product.shopify.bridge.customeraccount.repository.ShopifyCustomerAccountAuthClaimRepository;
 import com.ai.fabric.product.shopify.bridge.customeraccount.repository.ShopifyCustomerAccountSessionRepository;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeCustomerAccountConfigSummary;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -50,12 +52,15 @@ public class ShopifyCustomerAccountOAuthService {
     private static final Pattern CUSTOMER_ACCOUNT_DOMAIN_PATTERN =
         Pattern.compile("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$");
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
+    private static final Pattern SAFE_AUTH_CLAIM_ID = Pattern.compile("^scac-[A-Za-z0-9]{32}$");
     private static final Duration TOKEN_REFRESH_SKEW = Duration.ofMinutes(2);
+    private static final Duration AUTH_CLAIM_TTL = Duration.ofMinutes(5);
 
     private final ShopifyBridgeProperties bridgeProperties;
     private final ShopifyMcpExternalAuthProperties authProperties;
     private final ShopifyCustomerAccountSecurityService securityService;
     private final ShopifyCustomerAccountSessionRepository repository;
+    private final ShopifyCustomerAccountAuthClaimRepository authClaimRepository;
     private final PlatformShopifyStoreClient platformStoreClient;
     private final RestClient restClient;
     private final Clock clock;
@@ -65,6 +70,7 @@ public class ShopifyCustomerAccountOAuthService {
                                               ShopifyMcpExternalAuthProperties authProperties,
                                               ShopifyCustomerAccountSecurityService securityService,
                                               ShopifyCustomerAccountSessionRepository repository,
+                                              ShopifyCustomerAccountAuthClaimRepository authClaimRepository,
                                               RestClient.Builder restClientBuilder,
                                               PlatformShopifyStoreClient platformStoreClient) {
         this(
@@ -72,6 +78,7 @@ public class ShopifyCustomerAccountOAuthService {
             authProperties,
             securityService,
             repository,
+            authClaimRepository,
             platformStoreClient,
             customerAccountRestClient(restClientBuilder, authProperties),
             Clock.systemUTC()
@@ -82,6 +89,7 @@ public class ShopifyCustomerAccountOAuthService {
                                        ShopifyMcpExternalAuthProperties authProperties,
                                        ShopifyCustomerAccountSecurityService securityService,
                                        ShopifyCustomerAccountSessionRepository repository,
+                                       ShopifyCustomerAccountAuthClaimRepository authClaimRepository,
                                        RestClient.Builder restClientBuilder,
                                        Clock clock) {
         this(
@@ -89,6 +97,7 @@ public class ShopifyCustomerAccountOAuthService {
             authProperties,
             securityService,
             repository,
+            authClaimRepository,
             null,
             restClientBuilder.build(),
             clock
@@ -99,6 +108,7 @@ public class ShopifyCustomerAccountOAuthService {
                                        ShopifyMcpExternalAuthProperties authProperties,
                                        ShopifyCustomerAccountSecurityService securityService,
                                        ShopifyCustomerAccountSessionRepository repository,
+                                       ShopifyCustomerAccountAuthClaimRepository authClaimRepository,
                                        PlatformShopifyStoreClient platformStoreClient,
                                        RestClient.Builder restClientBuilder,
                                        Clock clock) {
@@ -107,6 +117,7 @@ public class ShopifyCustomerAccountOAuthService {
             authProperties,
             securityService,
             repository,
+            authClaimRepository,
             platformStoreClient,
             restClientBuilder.build(),
             clock
@@ -117,6 +128,7 @@ public class ShopifyCustomerAccountOAuthService {
                                                ShopifyMcpExternalAuthProperties authProperties,
                                                ShopifyCustomerAccountSecurityService securityService,
                                                ShopifyCustomerAccountSessionRepository repository,
+                                               ShopifyCustomerAccountAuthClaimRepository authClaimRepository,
                                                PlatformShopifyStoreClient platformStoreClient,
                                                RestClient restClient,
                                                Clock clock) {
@@ -124,6 +136,7 @@ public class ShopifyCustomerAccountOAuthService {
         this.authProperties = authProperties;
         this.securityService = securityService;
         this.repository = repository;
+        this.authClaimRepository = authClaimRepository;
         this.platformStoreClient = platformStoreClient;
         this.restClient = restClient;
         this.clock = clock;
@@ -176,12 +189,13 @@ public class ShopifyCustomerAccountOAuthService {
         }
         TokenResponse tokenResponse = exchangeAuthorizationCode(claims, normalizedCode);
         persistSession(claims, tokenResponse, now);
-        return callbackReturnTo(claims.returnTo(), true);
+        String claimId = createAuthClaim(claims, now);
+        return callbackReturnTo(claims.returnTo(), true, claimId);
     }
 
     public URI failedAuthorizationReturn(String state) {
         AuthStateClaims claims = decodeState(state);
-        return callbackReturnTo(claims.returnTo(), false);
+        return callbackReturnTo(claims.returnTo(), false, null);
     }
 
     @Transactional(readOnly = true)
@@ -219,6 +233,50 @@ public class ShopifyCustomerAccountOAuthService {
             entity.setUpdatedAt(now);
             repository.save(entity);
         });
+    }
+
+    @Transactional
+    public ShopifyCustomerAccountAuthStatus claimBrowserSession(String shopDomain,
+                                                               String shopperSessionId,
+                                                               String claimId) {
+        String normalizedShop = normalizeShopDomain(shopDomain);
+        String normalizedSession = normalizeShopperSessionId(shopperSessionId);
+        String normalizedClaim = normalizeAuthClaimId(claimId);
+        Instant now = clock.instant();
+        ShopifyCustomerAccountAuthClaimEntity claim = authClaimRepository.findById(normalizedClaim)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Shopify Customer Account auth claim is not available."));
+        if (!normalizedShop.equalsIgnoreCase(claim.getShopDomain())
+            || claim.getConsumedAt() != null
+            || claim.getExpiresAt() == null
+            || !claim.getExpiresAt().isAfter(now)) {
+            throw new ResponseStatusException(CONFLICT, "Shopify Customer Account auth claim is expired or already used.");
+        }
+
+        ShopifyCustomerAccountSessionEntity source = repository
+            .findByShopDomainIgnoreCaseAndShopperSessionIdHashAndRevokedAtIsNull(
+                normalizedShop,
+                claim.getSourceShopperSessionIdHash()
+            )
+            .filter(entity -> entity.getSessionExpiresAt() != null && entity.getSessionExpiresAt().isAfter(now))
+            .filter(entity -> StringUtils.hasText(entity.getAccessTokenCiphertext()))
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Shopify Customer Account auth session is not available."));
+
+        String targetHash = sessionHash(normalizedShop, normalizedSession);
+        if (!targetHash.equals(claim.getSourceShopperSessionIdHash())) {
+            ShopifyCustomerAccountSessionEntity target = repository
+                .findByShopDomainIgnoreCaseAndShopperSessionIdHash(normalizedShop, targetHash)
+                .orElseGet(ShopifyCustomerAccountSessionEntity::new);
+            if (target.getId() == null) {
+                target.setId("scas-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16));
+                target.setCreatedAt(now);
+            }
+            copySessionBinding(source, target, normalizedShop, targetHash, now);
+            repository.save(target);
+        }
+
+        claim.setConsumedAt(now);
+        authClaimRepository.save(claim);
+        return status(normalizedShop, normalizedSession);
     }
 
     @Transactional
@@ -293,6 +351,37 @@ public class ShopifyCustomerAccountOAuthService {
         entity.setRevokedAt(null);
         applyTokenResponse(entity, response, now);
         repository.save(entity);
+    }
+
+    private String createAuthClaim(AuthStateClaims claims, Instant now) {
+        ShopifyCustomerAccountAuthClaimEntity claim = new ShopifyCustomerAccountAuthClaimEntity();
+        claim.setId("scac-" + UUID.randomUUID().toString().replace("-", ""));
+        claim.setShopDomain(claims.shopDomain());
+        claim.setSourceShopperSessionIdHash(sessionHash(claims.shopDomain(), claims.shopperSessionId()));
+        claim.setCreatedAt(now);
+        claim.setExpiresAt(now.plus(AUTH_CLAIM_TTL));
+        authClaimRepository.save(claim);
+        return claim.getId();
+    }
+
+    private void copySessionBinding(ShopifyCustomerAccountSessionEntity source,
+                                    ShopifyCustomerAccountSessionEntity target,
+                                    String shopDomain,
+                                    String shopperSessionIdHash,
+                                    Instant now) {
+        target.setShopDomain(shopDomain);
+        target.setShopperSessionIdHash(shopperSessionIdHash);
+        target.setTokenEndpoint(source.getTokenEndpoint());
+        target.setAccessTokenCiphertext(source.getAccessTokenCiphertext());
+        target.setRefreshTokenCiphertext(source.getRefreshTokenCiphertext());
+        target.setIdTokenCiphertext(source.getIdTokenCiphertext());
+        target.setTokenType(source.getTokenType());
+        target.setScopesText(source.getScopesText());
+        target.setAccessTokenExpiresAt(source.getAccessTokenExpiresAt());
+        target.setRefreshTokenExpiresAt(source.getRefreshTokenExpiresAt());
+        target.setSessionExpiresAt(source.getSessionExpiresAt());
+        target.setRevokedAt(null);
+        target.setUpdatedAt(now);
     }
 
     private void applyTokenResponse(ShopifyCustomerAccountSessionEntity entity, TokenResponse response, Instant now) {
@@ -406,11 +495,14 @@ public class ShopifyCustomerAccountOAuthService {
         return claims;
     }
 
-    private URI callbackReturnTo(String returnTo, boolean success) {
-        return UriComponentsBuilder.fromUri(URI.create(returnTo))
+    private URI callbackReturnTo(String returnTo, boolean success, String claimId) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUri(URI.create(returnTo))
             .replaceQueryParam("loomCustomerAuth", success ? "connected" : "failed")
-            .build(true)
-            .toUri();
+            .replaceQueryParam("loomCustomerAuthClaim");
+        if (success && StringUtils.hasText(claimId)) {
+            builder.queryParam("loomCustomerAuthClaim", claimId);
+        }
+        return builder.build(true).toUri();
     }
 
     private String safeReturnTo(String shopDomain, String customerAccountDomain, String returnTo) {
@@ -530,6 +622,14 @@ public class ShopifyCustomerAccountOAuthService {
             throw new ResponseStatusException(CONFLICT, message);
         }
         return value.trim();
+    }
+
+    private String normalizeAuthClaimId(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (!SAFE_AUTH_CLAIM_ID.matcher(normalized).matches()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Missing or invalid Shopify Customer Account auth claim.");
+        }
+        return normalized;
     }
 
     private String text(JsonNode node, String field) {

@@ -3,8 +3,10 @@ package com.ai.fabric.product.shopify.bridge.customeraccount.service;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyBridgeProperties;
 import com.ai.fabric.product.shopify.bridge.config.ShopifyMcpExternalAuthProperties;
 import com.ai.fabric.product.shopify.bridge.client.platform.PlatformShopifyStoreClient;
+import com.ai.fabric.product.shopify.bridge.customeraccount.entity.ShopifyCustomerAccountAuthClaimEntity;
 import com.ai.fabric.product.shopify.bridge.customeraccount.entity.ShopifyCustomerAccountSessionEntity;
 import com.ai.fabric.product.shopify.bridge.customeraccount.model.ShopifyCustomerAccountAuthStatus;
+import com.ai.fabric.product.shopify.bridge.customeraccount.repository.ShopifyCustomerAccountAuthClaimRepository;
 import com.ai.fabric.product.shopify.bridge.customeraccount.repository.ShopifyCustomerAccountSessionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -47,7 +49,8 @@ class ShopifyCustomerAccountOAuthServiceTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         ShopifyCustomerAccountSessionRepository repository = mock(ShopifyCustomerAccountSessionRepository.class);
-        ShopifyCustomerAccountOAuthService service = service(repository, builder);
+        ShopifyCustomerAccountAuthClaimRepository claimRepository = mock(ShopifyCustomerAccountAuthClaimRepository.class);
+        ShopifyCustomerAccountOAuthService service = service(repository, claimRepository, builder);
         when(repository.findByShopDomainIgnoreCaseAndShopperSessionIdHash(
             eq("alpha.myshopify.com"),
             anyString()
@@ -96,7 +99,10 @@ class ShopifyCustomerAccountOAuthServiceTest {
 
         URI returnTo = service.completeAuthorization("oauth-code", state);
 
-        assertThat(returnTo.toString()).isEqualTo("https://alpha.myshopify.com/products/red-bag?loomCustomerAuth=connected");
+        var returnQuery = UriComponentsBuilder.fromUri(returnTo).build().getQueryParams();
+        assertThat(returnTo.toString()).startsWith("https://alpha.myshopify.com/products/red-bag?");
+        assertThat(returnQuery.getFirst("loomCustomerAuth")).isEqualTo("connected");
+        assertThat(returnQuery.getFirst("loomCustomerAuthClaim")).matches("^scac-[A-Za-z0-9]{32}$");
         ArgumentCaptor<ShopifyCustomerAccountSessionEntity> captor =
             ArgumentCaptor.forClass(ShopifyCustomerAccountSessionEntity.class);
         verify(repository).save(captor.capture());
@@ -114,6 +120,7 @@ class ShopifyCustomerAccountOAuthServiceTest {
         ShopifyCustomerAccountAuthStatus status = service.status("alpha.myshopify.com", "shopper-session-1");
         assertThat(status.authenticated()).isTrue();
         assertThat(status.scopes()).isEqualTo("customer-account-mcp-api:full");
+        verify(claimRepository).save(org.mockito.ArgumentMatchers.any(ShopifyCustomerAccountAuthClaimEntity.class));
         server.verify();
     }
 
@@ -241,12 +248,86 @@ class ShopifyCustomerAccountOAuthServiceTest {
 
         URI returnTo = service.completeAuthorization("oauth-code", state);
 
-        assertThat(returnTo.toString()).isEqualTo("https://shop-staging.loomai.pro/account/orders?loomCustomerAuth=connected");
+        var returnQuery = UriComponentsBuilder.fromUri(returnTo).build().getQueryParams();
+        assertThat(returnTo.toString()).startsWith("https://shop-staging.loomai.pro/account/orders?");
+        assertThat(returnQuery.getFirst("loomCustomerAuth")).isEqualTo("connected");
+        assertThat(returnQuery.getFirst("loomCustomerAuthClaim")).matches("^scac-[A-Za-z0-9]{32}$");
         ArgumentCaptor<ShopifyCustomerAccountSessionEntity> captor =
             ArgumentCaptor.forClass(ShopifyCustomerAccountSessionEntity.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getShopDomain()).isEqualTo("alpha.myshopify.com");
         server.verify();
+    }
+
+    @Test
+    void claimBrowserSessionRebindsCompletedAuthToCurrentStorefrontSession() {
+        RestClient.Builder builder = RestClient.builder();
+        ShopifyCustomerAccountSessionRepository repository = mock(ShopifyCustomerAccountSessionRepository.class);
+        ShopifyCustomerAccountAuthClaimRepository claimRepository = mock(ShopifyCustomerAccountAuthClaimRepository.class);
+        ShopifyCustomerAccountOAuthService service = service(repository, claimRepository, builder);
+        String sourceHash = serviceTestSessionHash(service, "alpha.myshopify.com", "shopper-session-before-redirect");
+        String targetHash = serviceTestSessionHash(service, "alpha.myshopify.com", "shopper-session-after-redirect");
+
+        ShopifyCustomerAccountSessionEntity source = new ShopifyCustomerAccountSessionEntity();
+        source.setId("scas-source");
+        source.setShopDomain("alpha.myshopify.com");
+        source.setShopperSessionIdHash(sourceHash);
+        source.setTokenEndpoint("https://shopify.com/authentication/1/oauth/token");
+        source.setAccessTokenCiphertext("encrypted-access");
+        source.setRefreshTokenCiphertext("encrypted-refresh");
+        source.setTokenType("Bearer");
+        source.setScopesText("customer-account-mcp-api:full");
+        source.setAccessTokenExpiresAt(Instant.now().plus(Duration.ofHours(1)));
+        source.setSessionExpiresAt(Instant.now().plus(Duration.ofDays(1)));
+        source.setCreatedAt(Instant.now().minus(Duration.ofMinutes(1)));
+        source.setUpdatedAt(Instant.now().minus(Duration.ofMinutes(1)));
+
+        ShopifyCustomerAccountAuthClaimEntity claim = new ShopifyCustomerAccountAuthClaimEntity();
+        claim.setId("scac-12345678901234567890123456789012");
+        claim.setShopDomain("alpha.myshopify.com");
+        claim.setSourceShopperSessionIdHash(sourceHash);
+        claim.setCreatedAt(Instant.now().minus(Duration.ofSeconds(10)));
+        claim.setExpiresAt(Instant.now().plus(Duration.ofMinutes(5)));
+
+        when(claimRepository.findById("scac-12345678901234567890123456789012")).thenReturn(Optional.of(claim));
+        when(repository.findByShopDomainIgnoreCaseAndShopperSessionIdHashAndRevokedAtIsNull(
+            eq("alpha.myshopify.com"),
+            eq(sourceHash)
+        )).thenReturn(Optional.of(source));
+        when(repository.findByShopDomainIgnoreCaseAndShopperSessionIdHash(
+            eq("alpha.myshopify.com"),
+            eq(targetHash)
+        )).thenReturn(Optional.empty());
+        when(repository.findByShopDomainIgnoreCaseAndShopperSessionIdHashAndRevokedAtIsNull(
+            eq("alpha.myshopify.com"),
+            eq(targetHash)
+        )).thenAnswer(invocation -> {
+            ShopifyCustomerAccountSessionEntity rebound = new ShopifyCustomerAccountSessionEntity();
+            rebound.setId("scas-target");
+            rebound.setShopDomain("alpha.myshopify.com");
+            rebound.setShopperSessionIdHash(targetHash);
+            rebound.setAccessTokenCiphertext("encrypted-access");
+            rebound.setSessionExpiresAt(Instant.now().plus(Duration.ofDays(1)));
+            rebound.setCreatedAt(Instant.now());
+            rebound.setUpdatedAt(Instant.now());
+            return Optional.of(rebound);
+        });
+
+        ShopifyCustomerAccountAuthStatus status = service.claimBrowserSession(
+            "alpha.myshopify.com",
+            "shopper-session-after-redirect",
+            "scac-12345678901234567890123456789012"
+        );
+
+        ArgumentCaptor<ShopifyCustomerAccountSessionEntity> sessionCaptor =
+            ArgumentCaptor.forClass(ShopifyCustomerAccountSessionEntity.class);
+        verify(repository).save(sessionCaptor.capture());
+        ShopifyCustomerAccountSessionEntity rebound = sessionCaptor.getValue();
+        assertThat(rebound.getShopperSessionIdHash()).isEqualTo(targetHash);
+        assertThat(rebound.getAccessTokenCiphertext()).isEqualTo("encrypted-access");
+        assertThat(status.authenticated()).isTrue();
+        assertThat(claim.getConsumedAt()).isNotNull();
+        verify(claimRepository).save(claim);
     }
 
     @Test
@@ -257,6 +338,7 @@ class ShopifyCustomerAccountOAuthServiceTest {
         PlatformShopifyStoreClient platformClient = new PlatformShopifyStoreClient(builder, bridgeProperties);
         ShopifyCustomerAccountOAuthService service = service(
             mock(ShopifyCustomerAccountSessionRepository.class),
+            mock(ShopifyCustomerAccountAuthClaimRepository.class),
             builder,
             "global-staging.loomai.pro",
             platformClient,
@@ -299,16 +381,30 @@ class ShopifyCustomerAccountOAuthServiceTest {
 
     private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
                                                        RestClient.Builder builder) {
-        return service(repository, builder, "");
+        return service(repository, mock(ShopifyCustomerAccountAuthClaimRepository.class), builder, "");
+    }
+
+    private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
+                                                       ShopifyCustomerAccountAuthClaimRepository claimRepository,
+                                                       RestClient.Builder builder) {
+        return service(repository, claimRepository, builder, "");
     }
 
     private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
                                                        RestClient.Builder builder,
                                                        String storefrontDomain) {
-        return service(repository, builder, storefrontDomain, null, bridgeProperties());
+        return service(repository, mock(ShopifyCustomerAccountAuthClaimRepository.class), builder, storefrontDomain, null, bridgeProperties());
     }
 
     private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
+                                                       ShopifyCustomerAccountAuthClaimRepository claimRepository,
+                                                       RestClient.Builder builder,
+                                                       String storefrontDomain) {
+        return service(repository, claimRepository, builder, storefrontDomain, null, bridgeProperties());
+    }
+
+    private ShopifyCustomerAccountOAuthService service(ShopifyCustomerAccountSessionRepository repository,
+                                                       ShopifyCustomerAccountAuthClaimRepository claimRepository,
                                                        RestClient.Builder builder,
                                                        String storefrontDomain,
                                                        PlatformShopifyStoreClient platformClient,
@@ -333,10 +429,16 @@ class ShopifyCustomerAccountOAuthServiceTest {
             authProperties,
             new ShopifyCustomerAccountSecurityService(bridgeProperties, objectMapper),
             repository,
+            claimRepository,
             platformClient,
             builder,
             Clock.systemUTC()
         );
+    }
+
+    private String serviceTestSessionHash(ShopifyCustomerAccountOAuthService service, String shopDomain, String sessionId) {
+        return new ShopifyCustomerAccountSecurityService(bridgeProperties(), objectMapper)
+            .hmacHex(service.normalizeShopDomain(shopDomain) + "|" + service.normalizeShopperSessionId(sessionId));
     }
 
     private ShopifyBridgeProperties bridgeProperties() {
