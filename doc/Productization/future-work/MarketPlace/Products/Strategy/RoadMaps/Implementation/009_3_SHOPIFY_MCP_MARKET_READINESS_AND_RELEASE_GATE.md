@@ -156,7 +156,8 @@ Credential/config intake names:
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET`
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`
 - optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN`
-- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES=customer-account-mcp-api:full`
+- `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES=customer-account-mcp-api:full` for MCP-only OAuth, or the expanded staging/debug scope set `openid email customer-account-api:full customer-account-mcp-api:full` when Customer Account API identity diagnostics are required.
+- Deployed Shopify app access scopes must include `customer_read_customers`, `customer_read_orders`, `customer_write_orders`, and `customer_read_store_credit_accounts`; otherwise Customer Account OAuth can complete while Customer Account MCP `tools/call` still returns Shopify HTTP `401`.
 - optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL`
 - optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL`
 - optional `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT`

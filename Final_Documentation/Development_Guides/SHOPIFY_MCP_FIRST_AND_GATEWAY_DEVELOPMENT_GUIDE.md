@@ -357,6 +357,7 @@ Customer Account MCP requires:
 - customer token/session binding
 - protected customer data posture
 - allowed customer scopes
+- deployed Shopify app access scopes for Customer Account data: `customer_read_customers`, `customer_read_orders`, `customer_write_orders`, and `customer_read_store_credit_accounts`
 
 Checkout MCP requires:
 
@@ -376,6 +377,7 @@ Customer Account MCP is prepared as a fail-closed path:
 - Bridge owns Shopify Customer Account OAuth sessions and exposes the internal broker endpoint `POST /api/admin/customer-account/shops/{shopDomain}/token/resolve`. This endpoint is protected by the Bridge admin API key and must only be called by managed services.
 - Customer Account Marketplace actions must not expose `shopperSessionId` as an LLM/action parameter. The verified runtime shopper session travels in the action trace, and the MCP Gateway sends that session to the broker.
 - When the broker resolves a customer token, MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by forwarding it as the MCP Authorization header.
+- Shopify app scope changes are not just Bridge env changes. Deploy the updated Shopify app config/version, then make the shopper complete a fresh Customer Account OAuth authorization. A token issued before the Customer Account app scopes were deployed can still fail MCP `tools/call` with Shopify HTTP `401`.
 - MCP Gateway staging/prod env must include `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`, `MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY`, and `MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED=true`. The gateway profile-ref allowlist includes `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`.
 - For stores that use a connected storefront/custom domain for Customer Account OAuth discovery, configure the per-store Platform setting `customerAccountMcp.storefrontDomain` through `PUT /api/shopify/stores/{shopDomain}/customer-account-config` or the Shopify Stores admin page. Bridge resolves this per-store value before using any global fallback.
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` remains a staging/default fallback only. It must not be treated as product truth for multiple store installs.
