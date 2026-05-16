@@ -1178,3 +1178,14 @@ Critical fixes that made the gate pass:
 - Commerce curated prompts now put internal implementation/runtime/tool-status requests at highest priority for safe shopper-facing redirection, and answer prompts explicitly avoid treating those requests as missing product/policy evidence.
 - Canonical readiness context was corrected so product-page tests that are meant to exercise product behavior include concrete product context. The separate missing-current-product query proves the Bridge structural guard.
 - Live staging proof after deploy: Platform backend and active runtime were redeployed to `2d293b2b8`; Shopify Bridge retained the deployed structural guard from `6986ca6b4`. Health checks passed for Platform backend, Bridge, and runtime. Final live gate output `/tmp/shopify-answer-quality-20260512T143924Z-expanded-canonical-final` returned `PASS (20/20 passed)`.
+
+## 2026-05-16 Shopify Companion Indexing Architecture Cleanup
+
+- 010.4 source-of-truth decision is implemented: Shopify Admin API remains canonical, Bridge source endpoints expose bounded Shopify data, Platform orchestrates vectorization runs/evidence, and Runtime stores only the derived retrieval index.
+- Removed hidden legacy document-sync preconditions from manual Shopify vectorization and automatic live indexing. Normal `index-all`, `reindex-all`, `reindex-selected`, and auto event dispatch no longer call Bridge `/run-sync` or Platform `/documents/sync`.
+- Readiness and widget-live promotion no longer require the historical `SYNCED` document-sync status; failed derived-index verification can still block shopper traffic with indexing-specific guidance.
+- Merchant embedded UI now teaches `Refresh knowledge` / `Reindex` as the freshness operation. Keep legacy `Sync now` as compatibility/operator repair only, not merchant launch flow.
+- Added regression coverage for manual reindex, auto indexing, readiness, and widget-live promotion. Full local suites passed for Platform backend and Shopify Bridge, plus Bridge UI build and vectorization core/runner reactor tests.
+- Commit `e34c6c85b` was pushed to `Platform-V9` and deployed on staging for Platform backend and Shopify Bridge; both health checks returned `UP`.
+- Live staging freshness proof passed: Shopify Admin changed `MetroTab 11 5G Tablet` price from `679.00` to `681.00`; Platform reindex-only run `vrn-4826fc3b` completed; storefront chat answered `$681.00` with evidence containing `Price range: 681.0 USD` and variant price `681.00 USD`.
+- Runtime logs checked after the proof for Platform backend and Shopify Bridge showed zero `/run-sync`, `/documents/sync`, or `runSync` mentions in the post-proof window. Evidence files are under `/tmp/loomai-0104-*`.

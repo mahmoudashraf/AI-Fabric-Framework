@@ -1,6 +1,6 @@
 # 010.4 Shopify Companion Indexing Architecture Cleanup Plan
 
-Status: implemented for code and local verification; live staging freshness proof pending
+Status: implemented, locally verified, deployed to staging, and live staging source-freshness verified
 
 Created: 2026-05-16
 
@@ -54,9 +54,15 @@ Implemented on 2026-05-16:
 - Legacy document sync remains available as a compatibility/operator repair path only; it is not part of normal merchant reindexing or auto live indexing.
 - Development and merchant guides now document Shopify Admin API through Bridge source endpoints as the indexing source of truth and Runtime vector data as a derived retrieval index.
 
-Not completed in this code-only pass:
+Live proof completed on 2026-05-16:
 
-- The real staging source-freshness proof is still pending: change a real staging Shopify product, run reindex only, then prove storefront chat evidence reflects the updated source with no `/run-sync` or `/documents/sync` calls.
+- Staging product: `MetroTab 11 5G Tablet`, product id `gid://shopify/Product/7939427008595`.
+- Shopify Admin source change: first variant price changed from `679.00` to `681.00`.
+- Platform reindex-only run: `vrn-4826fc3b`, status `COMPLETED`, completed at `2026-05-16T08:57:45.462588Z`.
+- Storefront chat query: `What is the price of the MetroTab 11 5G Tablet?`
+- Storefront chat answer: `The price of the MetroTab 11 5G Tablet is $681.00. This product is currently available.`
+- Retrieved evidence document included `Price range: 681.0 USD` and variant price `681.00 USD`.
+- Recent Platform and Bridge runtime logs checked after the proof showed zero `/run-sync`, `/documents/sync`, or `runSync` mentions.
 
 ## Problem Statement
 
@@ -413,7 +419,7 @@ Acceptance:
 
 ### Slice 7: Live Staging Proof
 
-Status: pending live staging execution.
+Status: passed on staging on 2026-05-16.
 
 Goal:
 
@@ -455,7 +461,7 @@ Pass criteria:
 
 ### 010.4_SOURCE_FRESHNESS_LIVE_PROOF
 
-Status: pending live staging proof.
+Status: passed on staging on 2026-05-16.
 
 Pass criteria:
 
@@ -466,7 +472,7 @@ Pass criteria:
 
 ### 010.4_LEGACY_SYNC_CONTAINED
 
-Status: partially passed. Normal merchant and auto indexing paths are contained; legacy endpoints still exist for compatibility/operator repair and historical-row cleanup remains deferred.
+Status: passed for normal merchant and auto-indexing paths. Legacy endpoints still exist for compatibility/operator repair and historical-row cleanup remains deferred.
 
 Pass criteria:
 
@@ -488,6 +494,18 @@ Pass criteria:
 - Passed: `bash -n scripts/verify-shopify-companion.sh`
 - Passed: source grep check confirmed normal Platform vectorization services no longer reference `bridgeAdminClient` or `runSync`.
 - Passed: UI grep check confirmed the embedded merchant app no longer wires `run-sync`, `handleSyncNow`, `canSyncNow`, or `Sync now` copy.
+
+2026-05-16 staging verification:
+
+- Deployed commit: `e34c6c85b` on `Platform-V9`.
+- Passed: Platform backend health returned `{"status":"UP"}`.
+- Passed: Shopify Bridge staging health returned `{"status":"UP","groups":["liveness","readiness"]}`.
+- Passed: Shopify Admin GraphQL source update changed `MetroTab 11 5G Tablet` price to `681.00`.
+- Passed: Platform reindex-only call `POST /api/shopify/stores/shopping-companion-test.myshopify.com/vectorization/reindex-selected` created run `vrn-4826fc3b`.
+- Passed: vectorization run `vrn-4826fc3b` completed and Platform summary returned `syncState=IN_SYNC`.
+- Passed: storefront chat query returned the updated `$681.00` answer with product evidence containing `Price range: 681.0 USD` and variant price `681.00 USD`.
+- Passed: Coolify runtime logs for Platform backend and Shopify Bridge showed zero `/run-sync`, `/documents/sync`, or `runSync` mentions in the checked post-proof window.
+- Evidence files saved under `/tmp`: `loomai-0104-shopify-products-before.json`, `loomai-0104-shopify-price-update.json`, `loomai-0104-platform-reindex-selected-start.json`, `loomai-0104-platform-vectorization-poll.json`, `loomai-0104-chat-price-query.json`, `loomai-0104-chat-price-response.json`, `loomai-0104-platform-logs.json`, `loomai-0104-bridge-logs.json`.
 
 The direct standalone vectorization module commands listed below require reactor dependencies to be built first in this workspace. Use the reactor command above for the reliable verification path.
 
@@ -588,7 +606,7 @@ Decisions applied:
 - Legacy document sync is contained, guarded, audited, and not part of normal release gates.
 - Tests and docs reflect the new architecture.
 
-010.4 live release gate is complete when:
+010.4 live release gate is complete; it was proven on staging when:
 
 - Shopify inventory/availability updates are proven live through reindex-only staging proof.
 - Operator evidence confirms no `/run-sync` or `/documents/sync` call happened during that proof.
