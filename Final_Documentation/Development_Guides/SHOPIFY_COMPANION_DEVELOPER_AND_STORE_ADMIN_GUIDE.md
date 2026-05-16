@@ -46,9 +46,11 @@ Store admins do not edit raw plugins or deployment wiring directly.
 
 Important wording:
 
-- the current implementation still has an internal normalization/sync stage
-- that stage should remain a platform concern
-- the merchant-facing product language should be `Index`, `Reindex`, and `Live updates`, not `Sync`
+- Shopify Admin remains the source of truth for merchant catalog, inventory, price, availability, and policy data
+- Bridge exposes Shopify-backed vectorization source endpoints; it must not become a durable catalog database
+- Platform owns vectorization source connections, plans, runs, evidence, and audit
+- Runtime owns the derived retrieval index only
+- the merchant-facing product language should be `Refresh knowledge`, `Reindex`, and `Live updates`, not `Sync`
 
 ---
 
@@ -95,6 +97,18 @@ The live Shopify vectorization path is:
 - source data provider: Shopify Bridge admin endpoints
 
 This is deliberate. The vectorization runner should not contain Shopify-specific source-adapter logic.
+
+The canonical freshness path is:
+
+```text
+Shopify Admin API
+  -> Shopify Bridge vectorization-source endpoints
+  -> Platform vectorization runner
+  -> Runtime data-sync / vector index
+  -> Storefront chat retrieval
+```
+
+Do not require `Sync now` before manual or automatic vectorization. Legacy document sync endpoints can remain for compatibility or operator repair, but normal merchant refresh and live-update flows must enqueue vectorization runs directly from Shopify-backed source endpoints.
 
 ### 2.3 Current source-category to entity-type mapping
 
@@ -219,7 +233,7 @@ Platform behavior:
 Practical implication:
 
 - developers/operators must treat plugin composition and live deployment release as platform concerns
-- merchants should only see bounded actions such as `Reconcile deployment support`, `Index all enabled data`, and `Reindex selected types`
+- merchants should only see bounded actions such as `Reconcile indexing support`, `Refresh knowledge`, `Reindex all enabled data`, and `Reindex selected types`
 
 ### 3.5 Live vectorization flow
 
@@ -231,7 +245,7 @@ Current expected flow:
 4. platform reconciles vectorization source connection and plan
 5. source connection becomes `REST_API`
 6. runner registration is `ACTIVE`
-7. merchant queues vectorization
+7. merchant queues `Refresh knowledge`, `Reindex all enabled data`, or `Reindex selected types`
 8. run completes and checkpoints are recorded
 
 Expected healthy live signals:
@@ -492,7 +506,7 @@ For a new store:
 7. Request go-live.
 8. Enable the theme app embed.
 9. Open the storefront once.
-10. Use `Index all enabled data` when the deployment vectorization summary is ready.
+10. Use `Refresh knowledge` when the deployment vectorization summary is ready.
 11. Reindex selected types only when you intentionally want to rebuild part of the enabled scope.
 12. Validate answers in the merchant playground.
 

@@ -47,7 +47,6 @@ import {
   runSourcePreflight,
   sendPartnerAccessInvite,
   suggestMerchantPlayground,
-  syncNowStore,
   updateSourceSettings,
   updateSupportProfile,
   updateVectorizationPolicyStore,
@@ -327,7 +326,6 @@ export default function App() {
     | 'connect'
     | 'preflight'
     | 'bootstrap'
-    | 'sync'
     | 'go-live'
     | 'source-settings'
     | 'billing-approval'
@@ -717,24 +715,6 @@ export default function App() {
     }
   }
 
-  async function handleSyncNow() {
-    setBusyAction('sync')
-    setActionError(null)
-    setActionMessage(null)
-    try {
-      const store = await syncNowStore()
-      setState((current) => ({
-        ...current,
-        session: current.session ? { ...current.session, store } : current.session,
-      }))
-      setActionMessage(`Knowledge Sync refreshed enabled Shopify content for ${store.shopDomain}.`)
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to sync Shopify store content.')
-    } finally {
-      setBusyAction(null)
-    }
-  }
-
   async function handleSourceSettingsSave() {
     setBusyAction('source-settings')
     setActionError(null)
@@ -746,7 +726,7 @@ export default function App() {
         session: current.session ? { ...current.session, store } : current.session,
       }))
       await refresh()
-      setActionMessage(`Updated source categories for ${store.shopDomain}. Knowledge Sync has been refreshed for the current selection.`)
+      setActionMessage(`Updated source categories for ${store.shopDomain}. Refresh knowledge to rebuild the enabled Shopify source scope.`)
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to update source settings.')
     } finally {
@@ -761,9 +741,9 @@ export default function App() {
     try {
       const vectorizationSummary = await reconcileVectorization()
       applyVectorizationSummary(vectorizationSummary)
-      setActionMessage(`Refreshed Knowledge Sync support for ${vectorizationSummary.shopDomain}.`)
+      setActionMessage(`Reconciled knowledge indexing support for ${vectorizationSummary.shopDomain}.`)
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to refresh Knowledge Sync support.')
+      setActionError(error instanceof Error ? error.message : 'Failed to reconcile knowledge indexing support.')
     } finally {
       setBusyAction(null)
     }
@@ -776,9 +756,9 @@ export default function App() {
     try {
       const vectorizationSummary = await vectorizeNowStore()
       applyVectorizationSummary(vectorizationSummary)
-      setActionMessage(`Queued Knowledge Sync for ${vectorizationSummary.shopDomain}.`)
+      setActionMessage(`Queued knowledge refresh for ${vectorizationSummary.shopDomain}.`)
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to trigger Knowledge Sync.')
+      setActionError(error instanceof Error ? error.message : 'Failed to trigger knowledge refresh.')
     } finally {
       setBusyAction(null)
     }
@@ -791,9 +771,9 @@ export default function App() {
     try {
       const vectorizationSummary = await indexAllStore()
       applyVectorizationSummary(vectorizationSummary)
-      setActionMessage(`Queued indexing for all enabled Shopify data in ${vectorizationSummary.shopDomain}.`)
+      setActionMessage(`Queued a Shopify-backed refresh for all enabled source data in ${vectorizationSummary.shopDomain}.`)
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to queue indexing for the current Shopify scope.')
+      setActionError(error instanceof Error ? error.message : 'Failed to queue refresh for the current Shopify source scope.')
     } finally {
       setBusyAction(null)
     }
@@ -1157,11 +1137,6 @@ export default function App() {
     !supportReadinessLaunchBlocked &&
     !billingLaunchBlocked &&
     Boolean(store?.readiness?.goLiveEligible) &&
-    !isReleaseInProgress(store?.latestRelease?.status)
-  const canSyncNow =
-    Boolean(session) &&
-    Boolean(store?.deploymentId) &&
-    !installRecoveryRequired &&
     !isReleaseInProgress(store?.latestRelease?.status)
   const canReconcileVectorization =
     Boolean(session) &&
@@ -1608,7 +1583,7 @@ export default function App() {
                     Source categories
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
-                    Choose the bounded Shopify source categories that should flow into Companion knowledge. Changing these toggles resets source readiness and requires a fresh preflight and apply-time sync.
+                    Choose the bounded Shopify source categories that should flow into Companion knowledge. Changing these toggles resets source readiness and requires a fresh preflight plus Shopify-backed knowledge refresh.
                   </Text>
                   <Checkbox
                     label="Products"
@@ -1703,7 +1678,7 @@ export default function App() {
                     <Text as="p" variant="bodySm" tone={provisioningStatus.latestJob.lastErrorMessage ? 'critical' : 'subdued'}>
                       Latest job {provisioningStatus.latestJob.jobType} · {provisioningStatus.latestJob.status}/{provisioningStatus.latestJob.phase} · updated{' '}
                       {formatTimestamp(provisioningStatus.latestJob.updatedAt)}
-                      {provisioningStatus.latestJob.vectorReindexRequired ? ' · sync required' : ''}
+                      {provisioningStatus.latestJob.vectorReindexRequired ? ' · reindex required' : ''}
                       {provisioningStatus.latestJob.lastErrorMessage ? ` · ${provisioningStatus.latestJob.lastErrorMessage}` : ''}
                     </Text>
                   ) : null}
@@ -1950,7 +1925,7 @@ export default function App() {
                         ) : null}
                       </InlineStack>
                       <Text as="p" variant="bodyMd" tone="subdued">
-                        Shopify source selection now drives deployment plugin installs and the deployment vectorization plan. Use reconcile to align the deployment with the current store scope, then use bounded Index, Reindex, and Live updates controls for the enabled data.
+                        Shopify source selection drives deployment plugin installs and the source-backed indexing plan. Use reconcile to align the deployment with the current store scope, then use refresh, reindex, and live update controls for enabled Shopify data.
                       </Text>
                       <List type="bullet">
                         <List.Item>Selected categories: {vectorizationSummary.selectedCategories.join(', ') || 'None selected'}</List.Item>
@@ -2012,7 +1987,7 @@ export default function App() {
                           loading={busyAction === 'vectorization-index-all'}
                           disabled={!canVectorizeNow}
                         >
-                          Index all enabled data
+                          Refresh knowledge
                         </Button>
                         <Button
                           onClick={() => void handleReindexAll()}
@@ -2514,7 +2489,7 @@ export default function App() {
                     <List.Item>
                       Shopper-ready surfaces: {intelligenceReadiness.enabledTierReadySurfaces}/{intelligenceReadiness.allowedTierSurfaces}
                     </List.Item>
-                    <List.Item>Last successful sync: {formatTimestamp(intelligenceReadiness.lastSuccessfulSyncAt)}</List.Item>
+                    <List.Item>Last knowledge refresh: {formatTimestamp(intelligenceReadiness.lastSuccessfulSyncAt)}</List.Item>
                     <List.Item>Last webhook event: {formatTimestamp(store?.lastWebhookAt ?? null)}</List.Item>
                     <List.Item>Last successful live update: {formatTimestamp(intelligenceReadiness.lastSuccessfulAutoIndexAt)}</List.Item>
                     <List.Item>Last failed live update: {formatTimestamp(intelligenceReadiness.lastFailedAutoIndexAt)}</List.Item>
@@ -2690,7 +2665,7 @@ export default function App() {
                       Current package: {billingSummary?.planName ?? 'Billing not loaded'} · {billingSummary?.tierKey ?? 'UNKNOWN'} · {billingSummary?.status ?? 'UNKNOWN'}
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Onboarding: connect the store, select source categories, run source preflight, sync content, enable storefront surfaces, and publish only after readiness is clean.
+                      Onboarding: connect the store, select source categories, run source preflight, refresh knowledge, enable storefront surfaces, and publish only after readiness is clean.
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Support path: use merchant handoff channels for refunds, edits, account changes, unsupported order cases, and rollback/deactivation requests.
@@ -2832,8 +2807,8 @@ export default function App() {
                                     {action.label}
                                   </Button>
                                 ) : null}
-                                {action.kind === 'run-sync' ? (
-                                  <Button onClick={() => void handleSyncNow()} loading={busyAction === 'sync'} disabled={!canSyncNow}>
+                                {action.kind === 'run-reindex-all' ? (
+                                  <Button onClick={() => void handleReindexAll()} loading={busyAction === 'vectorization-reindex-all'} disabled={!canVectorizeNow}>
                                     {action.label}
                                   </Button>
                                 ) : null}
@@ -3072,8 +3047,8 @@ export default function App() {
                   {store ? (
                     <List type="bullet">
                       <List.Item>Deployment health: {store.deploymentStatus ?? 'UNBOUND'}</List.Item>
-                      <List.Item>Sync status: {store.syncDetail?.status ?? store.syncStatus}</List.Item>
-                      <List.Item>Last successful sync: {formatTimestamp(store.lastSyncAt)}</List.Item>
+                      <List.Item>Knowledge index status: {store.syncDetail?.status ?? store.syncStatus}</List.Item>
+                      <List.Item>Last knowledge refresh: {formatTimestamp(store.lastSyncAt)}</List.Item>
                       <List.Item>Widget status: {store.widgetDetail?.status ?? store.widgetStatus}</List.Item>
                       <List.Item>Billing mode: {billingSummary?.mode ?? 'UNKNOWN'}</List.Item>
                       <List.Item>Billing tier: {billingSummary?.tierKey ?? 'UNKNOWN'}</List.Item>
@@ -3103,7 +3078,7 @@ export default function App() {
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Surfaces {billingAllowedSurfaces.join(' · ')} · Product cap {billingSummary.catalogProductCap ?? 'unlimited'} ·
-                        {' '}Sync {billingSummary.syncCadence ?? 'platform default'} · Badge {billingSummary.poweredByBadgeRequired ? 'required' : 'optional'}
+                        {' '}Refresh cadence {billingSummary.syncCadence ?? 'platform default'} · Badge {billingSummary.poweredByBadgeRequired ? 'required' : 'optional'}
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Governance {billingSummary.requiresExplicitConfirmation ? 'explicit confirmation required' : 'read-only'} ·
@@ -3135,7 +3110,7 @@ export default function App() {
                                   </InlineStack>
                                   <Text as="p" variant="bodySm" tone="subdued">
                                     {formatPlanPrice(plan)} · Surfaces {plan.allowedSurfaces.join(' · ') || '—'} · Product cap{' '}
-                                    {plan.catalogProductCap ?? 'unlimited'} · Sync {plan.syncCadence ?? 'platform default'}
+                                    {plan.catalogProductCap ?? 'unlimited'} · Refresh cadence {plan.syncCadence ?? 'platform default'}
                                   </Text>
                                   <Text as="p" variant="bodySm" tone="subdued">
                                     {plan.actionCapable ? 'Read + governed actions' : 'Read-only shopper intelligence'} · Badge{' '}
@@ -3688,13 +3663,13 @@ export default function App() {
                 Next actions
               </Text>
               <Text as="p" variant="bodyMd" tone="subdued">
-                Connect the current shop first. Check Shopify source reachability before bootstrapping. After bootstrap, use Knowledge Sync to refresh enabled Shopify content. Go live only after the source readiness checks are clean.
+                Connect the current shop first. Check Shopify source reachability before bootstrapping. After bootstrap, refresh knowledge from the live Shopify source. Go live only after the source readiness checks are clean.
               </Text>
               {installRecoveryRequired ? (
                 <Banner tone="warning">
                   <BlockStack gap="200">
                     <Text as="p" variant="bodyMd">
-                      Shopify marked this installation as uninstalled. Re-run the Shopify install flow before using connect, preflight, sync, or go-live actions.
+                      Shopify marked this installation as uninstalled. Re-run the Shopify install flow before using connect, preflight, knowledge refresh, or go-live actions.
                     </Text>
                     {installRecoveryUrl ? (
                       <InlineStack gap="200">
@@ -3792,11 +3767,11 @@ export default function App() {
                   Bootstrap deployment
                 </Button>
                 <Button
-                  onClick={() => void handleSyncNow()}
-                  loading={busyAction === 'sync'}
-                  disabled={!canSyncNow}
+                  onClick={() => void handleIndexAll()}
+                  loading={busyAction === 'vectorization-index-all'}
+                  disabled={!canVectorizeNow}
                 >
-                  Sync now
+                  Refresh knowledge
                 </Button>
                 <Button
                   onClick={() => void handleGoLive()}
@@ -3833,10 +3808,10 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
       ) : null}
       <List type="bullet">
         <List.Item>Install: {store.installStatus}</List.Item>
-        <List.Item>Data sync: {store.syncStatus}</List.Item>
+        <List.Item>Knowledge index: {store.syncStatus}</List.Item>
         <List.Item>Source readiness: {store.sourceReadinessStatus}</List.Item>
         <List.Item>Widget: {store.widgetStatus}</List.Item>
-        <List.Item>Last successful sync: {formatTimestamp(store.lastSyncAt)}</List.Item>
+        <List.Item>Last knowledge refresh: {formatTimestamp(store.lastSyncAt)}</List.Item>
         <List.Item>Last Shopify update: {formatTimestamp(store.lastWebhookAt)}</List.Item>
       </List>
       {store.sourcePreflight ? (
@@ -3865,7 +3840,7 @@ function StoreSummary({ store }: { store: ShopifyBridgeStoreSummary }) {
       ) : null}
       {store.syncDetail ? (
         <Text as="p" variant="bodySm" tone="subdued">
-          Synced documents: {store.syncDetail.documentCount}
+          Indexed documents: {store.syncDetail.documentCount}
           {store.syncDetail.message ? ` · ${store.syncDetail.message}` : ''}
         </Text>
       ) : null}
@@ -4324,17 +4299,17 @@ function describeUsageEvent(eventType: string): string {
     case 'MERCHANT_GO_LIVE':
       return 'merchant go-live'
     case 'MERCHANT_SYNC_NOW':
-      return 'Knowledge Sync runs'
+      return 'legacy document sync runs'
     case 'MERCHANT_WIDGET_SETTINGS_UPDATED':
       return 'widget settings updates'
     case 'MERCHANT_SOURCE_SETTINGS_UPDATED':
       return 'source setting updates'
     case 'MERCHANT_VECTORIZATION_INDEX_ALL':
-      return 'Knowledge Sync all-source requests'
+      return 'knowledge refresh all-source requests'
     case 'MERCHANT_VECTORIZATION_REINDEX_ALL':
-      return 'Knowledge Sync refresh-all requests'
+      return 'knowledge reindex all-source requests'
     case 'MERCHANT_VECTORIZATION_REINDEX_SELECTED':
-      return 'Knowledge Sync selected-source requests'
+      return 'knowledge reindex selected-source requests'
     case 'MERCHANT_VECTORIZATION_POLICY_UPDATED':
       return 'live update policy saves'
     case 'MERCHANT_VECTORIZATION_EVENT_REPLAYED':
@@ -4397,7 +4372,7 @@ function buildStoreIntelligenceReadiness(
     return {
       status: 'Not connected',
       tone: 'attention',
-      message: 'Connect the store before Companion can prove storefront readiness, sync health, or live update health.',
+      message: 'Connect the store before Companion can prove storefront readiness, knowledge freshness, or live update health.',
       freshnessLabel: null,
       freshnessTone: 'attention',
       liveUpdatesLabel: null,
@@ -4421,13 +4396,10 @@ function buildStoreIntelligenceReadiness(
     issues.push(`Webhook subscriptions are ${webhookSubscriptions.status.toLowerCase()}.`)
   }
   if (vectorizationSummary && !vectorizationSummary.readyToRun) {
-    issues.push('Knowledge Sync still needs refresh before enabled Shopify content can stay current.')
+    issues.push('Knowledge indexing support still needs reconcile before enabled Shopify content can stay current.')
   }
   if (vectorizationSummary?.automation && !vectorizationSummary.automation.autoIndexingHealthy) {
     issues.push('Live updates are degraded and need attention before relying on freshness.')
-  }
-  if (store.syncDetail && store.syncDetail.status !== 'SYNCED') {
-    issues.push(`Store sync is ${store.syncDetail.status.toLowerCase()}.`)
   }
 
   const allowedTierSurfaces = billingSummary?.allowedSurfaces?.length
@@ -4438,8 +4410,7 @@ function buildStoreIntelligenceReadiness(
     (billingSummary?.allowedSurfaces?.length ? billingSummary.allowedSurfaces : DEFAULT_WIDGET_SURFACES).includes(surfaceId)
   ).length
 
-  const freshnessBlocked = Boolean(store.syncDetail && store.syncDetail.status !== 'SYNCED') ||
-    Boolean(vectorizationSummary?.syncState && !['CURRENT', 'READY', 'IN_SYNC'].includes(vectorizationSummary.syncState))
+  const freshnessBlocked = Boolean(vectorizationSummary?.syncState && !['CURRENT', 'READY', 'IN_SYNC'].includes(vectorizationSummary.syncState))
   const liveUpdatesHealthy = vectorizationSummary?.automation?.autoIndexingHealthy !== false
 
   return {
@@ -4447,7 +4418,7 @@ function buildStoreIntelligenceReadiness(
     tone: issues.length ? (issues.some((issue) => issue.startsWith('Billing')) ? 'critical' : 'attention') : 'success',
     message: issues.length
       ? 'Companion is installed, but one or more shipping gates still need work before the product is fully legible and fresh for shoppers.'
-      : 'Storefront surfaces, sync, billing, and live updates are aligned closely enough to treat the store as shopper-ready.',
+      : 'Storefront surfaces, knowledge freshness, billing, and live updates are aligned closely enough to treat the store as shopper-ready.',
     freshnessLabel: freshnessBlocked ? 'Freshness needs attention' : 'Freshness healthy',
     freshnessTone: freshnessBlocked ? 'attention' : 'success',
     liveUpdatesLabel: liveUpdatesHealthy ? 'Live updates healthy' : 'Live updates degraded',
@@ -4512,7 +4483,6 @@ function buildLaunchReadiness(
   const webhookReady = !webhookSubscriptions || webhookSubscriptions.status === 'READY'
   const storefrontReady = Boolean(storefrontPreview?.ready)
   const goLiveReady = Boolean(store?.readiness?.goLiveEligible)
-  const syncReady = !store?.syncDetail || store.syncDetail.status === 'SYNCED'
   const liveUpdatesReady = !vectorizationSummary?.automation || vectorizationSummary.automation.autoIndexingHealthy !== false
   const productTierReady = configuredSurfaces
     .filter((surfaceId) => requiredProductSurfaces.includes(surfaceId))
@@ -4525,7 +4495,7 @@ function buildLaunchReadiness(
       supportReadiness.appScopesUpdateWebhookReady &&
       supportSurfaceReady
   )
-  const launchGateReady = storefrontReady && goLiveReady && webhookReady && syncReady && liveUpdatesReady
+  const launchGateReady = storefrontReady && goLiveReady && webhookReady && liveUpdatesReady
   const orderLookupReadinessItem: {
     label: string
     status: string
@@ -4577,7 +4547,7 @@ function buildLaunchReadiness(
       status: launchGateReady ? 'Ready' : 'Blocked',
       tone: launchGateReady ? 'success' : 'critical',
       detail: launchGateReady
-        ? 'Storefront activation, go-live posture, sync, webhooks, and live updates are aligned for a clean launch story.'
+        ? 'Storefront activation, go-live posture, Shopify-backed knowledge refresh, webhooks, and live updates are aligned for a clean launch story.'
         : 'One or more operational launch gates are still not clean enough for launch, App Review, or merchant-safe support claims.',
     },
     {
@@ -4757,7 +4727,7 @@ function buildGoLiveChecklist(
     action?:
       | { kind: 'open-url'; label: string; url: string }
       | { kind: 'run-go-live'; label: string }
-      | { kind: 'run-sync'; label: string }
+      | { kind: 'run-reindex-all'; label: string }
       | { kind: 'run-reconcile'; label: string }
       | { kind: 'activate-plan'; label: string; tierKey: string }
       | { kind: 'copy-launch-dossier'; label: string }
@@ -4799,7 +4769,7 @@ function buildGoLiveChecklist(
     action?:
       | { kind: 'open-url'; label: string; url: string }
       | { kind: 'run-go-live'; label: string }
-      | { kind: 'run-sync'; label: string }
+      | { kind: 'run-reindex-all'; label: string }
       | { kind: 'run-reconcile'; label: string }
       | { kind: 'activate-plan'; label: string; tierKey: string }
       | { kind: 'copy-launch-dossier'; label: string }
@@ -4839,20 +4809,20 @@ function buildGoLiveChecklist(
         : 'Enable richer store sources so launch claims can go beyond core catalog-only answers.',
     },
     {
-      label: 'Knowledge Sync and live updates',
+      label: 'Knowledge refresh and live updates',
       status: vectorizationReady && liveUpdatesHealthy && webhooksReady ? 'Ready' : 'Needs action',
       tone: vectorizationReady && liveUpdatesHealthy && webhooksReady ? 'success' : 'attention',
       detail: vectorizationReady && liveUpdatesHealthy && webhooksReady
-        ? 'Knowledge Sync, webhooks, and live updates are aligned for a clean launch story.'
+        ? 'Shopify-backed knowledge refresh, webhooks, and live updates are aligned for a clean launch story.'
         : !vectorizationReady
-          ? 'Knowledge Sync still needs refresh before enabled Shopify content can stay current.'
+          ? 'Knowledge indexing support still needs reconcile before enabled Shopify content can stay current.'
           : !liveUpdatesHealthy
             ? 'Live updates are currently degraded and should be stabilized before launch.'
             : 'Webhook subscriptions still need attention before launch.',
       action: !vectorizationReady
-        ? { kind: 'run-reconcile', label: 'Refresh Knowledge Sync' }
-        : !store?.syncDetail || store.syncDetail.status !== 'SYNCED'
-          ? { kind: 'run-sync', label: 'Run sync now' }
+        ? { kind: 'run-reconcile', label: 'Reconcile indexing support' }
+        : vectorizationSummary?.syncState && !['CURRENT', 'READY', 'IN_SYNC'].includes(vectorizationSummary.syncState)
+          ? { kind: 'run-reindex-all', label: 'Reindex enabled data' }
           : undefined,
     },
     {
@@ -5466,7 +5436,7 @@ function buildLifecycleSubscriptionPacket(
     `- Last authenticated: ${formatTimestamp(session?.installRecord?.lastAuthenticatedAt)}`,
     `- Last uninstall: ${formatTimestamp(session?.installRecord?.lastUninstalledAt)}`,
     `- Last source preflight: ${formatTimestamp(store?.lastSourcePreflightAt)}`,
-    `- Last sync: ${formatTimestamp(store?.lastSyncAt)}`,
+    `- Last knowledge refresh: ${formatTimestamp(store?.lastSyncAt)}`,
     `- Last webhook: ${formatTimestamp(store?.lastWebhookAt)}${store?.webhookDetail?.topic ? ` (${store.webhookDetail.topic})` : ''}`,
     `- Latest release applied: ${formatTimestamp(store?.latestRelease?.appliedAt)}`,
     '',
@@ -5474,7 +5444,7 @@ function buildLifecycleSubscriptionPacket(
     `- Install status: ${store?.installStatus ?? 'UNKNOWN'}`,
     `- Onboarding status: ${store?.onboardingStatus ?? 'UNKNOWN'}`,
     `- Deployment status: ${store?.deploymentStatus ?? 'UNBOUND'}`,
-    `- Sync status: ${store?.syncDetail?.status ?? store?.syncStatus ?? 'UNKNOWN'}`,
+    `- Knowledge index status: ${store?.syncDetail?.status ?? store?.syncStatus ?? 'UNKNOWN'}`,
     `- Storefront ready: ${store?.readiness?.storefrontReady ? 'yes' : 'no'}`,
     `- Live updates healthy: ${vectorizationSummary?.automation?.autoIndexingHealthy === false ? 'no' : 'yes'}`,
     `- Support readiness: ${supportReadiness?.status ?? 'UNKNOWN'}${supportReadiness?.message ? ` · ${supportReadiness.message}` : ''}`,

@@ -65,7 +65,6 @@ public class ShopifyStoreVectorizationService {
     private final ShopifyStoreVectorizationPolicyService policyService;
     private final ShopifyStoreVectorizationFieldCatalogService fieldCatalogService;
     private final ShopifyStoreVectorizationEventService eventService;
-    private final ShopifyBridgeAdminClient bridgeAdminClient;
     private final PlatformAuditService platformAuditService;
 
     public ShopifyStoreVectorizationService(ShopifyStoreConnectionRepository repository,
@@ -80,7 +79,6 @@ public class ShopifyStoreVectorizationService {
                                             ShopifyStoreVectorizationPolicyService policyService,
                                             ShopifyStoreVectorizationFieldCatalogService fieldCatalogService,
                                             ShopifyStoreVectorizationEventService eventService,
-                                            ShopifyBridgeAdminClient bridgeAdminClient,
                                             PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.deploymentRepository = deploymentRepository;
@@ -94,7 +92,6 @@ public class ShopifyStoreVectorizationService {
         this.policyService = policyService;
         this.fieldCatalogService = fieldCatalogService;
         this.eventService = eventService;
-        this.bridgeAdminClient = bridgeAdminClient;
         this.platformAuditService = platformAuditService;
     }
 
@@ -598,7 +595,6 @@ public class ShopifyStoreVectorizationService {
             throw new ResponseStatusException(CONFLICT, String.join(" ", reconciled.blockingReasons()));
         }
         List<String> entityTypes = normalizeRequestedEntityTypes(requestedEntityTypes, reconciled.selectedEntityTypes());
-        bridgeAdminClient.runSync(store);
         vectorizationService.createRunForTrustedCaller(
             deployment.getId(),
             new CreateVectorizationRunRequest(

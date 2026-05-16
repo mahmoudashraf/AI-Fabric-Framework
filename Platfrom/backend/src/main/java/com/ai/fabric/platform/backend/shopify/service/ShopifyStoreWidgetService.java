@@ -62,7 +62,6 @@ public class ShopifyStoreWidgetService {
 
         store.setWidgetStatus(status);
         if ("ENABLED".equals(status)
-            && "SYNCED".equalsIgnoreCase(store.getSyncStatus())
             && "READY".equalsIgnoreCase(store.getSourceReadinessStatus())
             && hasVerifiedRelease(store.getDeploymentId())) {
             store.setOnboardingStatus("LIVE");

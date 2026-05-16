@@ -38,6 +38,8 @@ The MCP Execution Gateway is generic. It owns MCP transport, server binding, aut
 
 Runtime/connector can call the MCP Gateway directly for hostless generic MCP actions. Shopify actions still route through Shopify Bridge when store, billing, customer, checkout, or Shopify-specific posture is required.
 
+Shopify Companion indexing is source-backed, not document-push-first. The normal freshness path is Shopify Admin API through Bridge vectorization-source endpoints, Platform vectorization runner, and Runtime derived index. Do not add customer-facing Shopify action or answer-quality behavior that depends on Bridge or Platform maintaining a second durable copy of the full store catalog.
+
 ---
 
 ## 2. What Plan 009 Delivered

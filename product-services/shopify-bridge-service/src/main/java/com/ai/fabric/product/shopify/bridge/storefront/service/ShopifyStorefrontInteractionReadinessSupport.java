@@ -54,7 +54,6 @@ final class ShopifyStorefrontInteractionReadinessSupport {
         boolean deploymentArchived = equalsIgnoreCase(store.deploymentStatus(), "ARCHIVED");
         boolean sourceReady = equalsIgnoreCase(store.sourceReadinessStatus(), "READY");
         boolean latestReleaseVerified = latestReleaseVerified(store.latestRelease());
-        boolean syncReady = equalsIgnoreCase(store.syncStatus(), "SYNCED");
         boolean widgetFailed = widgetFailed(store.widgetStatus(), store.widgetDetail());
         return installed
             && credentialsReady
@@ -62,7 +61,6 @@ final class ShopifyStorefrontInteractionReadinessSupport {
             && !deploymentArchived
             && sourceReady
             && latestReleaseVerified
-            && syncReady
             && !widgetFailed;
     }
 
@@ -109,11 +107,11 @@ final class ShopifyStorefrontInteractionReadinessSupport {
                 : "The latest deployment release is not verified successfully yet.");
         }
 
-        if (!equalsIgnoreCase(store.syncStatus(), "SYNCED")) {
+        if (store.syncDetail() != null && equalsIgnoreCase(store.syncDetail().status(), "FAILED")) {
             ShopifyBridgeStoreSyncSummary syncDetail = store.syncDetail();
-            blockers.add(syncDetail != null && equalsIgnoreCase(syncDetail.status(), "FAILED")
-                ? "Apply-time Shopify data sync has failed."
-                : "Apply-time Shopify data sync has not completed yet.");
+            blockers.add(syncDetail != null && syncDetail.message() != null && !syncDetail.message().isBlank()
+                ? syncDetail.message()
+                : "Apply-time Shopify derived index verification has failed.");
         }
 
         if (widgetFailed(store.widgetStatus(), store.widgetDetail())) {
