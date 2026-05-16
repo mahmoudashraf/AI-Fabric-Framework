@@ -86,6 +86,11 @@ public class McpGatewayExecutionService {
     private static final String SHOPIFY_CHECKOUT_TOKEN_URL = "https://api.shopify.com/auth/access_token";
     private static final String SHOPIFY_CHECKOUT_CLIENT_ID_SECRET_REF = "MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID";
     private static final String SHOPIFY_CHECKOUT_CLIENT_SECRET_SECRET_REF = "MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET";
+    private static final Set<String> TOKEN_BROKER_HEADER_ALLOWLIST = Set.of(
+        "X-BRIDGE-API-KEY",
+        "X-MCP-TOKEN-BROKER-API-KEY",
+        "X-LOOM-TOKEN-BROKER-KEY"
+    );
 
     private final McpStreamableHttpClient mcpClient;
     private final ObjectMapper objectMapper;
@@ -1027,10 +1032,27 @@ public class McpGatewayExecutionService {
             "clientIdSecretRef",
             "clientSecretRef",
             "scope",
-            "audience"
+            "audience",
+            "tokenBrokerUrl",
+            "tokenBrokerUrlTemplate",
+            "tokenBrokerBaseUrlProfileRef",
+            "tokenBrokerUrlProfileRef",
+            "tokenBrokerPathTemplate",
+            "tokenBrokerApiKeyHeader",
+            "tokenBrokerApiKeySecretRef"
         )) {
             copyText(mcp, out, field);
             copyText(serverBinding, out, field);
+        }
+        if (mcp.path("requiredCustomerScopes").isArray()) {
+            out.set("requiredCustomerScopes", mcp.path("requiredCustomerScopes").deepCopy());
+        } else if (serverBinding.path("requiredCustomerScopes").isArray()) {
+            out.set("requiredCustomerScopes", serverBinding.path("requiredCustomerScopes").deepCopy());
+        }
+        if (mcp.path("tokenBroker").isObject()) {
+            out.set("tokenBroker", mcp.path("tokenBroker").deepCopy());
+        } else if (serverBinding.path("tokenBroker").isObject()) {
+            out.set("tokenBroker", serverBinding.path("tokenBroker").deepCopy());
         }
         return out;
     }
@@ -1290,7 +1312,117 @@ public class McpGatewayExecutionService {
                 return token;
             }
         }
+        token = fetchCustomerAccountTokenFromBroker(trace, auth);
+        if (StringUtils.hasText(token)) {
+            return token;
+        }
         return null;
+    }
+
+    private String fetchCustomerAccountTokenFromBroker(JsonNode trace, JsonNode auth) {
+        JsonNode broker = firstObject(auth.path("tokenBroker"), auth.path("customerTokenBroker"));
+        String url = tokenBrokerUrl(trace, auth, broker);
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        URI uri = requirePublicHttpsUri(url, "MCP customer token broker URL");
+        String headerName = firstNonBlank(
+            firstNonBlank(text(broker, "apiKeyHeader", "headerName"), text(auth, "tokenBrokerApiKeyHeader")),
+            "X-BRIDGE-API-KEY"
+        );
+        validateTokenBrokerHeader(headerName);
+        String apiKey = resolveSecretValue(
+            trace,
+            firstNonBlank(
+                text(broker, "apiKeySecretRef", "secretRef"),
+                text(auth, "tokenBrokerApiKeySecretRef")
+            )
+        );
+        if (!StringUtils.hasText(apiKey)) {
+            throw new IllegalArgumentException("MCP customer token broker API key is not available.");
+        }
+        String shopDomain = resolveShopDomain(null, trace);
+        String shopperSessionId = firstNonBlank(
+            text(trace, "shopperSessionId", "shopper_session_id", "sessionId"),
+            text(trace.path("authContext"), "shopperSessionId", "shopper_session_id", "sessionId")
+        );
+        if (!StringUtils.hasText(shopDomain) || !StringUtils.hasText(shopperSessionId)) {
+            return null;
+        }
+        ObjectNode request = objectMapper.createObjectNode();
+        request.put("shopperSessionId", shopperSessionId.trim());
+        ArrayNode scopes = request.putArray("requiredScopes");
+        JsonNode configuredScopes = auth.path("requiredCustomerScopes");
+        if (configuredScopes.isArray()) {
+            for (JsonNode scope : configuredScopes) {
+                String value = scope.asText("").trim();
+                if (StringUtils.hasText(value)) {
+                    scopes.add(value);
+                }
+            }
+        }
+        try {
+            JsonNode response = tokenRestClient.post()
+                .uri(uri)
+                .header(headerName.trim(), apiKey.trim())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(JsonNode.class);
+            if (response == null || !response.path("success").asBoolean(false)) {
+                return null;
+            }
+            return firstNonBlank(
+                text(response, "accessToken"),
+                text(response, "authorization", "customerAccessToken")
+            );
+        } catch (RestClientException ex) {
+            throw new IllegalArgumentException("MCP customer token broker request failed.");
+        }
+    }
+
+    private String tokenBrokerUrl(JsonNode trace, JsonNode auth, JsonNode broker) {
+        String url = firstNonBlank(
+            text(broker, "url", "endpointUrl"),
+            text(auth, "tokenBrokerUrl")
+        );
+        if (StringUtils.hasText(url)) {
+            return url;
+        }
+        String urlTemplate = firstNonBlank(
+            text(broker, "urlTemplate", "endpointUrlTemplate"),
+            text(auth, "tokenBrokerUrlTemplate")
+        );
+        if (StringUtils.hasText(urlTemplate)) {
+            return renderEndpointTemplate(urlTemplate, null, trace);
+        }
+        String baseUrl = resolveProfileValue(
+            trace,
+            firstNonBlank(
+                text(broker, "baseUrlProfileRef", "urlProfileRef"),
+                text(auth, "tokenBrokerBaseUrlProfileRef", "tokenBrokerUrlProfileRef")
+            )
+        );
+        if (!StringUtils.hasText(baseUrl)) {
+            return null;
+        }
+        String pathTemplate = firstNonBlank(
+            text(broker, "pathTemplate"),
+            text(auth, "tokenBrokerPathTemplate")
+        );
+        if (!StringUtils.hasText(pathTemplate)) {
+            return baseUrl;
+        }
+        String path = renderEndpointTemplate(pathTemplate, null, trace);
+        return baseUrl.trim().replaceAll("/+$", "") + "/" + path.replaceAll("^/+", "");
+    }
+
+    private void validateTokenBrokerHeader(String headerName) {
+        String normalized = headerName == null ? "" : headerName.trim().toUpperCase(Locale.ROOT);
+        if (!TOKEN_BROKER_HEADER_ALLOWLIST.contains(normalized)) {
+            throw new IllegalArgumentException("MCP customer token broker header is not allowed.");
+        }
     }
 
     private String resolveSecretValue(JsonNode trace, String secretRef) {

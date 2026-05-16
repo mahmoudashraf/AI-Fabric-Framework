@@ -99,11 +99,11 @@ Supported gateway auth modes for config-only MCP servers:
 - `BEARER_TOKEN_SECRET_REF`
 - `API_KEY_HEADER_SECRET`
 - `OAUTH2_CLIENT_CREDENTIALS`
+- `CUSTOMER_OAUTH_PKCE` when the action/server config provides a reviewed `tokenBroker` and the product host owns the customer OAuth session
 
 Auth modes that still require product/host support:
 
 - `OAUTH2_AUTH_CODE_PKCE`
-- `CUSTOMER_OAUTH_PKCE`
 - provider-specific customer/session delegation
 
 ---
@@ -373,7 +373,10 @@ Customer Account MCP is prepared as a fail-closed path:
 
 - Before OAuth/PKCE and protected customer data posture are configured, Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED`.
 - After posture is configured, Bridge returns `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
-- When a customer token is bound, MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by forwarding it as the MCP Authorization header.
+- Bridge owns Shopify Customer Account OAuth sessions and exposes the internal broker endpoint `POST /api/admin/customer-account/shops/{shopDomain}/token/resolve`. This endpoint is protected by the Bridge admin API key and must only be called by managed services.
+- Customer Account Marketplace actions must not expose `shopperSessionId` as an LLM/action parameter. The verified runtime shopper session travels in the action trace, and the MCP Gateway sends that session to the broker.
+- When the broker resolves a customer token, MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by forwarding it as the MCP Authorization header.
+- MCP Gateway staging/prod env must include `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`, `MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY`, and `MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED=true`. The gateway profile-ref allowlist includes `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`.
 - For stores that use a connected storefront/custom domain for Customer Account OAuth discovery, configure the per-store Platform setting `customerAccountMcp.storefrontDomain` through `PUT /api/shopify/stores/{shopDomain}/customer-account-config` or the Shopify Stores admin page. Bridge resolves this per-store value before using any global fallback.
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` remains a staging/default fallback only. It must not be treated as product truth for multiple store installs.
 - Bridge still stores and resolves customer sessions by the canonical `*.myshopify.com` shop even when discovery and safe return URLs use a configured storefront domain.
@@ -400,6 +403,6 @@ Bridge policy is structured:
 - Unapproved stores deny structured order mutation action IDs with customer-safe support guidance.
 - Approved stores with `order-self-service` may pass configured order self-service action IDs to the Marketplace/MCP execution path.
 - Currently configured concrete order self-service action is `shopify_cancel_checkout` through Checkout MCP.
-- The live Customer Account MCP Marketplace bundle currently exposes only read-only order-status actions: `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
+- The live Customer Account MCP Marketplace bundle currently exposes only read-only order-status actions: `shopify_get_most_recent_order_status` and `shopify_get_order_status`. These actions use Bridge token-broker auth and do not take `shopperSessionId` as an action parameter.
 - Post-order refund/cancel/edit/return-start actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge.
 - Bridge must not hard-block future post-order action IDs once runtime selected them from the compiled Marketplace catalog. Package entitlement, confirmation, audit, MCP session auth, and the action catalog remain the gates.

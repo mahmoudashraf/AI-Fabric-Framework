@@ -1189,3 +1189,12 @@ Critical fixes that made the gate pass:
 - Commit `e34c6c85b` was pushed to `Platform-V9` and deployed on staging for Platform backend and Shopify Bridge; both health checks returned `UP`.
 - Live staging freshness proof passed: Shopify Admin changed `MetroTab 11 5G Tablet` price from `679.00` to `681.00`; Platform reindex-only run `vrn-4826fc3b` completed; storefront chat answered `$681.00` with evidence containing `Price range: 681.0 USD` and variant price `681.00 USD`.
 - Runtime logs checked after the proof for Platform backend and Shopify Bridge showed zero `/run-sync`, `/documents/sync`, or `runSync` mentions in the post-proof window. Evidence files are under `/tmp/loomai-0104-*`.
+
+## 2026-05-16 Customer Account MCP Token Broker Fix
+
+- Root cause of repeated `Connect store account` loop: Shopify Customer Account browser OAuth successfully bound the shopper session in Shopify Bridge, but the generic MCP Gateway could not read Bridge-owned customer tokens.
+- Implemented Bridge internal token broker endpoint `POST /api/admin/customer-account/shops/{shopDomain}/token/resolve`, protected by the Bridge admin API key. It resolves Customer Account OAuth tokens from the canonical shop plus verified shopper session and masks token values in server-side `toString()`.
+- Implemented MCP Gateway `CUSTOMER_OAUTH_PKCE` token-broker support. Gateway resolves the broker base URL from allowlisted profile ref `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`, resolves the broker API key from `MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY`, enforces public HTTPS and a tight broker header allowlist, and then forwards the returned token as the MCP Authorization header.
+- Marketplace migration `V104__shopify_customer_account_mcp_token_broker.sql` updates the live Customer Account MCP action bundle to remove LLM-filled `shopperSessionId` params and declare broker auth under `execution.mcp.auth.tokenBroker`.
+- Decision: customer session identity must travel through verified runtime trace/auth context, not through shopper/LLM action parameters. Do not reintroduce `shopperSessionId` as a required action parameter.
+- Local verification passed: full `mcp-execution-gateway-service` tests; targeted Shopify Bridge Customer Account OAuth/token-broker/MCP/storefront chat tests; Platform backend Marketplace manifest/compiler tests with all 104 migrations applied.

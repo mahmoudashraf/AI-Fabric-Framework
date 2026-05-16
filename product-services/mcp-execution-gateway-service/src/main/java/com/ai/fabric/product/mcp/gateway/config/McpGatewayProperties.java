@@ -34,7 +34,8 @@ public record McpGatewayProperties(
         ));
         profileRefAllowlist = normalizeList(profileRefAllowlist, List.of(
             "MCP_PROFILE_SHOPIFY_UCP_AGENT",
-            "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"
+            "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE",
+            "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL"
         ));
         environmentSecretRefPrefix = normalize(environmentSecretRefPrefix, "MCP_SECRET_");
         connectTimeout = validDuration(connectTimeout, Duration.ofSeconds(5));
