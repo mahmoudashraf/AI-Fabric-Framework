@@ -932,11 +932,41 @@ public class ShopifyStorefrontChatService {
             "answer"
         )) {
             String value = nestedText(response, path);
-            if (value != null) {
+            if (value != null && !genericMcpToolResult(value)) {
                 return value;
             }
         }
+        return extractMcpToolTextAnswer(response);
+    }
+
+    private String extractMcpToolTextAnswer(JsonNode response) {
+        for (String path : List.of(
+            "result.data.actionResult.data.toolResult.content",
+            "result.sanitizedPayload.data.actionResult.data.toolResult.content",
+            "result.data.toolResult.content",
+            "result.sanitizedPayload.data.toolResult.content"
+        )) {
+            JsonNode content = nestedNode(response, path);
+            if (content == null || !content.isArray()) {
+                continue;
+            }
+            List<String> parts = new ArrayList<>();
+            for (JsonNode item : content) {
+                String type = trimToNull(textOrNull(item, "type"));
+                String text = trimToNull(textOrNull(item, "text"));
+                if ("text".equalsIgnoreCase(type) && text != null) {
+                    parts.add(text);
+                }
+            }
+            if (!parts.isEmpty()) {
+                return String.join("\n", parts);
+            }
+        }
         return null;
+    }
+
+    private boolean genericMcpToolResult(String value) {
+        return "MCP tool result".equalsIgnoreCase(value == null ? "" : value.trim());
     }
 
     private String nestedText(JsonNode node, String dottedPath) {

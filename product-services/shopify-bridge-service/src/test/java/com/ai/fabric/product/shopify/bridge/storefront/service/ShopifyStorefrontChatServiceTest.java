@@ -324,7 +324,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryUsesActionResultMessageWhenGatewayResultMessageIsGeneric() throws Exception {
+    void queryUsesMcpToolTextWhenGatewayResultMessageIsGeneric() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
         when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
@@ -340,8 +340,15 @@ class ShopifyStorefrontChatServiceTest {
                   "action":"shopify_get_most_recent_order_status",
                   "actionResult":{
                     "success":true,
-                    "message":"No orders found for this customer.",
-                    "data":{}
+                    "message":"MCP tool result",
+                    "data":{
+                      "toolResult":{
+                        "content":[
+                          {"type":"text","text":"No orders found for this customer."}
+                        ],
+                        "isError":true
+                      }
+                    }
                   }
                 }
               }
