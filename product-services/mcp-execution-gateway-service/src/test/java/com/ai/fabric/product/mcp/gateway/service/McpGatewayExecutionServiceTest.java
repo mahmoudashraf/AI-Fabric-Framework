@@ -571,8 +571,8 @@ class McpGatewayExecutionServiceTest {
             .andExpect(content().string(org.hamcrest.Matchers.containsString("customer-account-mcp-api:full")))
             .andRespond(withSuccess("{\"success\":true,\"accessToken\":\"broker-customer-token\",\"tokenType\":\"Bearer\"}", org.springframework.http.MediaType.APPLICATION_JSON));
         MockEnvironment environment = new MockEnvironment()
-            .withProperty("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL", "https://example.com")
-            .withProperty("MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY", "bridge-secret");
+            .withProperty("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL", "'https://example.com'")
+            .withProperty("MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY", "'bridge-secret'");
         McpGatewayProperties envProperties = new McpGatewayProperties(
             "mcp-gateway-test",
             "test",
@@ -580,7 +580,7 @@ class McpGatewayExecutionServiceTest {
             "X-MCP-GATEWAY-API-KEY",
             "2025-11-25",
             java.util.List.of("X-API-KEY", "X-MCP-API-KEY", "X-LOOM-MCP-KEY"),
-            java.util.List.of("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL"),
+            java.util.List.of("'SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL'"),
             true,
             "MCP_SECRET_",
             Duration.ofSeconds(1),

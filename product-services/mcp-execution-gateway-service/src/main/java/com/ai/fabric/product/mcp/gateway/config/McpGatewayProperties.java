@@ -66,9 +66,24 @@ public record McpGatewayProperties(
         List<String> normalized = values.stream()
             .map(McpGatewayProperties::trim)
             .filter(StringUtils::hasText)
+            .map(McpGatewayProperties::stripWrappingQuotes)
+            .filter(StringUtils::hasText)
             .map(value -> value.trim().toUpperCase(java.util.Locale.ROOT))
             .distinct()
             .toList();
         return normalized.isEmpty() ? fallback : normalized;
+    }
+
+    private static String stripWrappingQuotes(String value) {
+        String normalized = trim(value);
+        if (normalized == null || normalized.length() < 2) {
+            return normalized;
+        }
+        char first = normalized.charAt(0);
+        char last = normalized.charAt(normalized.length() - 1);
+        if ((first == '\'' || first == '"') && first == last) {
+            return normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
     }
 }

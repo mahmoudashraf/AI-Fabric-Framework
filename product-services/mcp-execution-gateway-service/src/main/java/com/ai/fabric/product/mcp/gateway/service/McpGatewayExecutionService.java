@@ -993,7 +993,7 @@ public class McpGatewayExecutionService {
             trace.path("profileValues"),
             trace.path("config")
         )) {
-            String value = container.path(profileRef).asText("").trim();
+            String value = stripWrappingQuotes(container.path(profileRef).asText("").trim());
             if (StringUtils.hasText(value)) {
                 return value;
             }
@@ -1003,9 +1003,9 @@ public class McpGatewayExecutionService {
             .map(value -> value.trim().toUpperCase(Locale.ROOT))
             .collect(java.util.stream.Collectors.toUnmodifiableSet());
         if (environment != null && allowlist.contains(normalizedRef)) {
-            String value = environment.getProperty(profileRef.trim());
+            String value = stripWrappingQuotes(environment.getProperty(profileRef.trim()));
             if (StringUtils.hasText(value)) {
-                return value.trim();
+                return value;
             }
         }
         return null;
@@ -1434,7 +1434,7 @@ public class McpGatewayExecutionService {
             trace.path("secretValues"),
             trace.path("resolvedSecrets")
         )) {
-            String value = container.path(secretRef).asText("").trim();
+            String value = stripWrappingQuotes(container.path(secretRef).asText("").trim());
             if (StringUtils.hasText(value)) {
                 return value;
             }
@@ -1443,12 +1443,28 @@ public class McpGatewayExecutionService {
             && environment != null
             && SAFE_SECRET_REF.matcher(secretRef.trim()).matches()
             && secretRef.trim().startsWith(properties.environmentSecretRefPrefix())) {
-            String value = environment.getProperty(secretRef.trim());
+            String value = stripWrappingQuotes(environment.getProperty(secretRef.trim()));
             if (StringUtils.hasText(value)) {
-                return value.trim();
+                return value;
             }
         }
         return null;
+    }
+
+    private String stripWrappingQuotes(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String normalized = value.trim();
+        if (normalized.length() < 2) {
+            return normalized;
+        }
+        char first = normalized.charAt(0);
+        char last = normalized.charAt(normalized.length() - 1);
+        if ((first == '\'' || first == '"') && first == last) {
+            return normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
     }
 
     private JsonNode readRestrictedJsonPath(JsonNode source, String path) {
