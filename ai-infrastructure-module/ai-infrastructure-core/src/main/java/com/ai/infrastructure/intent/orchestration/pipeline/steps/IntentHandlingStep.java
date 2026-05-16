@@ -80,6 +80,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.time.Instant;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Pipeline step that handles the extracted intents (ACTION, INFORMATION, etc.).
@@ -713,13 +715,14 @@ public class IntentHandlingStep implements PipelineStep {
 
         Map<String, Object> params = effectiveParams != null ? effectiveParams : new LinkedHashMap<>();
         Object rawExisting = params.get(batchSpec.paramName());
-        List<Object> existing = new ArrayList<>(coerceToObjectList(rawExisting));
+        List<Object> rawExistingList = coerceToObjectList(rawExisting);
+        List<Object> existing = new ArrayList<>();
 
         java.util.Set<String> existingKeys = new java.util.HashSet<>();
-        for (Object element : existing) {
-            if (element instanceof Map<?, ?> map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> item = (Map<String, Object>) map;
+        for (Object element : rawExistingList) {
+            Map<String, Object> item = normalizeBatchItemAgainstSchema(element, itemSchema);
+            if (item != null && !item.isEmpty()) {
+                existing.add(item);
                 existingKeys.add(buildBatchItemKey(item, props));
             }
         }
@@ -753,8 +756,9 @@ public class IntentHandlingStep implements PipelineStep {
                     value = 1;
                 }
 
-                if (value != null) {
-                    item.put(propName, value);
+                Object normalizedValue = normalizeBatchValueAgainstSchema(value, props.get(propName));
+                if (normalizedValue != null) {
+                    item.put(propName, normalizedValue);
                 }
             }
 
@@ -768,13 +772,176 @@ public class IntentHandlingStep implements PipelineStep {
             }
         }
 
-        if (merged.equals(existing) || merged.isEmpty()) {
+        if (merged.isEmpty()) {
+            if (rawExisting != null) {
+                Map<String, Object> updated = new LinkedHashMap<>(params);
+                updated.remove(batchSpec.paramName());
+                return updated;
+            }
+            return params;
+        }
+
+        if (merged.equals(rawExistingList)) {
             return params;
         }
 
         Map<String, Object> updated = new LinkedHashMap<>(params);
         updated.put(batchSpec.paramName(), Collections.unmodifiableList(merged));
         return updated;
+    }
+
+    private Map<String, Object> normalizeBatchItemAgainstSchema(Object element,
+                                                                 com.ai.infrastructure.intent.action.AIActionParamSchema itemSchema) {
+        if (!(element instanceof Map<?, ?> raw) || itemSchema == null || itemSchema.getProperties() == null
+            || itemSchema.getProperties().isEmpty()) {
+            return null;
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        for (Map.Entry<String, com.ai.infrastructure.intent.action.AIActionParamSchema> entry : itemSchema.getProperties().entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            Object value = mapValueForSchemaProperty(raw, entry.getKey());
+            Object normalized = normalizeBatchValueAgainstSchema(value, entry.getValue());
+            if (normalized != null) {
+                item.put(entry.getKey().trim(), normalized);
+            }
+        }
+        if (item.isEmpty() || missingRequiredBatchItemProperties(item, itemSchema)) {
+            return null;
+        }
+        return Collections.unmodifiableMap(item);
+    }
+
+    private Object mapValueForSchemaProperty(Map<?, ?> raw, String propName) {
+        if (raw == null || raw.isEmpty() || !StringUtils.hasText(propName)) {
+            return null;
+        }
+        List<String> candidates = attachmentContextCandidateKeys(propName);
+        for (String candidate : candidates) {
+            for (Map.Entry<?, ?> entry : raw.entrySet()) {
+                if (entry == null || entry.getKey() == null || !StringUtils.hasText(entry.getKey().toString())) {
+                    continue;
+                }
+                if (entry.getKey().toString().trim().equalsIgnoreCase(candidate)) {
+                    return entry.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
+    private Object normalizeBatchValueAgainstSchema(Object value,
+                                                    com.ai.infrastructure.intent.action.AIActionParamSchema schema) {
+        if (!hasMeaningfulBatchValue(value)) {
+            return null;
+        }
+        if (schema == null || schema.getType() == null) {
+            return value;
+        }
+        return switch (schema.getType()) {
+            case STRING -> normalizeBatchStringValue(value, schema);
+            case INTEGER -> normalizeBatchIntegerValue(value, schema);
+            case NUMBER -> normalizeBatchNumberValue(value, schema);
+            case BOOLEAN -> normalizeBatchBooleanValue(value);
+            default -> value;
+        };
+    }
+
+    private Object normalizeBatchStringValue(Object value,
+                                             com.ai.infrastructure.intent.action.AIActionParamSchema schema) {
+        String normalized = value != null ? value.toString().trim() : null;
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        if (schema.getAllowedValues() != null && !schema.getAllowedValues().isEmpty()
+            && schema.getAllowedValues().stream().noneMatch(allowed -> normalized.equals(allowed))) {
+            return null;
+        }
+        if (StringUtils.hasText(schema.getPattern())) {
+            try {
+                if (!Pattern.compile(schema.getPattern()).matcher(normalized).matches()) {
+                    return null;
+                }
+            } catch (PatternSyntaxException ex) {
+                log.debug("Ignoring invalid batch parameter pattern for '{}': {}", schema.getName(), ex.getMessage());
+                return null;
+            }
+        }
+        return normalized;
+    }
+
+    private Object normalizeBatchIntegerValue(Object value,
+                                              com.ai.infrastructure.intent.action.AIActionParamSchema schema) {
+        Long parsed = parseLong(value);
+        if (parsed == null || !withinNumericBounds(parsed.doubleValue(), schema)) {
+            return null;
+        }
+        return parsed;
+    }
+
+    private Object normalizeBatchNumberValue(Object value,
+                                             com.ai.infrastructure.intent.action.AIActionParamSchema schema) {
+        Double parsed = parseDouble(value);
+        if (parsed == null || !withinNumericBounds(parsed, schema)) {
+            return null;
+        }
+        return parsed;
+    }
+
+    private Object normalizeBatchBooleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof CharSequence text) {
+            String normalized = text.toString().trim();
+            if ("true".equalsIgnoreCase(normalized)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(normalized)) {
+                return false;
+            }
+        }
+        return null;
+    }
+
+    private Long parseLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof CharSequence text && StringUtils.hasText(text.toString())) {
+            try {
+                return Long.parseLong(text.toString().trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Double parseDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof CharSequence text && StringUtils.hasText(text.toString())) {
+            try {
+                return Double.parseDouble(text.toString().trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private boolean withinNumericBounds(double value,
+                                        com.ai.infrastructure.intent.action.AIActionParamSchema schema) {
+        if (schema == null) {
+            return true;
+        }
+        if (schema.getMin() != null && value < schema.getMin()) {
+            return false;
+        }
+        return schema.getMax() == null || value <= schema.getMax();
     }
 
     private boolean missingRequiredBatchItemProperties(Map<String, Object> item,

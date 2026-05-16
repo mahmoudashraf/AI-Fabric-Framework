@@ -197,7 +197,54 @@ class IntentHandlingStepBatchTargetsTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) raw;
         assertThat(items).singleElement().satisfies(item -> assertThat(item)
             .containsEntry("product_variant_id", "gid://shopify/ProductVariant/1")
-            .containsEntry("quantity", 1));
+            .containsEntry("quantity", 1L));
+    }
+
+    @Test
+    void shouldReplaceInvalidBatchItemWithResolvedTargetMetadataWhenSchemaConstrained() {
+        AIActionMetaData meta = shopifyCartMeta();
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("ok")
+            .data(ActionResultContracts.object(Map.of()))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(meta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of(
+                "add_items", List.of(Map.of("product_variant_id", "Selling Plans Ski Wax", "quantity", "1"))
+            ))
+            .build();
+
+        PipelineContext context = PipelineContext.from("Add Selling Plans Ski Wax to my cart.", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .resolvedTargets(List.of(
+                target("gid://shopify/Product/1", Map.of("product_variant_id", "gid://shopify/ProductVariant/1"))
+            ))
+            .build();
+
+        newStep(registry).process(context);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).executeAction(paramsCaptor.capture(), any());
+
+        Object raw = paramsCaptor.getValue().get("add_items");
+        assertThat(raw).isInstanceOf(List.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) raw;
+        assertThat(items).singleElement().satisfies(item -> assertThat(item)
+            .containsEntry("product_variant_id", "gid://shopify/ProductVariant/1")
+            .containsEntry("quantity", 1L));
     }
 
     @Test
@@ -296,10 +343,12 @@ class IntentHandlingStepBatchTargetsTest {
         AIActionParamSchema variantId = AIActionParamSchema.builder()
             .name("product_variant_id")
             .type(AIActionParamType.STRING)
+            .pattern("^gid://shopify/ProductVariant/[0-9]+$")
             .build();
         AIActionParamSchema quantity = AIActionParamSchema.builder()
             .name("quantity")
             .type(AIActionParamType.INTEGER)
+            .min(1L)
             .build();
         AIActionParamSchema item = AIActionParamSchema.builder()
             .type(AIActionParamType.OBJECT)

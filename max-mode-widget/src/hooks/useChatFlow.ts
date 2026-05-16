@@ -291,6 +291,12 @@ export function useChatFlow({
                   content: doc.content || "No content available",
                   type: docType,
                   metadata: doc.metadata || {},
+                  product_variant_id: doc.product_variant_id,
+                  productVariantId: doc.productVariantId,
+                  firstAvailableVariantId: doc.firstAvailableVariantId,
+                  firstAvailableVariantTitle: doc.firstAvailableVariantTitle,
+                  priceRange: doc.priceRange,
+                  availability: doc.availability,
                   score: doc.score,
                   similarity: doc.similarity,
                 };

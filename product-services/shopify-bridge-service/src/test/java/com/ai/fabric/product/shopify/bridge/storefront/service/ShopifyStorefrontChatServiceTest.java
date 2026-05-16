@@ -1018,6 +1018,10 @@ class ShopifyStorefrontChatServiceTest {
                       "metadata":{
                         "shopifyDocumentTitle":"Selling Plans Ski Wax",
                         "storefrontUrl":"https://alpha.myshopify.com/products/selling-plans-ski-wax",
+                        "productVariantId":"gid://shopify/ProductVariant/123",
+                        "firstAvailableVariantTitle":"Default variant",
+                        "priceRange":"9.99 USD",
+                        "availability":"available",
                         "raw":"{\\"tenantId\\":\\"tenant-secret\\",\\"runtime\\":\\"internal\\"}",
                         "knowledgeSourceHandleRef":"plugin/private/path"
                       }
@@ -1048,6 +1052,11 @@ class ShopifyStorefrontChatServiceTest {
         JsonNode safeDocument = response.path("result").path("sanitizedPayload").path("data").path("documents").path(0);
         assertThat(safeDocument.path("title").asText()).isEqualTo("Selling Plans Ski Wax");
         assertThat(safeDocument.path("storefrontUrl").asText()).contains("/products/selling-plans-ski-wax");
+        assertThat(safeDocument.path("productVariantId").asText()).isEqualTo("gid://shopify/ProductVariant/123");
+        assertThat(safeDocument.path("firstAvailableVariantId").asText()).isEqualTo("gid://shopify/ProductVariant/123");
+        assertThat(safeDocument.path("firstAvailableVariantTitle").asText()).isEqualTo("Default variant");
+        assertThat(safeDocument.path("priceRange").asText()).isEqualTo("9.99 USD");
+        assertThat(safeDocument.path("availability").asText()).isEqualTo("available");
         assertThat(safeDocument.has("metadata")).isFalse();
         assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
             .isEqualTo("Selling Plans Ski Wax is relevant to wax searches from store evidence.");

@@ -890,6 +890,25 @@ public class ShopifyStorefrontChatService {
                 safeDocument.put("storefrontUrl", storefrontUrl);
                 safeDocument.put("url", storefrontUrl);
             }
+            String productVariantId = safeProductVariantGid(firstNonBlank(
+                textOrNull(document, "productVariantId"),
+                textOrNull(document, "product_variant_id"),
+                textOrNull(document, "firstAvailableVariantId"),
+                textOrNull(document.path("metadata"), "productVariantId"),
+                textOrNull(document.path("metadata"), "product_variant_id"),
+                textOrNull(document.path("metadata"), "firstAvailableVariantId")
+            ));
+            if (productVariantId != null) {
+                safeDocument.put("productVariantId", productVariantId);
+                safeDocument.put("product_variant_id", productVariantId);
+                safeDocument.put("firstAvailableVariantId", productVariantId);
+            }
+            copySafeDocumentText(document, safeDocument, "firstAvailableVariantTitle");
+            copySafeDocumentText(document.path("metadata"), safeDocument, "firstAvailableVariantTitle");
+            copySafeDocumentText(document, safeDocument, "priceRange");
+            copySafeDocumentText(document.path("metadata"), safeDocument, "priceRange");
+            copySafeDocumentText(document, safeDocument, "availability");
+            copySafeDocumentText(document.path("metadata"), safeDocument, "availability");
             String content = trimToNull(textOrNull(document, "content"));
             if (content != null) {
                 safeDocument.put("content", content.length() > 600 ? content.substring(0, 600) : content);
@@ -897,6 +916,24 @@ public class ShopifyStorefrontChatService {
             safeDocuments.add(safeDocument);
         }
         return safeDocuments;
+    }
+
+    private String safeProductVariantGid(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null || !normalized.matches("^gid://shopify/ProductVariant/[0-9]+$")) {
+            return null;
+        }
+        return normalized;
+    }
+
+    private void copySafeDocumentText(JsonNode source, ObjectNode target, String field) {
+        if (source == null || target == null || !StringUtils.hasText(field) || target.has(field)) {
+            return;
+        }
+        String value = trimToNull(textOrNull(source, field));
+        if (value != null) {
+            target.put(field, value.length() > MAX_CONTEXT_TEXT_LENGTH ? value.substring(0, MAX_CONTEXT_TEXT_LENGTH) : value);
+        }
     }
 
     private void copySafeValue(JsonNode source, ObjectNode target, String field) {
