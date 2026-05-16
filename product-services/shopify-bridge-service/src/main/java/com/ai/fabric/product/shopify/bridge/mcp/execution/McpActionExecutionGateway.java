@@ -217,7 +217,11 @@ public class McpActionExecutionGateway {
             return ShopifyBridgeActionResult.failure("MCP_GATEWAY_REQUEST_FAILED", "MCP execution gateway returned an invalid response.");
         }
         boolean success = response.path("success").asBoolean(false);
-        String message = text(response, "message");
+        String gatewayMessage = text(response, "message");
+        String toolMessage = mcpToolTextContent(response.path("data").path("toolResult"));
+        String message = isGenericMcpToolResult(gatewayMessage) && StringUtils.hasText(toolMessage)
+            ? toolMessage
+            : firstNonBlank(gatewayMessage, toolMessage);
         String errorCode = text(response, "errorCode");
         Map<String, Object> data = response.path("data").isObject()
             ? objectMapper.convertValue(response.path("data"), new TypeReference<>() {
@@ -229,6 +233,30 @@ public class McpActionExecutionGateway {
                 StringUtils.hasText(errorCode) ? errorCode : "MCP_EXECUTION_FAILED",
                 StringUtils.hasText(message) ? message : "MCP execution failed."
             );
+    }
+
+    private String mcpToolTextContent(JsonNode toolResult) {
+        JsonNode content = toolResult == null ? MissingNode.getInstance() : toolResult.path("content");
+        if (!content.isArray()) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        for (JsonNode item : content) {
+            String type = text(item, "type");
+            String text = text(item, "text");
+            if ("text".equalsIgnoreCase(type) && StringUtils.hasText(text)) {
+                parts.add(text.trim());
+            }
+        }
+        return parts.isEmpty() ? null : String.join("\n", parts);
+    }
+
+    private boolean isGenericMcpToolResult(String value) {
+        return "MCP tool result".equalsIgnoreCase(value == null ? "" : value.trim());
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return StringUtils.hasText(first) ? first : second;
     }
 
     private List<String> toolNames(JsonNode tools) {

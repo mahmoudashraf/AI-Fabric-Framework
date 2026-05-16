@@ -324,6 +324,47 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryUsesActionResultMessageWhenGatewayResultMessageIsGeneric() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"ACTION_EXECUTED",
+                "success":true,
+                "message":"MCP tool result",
+                "data":{
+                  "action":"shopify_get_most_recent_order_status",
+                  "actionResult":{
+                    "success":true,
+                    "message":"No orders found for this customer.",
+                    "data":{}
+                  }
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Where is my order?",
+                  "storefrontContext":{"pageType":"account"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer).isEqualTo("No orders found for this customer.");
+        assertThat(answer).doesNotContain("MCP", "tool result");
+    }
+
+    @Test
     void suggestionsNormalizesStorefrontContextBeforeForwarding() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);

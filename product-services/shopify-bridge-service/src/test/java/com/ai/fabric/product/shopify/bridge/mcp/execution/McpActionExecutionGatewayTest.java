@@ -238,6 +238,56 @@ class McpActionExecutionGatewayTest {
     }
 
     @Test
+    void executeUsesMcpTextContentWhenGatewayMessageIsGeneric() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            objectMapper,
+            builder
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andRespond(withSuccess("""
+                {
+                  "success": true,
+                  "message": "MCP tool result",
+                  "data": {
+                    "adapterType": "mcp-tool",
+                    "toolResult": {
+                      "content": [
+                        {"type": "text", "text": "No orders found for this customer."}
+                      ],
+                      "isError": true
+                    }
+                  }
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_get_most_recent_order_status",
+                Map.of(),
+                null,
+                Map.of("actionConfig", Map.of(
+                    "execution", Map.of("mcp", Map.of(
+                        "serverRef", "shopify-customer-account",
+                        "toolName", "get_most_recent_order_status"
+                    ))
+                ))
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("No orders found for this customer.");
+        assertThat(result.message()).doesNotContain("MCP", "tool result");
+        server.verify();
+    }
+
+    @Test
     void executeForwardsRuntimeParamSchemaToGatewayActionConfig() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

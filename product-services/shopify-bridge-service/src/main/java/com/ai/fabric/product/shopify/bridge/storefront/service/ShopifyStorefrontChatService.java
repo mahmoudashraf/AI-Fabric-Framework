@@ -925,6 +925,8 @@ public class ShopifyStorefrontChatService {
             "result.sanitizedPayload.safeSummary",
             "result.sanitizedPayload.message",
             "result.sanitizedPayload.answer",
+            "result.data.actionResult.message",
+            "result.sanitizedPayload.data.actionResult.message",
             "result.message",
             "message",
             "answer"
