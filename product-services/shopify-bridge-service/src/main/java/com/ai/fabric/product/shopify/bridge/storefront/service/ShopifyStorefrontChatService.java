@@ -992,7 +992,7 @@ public class ShopifyStorefrontChatService {
                 String type = trimToNull(textOrNull(item, "type"));
                 String text = trimToNull(textOrNull(item, "text"));
                 if ("text".equalsIgnoreCase(type) && text != null) {
-                    parts.add(text);
+                    parts.add(summarizeMcpToolText(text));
                 }
             }
             if (!parts.isEmpty()) {
@@ -1000,6 +1000,107 @@ public class ShopifyStorefrontChatService {
             }
         }
         return null;
+    }
+
+    private String summarizeMcpToolText(String text) {
+        String normalized = trimToNull(text);
+        if (normalized == null || (!normalized.startsWith("{") && !normalized.startsWith("["))) {
+            return normalized;
+        }
+        try {
+            JsonNode parsed = objectMapper.readTree(normalized);
+            String error = firstMcpErrorMessage(parsed);
+            if (error != null) {
+                return error;
+            }
+            String cartSummary = cartSummary(parsed.path("cart"));
+            return cartSummary != null ? cartSummary : normalized;
+        } catch (Exception ignored) {
+            return normalized;
+        }
+    }
+
+    private String firstMcpErrorMessage(JsonNode parsed) {
+        JsonNode errors = parsed != null ? parsed.path("errors") : null;
+        if (errors == null || !errors.isArray() || errors.isEmpty()) {
+            return null;
+        }
+        for (JsonNode error : errors) {
+            String message = trimToNull(textOrNull(error, "message"));
+            if (message != null) {
+                return message;
+            }
+        }
+        return null;
+    }
+
+    private String cartSummary(JsonNode cart) {
+        if (cart == null || !cart.isObject() || cart.isEmpty()) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        String lineSummary = cartLineSummary(cart.path("lines"));
+        if (lineSummary != null) {
+            parts.add("Cart updated: " + lineSummary + ".");
+        } else {
+            int totalQuantity = cart.path("total_quantity").asInt(-1);
+            parts.add(totalQuantity >= 0 ? "Cart updated. Total quantity: " + totalQuantity + "." : "Cart updated.");
+        }
+        String total = moneySummary(cart.path("cost").path("total_amount"));
+        if (total != null) {
+            parts.add("Total: " + total + ".");
+        }
+        String checkoutUrl = trimToNull(textOrNull(cart, "checkout_url"));
+        if (checkoutUrl != null) {
+            parts.add("Checkout: " + checkoutUrl);
+        }
+        return String.join(" ", parts);
+    }
+
+    private String cartLineSummary(JsonNode lines) {
+        if (lines == null || !lines.isArray() || lines.isEmpty()) {
+            return null;
+        }
+        List<String> summaries = new ArrayList<>();
+        int shown = 0;
+        for (JsonNode line : lines) {
+            if (line == null || !line.isObject()) {
+                continue;
+            }
+            String title = firstNonBlank(
+                textOrNull(line.path("merchandise").path("product"), "title"),
+                textOrNull(line.path("merchandise"), "title")
+            );
+            int quantity = line.path("quantity").asInt(0);
+            if (title == null || quantity <= 0) {
+                continue;
+            }
+            summaries.add(quantity + " x " + title);
+            shown++;
+            if (shown >= 3) {
+                break;
+            }
+        }
+        if (summaries.isEmpty()) {
+            return null;
+        }
+        int remaining = lines.size() - shown;
+        if (remaining > 0) {
+            summaries.add(remaining + " more");
+        }
+        return String.join(", ", summaries);
+    }
+
+    private String moneySummary(JsonNode money) {
+        if (money == null || !money.isObject()) {
+            return null;
+        }
+        String amount = trimToNull(textOrNull(money, "amount"));
+        String currency = firstNonBlank(textOrNull(money, "currency"), textOrNull(money, "currencyCode"));
+        if (amount == null) {
+            return null;
+        }
+        return currency != null ? amount + " " + currency : amount;
     }
 
     private boolean genericMcpToolResult(String value) {

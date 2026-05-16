@@ -372,6 +372,55 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void querySummarizesShopifyCartMcpJsonTextForShoppers() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"ACTION_EXECUTED",
+                "success":true,
+                "message":"MCP tool result",
+                "data":{
+                  "action":"shopify_update_cart",
+                  "actionResult":{
+                    "success":true,
+                    "message":"MCP tool result",
+                    "data":{
+                      "toolResult":{
+                        "content":[
+                          {"type":"text","text":"{\\"cart\\":{\\"lines\\":[{\\"quantity\\":1,\\"merchandise\\":{\\"title\\":\\"Selling Plans Ski Wax\\",\\"product\\":{\\"title\\":\\"Selling Plans Ski Wax\\"}}}],\\"cost\\":{\\"total_amount\\":{\\"amount\\":\\"24.95\\",\\"currency\\":\\"USD\\"}},\\"total_quantity\\":1,\\"checkout_url\\":\\"https://shop.example/cart/c/test\\"},\\"errors\\":[]}"}
+                        ],
+                        "isError":false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Yes, confirm",
+                  "storefrontContext":{"pageType":"index"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        assertThat(answer)
+            .contains("Cart updated", "1 x Selling Plans Ski Wax", "24.95 USD", "https://shop.example/cart/c/test")
+            .doesNotContain("{", "MCP tool result");
+    }
+
+    @Test
     void suggestionsNormalizesStorefrontContextBeforeForwarding() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
