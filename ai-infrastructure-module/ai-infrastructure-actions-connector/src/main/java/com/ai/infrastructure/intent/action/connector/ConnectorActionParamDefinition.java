@@ -18,6 +18,7 @@ public record ConnectorActionParamDefinition(
     List<String> allowedValues,
     Long min,
     Long max,
+    Object defaultValue,
     boolean sensitive,
     ConnectorActionParamDefinition items,
     Map<String, ConnectorActionParamDefinition> properties,

@@ -154,8 +154,6 @@ class ShopifyBridgeStoreSyncServiceTest {
             .containsEntry("availability", "1 of 2 variants available")
             .containsEntry("variantCount", 2)
             .containsEntry("product_variant_id", "gid://shopify/ProductVariant/1")
-            .containsEntry("productVariantId", "gid://shopify/ProductVariant/1")
-            .containsEntry("firstAvailableVariantId", "gid://shopify/ProductVariant/1")
             .containsEntry("firstAvailableVariantTitle", "Standard")
             .containsEntry("reviewProvider", "Judge.me")
             .containsEntry("reviewAverage", "4.8")

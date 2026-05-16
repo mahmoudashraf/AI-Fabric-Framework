@@ -36,6 +36,7 @@ class RegisteredConnectorActionMappingTest {
                     List.of(),
                     null,
                     null,
+                    null,
                     false,
                     null,
                     Map.of(),
@@ -51,6 +52,7 @@ class RegisteredConnectorActionMappingTest {
                     List.of(),
                     1L,
                     100L,
+                    1,
                     false,
                     null,
                     Map.of(),
@@ -82,5 +84,6 @@ class RegisteredConnectorActionMappingTest {
         assertThat(roundTrip.params()).hasSize(2);
         assertThat(roundTrip.params().getFirst().name()).isEqualTo("sku");
         assertThat(roundTrip.params().getLast().name()).isEqualTo("quantity");
+        assertThat(roundTrip.params().getLast().defaultValue()).isEqualTo("1");
     }
 }

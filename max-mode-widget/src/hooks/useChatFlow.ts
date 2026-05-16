@@ -147,19 +147,21 @@ export function useChatFlow({
             vectorSpace = docCategory === "order" ? "order" : "product";
           }
 
+          const sourceMetadata: Record<string, any> = { ...(item.data.metadata || {}) };
+          delete sourceMetadata.productVariantId;
+          delete sourceMetadata.firstAvailableVariantId;
+          delete sourceMetadata.variantId;
+
           const fullMetadata: Record<string, any> = {
-            ...(item.data.metadata || {}),
+            ...sourceMetadata,
             id: item.data.id,
             sku: item.data.sku,
             category: item.data.category || item.data.type,
             name: item.data.name,
             title: item.data.title,
             price: item.data.price,
-            product_variant_id: item.data.product_variant_id || item.data.productVariantId || item.data.firstAvailableVariantId || item.data.variantId,
-            productVariantId: item.data.productVariantId || item.data.product_variant_id || item.data.firstAvailableVariantId || item.data.variantId,
-            firstAvailableVariantId: item.data.firstAvailableVariantId || item.data.productVariantId || item.data.product_variant_id || item.data.variantId,
+            product_variant_id: item.data.product_variant_id,
             firstAvailableVariantTitle: item.data.firstAvailableVariantTitle,
-            variantId: item.data.variantId || item.data.productVariantId || item.data.product_variant_id || item.data.firstAvailableVariantId,
             totalPrice: item.data.totalPrice,
             quantity: item.data.quantity,
             status: item.data.status,
@@ -292,8 +294,6 @@ export function useChatFlow({
                   type: docType,
                   metadata: doc.metadata || {},
                   product_variant_id: doc.product_variant_id,
-                  productVariantId: doc.productVariantId,
-                  firstAvailableVariantId: doc.firstAvailableVariantId,
                   firstAvailableVariantTitle: doc.firstAvailableVariantTitle,
                   priceRange: doc.priceRange,
                   availability: doc.availability,

@@ -751,12 +751,12 @@ public class IntentHandlingStep implements PipelineStep {
                     }
                 }
 
-                if (value == null && "quantity".equalsIgnoreCase(propName)) {
-                    // Default quantities for batch actions to 1 when not provided.
-                    value = 1;
+                com.ai.infrastructure.intent.action.AIActionParamSchema propSchema = props.get(propName);
+                if (value == null && propSchema != null && propSchema.getDefaultValue() != null) {
+                    value = propSchema.getDefaultValue();
                 }
 
-                Object normalizedValue = normalizeBatchValueAgainstSchema(value, props.get(propName));
+                Object normalizedValue = normalizeBatchValueAgainstSchema(value, propSchema);
                 if (normalizedValue != null) {
                     item.put(propName, normalizedValue);
                 }

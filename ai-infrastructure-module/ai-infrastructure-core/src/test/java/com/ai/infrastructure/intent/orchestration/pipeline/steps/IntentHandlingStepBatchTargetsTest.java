@@ -316,6 +316,7 @@ class IntentHandlingStepBatchTargetsTest {
         AIActionParamSchema quantity = AIActionParamSchema.builder()
             .name("quantity")
             .type(AIActionParamType.INTEGER)
+            .defaultValue(1)
             .build();
         AIActionParamSchema item = AIActionParamSchema.builder()
             .type(AIActionParamType.OBJECT)
@@ -349,6 +350,7 @@ class IntentHandlingStepBatchTargetsTest {
             .name("quantity")
             .type(AIActionParamType.INTEGER)
             .min(1L)
+            .defaultValue(1)
             .build();
         AIActionParamSchema item = AIActionParamSchema.builder()
             .type(AIActionParamType.OBJECT)

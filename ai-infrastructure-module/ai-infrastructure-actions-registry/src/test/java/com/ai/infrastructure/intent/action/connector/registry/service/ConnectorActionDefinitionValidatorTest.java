@@ -136,6 +136,7 @@ class ConnectorActionDefinitionValidatorTest {
             List.of(),
             null,
             null,
+            null,
             false,
             null,
             Map.of(),

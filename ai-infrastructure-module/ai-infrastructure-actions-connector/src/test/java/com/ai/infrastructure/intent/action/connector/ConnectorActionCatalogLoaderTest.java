@@ -209,10 +209,13 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(selectedItems.batchTargets()).isTrue();
         assertThat(selectedItems.items()).isNotNull();
         assertThat(selectedItems.items().properties()).containsKeys("product_variant_id", "quantity");
+        assertThat(selectedItems.items().properties().get("quantity").defaultValue()).isEqualTo(1);
         assertThat(selectedItems.items().requiredProperties()).containsExactly("product_variant_id", "quantity");
         AIActionMetaData metadata = ConnectorActionMetadataMapper.toMetadata(action);
         assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties())
             .containsKeys("product_variant_id", "quantity");
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("quantity").getDefaultValue())
+            .isEqualTo(1);
         Map<String, Object> runtimeConfig = action.runtimeActionConfig();
         assertThat(runtimeConfig).containsEntry("adapterType", "mcp-tool");
         assertThat(runtimeConfig).containsKeys("execution", "mcpServers", "params");
@@ -232,5 +235,8 @@ class ConnectorActionCatalogLoaderTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> runtimeProperties = (Map<String, Object>) runtimeItems.get("properties");
         assertThat(runtimeProperties).containsKeys("product_variant_id", "quantity");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeQuantity = (Map<String, Object>) runtimeProperties.get("quantity");
+        assertThat(runtimeQuantity).containsEntry("defaultValue", 1);
     }
 }

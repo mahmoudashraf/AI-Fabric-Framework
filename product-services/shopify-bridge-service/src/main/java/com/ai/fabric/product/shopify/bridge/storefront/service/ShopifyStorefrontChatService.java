@@ -890,35 +890,22 @@ public class ShopifyStorefrontChatService {
                 safeDocument.put("storefrontUrl", storefrontUrl);
                 safeDocument.put("url", storefrontUrl);
             }
-            ObjectNode safeMetadata = objectMapper.createObjectNode();
             String productVariantId = safeProductVariantGid(firstNonBlank(
-                textOrNull(document, "productVariantId"),
                 textOrNull(document, "product_variant_id"),
-                textOrNull(document, "firstAvailableVariantId"),
-                textOrNull(document.path("metadata"), "productVariantId"),
-                textOrNull(document.path("metadata"), "product_variant_id"),
-                textOrNull(document.path("metadata"), "firstAvailableVariantId")
+                textOrNull(document.path("metadata"), "product_variant_id")
             ));
             if (productVariantId != null) {
-                safeDocument.put("productVariantId", productVariantId);
                 safeDocument.put("product_variant_id", productVariantId);
-                safeDocument.put("firstAvailableVariantId", productVariantId);
-                safeMetadata.put("productVariantId", productVariantId);
-                safeMetadata.put("product_variant_id", productVariantId);
-                safeMetadata.put("firstAvailableVariantId", productVariantId);
             }
-            copySafeDocumentText(document, safeDocument, safeMetadata, "firstAvailableVariantTitle");
-            copySafeDocumentText(document.path("metadata"), safeDocument, safeMetadata, "firstAvailableVariantTitle");
-            copySafeDocumentText(document, safeDocument, safeMetadata, "priceRange");
-            copySafeDocumentText(document.path("metadata"), safeDocument, safeMetadata, "priceRange");
-            copySafeDocumentText(document, safeDocument, safeMetadata, "availability");
-            copySafeDocumentText(document.path("metadata"), safeDocument, safeMetadata, "availability");
+            copySafeDocumentText(document, safeDocument, "firstAvailableVariantTitle");
+            copySafeDocumentText(document.path("metadata"), safeDocument, "firstAvailableVariantTitle");
+            copySafeDocumentText(document, safeDocument, "priceRange");
+            copySafeDocumentText(document.path("metadata"), safeDocument, "priceRange");
+            copySafeDocumentText(document, safeDocument, "availability");
+            copySafeDocumentText(document.path("metadata"), safeDocument, "availability");
             String content = trimToNull(textOrNull(document, "content"));
             if (content != null) {
                 safeDocument.put("content", content.length() > 600 ? content.substring(0, 600) : content);
-            }
-            if (!safeMetadata.isEmpty()) {
-                safeDocument.set("metadata", safeMetadata);
             }
             safeDocuments.add(safeDocument);
         }
@@ -933,7 +920,7 @@ public class ShopifyStorefrontChatService {
         return normalized;
     }
 
-    private void copySafeDocumentText(JsonNode source, ObjectNode target, ObjectNode safeMetadata, String field) {
+    private void copySafeDocumentText(JsonNode source, ObjectNode target, String field) {
         if (source == null || target == null || !StringUtils.hasText(field) || target.has(field)) {
             return;
         }
@@ -941,9 +928,6 @@ public class ShopifyStorefrontChatService {
         if (value != null) {
             String safeValue = value.length() > MAX_CONTEXT_TEXT_LENGTH ? value.substring(0, MAX_CONTEXT_TEXT_LENGTH) : value;
             target.put(field, safeValue);
-            if (safeMetadata != null) {
-                safeMetadata.put(field, safeValue);
-            }
         }
     }
 

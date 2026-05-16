@@ -393,7 +393,7 @@ class ShopifyStoreVectorizationServiceTest {
                 && "availability".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("availability").asText())
                 && "variantSummary".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("variantSummary").asText())
                 && "productVariantId".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("product_variant_id").asText())
-                && "firstAvailableVariantId".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("firstAvailableVariantId").asText())
+                && request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("firstAvailableVariantId").isMissingNode()
                 && "totalInventory".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("totalInventory").asText())
                 && "availableVariantCount".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("availableVariantCount").asText())
                 && "content".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("entityFieldMappings").path("description").asText())

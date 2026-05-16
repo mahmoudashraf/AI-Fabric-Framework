@@ -44,8 +44,6 @@ final class ShopifyProductCommerceEvidence {
         put(metadata, "availableVariantCount", evidence.availableVariantCount());
         put(metadata, "variantSummary", evidence.variantSummary());
         put(metadata, "product_variant_id", evidence.productVariantId());
-        put(metadata, "productVariantId", evidence.productVariantId());
-        put(metadata, "firstAvailableVariantId", evidence.productVariantId());
         put(metadata, "firstAvailableVariantTitle", evidence.productVariantTitle());
         return Map.copyOf(metadata);
     }

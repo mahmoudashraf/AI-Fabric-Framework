@@ -196,9 +196,7 @@ public class ShopifyBridgeAdminClient {
         putIfPresent(values, "currencyCode", text(node, "currencyCode"));
         putIfPresent(values, "availability", text(node, "availability"));
         putIfPresent(values, "variantSummary", text(node, "variantSummary"));
-        putIfPresent(values, "product_variant_id", text(node, "product_variant_id"));
-        putIfPresent(values, "productVariantId", text(node, "productVariantId"));
-        putIfPresent(values, "firstAvailableVariantId", text(node, "firstAvailableVariantId"));
+        putIfPresent(values, "product_variant_id", text(node, "productVariantId"));
         putIfPresent(values, "firstAvailableVariantTitle", text(node, "firstAvailableVariantTitle"));
         putIfPresent(values, "variantCount", integerValue(node, "variantCount"));
         putIfPresent(values, "totalInventory", integerValue(node, "totalInventory"));

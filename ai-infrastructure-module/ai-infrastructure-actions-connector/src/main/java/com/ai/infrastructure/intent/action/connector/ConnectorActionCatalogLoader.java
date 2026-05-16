@@ -117,6 +117,7 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_ALLOWED_VALUES = "allowedValues";
     private static final String KEY_MIN = "min";
     private static final String KEY_MAX = "max";
+    private static final String KEY_DEFAULT_VALUE = "defaultValue";
     private static final String KEY_SENSITIVE = "sensitive";
     private static final String KEY_TRIGGER = "trigger";
     private static final String KEY_CONFIRMATION = "confirmation";
@@ -833,6 +834,7 @@ public class ConnectorActionCatalogLoader {
         List<String> allowedValues = readStringList(raw.get(KEY_ALLOWED_VALUES));
         Long min = readLong(raw.get(KEY_MIN), label, actionName, name, KEY_MIN);
         Long max = readLong(raw.get(KEY_MAX), label, actionName, name, KEY_MAX);
+        Object defaultValue = raw.get(KEY_DEFAULT_VALUE);
         boolean sensitive = readBoolean(raw, KEY_SENSITIVE, false);
         ConnectorActionParamDefinition items = parseItemSchema(raw.get(KEY_ITEMS), label, actionName, name);
         Map<String, ConnectorActionParamDefinition> properties = parsePropertySchemas(raw.get(KEY_PROPERTIES), label, actionName, name);
@@ -848,6 +850,7 @@ public class ConnectorActionCatalogLoader {
             allowedValues,
             min,
             max,
+            defaultValue,
             sensitive,
             items,
             properties,

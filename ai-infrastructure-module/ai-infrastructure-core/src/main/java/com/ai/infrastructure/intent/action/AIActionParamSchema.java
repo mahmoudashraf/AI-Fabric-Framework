@@ -61,6 +61,8 @@ public class AIActionParamSchema {
 
     private Long max;
 
+    private Object defaultValue;
+
     public void setProperties(Map<String, AIActionParamSchema> properties) {
         this.properties = properties == null ? Collections.emptyMap() : Map.copyOf(properties);
     }
@@ -73,4 +75,3 @@ public class AIActionParamSchema {
         this.allowedValues = allowedValues == null ? List.of() : List.copyOf(allowedValues);
     }
 }
-

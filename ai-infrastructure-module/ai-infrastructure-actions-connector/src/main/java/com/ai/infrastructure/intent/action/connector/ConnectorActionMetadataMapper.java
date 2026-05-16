@@ -104,6 +104,7 @@ public final class ConnectorActionMetadataMapper {
             .allowedValues(param.allowedValues() != null ? List.copyOf(param.allowedValues()) : List.of())
             .min(param.min())
             .max(param.max())
+            .defaultValue(param.defaultValue())
             .build();
     }
 

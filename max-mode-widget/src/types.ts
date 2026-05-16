@@ -115,8 +115,6 @@ export interface Document {
   similarity?: number;
   score?: number;
   product_variant_id?: string;
-  productVariantId?: string;
-  firstAvailableVariantId?: string;
   firstAvailableVariantTitle?: string;
   priceRange?: string;
   availability?: string;

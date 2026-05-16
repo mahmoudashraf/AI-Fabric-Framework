@@ -129,6 +129,9 @@ public record ConnectorActionDefinition(
         if (param.max() != null) {
             out.put("max", param.max());
         }
+        if (param.defaultValue() != null) {
+            out.put("defaultValue", param.defaultValue());
+        }
         if (param.items() != null) {
             out.put("items", paramRuntimeConfig(param.items()));
         }
