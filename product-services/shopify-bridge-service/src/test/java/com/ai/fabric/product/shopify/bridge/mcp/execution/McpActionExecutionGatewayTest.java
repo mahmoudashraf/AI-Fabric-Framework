@@ -288,6 +288,56 @@ class McpActionExecutionGatewayTest {
     }
 
     @Test
+    void executeMapsGatewayToolErrorFailureToBridgeFailure() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            objectMapper,
+            builder
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andRespond(withSuccess("""
+                {
+                  "success": false,
+                  "message": "Invalid global id 'Selling Plans Ski Wax'",
+                  "errorCode": "MCP_TOOL_REPORTED_ERROR",
+                  "data": {
+                    "adapterType": "mcp-tool",
+                    "toolResult": {
+                      "content": [
+                        {"type": "text", "text": "{\\"cart\\":{},\\"errors\\":[{\\"message\\":\\"Invalid global id 'Selling Plans Ski Wax'\\"}]}"}
+                      ]
+                    }
+                  }
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_update_cart",
+                Map.of("add_items", List.of(Map.of("product_variant_id", "gid://shopify/ProductVariant/1", "quantity", 1))),
+                null,
+                Map.of("actionConfig", Map.of(
+                    "execution", Map.of("mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "toolName", "update_cart"
+                    ))
+                ))
+            )
+        );
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("MCP_TOOL_REPORTED_ERROR");
+        assertThat(result.message()).contains("Invalid global id 'Selling Plans Ski Wax'");
+        server.verify();
+    }
+
+    @Test
     void executeForwardsRuntimeParamSchemaToGatewayActionConfig() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

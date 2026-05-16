@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 
@@ -490,6 +491,7 @@ public class McpGatewayExecutionService {
     }
 
     private void validateArgumentAgainstParamSchema(String path, JsonNode argument, JsonNode param) {
+        validateScalarConstraints(path, argument, param);
         String type = normalizedEnum(text(param, "type"));
         if ("ARRAY".equals(type)) {
             if (!argument.isArray()) {
@@ -499,13 +501,17 @@ public class McpGatewayExecutionService {
             if (itemSchema.isObject()) {
                 for (int i = 0; i < argument.size(); i++) {
                     JsonNode item = argument.get(i);
-                    validateObjectRequiredProperties(path + "[" + i + "]", item, itemSchema);
+                    validateArgumentAgainstParamSchema(path + "[" + i + "]", item, itemSchema);
                 }
             }
             return;
         }
         if ("OBJECT".equals(type)) {
+            if (!argument.isObject()) {
+                throw invalidMcpArgument(path, "must be an object");
+            }
             validateObjectRequiredProperties(path, argument, param);
+            validateObjectProperties(path, argument, param);
         }
     }
 
@@ -529,6 +535,82 @@ public class McpGatewayExecutionService {
         }
         if (!missing.isEmpty()) {
             throw invalidMcpArgument(path, "is missing required properties: " + String.join(", ", missing));
+        }
+    }
+
+    private void validateObjectProperties(String path, JsonNode value, JsonNode schema) {
+        JsonNode properties = schema.path("properties");
+        if (!properties.isObject()) {
+            return;
+        }
+        var fields = properties.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> field = fields.next();
+            String property = field.getKey();
+            JsonNode propertySchema = field.getValue();
+            if (!StringUtils.hasText(property) || propertySchema == null || !propertySchema.isObject()) {
+                continue;
+            }
+            JsonNode propertyValue = value.path(property);
+            if (propertyValue.isMissingNode() || propertyValue.isNull()) {
+                continue;
+            }
+            validateArgumentAgainstParamSchema(path + "." + property, propertyValue, propertySchema);
+        }
+    }
+
+    private void validateScalarConstraints(String path, JsonNode argument, JsonNode schema) {
+        validateAllowedValues(path, argument, schema);
+        validatePattern(path, argument, schema);
+        validateNumericBounds(path, argument, schema);
+    }
+
+    private void validateAllowedValues(String path, JsonNode argument, JsonNode schema) {
+        JsonNode allowedValues = schema.path("allowedValues");
+        if (!allowedValues.isArray() || allowedValues.isEmpty()) {
+            return;
+        }
+        if (!argument.isValueNode()) {
+            throw invalidMcpArgument(path, "must be a scalar value");
+        }
+        String actual = argument.asText();
+        for (JsonNode allowed : allowedValues) {
+            if (allowed.isValueNode() && actual.equals(allowed.asText())) {
+                return;
+            }
+        }
+        throw invalidMcpArgument(path, "must be one of the configured allowed values");
+    }
+
+    private void validatePattern(String path, JsonNode argument, JsonNode schema) {
+        String rawPattern = text(schema, "pattern");
+        if (!StringUtils.hasText(rawPattern)) {
+            return;
+        }
+        if (!argument.isTextual()) {
+            throw invalidMcpArgument(path, "must be a string matching the configured pattern");
+        }
+        try {
+            if (!Pattern.compile(rawPattern).matcher(argument.asText()).matches()) {
+                throw invalidMcpArgument(path, "must match the configured pattern");
+            }
+        } catch (PatternSyntaxException ex) {
+            throw new IllegalArgumentException("MCP action parameter " + path + " has an invalid configured pattern.");
+        }
+    }
+
+    private void validateNumericBounds(String path, JsonNode argument, JsonNode schema) {
+        JsonNode min = schema.path("min");
+        JsonNode max = schema.path("max");
+        if ((!min.isNumber() && !max.isNumber()) || !argument.isNumber()) {
+            return;
+        }
+        double value = argument.asDouble();
+        if (min.isNumber() && value < min.asDouble()) {
+            throw invalidMcpArgument(path, "is below the configured minimum");
+        }
+        if (max.isNumber() && value > max.asDouble()) {
+            throw invalidMcpArgument(path, "is above the configured maximum");
         }
     }
 
@@ -601,7 +683,100 @@ public class McpGatewayExecutionService {
         }
         Map<String, Object> normalized = objectMapper.convertValue(data, new TypeReference<>() {
         });
+        McpToolFailure toolFailure = detectToolFailure(result);
+        if (toolFailure != null) {
+            return new ActionExecuteResponse(false, toolFailure.message(), normalized, toolFailure.errorCode(), List.of());
+        }
         return new ActionExecuteResponse(true, "MCP tool result", normalized, null, List.of());
+    }
+
+    private McpToolFailure detectToolFailure(JsonNode result) {
+        if (result == null || result.isMissingNode() || result.isNull()) {
+            return null;
+        }
+        JsonNode errors = firstErrorsNode(
+            result.path("errors"),
+            result.path("structuredContent").path("errors"),
+            result.path("data").path("errors")
+        );
+        if (!errors.isMissingNode()) {
+            return new McpToolFailure("MCP_TOOL_REPORTED_ERROR", firstErrorMessage(errors));
+        }
+        for (String text : textContentParts(result)) {
+            JsonNode parsed = parseJsonObject(text);
+            if (parsed == null) {
+                continue;
+            }
+            errors = firstErrorsNode(
+                parsed.path("errors"),
+                parsed.path("structuredContent").path("errors"),
+                parsed.path("data").path("errors")
+            );
+            if (!errors.isMissingNode()) {
+                return new McpToolFailure("MCP_TOOL_REPORTED_ERROR", firstErrorMessage(errors));
+            }
+        }
+        if (result.path("isError").asBoolean(false)) {
+            return new McpToolFailure("MCP_TOOL_REPORTED_ERROR", firstNonBlank(textContent(result), "MCP tool reported an error."));
+        }
+        return null;
+    }
+
+    private JsonNode firstErrorsNode(JsonNode... candidates) {
+        for (JsonNode candidate : candidates) {
+            if (candidate == null || candidate.isMissingNode() || candidate.isNull()) {
+                continue;
+            }
+            if (candidate.isArray() && !candidate.isEmpty()) {
+                return candidate;
+            }
+            if (candidate.isObject() && !candidate.isEmpty()) {
+                return candidate;
+            }
+        }
+        return MissingNode.getInstance();
+    }
+
+    private String firstErrorMessage(JsonNode errors) {
+        String message = null;
+        if (errors != null && errors.isArray() && !errors.isEmpty()) {
+            JsonNode first = errors.get(0);
+            message = firstNonBlank(text(first, "message", "detail", "title"), first.toString());
+        } else if (errors != null && errors.isObject()) {
+            message = firstNonBlank(text(errors, "message", "detail", "title"), errors.toString());
+        }
+        return firstNonBlank(message, "MCP tool reported an error.");
+    }
+
+    private String textContent(JsonNode result) {
+        List<String> parts = textContentParts(result);
+        return parts.isEmpty() ? null : String.join("\n", parts);
+    }
+
+    private List<String> textContentParts(JsonNode result) {
+        JsonNode content = result == null ? MissingNode.getInstance() : result.path("content");
+        if (!content.isArray()) {
+            return List.of();
+        }
+        List<String> parts = new ArrayList<>();
+        for (JsonNode item : content) {
+            if ("text".equalsIgnoreCase(text(item, "type")) && StringUtils.hasText(text(item, "text"))) {
+                parts.add(text(item, "text"));
+            }
+        }
+        return parts;
+    }
+
+    private JsonNode parseJsonObject(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        try {
+            JsonNode parsed = objectMapper.readTree(text);
+            return parsed != null && parsed.isObject() ? parsed : null;
+        } catch (JsonProcessingException ex) {
+            return null;
+        }
     }
 
     private void mapPath(JsonNode mapping, JsonNode source, ObjectNode target, String pathField, String targetField) {
@@ -1587,6 +1762,9 @@ public class McpGatewayExecutionService {
 
     private ActionExecuteResponse failure(String errorCode, String message) {
         return new ActionExecuteResponse(false, message, Map.of(), errorCode, List.of());
+    }
+
+    private record McpToolFailure(String errorCode, String message) {
     }
 
     private static class McpAuthGateException extends RuntimeException {
