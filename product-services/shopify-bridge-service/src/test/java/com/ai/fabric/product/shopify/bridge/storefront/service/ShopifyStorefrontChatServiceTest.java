@@ -1106,7 +1106,10 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(safeDocument.path("firstAvailableVariantTitle").asText()).isEqualTo("Default variant");
         assertThat(safeDocument.path("priceRange").asText()).isEqualTo("9.99 USD");
         assertThat(safeDocument.path("availability").asText()).isEqualTo("available");
-        assertThat(safeDocument.has("metadata")).isFalse();
+        assertThat(safeDocument.path("metadata").path("productVariantId").asText()).isEqualTo("gid://shopify/ProductVariant/123");
+        assertThat(safeDocument.path("metadata").path("priceRange").asText()).isEqualTo("9.99 USD");
+        assertThat(safeDocument.path("metadata").has("raw")).isFalse();
+        assertThat(safeDocument.path("metadata").has("knowledgeSourceHandleRef")).isFalse();
         assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
             .isEqualTo("Selling Plans Ski Wax is relevant to wax searches from store evidence.");
         assertThat(response.toString()).doesNotContain("tenant-secret", "runtime", "knowledgeSourceHandleRef", "plugin/private/path");
