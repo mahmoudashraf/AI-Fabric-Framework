@@ -126,7 +126,7 @@ public class McpActionExecutionGateway {
                 .body(body)
                 .retrieve()
                 .body(JsonNode.class);
-            return toBridgeResult(response);
+            return toBridgeResult(response, request);
         } catch (RestClientResponseException ex) {
             return ShopifyBridgeActionResult.failure(
                 "MCP_GATEWAY_REQUEST_FAILED",
@@ -212,7 +212,7 @@ public class McpActionExecutionGateway {
         return serverSummary;
     }
 
-    private ShopifyBridgeActionResult toBridgeResult(JsonNode response) {
+    private ShopifyBridgeActionResult toBridgeResult(JsonNode response, ShopifyBridgeActionExecuteRequest request) {
         if (response == null || !response.isObject()) {
             return ShopifyBridgeActionResult.failure("MCP_GATEWAY_REQUEST_FAILED", "MCP execution gateway returned an invalid response.");
         }
@@ -227,12 +227,39 @@ public class McpActionExecutionGateway {
             ? objectMapper.convertValue(response.path("data"), new TypeReference<>() {
             })
             : new LinkedHashMap<>();
+        if (success && mcpToolReportedError(response.path("data").path("toolResult"))) {
+            return ShopifyBridgeActionResult.failure(
+                mcpToolFailureErrorCode(request),
+                StringUtils.hasText(message) ? message : "MCP tool reported an error."
+            );
+        }
         return success
             ? ShopifyBridgeActionResult.ok(StringUtils.hasText(message) ? message : "MCP tool result", data)
             : ShopifyBridgeActionResult.failure(
                 StringUtils.hasText(errorCode) ? errorCode : "MCP_EXECUTION_FAILED",
                 StringUtils.hasText(message) ? message : "MCP execution failed."
             );
+    }
+
+    private boolean mcpToolReportedError(JsonNode toolResult) {
+        return toolResult != null && toolResult.path("isError").asBoolean(false);
+    }
+
+    private String mcpToolFailureErrorCode(ShopifyBridgeActionExecuteRequest request) {
+        JsonNode mcp = findMcpExecution(request);
+        if (!isCustomerAccountMcp(mcp)) {
+            return "MCP_TOOL_REPORTED_ERROR";
+        }
+        return isReadOnlyCustomerAccountTool(mcp) ? "OWNED_RESOURCE_NOT_FOUND" : "OWNED_RESOURCE_ACTION_FAILED";
+    }
+
+    private boolean isReadOnlyCustomerAccountTool(JsonNode mcp) {
+        String toolName = text(mcp, "toolName");
+        return List.of(
+            "get_most_recent_order_status",
+            "get_order_status",
+            "get_store_credit_balances"
+        ).contains(toolName == null ? "" : toolName.trim());
     }
 
     private String mcpToolTextContent(JsonNode toolResult) {
@@ -376,7 +403,10 @@ public class McpActionExecutionGateway {
     private boolean isCustomerAccountMcp(JsonNode mcp) {
         String endpointKind = normalized(text(mcp, "endpointKind"));
         String authMode = normalized(text(mcp, "authMode"));
-        return endpointKind.contains("CUSTOMER_ACCOUNT") || "CUSTOMER_OAUTH_PKCE".equals(authMode);
+        String serverRef = normalized(text(mcp, "serverRef"));
+        return endpointKind.contains("CUSTOMER_ACCOUNT")
+            || "CUSTOMER_OAUTH_PKCE".equals(authMode)
+            || serverRef.contains("CUSTOMER_ACCOUNT");
     }
 
     private boolean isCheckoutMcp(JsonNode mcp) {

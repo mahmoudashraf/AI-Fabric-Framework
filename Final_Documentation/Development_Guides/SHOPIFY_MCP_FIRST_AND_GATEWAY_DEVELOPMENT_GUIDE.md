@@ -382,6 +382,7 @@ Customer Account MCP is prepared as a fail-closed path:
 - For stores that use a connected storefront/custom domain for Customer Account OAuth discovery, configure the per-store Platform setting `customerAccountMcp.storefrontDomain` through `PUT /api/shopify/stores/{shopDomain}/customer-account-config` or the Shopify Stores admin page. Bridge resolves this per-store value before using any global fallback.
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` remains a staging/default fallback only. It must not be treated as product truth for multiple store installs.
 - Bridge still stores and resolves customer sessions by the canonical `*.myshopify.com` shop even when discovery and safe return URLs use a configured storefront domain.
+- Public launch requires a release-gate proof that Customer Account OAuth sessions survive Bridge redeploy/recreate with the same datasource and encryption/HMAC material. Until that proof is recorded, design-partner staging can require shoppers to reconnect after a redeploy.
 
 Checkout MCP is prepared as a managed-gateway path:
 
@@ -405,6 +406,6 @@ Bridge policy is structured:
 - Unapproved stores deny structured order mutation action IDs with customer-safe support guidance.
 - Approved stores with `order-self-service` may pass configured order self-service action IDs to the Marketplace/MCP execution path.
 - Currently configured concrete order self-service action is `shopify_cancel_checkout` through Checkout MCP.
-- The live Customer Account MCP Marketplace bundle currently exposes only read-only order-status actions: `shopify_get_most_recent_order_status` and `shopify_get_order_status`. These actions use Bridge token-broker auth and do not take `shopperSessionId` as an action parameter.
-- Post-order refund/cancel/edit/return-start actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge.
+- The live Customer Account MCP Marketplace bundle exposes the current Shopify Customer Account MCP `tools/list` observed actions: `shopify_get_most_recent_order_status`, `shopify_get_order_status`, `shopify_get_store_credit_balances`, and `shopify_request_return`. These actions use Bridge token-broker auth and do not take `shopperSessionId` as an action parameter.
+- Post-order refund/cancel/edit actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge. `shopify_request_return` is the configured return-start path and remains governed by Customer Account auth, confirmation, package posture, and live tool behavior.
 - Bridge must not hard-block future post-order action IDs once runtime selected them from the compiled Marketplace catalog. Package entitlement, confirmation, audit, MCP session auth, and the action catalog remain the gates.

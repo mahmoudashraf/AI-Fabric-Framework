@@ -19,3 +19,6 @@ USER REQUEST (context only):
 
 Selection guardrails:
 - For product-detail actions that need a concrete product identifier, select the action only when the USER REQUEST or its attachments include a concrete product id. If the shopper only says "this product" without a product id in the request/context, return null for that intent so answer generation can use available store evidence or ask naturally.
+- For customer-owned resources, select only an allowed action whose name, description, and capability match the exact resource being requested. Do not use an order-status action for generic account-profile questions unless the action explicitly supports account profiles.
+- Store-credit balance questions should select a store-credit balance action when one is allowed; otherwise return null.
+- Return-request intents should select a return-request action only when the shopper explicitly asks to start or submit a return. General return-policy questions should not select a customer-owned return action.

@@ -99,6 +99,14 @@ public record ConnectorActionDefinition(
         if (mcpServers != null && !mcpServers.isEmpty()) {
             out.put("mcpServers", mcpServers);
         }
+        if (!out.isEmpty()) {
+            if (accessMode != null) {
+                out.put("accessMode", accessMode.name());
+            }
+            if (requiresConfirmation) {
+                out.put("requiresConfirmation", true);
+            }
+        }
         if (!out.isEmpty() && params != null && !params.isEmpty()) {
             out.put("params", params.stream()
                 .map(ConnectorActionDefinition::paramRuntimeConfig)

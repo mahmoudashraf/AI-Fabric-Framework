@@ -72,6 +72,7 @@ These items do not block controlled design-partner shipping, but they do block a
 - Keep the PR `#156` P1/P2 review fixes release-gated: Coolify transport failures must continue returning the structured `502` / `COOLIFY_UPSTREAM_FAILURE` contract, and MCP Gateway Streamable HTTP connect/read timeouts must remain wired into the HTTP request factory.
 - Keep Platform release/verification async work off a single-thread bottleneck. Release execution and verification-suite execution must use bounded parallel executors so one slow Coolify or repair call cannot starve unrelated platform operations.
 - Keep higher-tier public claims gated until Shopify Customer Account MCP and Checkout MCP have the required external Shopify auth/security material, protected customer data posture, credentials, storefront readiness, and live `tools/list` / safe `tools/call` evidence. Customer Account MCP now has read-only staging `tools/call` proof. Checkout MCP credentials now exist in staging and Shopify token exchange succeeds, but live Checkout MCP remains gated until the staging store serves `/api/ucp/mcp` without storefront-password redirects.
+- Before public/self-serve launch, prove Customer Account OAuth sessions survive a controlled Bridge redeploy/recreate with stable datasource, encryption, and HMAC material. Design-partner staging can defer this with an explicit reconnect-after-redeploy operational note.
 - Finish merchant-facing self-serve packaging: onboarding path, pricing/package copy, support policy, install/recovery guidance, merchant documentation, App Store listing/review collateral, and a clear public escalation process.
 
 ---
@@ -135,6 +136,7 @@ Required before claiming live customer-account capability:
 - Shopify Customer Account OAuth/PKCE configuration in Bridge staging env
 - protected customer data posture and approval where required
 - customer access token/session binding in the product host through the registered Bridge callback
+- redeploy/recreate durability proof for bound Customer Account OAuth sessions
 - live `tools/list` and `tools/call` evidence against the staging store
 - denial evidence when customer token/session is missing
 
@@ -146,7 +148,7 @@ Prepared platform/Bridge behavior:
 - After posture is configured, Bridge fails closed with `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
 - Shopify Bridge action execution resolves the bound customer OAuth access token server-side by `shopDomain` plus shopper session; action params, browser payloads, and inbound trace fields are not accepted as token sources.
 - MCP Gateway can attach the bound customer OAuth access token to Customer Account MCP requests using `CUSTOMER_OAUTH_PKCE`.
-- Live staging proof now exists for the read-only order-status boundary: a real customer browser login bound a shopper session, and Shopify Customer Account MCP `get_most_recent_order_status` / `get_order_status` returned normalized `MCP_TOOL_RESULT` evidence through Bridge and the MCP Gateway. The Marketplace bundle intentionally exposes only those live-observed Customer Account MCP tools until additional Customer Account tools are proven through live discovery and safe `tools/call`.
+- Live staging proof now exists for the read-only order-status boundary: a real customer browser login bound a shopper session, and Shopify Customer Account MCP `get_most_recent_order_status` / `get_order_status` returned normalized `MCP_TOOL_RESULT` evidence through Bridge and the MCP Gateway. The Marketplace bundle exposes only Customer Account MCP tools observed through live `tools/list`: `get_most_recent_order_status`, `get_order_status`, `get_store_credit_balances`, and `request_return`. Each customer-owned action still needs its own safe `tools/call` evidence before making a specific public claim for that action.
 
 Credential/config intake names:
 
@@ -275,7 +277,7 @@ Do not print raw secrets while running these checks.
 - Live Customer Account MCP proof then passed through Bridge -> MCP Gateway -> Shopify Customer Account MCP:
   - `get_most_recent_order_status` returned HTTP `200`, `success=true`, normalized `MCP_TOOL_RESULT`, and Shopify tool text `No orders found for this customer.`
   - `get_order_status` with `order_number=1001` returned HTTP `200`, `success=true`, normalized `MCP_TOOL_RESULT`, and Shopify tool text `Order not found with number: 1001`.
-- The earlier Marketplace Customer Account MCP bundle contained unverified tool aliases (`get_customer_orders`, `lookup_order`, and return-request tools). Those were removed from the product catalog. The bundle now exposes only the live-observed read-only Customer Account MCP tools: `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
+- The earlier Marketplace Customer Account MCP bundle contained unverified tool aliases (`get_customer_orders`, `lookup_order`, and return-request aliases). Those were removed from the product catalog. The bundle was first narrowed to the live-observed read-only order tools: `shopify_get_most_recent_order_status` and `shopify_get_order_status`, then expanded when live Customer Account MCP `tools/list` showed the additional concrete tools `get_store_credit_balances` and `request_return`.
 - Added migration `V92__shopify_customer_account_mcp_live_tool_names.sql` so already-deployed Platform databases converge to the same live-observed Customer Account MCP action catalog.
 - Deployment remediation: an initial commit changed already-applied migration `V83`, which staging correctly rejected with a Flyway checksum mismatch. The fix restored `V83` unchanged and kept the deployed-catalog change in additive migration `V92` only.
 - Staging deploy from commit `996785fa7` completed through Coolify deployment `ateasu96dnfetqysbd0ku4l0`; Platform health returned `UP`, and the live Marketplace endpoint returned Customer Account MCP plugin version `1.0.1` with only `shopify_get_most_recent_order_status` and `shopify_get_order_status`.
@@ -284,6 +286,15 @@ Do not print raw secrets while running these checks.
 - The Partner Supabase JWT was refreshed again from local private test-account material and stored back into Platform secret `PARTNER_SUPABASE_JWT` without printing the token.
 - Fresh full release gate `vsr-a3069cb1` passed with all 14 stages green. `/api/verification-suites/release-gate` returned `READY=true`, `status=READY`, completed `2026-05-08T21:52:05.687947Z`, and expires `2026-05-09T09:52:05.687947Z`.
 - Checkout MCP remains externally gated because `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_ID` and `SHOPIFY_BRIDGE_CHECKOUT_MCP_CLIENT_SECRET` are still missing from Platform secrets.
+
+### 2026-05-17 Customer Account MCP Internal Control Follow-Up
+
+- Added Marketplace migration `V107__shopify_customer_account_mcp_live_tool_expansion.sql` to publish Customer Account MCP bundle version `1.0.3` with the four live `tools/list` observed tools: `shopify_get_most_recent_order_status`, `shopify_get_order_status`, `shopify_get_store_credit_balances`, and `shopify_request_return`.
+- MCP Gateway now maps Customer Account MCP `isError`/tool errors for read-owned resources to `OWNED_RESOURCE_NOT_FOUND` instead of wrapping them as successful action execution. Non-read Customer Account tool errors map to `OWNED_RESOURCE_ACTION_FAILED`; non-Customer MCP tool errors remain `MCP_TOOL_REPORTED_ERROR`.
+- Shopify Bridge has the same defensive fallback for older Gateway responses that incorrectly return `success=true` with `toolResult.isError=true`.
+- Legacy Admin order lookup no longer requests Shopify `statusPageUrl`, and GraphQL protected-field errors fail closed with merchant-safe `ORDER_LOOKUP_UNAVAILABLE` copy.
+- Runtime routing quality remains prompt/catalog driven. The commerce action-selection prompt now tells the LLM to choose customer-owned resource actions from action metadata and to avoid routing generic account-profile questions to order-status actions.
+- Release-gated deferral: prove Customer Account OAuth session durability across Bridge redeploy/recreate before public/self-serve launch. The current implementation can remain design-partner gated with reconnect guidance until that live proof is recorded.
 
 ### 2026-05-07
 

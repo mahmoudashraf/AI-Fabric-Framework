@@ -65,6 +65,8 @@ public class DeploymentMarketplaceDraftCompilerService {
         "shopify_update_cart",
         "shopify_get_most_recent_order_status",
         "shopify_get_order_status",
+        "shopify_get_store_credit_balances",
+        "shopify_request_return",
         "shopify_create_checkout",
         "shopify_get_checkout",
         "shopify_update_checkout",

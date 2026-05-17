@@ -80,10 +80,15 @@ class McpActionExecutionGatewayTest {
     void storefrontReadinessVerifiesLiveStorefrontMcpEndpoint() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ShopifyCustomerAccountOAuthService customerAccountOAuthService = mock(ShopifyCustomerAccountOAuthService.class);
+        when(customerAccountOAuthService.resolveAccessToken("alpha.myshopify.com", "shopper-session-1"))
+            .thenReturn(Optional.of("customer-token"));
         McpActionExecutionGateway gateway = new McpActionExecutionGateway(
             properties("https://mcp-gateway.internal", "secret"),
+            externalAuth(true, false, false),
+            customerAccountOAuthService,
             objectMapper,
-            builder
+            builder.build()
         );
 
         server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/servers/tools/list"))
@@ -238,13 +243,18 @@ class McpActionExecutionGatewayTest {
     }
 
     @Test
-    void executeUsesMcpTextContentWhenGatewayMessageIsGeneric() {
+    void executeMapsGatewaySuccessWithToolErrorToBridgeFailure() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ShopifyCustomerAccountOAuthService customerAccountOAuthService = mock(ShopifyCustomerAccountOAuthService.class);
+        when(customerAccountOAuthService.resolveAccessToken("alpha.myshopify.com", "shopper-session-1"))
+            .thenReturn(Optional.of("customer-token"));
         McpActionExecutionGateway gateway = new McpActionExecutionGateway(
             properties("https://mcp-gateway.internal", "secret"),
+            externalAuth(true, false, false),
+            customerAccountOAuthService,
             objectMapper,
-            builder
+            builder.build()
         );
 
         server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
@@ -272,16 +282,20 @@ class McpActionExecutionGatewayTest {
                 "shopify_get_most_recent_order_status",
                 Map.of(),
                 null,
-                Map.of("actionConfig", Map.of(
-                    "execution", Map.of("mcp", Map.of(
-                        "serverRef", "shopify-customer-account",
-                        "toolName", "get_most_recent_order_status"
-                    ))
-                ))
+                Map.of(
+                    "shopperSessionId", "shopper-session-1",
+                    "actionConfig", Map.of(
+                        "execution", Map.of("mcp", Map.of(
+                            "serverRef", "shopify-customer-account",
+                            "toolName", "get_most_recent_order_status"
+                        ))
+                    )
+                )
             )
         );
 
-        assertThat(result.success()).isTrue();
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("OWNED_RESOURCE_NOT_FOUND");
         assertThat(result.message()).isEqualTo("No orders found for this customer.");
         assertThat(result.message()).doesNotContain("MCP", "tool result");
         server.verify();

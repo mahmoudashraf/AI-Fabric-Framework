@@ -37,7 +37,6 @@ public class ShopifyStorefrontOrderLookupService {
               createdAt
               displayFinancialStatus
               displayFulfillmentStatus
-              statusPageUrl
               currentTotalPriceSet {
                 shopMoney {
                   amount
@@ -140,12 +139,20 @@ public class ShopifyStorefrontOrderLookupService {
             );
         }
 
-        ShopifyStorefrontOrderLookupSummary summary = resolveOrderSummary(
-            normalizedShopDomain,
-            acquisition.tokenExchangeMaterial().accessToken(),
-            orderReference,
-            email
-        );
+        ShopifyStorefrontOrderLookupSummary summary;
+        try {
+            summary = resolveOrderSummary(
+                normalizedShopDomain,
+                acquisition.tokenExchangeMaterial().accessToken(),
+                orderReference,
+                email
+            );
+        } catch (ResponseStatusException ex) {
+            return unavailable(
+                "ORDER_LOOKUP_UNAVAILABLE",
+                "Order lookup is not available right now. Contact the store directly for help."
+            );
+        }
         if (summary == null) {
             return new ShopifyStorefrontOrderLookupResponse(
                 true,
@@ -301,7 +308,7 @@ public class ShopifyStorefrontOrderLookupService {
             trackingCompany,
             trackingNumberMasked,
             trackingUrl,
-            optionalText(order.get("statusPageUrl")),
+            null,
             lineItems
         );
     }

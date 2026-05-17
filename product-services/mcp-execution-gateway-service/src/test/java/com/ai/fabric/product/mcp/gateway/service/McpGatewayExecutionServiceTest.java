@@ -605,6 +605,44 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void mapsCustomerAccountReadToolErrorsToOwnedResourceNotFound() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://example.com/customer/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        when(client.initialize(eq(URI.create("https://example.com/customer/mcp")), any())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("get_most_recent_order_status"), any(), any()))
+            .thenReturn(objectMapper.readTree("""
+                {
+                  "isError": true,
+                  "content": [
+                    {"type": "text", "text": "No orders found for this customer."}
+                  ]
+                }
+                """));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_get_most_recent_order_status",
+            Map.of(),
+            null,
+            Map.of(
+                "mcpCustomerAccessToken", "customer-token",
+                "actionConfig", customerAccountActionConfig()
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("OWNED_RESOURCE_NOT_FOUND");
+        assertThat(response.message()).isEqualTo("No orders found for this customer.");
+        assertThat(response.data()).containsKey("toolResult");
+    }
+
+    @Test
     void failsClosedForMcpAuthModeWithoutConcreteCredentialBinding() {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
@@ -1084,6 +1122,7 @@ class McpGatewayExecutionServiceTest {
 
     private Map<String, Object> customerAccountActionConfig() {
         return Map.of(
+            "accessMode", "READ",
             "execution", Map.of(
                 "adapterType", "mcp-tool",
                 "mcp", Map.of(

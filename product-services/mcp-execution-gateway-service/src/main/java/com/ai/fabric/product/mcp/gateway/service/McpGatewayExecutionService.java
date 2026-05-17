@@ -323,7 +323,7 @@ public class McpGatewayExecutionService {
                 }
                 result = mcpClient.toolsCall(session, toolName, arguments, options);
             }
-            return normalizeResult(serverRef, toolName, mcp, result, drift);
+            return normalizeResult(serverRef, toolName, actionConfig, mcp, result, drift);
         } catch (McpAuthGateException ex) {
             return failure(ex.errorCode(), ex.getMessage());
         } catch (McpArgumentGateException ex) {
@@ -650,6 +650,7 @@ public class McpGatewayExecutionService {
 
     private ActionExecuteResponse normalizeResult(String serverRef,
                                                   String toolName,
+                                                  JsonNode actionConfig,
                                                   JsonNode mcp,
                                                   JsonNode result,
                                                   ToolVerificationResult drift) {
@@ -683,24 +684,29 @@ public class McpGatewayExecutionService {
         }
         Map<String, Object> normalized = objectMapper.convertValue(data, new TypeReference<>() {
         });
-        McpToolFailure toolFailure = detectToolFailure(result);
+        McpToolFailure toolFailure = detectToolFailure(serverRef, toolName, actionConfig, mcp, result);
         if (toolFailure != null) {
             return new ActionExecuteResponse(false, toolFailure.message(), normalized, toolFailure.errorCode(), List.of());
         }
         return new ActionExecuteResponse(true, "MCP tool result", normalized, null, List.of());
     }
 
-    private McpToolFailure detectToolFailure(JsonNode result) {
+    private McpToolFailure detectToolFailure(String serverRef,
+                                             String toolName,
+                                             JsonNode actionConfig,
+                                             JsonNode mcp,
+                                             JsonNode result) {
         if (result == null || result.isMissingNode() || result.isNull()) {
             return null;
         }
+        String errorCode = mcpToolFailureErrorCode(serverRef, toolName, actionConfig, mcp);
         JsonNode errors = firstErrorsNode(
             result.path("errors"),
             result.path("structuredContent").path("errors"),
             result.path("data").path("errors")
         );
         if (!errors.isMissingNode()) {
-            return new McpToolFailure("MCP_TOOL_REPORTED_ERROR", firstErrorMessage(errors));
+            return new McpToolFailure(errorCode, firstErrorMessage(errors));
         }
         for (String text : textContentParts(result)) {
             JsonNode parsed = parseJsonObject(text);
@@ -713,13 +719,49 @@ public class McpGatewayExecutionService {
                 parsed.path("data").path("errors")
             );
             if (!errors.isMissingNode()) {
-                return new McpToolFailure("MCP_TOOL_REPORTED_ERROR", firstErrorMessage(errors));
+                return new McpToolFailure(errorCode, firstErrorMessage(errors));
             }
         }
         if (result.path("isError").asBoolean(false)) {
-            return new McpToolFailure("MCP_TOOL_REPORTED_ERROR", firstNonBlank(textContent(result), "MCP tool reported an error."));
+            return new McpToolFailure(errorCode, firstNonBlank(textContent(result), "MCP tool reported an error."));
         }
         return null;
+    }
+
+    private String mcpToolFailureErrorCode(String serverRef, String toolName, JsonNode actionConfig, JsonNode mcp) {
+        if (!isCustomerAccountMcp(serverRef, mcp)) {
+            return "MCP_TOOL_REPORTED_ERROR";
+        }
+        return isReadOnlyAction(actionConfig, toolName)
+            ? "OWNED_RESOURCE_NOT_FOUND"
+            : "OWNED_RESOURCE_ACTION_FAILED";
+    }
+
+    private boolean isCustomerAccountMcp(String serverRef, JsonNode mcp) {
+        String endpointKind = normalizedEnum(text(mcp, "endpointKind", "kind"));
+        String authMode = normalizedEnum(text(mcp, "authMode", "mode"));
+        String ref = normalizedEnum(firstNonBlank(serverRef, text(mcp, "serverRef", "id")));
+        return endpointKind.contains("CUSTOMER_ACCOUNT")
+            || "CUSTOMER_OAUTH_PKCE".equals(authMode)
+            || ref.contains("CUSTOMER_ACCOUNT");
+    }
+
+    private boolean isReadOnlyAction(JsonNode actionConfig, String toolName) {
+        String accessMode = normalizedEnum(text(actionConfig, "accessMode"));
+        if (accessMode.contains("READ")) {
+            return true;
+        }
+        if (accessMode.contains("WRITE") || actionConfig.path("requiresConfirmation").asBoolean(false)) {
+            return false;
+        }
+        if (actionConfig.path("readOnly").asBoolean(false)) {
+            return true;
+        }
+        return Set.of(
+            "get_most_recent_order_status",
+            "get_order_status",
+            "get_store_credit_balances"
+        ).contains(toolName == null ? "" : toolName.trim());
     }
 
     private JsonNode firstErrorsNode(JsonNode... candidates) {
