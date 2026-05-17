@@ -1641,7 +1641,7 @@ PY
     storefront_order_lookup_json="${HTTP_BODY}"
     assert_equals "$(json_get "${storefront_order_lookup_json}" "available")" "true" "storefront order lookup available"
     assert_equals "$(json_get "${storefront_order_lookup_json}" "matched")" "true" "storefront order lookup matched"
-    assert_nonempty "$(json_get "${storefront_order_lookup_json}" "order.name")" "storefront order lookup order name"
+    assert_nonempty "$(json_get "${storefront_order_lookup_json}" "order.orderName")" "storefront order lookup order name"
     assert_nonempty "$(json_get "${storefront_order_lookup_json}" "order.createdAt")" "storefront order lookup createdAt"
     assert_nonempty "$(json_get "${storefront_order_lookup_json}" "guidance")" "storefront order lookup guidance"
   else
