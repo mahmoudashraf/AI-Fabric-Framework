@@ -418,6 +418,73 @@ class IntentHandlingStepBatchTargetsTest {
         verify(handler, never()).executeAction(anyMap(), any());
     }
 
+    @Test
+    void shouldPreserveTrustedEvidenceAcrossPendingConfirmation() {
+        AIActionMetaData meta = shopifyCartMeta();
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(true);
+        when(handler.actionRuntimeConfig()).thenReturn(shopifyCartRuntimeConfig());
+        when(handler.getConfirmationMessage(anyMap(), any())).thenReturn("Add 1 Selling Plans Ski Wax to your cart?");
+        when(handler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("Cart updated.")
+            .data(ActionResultContracts.object(Map.of("status", "updated")))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(meta));
+
+        InMemoryPendingActionStore pendingActionStore = new InMemoryPendingActionStore();
+        IntentHandlingStep step = newStep(registry, pendingActionStore);
+
+        String variantId = "gid://shopify/ProductVariant/44506675314771";
+        Intent actionIntent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of(
+                "add_items", List.of(Map.of(
+                    "product_variant_id", variantId,
+                    "quantity", 1
+                ))
+            ))
+            .build();
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user")
+            .conversationId("chat-trusted-confirm")
+            .build();
+        PipelineContext turn1 = PipelineContext.from("Add Selling Plans Ski Wax to my cart.", orchestrationContext)
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(actionIntent)).build())
+            .resolvedTargets(List.of(target("gid://shopify/Product/7930570047571", Map.of("product_variant_id", variantId))))
+            .build();
+
+        OrchestrationResult turn1Result = step.process(turn1).getIntentResult();
+        assertThat(turn1Result.getType()).isEqualTo(OrchestrationResultType.CONFIRMATION_REQUIRED);
+        assertThat(pendingActionStore.peekPendingAction("chat-trusted-confirm", "user")).isPresent();
+
+        Intent confirmIntent = Intent.builder()
+            .type(IntentType.CONFIRMATION_POSITIVE)
+            .build();
+        PipelineContext turn2 = PipelineContext.from("Yes, confirm", orchestrationContext)
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(confirmIntent)).build())
+            .build();
+
+        OrchestrationResult turn2Result = step.process(turn2).getIntentResult();
+
+        assertThat(turn2Result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(turn2Result.isSuccess()).isTrue();
+        assertThat(pendingActionStore.peekPendingAction("chat-trusted-confirm", "user")).isEmpty();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).executeAction(paramsCaptor.capture(), any());
+        assertThat(paramsCaptor.getValue()).containsKey("add_items");
+    }
+
     private IntentHandlingStep newStep(AIActionRegistry registry) {
         return newStep(registry, new InMemoryPendingActionStore());
     }

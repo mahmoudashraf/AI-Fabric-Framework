@@ -144,6 +144,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CANDIDATE_VECTOR_SPACES = "candidateVectorSpaces";
     private static final String DATA_KEY_ROUTING_STRATEGY = "vectorSpaceRoutingStrategy";
     private static final String METADATA_KEY_ACTION_PARAM_VALIDATION = "actionParamValidation";
+    private static final String METADATA_KEY_TRUSTED_ACTION_EVIDENCE_VALUES = "__trustedActionEvidenceValuesByKey";
     private static final String CONFIRMATION_ACCEPTED_PARAMETER = "confirmationAccepted";
     private static final Set<String> SYSTEM_CONTEXT_PARAMETER_NAMES = Set.of(
         "shopperSessionId",
@@ -573,11 +574,13 @@ public class IntentHandlingStep implements PipelineStep {
                 actionDraftStore.clearDrafts(context.getConversationId(), identifier);
             }
 
+            EvidenceBundle evidence = buildEvidenceBundle(pipelineContext);
             PendingAction pending = new PendingAction(
                 actionName,
                 Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)),
                 confirmationMessage,
-                Instant.now()
+                Instant.now(),
+                pendingTrustedEvidenceValues(evidence, meta)
             );
             if (pendingActionStore != null) {
                 pendingActionStore.pushPendingAction(context.getConversationId(), identifier, pending);
@@ -1539,11 +1542,11 @@ public class IntentHandlingStep implements PipelineStep {
             .actionParams(pending.actionParams() != null ? pending.actionParams() : Map.of())
             .build();
 
-        PipelineContext marked = pipelineContext != null
-            ? pipelineContext.toBuilder()
+        PipelineContext base = pipelineContext != null ? pipelineContext : PipelineContext.from("confirm", context);
+        PipelineContext marked = base.toBuilder()
             .confirmedActions(java.util.Set.of(pending.action()))
-            .build()
-            : pipelineContext;
+            .metadata(mergeTrustedActionEvidence(base.getMetadata(), pending.trustedEvidenceValuesByKey()))
+            .build();
 
         return handleAction(synthetic, context, marked);
     }
@@ -5334,10 +5337,18 @@ public class IntentHandlingStep implements PipelineStep {
             }
         }
 
+        boolean hasPendingConfirmationEvidence = addTrustedEvidenceValues(
+            trustedValuesByKey,
+            pipelineContext.getMetadata() != null
+                ? pipelineContext.getMetadata().get(METADATA_KEY_TRUSTED_ACTION_EVIDENCE_VALUES)
+                : null
+        );
+
         Map<String, Object> sourcesUsed = Map.of(
             "user", hasUser,
             "history", hasHistory,
-            "pinned", hasPinned
+            "pinned", hasPinned,
+            "pendingConfirmationEvidence", hasPendingConfirmationEvidence
         );
 
         return new EvidenceBundle(
@@ -5365,6 +5376,40 @@ public class IntentHandlingStep implements PipelineStep {
         }
     }
 
+    private boolean addTrustedEvidenceValues(Map<String, Set<String>> trustedValuesByKey, Object rawEvidence) {
+        if (trustedValuesByKey == null || !(rawEvidence instanceof Map<?, ?> map) || map.isEmpty()) {
+            return false;
+        }
+        boolean added = false;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry == null || entry.getKey() == null || !StringUtils.hasText(entry.getKey().toString())) {
+                continue;
+            }
+            String key = normalizeEvidenceKey(entry.getKey().toString());
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            Object rawValue = entry.getValue();
+            if (rawValue instanceof Iterable<?> iterable) {
+                for (Object value : iterable) {
+                    added |= addTrustedEvidenceValue(trustedValuesByKey, key, value);
+                }
+            } else {
+                added |= addTrustedEvidenceValue(trustedValuesByKey, key, rawValue);
+            }
+        }
+        return added;
+    }
+
+    private boolean addTrustedEvidenceValue(Map<String, Set<String>> trustedValuesByKey, String normalizedKey, Object rawValue) {
+        String value = normalizeEvidenceValue(rawValue);
+        if (!StringUtils.hasText(normalizedKey) || !StringUtils.hasText(value)) {
+            return false;
+        }
+        trustedValuesByKey.computeIfAbsent(normalizedKey, ignored -> new java.util.LinkedHashSet<>()).add(value);
+        return true;
+    }
+
     private Map<String, Set<String>> freezeTrustedEvidenceValues(Map<String, Set<String>> trustedValuesByKey) {
         if (trustedValuesByKey == null || trustedValuesByKey.isEmpty()) {
             return Map.of();
@@ -5376,6 +5421,78 @@ public class IntentHandlingStep implements PipelineStep {
             }
         });
         return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
+    }
+
+    private Map<String, List<String>> pendingTrustedEvidenceValues(EvidenceBundle evidence, AIActionMetaData meta) {
+        if (evidence == null || evidence.trustedValuesByKey() == null || evidence.trustedValuesByKey().isEmpty()) {
+            return Map.of();
+        }
+        Set<String> evidenceKeys = evidenceBoundKeys(meta);
+        if (evidenceKeys.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        evidence.trustedValuesByKey().forEach((key, values) -> {
+            String normalizedKey = normalizeEvidenceKey(key);
+            if (StringUtils.hasText(normalizedKey) && evidenceKeys.contains(normalizedKey) && values != null && !values.isEmpty()) {
+                List<String> normalizedValues = values.stream()
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+                if (!normalizedValues.isEmpty()) {
+                    out.put(normalizedKey, List.copyOf(normalizedValues));
+                }
+            }
+        });
+        return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
+    }
+
+    private Set<String> evidenceBoundKeys(AIActionMetaData meta) {
+        if (meta == null || meta.getParameterSchemas() == null || meta.getParameterSchemas().isEmpty()) {
+            return Set.of();
+        }
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        meta.getParameterSchemas().values().forEach(schema -> collectEvidenceBoundKeys(schema, keys));
+        return keys.isEmpty() ? Set.of() : Collections.unmodifiableSet(keys);
+    }
+
+    private void collectEvidenceBoundKeys(com.ai.infrastructure.intent.action.AIActionParamSchema schema,
+                                          Set<String> keys) {
+        if (schema == null || keys == null) {
+            return;
+        }
+        if (Boolean.TRUE.equals(schema.getEvidenceBound())) {
+            List<String> configuredKeys = schema.getEvidenceKeys() != null && !schema.getEvidenceKeys().isEmpty()
+                ? schema.getEvidenceKeys()
+                : List.of(schema.getName());
+            for (String key : configuredKeys) {
+                String normalizedKey = normalizeEvidenceKey(key);
+                if (StringUtils.hasText(normalizedKey)) {
+                    keys.add(normalizedKey);
+                }
+            }
+        }
+        if (schema.getItems() != null) {
+            collectEvidenceBoundKeys(schema.getItems(), keys);
+        }
+        if (schema.getProperties() != null && !schema.getProperties().isEmpty()) {
+            schema.getProperties().values().forEach(child -> collectEvidenceBoundKeys(child, keys));
+        }
+    }
+
+    private Map<String, Object> mergeTrustedActionEvidence(Map<String, Object> metadata,
+                                                           Map<String, List<String>> trustedEvidenceValuesByKey) {
+        Map<String, Object> merged = new LinkedHashMap<>(metadata != null ? metadata : Map.of());
+        if (trustedEvidenceValuesByKey == null || trustedEvidenceValuesByKey.isEmpty()) {
+            merged.remove(METADATA_KEY_TRUSTED_ACTION_EVIDENCE_VALUES);
+            return Collections.unmodifiableMap(merged);
+        }
+        merged.put(
+            METADATA_KEY_TRUSTED_ACTION_EVIDENCE_VALUES,
+            Collections.unmodifiableMap(new LinkedHashMap<>(trustedEvidenceValuesByKey))
+        );
+        return Collections.unmodifiableMap(merged);
     }
 
     private String normalizeEvidenceKey(String key) {
