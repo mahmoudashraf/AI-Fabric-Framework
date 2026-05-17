@@ -44,7 +44,8 @@ class ConfirmationResolutionStepTest {
             "create_purchase_order",
             Map.of("sku", "ELEC-LAPTOP-001", "quantity", 1),
             "Create purchase order for 1 × ELEC-LAPTOP-001?",
-            Instant.now()
+            Instant.now(),
+            Map.of("sku", List.of("ELEC-LAPTOP-001"))
         );
         when(pendingActionStore.peekPendingAction("conv-1", "user-1")).thenReturn(Optional.of(pending));
         when(pendingActionStore.popPendingAction("conv-1", "user-1")).thenReturn(Optional.of(pending));
@@ -75,5 +76,7 @@ class ConfirmationResolutionStepTest {
         assertThat(resolved.getIntentResponse().getIntents().getFirst().getType()).isEqualTo(IntentType.ACTION);
         assertThat(resolved.getIntentResponse().getIntents().getFirst().getAction()).isEqualTo("create_purchase_order");
         assertThat(resolved.isActionConfirmed("create_purchase_order")).isTrue();
+        assertThat(resolved.getMetadata())
+            .containsEntry(PendingAction.TRUSTED_EVIDENCE_METADATA_KEY, Map.of("sku", List.of("ELEC-LAPTOP-001")));
     }
 }

@@ -57,7 +57,7 @@ public class SingleConfirmationPositiveResolver extends ConfirmationResolverSupp
             .metadata(intentResponse != null ? intentResponse.getMetadata() : Map.of())
             .build();
 
-        PipelineContext marked = markConfirmed(context, confirmed.action());
+        PipelineContext marked = markConfirmed(context, confirmed);
         return marked.toBuilder()
             .intentResponse(updated)
             .build();

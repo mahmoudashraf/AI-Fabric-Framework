@@ -144,7 +144,7 @@ public class IntentHandlingStep implements PipelineStep {
     private static final String DATA_KEY_CANDIDATE_VECTOR_SPACES = "candidateVectorSpaces";
     private static final String DATA_KEY_ROUTING_STRATEGY = "vectorSpaceRoutingStrategy";
     private static final String METADATA_KEY_ACTION_PARAM_VALIDATION = "actionParamValidation";
-    private static final String METADATA_KEY_TRUSTED_ACTION_EVIDENCE_VALUES = "__trustedActionEvidenceValuesByKey";
+    private static final String METADATA_KEY_TRUSTED_ACTION_EVIDENCE_VALUES = PendingAction.TRUSTED_EVIDENCE_METADATA_KEY;
     private static final String CONFIRMATION_ACCEPTED_PARAMETER = "confirmationAccepted";
     private static final Set<String> SYSTEM_CONTEXT_PARAMETER_NAMES = Set.of(
         "shopperSessionId",
@@ -1875,7 +1875,8 @@ public class IntentHandlingStep implements PipelineStep {
             pendingAction.action(),
             Collections.unmodifiableMap(new LinkedHashMap<>(params)),
             pendingAction.description(),
-            pendingAction.createdAt() != null ? pendingAction.createdAt() : Instant.now()
+            pendingAction.createdAt() != null ? pendingAction.createdAt() : Instant.now(),
+            pendingAction.trustedEvidenceValuesByKey()
         );
     }
 

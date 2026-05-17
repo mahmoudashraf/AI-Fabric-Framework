@@ -9,6 +9,8 @@ import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -119,6 +121,25 @@ public abstract class ConfirmationResolverSupport implements IntentResolver {
 
         return context.toBuilder()
             .confirmedActions(updated)
+            .build();
+    }
+
+    protected PipelineContext markConfirmed(PipelineContext context, PendingAction pending) {
+        if (pending == null) {
+            return context;
+        }
+        PipelineContext marked = markConfirmed(context, pending.action());
+        Map<String, List<String>> trustedEvidence = pending.trustedEvidenceValuesByKey();
+        if (marked == null || trustedEvidence == null || trustedEvidence.isEmpty()) {
+            return marked;
+        }
+        Map<String, Object> metadata = new LinkedHashMap<>(marked.getMetadata() != null ? marked.getMetadata() : Map.of());
+        metadata.put(
+            PendingAction.TRUSTED_EVIDENCE_METADATA_KEY,
+            Collections.unmodifiableMap(new LinkedHashMap<>(trustedEvidence))
+        );
+        return marked.toBuilder()
+            .metadata(Collections.unmodifiableMap(metadata))
             .build();
     }
 

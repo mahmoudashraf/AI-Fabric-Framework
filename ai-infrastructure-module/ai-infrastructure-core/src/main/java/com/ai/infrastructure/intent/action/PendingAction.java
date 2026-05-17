@@ -19,6 +19,8 @@ public record PendingAction(
     Map<String, List<String>> trustedEvidenceValuesByKey
 ) {
 
+    public static final String TRUSTED_EVIDENCE_METADATA_KEY = "__trustedActionEvidenceValuesByKey";
+
     public PendingAction(
         String action,
         Map<String, Object> actionParams,
