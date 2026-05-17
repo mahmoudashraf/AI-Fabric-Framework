@@ -140,6 +140,13 @@ public record ConnectorActionDefinition(
         if (param.defaultValue() != null) {
             out.put("defaultValue", param.defaultValue());
         }
+        if (param.evidenceBound()) {
+            out.put("evidenceBound", true);
+        }
+        if (param.evidenceKeys() != null && !param.evidenceKeys().isEmpty()) {
+            out.put("evidenceKeys", param.evidenceKeys());
+        }
+        putIfText(out, "evidenceFallbackPolicy", param.evidenceFallbackPolicy());
         if (param.items() != null) {
             out.put("items", paramRuntimeConfig(param.items()));
         }

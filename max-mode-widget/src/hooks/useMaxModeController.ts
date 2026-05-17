@@ -1007,9 +1007,12 @@ export function useMaxModeController({
     });
   };
 
-  const getResultStyles = (resultType?: ResultType) => {
+  const getResultStyles = (resultType?: ResultType, success = true) => {
     switch (resultType) {
       case "ACTION_EXECUTED":
+        if (!success) {
+          return { icon: XCircle, bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-700", iconColor: "text-red-600", label: "Action Failed" };
+        }
         return { icon: CheckCircle2, bg: "bg-green-500/10", border: "border-green-500/30", text: "text-green-700", iconColor: "text-green-600", label: "Action Executed" };
       case "ACTION_DENIED":
         return { icon: Ban, bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-700", iconColor: "text-red-600", label: "Action Denied" };

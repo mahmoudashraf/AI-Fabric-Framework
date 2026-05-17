@@ -22,11 +22,18 @@ public record ConnectorActionParamDefinition(
     boolean sensitive,
     ConnectorActionParamDefinition items,
     Map<String, ConnectorActionParamDefinition> properties,
-    List<String> requiredProperties
+    List<String> requiredProperties,
+    boolean evidenceBound,
+    List<String> evidenceKeys,
+    String evidenceFallbackPolicy
 ) {
     public ConnectorActionParamDefinition {
         allowedValues = allowedValues != null ? List.copyOf(allowedValues) : List.of();
         properties = properties != null ? Map.copyOf(properties) : Map.of();
         requiredProperties = requiredProperties != null ? List.copyOf(requiredProperties) : List.of();
+        evidenceKeys = evidenceKeys != null ? List.copyOf(evidenceKeys) : List.of();
+        evidenceFallbackPolicy = evidenceFallbackPolicy != null && !evidenceFallbackPolicy.isBlank()
+            ? evidenceFallbackPolicy.trim()
+            : null;
     }
 }

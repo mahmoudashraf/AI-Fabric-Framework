@@ -31,6 +31,11 @@ actions:
             product_variant_id:
               type: STRING
               required: true
+              evidenceBound: true
+              evidenceKeys:
+                - product_variant_id
+                - firstAvailableVariantId
+              evidenceFallbackPolicy: CLARIFY
             quantity:
               type: INTEGER
               required: true

@@ -78,6 +78,7 @@ export function useConfirmationFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          success: data.result?.success ?? data.success ?? true,
           customerAccountConnect,
         };
 

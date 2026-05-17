@@ -214,6 +214,10 @@ class ConnectorActionCatalogLoaderTest {
         AIActionMetaData metadata = ConnectorActionMetadataMapper.toMetadata(action);
         assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties())
             .containsKeys("product_variant_id", "quantity");
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("product_variant_id").getEvidenceBound())
+            .isTrue();
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("product_variant_id").getEvidenceKeys())
+            .containsExactly("product_variant_id", "firstAvailableVariantId");
         assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("quantity").getDefaultValue())
             .isEqualTo(1);
         Map<String, Object> runtimeConfig = action.runtimeActionConfig();
@@ -235,6 +239,13 @@ class ConnectorActionCatalogLoaderTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> runtimeProperties = (Map<String, Object>) runtimeItems.get("properties");
         assertThat(runtimeProperties).containsKeys("product_variant_id", "quantity");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeProductVariantId = (Map<String, Object>) runtimeProperties.get("product_variant_id");
+        assertThat(runtimeProductVariantId)
+            .containsEntry("evidenceBound", true)
+            .containsEntry("evidenceFallbackPolicy", "CLARIFY");
+        assertThat((List<String>) runtimeProductVariantId.get("evidenceKeys"))
+            .containsExactly("product_variant_id", "firstAvailableVariantId");
         @SuppressWarnings("unchecked")
         Map<String, Object> runtimeQuantity = (Map<String, Object>) runtimeProperties.get("quantity");
         assertThat(runtimeQuantity).containsEntry("defaultValue", 1);

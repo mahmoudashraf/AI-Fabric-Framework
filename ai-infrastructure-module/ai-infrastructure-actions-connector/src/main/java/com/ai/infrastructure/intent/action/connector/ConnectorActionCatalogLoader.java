@@ -119,6 +119,9 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_MAX = "max";
     private static final String KEY_DEFAULT_VALUE = "defaultValue";
     private static final String KEY_SENSITIVE = "sensitive";
+    private static final String KEY_EVIDENCE_BOUND = "evidenceBound";
+    private static final String KEY_EVIDENCE_KEYS = "evidenceKeys";
+    private static final String KEY_EVIDENCE_FALLBACK_POLICY = "evidenceFallbackPolicy";
     private static final String KEY_TRIGGER = "trigger";
     private static final String KEY_CONFIRMATION = "confirmation";
     private static final String KEY_ONCE_PARAM = "onceParam";
@@ -839,6 +842,9 @@ public class ConnectorActionCatalogLoader {
         ConnectorActionParamDefinition items = parseItemSchema(raw.get(KEY_ITEMS), label, actionName, name);
         Map<String, ConnectorActionParamDefinition> properties = parsePropertySchemas(raw.get(KEY_PROPERTIES), label, actionName, name);
         List<String> requiredProperties = readStringList(raw.get(KEY_REQUIRED_PROPERTIES));
+        boolean evidenceBound = readBoolean(raw, KEY_EVIDENCE_BOUND, false);
+        List<String> evidenceKeys = readStringList(raw.get(KEY_EVIDENCE_KEYS));
+        String evidenceFallbackPolicy = readString(raw, KEY_EVIDENCE_FALLBACK_POLICY);
 
         return new ConnectorActionParamDefinition(
             name.trim(),
@@ -854,7 +860,10 @@ public class ConnectorActionCatalogLoader {
             sensitive,
             items,
             properties,
-            requiredProperties
+            requiredProperties,
+            evidenceBound,
+            evidenceKeys,
+            evidenceFallbackPolicy
         );
     }
 

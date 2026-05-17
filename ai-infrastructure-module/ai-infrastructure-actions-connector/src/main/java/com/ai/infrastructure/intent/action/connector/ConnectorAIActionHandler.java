@@ -153,6 +153,11 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return Optional.of(Collections.unmodifiableMap(facts));
     }
 
+    @Override
+    public Map<String, Object> actionRuntimeConfig() {
+        return actionConfig;
+    }
+
     private void applyConfiguredFacts(Map<String, Object> facts, Map<String, Object> rootPayload, ActionContext context) {
         if (rootPayload == null || rootPayload.isEmpty()) {
             return;

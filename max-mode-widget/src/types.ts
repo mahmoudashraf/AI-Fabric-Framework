@@ -89,6 +89,7 @@ export interface ChatMessage {
   timestamp: string;
   result?: ChatResult;
   resultType?: ResultType;
+  success?: boolean;
   customerAccountConnect?: CustomerAccountConnectAction;
   attachedItems?: Array<{ type: string; data: any }>;
   documents?: Document[];

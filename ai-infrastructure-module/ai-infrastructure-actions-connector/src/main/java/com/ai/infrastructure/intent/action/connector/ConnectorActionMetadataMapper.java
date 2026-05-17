@@ -105,6 +105,9 @@ public final class ConnectorActionMetadataMapper {
             .min(param.min())
             .max(param.max())
             .defaultValue(param.defaultValue())
+            .evidenceBound(param.evidenceBound())
+            .evidenceKeys(param.evidenceKeys() != null ? List.copyOf(param.evidenceKeys()) : List.of())
+            .evidenceFallbackPolicy(param.evidenceFallbackPolicy())
             .build();
     }
 

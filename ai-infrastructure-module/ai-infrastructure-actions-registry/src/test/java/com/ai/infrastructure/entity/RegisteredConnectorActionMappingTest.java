@@ -40,7 +40,10 @@ class RegisteredConnectorActionMappingTest {
                     false,
                     null,
                     Map.of(),
-                    List.of()
+                    List.of(),
+                    false,
+                    List.of(),
+                    null
                 ),
                 new ConnectorActionParamDefinition(
                     "quantity",
@@ -56,7 +59,10 @@ class RegisteredConnectorActionMappingTest {
                     false,
                     null,
                     Map.of(),
-                    List.of()
+                    List.of(),
+                    false,
+                    List.of(),
+                    null
                 )
             ),
             true,

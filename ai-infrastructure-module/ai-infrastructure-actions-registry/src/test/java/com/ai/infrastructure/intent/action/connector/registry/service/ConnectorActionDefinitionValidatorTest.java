@@ -140,7 +140,10 @@ class ConnectorActionDefinitionValidatorTest {
             false,
             null,
             Map.of(),
-            List.of()
+            List.of(),
+            false,
+            List.of(),
+            null
         );
     }
 }

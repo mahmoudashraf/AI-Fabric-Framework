@@ -63,6 +63,17 @@ public class AIActionParamSchema {
 
     private Object defaultValue;
 
+    /**
+     * When true, executable values for this parameter must be copied from trusted
+     * request evidence such as attachments or resolved targets, not invented by the model.
+     */
+    private Boolean evidenceBound;
+
+    @Builder.Default
+    private List<String> evidenceKeys = List.of();
+
+    private String evidenceFallbackPolicy;
+
     public void setProperties(Map<String, AIActionParamSchema> properties) {
         this.properties = properties == null ? Collections.emptyMap() : Map.copyOf(properties);
     }
@@ -73,5 +84,9 @@ public class AIActionParamSchema {
 
     public void setAllowedValues(List<String> allowedValues) {
         this.allowedValues = allowedValues == null ? List.of() : List.copyOf(allowedValues);
+    }
+
+    public void setEvidenceKeys(List<String> evidenceKeys) {
+        this.evidenceKeys = evidenceKeys == null ? List.of() : List.copyOf(evidenceKeys);
     }
 }

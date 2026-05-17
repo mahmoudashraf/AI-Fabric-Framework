@@ -37,7 +37,7 @@ export function MessageList({
   latestMessageRef: RefObject<HTMLDivElement>;
   messagesEndRef: RefObject<HTMLDivElement>;
   isLoading: boolean;
-  getAiStyles: (resultType?: ResultType) => AiStyles;
+  getAiStyles: (resultType?: ResultType, success?: boolean) => AiStyles;
   isPanelVisible: boolean;
   attachedItems: Array<{ type: string; data: any }>;
   confirmationStatus: Record<string, "confirmed" | "rejected" | undefined>;
@@ -61,7 +61,7 @@ export function MessageList({
       <div className="max-w-3xl mx-auto space-y-4">
         <AnimatePresence mode="popLayout">
           {messages.map((message, index) => {
-            const aiStyles = message.type === "ai" ? getAiStyles(message.resultType) : null;
+            const aiStyles = message.type === "ai" ? getAiStyles(message.resultType, message.success) : null;
             const isLatest = index === messages.length - 1;
 
             return (

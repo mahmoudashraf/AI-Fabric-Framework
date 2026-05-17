@@ -501,6 +501,43 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
+        ActionExecutableValidation executableValidation = validateExecutableActionParams(
+            handler.actionRuntimeConfig(),
+            meta,
+            effectiveParams,
+            pipelineContext
+        );
+        validation = mergeExecutableValidation(validation, executableValidation);
+        if (executableValidation != null && executableValidation.hasFailures()) {
+            if (context.hasConversation() && actionDraftStore != null) {
+                String missingSummary = String.join(", ", executableValidation.publicMissing());
+                ActionDraft draft = new ActionDraft(
+                    actionName,
+                    Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)),
+                    StringUtils.hasText(missingSummary) ? missingSummary : "trusted action target",
+                    Instant.now(),
+                    Instant.now()
+                );
+                actionDraftStore.saveDraft(context.getConversationId(), identifier, draft);
+            }
+
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put(DATA_KEY_ACTION, actionName);
+            data.put("blockedReason", "ACTION_ARGUMENTS_NOT_EXECUTABLE");
+            data.put(DATA_KEY_MISSING_REQUIRED_PARAMETERS, executableValidation.publicMissing());
+            data.put(DATA_KEY_PROVIDED_PARAMETERS, Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)));
+            data.put(DATA_KEY_METADATA, publicActionMetadata(getMetadataForAction(actionName)));
+
+            return OrchestrationResult.builder()
+                .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
+                .success(false)
+                .message(actionExecutableValidationMessage(executableValidation))
+                .metadata(publicActionParamValidationMetadata(validation))
+                .data(Collections.unmodifiableMap(data))
+                .nextSteps(extractNextSteps(intent))
+                .build();
+        }
+
         // Confirmation message is only meaningful for confirmable actions.
         // For safe actions, expose a deterministic execution indicator (used by tests/UI).
         String confirmationMessage = null;
@@ -5089,6 +5126,7 @@ public class IntentHandlingStep implements PipelineStep {
     private record EvidenceBundle(
         String userEvidenceLower,
         String pinnedEvidenceLower,
+        Map<String, Set<String>> trustedValuesByKey,
         Map<String, Object> sourcesUsed
     ) {}
 
@@ -5097,6 +5135,28 @@ public class IntentHandlingStep implements PipelineStep {
         List<String> provenanceMissing,
         Map<String, Object> debugMetadata
     ) {}
+
+    private record ActionExecutableValidation(
+        List<String> missingExecutable,
+        List<String> invalidArguments,
+        List<String> untrustedArguments,
+        Map<String, Object> debugMetadata
+    ) {
+        boolean hasFailures() {
+            return !missingExecutable.isEmpty() || !invalidArguments.isEmpty() || !untrustedArguments.isEmpty();
+        }
+
+        List<String> publicMissing() {
+            List<String> out = new ArrayList<>();
+            out.addAll(missingExecutable);
+            out.addAll(invalidArguments);
+            out.addAll(untrustedArguments);
+            return out.stream()
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        }
+    }
 
     private ActionParamValidation validateRequiredActionParams(AIActionMetaData meta,
                                                               Map<String, Object> params,
@@ -5174,11 +5234,16 @@ public class IntentHandlingStep implements PipelineStep {
 
     private EvidenceBundle buildEvidenceBundle(PipelineContext pipelineContext) {
         if (pipelineContext == null) {
-            return new EvidenceBundle("", "", Map.of(
-                "user", false,
-                "history", false,
-                "pinned", false
-            ));
+            return new EvidenceBundle(
+                "",
+                "",
+                Map.of(),
+                Map.of(
+                    "user", false,
+                    "history", false,
+                    "pinned", false
+                )
+            );
         }
 
         StringBuilder userEvidence = new StringBuilder(512);
@@ -5204,6 +5269,7 @@ public class IntentHandlingStep implements PipelineStep {
 
         StringBuilder pinnedEvidence = new StringBuilder(512);
         boolean hasPinned = false;
+        Map<String, Set<String>> trustedValuesByKey = new LinkedHashMap<>();
 
         OrchestrationContext orchContext = pipelineContext.getOrchestrationContext();
         List<NormalizedAttachment> attachments = orchContext != null ? orchContext.getAttachmentsNormalized() : null;
@@ -5225,6 +5291,7 @@ public class IntentHandlingStep implements PipelineStep {
                     hasPinned = true;
                 }
                 if (attachment.getMetadata() != null && !attachment.getMetadata().isEmpty()) {
+                    addTrustedEvidenceValues(trustedValuesByKey, attachment.getMetadata());
                     for (String value : attachment.getMetadata().values()) {
                         if (!StringUtils.hasText(value)) {
                             continue;
@@ -5255,6 +5322,7 @@ public class IntentHandlingStep implements PipelineStep {
                     hasPinned = true;
                 }
                 if (target.getMetadata() != null && !target.getMetadata().isEmpty()) {
+                    addTrustedEvidenceValues(trustedValuesByKey, target.getMetadata());
                     for (String value : target.getMetadata().values()) {
                         if (!StringUtils.hasText(value)) {
                             continue;
@@ -5275,8 +5343,409 @@ public class IntentHandlingStep implements PipelineStep {
         return new EvidenceBundle(
             userEvidence.toString().toLowerCase(java.util.Locale.ROOT),
             pinnedEvidence.toString().toLowerCase(java.util.Locale.ROOT),
+            freezeTrustedEvidenceValues(trustedValuesByKey),
             sourcesUsed
         );
+    }
+
+    private void addTrustedEvidenceValues(Map<String, Set<String>> trustedValuesByKey, Map<String, String> metadata) {
+        if (trustedValuesByKey == null || metadata == null || metadata.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || !StringUtils.hasText(entry.getValue())) {
+                continue;
+            }
+            String key = normalizeEvidenceKey(entry.getKey());
+            String value = normalizeEvidenceValue(entry.getValue());
+            if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+                continue;
+            }
+            trustedValuesByKey.computeIfAbsent(key, ignored -> new java.util.LinkedHashSet<>()).add(value);
+        }
+    }
+
+    private Map<String, Set<String>> freezeTrustedEvidenceValues(Map<String, Set<String>> trustedValuesByKey) {
+        if (trustedValuesByKey == null || trustedValuesByKey.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Set<String>> out = new LinkedHashMap<>();
+        trustedValuesByKey.forEach((key, values) -> {
+            if (StringUtils.hasText(key) && values != null && !values.isEmpty()) {
+                out.put(key, Set.copyOf(values));
+            }
+        });
+        return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
+    }
+
+    private String normalizeEvidenceKey(String key) {
+        return StringUtils.hasText(key) ? key.trim().toLowerCase(java.util.Locale.ROOT) : "";
+    }
+
+    private String normalizeEvidenceValue(Object value) {
+        return value != null && StringUtils.hasText(value.toString())
+            ? value.toString().trim().toLowerCase(java.util.Locale.ROOT)
+            : "";
+    }
+
+    private ActionExecutableValidation validateExecutableActionParams(Map<String, Object> actionRuntimeConfig,
+                                                                      AIActionMetaData meta,
+                                                                      Map<String, Object> params,
+                                                                      PipelineContext pipelineContext) {
+        if (!isMcpRuntimeAction(actionRuntimeConfig)) {
+            return null;
+        }
+
+        List<String> missingExecutable = new ArrayList<>();
+        List<String> invalidArguments = new ArrayList<>();
+        List<String> untrustedArguments = new ArrayList<>();
+        Map<String, Object> debug = new LinkedHashMap<>();
+
+        List<String> requiredAnyArguments = mcpRequiredAnyArguments(actionRuntimeConfig);
+        if (!requiredAnyArguments.isEmpty()) {
+            boolean hasAny = false;
+            for (String requiredAny : requiredAnyArguments) {
+                if (hasMeaningfulActionParamAtPath(params, requiredAny)) {
+                    hasAny = true;
+                    break;
+                }
+            }
+            if (!hasAny) {
+                missingExecutable.addAll(requiredAnyArguments);
+            }
+        }
+
+        EvidenceBundle evidence = buildEvidenceBundle(pipelineContext);
+        if (meta != null && meta.getParameterSchemas() != null && !meta.getParameterSchemas().isEmpty()) {
+            for (Map.Entry<String, com.ai.infrastructure.intent.action.AIActionParamSchema> entry : meta.getParameterSchemas().entrySet()) {
+                if (entry == null || !StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                    continue;
+                }
+                Object value = params != null ? params.get(entry.getKey()) : null;
+                if (!hasMeaningfulJavaValue(value)) {
+                    continue;
+                }
+                validateExecutableParamValue(
+                    entry.getKey(),
+                    value,
+                    entry.getValue(),
+                    evidence,
+                    invalidArguments,
+                    untrustedArguments
+                );
+            }
+        }
+
+        debug.put("missingExecutable", List.copyOf(missingExecutable));
+        debug.put("invalidArguments", List.copyOf(invalidArguments));
+        debug.put("untrustedArguments", List.copyOf(untrustedArguments));
+        debug.put("requiredAnyArguments", List.copyOf(requiredAnyArguments));
+        debug.put("sourcesUsed", evidence != null ? evidence.sourcesUsed() : Map.of());
+        return new ActionExecutableValidation(
+            List.copyOf(missingExecutable),
+            List.copyOf(invalidArguments),
+            List.copyOf(untrustedArguments),
+            Collections.unmodifiableMap(debug)
+        );
+    }
+
+    private boolean isMcpRuntimeAction(Map<String, Object> actionRuntimeConfig) {
+        if (actionRuntimeConfig == null || actionRuntimeConfig.isEmpty()) {
+            return false;
+        }
+        if ("mcp-tool".equalsIgnoreCase(textFromMap(actionRuntimeConfig, "adapterType"))) {
+            return true;
+        }
+        Object execution = actionRuntimeConfig.get("execution");
+        if (execution instanceof Map<?, ?> executionMap) {
+            if ("mcp-tool".equalsIgnoreCase(textFromMap(executionMap, "adapterType"))) {
+                return true;
+            }
+            return executionMap.get("mcp") instanceof Map<?, ?>;
+        }
+        return false;
+    }
+
+    private List<String> mcpRequiredAnyArguments(Map<String, Object> actionRuntimeConfig) {
+        Map<?, ?> mcp = mcpRuntimeConfig(actionRuntimeConfig);
+        if (mcp == null || mcp.isEmpty()) {
+            return List.of();
+        }
+        Object raw = mcp.get("requiredAnyArguments");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+            .filter(value -> value != null && StringUtils.hasText(value.toString()))
+            .map(value -> value.toString().trim())
+            .toList();
+    }
+
+    private Map<?, ?> mcpRuntimeConfig(Map<String, Object> actionRuntimeConfig) {
+        if (actionRuntimeConfig == null || actionRuntimeConfig.isEmpty()) {
+            return Map.of();
+        }
+        Object execution = actionRuntimeConfig.get("execution");
+        if (execution instanceof Map<?, ?> executionMap && executionMap.get("mcp") instanceof Map<?, ?> mcpMap) {
+            return mcpMap;
+        }
+        Object directMcp = actionRuntimeConfig.get("mcp");
+        if (directMcp instanceof Map<?, ?> mcpMap) {
+            return mcpMap;
+        }
+        return Map.of();
+    }
+
+    private boolean hasMeaningfulActionParamAtPath(Map<String, Object> params, String configuredPath) {
+        Object value = readActionParamAtPath(params, configuredPath);
+        return hasMeaningfulJavaValue(value);
+    }
+
+    private Object readActionParamAtPath(Map<String, Object> params, String configuredPath) {
+        if (params == null || params.isEmpty() || !StringUtils.hasText(configuredPath)) {
+            return null;
+        }
+        String path = configuredPath.trim();
+        if (path.startsWith("$.")) {
+            path = path.substring(2);
+        }
+        if (path.startsWith("params.")) {
+            path = path.substring("params.".length());
+        }
+        if (!StringUtils.hasText(path)) {
+            return null;
+        }
+
+        Object current = params;
+        for (String token : path.split("\\.")) {
+            if (!StringUtils.hasText(token)) {
+                continue;
+            }
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = map.get(token.trim());
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
+    }
+
+    private boolean hasMeaningfulJavaValue(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof String text) {
+            return StringUtils.hasText(text);
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().anyMatch(this::hasMeaningfulJavaValue);
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.values().stream().anyMatch(this::hasMeaningfulJavaValue);
+        }
+        return true;
+    }
+
+    private void validateExecutableParamValue(String path,
+                                              Object value,
+                                              com.ai.infrastructure.intent.action.AIActionParamSchema schema,
+                                              EvidenceBundle evidence,
+                                              List<String> invalidArguments,
+                                              List<String> untrustedArguments) {
+        if (schema == null || !hasMeaningfulJavaValue(value)) {
+            return;
+        }
+
+        if (Boolean.TRUE.equals(schema.getEvidenceBound()) && !isEvidenceBoundValueTrusted(value, schema, evidence)) {
+            untrustedArguments.add(path);
+            return;
+        }
+
+        validateScalarExecutableConstraints(path, value, schema, invalidArguments);
+
+        if (schema.getType() == com.ai.infrastructure.intent.action.AIActionParamType.ARRAY) {
+            if (!(value instanceof List<?> list)) {
+                invalidArguments.add(path);
+                return;
+            }
+            com.ai.infrastructure.intent.action.AIActionParamSchema itemSchema = schema.getItems();
+            if (itemSchema == null) {
+                return;
+            }
+            for (int i = 0; i < list.size(); i++) {
+                validateExecutableParamValue(
+                    path + "[" + i + "]",
+                    list.get(i),
+                    itemSchema,
+                    evidence,
+                    invalidArguments,
+                    untrustedArguments
+                );
+            }
+            return;
+        }
+
+        if (schema.getType() == com.ai.infrastructure.intent.action.AIActionParamType.OBJECT) {
+            if (!(value instanceof Map<?, ?> map)) {
+                invalidArguments.add(path);
+                return;
+            }
+            validateExecutableRequiredProperties(path, map, schema, invalidArguments);
+            if (schema.getProperties() == null || schema.getProperties().isEmpty()) {
+                return;
+            }
+            for (Map.Entry<String, com.ai.infrastructure.intent.action.AIActionParamSchema> property : schema.getProperties().entrySet()) {
+                if (property == null || !StringUtils.hasText(property.getKey()) || property.getValue() == null) {
+                    continue;
+                }
+                Object propertyValue = map.get(property.getKey());
+                validateExecutableParamValue(
+                    path + "." + property.getKey(),
+                    propertyValue,
+                    property.getValue(),
+                    evidence,
+                    invalidArguments,
+                    untrustedArguments
+                );
+            }
+        }
+    }
+
+    private void validateScalarExecutableConstraints(String path,
+                                                     Object value,
+                                                     com.ai.infrastructure.intent.action.AIActionParamSchema schema,
+                                                     List<String> invalidArguments) {
+        if (schema == null || value == null) {
+            return;
+        }
+        if (StringUtils.hasText(schema.getPattern())) {
+            String raw = value.toString();
+            try {
+                if (!Pattern.compile(schema.getPattern()).matcher(raw).matches()) {
+                    invalidArguments.add(path);
+                }
+            } catch (PatternSyntaxException ex) {
+                invalidArguments.add(path);
+            }
+        }
+        if (schema.getMin() != null) {
+            Double numeric = numericValue(value);
+            if (numeric == null || numeric < schema.getMin()) {
+                invalidArguments.add(path);
+            }
+        }
+        if (schema.getMax() != null) {
+            Double numeric = numericValue(value);
+            if (numeric == null || numeric > schema.getMax()) {
+                invalidArguments.add(path);
+            }
+        }
+        if (schema.getAllowedValues() != null && !schema.getAllowedValues().isEmpty()) {
+            String normalized = value.toString().trim();
+            boolean allowed = schema.getAllowedValues().stream()
+                .filter(StringUtils::hasText)
+                .anyMatch(allowedValue -> allowedValue.trim().equalsIgnoreCase(normalized));
+            if (!allowed) {
+                invalidArguments.add(path);
+            }
+        }
+    }
+
+    private Double numericValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value != null && StringUtils.hasText(value.toString())) {
+            try {
+                return Double.parseDouble(value.toString().trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private void validateExecutableRequiredProperties(String path,
+                                                      Map<?, ?> value,
+                                                      com.ai.infrastructure.intent.action.AIActionParamSchema schema,
+                                                      List<String> invalidArguments) {
+        if (schema == null || schema.getRequiredProperties() == null || schema.getRequiredProperties().isEmpty()) {
+            return;
+        }
+        for (String requiredProperty : schema.getRequiredProperties()) {
+            if (!StringUtils.hasText(requiredProperty)) {
+                continue;
+            }
+            Object propertyValue = value != null ? value.get(requiredProperty.trim()) : null;
+            if (!hasMeaningfulJavaValue(propertyValue)) {
+                invalidArguments.add(path + "." + requiredProperty.trim());
+            }
+        }
+    }
+
+    private boolean isEvidenceBoundValueTrusted(Object value,
+                                                com.ai.infrastructure.intent.action.AIActionParamSchema schema,
+                                                EvidenceBundle evidence) {
+        if (value == null || schema == null || evidence == null || evidence.trustedValuesByKey() == null) {
+            return false;
+        }
+        String normalizedValue = normalizeEvidenceValue(value);
+        if (!StringUtils.hasText(normalizedValue)) {
+            return false;
+        }
+        List<String> keys = schema.getEvidenceKeys() != null && !schema.getEvidenceKeys().isEmpty()
+            ? schema.getEvidenceKeys()
+            : List.of(schema.getName());
+        for (String key : keys) {
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            Set<String> trustedValues = evidence.trustedValuesByKey().get(normalizeEvidenceKey(key));
+            if (trustedValues != null && trustedValues.contains(normalizedValue)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ActionParamValidation mergeExecutableValidation(ActionParamValidation validation,
+                                                            ActionExecutableValidation executableValidation) {
+        if (executableValidation == null) {
+            return validation;
+        }
+        Map<String, Object> debug = new LinkedHashMap<>();
+        if (validation != null && validation.debugMetadata() != null) {
+            debug.putAll(validation.debugMetadata());
+        }
+        debug.put("executableValidation", executableValidation.debugMetadata());
+        return new ActionParamValidation(
+            validation != null ? validation.missingRequired() : List.of(),
+            validation != null ? validation.provenanceMissing() : List.of(),
+            Collections.unmodifiableMap(debug)
+        );
+    }
+
+    private String actionExecutableValidationMessage(ActionExecutableValidation validation) {
+        if (validation == null) {
+            return "I need complete action details before I can proceed.";
+        }
+        if (!validation.untrustedArguments().isEmpty()) {
+            return "I need a trusted selected item or target before I can perform this action. Please choose it from the assistant results and try again.";
+        }
+        if (!validation.invalidArguments().isEmpty()) {
+            return "I need complete valid action details before I can perform this action.";
+        }
+        return "I need a specific target or action details before I can perform this action.";
+    }
+
+    private String textFromMap(Map<?, ?> map, String key) {
+        if (map == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        Object value = map.get(key);
+        return value != null && StringUtils.hasText(value.toString()) ? value.toString().trim() : null;
     }
 
     private boolean isPlaceholderOrInstructionEcho(String requiredParamName,

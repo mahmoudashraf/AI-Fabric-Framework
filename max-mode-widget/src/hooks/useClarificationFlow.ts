@@ -74,6 +74,7 @@ export function useClarificationFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          success: data.result?.success ?? data.success ?? true,
           customerAccountConnect,
         };
 

@@ -26,6 +26,10 @@ public interface AIActionHandler {
         return Optional.empty();
     }
 
+    default Map<String, Object> actionRuntimeConfig() {
+        return Map.of();
+    }
+
     default ActionResult handleError(Exception e, ActionContext context) {
         return ActionResult.builder()
             .success(false)
@@ -34,4 +38,3 @@ public interface AIActionHandler {
             .build();
     }
 }
-

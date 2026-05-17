@@ -357,6 +357,7 @@ export function useChatFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          success: data.result?.success ?? data.success ?? true,
           customerAccountConnect,
           documents: messageDocs,
           debugData: messageDebugData,

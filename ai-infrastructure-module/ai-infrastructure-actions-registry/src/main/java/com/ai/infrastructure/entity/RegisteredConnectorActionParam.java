@@ -112,7 +112,10 @@ public class RegisteredConnectorActionParam {
             sensitive,
             null,
             Map.of(),
-            List.of()
+            List.of(),
+            false,
+            List.of(),
+            null
         );
     }
 }
