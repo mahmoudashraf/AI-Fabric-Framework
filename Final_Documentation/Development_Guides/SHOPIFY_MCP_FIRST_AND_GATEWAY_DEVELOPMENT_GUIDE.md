@@ -344,6 +344,7 @@ Verify Shopify execution:
 - Bridge readiness must show Shopify Storefront MCP ready
 - execute `shopify_search_catalog` through Bridge
 - confirm the response is normalized MCP evidence from the gateway path
+- Support readiness must be read-only. It may reconcile scopes/webhook posture, but it must not write billing/package state or enqueue provisioning; package changes must use the explicit billing/package operation so readiness checks cannot downgrade a staging/design-partner package.
 
 ---
 
