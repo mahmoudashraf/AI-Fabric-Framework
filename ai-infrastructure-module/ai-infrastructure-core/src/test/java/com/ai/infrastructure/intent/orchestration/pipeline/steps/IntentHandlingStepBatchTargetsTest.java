@@ -667,6 +667,53 @@ class IntentHandlingStepBatchTargetsTest {
         assertThat(paramsCaptor.getValue()).containsEntry("order_number", "#1001");
     }
 
+    @Test
+    void shouldSurfaceReadActionFailureWhenResolvingDependentActionParam() {
+        AIActionMetaData returnMeta = requestReturnMeta();
+        AIActionMetaData recentOrderMeta = mostRecentOrderMeta();
+        AIActionHandler returnHandler = mock(AIActionHandler.class);
+        AIActionHandler recentOrderHandler = mock(AIActionHandler.class);
+        when(returnHandler.validateActionAllowed(any())).thenReturn(true);
+        when(returnHandler.requiresConfirmation()).thenReturn(false);
+        when(recentOrderHandler.validateActionAllowed(any())).thenReturn(true);
+        when(recentOrderHandler.requiresConfirmation()).thenReturn(false);
+        when(recentOrderHandler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(false)
+            .errorCode("CUSTOMER_ACCOUNT_AUTH_REQUIRED")
+            .message("Customer account auth is required.")
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_request_return")).thenReturn(Optional.of(returnHandler));
+        when(registry.findMetadata("shopify_request_return")).thenReturn(Optional.of(returnMeta));
+        when(registry.findHandler("shopify_get_most_recent_order_status")).thenReturn(Optional.of(recentOrderHandler));
+        when(registry.findMetadata("shopify_get_most_recent_order_status")).thenReturn(Optional.of(recentOrderMeta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_request_return")
+            .actionParams(Map.of("order_number", "last"))
+            .build();
+        PipelineContext context = PipelineContext.from("I want to return my last order", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(customerReadPolicy())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = newStep(registry).process(context).getIntentResult();
+
+        verify(recentOrderHandler, times(1)).executeAction(anyMap(), any());
+        verify(returnHandler, never()).executeAction(anyMap(), any());
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).isEqualTo("Customer account auth is required.");
+        assertThat(result.getData()).containsEntry("action", "shopify_get_most_recent_order_status");
+        assertThat(result.getData()).containsEntry("dependentAction", "shopify_request_return");
+        Object actionResult = result.getData().get("actionResult");
+        assertThat(actionResult).isInstanceOf(ActionResult.class);
+        assertThat(((ActionResult) actionResult).getErrorCode()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+    }
+
     private IntentHandlingStep newStep(AIActionRegistry registry) {
         return newStep(registry, new InMemoryPendingActionStore());
     }

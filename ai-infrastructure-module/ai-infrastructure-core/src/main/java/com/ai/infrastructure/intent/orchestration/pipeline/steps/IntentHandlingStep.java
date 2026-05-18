@@ -458,6 +458,14 @@ public class IntentHandlingStep implements PipelineStep {
             resolveContextActionParams(meta, effectiveParams, context, pipelineContext);
         effectiveParams = resolvedContextParams.params();
         actionContext = actionContext.withActionParams(effectiveParams);
+        if (resolvedContextParams.blockingReadActionResult() != null) {
+            return readActionResolutionBlockedResult(
+                actionName,
+                meta,
+                resolvedContextParams.blockingReadActionResult(),
+                intent
+            );
+        }
 
         boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
         boolean requiresConfirmation = requiresActionConfirmation(handler);
@@ -1050,12 +1058,12 @@ public class IntentHandlingStep implements PipelineStep {
                                                                    PipelineContext pipelineContext,
                                                                    int depth) {
         if (meta == null) {
-            return new ContextResolvedActionParams(effectiveParams, Set.of());
+            return new ContextResolvedActionParams(effectiveParams, Set.of(), null);
         }
         Map<String, Object> params = effectiveParams != null ? effectiveParams : new LinkedHashMap<>();
         Set<String> paramNames = collectActionParameterNames(meta);
         if (paramNames.isEmpty()) {
-            return new ContextResolvedActionParams(params, Set.of());
+            return new ContextResolvedActionParams(params, Set.of(), null);
         }
         Map<String, Object> updated = null;
         Map<String, Object> current = params;
@@ -1072,6 +1080,13 @@ public class IntentHandlingStep implements PipelineStep {
                 continue;
             }
             Object resolved = resolveConfiguredActionParam(parameter, schema, context, pipelineContext, depth);
+            if (resolved instanceof BlockingReadActionResult blockingReadActionResult) {
+                return new ContextResolvedActionParams(
+                    updated != null ? updated : params,
+                    resolvedParameters.isEmpty() ? Set.of() : Collections.unmodifiableSet(resolvedParameters),
+                    blockingReadActionResult
+                );
+            }
             if (!hasMeaningfulActionParamValue(resolved)
                 && isSystemContextParameter(parameter)
                 && context != null
@@ -1102,8 +1117,39 @@ public class IntentHandlingStep implements PipelineStep {
         }
         return new ContextResolvedActionParams(
             updated != null ? updated : params,
-            resolvedParameters.isEmpty() ? Set.of() : Collections.unmodifiableSet(resolvedParameters)
+            resolvedParameters.isEmpty() ? Set.of() : Collections.unmodifiableSet(resolvedParameters),
+            null
         );
+    }
+
+    private OrchestrationResult readActionResolutionBlockedResult(String actionName,
+                                                                  AIActionMetaData actionMeta,
+                                                                  BlockingReadActionResult blocking,
+                                                                  Intent intent) {
+        ActionResult actionResult = blocking.result();
+        String readActionName = blocking.actionName();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(DATA_KEY_ACTION, readActionName);
+        data.put("dependentAction", actionName);
+        AIActionMetaData readMeta = null;
+        Optional<AIActionMetaData> readMetaOptional = actionHandlerRegistry.findMetadata(readActionName);
+        if (readMetaOptional != null && readMetaOptional.isPresent()) {
+            readMeta = readMetaOptional.get();
+        }
+        data.put(DATA_KEY_METADATA, publicActionMetadata(readMeta != null ? readMeta : actionMeta));
+        if (actionResult != null) {
+            data.put(DATA_KEY_ACTION_RESULT, actionResult);
+        }
+        String message = actionResult != null && StringUtils.hasText(actionResult.getMessage())
+            ? actionResult.getMessage()
+            : "The required read action could not resolve the action context.";
+        return OrchestrationResult.builder()
+            .type(OrchestrationResultType.ACTION_EXECUTED)
+            .success(false)
+            .message(message)
+            .data(Collections.unmodifiableMap(data))
+            .nextSteps(extractNextSteps(intent))
+            .build();
     }
 
     private Set<String> collectActionParameterNames(AIActionMetaData meta) {
@@ -1299,7 +1345,13 @@ public class IntentHandlingStep implements PipelineStep {
             log.debug("Read action {} failed while resolving action param {}: {}", actionName, parameter, ex.getMessage());
             return null;
         }
-        if (result == null || !result.isSuccess() || result.getData() == null) {
+        if (result == null) {
+            return null;
+        }
+        if (!result.isSuccess()) {
+            return new BlockingReadActionResult(actionName.trim(), result);
+        }
+        if (result.getData() == null) {
             return null;
         }
         Map<String, Object> data = result.getData().toMap();
@@ -5667,7 +5719,13 @@ public class IntentHandlingStep implements PipelineStep {
 
     private record ContextResolvedActionParams(
         Map<String, Object> params,
-        Set<String> resolvedParameters
+        Set<String> resolvedParameters,
+        BlockingReadActionResult blockingReadActionResult
+    ) {}
+
+    private record BlockingReadActionResult(
+        String actionName,
+        ActionResult result
     ) {}
 
     private record ActionExecutableValidation(
