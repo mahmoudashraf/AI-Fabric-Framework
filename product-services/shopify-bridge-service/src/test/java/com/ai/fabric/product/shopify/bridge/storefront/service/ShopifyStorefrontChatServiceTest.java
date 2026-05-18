@@ -235,6 +235,52 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(safeData.path("errorCode").asText()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
         assertThat(safeData.path("customerAccountAuthRequired").asBoolean()).isTrue();
         assertThat(safeData.path("customerAccountAuth").path("required").asBoolean()).isTrue();
+        assertThat(safeData.path("customerAccountAuth").path("reason").asText()).isEqualTo("ORDER_LOOKUP");
+    }
+
+    @Test
+    void queryUsesStoreCreditCustomerAuthCopyForStoreCreditActions() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"ACTION_EXECUTED",
+                "success":false,
+                "message":"Customer Account MCP requires a bound customer OAuth/PKCE access token.",
+                "data":{
+                  "action":"shopify_get_store_credit_balances",
+                  "actionResult":{
+                    "success":false,
+                    "errorCode":"CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+                    "message":"Customer Account MCP requires a bound customer OAuth/PKCE access token."
+                  }
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Do I have store credit?",
+                  "storefrontContext":{"pageType":"account"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        JsonNode safePayload = response.path("result").path("sanitizedPayload");
+        String answer = safePayload.path("safeSummary").asText();
+        assertThat(answer).contains("Connect your store account", "store credit");
+        assertThat(answer).doesNotContain("orders", "order number", "OAuth", "PKCE", "token");
+        JsonNode safeData = safePayload.path("data");
+        assertThat(safeData.path("errorCode").asText()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+        assertThat(safeData.path("customerAccountAuth").path("reason").asText()).isEqualTo("STORE_CREDIT");
     }
 
     @Test

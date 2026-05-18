@@ -94,6 +94,13 @@ public class ShopifyStorefrontChatService {
         "shopify_change_order_address",
         "shopify_start_return_request"
     );
+    private static final Set<String> CUSTOMER_ACCOUNT_STORE_CREDIT_ACTION_IDS = Set.of(
+        "shopify_get_store_credit_balances"
+    );
+    private static final Set<String> CUSTOMER_ACCOUNT_RETURN_ACTION_IDS = Set.of(
+        "shopify_request_return",
+        "shopify_start_return_request"
+    );
     private static final Set<String> APPROVED_ORDER_SELF_SERVICE_ACTION_PACKAGES = Set.of(
         "order-self-service",
         "customer-order-self-service"
@@ -469,6 +476,10 @@ public class ShopifyStorefrontChatService {
     }
 
     private JsonNode policyStorefrontAnswer(String message, String customerActionRequirement) {
+        return policyStorefrontAnswer(message, customerActionRequirement, "ORDER_LOOKUP");
+    }
+
+    private JsonNode policyStorefrontAnswer(String message, String customerActionRequirement, String reason) {
         ObjectNode response = objectMapper.createObjectNode();
         response.put("success", true);
         response.put("conversationId", "chat-" + UUID.randomUUID());
@@ -488,7 +499,7 @@ public class ShopifyStorefrontChatService {
             data.put("customerAccountAuthRequired", true);
             ObjectNode customerAccountAuth = data.putObject("customerAccountAuth");
             customerAccountAuth.put("required", true);
-            customerAccountAuth.put("reason", "ORDER_LOOKUP");
+            customerAccountAuth.put("reason", StringUtils.hasText(reason) ? reason : "ORDER_LOOKUP");
             result.set("data", data.deepCopy());
         }
         return response;
@@ -635,9 +646,11 @@ public class ShopifyStorefrontChatService {
         String errorCode = selectedErrorCode(response);
         if ("CUSTOMER_ACCOUNT_AUTH_REQUIRED".equals(errorCode)
             || "INVALID_CUSTOMER_ACCOUNT_SESSION".equals(errorCode)) {
+            CustomerAccountAuthCopy authCopy = customerAccountAuthCopy(selectedAction);
             return policyStorefrontAnswer(
-                "Connect your store account to view or manage your orders. If you still need help, contact the store support team with your order number and checkout email.",
-                "CUSTOMER_ACCOUNT_AUTH_REQUIRED"
+                authCopy.message(),
+                "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+                authCopy.reason()
             );
         }
         if ("CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED".equals(errorCode)) {
@@ -668,6 +681,25 @@ public class ShopifyStorefrontChatService {
             );
         }
         return null;
+    }
+
+    private CustomerAccountAuthCopy customerAccountAuthCopy(String selectedAction) {
+        if (CUSTOMER_ACCOUNT_STORE_CREDIT_ACTION_IDS.contains(selectedAction)) {
+            return new CustomerAccountAuthCopy(
+                "Connect your store account to view your store credit balance securely. If you still need help, contact the store support team.",
+                "STORE_CREDIT"
+            );
+        }
+        if (CUSTOMER_ACCOUNT_RETURN_ACTION_IDS.contains(selectedAction)) {
+            return new CustomerAccountAuthCopy(
+                "Connect your store account to start a return securely. If you still need help, contact the store support team with your order number and checkout email.",
+                "RETURN_REQUEST"
+            );
+        }
+        return new CustomerAccountAuthCopy(
+            "Connect your store account to view or manage your orders. If you still need help, contact the store support team with your order number and checkout email.",
+            "ORDER_LOOKUP"
+        );
     }
 
     private boolean genericMcpToolResult(JsonNode response) {
@@ -1120,6 +1152,9 @@ public class ShopifyStorefrontChatService {
             current = current.get(part);
         }
         return current;
+    }
+
+    private record CustomerAccountAuthCopy(String message, String reason) {
     }
 
 }
