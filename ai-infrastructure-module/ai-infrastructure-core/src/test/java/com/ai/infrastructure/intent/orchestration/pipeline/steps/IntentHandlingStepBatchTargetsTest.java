@@ -619,6 +619,54 @@ class IntentHandlingStepBatchTargetsTest {
         assertThat(paramsCaptor.getValue()).containsEntry("order_number", "#1001");
     }
 
+    @Test
+    void shouldReplaceInvalidProvidedActionParamWithAllowedReadActionEvidence() {
+        AIActionMetaData returnMeta = requestReturnMeta();
+        AIActionMetaData recentOrderMeta = mostRecentOrderMeta();
+        AIActionHandler returnHandler = mock(AIActionHandler.class);
+        AIActionHandler recentOrderHandler = mock(AIActionHandler.class);
+        when(returnHandler.validateActionAllowed(any())).thenReturn(true);
+        when(returnHandler.requiresConfirmation()).thenReturn(false);
+        when(returnHandler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("return requested")
+            .data(ActionResultContracts.object(Map.of("status", "requested")))
+            .build());
+        when(recentOrderHandler.validateActionAllowed(any())).thenReturn(true);
+        when(recentOrderHandler.requiresConfirmation()).thenReturn(false);
+        when(recentOrderHandler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("order found")
+            .data(ActionResultContracts.object(Map.of("order_number", "#1001")))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_request_return")).thenReturn(Optional.of(returnHandler));
+        when(registry.findMetadata("shopify_request_return")).thenReturn(Optional.of(returnMeta));
+        when(registry.findHandler("shopify_get_most_recent_order_status")).thenReturn(Optional.of(recentOrderHandler));
+        when(registry.findMetadata("shopify_get_most_recent_order_status")).thenReturn(Optional.of(recentOrderMeta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_request_return")
+            .actionParams(Map.of("order_number", "last"))
+            .build();
+        PipelineContext context = PipelineContext.from("I want to return my last order", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(customerReadPolicy())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = newStep(registry).process(context).getIntentResult();
+
+        verify(recentOrderHandler, times(1)).executeAction(anyMap(), any());
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(returnHandler, times(1)).executeAction(paramsCaptor.capture(), any());
+        assertThat(paramsCaptor.getValue()).containsEntry("order_number", "#1001");
+    }
+
     private IntentHandlingStep newStep(AIActionRegistry registry) {
         return newStep(registry, new InMemoryPendingActionStore());
     }
@@ -761,6 +809,7 @@ class IntentHandlingStepBatchTargetsTest {
             .name("order_number")
             .type(AIActionParamType.STRING)
             .required(true)
+            .pattern("^(?=.*[0-9])[#A-Za-z0-9_-]+$")
             .resolveFrom(Map.of(
                 "source", "READ_ACTION",
                 "actionName", "shopify_get_most_recent_order_status",

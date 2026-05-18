@@ -1061,10 +1061,16 @@ public class IntentHandlingStep implements PipelineStep {
         Map<String, Object> current = params;
         java.util.LinkedHashSet<String> resolvedParameters = new java.util.LinkedHashSet<>();
         for (String parameter : paramNames) {
-            if (!StringUtils.hasText(parameter) || hasParamValue(current, parameter)) {
+            if (!StringUtils.hasText(parameter)) {
                 continue;
             }
             AIActionParamSchema schema = paramSchema(meta, parameter);
+            Object existingValue = valueByCandidateKeys(current, List.of(parameter));
+            boolean hasExistingValue = hasMeaningfulActionParamValue(existingValue);
+            boolean shouldResolve = !hasExistingValue || shouldResolveConfiguredActionParam(parameter, schema, existingValue);
+            if (!shouldResolve) {
+                continue;
+            }
             Object resolved = resolveConfiguredActionParam(parameter, schema, context, pipelineContext, depth);
             if (!hasMeaningfulActionParamValue(resolved)
                 && isSystemContextParameter(parameter)
@@ -1078,6 +1084,13 @@ public class IntentHandlingStep implements PipelineStep {
                 resolved = resolveAttachmentContextParam(context, parameter);
             }
             if (!hasMeaningfulActionParamValue(resolved)) {
+                if (hasExistingValue && shouldResolveConfiguredActionParam(parameter, schema, existingValue)) {
+                    if (updated == null) {
+                        updated = new LinkedHashMap<>(params);
+                    }
+                    updated.remove(parameter.trim());
+                    current = updated;
+                }
                 continue;
             }
             if (updated == null) {
@@ -1119,6 +1132,18 @@ public class IntentHandlingStep implements PipelineStep {
         return Collections.unmodifiableSet(names);
     }
 
+    private boolean shouldResolveConfiguredActionParam(String parameter,
+                                                       AIActionParamSchema schema,
+                                                       Object existingValue) {
+        if (schema == null || schema.getResolveFrom() == null || schema.getResolveFrom().isEmpty()) {
+            return false;
+        }
+        if (!hasMeaningfulActionParamValue(existingValue)) {
+            return true;
+        }
+        return !actionParamValueSatisfiesSchema(parameter, existingValue, schema);
+    }
+
     private Object resolveConfiguredActionParam(String parameter,
                                                 AIActionParamSchema schema,
                                                 OrchestrationContext context,
@@ -1149,6 +1174,73 @@ public class IntentHandlingStep implements PipelineStep {
             return resolveParamFromReadAction(parameter, resolveFrom, context, pipelineContext, depth);
         }
         return null;
+    }
+
+    private boolean actionParamValueSatisfiesSchema(String parameter,
+                                                    Object value,
+                                                    AIActionParamSchema schema) {
+        if (schema == null || !hasMeaningfulActionParamValue(value)) {
+            return false;
+        }
+        if (schema.getType() != null) {
+            boolean typeMatches = switch (schema.getType()) {
+                case STRING -> value instanceof CharSequence || !(value instanceof Map<?, ?>) && !(value instanceof List<?>);
+                case INTEGER -> parseLong(value) != null;
+                case NUMBER -> parseDouble(value) != null;
+                case BOOLEAN -> value instanceof Boolean
+                    || "true".equalsIgnoreCase(value.toString().trim())
+                    || "false".equalsIgnoreCase(value.toString().trim());
+                case ARRAY -> value instanceof List<?>;
+                case OBJECT -> value instanceof Map<?, ?>;
+                case UNKNOWN -> true;
+            };
+            if (!typeMatches) {
+                return false;
+            }
+        }
+        if (StringUtils.hasText(schema.getPattern())) {
+            try {
+                if (!Pattern.compile(schema.getPattern()).matcher(value.toString().trim()).matches()) {
+                    return false;
+                }
+            } catch (PatternSyntaxException ex) {
+                log.debug("Ignoring invalid resolver parameter pattern for '{}': {}", parameter, ex.getMessage());
+                return false;
+            }
+        }
+        if (schema.getAllowedValues() != null && !schema.getAllowedValues().isEmpty()) {
+            String normalized = value.toString().trim();
+            boolean allowed = schema.getAllowedValues().stream()
+                .filter(StringUtils::hasText)
+                .anyMatch(allowedValue -> allowedValue.trim().equalsIgnoreCase(normalized));
+            if (!allowed) {
+                return false;
+            }
+        }
+        if (schema.getMin() != null || schema.getMax() != null) {
+            Double numeric = numericValue(value);
+            if (numeric == null) {
+                return false;
+            }
+            if (schema.getMin() != null && numeric < schema.getMin()) {
+                return false;
+            }
+            if (schema.getMax() != null && numeric > schema.getMax()) {
+                return false;
+            }
+        }
+        if (schema.getType() == com.ai.infrastructure.intent.action.AIActionParamType.OBJECT
+            && value instanceof Map<?, ?> map
+            && schema.getRequiredProperties() != null
+            && !schema.getRequiredProperties().isEmpty()) {
+            for (String requiredProperty : schema.getRequiredProperties()) {
+                if (!StringUtils.hasText(requiredProperty)
+                    || !hasMeaningfulActionParamValue(valueByCandidateKeys(map, List.of(requiredProperty.trim())))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private Object resolveParamFromReadAction(String parameter,
