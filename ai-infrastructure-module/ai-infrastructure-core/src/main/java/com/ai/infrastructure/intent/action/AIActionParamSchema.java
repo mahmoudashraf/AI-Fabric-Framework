@@ -64,6 +64,25 @@ public class AIActionParamSchema {
     private Object defaultValue;
 
     /**
+     * Prompt/user visibility for this parameter. Supported values are intentionally
+     * string-based so marketplace contracts can evolve without a new enum rollout.
+     */
+    private String visibility;
+
+    /**
+     * When false, missing values must be resolved from trusted runtime context and
+     * should not be requested from the user.
+     */
+    private Boolean askUser;
+
+    /**
+     * Optional deterministic resolver contract, for example:
+     * { source: OWNED_RESOURCE, metadataKeys: [cart_id] }.
+     */
+    @Builder.Default
+    private Map<String, Object> resolveFrom = Collections.emptyMap();
+
+    /**
      * When true, executable values for this parameter must be copied from trusted
      * request evidence such as attachments or resolved targets, not invented by the model.
      */
@@ -84,6 +103,10 @@ public class AIActionParamSchema {
 
     public void setAllowedValues(List<String> allowedValues) {
         this.allowedValues = allowedValues == null ? List.of() : List.copyOf(allowedValues);
+    }
+
+    public void setResolveFrom(Map<String, Object> resolveFrom) {
+        this.resolveFrom = resolveFrom == null ? Collections.emptyMap() : Map.copyOf(resolveFrom);
     }
 
     public void setEvidenceKeys(List<String> evidenceKeys) {

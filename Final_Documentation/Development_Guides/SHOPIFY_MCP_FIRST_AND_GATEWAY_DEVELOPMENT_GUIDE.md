@@ -410,3 +410,52 @@ Bridge policy is structured:
 - The live Customer Account MCP Marketplace bundle exposes the current Shopify Customer Account MCP `tools/list` observed actions: `shopify_get_most_recent_order_status`, `shopify_get_order_status`, `shopify_get_store_credit_balances`, and `shopify_request_return`. These actions use Bridge token-broker auth and do not take `shopperSessionId` as an action parameter.
 - Post-order refund/cancel/edit actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge. `shopify_request_return` is the configured return-start path and remains governed by Customer Account auth, confirmation, package posture, and live tool behavior.
 - Bridge must not hard-block future post-order action IDs once runtime selected them from the compiled Marketplace catalog. Package entitlement, confirmation, audit, MCP session auth, and the action catalog remain the gates.
+
+### Owned Resource Param Resolution
+
+Owned shopper resource parameters must be configured in Marketplace action metadata, not inferred with text matching.
+
+Supported param fields:
+
+- `visibility`: use `INTERNAL`, `SECRET`, or `SYSTEM` for parameters that must not be shown to the shopper or prompt-visible action picker.
+- `askUser`: set to `false` when a missing value must fail closed or be resolved from trusted context instead of prompting the shopper.
+- `resolveFrom`: deterministic resolver declaration. Current sources are `RUNTIME_CONTEXT`, `ATTACHMENT_METADATA`, `OWNED_RESOURCE`, and policy-allowed `READ_ACTION`.
+
+Examples:
+
+```json
+{
+  "name": "cart_id",
+  "type": "STRING",
+  "required": true,
+  "visibility": "INTERNAL",
+  "askUser": false,
+  "resolveFrom": {
+    "source": "OWNED_RESOURCE",
+    "resourceType": "shopify.cart",
+    "scope": "current_session",
+    "metadataKeys": ["cart_id", "cartId"]
+  }
+}
+```
+
+```json
+{
+  "name": "order_number",
+  "type": "STRING",
+  "required": true,
+  "resolveFrom": {
+    "source": "READ_ACTION",
+    "actionName": "shopify_get_most_recent_order_status",
+    "resultPaths": ["order_number", "orderNumber", "order.number", "order.name"]
+  }
+}
+```
+
+Rules:
+
+- Do not ask shoppers for internal handles such as `cart_id`, `shopperSessionId`, customer tokens, or confirmation gate flags.
+- Do not add Bridge/runtime text matching for phrases like "my cart" or "last order". The LLM selects the action from catalog metadata; deterministic resolvers complete trusted params.
+- `READ_ACTION` param resolution is allowed only when the current orchestration policy allowlists the read action and the action is `groundingEligible` / `readActionResolutionEligible`.
+- Values produced by trusted resolvers satisfy provenance validation. LLM-supplied public values still need normal user/pinned evidence unless they are hidden/system params.
+- Durable cross-turn owned-resource continuity still requires the `owned_resource_refs` runtime table slice before claiming persistence across redeploy/recreate.

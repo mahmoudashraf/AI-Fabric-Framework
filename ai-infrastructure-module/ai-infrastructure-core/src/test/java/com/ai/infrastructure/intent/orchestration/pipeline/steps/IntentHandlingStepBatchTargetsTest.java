@@ -23,7 +23,10 @@ import com.ai.infrastructure.intent.actiondraft.InMemoryActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
+import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationPolicy;
+import com.ai.infrastructure.intent.orchestration.policy.OrchestrationProfile;
 import com.ai.infrastructure.intent.orchestration.targets.ResolvedTarget;
 import com.ai.infrastructure.intent.vectorspace.RankBasedMerger;
 import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
@@ -485,6 +488,137 @@ class IntentHandlingStepBatchTargetsTest {
         assertThat(paramsCaptor.getValue()).containsKey("add_items");
     }
 
+    @Test
+    void shouldResolveInternalOwnedResourceParamFromTrustedAttachmentMetadata() {
+        AIActionMetaData meta = shopifyGetCartMeta();
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+        when(handler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("cart")
+            .data(ActionResultContracts.object(Map.of("status", "ok")))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_get_cart")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("shopify_get_cart")).thenReturn(Optional.of(meta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_get_cart")
+            .actionParams(Map.of())
+            .build();
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .sessionId("shopper-session-1")
+            .attachmentsNormalized(List.of(NormalizedAttachment.builder()
+                .id("storefront-context")
+                .vectorSpace("shopify-storefront-context")
+                .metadata(Map.of("cart_id", "gid://shopify/Cart/cart-1"))
+                .source("storefront")
+                .build()))
+            .build();
+        PipelineContext context = PipelineContext.from("what's in my cart?", orchestrationContext)
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = newStep(registry).process(context).getIntentResult();
+
+        assertThat(result.getType())
+            .describedAs("result=%s", result)
+            .isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).executeAction(paramsCaptor.capture(), any());
+        assertThat(paramsCaptor.getValue())
+            .containsEntry("cart_id", "gid://shopify/Cart/cart-1")
+            .containsEntry("shopperSessionId", "shopper-session-1");
+    }
+
+    @Test
+    void shouldNotAskShopperForHiddenOwnedResourceParamWhenMissing() {
+        AIActionMetaData meta = shopifyGetCartMeta();
+        AIActionHandler handler = mock(AIActionHandler.class);
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+        when(handler.requiresConfirmation()).thenReturn(false);
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_get_cart")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("shopify_get_cart")).thenReturn(Optional.of(meta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_get_cart")
+            .actionParams(Map.of())
+            .build();
+        PipelineContext context = PipelineContext.from(
+                "what's in my cart?",
+                OrchestrationContext.builder().sessionId("shopper-session-1").build()
+            )
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = newStep(registry).process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.CLARIFICATION_REQUIRED);
+        assertThat(result.getMessage()).doesNotContain("cart_id");
+        assertThat(result.getData()).containsEntry("missingRequiredParameters", List.of());
+        assertThat(result.getData()).containsEntry("providedParameters", Map.of());
+        verify(handler, never()).executeAction(anyMap(), any());
+    }
+
+    @Test
+    void shouldResolveActionParamFromAllowedReadActionBeforeWriteExecution() {
+        AIActionMetaData returnMeta = requestReturnMeta();
+        AIActionMetaData recentOrderMeta = mostRecentOrderMeta();
+        AIActionHandler returnHandler = mock(AIActionHandler.class);
+        AIActionHandler recentOrderHandler = mock(AIActionHandler.class);
+        when(returnHandler.validateActionAllowed(any())).thenReturn(true);
+        when(returnHandler.requiresConfirmation()).thenReturn(false);
+        when(returnHandler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("return requested")
+            .data(ActionResultContracts.object(Map.of("status", "requested")))
+            .build());
+        when(recentOrderHandler.validateActionAllowed(any())).thenReturn(true);
+        when(recentOrderHandler.requiresConfirmation()).thenReturn(false);
+        when(recentOrderHandler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("order found")
+            .data(ActionResultContracts.object(Map.of("order_number", "#1001")))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_request_return")).thenReturn(Optional.of(returnHandler));
+        when(registry.findMetadata("shopify_request_return")).thenReturn(Optional.of(returnMeta));
+        when(registry.findHandler("shopify_get_most_recent_order_status")).thenReturn(Optional.of(recentOrderHandler));
+        when(registry.findMetadata("shopify_get_most_recent_order_status")).thenReturn(Optional.of(recentOrderMeta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_request_return")
+            .actionParams(Map.of())
+            .build();
+        PipelineContext context = PipelineContext.from("I want to return my last order", OrchestrationContext.forUser("user"))
+            .toBuilder()
+            .orchestrationPolicy(customerReadPolicy())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = newStep(registry).process(context).getIntentResult();
+
+        verify(recentOrderHandler, times(1)).executeAction(anyMap(), any());
+        assertThat(result.getType())
+            .describedAs("result=%s", result)
+            .isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(returnHandler, times(1)).executeAction(paramsCaptor.capture(), any());
+        assertThat(paramsCaptor.getValue()).containsEntry("order_number", "#1001");
+    }
+
     private IntentHandlingStep newStep(AIActionRegistry registry) {
         return newStep(registry, new InMemoryPendingActionStore());
     }
@@ -577,6 +711,111 @@ class IntentHandlingStepBatchTargetsTest {
             .accessMode(ActionAccessMode.WRITE_ONLY)
             .parameterSchemas(Map.of("add_items", addItems))
             .build();
+    }
+
+    private AIActionMetaData shopifyGetCartMeta() {
+        AIActionParamSchema cartId = AIActionParamSchema.builder()
+            .name("cart_id")
+            .type(AIActionParamType.STRING)
+            .required(true)
+            .visibility("INTERNAL")
+            .askUser(false)
+            .resolveFrom(Map.of(
+                "source", "OWNED_RESOURCE",
+                "resourceType", "shopify.cart",
+                "scope", "current_session",
+                "handleField", "cart_id",
+                "metadataKeys", List.of("cart_id", "cartId")
+            ))
+            .build();
+        AIActionParamSchema shopperSessionId = AIActionParamSchema.builder()
+            .name("shopperSessionId")
+            .type(AIActionParamType.STRING)
+            .required(true)
+            .visibility("INTERNAL")
+            .askUser(false)
+            .resolveFrom(Map.of(
+                "source", "RUNTIME_CONTEXT",
+                "field", "sessionId"
+            ))
+            .build();
+
+        return AIActionMetaData.builder()
+            .name("shopify_get_cart")
+            .description("Read current Shopify cart")
+            .category("shopify")
+            .accessMode(ActionAccessMode.READ)
+            .anonymousAllowed(true)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .parameterSchemas(Map.of(
+                "cart_id", cartId,
+                "shopperSessionId", shopperSessionId
+            ))
+            .requiredParameters(Set.of("cart_id", "shopperSessionId"))
+            .build();
+    }
+
+    private AIActionMetaData requestReturnMeta() {
+        AIActionParamSchema orderNumber = AIActionParamSchema.builder()
+            .name("order_number")
+            .type(AIActionParamType.STRING)
+            .required(true)
+            .resolveFrom(Map.of(
+                "source", "READ_ACTION",
+                "actionName", "shopify_get_most_recent_order_status",
+                "resultPaths", List.of("order_number", "orderNumber", "order.number", "order.name")
+            ))
+            .build();
+        AIActionParamSchema reason = AIActionParamSchema.builder()
+            .name("reason")
+            .type(AIActionParamType.STRING)
+            .build();
+
+        return AIActionMetaData.builder()
+            .name("shopify_request_return")
+            .description("Request return for authenticated shopper order")
+            .category("shopify")
+            .accessMode(ActionAccessMode.WRITE_ONLY)
+            .parameterSchemas(Map.of("order_number", orderNumber, "reason", reason))
+            .requiredParameters(Set.of("order_number"))
+            .build();
+    }
+
+    private AIActionMetaData mostRecentOrderMeta() {
+        return AIActionMetaData.builder()
+            .name("shopify_get_most_recent_order_status")
+            .description("Read authenticated shopper most recent order status")
+            .category("shopify")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .build();
+    }
+
+    private OrchestrationPolicy customerReadPolicy() {
+        return new OrchestrationPolicy(
+            OrchestrationProfile.PRODUCTION_CHAT,
+            "executor",
+            "account",
+            OrchestrationProperties.InformationMode.LLM_DRIVEN,
+            OrchestrationPolicy.OrchestrationCapabilities.defaults(),
+            new OrchestrationPolicy.ReadActionResolutionPolicy(
+                true,
+                OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
+                List.of("shopify_get_most_recent_order_status"),
+                true,
+                1,
+                2,
+                2,
+                1,
+                4_000,
+                2_400,
+                OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT,
+                true
+            ),
+            OrchestrationPolicy.RagBudgets.defaults()
+        );
     }
 
     private Map<String, Object> shopifyCartRuntimeConfig() {

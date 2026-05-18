@@ -140,6 +140,13 @@ public record ConnectorActionDefinition(
         if (param.defaultValue() != null) {
             out.put("defaultValue", param.defaultValue());
         }
+        putIfText(out, "visibility", param.visibility());
+        if (param.askUser() != null) {
+            out.put("askUser", param.askUser());
+        }
+        if (param.resolveFrom() != null && !param.resolveFrom().isEmpty()) {
+            out.put("resolveFrom", param.resolveFrom());
+        }
         if (param.evidenceBound()) {
             out.put("evidenceBound", true);
         }

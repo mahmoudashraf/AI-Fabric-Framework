@@ -16,6 +16,7 @@ import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.dto.ResponseGenerationProfile;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
@@ -150,6 +151,13 @@ public class IntentHandlingStep implements PipelineStep {
         "shopperSessionId",
         CONFIRMATION_ACCEPTED_PARAMETER
     );
+    private static final String PARAM_VISIBILITY_INTERNAL = "INTERNAL";
+    private static final String PARAM_VISIBILITY_SECRET = "SECRET";
+    private static final String PARAM_VISIBILITY_SYSTEM = "SYSTEM";
+    private static final String PARAM_RESOLVE_SOURCE_RUNTIME_CONTEXT = "RUNTIME_CONTEXT";
+    private static final String PARAM_RESOLVE_SOURCE_ATTACHMENT_METADATA = "ATTACHMENT_METADATA";
+    private static final String PARAM_RESOLVE_SOURCE_OWNED_RESOURCE = "OWNED_RESOURCE";
+    private static final String PARAM_RESOLVE_SOURCE_READ_ACTION = "READ_ACTION";
 
     // Advanced RAG data keys
     private static final String DATA_KEY_EXPANDED_QUERIES = "expandedQueries";
@@ -446,7 +454,9 @@ public class IntentHandlingStep implements PipelineStep {
         postActionRequest = resolvePostActionGeneration(actionName, intent, pipelineContext, effectiveParams, meta, policy);
 
         effectiveParams = applyBatchTargetsDefaulting(meta, effectiveParams, pipelineContext);
-        effectiveParams = applySystemContextActionParams(meta, effectiveParams, context);
+        ContextResolvedActionParams resolvedContextParams =
+            resolveContextActionParams(meta, effectiveParams, context, pipelineContext);
+        effectiveParams = resolvedContextParams.params();
         actionContext = actionContext.withActionParams(effectiveParams);
 
         boolean confirmedThisRequest = pipelineContext != null && pipelineContext.isActionConfirmed(actionName);
@@ -458,7 +468,12 @@ public class IntentHandlingStep implements PipelineStep {
             actionContext = actionContext.withActionParams(effectiveParams);
         }
 
-        ActionParamValidation validation = validateRequiredActionParams(meta, effectiveParams, pipelineContext);
+        ActionParamValidation validation = validateRequiredActionParams(
+            meta,
+            effectiveParams,
+            pipelineContext,
+            resolvedContextParams.resolvedParameters()
+        );
         validation = suppressConfirmationGateParameter(validation, requiresConfirmation);
         List<String> missingRequired = validation != null ? validation.missingRequired() : List.of();
         if (!missingRequired.isEmpty()) {
@@ -476,9 +491,9 @@ public class IntentHandlingStep implements PipelineStep {
 
             Map<String, Object> data = new LinkedHashMap<>();
             data.put(DATA_KEY_ACTION, actionName);
-            List<String> userMissingRequired = publicMissingRequiredParameters(missingRequired);
+            List<String> userMissingRequired = publicMissingRequiredParameters(meta, missingRequired);
             data.put(DATA_KEY_MISSING_REQUIRED_PARAMETERS, List.copyOf(userMissingRequired));
-            data.put(DATA_KEY_PROVIDED_PARAMETERS, Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)));
+            data.put(DATA_KEY_PROVIDED_PARAMETERS, publicProvidedParameters(meta, effectiveParams));
 
             String message = userMissingRequired.isEmpty()
                 ? "This action needs storefront session context before it can proceed. Please reopen the assistant and try again."
@@ -496,7 +511,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                 .success(false)
                 .message(message)
-                .metadata(publicActionParamValidationMetadata(validation))
+                .metadata(publicActionParamValidationMetadata(meta, validation))
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(Collections.unmodifiableList(nextSteps))
                 .build();
@@ -526,14 +541,14 @@ public class IntentHandlingStep implements PipelineStep {
             data.put(DATA_KEY_ACTION, actionName);
             data.put("blockedReason", "ACTION_ARGUMENTS_NOT_EXECUTABLE");
             data.put(DATA_KEY_MISSING_REQUIRED_PARAMETERS, executableValidation.publicMissing());
-            data.put(DATA_KEY_PROVIDED_PARAMETERS, Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)));
+            data.put(DATA_KEY_PROVIDED_PARAMETERS, publicProvidedParameters(meta, effectiveParams));
             data.put(DATA_KEY_METADATA, publicActionMetadata(getMetadataForAction(actionName)));
 
             return OrchestrationResult.builder()
                 .type(OrchestrationResultType.CLARIFICATION_REQUIRED)
                 .success(false)
                 .message(actionExecutableValidationMessage(executableValidation))
-                .metadata(publicActionParamValidationMetadata(validation))
+                .metadata(publicActionParamValidationMetadata(meta, validation))
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -601,7 +616,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .success(false)
                 .message(message)
                 .data(Collections.unmodifiableMap(data))
-                .metadata(publicActionParamValidationMetadata(validation))
+                .metadata(publicActionParamValidationMetadata(meta, validation))
                 .nextSteps(extractNextSteps(intent))
                 .build();
         }
@@ -655,7 +670,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.ACTION_EXECUTED)
                 .success(success)
                 .message(message)
-                .metadata(publicActionParamValidationMetadata(validation))
+                .metadata(publicActionParamValidationMetadata(meta, validation))
                 .data(resultData)
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -673,7 +688,7 @@ public class IntentHandlingStep implements PipelineStep {
                 .type(OrchestrationResultType.ERROR)
                 .success(false)
                 .message(errorResult != null ? errorResult.getMessage() : ex.getMessage())
-                .metadata(publicActionParamValidationMetadata(validation))
+                .metadata(publicActionParamValidationMetadata(meta, validation))
                 .data(Collections.unmodifiableMap(data))
                 .nextSteps(extractNextSteps(intent))
                 .build();
@@ -1022,40 +1037,366 @@ public class IntentHandlingStep implements PipelineStep {
         return true;
     }
 
-    private Map<String, Object> applySystemContextActionParams(AIActionMetaData meta,
-                                                              Map<String, Object> effectiveParams,
-                                                              OrchestrationContext context) {
-        if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
-            return effectiveParams;
+    private ContextResolvedActionParams resolveContextActionParams(AIActionMetaData meta,
+                                                                   Map<String, Object> effectiveParams,
+                                                                   OrchestrationContext context,
+                                                                   PipelineContext pipelineContext) {
+        return resolveContextActionParams(meta, effectiveParams, context, pipelineContext, 0);
+    }
+
+    private ContextResolvedActionParams resolveContextActionParams(AIActionMetaData meta,
+                                                                   Map<String, Object> effectiveParams,
+                                                                   OrchestrationContext context,
+                                                                   PipelineContext pipelineContext,
+                                                                   int depth) {
+        if (meta == null) {
+            return new ContextResolvedActionParams(effectiveParams, Set.of());
         }
         Map<String, Object> params = effectiveParams != null ? effectiveParams : new LinkedHashMap<>();
-        Map<String, Object> updated = null;
-        if (meta.getRequiredParameters().contains("shopperSessionId")
-            && !hasParamValue(params, "shopperSessionId")
-            && context != null
-            && StringUtils.hasText(context.getSessionId())) {
-            updated = new LinkedHashMap<>(params);
-            updated.put("shopperSessionId", context.getSessionId().trim());
+        Set<String> paramNames = collectActionParameterNames(meta);
+        if (paramNames.isEmpty()) {
+            return new ContextResolvedActionParams(params, Set.of());
         }
-        Map<String, Object> current = updated != null ? updated : params;
-        for (String required : meta.getRequiredParameters()) {
-            if (!StringUtils.hasText(required) || hasParamValue(current, required) || isSystemContextParameter(required)) {
+        Map<String, Object> updated = null;
+        Map<String, Object> current = params;
+        java.util.LinkedHashSet<String> resolvedParameters = new java.util.LinkedHashSet<>();
+        for (String parameter : paramNames) {
+            if (!StringUtils.hasText(parameter) || hasParamValue(current, parameter)) {
                 continue;
             }
-            String value = resolveAttachmentContextParam(context, required);
-            if (!StringUtils.hasText(value)) {
+            AIActionParamSchema schema = paramSchema(meta, parameter);
+            Object resolved = resolveConfiguredActionParam(parameter, schema, context, pipelineContext, depth);
+            if (!hasMeaningfulActionParamValue(resolved)
+                && isSystemContextParameter(parameter)
+                && context != null
+                && StringUtils.hasText(context.getSessionId())
+                && "shopperSessionId".equals(parameter.trim())) {
+                resolved = context.getSessionId().trim();
+            }
+            if (!hasMeaningfulActionParamValue(resolved)
+                && isUserVisibleActionParameter(meta, parameter)) {
+                resolved = resolveAttachmentContextParam(context, parameter);
+            }
+            if (!hasMeaningfulActionParamValue(resolved)) {
                 continue;
             }
             if (updated == null) {
                 updated = new LinkedHashMap<>(params);
             }
-            updated.put(required.trim(), value.trim());
+            updated.put(parameter.trim(), normalizeResolvedActionParamValue(resolved));
+            resolvedParameters.add(parameter.trim());
             current = updated;
         }
-        return updated != null ? updated : params;
+        return new ContextResolvedActionParams(
+            updated != null ? updated : params,
+            resolvedParameters.isEmpty() ? Set.of() : Collections.unmodifiableSet(resolvedParameters)
+        );
+    }
+
+    private Set<String> collectActionParameterNames(AIActionMetaData meta) {
+        if (meta == null) {
+            return Set.of();
+        }
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        if (meta.getParameterSchemas() != null) {
+            meta.getParameterSchemas().keySet().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(names::add);
+        }
+        if (meta.getRequiredParameters() != null) {
+            meta.getRequiredParameters().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(names::add);
+        }
+        if (meta.getParameters() != null) {
+            meta.getParameters().keySet().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(names::add);
+        }
+        return Collections.unmodifiableSet(names);
+    }
+
+    private Object resolveConfiguredActionParam(String parameter,
+                                                AIActionParamSchema schema,
+                                                OrchestrationContext context,
+                                                PipelineContext pipelineContext,
+                                                int depth) {
+        Map<String, Object> resolveFrom = schema != null ? schema.getResolveFrom() : null;
+        if (resolveFrom == null || resolveFrom.isEmpty()) {
+            return null;
+        }
+        String source = stringObject(resolveFrom.get("source"));
+        if (!StringUtils.hasText(source)) {
+            return null;
+        }
+        String normalizedSource = source.trim().toUpperCase(Locale.ROOT);
+        if (PARAM_RESOLVE_SOURCE_RUNTIME_CONTEXT.equals(normalizedSource)) {
+            return resolveRuntimeContextValue(parameter, resolveFrom, context, pipelineContext);
+        }
+        if (PARAM_RESOLVE_SOURCE_ATTACHMENT_METADATA.equals(normalizedSource)) {
+            return resolveAttachmentContextParam(context, parameter, resolveParamCandidateKeys(parameter, resolveFrom));
+        }
+        if (PARAM_RESOLVE_SOURCE_OWNED_RESOURCE.equals(normalizedSource)) {
+            Object value = resolveOwnedResourceParam(parameter, resolveFrom, context, pipelineContext);
+            return hasMeaningfulActionParamValue(value)
+                ? value
+                : resolveAttachmentContextParam(context, parameter, resolveParamCandidateKeys(parameter, resolveFrom));
+        }
+        if (PARAM_RESOLVE_SOURCE_READ_ACTION.equals(normalizedSource)) {
+            return resolveParamFromReadAction(parameter, resolveFrom, context, pipelineContext, depth);
+        }
+        return null;
+    }
+
+    private Object resolveParamFromReadAction(String parameter,
+                                              Map<String, Object> resolveFrom,
+                                              OrchestrationContext context,
+                                              PipelineContext pipelineContext,
+                                              int depth) {
+        if (depth > 0) {
+            return null;
+        }
+        String actionName = firstTextObject(
+            resolveFrom.get("action"),
+            resolveFrom.get("actionName"),
+            resolveFrom.get("readAction")
+        );
+        if (!StringUtils.hasText(actionName)) {
+            return null;
+        }
+        Optional<AIActionMetaData> readMetaOptional = actionHandlerRegistry.findMetadata(actionName.trim());
+        AIActionMetaData readMeta = readMetaOptional != null ? readMetaOptional.orElse(null) : null;
+        if (readMeta == null || readMeta.getAccessMode() != ActionAccessMode.READ) {
+            return null;
+        }
+        OrchestrationPolicy policy = pipelineContext != null ? pipelineContext.getOrchestrationPolicy() : null;
+        if (!isReadActionExecutionAllowedByReadResolutionPolicy(actionName.trim(), readMeta, policy)) {
+            return null;
+        }
+        Optional<AIActionHandler> readHandlerOptional = actionHandlerRegistry.findHandler(actionName.trim());
+        AIActionHandler readHandler = readHandlerOptional != null ? readHandlerOptional.orElse(null) : null;
+        if (readHandler == null) {
+            return null;
+        }
+        Map<String, Object> readParams = Map.of();
+        Object rawParams = resolveFrom.get("params");
+        if (rawParams instanceof Map<?, ?> map && !map.isEmpty()) {
+            readParams = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry != null && entry.getKey() != null && entry.getValue() != null) {
+                    readParams.put(entry.getKey().toString(), entry.getValue());
+                }
+            }
+        }
+        readParams = resolveContextActionParams(readMeta, readParams, context, pipelineContext, depth + 1).params();
+        ActionContext readContext = new ActionContext(context, pipelineContext, readParams);
+        if (!readHandler.validateActionAllowed(readContext)) {
+            return null;
+        }
+        ActionParamValidation validation = validateRequiredActionParams(readMeta, readParams, pipelineContext);
+        if (validation != null && validation.missingRequired() != null && !validation.missingRequired().isEmpty()) {
+            return null;
+        }
+        ActionResult result;
+        try {
+            result = readHandler.executeAction(readParams, readContext);
+        } catch (Exception ex) {
+            log.debug("Read action {} failed while resolving action param {}: {}", actionName, parameter, ex.getMessage());
+            return null;
+        }
+        if (result == null || !result.isSuccess() || result.getData() == null) {
+            return null;
+        }
+        Map<String, Object> data = result.getData().toMap();
+        List<String> paths = resolveResultPaths(parameter, resolveFrom);
+        for (String path : paths) {
+            Object value = valueByPath(data, path);
+            if (hasMeaningfulActionParamValue(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private List<String> resolveResultPaths(String parameter, Map<String, Object> resolveFrom) {
+        java.util.LinkedHashSet<String> paths = new java.util.LinkedHashSet<>();
+        if (resolveFrom != null) {
+            addTextOrListValues(paths, resolveFrom.get("resultPaths"));
+            addTextOrListValues(paths, resolveFrom.get("candidatePaths"));
+            addTextOrListValues(paths, resolveFrom.get("resultPath"));
+        }
+        attachmentContextCandidateKeys(parameter).forEach(paths::add);
+        return List.copyOf(paths);
+    }
+
+    private Object valueByPath(Object raw, String path) {
+        if (raw == null || !StringUtils.hasText(path)) {
+            return null;
+        }
+        Object current = raw;
+        for (String segment : path.trim().split("\\.")) {
+            if (!StringUtils.hasText(segment)) {
+                continue;
+            }
+            if (current instanceof Map<?, ?> map) {
+                current = valueByCandidateKeys(map, List.of(segment.trim()));
+                continue;
+            }
+            if (current instanceof List<?> list) {
+                try {
+                    int index = Integer.parseInt(segment.trim());
+                    current = index >= 0 && index < list.size() ? list.get(index) : null;
+                } catch (NumberFormatException ex) {
+                    current = firstValueByCandidateKeys(list, List.of(segment.trim()));
+                }
+                continue;
+            }
+            return null;
+        }
+        return current;
+    }
+
+    private Object firstValueByCandidateKeys(List<?> list, List<String> candidateKeys) {
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
+        for (Object item : list) {
+            Object value = valueByCandidateKeys(item, candidateKeys);
+            if (hasMeaningfulActionParamValue(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Object resolveRuntimeContextValue(String parameter,
+                                              Map<String, Object> resolveFrom,
+                                              OrchestrationContext context,
+                                              PipelineContext pipelineContext) {
+        String field = firstTextObject(resolveFrom.get("field"), resolveFrom.get("contextField"), parameter);
+        if (!StringUtils.hasText(field)) {
+            return null;
+        }
+        String normalized = field.trim();
+        if ("shopperSessionId".equals(normalized) || "sessionId".equals(normalized)) {
+            return context != null ? context.getSessionId() : null;
+        }
+        if ("userId".equals(normalized)) {
+            return context != null ? context.getUserId() : null;
+        }
+        if ("conversationId".equals(normalized)) {
+            return context != null ? context.getConversationId() : null;
+        }
+        if ("requestId".equals(normalized)) {
+            return pipelineContext != null && StringUtils.hasText(pipelineContext.getRequestId())
+                ? pipelineContext.getRequestId()
+                : context != null ? context.getRequestId() : null;
+        }
+        if ("position".equals(normalized)) {
+            return context != null ? context.getPosition() : null;
+        }
+        if ("mode".equals(normalized)) {
+            return context != null ? context.getMode() : null;
+        }
+        Object value = valueByCandidateKeys(pipelineContext != null ? pipelineContext.getMetadata() : null, List.of(normalized));
+        if (hasMeaningfulActionParamValue(value)) {
+            return value;
+        }
+        return valueByCandidateKeys(context != null ? context.getMetadata() : null, List.of(normalized));
+    }
+
+    private Object resolveOwnedResourceParam(String parameter,
+                                             Map<String, Object> resolveFrom,
+                                             OrchestrationContext context,
+                                             PipelineContext pipelineContext) {
+        List<String> candidateKeys = resolveParamCandidateKeys(parameter, resolveFrom);
+        Object value = valueByCandidateKeys(pipelineContext != null ? pipelineContext.getMetadata() : null, candidateKeys);
+        if (hasMeaningfulActionParamValue(value)) {
+            return value;
+        }
+        value = valueByCandidateKeys(context != null ? context.getMetadata() : null, candidateKeys);
+        if (hasMeaningfulActionParamValue(value)) {
+            return value;
+        }
+        value = ownedResourceValue(pipelineContext != null ? pipelineContext.getMetadata() : null, resolveFrom, candidateKeys);
+        if (hasMeaningfulActionParamValue(value)) {
+            return value;
+        }
+        return ownedResourceValue(context != null ? context.getMetadata() : null, resolveFrom, candidateKeys);
+    }
+
+    private Object ownedResourceValue(Map<String, Object> metadata,
+                                      Map<String, Object> resolveFrom,
+                                      List<String> candidateKeys) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object rawOwned = valueByCandidateKeys(metadata, List.of("ownedResources", "owned_resources"));
+        if (rawOwned == null) {
+            return null;
+        }
+        String resourceType = stringObject(resolveFrom.get("resourceType"));
+        if (rawOwned instanceof Map<?, ?> map) {
+            Object scoped = StringUtils.hasText(resourceType)
+                ? valueByCandidateKeys(map, List.of(resourceType.trim()))
+                : null;
+            if (scoped == null) {
+                scoped = map;
+            }
+            Object value = valueByCandidateKeys(scoped, candidateKeys);
+            if (hasMeaningfulActionParamValue(value)) {
+                return value;
+            }
+            if (scoped instanceof Iterable<?> iterable) {
+                return ownedResourceValueFromIterable(iterable, resolveFrom, candidateKeys);
+            }
+        }
+        if (rawOwned instanceof Iterable<?> iterable) {
+            return ownedResourceValueFromIterable(iterable, resolveFrom, candidateKeys);
+        }
+        return null;
+    }
+
+    private Object ownedResourceValueFromIterable(Iterable<?> iterable,
+                                                  Map<String, Object> resolveFrom,
+                                                  List<String> candidateKeys) {
+        if (iterable == null) {
+            return null;
+        }
+        String resourceType = stringObject(resolveFrom.get("resourceType"));
+        String scope = stringObject(resolveFrom.get("scope"));
+        for (Object item : iterable) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            if (StringUtils.hasText(resourceType)) {
+                Object actualType = valueByCandidateKeys(map, List.of("resourceType", "type"));
+                if (actualType != null && !resourceType.trim().equalsIgnoreCase(actualType.toString().trim())) {
+                    continue;
+                }
+            }
+            if (StringUtils.hasText(scope)) {
+                Object actualScope = valueByCandidateKeys(map, List.of("scope"));
+                if (actualScope != null && !scope.trim().equalsIgnoreCase(actualScope.toString().trim())) {
+                    continue;
+                }
+            }
+            Object value = valueByCandidateKeys(map, candidateKeys);
+            if (hasMeaningfulActionParamValue(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String resolveAttachmentContextParam(OrchestrationContext context, String required) {
+        return resolveAttachmentContextParam(context, required, attachmentContextCandidateKeys(required));
+    }
+
+    private String resolveAttachmentContextParam(OrchestrationContext context, String required, List<String> candidateKeys) {
         if (context == null || !StringUtils.hasText(required)) {
             return null;
         }
@@ -1063,9 +1404,11 @@ public class IntentHandlingStep implements PipelineStep {
         if (attachments == null || attachments.isEmpty()) {
             return null;
         }
-        List<String> candidateKeys = attachmentContextCandidateKeys(required);
+        List<String> effectiveCandidateKeys = candidateKeys == null || candidateKeys.isEmpty()
+            ? attachmentContextCandidateKeys(required)
+            : candidateKeys;
         for (NormalizedAttachment attachment : attachments) {
-            String value = metadataValueByCandidateKeys(attachment != null ? attachment.getMetadata() : null, candidateKeys);
+            String value = metadataValueByCandidateKeys(attachment != null ? attachment.getMetadata() : null, effectiveCandidateKeys);
             if (StringUtils.hasText(value)) {
                 return value;
             }
@@ -1130,14 +1473,100 @@ public class IntentHandlingStep implements PipelineStep {
         return null;
     }
 
-    private List<String> publicMissingRequiredParameters(List<String> missingRequired) {
+    private List<String> resolveParamCandidateKeys(String parameter, Map<String, Object> resolveFrom) {
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        if (resolveFrom != null && !resolveFrom.isEmpty()) {
+            addTextOrListValues(keys, resolveFrom.get("metadataKeys"));
+            addTextOrListValues(keys, resolveFrom.get("candidateKeys"));
+            addTextOrListValues(keys, resolveFrom.get("keys"));
+            addTextOrListValues(keys, resolveFrom.get("handleField"));
+            addTextOrListValues(keys, resolveFrom.get("field"));
+        }
+        attachmentContextCandidateKeys(parameter).stream()
+            .filter(StringUtils::hasText)
+            .forEach(keys::add);
+        return List.copyOf(keys);
+    }
+
+    private void addTextOrListValues(java.util.LinkedHashSet<String> out, Object raw) {
+        if (out == null || raw == null) {
+            return;
+        }
+        if (raw instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                String value = stringObject(item);
+                if (StringUtils.hasText(value)) {
+                    out.add(value.trim());
+                }
+            }
+            return;
+        }
+        String value = stringObject(raw);
+        if (StringUtils.hasText(value)) {
+            out.add(value.trim());
+        }
+    }
+
+    private Object valueByCandidateKeys(Object raw, List<String> candidateKeys) {
+        if (!(raw instanceof Map<?, ?> map) || candidateKeys == null || candidateKeys.isEmpty()) {
+            return null;
+        }
+        for (String candidateKey : candidateKeys) {
+            if (!StringUtils.hasText(candidateKey)) {
+                continue;
+            }
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry == null || entry.getKey() == null) {
+                    continue;
+                }
+                if (candidateKey.trim().equalsIgnoreCase(entry.getKey().toString().trim())) {
+                    return entry.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
+    private String stringObject(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.toString();
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String firstTextObject(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            String text = stringObject(value);
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+        }
+        return null;
+    }
+
+    private Object normalizeResolvedActionParamValue(Object value) {
+        if (value instanceof String text) {
+            return text.trim();
+        }
+        return value;
+    }
+
+    private boolean hasMeaningfulActionParamValue(Object value) {
+        return hasMeaningfulBatchValue(value);
+    }
+
+    private List<String> publicMissingRequiredParameters(AIActionMetaData meta, List<String> missingRequired) {
         if (missingRequired == null || missingRequired.isEmpty()) {
             return List.of();
         }
         return missingRequired.stream()
             .filter(StringUtils::hasText)
             .map(String::trim)
-            .filter(parameter -> !isSystemContextParameter(parameter))
+            .filter(parameter -> isUserVisibleActionParameter(meta, parameter))
             .toList();
     }
 
@@ -1145,13 +1574,13 @@ public class IntentHandlingStep implements PipelineStep {
         if (metadata == null) {
             return null;
         }
-        Map<String, String> publicParameters = filterPublicParameterMap(metadata.getParameters());
-        Map<String, com.ai.infrastructure.intent.action.AIActionParamSchema> publicSchemas =
-            filterPublicParameterMap(metadata.getParameterSchemas());
+        Map<String, String> publicParameters = filterPublicParameterMap(metadata, metadata.getParameters());
+        Map<String, AIActionParamSchema> publicSchemas =
+            filterPublicParameterMap(metadata, metadata.getParameterSchemas());
         Set<String> publicRequired = metadata.getRequiredParameters() == null
             ? Set.of()
             : metadata.getRequiredParameters().stream()
-                .filter(parameter -> !isSystemContextParameter(parameter))
+                .filter(parameter -> isUserVisibleActionParameter(metadata, parameter))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         return AIActionMetaData.builder()
             .name(metadata.getName())
@@ -1174,17 +1603,21 @@ public class IntentHandlingStep implements PipelineStep {
             .build();
     }
 
-    private <T> Map<String, T> filterPublicParameterMap(Map<String, T> values) {
+    private <T> Map<String, T> filterPublicParameterMap(AIActionMetaData metadata, Map<String, T> values) {
         if (values == null || values.isEmpty()) {
             return Map.of();
         }
         Map<String, T> out = new LinkedHashMap<>();
         values.forEach((key, value) -> {
-            if (StringUtils.hasText(key) && !isSystemContextParameter(key)) {
+            if (StringUtils.hasText(key) && isUserVisibleActionParameter(metadata, key)) {
                 out.put(key, value);
             }
         });
         return Collections.unmodifiableMap(out);
+    }
+
+    private Map<String, Object> publicProvidedParameters(AIActionMetaData metadata, Map<String, Object> values) {
+        return filterPublicParameterMap(metadata, values);
     }
 
     private ActionParamValidation suppressConfirmationGateParameter(ActionParamValidation validation,
@@ -1221,7 +1654,7 @@ public class IntentHandlingStep implements PipelineStep {
             .toList();
     }
 
-    private Map<String, Object> publicActionParamValidationMetadata(ActionParamValidation validation) {
+    private Map<String, Object> publicActionParamValidationMetadata(AIActionMetaData meta, ActionParamValidation validation) {
         if (validation == null) {
             return Map.of();
         }
@@ -1234,20 +1667,20 @@ public class IntentHandlingStep implements PipelineStep {
                 }
             });
         }
-        debug.put("missing", publicMissingRequiredParameters(validation.missingRequired()));
-        debug.put("provenanceMissing", publicMissingRequiredParameters(validation.provenanceMissing()));
-        long hiddenSystemContextMissing = countSystemContextParameters(validation.missingRequired());
-        if (hiddenSystemContextMissing > 0) {
-            debug.put("hiddenSystemContextMissingCount", hiddenSystemContextMissing);
+        debug.put("missing", publicMissingRequiredParameters(meta, validation.missingRequired()));
+        debug.put("provenanceMissing", publicMissingRequiredParameters(meta, validation.provenanceMissing()));
+        long hiddenContextMissing = countHiddenContextParameters(meta, validation.missingRequired());
+        if (hiddenContextMissing > 0) {
+            debug.put("hiddenContextMissingCount", hiddenContextMissing);
         }
         return Map.of(METADATA_KEY_ACTION_PARAM_VALIDATION, Collections.unmodifiableMap(debug));
     }
 
-    private long countSystemContextParameters(List<String> parameters) {
+    private long countHiddenContextParameters(AIActionMetaData meta, List<String> parameters) {
         if (parameters == null || parameters.isEmpty()) {
             return 0;
         }
-        return parameters.stream().filter(this::isSystemContextParameter).count();
+        return parameters.stream().filter(parameter -> !isUserVisibleActionParameter(meta, parameter)).count();
     }
 
     private boolean hasParamValue(Map<String, Object> params, String key) {
@@ -1255,7 +1688,7 @@ public class IntentHandlingStep implements PipelineStep {
             return false;
         }
         Object value = params.get(key);
-        return value != null && StringUtils.hasText(value.toString());
+        return hasMeaningfulActionParamValue(value);
     }
 
     private boolean hasActionParameter(AIActionMetaData meta, String key) {
@@ -5140,6 +5573,11 @@ public class IntentHandlingStep implements PipelineStep {
         Map<String, Object> debugMetadata
     ) {}
 
+    private record ContextResolvedActionParams(
+        Map<String, Object> params,
+        Set<String> resolvedParameters
+    ) {}
+
     private record ActionExecutableValidation(
         List<String> missingExecutable,
         List<String> invalidArguments,
@@ -5165,6 +5603,13 @@ public class IntentHandlingStep implements PipelineStep {
     private ActionParamValidation validateRequiredActionParams(AIActionMetaData meta,
                                                               Map<String, Object> params,
                                                               PipelineContext pipelineContext) {
+        return validateRequiredActionParams(meta, params, pipelineContext, Set.of());
+    }
+
+    private ActionParamValidation validateRequiredActionParams(AIActionMetaData meta,
+                                                              Map<String, Object> params,
+                                                              PipelineContext pipelineContext,
+                                                              Set<String> trustedResolvedParameters) {
         if (meta == null || meta.getRequiredParameters() == null || meta.getRequiredParameters().isEmpty()) {
             return null;
         }
@@ -5182,6 +5627,7 @@ public class IntentHandlingStep implements PipelineStep {
 
         List<String> missing = new ArrayList<>();
         List<String> provenanceMissing = new ArrayList<>();
+        Set<String> trustedResolved = normalizeParameterNameSet(trustedResolvedParameters);
 
         for (String required : meta.getRequiredParameters()) {
             if (!StringUtils.hasText(required)) {
@@ -5206,7 +5652,9 @@ public class IntentHandlingStep implements PipelineStep {
             }
 
             // Provenance validation: for string params, value must appear in user text history OR pinned targets.
-            if (value instanceof String && !isSystemContextParameter(required)) {
+            if (value instanceof String
+                && !isHiddenActionParameter(meta, required)
+                && !trustedResolved.contains(required.trim().toLowerCase(Locale.ROOT))) {
                 String needle = raw.trim().toLowerCase(java.util.Locale.ROOT);
                 if (StringUtils.hasText(needle)
                     && !userEvidenceLower.contains(needle)
@@ -5228,8 +5676,63 @@ public class IntentHandlingStep implements PipelineStep {
         );
     }
 
+    private Set<String> normalizeParameterNameSet(Set<String> parameters) {
+        if (parameters == null || parameters.isEmpty()) {
+            return Set.of();
+        }
+        return parameters.stream()
+            .filter(StringUtils::hasText)
+            .map(parameter -> parameter.trim().toLowerCase(Locale.ROOT))
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
     private boolean isSystemContextParameter(String required) {
         return StringUtils.hasText(required) && SYSTEM_CONTEXT_PARAMETER_NAMES.contains(required.trim());
+    }
+
+    private AIActionParamSchema paramSchema(AIActionMetaData meta, String parameter) {
+        if (meta == null || meta.getParameterSchemas() == null || meta.getParameterSchemas().isEmpty() || !StringUtils.hasText(parameter)) {
+            return null;
+        }
+        String normalized = parameter.trim();
+        AIActionParamSchema exact = meta.getParameterSchemas().get(normalized);
+        if (exact != null) {
+            return exact;
+        }
+        for (Map.Entry<String, AIActionParamSchema> entry : meta.getParameterSchemas().entrySet()) {
+            if (entry != null && StringUtils.hasText(entry.getKey()) && normalized.equalsIgnoreCase(entry.getKey().trim())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private boolean isUserVisibleActionParameter(AIActionMetaData meta, String parameter) {
+        return !isHiddenActionParameter(meta, parameter);
+    }
+
+    private boolean isHiddenActionParameter(AIActionMetaData meta, String parameter) {
+        if (!StringUtils.hasText(parameter)) {
+            return true;
+        }
+        if (isSystemContextParameter(parameter)) {
+            return true;
+        }
+        AIActionParamSchema schema = paramSchema(meta, parameter);
+        if (schema == null) {
+            return false;
+        }
+        if (Boolean.FALSE.equals(schema.getAskUser())) {
+            return true;
+        }
+        String visibility = schema.getVisibility();
+        if (!StringUtils.hasText(visibility)) {
+            return false;
+        }
+        String normalized = visibility.trim().toUpperCase(Locale.ROOT);
+        return PARAM_VISIBILITY_INTERNAL.equals(normalized)
+            || PARAM_VISIBILITY_SECRET.equals(normalized)
+            || PARAM_VISIBILITY_SYSTEM.equals(normalized);
     }
 
     private boolean isConfirmationAcceptedParameter(String required) {

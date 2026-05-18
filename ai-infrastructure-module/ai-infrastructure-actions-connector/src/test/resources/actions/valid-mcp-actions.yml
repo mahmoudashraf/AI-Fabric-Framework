@@ -18,6 +18,14 @@ actions:
       - name: query
         type: STRING
         required: true
+      - name: shopperSessionId
+        type: STRING
+        required: true
+        visibility: INTERNAL
+        askUser: false
+        resolveFrom:
+          source: RUNTIME_CONTEXT
+          field: sessionId
       - name: selected_items
         type: ARRAY
         required: false

@@ -1214,3 +1214,13 @@ Critical fixes that made the gate pass:
 - Runtime routing remains prompt/catalog driven. The commerce action-selection prompt now tells the LLM to select customer-owned actions from allowed action metadata and avoid using order-status tools for generic account-profile questions.
 - Legacy Admin order lookup no longer requests Shopify `statusPageUrl`; GraphQL protected-field failures fail closed as `ORDER_LOOKUP_UNAVAILABLE` with merchant-safe copy.
 - Support-readiness is diagnostic only. It must not inspect Shopify billing and write package/billing state or enqueue provisioning as a side effect; package state changes must go through the explicit billing/package operation. This prevents readiness checks from downgrading an Elite staging/design-partner package to Free when Shopify subscription state is not the active package source.
+
+## 2026-05-18 Owned Resource Param Resolution
+
+- Decision: shopper-owned context support remains generic runtime/Marketplace config, not Bridge text matching and not Shopify-specific runtime routing.
+- ACTION param schemas now support `visibility`, `askUser`, and `resolveFrom`; connector catalogs preserve these into runtime config.
+- Runtime hides internal/system/secret or `askUser=false` params from prompt-visible action metadata and shopper clarification. Missing `cart_id` now fails closed without asking the shopper to provide `cart_id`.
+- Runtime resolves missing params from trusted `RUNTIME_CONTEXT`, `ATTACHMENT_METADATA`, `OWNED_RESOURCE`, and policy-allowed `READ_ACTION` sources before required-param validation. READ_ACTION-derived values are tracked as trusted resolver provenance; hallucinated public params still fail normal provenance checks.
+- Commerce curated modes now allow Shopify read actions (`shopify_get_cart`, Customer Account order/status/store-credit tools, and Storefront search/policy/product reads) for thinker/resolver/executor/cart-assistant read-action resolution.
+- Marketplace migration `V109__shopify_owned_resource_param_resolution.sql` publishes hidden cart/session params and lets `shopify_request_return.order_number` resolve from `shopify_get_most_recent_order_status` when the shopper asks for the latest/last order.
+- Durable `owned_resource_refs` runtime DB persistence and cart-handle persistence from MCP `update_cart` results are still a follow-up hardening slice; do not claim cross-turn/redeploy owned-resource continuity until that slice is implemented and release-gate verified.

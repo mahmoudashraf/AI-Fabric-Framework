@@ -168,10 +168,19 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
               "description": "Lookup customer order",
               "category": "shopify-companion",
               "readOnly": true,
-              "anonymousAllowed": false,
-              "params": [
-                {"name": "order_number", "type": "STRING", "required": true}
-              ],
+	              "anonymousAllowed": false,
+	              "params": [
+	                {
+	                  "name": "order_number",
+	                  "type": "STRING",
+	                  "required": true,
+	                  "resolveFrom": {
+	                    "source": "READ_ACTION",
+	                    "actionName": "shopify_get_most_recent_order_status",
+	                    "resultPaths": ["order_number", "orderNumber"]
+	                  }
+	                }
+	              ],
               "execution": {
                 "adapterType": "mcp-tool",
                 "mcp": {
@@ -194,6 +203,10 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(compiled.path("execution").path("mcp").path("authMode").asText()).isEqualTo("CUSTOMER_OAUTH_PKCE");
         assertThat(compiled.path("execution").path("mcp").path("requiredCustomerScopes").get(0).asText())
             .isEqualTo("customer-account-mcp-api:full");
+        JsonNode orderNumberParam = compiled.path("params").get(0);
+        assertThat(orderNumberParam.path("resolveFrom").path("source").asText()).isEqualTo("READ_ACTION");
+        assertThat(orderNumberParam.path("resolveFrom").path("actionName").asText())
+            .isEqualTo("shopify_get_most_recent_order_status");
     }
 
     @Test

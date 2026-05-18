@@ -118,6 +118,9 @@ public class ConnectorActionCatalogLoader {
     private static final String KEY_MIN = "min";
     private static final String KEY_MAX = "max";
     private static final String KEY_DEFAULT_VALUE = "defaultValue";
+    private static final String KEY_VISIBILITY = "visibility";
+    private static final String KEY_ASK_USER = "askUser";
+    private static final String KEY_RESOLVE_FROM = "resolveFrom";
     private static final String KEY_SENSITIVE = "sensitive";
     private static final String KEY_EVIDENCE_BOUND = "evidenceBound";
     private static final String KEY_EVIDENCE_KEYS = "evidenceKeys";
@@ -838,6 +841,11 @@ public class ConnectorActionCatalogLoader {
         Long min = readLong(raw.get(KEY_MIN), label, actionName, name, KEY_MIN);
         Long max = readLong(raw.get(KEY_MAX), label, actionName, name, KEY_MAX);
         Object defaultValue = raw.get(KEY_DEFAULT_VALUE);
+        String visibility = readString(raw, KEY_VISIBILITY);
+        Boolean askUser = raw.containsKey(KEY_ASK_USER)
+            ? readBoolean(raw, KEY_ASK_USER, true)
+            : null;
+        Map<String, Object> resolveFrom = readOptionalObjectMap(raw.get(KEY_RESOLVE_FROM), label, "actions[" + actionName + "].params[" + name + "].resolveFrom");
         boolean sensitive = readBoolean(raw, KEY_SENSITIVE, false);
         ConnectorActionParamDefinition items = parseItemSchema(raw.get(KEY_ITEMS), label, actionName, name);
         Map<String, ConnectorActionParamDefinition> properties = parsePropertySchemas(raw.get(KEY_PROPERTIES), label, actionName, name);
@@ -857,6 +865,9 @@ public class ConnectorActionCatalogLoader {
             min,
             max,
             defaultValue,
+            visibility,
+            askUser,
+            resolveFrom,
             sensitive,
             items,
             properties,

@@ -1,6 +1,6 @@
 # 010.draft1 Owned User Resource Param Resolution Design
 
-Status: draft design only (created 2026-05-14)
+Status: implementation in progress; generic runtime/config support landed locally on 2026-05-18, durable owned-resource table remains the next hardening slice.
 
 Owner mode: Shopify Companion / Thinker runtime / Marketplace action param resolution design
 
@@ -29,6 +29,34 @@ Related code areas:
 - `product-services/shopify-bridge-service/extensions/companion-theme-app-extension`
 
 ---
+
+## 2026-05-18 Implementation Update
+
+Implemented the first production-safe path without adding Shopify text matching or Shopify-specific branching to the generic runtime:
+
+- ACTION param schemas now support `visibility`, `askUser`, and `resolveFrom`.
+- Connector ACTION definitions parse and compile those fields into runtime action config.
+- Runtime hides `visibility=INTERNAL|SECRET|SYSTEM` and `askUser=false` params from prompt/action metadata and shopper clarification.
+- Runtime resolves missing params from trusted sources before required-param clarification:
+  - `RUNTIME_CONTEXT`
+  - `ATTACHMENT_METADATA`
+  - `OWNED_RESOURCE` from bounded request/session metadata and normalized attachment metadata
+  - `READ_ACTION` through policy-allowed read actions only
+- READ_ACTION-derived params are tracked as trusted resolver output so provenance validation accepts them without accepting hallucinated public params.
+- Commerce curated modes allow Shopify read actions for thinker/resolver/executor/cart-assistant read-action resolution.
+- Marketplace migration `V109__shopify_owned_resource_param_resolution.sql` publishes:
+  - `shopify_get_cart.cart_id` as hidden owned-resource context, never shopper-provided
+  - `shopify_update_cart.cart_id`, `shopperSessionId`, and `confirmationAccepted` as hidden/system params
+  - Customer Account order/store-credit read actions as grounding/read-action eligible
+  - `shopify_request_return.order_number` with `READ_ACTION` fallback to `shopify_get_most_recent_order_status`
+
+Not yet implemented in this slice:
+
+- Durable `owned_resource_refs` table and TTL cleanup in the runtime database.
+- Persisting cart handles from successful MCP `update_cart` results for later turns.
+- Cross-redeploy Customer Account OAuth persistence proof, which remains deferred to the release gate.
+
+Current behavior is still an improvement: internal params are no longer asked from shoppers, and read actions can provide owned-resource context when trusted session/attachment/read-action evidence exists. The durable store is still required before claiming full cross-turn/cross-redeploy owned-resource continuity.
 
 ## Problem
 

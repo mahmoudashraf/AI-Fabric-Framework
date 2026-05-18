@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.action.AIActionHandler;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
+import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.intent.action.ActionContext;
@@ -849,12 +850,77 @@ public class ReadActionResolutionService {
                 item.put("name", action.name());
                 item.put("description", action.metadata().getDescription());
                 item.put("category", action.metadata().getCategory());
-                item.put("requiredParameters", action.metadata().getRequiredParameters());
-                item.put("parameterSchemas", action.metadata().getParameterSchemas());
+                item.put("requiredParameters", publicRequiredParameters(action.metadata()));
+                item.put("parameterSchemas", publicParameterSchemas(action.metadata()));
                 item.put("groundingEligible", action.metadata().isGroundingEligible());
                 return Collections.unmodifiableMap(item);
             })
             .toList();
+    }
+
+    private Set<String> publicRequiredParameters(AIActionMetaData metadata) {
+        if (metadata == null || metadata.getRequiredParameters() == null || metadata.getRequiredParameters().isEmpty()) {
+            return Set.of();
+        }
+        return metadata.getRequiredParameters().stream()
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .filter(parameter -> isUserVisibleParameter(metadata, parameter))
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Map<String, AIActionParamSchema> publicParameterSchemas(AIActionMetaData metadata) {
+        if (metadata == null || metadata.getParameterSchemas() == null || metadata.getParameterSchemas().isEmpty()) {
+            return Map.of();
+        }
+        Map<String, AIActionParamSchema> out = new LinkedHashMap<>();
+        metadata.getParameterSchemas().forEach((name, schema) -> {
+            if (StringUtils.hasText(name) && isUserVisibleParameter(metadata, name)) {
+                out.put(name.trim(), schema);
+            }
+        });
+        return Collections.unmodifiableMap(out);
+    }
+
+    private boolean isUserVisibleParameter(AIActionMetaData metadata, String parameter) {
+        if (!StringUtils.hasText(parameter)) {
+            return false;
+        }
+        String normalized = parameter.trim();
+        if ("shopperSessionId".equals(normalized) || "confirmationAccepted".equals(normalized)) {
+            return false;
+        }
+        AIActionParamSchema schema = paramSchema(metadata, normalized);
+        if (schema == null) {
+            return true;
+        }
+        if (Boolean.FALSE.equals(schema.getAskUser())) {
+            return false;
+        }
+        String visibility = schema.getVisibility();
+        if (!StringUtils.hasText(visibility)) {
+            return true;
+        }
+        String normalizedVisibility = visibility.trim().toUpperCase(Locale.ROOT);
+        return !"INTERNAL".equals(normalizedVisibility)
+            && !"SECRET".equals(normalizedVisibility)
+            && !"SYSTEM".equals(normalizedVisibility);
+    }
+
+    private AIActionParamSchema paramSchema(AIActionMetaData metadata, String parameter) {
+        if (metadata == null || metadata.getParameterSchemas() == null || metadata.getParameterSchemas().isEmpty() || !StringUtils.hasText(parameter)) {
+            return null;
+        }
+        AIActionParamSchema exact = metadata.getParameterSchemas().get(parameter.trim());
+        if (exact != null) {
+            return exact;
+        }
+        for (Map.Entry<String, AIActionParamSchema> entry : metadata.getParameterSchemas().entrySet()) {
+            if (entry != null && StringUtils.hasText(entry.getKey()) && parameter.trim().equalsIgnoreCase(entry.getKey().trim())) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     private List<Map<String, Object>> buildPriorEvidencePromptModel(List<ExecutedReadAction> executedActions) {

@@ -220,6 +220,20 @@ class ConnectorActionCatalogLoaderTest {
             .containsExactly("product_variant_id", "firstAvailableVariantId");
         assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("quantity").getDefaultValue())
             .isEqualTo(1);
+        ConnectorActionParamDefinition shopperSession = action.params().stream()
+            .filter(param -> "shopperSessionId".equals(param.name()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(shopperSession.visibility()).isEqualTo("INTERNAL");
+        assertThat(shopperSession.askUser()).isFalse();
+        assertThat(shopperSession.resolveFrom())
+            .containsEntry("source", "RUNTIME_CONTEXT")
+            .containsEntry("field", "sessionId");
+        assertThat(metadata.getParameterSchemas().get("shopperSessionId").getVisibility()).isEqualTo("INTERNAL");
+        assertThat(metadata.getParameterSchemas().get("shopperSessionId").getAskUser()).isFalse();
+        assertThat(metadata.getParameterSchemas().get("shopperSessionId").getResolveFrom())
+            .containsEntry("source", "RUNTIME_CONTEXT")
+            .containsEntry("field", "sessionId");
         Map<String, Object> runtimeConfig = action.runtimeActionConfig();
         assertThat(runtimeConfig).containsEntry("adapterType", "mcp-tool");
         assertThat(runtimeConfig).containsKeys("execution", "mcpServers", "params");
@@ -232,6 +246,18 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(runtimeSelectedItems)
             .containsEntry("type", "ARRAY")
             .containsEntry("batchTargets", true);
+        Map<String, Object> runtimeShopperSession = runtimeParams.stream()
+            .filter(param -> "shopperSessionId".equals(param.get("name")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(runtimeShopperSession)
+            .containsEntry("visibility", "INTERNAL")
+            .containsEntry("askUser", false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeResolveFrom = (Map<String, Object>) runtimeShopperSession.get("resolveFrom");
+        assertThat(runtimeResolveFrom)
+            .containsEntry("source", "RUNTIME_CONTEXT")
+            .containsEntry("field", "sessionId");
         @SuppressWarnings("unchecked")
         Map<String, Object> runtimeItems = (Map<String, Object>) runtimeSelectedItems.get("items");
         assertThat(runtimeItems).containsEntry("type", "OBJECT");

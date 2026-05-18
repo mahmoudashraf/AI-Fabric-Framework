@@ -19,6 +19,9 @@ public record ConnectorActionParamDefinition(
     Long min,
     Long max,
     Object defaultValue,
+    String visibility,
+    Boolean askUser,
+    Map<String, Object> resolveFrom,
     boolean sensitive,
     ConnectorActionParamDefinition items,
     Map<String, ConnectorActionParamDefinition> properties,
@@ -29,6 +32,8 @@ public record ConnectorActionParamDefinition(
 ) {
     public ConnectorActionParamDefinition {
         allowedValues = allowedValues != null ? List.copyOf(allowedValues) : List.of();
+        visibility = visibility != null && !visibility.isBlank() ? visibility.trim() : null;
+        resolveFrom = resolveFrom != null ? Map.copyOf(resolveFrom) : Map.of();
         properties = properties != null ? Map.copyOf(properties) : Map.of();
         requiredProperties = requiredProperties != null ? List.copyOf(requiredProperties) : List.of();
         evidenceKeys = evidenceKeys != null ? List.copyOf(evidenceKeys) : List.of();
