@@ -120,6 +120,9 @@ class CommerceCuratedPackTest {
             .contains("decide current-product identity from ATTACHMENTS/PINNED TARGETS only")
             .contains("I can help with this store's products, policies, comparisons, cart, and approved order help.")
             .contains("must not repeat or quote the unsupported topic/request");
+        assertThat(resolver.resolve("intent-extraction/multi-step", "select-actions").template().template())
+            .contains("Do not select a catalog/search READ action as the final action for a cart mutation")
+            .contains("catalog evidence can be gathered later by the backend");
         assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
             .contains("Use only the relevant commerce context above")
             .contains("Highest priority: if the user question asks about assistant implementation")
