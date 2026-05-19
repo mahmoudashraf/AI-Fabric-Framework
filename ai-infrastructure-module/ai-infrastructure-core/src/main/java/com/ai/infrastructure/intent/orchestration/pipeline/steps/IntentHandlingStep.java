@@ -1488,7 +1488,7 @@ public class IntentHandlingStep implements PipelineStep {
         String trimmed = value.trim();
         if (trimmed.startsWith("{{") && trimmed.endsWith("}}")) {
             String key = trimmed.substring(2, trimmed.length() - 2).trim();
-            Object exact = resolveTemplateExpressionValue(key, contextValues);
+            Object exact = resolveTemplateExpressionValue(key, contextValues, currentParams);
             if (hasMeaningfulActionParamValue(exact)) {
                 return exact;
             }
@@ -1500,7 +1500,9 @@ public class IntentHandlingStep implements PipelineStep {
         return StringUtils.hasText(resolved) ? resolved.trim() : null;
     }
 
-    private Object resolveTemplateExpressionValue(String expression, Map<String, Object> contextValues) {
+    private Object resolveTemplateExpressionValue(String expression,
+                                                  Map<String, Object> contextValues,
+                                                  Map<String, Object> currentParams) {
         if (!StringUtils.hasText(expression) || contextValues == null || contextValues.isEmpty()) {
             return null;
         }
@@ -1511,6 +1513,13 @@ public class IntentHandlingStep implements PipelineStep {
             Object value = contextValues.get(candidate.trim());
             if (hasMeaningfulActionParamValue(value)) {
                 return value;
+            }
+            String key = candidate.trim();
+            if (key.startsWith("params.") && currentParams != null && !currentParams.isEmpty()) {
+                value = valueByPath(currentParams, key.substring("params.".length()));
+                if (hasMeaningfulActionParamValue(value)) {
+                    return value;
+                }
             }
         }
         return null;

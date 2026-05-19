@@ -814,7 +814,6 @@ class IntentHandlingStepBatchTargetsTest {
             .type(IntentType.ACTION)
             .action("shopify_update_cart")
             .actionParams(Map.of(
-                "product_search_query", "Selling Plans Ski Wax",
                 "add_items", List.of(Map.of(
                     "product_variant_id", "Selling Plans Ski Wax",
                     "quantity", 1
@@ -939,7 +938,7 @@ class IntentHandlingStepBatchTargetsTest {
                 "source", "READ_ACTION",
                 "actionName", "shopify_search_catalog",
                 "params", Map.of(
-                    "query", "{{params.product_search_query|context.originalQuery}}",
+                    "query", "{{params.product_search_query|params.add_items.0.product_variant_id|context.originalQuery}}",
                     "limit", 1
                 ),
                 "resultPaths", List.of("documents.0", "results.0", "_items.0")
