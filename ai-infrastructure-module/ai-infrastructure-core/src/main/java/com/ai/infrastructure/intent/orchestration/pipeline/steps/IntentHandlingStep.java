@@ -1095,7 +1095,7 @@ public class IntentHandlingStep implements PipelineStep {
             if (!shouldResolve) {
                 continue;
             }
-            Object resolved = resolveConfiguredActionParam(parameter, schema, context, pipelineContext, depth);
+            Object resolved = resolveConfiguredActionParam(parameter, schema, current, context, pipelineContext, depth);
             if (resolved instanceof BlockingReadActionResult blockingReadActionResult) {
                 return new ContextResolvedActionParams(
                     updated != null ? updated : params,
@@ -1208,6 +1208,7 @@ public class IntentHandlingStep implements PipelineStep {
 
     private Object resolveConfiguredActionParam(String parameter,
                                                 AIActionParamSchema schema,
+                                                Map<String, Object> currentParams,
                                                 OrchestrationContext context,
                                                 PipelineContext pipelineContext,
                                                 int depth) {
@@ -1233,7 +1234,7 @@ public class IntentHandlingStep implements PipelineStep {
                 : resolveAttachmentContextParam(context, parameter, resolveParamCandidateKeys(parameter, resolveFrom));
         }
         if (PARAM_RESOLVE_SOURCE_READ_ACTION.equals(normalizedSource)) {
-            return resolveParamFromReadAction(parameter, resolveFrom, context, pipelineContext, depth);
+            return resolveParamFromReadAction(parameter, resolveFrom, currentParams, context, pipelineContext, depth);
         }
         return null;
     }
@@ -1340,6 +1341,7 @@ public class IntentHandlingStep implements PipelineStep {
 
     private Object resolveParamFromReadAction(String parameter,
                                               Map<String, Object> resolveFrom,
+                                              Map<String, Object> currentParams,
                                               OrchestrationContext context,
                                               PipelineContext pipelineContext,
                                               int depth) {
@@ -1374,7 +1376,7 @@ public class IntentHandlingStep implements PipelineStep {
             readParams = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 if (entry != null && entry.getKey() != null && entry.getValue() != null) {
-                    Object value = resolveReadActionParamTemplate(entry.getValue(), context, pipelineContext);
+                    Object value = resolveReadActionParamTemplate(entry.getValue(), currentParams, context, pipelineContext);
                     if (hasMeaningfulActionParamValue(value)) {
                         readParams.put(entry.getKey().toString(), value);
                     }
@@ -1433,13 +1435,14 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private Object resolveReadActionParamTemplate(Object raw,
+                                                  Map<String, Object> currentParams,
                                                   OrchestrationContext context,
                                                   PipelineContext pipelineContext) {
         if (raw instanceof Map<?, ?> map) {
             Map<String, Object> resolved = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 if (entry != null && entry.getKey() != null) {
-                    Object value = resolveReadActionParamTemplate(entry.getValue(), context, pipelineContext);
+                    Object value = resolveReadActionParamTemplate(entry.getValue(), currentParams, context, pipelineContext);
                     if (hasMeaningfulActionParamValue(value)) {
                         resolved.put(entry.getKey().toString(), value);
                     }
@@ -1450,7 +1453,7 @@ public class IntentHandlingStep implements PipelineStep {
         if (raw instanceof List<?> list) {
             List<Object> resolved = new ArrayList<>();
             for (Object item : list) {
-                Object value = resolveReadActionParamTemplate(item, context, pipelineContext);
+                Object value = resolveReadActionParamTemplate(item, currentParams, context, pipelineContext);
                 if (hasMeaningfulActionParamValue(value)) {
                     resolved.add(value);
                 }
@@ -1464,23 +1467,29 @@ public class IntentHandlingStep implements PipelineStep {
         if (!StringUtils.hasText(value)) {
             return null;
         }
-        Map<String, Object> contextValues = Map.of(
-            "context.originalQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getOriginalQuery()) : "",
-            "originalQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getOriginalQuery()) : "",
-            "query", pipelineContext != null ? nullToEmpty(pipelineContext.getEffectiveQuery()) : "",
-            "context.effectiveQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getEffectiveQuery()) : "",
-            "sessionId", context != null ? nullToEmpty(context.getSessionId()) : "",
-            "context.sessionId", context != null ? nullToEmpty(context.getSessionId()) : "",
-            "position", context != null ? nullToEmpty(context.getPosition()) : "",
-            "context.position", context != null ? nullToEmpty(context.getPosition()) : "",
-            "mode", context != null ? nullToEmpty(context.getMode()) : "",
-            "context.mode", context != null ? nullToEmpty(context.getMode()) : ""
-        );
+        Map<String, Object> contextValues = new LinkedHashMap<>();
+        contextValues.put("context.originalQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getOriginalQuery()) : "");
+        contextValues.put("originalQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getOriginalQuery()) : "");
+        contextValues.put("query", pipelineContext != null ? nullToEmpty(pipelineContext.getEffectiveQuery()) : "");
+        contextValues.put("context.effectiveQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getEffectiveQuery()) : "");
+        contextValues.put("sessionId", context != null ? nullToEmpty(context.getSessionId()) : "");
+        contextValues.put("context.sessionId", context != null ? nullToEmpty(context.getSessionId()) : "");
+        contextValues.put("position", context != null ? nullToEmpty(context.getPosition()) : "");
+        contextValues.put("context.position", context != null ? nullToEmpty(context.getPosition()) : "");
+        contextValues.put("mode", context != null ? nullToEmpty(context.getMode()) : "");
+        contextValues.put("context.mode", context != null ? nullToEmpty(context.getMode()) : "");
+        if (currentParams != null && !currentParams.isEmpty()) {
+            currentParams.forEach((paramName, paramValue) -> {
+                if (StringUtils.hasText(paramName) && hasMeaningfulActionParamValue(paramValue)) {
+                    contextValues.put("params." + paramName.trim(), paramValue);
+                }
+            });
+        }
         String trimmed = value.trim();
         if (trimmed.startsWith("{{") && trimmed.endsWith("}}")) {
             String key = trimmed.substring(2, trimmed.length() - 2).trim();
-            Object exact = contextValues.get(key);
-            if (exact != null && StringUtils.hasText(exact.toString())) {
+            Object exact = resolveTemplateExpressionValue(key, contextValues);
+            if (hasMeaningfulActionParamValue(exact)) {
                 return exact;
             }
         }
@@ -1489,6 +1498,22 @@ public class IntentHandlingStep implements PipelineStep {
             resolved = resolved.replace("{{" + entry.getKey() + "}}", entry.getValue() != null ? entry.getValue().toString() : "");
         }
         return StringUtils.hasText(resolved) ? resolved.trim() : null;
+    }
+
+    private Object resolveTemplateExpressionValue(String expression, Map<String, Object> contextValues) {
+        if (!StringUtils.hasText(expression) || contextValues == null || contextValues.isEmpty()) {
+            return null;
+        }
+        for (String candidate : expression.split("\\|")) {
+            if (!StringUtils.hasText(candidate)) {
+                continue;
+            }
+            Object value = contextValues.get(candidate.trim());
+            if (hasMeaningfulActionParamValue(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String nullToEmpty(String value) {

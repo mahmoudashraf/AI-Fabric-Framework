@@ -123,6 +123,9 @@ class CommerceCuratedPackTest {
         assertThat(resolver.resolve("intent-extraction/multi-step", "select-actions").template().template())
             .contains("Do not select a catalog/search READ action as the final action for a cart mutation")
             .contains("catalog evidence can be gathered later by the backend");
+        assertThat(resolver.resolve("intent-extraction/multi-step", "fill-params").template().template())
+            .contains("optional resolver-only product search parameter")
+            .contains("Do not include cart verbs or action wording");
         assertThat(resolver.resolve("rag/generation", "answer-managed").template().template())
             .contains("Use only the relevant commerce context above")
             .contains("Highest priority: if the user question asks about assistant implementation")

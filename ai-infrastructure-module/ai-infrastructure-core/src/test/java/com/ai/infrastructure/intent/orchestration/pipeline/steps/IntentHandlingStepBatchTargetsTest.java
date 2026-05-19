@@ -747,7 +747,7 @@ class IntentHandlingStepBatchTargetsTest {
         Intent intent = Intent.builder()
             .type(IntentType.ACTION)
             .action("shopify_update_cart")
-            .actionParams(Map.of())
+            .actionParams(Map.of("product_search_query", "Selling Plans Ski Wax"))
             .build();
         OrchestrationContext orchestrationContext = OrchestrationContext.builder()
             .userId("user")
@@ -768,7 +768,7 @@ class IntentHandlingStepBatchTargetsTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> catalogParamsCaptor = ArgumentCaptor.forClass(Map.class);
         verify(catalogHandler, times(1)).executeAction(catalogParamsCaptor.capture(), any());
-        assertThat(catalogParamsCaptor.getValue()).containsEntry("query", "Add Selling Plans Ski Wax to my cart.");
+        assertThat(catalogParamsCaptor.getValue()).containsEntry("query", "Selling Plans Ski Wax");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> cartParamsCaptor = ArgumentCaptor.forClass(Map.class);
@@ -814,6 +814,7 @@ class IntentHandlingStepBatchTargetsTest {
             .type(IntentType.ACTION)
             .action("shopify_update_cart")
             .actionParams(Map.of(
+                "product_search_query", "Selling Plans Ski Wax",
                 "add_items", List.of(Map.of(
                     "product_variant_id", "Selling Plans Ski Wax",
                     "quantity", 1
@@ -920,6 +921,11 @@ class IntentHandlingStepBatchTargetsTest {
             .min(1L)
             .defaultValue(1)
             .build();
+        AIActionParamSchema productSearchQuery = AIActionParamSchema.builder()
+            .name("product_search_query")
+            .description("Resolver-only product search phrase for cart mutations")
+            .type(AIActionParamType.STRING)
+            .build();
         AIActionParamSchema item = AIActionParamSchema.builder()
             .type(AIActionParamType.OBJECT)
             .properties(Map.of("product_variant_id", variantId, "quantity", quantity))
@@ -933,7 +939,7 @@ class IntentHandlingStepBatchTargetsTest {
                 "source", "READ_ACTION",
                 "actionName", "shopify_search_catalog",
                 "params", Map.of(
-                    "query", "{{context.originalQuery}}",
+                    "query", "{{params.product_search_query|context.originalQuery}}",
                     "limit", 1
                 ),
                 "resultPaths", List.of("documents.0", "results.0", "_items.0")
@@ -946,7 +952,7 @@ class IntentHandlingStepBatchTargetsTest {
             .description("Update Shopify cart")
             .category("shopify")
             .accessMode(ActionAccessMode.WRITE_ONLY)
-            .parameterSchemas(Map.of("add_items", addItems))
+            .parameterSchemas(Map.of("product_search_query", productSearchQuery, "add_items", addItems))
             .build();
     }
 
