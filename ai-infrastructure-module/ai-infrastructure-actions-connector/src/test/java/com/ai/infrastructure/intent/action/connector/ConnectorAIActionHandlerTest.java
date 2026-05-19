@@ -310,6 +310,74 @@ class ConnectorAIActionHandlerTest {
             .containsEntry("answer", "Customers must contact the merchant to request a return.");
     }
 
+    @Test
+    void shouldBuildConfiguredFactsFromJsonTextRootAndIndexedListPaths() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("MCP tool result")
+            .data(ActionPayload.object(Map.of(
+                "toolResult", Map.of(
+                    "content", List.of(Map.of(
+                        "type", "text",
+                        "text", """
+                            {
+                              "products": [
+                                {
+                                  "id": "gid://shopify/Product/7930570047571",
+                                  "title": "Selling Plans Ski Wax",
+                                  "variants": [
+                                    {
+                                      "id": "gid://shopify/ProductVariant/44506675314771",
+                                      "title": "Selling Plans Ski Wax",
+                                      "availability": {"available": true}
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                            """
+                    )),
+                    "isError", false
+                )
+            )))
+            .build();
+        ConnectorActionLlmFactsListDefinition variants = new ConnectorActionLlmFactsListDefinition(
+            "products.0.variants",
+            "documents",
+            3,
+            List.of("id", "title", "availability.available"),
+            null,
+            300,
+            List.of(),
+            null,
+            List.of()
+        );
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null,
+            new ConnectorActionLlmFactsDefinition(
+                "toolResult.content.0.text",
+                List.of(),
+                List.of(variants),
+                List.of()
+            )
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        assertThat(facts.get()).containsEntry("documentsCount", 1);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
+        assertThat(documents).singleElement().satisfies(document -> assertThat(document)
+            .containsEntry("id", "gid://shopify/ProductVariant/44506675314771")
+            .containsEntry("title", "Selling Plans Ski Wax")
+            .containsEntry("available", true));
+    }
+
     private AIActionMetaData metadata() {
         return AIActionMetaData.builder()
             .name("search_records")

@@ -331,7 +331,13 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
         if (llmFacts != null && StringUtils.hasText(llmFacts.rootPath())) {
             Object configuredRoot = resolvePath(payload, llmFacts.rootPath());
-            return configuredRoot instanceof Map<?, ?> map ? toStringObjectMap(map) : Map.of();
+            if (configuredRoot instanceof Map<?, ?> map) {
+                return toStringObjectMap(map);
+            }
+            if (configuredRoot instanceof CharSequence text) {
+                return parseJsonObject(text.toString());
+            }
+            return Map.of();
         }
         Object nested = mapObject(payload, "data");
         return nested instanceof Map<?, ?> nestedMap ? toStringObjectMap(nestedMap) : payload;
@@ -768,15 +774,47 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             if (!StringUtils.hasText(part)) {
                 return null;
             }
-            if (!(current instanceof Map<?, ?> map)) {
+            String segment = part.trim();
+            if (current instanceof Map<?, ?> map) {
+                current = mapObject(map, segment);
+            } else if (current instanceof List<?> list) {
+                Integer index = parseIndex(segment);
+                current = index != null && index >= 0 && index < list.size() ? list.get(index) : null;
+            } else {
                 return null;
             }
-            current = mapObject(map, part.trim());
             if (current == null) {
                 return null;
             }
         }
         return current;
+    }
+
+    private Integer parseIndex(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private Map<String, Object> parseJsonObject(String value) {
+        if (!StringUtils.hasText(value)) {
+            return Map.of();
+        }
+        String trimmed = value.trim();
+        if (!trimmed.startsWith("{")) {
+            return Map.of();
+        }
+        try {
+            Object decoded = JSON.readValue(trimmed, Object.class);
+            return decoded instanceof Map<?, ?> map ? toStringObjectMap(map) : Map.of();
+        } catch (JsonProcessingException ex) {
+            return Map.of();
+        }
     }
 
     @SuppressWarnings("unchecked")
