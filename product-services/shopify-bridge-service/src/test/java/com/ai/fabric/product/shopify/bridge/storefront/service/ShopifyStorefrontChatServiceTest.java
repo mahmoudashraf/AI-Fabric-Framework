@@ -247,6 +247,53 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void querySanitizesFlatCanonicalCustomerAccountAuthRequiredErrorsForShoppers() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {
+              "success":false,
+              "type":"ACTION_EXECUTED",
+              "answer":"Customer Account MCP requires a bound customer OAuth/PKCE access token.",
+              "safeSummary":"Customer Account MCP requires a bound customer OAuth/PKCE access token.",
+              "conversationId":"conv-1",
+              "fallbackReason":"CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+              "actions":[
+                {
+                  "action":"shopify_request_return",
+                  "actionResult":{
+                    "success":false,
+                    "errorCode":"CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+                    "message":"Customer Account MCP requires a bound customer OAuth/PKCE access token.",
+                    "data":{}
+                  }
+                }
+              ]
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"I want to return my last order",
+                  "context":{"pageType":"account"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        String answer = response.path("safeSummary").asText();
+        assertThat(answer).contains("Connect your store account", "start a return");
+        assertThat(answer).doesNotContain("MCP", "OAuth", "PKCE", "token");
+        JsonNode safeData = response.path("actions").path(0);
+        assertThat(safeData.path("errorCode").asText()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+        assertThat(safeData.path("customerAccountAuthRequired").asBoolean()).isTrue();
+        assertThat(safeData.path("customerAccountAuth").path("reason").asText()).isEqualTo("RETURN_REQUEST");
+    }
+
+    @Test
     void queryUsesStoreCreditCustomerAuthCopyForStoreCreditActions() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);

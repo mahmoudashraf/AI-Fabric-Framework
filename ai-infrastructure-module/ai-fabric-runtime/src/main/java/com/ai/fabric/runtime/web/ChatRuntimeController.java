@@ -23,6 +23,7 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -169,7 +170,12 @@ public class ChatRuntimeController {
         Map<String, Object> sanitizedPayload = result == null || result.getSanitizedPayload() == null
             ? Map.of()
             : result.getSanitizedPayload();
-        Map<String, Object> data = firstMap(sanitizedPayload.get("data"), result == null ? null : result.getData());
+        Map<String, Object> rawData = firstMap(result == null ? null : result.getData());
+        Map<String, Object> data = enrichCanonicalData(
+            firstMap(sanitizedPayload.get("data"), rawData),
+            rawData,
+            result
+        );
         String answer = firstText(
             sanitizedPayload.get("safeSummary"),
             sanitizedPayload.get("answer"),
@@ -192,6 +198,7 @@ public class ChatRuntimeController {
             ? result.getType().name()
             : (result != null && result.isSuccess() ? "INFORMATION_PROVIDED" : "ERROR");
         List<Object> actions = firstList(sanitizedPayload.get("actions"), data.get("actions"));
+        actions = enrichCanonicalActions(actions, firstList(rawData.get("actions")), rawData, result);
         if (actions.isEmpty() && containsActionLikeEvidence(data)) {
             actions = List.of(data);
         }
@@ -201,6 +208,7 @@ public class ChatRuntimeController {
             : firstText(
                 result == null ? null : result.getErrorCode(),
                 data.get("errorCode"),
+                firstActionErrorCode(actions),
                 sanitizedPayload.get("errorCode"),
                 resultType
             );
@@ -223,6 +231,128 @@ public class ChatRuntimeController {
             .authContext(toResponseAuthContext(identity))
             .result(result)
             .build();
+    }
+
+    private Map<String, Object> enrichCanonicalData(Map<String, Object> data,
+                                                    Map<String, Object> rawData,
+                                                    OrchestrationResult result) {
+        if ((data == null || data.isEmpty()) && (rawData == null || rawData.isEmpty())) {
+            return Map.of();
+        }
+        Map<String, Object> enriched = new LinkedHashMap<>(data == null ? Map.of() : data);
+        String errorCode = firstText(
+            enriched.get("errorCode"),
+            actionResultErrorCode(enriched.get("actionResult")),
+            rawData == null ? null : rawData.get("errorCode"),
+            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult")),
+            result == null ? null : result.getErrorCode()
+        );
+        if (StringUtils.hasText(errorCode) && !StringUtils.hasText(firstText(enriched.get("errorCode")))) {
+            enriched.put("errorCode", errorCode);
+        }
+        Object actionResult = enriched.get("actionResult");
+        if (actionResult instanceof Map<?, ?> actionResultMap
+            && StringUtils.hasText(errorCode)
+            && !StringUtils.hasText(actionResultErrorCode(actionResultMap))) {
+            Map<String, Object> safeActionResult = normalizeMap(actionResultMap);
+            safeActionResult.put("errorCode", errorCode);
+            enriched.put("actionResult", Collections.unmodifiableMap(safeActionResult));
+        }
+        return Collections.unmodifiableMap(enriched);
+    }
+
+    private List<Object> enrichCanonicalActions(List<Object> actions,
+                                                List<Object> rawActions,
+                                                Map<String, Object> rawData,
+                                                OrchestrationResult result) {
+        if (actions == null || actions.isEmpty()) {
+            return List.of();
+        }
+        List<Object> enriched = new ArrayList<>(actions.size());
+        for (int i = 0; i < actions.size(); i++) {
+            Object action = actions.get(i);
+            Object rawAction = rawActions != null && i < rawActions.size() ? rawActions.get(i) : null;
+            if (action instanceof Map<?, ?> actionMap) {
+                enriched.add(enrichCanonicalAction(normalizeMap(actionMap), rawAction, rawData, result));
+            } else {
+                enriched.add(action);
+            }
+        }
+        return List.copyOf(enriched);
+    }
+
+    private Map<String, Object> enrichCanonicalAction(Map<String, Object> action,
+                                                      Object rawAction,
+                                                      Map<String, Object> rawData,
+                                                      OrchestrationResult result) {
+        Map<String, Object> enriched = new LinkedHashMap<>(action);
+        String errorCode = firstText(
+            enriched.get("errorCode"),
+            actionResultErrorCode(enriched.get("actionResult")),
+            actionMapErrorCode(rawAction),
+            rawData == null ? null : rawData.get("errorCode"),
+            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult")),
+            result == null ? null : result.getErrorCode()
+        );
+        if (StringUtils.hasText(errorCode) && !StringUtils.hasText(firstText(enriched.get("errorCode")))) {
+            enriched.put("errorCode", errorCode);
+        }
+        Object actionResult = enriched.get("actionResult");
+        if (actionResult instanceof Map<?, ?> actionResultMap
+            && StringUtils.hasText(errorCode)
+            && !StringUtils.hasText(actionResultErrorCode(actionResultMap))) {
+            Map<String, Object> safeActionResult = normalizeMap(actionResultMap);
+            safeActionResult.put("errorCode", errorCode);
+            enriched.put("actionResult", Collections.unmodifiableMap(safeActionResult));
+        }
+        return Collections.unmodifiableMap(enriched);
+    }
+
+    private String firstActionErrorCode(List<Object> actions) {
+        if (actions == null || actions.isEmpty()) {
+            return null;
+        }
+        for (Object action : actions) {
+            String errorCode = actionMapErrorCode(action);
+            if (StringUtils.hasText(errorCode)) {
+                return errorCode;
+            }
+        }
+        return null;
+    }
+
+    private String actionMapErrorCode(Object action) {
+        if (action instanceof Map<?, ?> actionMap) {
+            Map<String, Object> normalized = normalizeMap(actionMap);
+            return firstText(
+                normalized.get("errorCode"),
+                actionResultErrorCode(normalized.get("actionResult"))
+            );
+        }
+        return actionResultErrorCode(action);
+    }
+
+    private String actionResultErrorCode(Object actionResult) {
+        if (actionResult instanceof ActionResult result) {
+            return result.getErrorCode();
+        }
+        if (actionResult instanceof Map<?, ?> map) {
+            return firstText(normalizeMap(map).get("errorCode"));
+        }
+        return null;
+    }
+
+    private Map<String, Object> normalizeMap(Map<?, ?> map) {
+        if (map == null || map.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry != null && entry.getKey() != null) {
+                normalized.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return normalized;
     }
 
     private boolean containsActionLikeEvidence(Map<String, Object> data) {

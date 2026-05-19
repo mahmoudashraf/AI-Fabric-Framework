@@ -14,6 +14,7 @@ import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -255,6 +256,58 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("subjectId", "platform-user-1")
             .containsEntry("requestedScopes", java.util.List.of("chat:query"));
+    }
+
+    @Test
+    void meQueryPreservesActionErrorCodeInCanonicalActionEvidence() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("I want to return my last order"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.ACTION_EXECUTED)
+                .success(false)
+                .message("Customer Account MCP requires a bound customer OAuth/PKCE access token.")
+                .data(Map.of(
+                    "action", "shopify_get_most_recent_order_status",
+                    "actionResult", ActionResult.builder()
+                        .success(false)
+                        .message("Customer Account MCP requires a bound customer OAuth/PKCE access token.")
+                        .errorCode("CUSTOMER_ACCOUNT_AUTH_REQUIRED")
+                        .build()
+                ))
+                .sanitizedPayload(Map.of(
+                    "safeSummary", "Customer Account MCP requires a bound customer OAuth/PKCE access token.",
+                    "data", Map.of(
+                        "action", "shopify_get_most_recent_order_status",
+                        "actionResult", Map.of(
+                            "success", false,
+                            "message", "Customer Account MCP requires a bound customer OAuth/PKCE access token."
+                        )
+                    )
+                ))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("I want to return my last order");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getFallbackReason()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+        assertThat(response.getActions()).hasSize(1);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> action = (Map<String, Object>) response.getActions().get(0);
+        assertThat(action).containsEntry("action", "shopify_get_most_recent_order_status");
+        assertThat(action).containsEntry("errorCode", "CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actionResult = (Map<String, Object>) action.get("actionResult");
+        assertThat(actionResult).containsEntry("errorCode", "CUSTOMER_ACCOUNT_AUTH_REQUIRED");
     }
 
     @Test
