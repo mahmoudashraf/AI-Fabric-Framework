@@ -604,7 +604,12 @@ public class IntentHandlingStep implements PipelineStep {
                 Collections.unmodifiableMap(new LinkedHashMap<>(effectiveParams)),
                 confirmationMessage,
                 Instant.now(),
-                pendingTrustedEvidenceValues(evidence, meta)
+                pendingTrustedEvidenceValues(
+                    evidence,
+                    meta,
+                    effectiveParams,
+                    resolvedContextParams.resolvedParameters()
+                )
             );
             if (pendingActionStore != null) {
                 pendingActionStore.pushPendingAction(context.getConversationId(), identifier, pending);
@@ -6276,16 +6281,33 @@ public class IntentHandlingStep implements PipelineStep {
         return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
     }
 
-    private Map<String, List<String>> pendingTrustedEvidenceValues(EvidenceBundle evidence, AIActionMetaData meta) {
-        if (evidence == null || evidence.trustedValuesByKey() == null || evidence.trustedValuesByKey().isEmpty()) {
-            return Map.of();
-        }
+    private Map<String, List<String>> pendingTrustedEvidenceValues(EvidenceBundle evidence,
+                                                                   AIActionMetaData meta,
+                                                                   Map<String, Object> effectiveParams,
+                                                                   Set<String> trustedResolvedParameters) {
         Set<String> evidenceKeys = evidenceBoundKeys(meta);
         if (evidenceKeys.isEmpty()) {
             return Map.of();
         }
+        Map<String, Set<String>> trustedValuesByKey = new LinkedHashMap<>();
+        if (evidence != null && evidence.trustedValuesByKey() != null && !evidence.trustedValuesByKey().isEmpty()) {
+            evidence.trustedValuesByKey().forEach((key, values) -> {
+                String normalizedKey = normalizeEvidenceKey(key);
+                if (StringUtils.hasText(normalizedKey)
+                    && evidenceKeys.contains(normalizedKey)
+                    && values != null
+                    && !values.isEmpty()) {
+                    for (String value : values) {
+                        addTrustedEvidenceValue(trustedValuesByKey, normalizedKey, value);
+                    }
+                }
+            });
+        }
+
+        addTrustedResolvedParamEvidenceValues(trustedValuesByKey, meta, effectiveParams, trustedResolvedParameters);
+
         Map<String, List<String>> out = new LinkedHashMap<>();
-        evidence.trustedValuesByKey().forEach((key, values) -> {
+        trustedValuesByKey.forEach((key, values) -> {
             String normalizedKey = normalizeEvidenceKey(key);
             if (StringUtils.hasText(normalizedKey) && evidenceKeys.contains(normalizedKey) && values != null && !values.isEmpty()) {
                 List<String> normalizedValues = values.stream()
@@ -6299,6 +6321,71 @@ public class IntentHandlingStep implements PipelineStep {
             }
         });
         return out.isEmpty() ? Map.of() : Collections.unmodifiableMap(out);
+    }
+
+    private void addTrustedResolvedParamEvidenceValues(Map<String, Set<String>> trustedValuesByKey,
+                                                       AIActionMetaData meta,
+                                                       Map<String, Object> effectiveParams,
+                                                       Set<String> trustedResolvedParameters) {
+        if (trustedValuesByKey == null
+            || meta == null
+            || meta.getParameterSchemas() == null
+            || meta.getParameterSchemas().isEmpty()
+            || effectiveParams == null
+            || effectiveParams.isEmpty()) {
+            return;
+        }
+        Set<String> trustedResolved = normalizeParameterNameSet(trustedResolvedParameters);
+        if (trustedResolved.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, AIActionParamSchema> entry : meta.getParameterSchemas().entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                continue;
+            }
+            String parameter = entry.getKey().trim();
+            if (!trustedResolved.contains(parameter.toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            Object value = valueByCandidateKeys(effectiveParams, List.of(parameter));
+            collectTrustedResolvedEvidenceValues(trustedValuesByKey, value, entry.getValue());
+        }
+    }
+
+    private void collectTrustedResolvedEvidenceValues(Map<String, Set<String>> trustedValuesByKey,
+                                                      Object value,
+                                                      AIActionParamSchema schema) {
+        if (trustedValuesByKey == null || schema == null || !hasMeaningfulJavaValue(value)) {
+            return;
+        }
+        if (Boolean.TRUE.equals(schema.getEvidenceBound())
+            && !(value instanceof Map<?, ?>)
+            && !(value instanceof Iterable<?>)) {
+            List<String> configuredKeys = schema.getEvidenceKeys() != null && !schema.getEvidenceKeys().isEmpty()
+                ? schema.getEvidenceKeys()
+                : List.of(schema.getName());
+            for (String key : configuredKeys) {
+                String normalizedKey = normalizeEvidenceKey(key);
+                if (StringUtils.hasText(normalizedKey)) {
+                    addTrustedEvidenceValue(trustedValuesByKey, normalizedKey, value);
+                }
+            }
+        }
+        if (value instanceof Iterable<?> iterable && schema.getItems() != null) {
+            for (Object item : iterable) {
+                collectTrustedResolvedEvidenceValues(trustedValuesByKey, item, schema.getItems());
+            }
+            return;
+        }
+        if (value instanceof Map<?, ?> map && schema.getProperties() != null && !schema.getProperties().isEmpty()) {
+            for (Map.Entry<String, AIActionParamSchema> property : schema.getProperties().entrySet()) {
+                if (property == null || !StringUtils.hasText(property.getKey()) || property.getValue() == null) {
+                    continue;
+                }
+                Object propertyValue = valueByCandidateKeys(map, List.of(property.getKey().trim()));
+                collectTrustedResolvedEvidenceValues(trustedValuesByKey, propertyValue, property.getValue());
+            }
+        }
     }
 
     private Set<String> evidenceBoundKeys(AIActionMetaData meta) {
