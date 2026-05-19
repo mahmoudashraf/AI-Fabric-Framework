@@ -2,7 +2,7 @@
 
 Date: 2026-05-19
 
-Status: implemented in code; staging live verification pending deployment/release gate.
+Status: implemented, deployed to staging, and live verified on 2026-05-19.
 
 Parent plans:
 
@@ -22,6 +22,18 @@ Implemented code paths:
 - Shopify storefront surfaces send `context`, and Shopify Bridge returns the flat canonical storefront response.
 - Max Mode widget consumes top-level `answer`, `safeSummary`, `sources`, and `actions`.
 - ProdUS backend sends `query`, `conversationId`, and `context` to LoomAI.
+
+Live verification evidence:
+
+- Platform backend deployed to Coolify staging at commit `1fc53cdd70e20a3201dcbcdaee8c2df26ca7b1dd`; `/actuator/health` returned `UP`.
+- Shopify Bridge deployed to Coolify staging at commit `1fc53cdd70e20a3201dcbcdaee8c2df26ca7b1dd`; `/actuator/health` returned `UP`.
+- Shared runtime and managed runtimes `dep-7706fafb` and `dep-8c3e7259` deployed to commit `1fc53cdd70e20a3201dcbcdaee8c2df26ca7b1dd`; health checks returned `UP`.
+- ProdUS backend deployed to Coolify staging at commit `3935864d795692da4204f7954da18aea8a37d4f8`; `/health`, `/api/health`, and `/actuator/health` returned 200.
+- Shopify storefront chat accepted canonical `context` request and returned flat top-level `answer`, `safeSummary`, `conversationId`, `mode`, `position`, `sources`, `actions`, `suggestions`, and `metadata`; no public `result`, `authContext`, or `storefrontContext` fields were returned.
+- Shopify storefront chat rejected legacy top-level `storefrontContext` with HTTP 400 and migration guidance.
+- ProdUS Platform consumer bridge accepted canonical `query` / `conversationId` / `context` requests and returned flat top-level `answer` and `safeSummary`.
+- ProdUS Platform consumer bridge rejected legacy top-level `storefrontContext` with HTTP 400.
+- Shopify Max Mode live verification passed through backend bootstrap/query and browser click-open against `shop-staging.loomai.pro` using the staging storefront password.
 
 ## 1. Goal
 
