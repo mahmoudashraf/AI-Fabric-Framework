@@ -916,6 +916,80 @@ class IntentHandlingStepBatchTargetsTest {
         verify(cartHandler, never()).executeAction(anyMap(), any());
     }
 
+    @Test
+    void shouldResolveCartAddItemFromNestedSearchQueryWhenStorefrontContextTargetIsPresent() {
+        AIActionMetaData cartMeta = shopifyCartMeta();
+        AIActionMetaData catalogMeta = shopifySearchCatalogMeta();
+        AIActionHandler cartHandler = mock(AIActionHandler.class);
+        AIActionHandler catalogHandler = mock(AIActionHandler.class);
+        when(cartHandler.validateActionAllowed(any())).thenReturn(true);
+        when(cartHandler.requiresConfirmation()).thenReturn(true);
+        when(cartHandler.actionRuntimeConfig()).thenReturn(shopifyCartRuntimeConfig());
+        when(cartHandler.getConfirmationMessage(anyMap(), any())).thenReturn("Add 1 Selling Plans Ski Wax to your cart?");
+        when(catalogHandler.validateActionAllowed(any())).thenReturn(true);
+        when(catalogHandler.requiresConfirmation()).thenReturn(false);
+        when(catalogHandler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("catalog search")
+            .data(ActionResultContracts.object(Map.of("documents", List.of(Map.of(
+                "title", "Selling Plans Ski Wax",
+                "id", "gid://shopify/ProductVariant/44506675314771"
+            )))))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(cartHandler));
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(cartMeta));
+        when(registry.findHandler("shopify_search_catalog")).thenReturn(Optional.of(catalogHandler));
+        when(registry.findMetadata("shopify_search_catalog")).thenReturn(Optional.of(catalogMeta));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of(
+                "add_items", List.of(Map.of(
+                    "product_search_query", "Selling Plans Ski Wax",
+                    "quantity", 1
+                ))
+            ))
+            .build();
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user")
+            .conversationId("chat-storefront-target-catalog-resolved-cart")
+            .build();
+        PipelineContext context = PipelineContext.from("Add Selling Plans Ski Wax to my cart.", orchestrationContext)
+            .toBuilder()
+            .orchestrationPolicy(cartReadPolicy())
+            .resolvedTargets(List.of(ResolvedTarget.builder()
+                .id("att#1")
+                .contentText("Current page: cart. Page title: Shopping Companion Test")
+                .metadata(Map.of("pageType", "cart"))
+                .build()))
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = newStep(registry).process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.CONFIRMATION_REQUIRED);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> catalogParamsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(catalogHandler, times(1)).executeAction(catalogParamsCaptor.capture(), any());
+        assertThat(catalogParamsCaptor.getValue()).containsEntry("query", "Selling Plans Ski Wax");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> cartParamsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(cartHandler, times(1)).getConfirmationMessage(cartParamsCaptor.capture(), any());
+        Object raw = cartParamsCaptor.getValue().get("add_items");
+        assertThat(raw).isInstanceOf(List.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) raw;
+        assertThat(items).singleElement().satisfies(item -> assertThat(item)
+            .containsEntry("product_variant_id", "gid://shopify/ProductVariant/44506675314771")
+            .containsEntry("quantity", 1L));
+        verify(cartHandler, never()).executeAction(anyMap(), any());
+    }
+
     private IntentHandlingStep newStep(AIActionRegistry registry) {
         return newStep(registry, new InMemoryPendingActionStore());
     }

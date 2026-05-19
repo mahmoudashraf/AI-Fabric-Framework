@@ -838,6 +838,9 @@ public class IntentHandlingStep implements PipelineStep {
 
         if (merged.isEmpty()) {
             if (rawExisting != null) {
+                if (hasConfiguredParamResolver(schema)) {
+                    return params;
+                }
                 Map<String, Object> updated = new LinkedHashMap<>(params);
                 updated.remove(batchSpec.paramName());
                 return updated;
@@ -852,6 +855,10 @@ public class IntentHandlingStep implements PipelineStep {
         Map<String, Object> updated = new LinkedHashMap<>(params);
         updated.put(batchSpec.paramName(), Collections.unmodifiableList(merged));
         return updated;
+    }
+
+    private boolean hasConfiguredParamResolver(com.ai.infrastructure.intent.action.AIActionParamSchema schema) {
+        return schema != null && schema.getResolveFrom() != null && !schema.getResolveFrom().isEmpty();
     }
 
     private Map<String, Object> normalizeBatchItemAgainstSchema(Object element,
