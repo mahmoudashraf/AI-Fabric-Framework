@@ -391,7 +391,7 @@
         "shopifyEffectiveConversationMode": "executor"
       },
       "expectedBehavior": "customer_account_auth_gate_safe_copy",
-      "requiredConcepts": ["sign in"],
+      "requiredConcepts": ["connect", "store account"],
       "forbiddenClaims": ["MCP", "OAuth", "PKCE", "access token"],
       "expectedDenial": true,
       "groundingRequired": false

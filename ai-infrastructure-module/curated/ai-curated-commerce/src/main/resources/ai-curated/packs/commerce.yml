@@ -75,6 +75,7 @@ ai:
           planning-mode: SINGLE_PASS
           require-allowlist: true
           allowed-read-actions:
+            - shopify_search_catalog
             - shopify_get_cart
             - shopify_get_most_recent_order_status
             - shopify_get_order_status
@@ -93,6 +94,7 @@ ai:
           planning-mode: SINGLE_PASS
           require-allowlist: true
           allowed-read-actions:
+            - shopify_search_catalog
             - shopify_get_cart
             - shopify_get_most_recent_order_status
             - shopify_get_order_status

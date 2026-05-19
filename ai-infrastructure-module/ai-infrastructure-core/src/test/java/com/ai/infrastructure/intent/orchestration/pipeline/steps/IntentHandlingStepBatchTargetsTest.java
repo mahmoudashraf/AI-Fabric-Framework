@@ -714,6 +714,75 @@ class IntentHandlingStepBatchTargetsTest {
         assertThat(((ActionResult) actionResult).getErrorCode()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
     }
 
+    @Test
+    void shouldResolveCartAddItemFromAllowedCatalogReadActionBeforeConfirmation() {
+        AIActionMetaData cartMeta = shopifyCartMeta();
+        AIActionMetaData catalogMeta = shopifySearchCatalogMeta();
+        AIActionHandler cartHandler = mock(AIActionHandler.class);
+        AIActionHandler catalogHandler = mock(AIActionHandler.class);
+        when(cartHandler.validateActionAllowed(any())).thenReturn(true);
+        when(cartHandler.requiresConfirmation()).thenReturn(true);
+        when(cartHandler.actionRuntimeConfig()).thenReturn(shopifyCartRuntimeConfig());
+        when(cartHandler.getConfirmationMessage(anyMap(), any())).thenReturn("Add 1 Selling Plans Ski Wax to your cart?");
+        when(catalogHandler.validateActionAllowed(any())).thenReturn(true);
+        when(catalogHandler.requiresConfirmation()).thenReturn(false);
+        when(catalogHandler.executeAction(anyMap(), any())).thenReturn(ActionResult.builder()
+            .success(true)
+            .message("catalog search")
+            .data(ActionResultContracts.object(Map.of("documents", List.of(Map.of(
+                "title", "Selling Plans Ski Wax",
+                "product_variant_id", "gid://shopify/ProductVariant/44506675314771"
+            )))))
+            .build());
+
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        when(registry.findHandler("shopify_update_cart")).thenReturn(Optional.of(cartHandler));
+        when(registry.findMetadata("shopify_update_cart")).thenReturn(Optional.of(cartMeta));
+        when(registry.findHandler("shopify_search_catalog")).thenReturn(Optional.of(catalogHandler));
+        when(registry.findMetadata("shopify_search_catalog")).thenReturn(Optional.of(catalogMeta));
+
+        InMemoryPendingActionStore pendingActionStore = new InMemoryPendingActionStore();
+        IntentHandlingStep step = newStep(registry, pendingActionStore);
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("shopify_update_cart")
+            .actionParams(Map.of())
+            .build();
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user")
+            .conversationId("chat-catalog-resolved-cart")
+            .build();
+        PipelineContext context = PipelineContext.from("Add Selling Plans Ski Wax to my cart.", orchestrationContext)
+            .toBuilder()
+            .orchestrationPolicy(cartReadPolicy())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = step.process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.CONFIRMATION_REQUIRED);
+        assertThat(result.getMessage()).isEqualTo("Add 1 Selling Plans Ski Wax to your cart?");
+        assertThat(pendingActionStore.peekPendingAction("chat-catalog-resolved-cart", "user")).isPresent();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> catalogParamsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(catalogHandler, times(1)).executeAction(catalogParamsCaptor.capture(), any());
+        assertThat(catalogParamsCaptor.getValue()).containsEntry("query", "Add Selling Plans Ski Wax to my cart.");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> cartParamsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(cartHandler, times(1)).getConfirmationMessage(cartParamsCaptor.capture(), any());
+        Object raw = cartParamsCaptor.getValue().get("add_items");
+        assertThat(raw).isInstanceOf(List.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) raw;
+        assertThat(items).singleElement().satisfies(item -> assertThat(item)
+            .containsEntry("product_variant_id", "gid://shopify/ProductVariant/44506675314771")
+            .containsEntry("quantity", 1L));
+        verify(cartHandler, never()).executeAction(anyMap(), any());
+    }
+
     private IntentHandlingStep newStep(AIActionRegistry registry) {
         return newStep(registry, new InMemoryPendingActionStore());
     }
@@ -796,6 +865,15 @@ class IntentHandlingStepBatchTargetsTest {
             .name("add_items")
             .type(AIActionParamType.ARRAY)
             .batchTargets(true)
+            .resolveFrom(Map.of(
+                "source", "READ_ACTION",
+                "actionName", "shopify_search_catalog",
+                "params", Map.of(
+                    "query", "{{context.originalQuery}}",
+                    "limit", 1
+                ),
+                "resultPaths", List.of("documents.0", "results.0", "_items.0")
+            ))
             .items(item)
             .build();
 
@@ -805,6 +883,29 @@ class IntentHandlingStepBatchTargetsTest {
             .category("shopify")
             .accessMode(ActionAccessMode.WRITE_ONLY)
             .parameterSchemas(Map.of("add_items", addItems))
+            .build();
+    }
+
+    private AIActionMetaData shopifySearchCatalogMeta() {
+        AIActionParamSchema query = AIActionParamSchema.builder()
+            .name("query")
+            .type(AIActionParamType.STRING)
+            .required(true)
+            .build();
+        AIActionParamSchema limit = AIActionParamSchema.builder()
+            .name("limit")
+            .type(AIActionParamType.INTEGER)
+            .min(1L)
+            .build();
+        return AIActionMetaData.builder()
+            .name("shopify_search_catalog")
+            .description("Search Shopify catalog")
+            .category("shopify")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .readActionResolutionEligible(true)
+            .parameterSchemas(Map.of("query", query, "limit", limit))
+            .requiredParameters(Set.of("query"))
             .build();
     }
 
@@ -900,6 +1001,31 @@ class IntentHandlingStepBatchTargetsTest {
                 true,
                 OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
                 List.of("shopify_get_most_recent_order_status"),
+                true,
+                1,
+                2,
+                2,
+                1,
+                4_000,
+                2_400,
+                OrchestrationProperties.ReadActionResolutionRagCooperationMode.RAG_IF_ACTIONS_INSUFFICIENT,
+                true
+            ),
+            OrchestrationPolicy.RagBudgets.defaults()
+        );
+    }
+
+    private OrchestrationPolicy cartReadPolicy() {
+        return new OrchestrationPolicy(
+            OrchestrationProfile.PRODUCTION_CHAT,
+            "executor",
+            "cart",
+            OrchestrationProperties.InformationMode.LLM_DRIVEN,
+            OrchestrationPolicy.OrchestrationCapabilities.defaults(),
+            new OrchestrationPolicy.ReadActionResolutionPolicy(
+                true,
+                OrchestrationProperties.ReadActionResolutionPlanningMode.SINGLE_PASS,
+                List.of("shopify_search_catalog", "shopify_get_cart"),
                 true,
                 1,
                 2,

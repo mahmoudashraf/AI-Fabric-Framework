@@ -529,7 +529,8 @@ public class IntentHandlingStep implements PipelineStep {
             handler.actionRuntimeConfig(),
             meta,
             effectiveParams,
-            pipelineContext
+            pipelineContext,
+            resolvedContextParams.resolvedParameters()
         );
         validation = mergeExecutableValidation(validation, executableValidation);
         if (executableValidation != null && executableValidation.hasFailures()) {
@@ -864,7 +865,12 @@ public class IntentHandlingStep implements PipelineStep {
             if (entry == null || !StringUtils.hasText(entry.getKey())) {
                 continue;
             }
-            Object value = mapValueForSchemaProperty(raw, entry.getKey());
+            Object value = mapValueForSchemaProperty(raw, entry.getKey(), entry.getValue());
+            if (!hasMeaningfulBatchValue(value)
+                && entry.getValue() != null
+                && entry.getValue().getDefaultValue() != null) {
+                value = entry.getValue().getDefaultValue();
+            }
             Object normalized = normalizeBatchValueAgainstSchema(value, entry.getValue());
             if (normalized != null) {
                 item.put(entry.getKey().trim(), normalized);
@@ -877,10 +883,20 @@ public class IntentHandlingStep implements PipelineStep {
     }
 
     private Object mapValueForSchemaProperty(Map<?, ?> raw, String propName) {
+        return mapValueForSchemaProperty(raw, propName, null);
+    }
+
+    private Object mapValueForSchemaProperty(Map<?, ?> raw,
+                                             String propName,
+                                             com.ai.infrastructure.intent.action.AIActionParamSchema propSchema) {
         if (raw == null || raw.isEmpty() || !StringUtils.hasText(propName)) {
             return null;
         }
-        List<String> candidates = attachmentContextCandidateKeys(propName);
+        List<String> candidates = new ArrayList<>();
+        if (propSchema != null && propSchema.getEvidenceKeys() != null) {
+            candidates.addAll(propSchema.getEvidenceKeys());
+        }
+        candidates.addAll(attachmentContextCandidateKeys(propName));
         for (String candidate : candidates) {
             for (Map.Entry<?, ?> entry : raw.entrySet()) {
                 if (entry == null || entry.getKey() == null || !StringUtils.hasText(entry.getKey().toString())) {
@@ -1111,7 +1127,7 @@ public class IntentHandlingStep implements PipelineStep {
             if (updated == null) {
                 updated = new LinkedHashMap<>(params);
             }
-            updated.put(parameter.trim(), normalizeResolvedActionParamValue(resolved));
+            updated.put(parameter.trim(), normalizeResolvedActionParamValue(resolved, schema));
             resolvedParameters.add(parameter.trim());
             current = updated;
         }
@@ -1325,7 +1341,10 @@ public class IntentHandlingStep implements PipelineStep {
             readParams = new LinkedHashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 if (entry != null && entry.getKey() != null && entry.getValue() != null) {
-                    readParams.put(entry.getKey().toString(), entry.getValue());
+                    Object value = resolveReadActionParamTemplate(entry.getValue(), context, pipelineContext);
+                    if (hasMeaningfulActionParamValue(value)) {
+                        readParams.put(entry.getKey().toString(), value);
+                    }
                 }
             }
         }
@@ -1354,15 +1373,93 @@ public class IntentHandlingStep implements PipelineStep {
         if (result.getData() == null) {
             return null;
         }
+        List<Map<String, Object>> resultRoots = new ArrayList<>();
+        try {
+            Optional<Map<String, Object>> facts = readHandler.buildPostActionLlmFacts(result, readContext);
+            if (facts != null && facts.isPresent() && facts.get() != null && !facts.get().isEmpty()) {
+                resultRoots.add(facts.get());
+            }
+        } catch (Exception ex) {
+            log.debug("Read action {} facts were unavailable while resolving action param {}: {}",
+                actionName, parameter, ex.getMessage());
+        }
         Map<String, Object> data = result.getData().toMap();
+        if (data != null && !data.isEmpty()) {
+            resultRoots.add(data);
+        }
         List<String> paths = resolveResultPaths(parameter, resolveFrom);
         for (String path : paths) {
-            Object value = valueByPath(data, path);
-            if (hasMeaningfulActionParamValue(value)) {
-                return value;
+            for (Map<String, Object> root : resultRoots) {
+                Object value = valueByPath(root, path);
+                if (hasMeaningfulActionParamValue(value)) {
+                    return value;
+                }
             }
         }
         return null;
+    }
+
+    private Object resolveReadActionParamTemplate(Object raw,
+                                                  OrchestrationContext context,
+                                                  PipelineContext pipelineContext) {
+        if (raw instanceof Map<?, ?> map) {
+            Map<String, Object> resolved = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry != null && entry.getKey() != null) {
+                    Object value = resolveReadActionParamTemplate(entry.getValue(), context, pipelineContext);
+                    if (hasMeaningfulActionParamValue(value)) {
+                        resolved.put(entry.getKey().toString(), value);
+                    }
+                }
+            }
+            return resolved.isEmpty() ? null : Collections.unmodifiableMap(resolved);
+        }
+        if (raw instanceof List<?> list) {
+            List<Object> resolved = new ArrayList<>();
+            for (Object item : list) {
+                Object value = resolveReadActionParamTemplate(item, context, pipelineContext);
+                if (hasMeaningfulActionParamValue(value)) {
+                    resolved.add(value);
+                }
+            }
+            return resolved.isEmpty() ? null : Collections.unmodifiableList(resolved);
+        }
+        if (!(raw instanceof CharSequence text)) {
+            return raw;
+        }
+        String value = text.toString();
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        Map<String, Object> contextValues = Map.of(
+            "context.originalQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getOriginalQuery()) : "",
+            "originalQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getOriginalQuery()) : "",
+            "query", pipelineContext != null ? nullToEmpty(pipelineContext.getEffectiveQuery()) : "",
+            "context.effectiveQuery", pipelineContext != null ? nullToEmpty(pipelineContext.getEffectiveQuery()) : "",
+            "sessionId", context != null ? nullToEmpty(context.getSessionId()) : "",
+            "context.sessionId", context != null ? nullToEmpty(context.getSessionId()) : "",
+            "position", context != null ? nullToEmpty(context.getPosition()) : "",
+            "context.position", context != null ? nullToEmpty(context.getPosition()) : "",
+            "mode", context != null ? nullToEmpty(context.getMode()) : "",
+            "context.mode", context != null ? nullToEmpty(context.getMode()) : ""
+        );
+        String trimmed = value.trim();
+        if (trimmed.startsWith("{{") && trimmed.endsWith("}}")) {
+            String key = trimmed.substring(2, trimmed.length() - 2).trim();
+            Object exact = contextValues.get(key);
+            if (exact != null && StringUtils.hasText(exact.toString())) {
+                return exact;
+            }
+        }
+        String resolved = value;
+        for (Map.Entry<String, Object> entry : contextValues.entrySet()) {
+            resolved = resolved.replace("{{" + entry.getKey() + "}}", entry.getValue() != null ? entry.getValue().toString() : "");
+        }
+        return StringUtils.hasText(resolved) ? resolved.trim() : null;
+    }
+
+    private String nullToEmpty(String value) {
+        return value != null ? value : "";
     }
 
     private List<String> resolveResultPaths(String parameter, Map<String, Object> resolveFrom) {
@@ -1697,6 +1794,34 @@ public class IntentHandlingStep implements PipelineStep {
             return text.trim();
         }
         return value;
+    }
+
+    private Object normalizeResolvedActionParamValue(Object value,
+                                                     com.ai.infrastructure.intent.action.AIActionParamSchema schema) {
+        Object normalized = normalizeResolvedActionParamValue(value);
+        if (schema == null
+            || schema.getType() == null
+            || !hasMeaningfulActionParamValue(normalized)) {
+            return normalized;
+        }
+        if (schema.getType() == com.ai.infrastructure.intent.action.AIActionParamType.ARRAY
+            && schema.getItems() != null
+            && schema.getItems().getType() == com.ai.infrastructure.intent.action.AIActionParamType.OBJECT) {
+            List<?> rawItems = normalized instanceof List<?> list ? list : List.of(normalized);
+            List<Object> items = new ArrayList<>();
+            for (Object rawItem : rawItems) {
+                Map<String, Object> item = normalizeBatchItemAgainstSchema(rawItem, schema.getItems());
+                if (item != null && !item.isEmpty()) {
+                    items.add(item);
+                }
+            }
+            return items.isEmpty() ? normalized : Collections.unmodifiableList(items);
+        }
+        if (schema.getType() == com.ai.infrastructure.intent.action.AIActionParamType.OBJECT) {
+            Map<String, Object> item = normalizeBatchItemAgainstSchema(normalized, schema);
+            return item != null && !item.isEmpty() ? item : normalized;
+        }
+        return normalized;
     }
 
     private boolean hasMeaningfulActionParamValue(Object value) {
@@ -6162,7 +6287,8 @@ public class IntentHandlingStep implements PipelineStep {
     private ActionExecutableValidation validateExecutableActionParams(Map<String, Object> actionRuntimeConfig,
                                                                       AIActionMetaData meta,
                                                                       Map<String, Object> params,
-                                                                      PipelineContext pipelineContext) {
+                                                                      PipelineContext pipelineContext,
+                                                                      Set<String> trustedResolvedParameters) {
         if (!isMcpRuntimeAction(actionRuntimeConfig)) {
             return null;
         }
@@ -6171,6 +6297,7 @@ public class IntentHandlingStep implements PipelineStep {
         List<String> invalidArguments = new ArrayList<>();
         List<String> untrustedArguments = new ArrayList<>();
         Map<String, Object> debug = new LinkedHashMap<>();
+        Set<String> trustedResolved = normalizeParameterNameSet(trustedResolvedParameters);
 
         List<String> requiredAnyArguments = mcpRequiredAnyArguments(actionRuntimeConfig);
         if (!requiredAnyArguments.isEmpty()) {
@@ -6201,6 +6328,7 @@ public class IntentHandlingStep implements PipelineStep {
                     value,
                     entry.getValue(),
                     evidence,
+                    trustedResolved,
                     invalidArguments,
                     untrustedArguments
                 );
@@ -6211,6 +6339,7 @@ public class IntentHandlingStep implements PipelineStep {
         debug.put("invalidArguments", List.copyOf(invalidArguments));
         debug.put("untrustedArguments", List.copyOf(untrustedArguments));
         debug.put("requiredAnyArguments", List.copyOf(requiredAnyArguments));
+        debug.put("trustedResolvedParameters", List.copyOf(trustedResolved));
         debug.put("sourcesUsed", evidence != null ? evidence.sourcesUsed() : Map.of());
         return new ActionExecutableValidation(
             List.copyOf(missingExecutable),
@@ -6323,13 +6452,17 @@ public class IntentHandlingStep implements PipelineStep {
                                               Object value,
                                               com.ai.infrastructure.intent.action.AIActionParamSchema schema,
                                               EvidenceBundle evidence,
+                                              Set<String> trustedResolvedParameters,
                                               List<String> invalidArguments,
                                               List<String> untrustedArguments) {
         if (schema == null || !hasMeaningfulJavaValue(value)) {
             return;
         }
 
-        if (Boolean.TRUE.equals(schema.getEvidenceBound()) && !isEvidenceBoundValueTrusted(value, schema, evidence)) {
+        boolean trustedResolvedValue = isTrustedResolvedExecutablePath(path, trustedResolvedParameters);
+        if (Boolean.TRUE.equals(schema.getEvidenceBound())
+            && !trustedResolvedValue
+            && !isEvidenceBoundValueTrusted(value, schema, evidence)) {
             untrustedArguments.add(path);
             return;
         }
@@ -6351,6 +6484,7 @@ public class IntentHandlingStep implements PipelineStep {
                     list.get(i),
                     itemSchema,
                     evidence,
+                    trustedResolvedParameters,
                     invalidArguments,
                     untrustedArguments
                 );
@@ -6377,11 +6511,32 @@ public class IntentHandlingStep implements PipelineStep {
                     propertyValue,
                     property.getValue(),
                     evidence,
+                    trustedResolvedParameters,
                     invalidArguments,
                     untrustedArguments
                 );
             }
         }
+    }
+
+    private boolean isTrustedResolvedExecutablePath(String path, Set<String> trustedResolvedParameters) {
+        if (!StringUtils.hasText(path) || trustedResolvedParameters == null || trustedResolvedParameters.isEmpty()) {
+            return false;
+        }
+        String root = path.trim();
+        int dot = root.indexOf('.');
+        int bracket = root.indexOf('[');
+        int end = root.length();
+        if (dot >= 0) {
+            end = Math.min(end, dot);
+        }
+        if (bracket >= 0) {
+            end = Math.min(end, bracket);
+        }
+        if (end <= 0) {
+            return false;
+        }
+        return trustedResolvedParameters.contains(root.substring(0, end).trim().toLowerCase(Locale.ROOT));
     }
 
     private void validateScalarExecutableConstraints(String path,
