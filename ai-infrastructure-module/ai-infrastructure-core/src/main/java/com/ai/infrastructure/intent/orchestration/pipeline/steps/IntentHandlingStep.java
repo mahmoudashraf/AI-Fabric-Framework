@@ -1260,6 +1260,39 @@ public class IntentHandlingStep implements PipelineStep {
                 return false;
             }
         }
+        if (schema.getType() == com.ai.infrastructure.intent.action.AIActionParamType.ARRAY
+            && schema.getItems() != null
+            && value instanceof List<?> list) {
+            for (Object item : list) {
+                if (!actionParamValueSatisfiesSchema(parameter, item, schema.getItems())) {
+                    return false;
+                }
+            }
+        }
+        if (schema.getType() == com.ai.infrastructure.intent.action.AIActionParamType.OBJECT
+            && value instanceof Map<?, ?> map
+            && schema.getProperties() != null
+            && !schema.getProperties().isEmpty()) {
+            for (Map.Entry<String, com.ai.infrastructure.intent.action.AIActionParamSchema> property : schema.getProperties().entrySet()) {
+                if (property == null || !StringUtils.hasText(property.getKey()) || property.getValue() == null) {
+                    continue;
+                }
+                Object propertyValue = valueByCandidateKeys(map, List.of(property.getKey().trim()));
+                if (!hasMeaningfulActionParamValue(propertyValue)) {
+                    if (Boolean.TRUE.equals(property.getValue().getRequired())
+                        || (schema.getRequiredProperties() != null
+                            && schema.getRequiredProperties().stream()
+                                .filter(StringUtils::hasText)
+                                .anyMatch(required -> required.trim().equalsIgnoreCase(property.getKey().trim())))) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (!actionParamValueSatisfiesSchema(property.getKey(), propertyValue, property.getValue())) {
+                    return false;
+                }
+            }
+        }
         if (StringUtils.hasText(schema.getPattern())) {
             try {
                 if (!Pattern.compile(schema.getPattern()).matcher(value.toString().trim()).matches()) {
