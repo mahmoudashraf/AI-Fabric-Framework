@@ -3888,6 +3888,14 @@ function extractAssistantMessage(payload: unknown): string {
       message?: unknown
     }
   }).result
+  const safeSummary = (payload as { safeSummary?: unknown }).safeSummary
+  if (typeof safeSummary === 'string' && safeSummary.trim()) {
+    return safeSummary.trim()
+  }
+  const answer = (payload as { answer?: unknown }).answer
+  if (typeof answer === 'string' && answer.trim()) {
+    return answer.trim()
+  }
   if (typeof result?.sanitizedPayload?.safeSummary === 'string' && result.sanitizedPayload.safeSummary.trim()) {
     return result.sanitizedPayload.safeSummary.trim()
   }
@@ -3949,6 +3957,7 @@ function extractProductCards(payload: unknown): PlaygroundProductCard[] {
       readPath(payload, 'result', 'sanitizedPayload', 'products'),
       readPath(payload, 'result', 'products'),
       readPath(payload, 'products'),
+      readPath(payload, 'metadata', 'products'),
       readPath(payload, 'result', 'sanitizedPayload', 'items')
     ) ?? []
   return candidates.map(normalizeProductCard).filter((value): value is PlaygroundProductCard => value != null).slice(0, 4)
@@ -3957,9 +3966,10 @@ function extractProductCards(payload: unknown): PlaygroundProductCard[] {
 function extractSourceCards(payload: unknown): PlaygroundSourceCard[] {
   const candidates =
     firstArray(
+      readPath(payload, 'sources'),
       readPath(payload, 'result', 'sanitizedPayload', 'sources'),
       readPath(payload, 'result', 'sources'),
-      readPath(payload, 'sources')
+      readPath(payload, 'documents')
     ) ?? []
   return candidates.map(normalizeSourceCard).filter((value): value is PlaygroundSourceCard => value != null).slice(0, 4)
 }

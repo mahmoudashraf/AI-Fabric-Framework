@@ -151,10 +151,15 @@ public class ShopifyStorefrontChatService {
         ObjectNode body = request != null && request.isObject()
             ? (ObjectNode) request.deepCopy()
             : objectMapper.createObjectNode();
+        rejectLegacyPublicChatFields(body);
         ObjectNode storefrontContext = extractStorefrontContext(body);
         ObjectNode storefrontContextAttachment = storefrontContextAttachment(storefrontContext, shopDomain);
-        body.remove("storefrontContext");
         CONTEXT_TOP_LEVEL_FIELDS.forEach(body::remove);
+        if (storefrontContext == null || storefrontContext.isEmpty()) {
+            body.remove("context");
+        } else {
+            body.set("context", storefrontContext.deepCopy());
+        }
         if (storefrontContextAttachment != null && !storefrontContextAttachment.isEmpty()) {
             ArrayNode attachments = objectMapper.createArrayNode();
             JsonNode existingAttachments = body.get("attachments");
@@ -167,22 +172,22 @@ public class ShopifyStorefrontChatService {
         return body;
     }
 
+    private void rejectLegacyPublicChatFields(ObjectNode body) {
+        if (body == null || !body.has("storefrontContext")) {
+            return;
+        }
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Unsupported chat request field: storefrontContext. Use context for product/storefront request state."
+        );
+    }
+
     private ObjectNode extractStorefrontContext(ObjectNode body) {
-        ObjectNode context = null;
-        JsonNode rawNestedContext = body.get("storefrontContext");
+        JsonNode rawNestedContext = body.get("context");
         if (rawNestedContext != null && rawNestedContext.isObject()) {
-            context = (ObjectNode) rawNestedContext.deepCopy();
+            return (ObjectNode) rawNestedContext.deepCopy();
         }
-        for (String field : CONTEXT_TOP_LEVEL_FIELDS) {
-            JsonNode value = body.get(field);
-            if (value != null && !value.isNull()) {
-                if (context == null) {
-                    context = objectMapper.createObjectNode();
-                }
-                context.set(field, value.deepCopy());
-            }
-        }
-        return context;
+        return null;
     }
 
     private ObjectNode storefrontContextAttachment(JsonNode rawContext, String shopDomain) {
@@ -482,25 +487,21 @@ public class ShopifyStorefrontChatService {
     private JsonNode policyStorefrontAnswer(String message, String customerActionRequirement, String reason) {
         ObjectNode response = objectMapper.createObjectNode();
         response.put("success", true);
+        response.put("type", "INFORMATION_PROVIDED");
+        response.put("answer", message);
+        response.put("safeSummary", message);
         response.put("conversationId", "chat-" + UUID.randomUUID());
-        ObjectNode result = response.putObject("result");
-        result.put("type", "INFORMATION_PROVIDED");
-        result.put("success", true);
-        result.put("message", message);
-        ObjectNode sanitizedPayload = result.putObject("sanitizedPayload");
-        sanitizedPayload.put("type", "INFORMATION_PROVIDED");
-        sanitizedPayload.put("success", true);
-        sanitizedPayload.put("message", message);
-        sanitizedPayload.put("safeSummary", message);
-        sanitizedPayload.put("answer", message);
+        response.putArray("sources");
+        ArrayNode actions = response.putArray("actions");
+        response.putArray("suggestions");
         if ("CUSTOMER_ACCOUNT_AUTH_REQUIRED".equals(customerActionRequirement)) {
-            ObjectNode data = sanitizedPayload.putObject("data");
+            ObjectNode data = objectMapper.createObjectNode();
             data.put("errorCode", "CUSTOMER_ACCOUNT_AUTH_REQUIRED");
             data.put("customerAccountAuthRequired", true);
             ObjectNode customerAccountAuth = data.putObject("customerAccountAuth");
             customerAccountAuth.put("required", true);
             customerAccountAuth.put("reason", StringUtils.hasText(reason) ? reason : "ORDER_LOOKUP");
-            result.set("data", data.deepCopy());
+            actions.add(data);
         }
         return response;
     }
@@ -635,7 +636,7 @@ public class ShopifyStorefrontChatService {
             return policyResponse;
         }
         String answer = extractAnswer(response);
-        return ensureWidgetSanitizedPayload(response, answer);
+        return ensureCanonicalStorefrontPayload(response, answer);
     }
 
     private JsonNode storefrontPolicyResponse(JsonNode response,
@@ -704,12 +705,17 @@ public class ShopifyStorefrontChatService {
 
     private boolean genericMcpToolResult(JsonNode response) {
         for (String path : List.of(
+            "safeSummary",
+            "answer",
+            "actions.0.message",
+            "actions.0.actionResult.message",
             "result.sanitizedPayload.safeSummary",
             "result.sanitizedPayload.message",
             "result.sanitizedPayload.answer",
             "result.data.actionResult.message",
             "result.sanitizedPayload.data.actionResult.message",
-            "result.message"
+            "result.message",
+            "message"
         )) {
             String value = nestedText(response, path);
             if ("MCP tool result".equalsIgnoreCase(value)) {
@@ -721,10 +727,13 @@ public class ShopifyStorefrontChatService {
 
     private String selectedErrorCode(JsonNode response) {
         for (String path : List.of(
+            "actions.0.errorCode",
+            "actions.0.actionResult.errorCode",
             "result.data.actionResult.errorCode",
             "result.sanitizedPayload.data.actionResult.errorCode",
             "result.data.errorCode",
             "result.sanitizedPayload.data.errorCode",
+            "fallbackReason",
             "errorCode"
         )) {
             String value = nestedText(response, path);
@@ -737,6 +746,11 @@ public class ShopifyStorefrontChatService {
 
     private String selectedActionId(JsonNode response) {
         for (String path : List.of(
+            "actions.0.action",
+            "actions.0.actionId",
+            "actions.0.action.id",
+            "actions.0.actionResult.data.action",
+            "actions.0.actionResult.data.actionId",
             "result.data.action",
             "result.data.actionId",
             "result.data.action.id",
@@ -786,41 +800,92 @@ public class ShopifyStorefrontChatService {
             || StringUtils.hasText(textOrNull(context, "productTitle"));
     }
 
-    private JsonNode ensureWidgetSanitizedPayload(JsonNode response, String answer) {
+    private JsonNode ensureCanonicalStorefrontPayload(JsonNode response, String answer) {
         if (response == null || !response.isObject()) {
             return response;
         }
-        ObjectNode shaped = (ObjectNode) response.deepCopy();
-        shaped.remove("authContext");
-        ObjectNode result = objectChild(shaped, "result");
-        result.remove(List.of("metadata", "nextSteps", "children"));
-        ObjectNode sanitizedPayload = objectChild(result, "sanitizedPayload");
-        String resultType = trimToNull(textOrNull(result, "type"));
-        if (trimToNull(textOrNull(sanitizedPayload, "type")) == null) {
-            sanitizedPayload.put("type", resultType == null ? "INFORMATION_PROVIDED" : resultType);
-        }
-        if (!sanitizedPayload.has("success")) {
-            boolean success = result.has("success")
-                ? result.path("success").asBoolean(true)
-                : shaped.path("success").asBoolean(true);
-            sanitizedPayload.put("success", success);
-        }
+        ObjectNode shaped = objectMapper.createObjectNode();
+        boolean success = response.has("success")
+            ? response.path("success").asBoolean(true)
+            : firstPresent(response.path("result").path("success"), response.path("result").path("sanitizedPayload").path("success")).asBoolean(true);
+        String resultType = firstNonBlank(
+            textOrNull(response, "type"),
+            nestedText(response, "result.type"),
+            nestedText(response, "result.sanitizedPayload.type")
+        );
+        shaped.put("success", success);
+        shaped.put("type", resultType == null ? "INFORMATION_PROVIDED" : resultType);
         if (answer != null) {
-            result.put("message", answer);
-            sanitizedPayload.put("message", answer);
-            sanitizedPayload.put("safeSummary", answer);
-            sanitizedPayload.put("answer", answer);
+            shaped.put("answer", answer);
+            shaped.put("safeSummary", answer);
         }
-        JsonNode safeData = storefrontSafeData(firstPresent(result.get("data"), sanitizedPayload.get("data")));
-        if (safeData != null && !safeData.isNull()) {
-            result.set("data", safeData.deepCopy());
-            sanitizedPayload.set("data", safeData.deepCopy());
+        String conversationId = firstNonBlank(textOrNull(response, "conversationId"), "chat-" + UUID.randomUUID());
+        shaped.put("conversationId", conversationId);
+        copySafeValue(response, shaped, "mode");
+        copySafeValue(response, shaped, "position");
+        copySafeValue(response, shaped, "fallbackReason");
+        copySafeValue(response, shaped, "providerRequestId");
+        JsonNode sources = firstArrayNode(
+            response.get("sources"),
+            response.get("documents"),
+            nestedNode(response, "result.data.documents"),
+            nestedNode(response, "result.data.ragResponse.documents"),
+            nestedNode(response, "result.sanitizedPayload.data.documents"),
+            nestedNode(response, "result.sanitizedPayload.data.ragResponse.documents")
+        );
+        shaped.set("sources", storefrontSafeDocuments(sources));
+        shaped.set("actions", canonicalActions(response));
+        JsonNode suggestions = firstArrayNode(
+            response.get("suggestions"),
+            nestedNode(response, "result.sanitizedPayload.suggestions"),
+            nestedNode(response, "result.data.suggestions")
+        );
+        shaped.set("suggestions", suggestions != null ? suggestions.deepCopy() : objectMapper.createArrayNode());
+        JsonNode metadata = response.get("metadata");
+        if (metadata != null && metadata.isObject()) {
+            shaped.set("metadata", metadata.deepCopy());
         }
         return shaped;
     }
 
+    private ArrayNode canonicalActions(JsonNode response) {
+        ArrayNode actions = objectMapper.createArrayNode();
+        JsonNode existingActions = response == null ? null : response.get("actions");
+        if (existingActions != null && existingActions.isArray()) {
+            for (JsonNode action : existingActions) {
+                JsonNode safe = storefrontSafeData(action);
+                if (safe != null && !safe.isNull()) {
+                    actions.add(safe);
+                }
+            }
+        }
+        if (!actions.isEmpty()) {
+            return actions;
+        }
+        JsonNode safeData = storefrontSafeData(firstPresent(
+            nestedNode(response, "result.data"),
+            nestedNode(response, "result.sanitizedPayload.data")
+        ));
+        if (safeData != null && safeData.isObject() && !safeData.isEmpty()) {
+            actions.add(safeData);
+        }
+        return actions;
+    }
+
+    private JsonNode firstArrayNode(JsonNode... nodes) {
+        if (nodes == null) {
+            return null;
+        }
+        for (JsonNode node : nodes) {
+            if (node != null && node.isArray()) {
+                return node;
+            }
+        }
+        return null;
+    }
+
     private JsonNode firstPresent(JsonNode first, JsonNode second) {
-        return first != null && !first.isNull() ? first : second;
+        return first != null && !first.isNull() && !first.isMissingNode() ? first : second;
     }
 
     private JsonNode storefrontSafeData(JsonNode data) {
@@ -835,6 +900,8 @@ public class ShopifyStorefrontChatService {
         copySafeValue(data, safe, "query");
         copySafeValue(data, safe, "response");
         copySafeValue(data, safe, "action");
+        copySafeValue(data, safe, "actionId");
+        copySafeValue(data, safe, "message");
         copySafeValue(data, safe, "errorCode");
         copySafeValue(data, safe, "customerAccountAuthRequired");
         copySafeValue(data, safe, "requiresConfirmation");
@@ -974,26 +1041,19 @@ public class ShopifyStorefrontChatService {
         target.set(field, value.deepCopy());
     }
 
-    private ObjectNode objectChild(ObjectNode parent, String field) {
-        JsonNode existing = parent.get(field);
-        if (existing != null && existing.isObject()) {
-            return (ObjectNode) existing;
-        }
-        ObjectNode created = objectMapper.createObjectNode();
-        parent.set(field, created);
-        return created;
-    }
-
     private String extractAnswer(JsonNode response) {
         for (String path : List.of(
+            "safeSummary",
+            "answer",
+            "actions.0.message",
+            "actions.0.actionResult.message",
             "result.sanitizedPayload.safeSummary",
             "result.sanitizedPayload.message",
             "result.sanitizedPayload.answer",
             "result.data.actionResult.message",
             "result.sanitizedPayload.data.actionResult.message",
             "result.message",
-            "message",
-            "answer"
+            "message"
         )) {
             String value = nestedText(response, path);
             if (value != null && !genericMcpToolResult(value)) {
@@ -1005,6 +1065,8 @@ public class ShopifyStorefrontChatService {
 
     private String extractMcpToolTextAnswer(JsonNode response) {
         for (String path : List.of(
+            "actions.0.actionResult.data.toolResult.content",
+            "actions.0.toolResult.content",
             "result.data.actionResult.data.toolResult.content",
             "result.sanitizedPayload.data.actionResult.data.toolResult.content",
             "result.data.toolResult.content",
@@ -1146,10 +1208,16 @@ public class ShopifyStorefrontChatService {
             return current;
         }
         for (String part : dottedPath.split("\\.")) {
-            if (current == null || !current.isObject()) {
+            if (current == null || current.isNull()) {
                 return null;
             }
-            current = current.get(part);
+            if (current.isArray() && part.matches("\\d+")) {
+                current = current.get(Integer.parseInt(part));
+            } else if (current.isObject()) {
+                current = current.get(part);
+            } else {
+                return null;
+            }
         }
         return current;
     }

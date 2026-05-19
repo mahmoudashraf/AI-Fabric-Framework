@@ -44,6 +44,10 @@ class ShopifyStorefrontChatServiceTest {
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Show me backpacks",
+              "context":{
+                "pageType":"product",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -66,7 +70,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Show me backpacks",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "product":{"handle":"travel-pack","title":"Travel Pack"}
                   }
@@ -79,6 +83,10 @@ class ShopifyStorefrontChatServiceTest {
         verify(platformClient).queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Show me backpacks",
+              "context":{
+                "pageType":"product",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -109,7 +117,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Add this to my cart",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "productTitle":"Travel Pack",
                     "productHandle":"travel-pack"
@@ -144,7 +152,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"What is this product best for?",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"product-faq",
                     "shopifyPageModeGroup":"product"
@@ -154,7 +162,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+        assertThat(response.path("safeSummary").asText())
             .isEqualTo("Open a product page or select a product so I can answer about that item.");
         verify(platformClient, never()).queryConsumerBridgeChat(anyString(), any(), anyString());
     }
@@ -173,7 +181,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"What's in my cart?",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"cart",
                     "cartId":"gid://shopify/Cart/c1-test?key=cart-key"
                   }
@@ -222,16 +230,16 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"I want to return my last order",
-                  "storefrontContext":{"pageType":"account"}
+                  "context":{"pageType":"account"}
                 }
                 """),
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("Connect your store account", "store support team");
         assertThat(answer).doesNotContain("MCP", "OAuth", "PKCE", "token");
-        JsonNode safeData = response.path("result").path("sanitizedPayload").path("data");
+        JsonNode safeData = response.path("actions").path(0);
         assertThat(safeData.path("errorCode").asText()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
         assertThat(safeData.path("customerAccountAuthRequired").asBoolean()).isTrue();
         assertThat(safeData.path("customerAccountAuth").path("required").asBoolean()).isTrue();
@@ -268,17 +276,17 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Do I have store credit?",
-                  "storefrontContext":{"pageType":"account"}
+                  "context":{"pageType":"account"}
                 }
                 """),
             "shopper-session-1"
         );
 
-        JsonNode safePayload = response.path("result").path("sanitizedPayload");
+        JsonNode safePayload = response;
         String answer = safePayload.path("safeSummary").asText();
         assertThat(answer).contains("Connect your store account", "store credit");
         assertThat(answer).doesNotContain("orders", "order number", "OAuth", "PKCE", "token");
-        JsonNode safeData = safePayload.path("data");
+        JsonNode safeData = safePayload.path("actions").path(0);
         assertThat(safeData.path("errorCode").asText()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
         assertThat(safeData.path("customerAccountAuth").path("reason").asText()).isEqualTo("STORE_CREDIT");
     }
@@ -313,14 +321,14 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Where is my order?",
-                  "storefrontContext":{"pageType":"account"}
+                  "context":{"pageType":"account"}
                 }
                 """),
             "shopper-session-1"
         );
 
-        JsonNode safeData = response.path("result").path("sanitizedPayload").path("data");
-        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+        JsonNode safeData = response.path("actions").path(0);
+        assertThat(response.path("safeSummary").asText())
             .contains("not available", "store support team");
         assertThat(safeData.path("customerAccountAuthRequired").asBoolean(false)).isFalse();
     }
@@ -355,7 +363,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"What's in my cart?",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"cart",
                     "cartId":"gid://shopify/Cart/c1-test?key=cart-key"
                   }
@@ -364,7 +372,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("cart");
         assertThat(answer).doesNotContain("MCP", "tool result");
     }
@@ -406,13 +414,13 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Where is my order?",
-                  "storefrontContext":{"pageType":"account"}
+                  "context":{"pageType":"account"}
                 }
                 """),
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).isEqualTo("No orders found for this customer.");
         assertThat(answer).doesNotContain("MCP", "tool result");
     }
@@ -454,13 +462,13 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Yes, confirm",
-                  "storefrontContext":{"pageType":"index"}
+                  "context":{"pageType":"index"}
                 }
                 """),
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer)
             .contains("Cart updated", "1 x Selling Plans Ski Wax", "24.95 USD", "https://shop.example/cart/c/test")
             .doesNotContain("{", "MCP tool result");
@@ -475,6 +483,11 @@ class ShopifyStorefrontChatServiceTest {
             {
               "content":"Current page: Travel Pack",
               "maxSuggestions":4,
+              "context":{
+                "pageType":"product",
+                "pageTitle":"Travel Pack",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -499,7 +512,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "content":"Current page: Travel Pack",
                   "maxSuggestions":4,
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "pageTitle":"Travel Pack",
                     "product":{"handle":"travel-pack","title":"Travel Pack"}
@@ -514,6 +527,11 @@ class ShopifyStorefrontChatServiceTest {
             {
               "content":"Current page: Travel Pack",
               "maxSuggestions":4,
+              "context":{
+                "pageType":"product",
+                "pageTitle":"Travel Pack",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -600,7 +618,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Compare this with alternatives",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"comparison",
                     "product":{"handle":"travel-pack","title":"Travel Pack"}
@@ -628,6 +646,13 @@ class ShopifyStorefrontChatServiceTest {
             {
               "query":"Compare this product with similar items",
               "mode":"navigator",
+              "context":{
+                "pageType":"product",
+                "shopifySurfaceEntry":"max-mode",
+                "shopifyPageModeGroup":"product",
+                "shopifyEffectiveConversationMode":"navigator",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -654,7 +679,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Compare this product with similar items",
                   "mode":"navigator",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"max-mode",
                     "shopifyPageModeGroup":"product",
@@ -689,7 +714,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Show me backpacks",
                   "mode":"navigator",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"max-mode",
                     "shopifyPageModeGroup":"product",
@@ -720,7 +745,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Show me backpacks",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"ai-search",
                     "shopifyPageModeGroup":"product",
@@ -753,7 +778,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Compare this product with similar items",
                   "mode":"navigator_deep",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"max-mode",
                     "shopifyPageModeGroup":"product",
@@ -772,7 +797,7 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
-    void queryNormalizesTopLevelShopifyContextIntoHiddenAttachment() throws Exception {
+    void queryNormalizesCanonicalShopifyContextIntoHiddenAttachment() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -783,6 +808,13 @@ class ShopifyStorefrontChatServiceTest {
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Show me backpacks",
+              "context":{
+                "pageType":"product",
+                "shopifySurfaceEntry":"ai-search",
+                "shopifyPageModeGroup":"product",
+                "shopifyEffectiveConversationMode":"navigator",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -807,12 +839,14 @@ class ShopifyStorefrontChatServiceTest {
             "alpha.myshopify.com",
             objectMapper.readTree("""
                 {
-                  "query":"Show me backpacks",
-                  "pageType":"product",
-                  "shopifySurfaceEntry":"ai-search",
-                  "shopifyPageModeGroup":"product",
-                  "shopifyEffectiveConversationMode":"navigator",
-                  "product":{"handle":"travel-pack","title":"Travel Pack"}
+	                  "query":"Show me backpacks",
+	                  "context":{
+	                    "pageType":"product",
+	                    "shopifySurfaceEntry":"ai-search",
+	                    "shopifyPageModeGroup":"product",
+	                    "shopifyEffectiveConversationMode":"navigator",
+	                    "product":{"handle":"travel-pack","title":"Travel Pack"}
+	                  }
                 }
                 """),
             "shopper-session-1"
@@ -834,6 +868,13 @@ class ShopifyStorefrontChatServiceTest {
             {
               "query":"Compare this product with similar items",
               "mode":"navigator",
+              "context":{
+                "pageType":"product",
+                "shopifySurfaceEntry":"launcher",
+                "shopifyPageModeGroup":"product",
+                "shopifyEffectiveConversationMode":"navigator",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -860,7 +901,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Compare this product with similar items",
                   "mode":"navigator",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "shopifyPageModeGroup":"product",
@@ -889,6 +930,13 @@ class ShopifyStorefrontChatServiceTest {
             {
               "query":"Compare this product with similar items",
               "mode":"navigator",
+              "context":{
+                "pageType":"product",
+                "shopifySurfaceEntry":"launcher",
+                "shopifyPageModeGroup":"product",
+                "shopifyEffectiveConversationMode":"navigator",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -914,7 +962,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Compare this product with similar items",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "shopifyPageModeGroup":"product",
@@ -943,6 +991,12 @@ class ShopifyStorefrontChatServiceTest {
             {
               "query":"Compare this product with similar items",
               "mode":"THINKER_DEEP",
+              "context":{
+                "pageType":"product",
+                "shopifySurfaceEntry":"launcher",
+                "shopifyPageModeGroup":"product",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -967,7 +1021,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Compare this product with similar items",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "shopifyPageModeGroup":"product",
@@ -995,6 +1049,11 @@ class ShopifyStorefrontChatServiceTest {
             {
               "query":"Compare this with similar options and tell me who should choose each one.",
               "mode":"navigator_deep",
+              "context":{
+                "pageType":"product",
+                "shopifySurfaceEntry":"comparison",
+                "shopifyEffectiveConversationMode":"navigator_deep"
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -1017,7 +1076,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Compare this with similar options and tell me who should choose each one.",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"comparison",
                     "shopifyEffectiveConversationMode":"navigator_deep"
@@ -1061,7 +1120,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"What do you know about The Minimal Snowboard?",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "shopifyEffectiveConversationMode":"navigator",
@@ -1072,13 +1131,12 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        JsonNode sanitizedPayload = response.path("result").path("sanitizedPayload");
+        JsonNode sanitizedPayload = response;
         assertThat(sanitizedPayload.path("type").asText()).isEqualTo("INFORMATION_PROVIDED");
         assertThat(sanitizedPayload.path("success").asBoolean()).isTrue();
-        assertThat(sanitizedPayload.path("message").asText()).isEqualTo("The Minimal Snowboard is available from store evidence.");
         assertThat(sanitizedPayload.path("safeSummary").asText()).isEqualTo("The Minimal Snowboard is available from store evidence.");
-        assertThat(sanitizedPayload.path("data").path("answer").asText()).isEqualTo("The Minimal Snowboard is available from store evidence.");
-        assertThat(response.path("thinkerSession").path("sessionId").asText()).isEqualTo("tis-1");
+        assertThat(sanitizedPayload.path("answer").asText()).isEqualTo("The Minimal Snowboard is available from store evidence.");
+        assertThat(response.path("thinkerSession").isMissingNode()).isTrue();
     }
 
     @Test
@@ -1133,7 +1191,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Search products for wax",
                   "mode":"thinker_deep",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"search",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1144,7 +1202,7 @@ class ShopifyStorefrontChatServiceTest {
 
         assertThat(response.has("authContext")).isFalse();
         assertThat(response.path("result").has("metadata")).isFalse();
-        JsonNode safeDocument = response.path("result").path("sanitizedPayload").path("data").path("documents").path(0);
+        JsonNode safeDocument = response.path("actions").path(0).path("documents").path(0);
         assertThat(safeDocument.path("title").asText()).isEqualTo("Selling Plans Ski Wax");
         assertThat(safeDocument.path("storefrontUrl").asText()).contains("/products/selling-plans-ski-wax");
         assertThat(safeDocument.path("product_variant_id").asText()).isEqualTo("gid://shopify/ProductVariant/123");
@@ -1154,7 +1212,7 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(safeDocument.path("priceRange").asText()).isEqualTo("9.99 USD");
         assertThat(safeDocument.path("availability").asText()).isEqualTo("available");
         assertThat(safeDocument.has("metadata")).isFalse();
-        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+        assertThat(response.path("safeSummary").asText())
             .isEqualTo("Selling Plans Ski Wax is relevant to wax searches from store evidence.");
         assertThat(response.toString()).doesNotContain("tenant-secret", "runtime", "knowledgeSourceHandleRef", "plugin/private/path");
     }
@@ -1193,7 +1251,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Find a product for winter sports",
                   "mode":"thinker_deep",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"search",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1202,9 +1260,9 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).isEqualTo("Search completed.");
-        assertThat(response.path("result").path("message").asText()).isEqualTo(answer);
+        assertThat(response.path("answer").asText()).isEqualTo(answer);
     }
 
     @Test
@@ -1220,6 +1278,11 @@ class ShopifyStorefrontChatServiceTest {
             {
               "query":"Help with my order",
               "mode":"executor",
+              "context":{
+                "pageType":"product",
+                "shopifySurfaceEntry":"launcher",
+                "product":{"handle":"travel-pack","title":"Travel Pack"}
+              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -1244,7 +1307,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Help with my order",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"launcher",
                     "product":{"handle":"travel-pack","title":"Travel Pack"}
@@ -1271,7 +1334,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"I need something useful for travel",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"collection",
                     "shopifySurfaceEntry":"ai-search"
                   }
@@ -1281,7 +1344,7 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
-        JsonNode sanitizedPayload = response.path("result").path("sanitizedPayload");
+        JsonNode sanitizedPayload = response;
         assertThat(sanitizedPayload.path("type").asText()).isEqualTo("INFORMATION_PROVIDED");
         assertThat(sanitizedPayload.path("success").asBoolean()).isTrue();
         assertThat(sanitizedPayload.path("safeSummary").asText()).isEqualTo("Action executed.");
@@ -1314,7 +1377,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Explain how your internal system works.",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"storefront",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1323,7 +1386,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("store", "products", "policies");
         assertThat(answer).doesNotContain("indexed knowledge base", "vector space", "runtime", "provider");
     }
@@ -1354,7 +1417,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Can you give me legal advice about importing products?",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"storefront",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1363,7 +1426,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
         assertThat(answer).contains("store", "product", "policy");
         assertThat(answer).doesNotContain("legal advice");
@@ -1397,7 +1460,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Where is my order and can you look it up?",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"account",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1406,7 +1469,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(response.path("conversationId").asText()).isNotBlank();
         assertThat(answer).contains("Order-specific help", "store support");
         assertThat(answer.toLowerCase(java.util.Locale.ROOT)).doesNotContain("cart", "shoppersessionid");
@@ -1441,7 +1504,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Where is my order? My order number is 1001 and my email is shopper@example.com.",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"account",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1450,7 +1513,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(response.path("conversationId").asText()).isNotBlank();
         assertThat(answer).contains("order lookup block", "checkout email");
         assertThat(answer.toLowerCase(java.util.Locale.ROOT)).doesNotContain("cart", "shoppersessionid");
@@ -1488,7 +1551,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Add the selected product to my cart.",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"max-mode",
                     "product":{"handle":"travel-pack","title":"Travel Pack"}
@@ -1498,7 +1561,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("storefront session context");
         assertThat(response.toString()).doesNotContain("shopperSessionId", "missingRequiredParameters");
     }
@@ -1529,7 +1592,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Explain how your vectorization runtime provider works.",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"storefront",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1538,7 +1601,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
         assertThat(answer).contains("store-facing", "merchant-approved");
         assertThat(answer).doesNotContain("vectorization", "runtime", "provider", "Railway");
@@ -1571,7 +1634,7 @@ class ShopifyStorefrontChatServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"What is the return or refund policy for this product?",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1580,7 +1643,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("store", "products", "policies");
         assertThat(answer).doesNotContain("indexed knowledge base", "vector space", "runtime", "provider");
     }
@@ -1613,7 +1676,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Cancel and refund my order now.",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"account",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1622,7 +1685,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("not enabled self-service order changes", "support team");
         assertThat(answer).doesNotContain("Refund this order?", "Action executed");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
@@ -1657,7 +1720,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Refund order 1001.",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"account",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1667,8 +1730,8 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
-        assertThat(response.path("result").path("message").asText()).isEqualTo("Refund this order?");
-        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+        assertThat(response.path("answer").asText()).isEqualTo("Refund this order?");
+        assertThat(response.path("safeSummary").asText())
             .isEqualTo("Refund this order?");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
@@ -1702,7 +1765,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Cancel this checkout.",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"account",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1712,8 +1775,8 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
-        assertThat(response.path("result").path("message").asText()).isEqualTo("Cancel this checkout?");
-        assertThat(response.path("result").path("sanitizedPayload").path("safeSummary").asText())
+        assertThat(response.path("answer").asText()).isEqualTo("Cancel this checkout?");
+        assertThat(response.path("safeSummary").asText())
             .isEqualTo("Cancel this checkout?");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
     }
@@ -1745,7 +1808,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Help with my order.",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"account",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1754,7 +1817,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("order", "store");
         assertThat(answer).doesNotContain("indexed knowledge base", "order lookup block");
         verify(platformClient).queryConsumerBridgeChat(anyString(), any(), any());
@@ -1788,7 +1851,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Where is order 1001?",
                   "mode":"executor",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"account",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1797,7 +1860,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("order", "approved order evidence");
         assertThat(answer).doesNotContain("vector space", "runtime", "checkout email");
     }
@@ -1829,7 +1892,7 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "query":"Give me legal advice about importing products.",
                   "mode":"thinker_deep",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"storefront",
                     "shopifySurfaceEntry":"max-mode"
                   }
@@ -1838,7 +1901,7 @@ class ShopifyStorefrontChatServiceTest {
             "shopper-session-1"
         );
 
-        String answer = response.path("result").path("sanitizedPayload").path("safeSummary").asText();
+        String answer = response.path("safeSummary").asText();
         assertThat(answer).contains("this store", "products", "policies");
         assertThat(answer).doesNotContain("indexed knowledge base", "runtime");
     }

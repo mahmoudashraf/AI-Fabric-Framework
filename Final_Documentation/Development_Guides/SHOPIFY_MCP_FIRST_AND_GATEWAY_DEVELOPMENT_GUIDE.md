@@ -411,6 +411,34 @@ Bridge policy is structured:
 - Post-order refund/cancel/edit actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge. `shopify_request_return` is the configured return-start path and remains governed by Customer Account auth, confirmation, package posture, and live tool behavior.
 - Bridge must not hard-block future post-order action IDs once runtime selected them from the compiled Marketplace catalog. Package entitlement, confirmation, audit, MCP session auth, and the action catalog remain the gates.
 
+### Canonical Runtime/Bridge Chat Contract
+
+Shopify Companion uses the platform canonical chat contract from Plan 010.5.
+
+Public shopper chat requests must use:
+
+```json
+{
+  "query": "Show me ski wax",
+  "conversationId": "chat-session-123",
+  "mode": "thinker_deep",
+  "position": "landing",
+  "context": {
+    "pageType": "index",
+    "shopifySurfaceEntry": "max-mode"
+  },
+  "attachments": []
+}
+```
+
+Rules:
+
+- Do not send top-level `storefrontContext`; Shopify-specific state belongs under `context`.
+- Do not send top-level `message`, `sessionId`, `userId`, or `ownerId` in public chat payloads.
+- Shopper-facing responses must read top-level `answer`, `safeSummary`, `sources`, `actions`, `suggestions`, `fallbackReason`, and `providerRequestId`.
+- Product UI code must not read `result.sanitizedPayload`; the runtime/bridge boundary flattens approved evidence before the response reaches Shopify surfaces.
+- Internal auth/session fields may still exist in headers, token claims, and server-side logs where they are security/session infrastructure rather than the public chat payload.
+
 ### Owned Resource Param Resolution
 
 Owned shopper resource parameters must be configured in Marketplace action metadata, not inferred with text matching.

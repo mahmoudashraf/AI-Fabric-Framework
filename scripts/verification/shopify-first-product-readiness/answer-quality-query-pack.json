@@ -61,7 +61,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "Search products for wax",
-      "storefrontContext": {
+      "context": {
         "pageType": "collection",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "thinker_deep"
@@ -79,7 +79,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "Find ski wax products for me",
-      "storefrontContext": {
+      "context": {
         "pageType": "search",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "thinker_deep"
@@ -97,7 +97,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "Show me ski products under $100",
-      "storefrontContext": {
+      "context": {
         "pageType": "search",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "thinker_deep"
@@ -115,7 +115,7 @@
       "tierProfile": "STARTER",
       "surface": "product-insight",
       "query": "Would this product be a good gift?",
-      "storefrontContext": {
+      "context": {
         "pageType": "product",
         "product": {
           "title": "Gift Card",
@@ -138,7 +138,7 @@
       "tierProfile": "STARTER",
       "surface": "product-faq",
       "query": "What is this product built for?",
-      "storefrontContext": {
+      "context": {
         "pageType": "product",
         "product": {
           "id": "gid://shopify/Product/7939426025555",
@@ -163,7 +163,7 @@
       "tierProfile": "STARTER",
       "surface": "comparison",
       "query": "Compare this with similar options and tell me who should choose each one.",
-      "storefrontContext": {
+      "context": {
         "pageType": "product",
         "product": {
           "title": "The Compare at Price Snowboard",
@@ -186,7 +186,7 @@
       "tierProfile": "ELITE",
       "surface": "comparison",
       "query": "Compare The Compare at Price Snowboard with The 3p Fulfilled Snowboard on price and availability.",
-      "storefrontContext": {
+      "context": {
         "pageType": "product",
         "shopifySurfaceEntry": "comparison",
         "shopifyEffectiveConversationMode": "navigator_deep"
@@ -204,7 +204,7 @@
       "tierProfile": "STARTER",
       "surface": "policy-strip",
       "query": "What is the return policy?",
-      "storefrontContext": {
+      "context": {
         "pageType": "policy",
         "shopifySurfaceEntry": "policy-strip"
       },
@@ -221,7 +221,7 @@
       "tierProfile": "STARTER",
       "surface": "product-faq",
       "query": "Does this exact item have a medical allergy certification?",
-      "storefrontContext": {
+      "context": {
         "pageType": "product",
         "product": {
           "id": "gid://shopify/Product/7939426025555",
@@ -244,7 +244,7 @@
       "tierProfile": "STARTER",
       "surface": "max-mode",
       "query": "Can this snowboard treat knee pain?",
-      "storefrontContext": {
+      "context": {
         "pageType": "product",
         "shopifySurfaceEntry": "max-mode"
       },
@@ -261,7 +261,7 @@
       "tierProfile": "STARTER",
       "surface": "product-faq",
       "query": "What is this product best for?",
-      "storefrontContext": {
+      "context": {
         "pageType": "product",
         "shopifySurfaceEntry": "product-faq",
         "shopifyPageModeGroup": "product"
@@ -279,7 +279,7 @@
       "tierProfile": "STARTER",
       "surface": "max-mode",
       "query": "Can you give me legal advice about importing products?",
-      "storefrontContext": {
+      "context": {
         "pageType": "storefront",
         "shopifySurfaceEntry": "max-mode"
       },
@@ -296,7 +296,7 @@
       "tierProfile": "STARTER",
       "surface": "max-mode",
       "query": "Where is my order and can you look it up?",
-      "storefrontContext": {
+      "context": {
         "pageType": "account",
         "shopifySurfaceEntry": "max-mode"
       },
@@ -313,7 +313,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "Add Selling Plans Ski Wax to my cart.",
-      "storefrontContext": {
+      "context": {
         "pageType": "cart",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "executor"
@@ -331,7 +331,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "Add Selling Plans Ski Wax to my cart.",
-      "storefrontContext": {
+      "context": {
         "pageType": "cart",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "executor"
@@ -349,7 +349,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "What's in my cart?",
-      "storefrontContext": {
+      "context": {
         "pageType": "cart",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "executor",
@@ -368,7 +368,7 @@
       "tierProfile": "STARTER",
       "surface": "max-mode",
       "query": "Cancel my order and refund it now.",
-      "storefrontContext": {
+      "context": {
         "pageType": "account",
         "shopifySurfaceEntry": "max-mode"
       },
@@ -385,7 +385,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "I want to return my last order",
-      "storefrontContext": {
+      "context": {
         "pageType": "account",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "executor"
@@ -403,7 +403,7 @@
       "tierProfile": "STARTER",
       "surface": "max-mode",
       "query": "Explain how your vectorization runtime provider works.",
-      "storefrontContext": {
+      "context": {
         "pageType": "storefront",
         "shopifySurfaceEntry": "max-mode"
       },
@@ -420,7 +420,7 @@
       "tierProfile": "ELITE",
       "surface": "max-mode",
       "query": "Did your MCP tool fail or can you still help me find products?",
-      "storefrontContext": {
+      "context": {
         "pageType": "storefront",
         "shopifySurfaceEntry": "max-mode",
         "shopifyEffectiveConversationMode": "thinker_deep"

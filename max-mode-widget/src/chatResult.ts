@@ -1,5 +1,5 @@
 import { getWidgetConfig } from "@/config";
-import type { CustomerAccountConnectAction } from "@/types";
+import type { ChatResult, CustomerAccountConnectAction, ResultType } from "@/types";
 
 const CUSTOMER_ACCOUNT_AUTH_ERROR_CODES = new Set([
   "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
@@ -24,7 +24,11 @@ function readPath(value: any, ...path: string[]): unknown {
     if (!current || typeof current !== "object") {
       return undefined;
     }
-    current = current[segment];
+    if (Array.isArray(current) && /^\d+$/.test(segment)) {
+      current = current[Number(segment)];
+    } else {
+      current = current[segment];
+    }
   }
   return current;
 }
@@ -41,12 +45,9 @@ function firstText(...values: unknown[]): string | undefined {
 
 function firstErrorCode(payload: any): string | undefined {
   const value = firstText(
-    readPath(payload, "result", "sanitizedPayload", "data", "errorCode"),
-    readPath(payload, "result", "sanitizedPayload", "data", "actionResult", "errorCode"),
-    readPath(payload, "result", "data", "errorCode"),
-    readPath(payload, "result", "data", "actionResult", "errorCode"),
-    readPath(payload, "result", "sanitizedPayload", "errorCode"),
-    readPath(payload, "result", "errorCode"),
+    readPath(payload, "actions", "0", "errorCode"),
+    readPath(payload, "actions", "0", "actionResult", "errorCode"),
+    readPath(payload, "fallbackReason"),
     readPath(payload, "errorCode"),
   );
   return value?.toUpperCase();
@@ -54,24 +55,57 @@ function firstErrorCode(payload: any): string | undefined {
 
 export function extractChatResultMessage(payload: any, fallback: string): string {
   return firstText(
-    readPath(payload, "result", "sanitizedPayload", "safeSummary"),
-    readPath(payload, "result", "sanitizedPayload", "message"),
-    readPath(payload, "result", "sanitizedPayload", "answer"),
-    readPath(payload, "result", "message"),
-    readPath(payload, "result", "data", "answer"),
-    readPath(payload, "response"),
-    readPath(payload, "message"),
+    readPath(payload, "safeSummary"),
     readPath(payload, "answer"),
+    readPath(payload, "response"),
   ) ?? fallback;
 }
 
+export function canonicalChatResult(payload: any): ChatResult | undefined {
+  if (!payload || typeof payload !== "object") {
+    return undefined;
+  }
+  const resultType = (firstText(payload.type) || "INFORMATION_PROVIDED") as ResultType;
+  const success = typeof payload.success === "boolean" ? payload.success : true;
+  const answer = extractChatResultMessage(payload, success ? "I processed your query successfully." : "I could not process that request.");
+  const sources = Array.isArray(payload.sources) ? payload.sources : [];
+  const actions = Array.isArray(payload.actions) ? payload.actions : [];
+  const data: Record<string, any> = {};
+  if (answer) {
+    data.answer = answer;
+  }
+  if (sources.length > 0) {
+    data.documents = sources;
+  }
+  if (actions.length === 1 && actions[0] && typeof actions[0] === "object") {
+    Object.assign(data, actions[0]);
+  } else if (actions.length > 1) {
+    data.actions = actions;
+  }
+  return {
+    type: resultType,
+    success,
+    sanitizedPayload: {
+      type: resultType,
+      success,
+      message: answer,
+      safeSummary: answer,
+      answer,
+      errorCode: firstErrorCode(payload),
+      data,
+    },
+  };
+}
+
 export function extractCustomerAccountConnectAction(payload: any): CustomerAccountConnectAction | undefined {
-  const safeData = readPath(payload, "result", "sanitizedPayload", "data") as Record<string, any> | undefined;
-  const resultData = readPath(payload, "result", "data") as Record<string, any> | undefined;
-  const authMarker = safeData?.customerAccountAuth ?? resultData?.customerAccountAuth;
+  const topAction = Array.isArray(payload?.actions)
+    ? payload.actions.find((action: any) => action && typeof action === "object" && (
+      action.customerAccountAuthRequired || action.customerAccountAuth || action.errorCode
+    ))
+    : undefined;
+  const authMarker = topAction?.customerAccountAuth;
   const errorCode = firstErrorCode(payload);
-  const required = boolValue(safeData?.customerAccountAuthRequired)
-    || boolValue(resultData?.customerAccountAuthRequired)
+  const required = boolValue(topAction?.customerAccountAuthRequired)
     || boolValue(authMarker?.required)
     || (errorCode ? CUSTOMER_ACCOUNT_AUTH_ERROR_CODES.has(errorCode) : false);
 

@@ -60,12 +60,9 @@ def nested_text(payload: Any, dotted_path: str) -> str:
 
 def extract_answer(payload: Any) -> str:
     for path in (
-        "result.sanitizedPayload.safeSummary",
-        "result.sanitizedPayload.message",
-        "result.sanitizedPayload.answer",
-        "result.message",
-        "message",
+        "safeSummary",
         "answer",
+        "message",
     ):
         value = nested_text(payload, path)
         if value:
@@ -99,7 +96,7 @@ def evaluate_query(
     query_id = str(query["queryId"])
     request_payload = {
         "query": query["query"],
-        "storefrontContext": query.get("storefrontContext") or {},
+        "context": query.get("context") or {},
     }
     url = (
         bridge_base_url.rstrip("/")

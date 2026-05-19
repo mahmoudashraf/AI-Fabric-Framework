@@ -51,15 +51,9 @@ export const withRequestContext = <T extends Record<string, any>>(
   if (!cleaned) {
     return payload;
   }
-  if (hasShopifyRequestContext(cleaned)) {
-    return {
-      ...payload,
-      storefrontContext: cleaned,
-    };
-  }
   return {
     ...payload,
-    ...cleaned,
+    context: cleaned,
   };
 };
 

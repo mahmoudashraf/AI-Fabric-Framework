@@ -308,7 +308,7 @@ import json
 import os
 print(json.dumps({
     "query": os.environ["MAX_WIDGET_QUERY"],
-    "storefrontContext": {
+    "context": {
         "pageType": "product",
         "shopifyShellModeProfile": "SHOPIFY_COMPANION",
         "shopifySurfaceEntry": "max-mode",

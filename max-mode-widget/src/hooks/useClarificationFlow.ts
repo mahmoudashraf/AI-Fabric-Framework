@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
-import { extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -58,11 +58,12 @@ export function useClarificationFlow({
         let resultType: ResultType | undefined;
 
         const customerAccountConnect = extractCustomerAccountConnectAction(data);
+        const canonicalResult = canonicalChatResult(data);
 
-        if (data.result && data.result.sanitizedPayload) {
+        if (canonicalResult?.sanitizedPayload) {
           messageContent = extractChatResultMessage(data, "Action processed.");
-          result = data.result;
-          resultType = data.result.type;
+          result = canonicalResult;
+          resultType = canonicalResult.type;
         } else {
           messageContent = extractChatResultMessage(data, "Action processed.");
         }
@@ -74,7 +75,7 @@ export function useClarificationFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
-          success: data.result?.success ?? data.success ?? true,
+          success: result?.success ?? data.result?.success ?? data.success ?? true,
           customerAccountConnect,
         };
 

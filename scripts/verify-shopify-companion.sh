@@ -1301,12 +1301,12 @@ retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/
 assert_equals "${HTTP_STATUS}" "200" "storefront query status"
 query_json="${HTTP_BODY}"
 assert_nonempty "$(json_get "${query_json}" "conversationId")" "storefront query conversationId"
-storefront_query_summary="$(json_get "${query_json}" "result.sanitizedPayload.safeSummary")"
+storefront_query_summary="$(json_get "${query_json}" "safeSummary")"
 if [[ -z "${storefront_query_summary}" ]]; then
-  storefront_query_summary="$(json_get "${query_json}" "result.sanitizedPayload.message")"
+  storefront_query_summary="$(json_get "${query_json}" "answer")"
 fi
 if [[ -z "${storefront_query_summary}" ]]; then
-  storefront_query_summary="$(json_get "${query_json}" "result.message")"
+  storefront_query_summary="$(json_get "${query_json}" "message")"
 fi
 if [[ -z "${storefront_query_summary}" ]]; then
   storefront_query_summary="$(json_get "${query_json}" "message")"
@@ -1322,7 +1322,7 @@ if [[ "${effective_expected_max_widget_surface}" == "true" ]]; then
 import json
 print(json.dumps({
     "query": "Open the storefront assistant and recommend one product from this store.",
-    "storefrontContext": {
+    "context": {
         "pageType": "product",
         "shopifyShellModeProfile": "SHOPIFY_COMPANION",
         "shopifySurfaceEntry": "max-mode",
@@ -1336,12 +1336,12 @@ PY
   assert_equals "${HTTP_STATUS}" "200" "storefront Max Mode query status"
   max_widget_query_json="${HTTP_BODY}"
   assert_nonempty "$(json_get "${max_widget_query_json}" "conversationId")" "storefront Max Mode query conversationId"
-  max_widget_query_summary="$(json_get "${max_widget_query_json}" "result.sanitizedPayload.safeSummary")"
+  max_widget_query_summary="$(json_get "${max_widget_query_json}" "safeSummary")"
   if [[ -z "${max_widget_query_summary}" ]]; then
-    max_widget_query_summary="$(json_get "${max_widget_query_json}" "result.sanitizedPayload.message")"
+    max_widget_query_summary="$(json_get "${max_widget_query_json}" "answer")"
   fi
   if [[ -z "${max_widget_query_summary}" ]]; then
-    max_widget_query_summary="$(json_get "${max_widget_query_json}" "result.message")"
+    max_widget_query_summary="$(json_get "${max_widget_query_json}" "message")"
   fi
   if [[ -z "${max_widget_query_summary}" ]]; then
     max_widget_query_summary="$(json_get "${max_widget_query_json}" "message")"
@@ -1359,12 +1359,12 @@ PY
   retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${comparison_query_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
   assert_equals "${HTTP_STATUS}" "200" "storefront comparison query status"
   comparison_query_json="${HTTP_BODY}"
-  comparison_query_summary="$(json_get "${comparison_query_json}" "result.sanitizedPayload.safeSummary")"
+  comparison_query_summary="$(json_get "${comparison_query_json}" "safeSummary")"
   if [[ -z "${comparison_query_summary}" ]]; then
-    comparison_query_summary="$(json_get "${comparison_query_json}" "result.sanitizedPayload.message")"
+    comparison_query_summary="$(json_get "${comparison_query_json}" "answer")"
   fi
   if [[ -z "${comparison_query_summary}" ]]; then
-    comparison_query_summary="$(json_get "${comparison_query_json}" "result.message")"
+    comparison_query_summary="$(json_get "${comparison_query_json}" "message")"
   fi
   if [[ -z "${comparison_query_summary}" ]]; then
     comparison_query_summary="$(json_get "${comparison_query_json}" "message")"
@@ -1480,7 +1480,7 @@ mode = sys.argv[3]
 print(json.dumps({
     "query": f"Compare {reference_term} and {comparison_term} and explain the tradeoffs.",
     "mode": mode,
-    "storefrontContext": {
+    "context": {
         "pageType": "product",
         "pageTitle": "Verification comparison page",
         "shopifySurfaceEntry": "comparison",
@@ -1492,12 +1492,12 @@ PY
     retry_storefront_query "${bridge_base}/api/storefront/shops/${SHOP_DOMAIN}/chat/query" "${comparison_resolver_payload}" "X-AI-FABRIC-SHOPPER-SESSION-ID: ${SHOPPER_SESSION_ID}"
     assert_equals "${HTTP_STATUS}" "200" "storefront comparison resolver query status"
     comparison_resolver_json="${HTTP_BODY}"
-    comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "result.sanitizedPayload.safeSummary")"
+    comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "safeSummary")"
     if [[ -z "${comparison_resolver_summary}" ]]; then
-      comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "result.sanitizedPayload.message")"
+      comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "answer")"
     fi
     if [[ -z "${comparison_resolver_summary}" ]]; then
-      comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "result.message")"
+      comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "message")"
     fi
     if [[ -z "${comparison_resolver_summary}" ]]; then
       comparison_resolver_summary="$(json_get "${comparison_resolver_json}" "message")"

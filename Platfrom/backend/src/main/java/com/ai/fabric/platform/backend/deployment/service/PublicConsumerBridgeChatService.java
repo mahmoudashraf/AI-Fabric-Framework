@@ -330,12 +330,13 @@ public class PublicConsumerBridgeChatService {
     private ObjectNode normalizeQueryBody(JsonNode request) {
         ObjectNode body = objectMapper.createObjectNode();
         if (request != null && request.isObject()) {
+            rejectLegacyPublicChatFields(request);
             copyTextField(request, body, "query");
             copyTextField(request, body, "conversationId");
             copyTextField(request, body, "mode");
             copyTextField(request, body, "position");
+            copyObjectField(request, body, "context");
             copyAttachments(request, body);
-            appendStorefrontContextAttachment(request, body);
         }
         return body;
     }
@@ -343,14 +344,15 @@ public class PublicConsumerBridgeChatService {
     private ObjectNode normalizeSuggestionsBody(JsonNode request) {
         ObjectNode body = objectMapper.createObjectNode();
         if (request != null && request.isObject()) {
+            rejectLegacyPublicChatFields(request);
             copyTextField(request, body, "content");
             JsonNode maxSuggestions = request.get("maxSuggestions");
             if (maxSuggestions != null && maxSuggestions.canConvertToInt()) {
                 int value = Math.max(1, Math.min(maxSuggestions.asInt(), 6));
                 body.put("maxSuggestions", value);
             }
+            copyObjectField(request, body, "context");
             copyAttachments(request, body);
-            appendStorefrontContextAttachment(request, body);
         }
         if (!body.has("content")) {
             body.put("content", "");
@@ -361,10 +363,33 @@ public class PublicConsumerBridgeChatService {
         return body;
     }
 
+    private void rejectLegacyPublicChatFields(JsonNode request) {
+        List<String> rejected = new ArrayList<>();
+        for (String field : List.of("message", "sessionId", "storefrontContext", "userId", "ownerId")) {
+            if (request.has(field)) {
+                rejected.add(field);
+            }
+        }
+        if (!rejected.isEmpty()) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Unsupported chat request fields: " + String.join(", ", rejected)
+                    + ". Use query, conversationId, mode, position, context, and attachments."
+            );
+        }
+    }
+
     private void copyTextField(JsonNode source, ObjectNode target, String field) {
         String value = trimToNull(textOrNull(source, field));
         if (value != null) {
             target.put(field, value);
+        }
+    }
+
+    private void copyObjectField(JsonNode source, ObjectNode target, String field) {
+        JsonNode value = source == null ? null : source.get(field);
+        if (value != null && value.isObject()) {
+            target.set(field, value.deepCopy());
         }
     }
 
@@ -386,64 +411,6 @@ public class PublicConsumerBridgeChatService {
         if (!attachments.isEmpty()) {
             target.set("attachments", attachments);
         }
-    }
-
-    private void appendStorefrontContextAttachment(JsonNode source, ObjectNode target) {
-        ObjectNode attachment = storefrontContextAttachment(source);
-        if (attachment == null || attachment.isEmpty()) {
-            return;
-        }
-        ArrayNode attachments = objectMapper.createArrayNode();
-        JsonNode existing = target.get("attachments");
-        if (existing != null && existing.isArray()) {
-            attachments.addAll((ArrayNode) existing);
-        }
-        attachments.add(attachment);
-        target.set("attachments", attachments);
-    }
-
-    private ObjectNode storefrontContextAttachment(JsonNode source) {
-        if (source == null || !source.isObject()) {
-            return null;
-        }
-        JsonNode rawContext = source.get("storefrontContext");
-        if (rawContext == null || !rawContext.isObject()) {
-            return null;
-        }
-        ObjectNode metadata = objectMapper.createObjectNode();
-        copyLimitedTextField(rawContext, metadata, "pageType");
-        copyLimitedTextField(rawContext, metadata, "pageTitle");
-
-        JsonNode rawProduct = rawContext.get("product");
-        if (rawProduct != null && rawProduct.isObject()) {
-            copyLimitedTextField(rawProduct, metadata, "id", "productId");
-            copyLimitedTextField(rawProduct, metadata, "handle", "productHandle");
-            copyLimitedTextField(rawProduct, metadata, "title", "productTitle");
-            copyLimitedTextField(rawProduct, metadata, "vendor", "productVendor");
-            copyLimitedTextField(rawProduct, metadata, "type", "productType");
-            copyLimitedTextField(rawProduct, metadata, "priceCents", "productPriceCents");
-        }
-
-        JsonNode rawCollection = rawContext.get("collection");
-        if (rawCollection != null && rawCollection.isObject()) {
-            copyLimitedTextField(rawCollection, metadata, "id", "collectionId");
-            copyLimitedTextField(rawCollection, metadata, "handle", "collectionHandle");
-            copyLimitedTextField(rawCollection, metadata, "title", "collectionTitle");
-        }
-
-        String contentText = storefrontContextSummary(metadata);
-        if (!StringUtils.hasText(contentText) && metadata.isEmpty()) {
-            return null;
-        }
-        ObjectNode attachment = objectMapper.createObjectNode();
-        attachment.put("source", "shopify-storefront-context");
-        if (StringUtils.hasText(contentText)) {
-            attachment.put("contentText", contentText);
-        }
-        if (!metadata.isEmpty()) {
-            attachment.set("metadata", metadata);
-        }
-        return attachment;
     }
 
     private void copyLimitedTextField(JsonNode source, ObjectNode target, String field) {

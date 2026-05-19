@@ -625,6 +625,43 @@ That keeps the merchant UI usable and safe.
 
 If we expose raw plugins or low-level deployment mechanics in Shopify admin, we will turn a product surface into an infrastructure console. That would be the wrong design.
 
+### 5.1 Storefront Chat Contract
+
+The storefront assistant uses the LoomAI canonical runtime/bridge chat contract.
+
+Theme and Max Mode surfaces send:
+
+```json
+{
+  "query": "What is the return policy?",
+  "conversationId": "chat-session-123",
+  "mode": "thinker_deep",
+  "position": "landing",
+  "context": {
+    "pageType": "index",
+    "shopifySurfaceEntry": "launcher"
+  },
+  "attachments": []
+}
+```
+
+The response is flat:
+
+```json
+{
+  "success": true,
+  "type": "INFORMATION_PROVIDED",
+  "answer": "Safe shopper answer.",
+  "safeSummary": "Safe shopper answer.",
+  "conversationId": "chat-session-123",
+  "sources": [],
+  "actions": [],
+  "suggestions": []
+}
+```
+
+Do not use public `message`, `sessionId`, or `storefrontContext` fields. Do not read `result.sanitizedPayload` from Shopify UI code. Shopify-specific page, product, cart, and customer-auth state belongs inside `context`; server-side auth/session material stays in headers, tokens, and Bridge-managed session storage.
+
 ---
 
 ## 6) Final Recommendation

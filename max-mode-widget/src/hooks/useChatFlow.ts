@@ -7,7 +7,7 @@ import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
-import { extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 
 export function useChatFlow({
   chatQuery,
@@ -238,14 +238,16 @@ export function useChatFlow({
         let messageDocs: Document[] | undefined;
 
         const customerAccountConnect = extractCustomerAccountConnectAction(data);
+        const canonicalResult = canonicalChatResult(data);
 
-        if (data.result && data.result.sanitizedPayload) {
+        if (canonicalResult?.sanitizedPayload) {
           messageContent = extractChatResultMessage(data, "I processed your query successfully.");
-          result = data.result;
-          resultType = data.result.type;
+          result = canonicalResult;
+          resultType = canonicalResult.type;
+          const resultData = result.sanitizedPayload.data || (data.result?.data ?? {});
           messageContent =
-            summarizeShopifyMcpCatalogResult(data.result.sanitizedPayload.data) ||
-            summarizeShopifyMcpCatalogResult(data.result.data) ||
+            summarizeShopifyMcpCatalogResult(resultData) ||
+            summarizeShopifyMcpCatalogResult(data.result?.data) ||
             messageContent;
 
           // Strip empty smart suggestions
@@ -258,14 +260,16 @@ export function useChatFlow({
 
           if (resultType === "INFORMATION_PROVIDED" || resultType === "COMPOUND_HANDLED") {
             const rawDocs =
-              data.result.data?.documents ||
-              data.result.data?.ragResponse?.documents ||
-              data.result.sanitizedPayload.data?.documents ||
-              data.result.sanitizedPayload.data?.ragResponse?.documents ||
+              data.sources ||
+              data.documents ||
+              data.result?.data?.documents ||
+              data.result?.data?.ragResponse?.documents ||
+              resultData.documents ||
+              resultData.ragResponse?.documents ||
               [];
 
             const entityType =
-              data.result.data?.ragResponse?.entityType || data.result.sanitizedPayload.data?.ragResponse?.entityType || "document";
+              data.result?.data?.ragResponse?.entityType || resultData.ragResponse?.entityType || "document";
 
             if (rawDocs.length > 0) {
               messageDocs = rawDocs.map((doc: any, idx: number) => {
@@ -305,7 +309,7 @@ export function useChatFlow({
           }
 
           // Merge smart suggestion documents into messageDocs for the panel
-          const smartSugDocs = data.result.smartSuggestion?.documents || data.result.data?.smartSuggestion?.documents;
+          const smartSugDocs = result.smartSuggestion?.documents || data.result?.data?.smartSuggestion?.documents || resultData.smartSuggestion?.documents;
           if (smartSugDocs && Array.isArray(smartSugDocs) && smartSugDocs.length > 0) {
             const existingIds = new Set((messageDocs || []).map((d) => d.id));
             const normalizedSugDocs: Document[] = smartSugDocs
@@ -328,7 +332,7 @@ export function useChatFlow({
         emitEvent("message:received", {
           conversationId: data.conversationId || currentConversationId,
           resultType,
-          success: data.result?.success ?? data.success ?? true,
+          success: result?.success ?? data.result?.success ?? data.success ?? true,
           durationMs,
         });
 
@@ -357,7 +361,7 @@ export function useChatFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
-          success: data.result?.success ?? data.success ?? true,
+          success: result?.success ?? data.result?.success ?? data.success ?? true,
           customerAccountConnect,
           documents: messageDocs,
           debugData: messageDebugData,
