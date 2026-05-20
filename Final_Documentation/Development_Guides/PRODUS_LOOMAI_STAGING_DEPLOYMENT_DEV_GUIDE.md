@@ -655,6 +655,7 @@ Observed results:
 - `/api/ai/data-sync/vector-spaces`: returned all 10 ProdUS vector spaces with `missing=[]`.
 - Platform-internal smoke batch: 10 upserts succeeded and 10 deletes succeeded.
 - ProdUS-shaped `SYSTEM_PROCESS` smoke batch: one `service-module` upsert succeeded and its cleanup delete succeeded.
+- Live data-sync response now includes `providerRequestId` plus `totalOperations`, `succeededOperations`, and `failedOperations`.
 - Temporary retrieval smoke: a synthetic `service-module` record was indexed, answered through `POST /api/chat/me/query` with a grounded answer and provider request id, then deleted.
 
 ProdUS safe knowledge sync must use canonical `trace + operations`; do not send the old top-level `environment/source/records` shape. The sync trace should use:
