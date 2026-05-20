@@ -253,18 +253,19 @@ public class DataSyncService {
     public DataSyncBatchResponse batch(DataSyncBatchRequest request) {
         long startedAt = System.nanoTime();
         if (request == null) {
-            return batchFailure(ERROR_INVALID_REQUEST, "Request body is required.", startedAt);
+            return batchFailure(ERROR_INVALID_REQUEST, "Request body is required.", null, startedAt);
         }
 
         DataSyncTrace trace = request.getTrace();
         List<DataSyncOperation> ops = request.getOperations();
+        String providerRequestId = providerRequestId(trace);
         if (trace == null || ops == null || ops.isEmpty()) {
-            return batchFailure(ERROR_INVALID_REQUEST, "trace and operations are required.", startedAt);
+            return batchFailure(ERROR_INVALID_REQUEST, "trace and operations are required.", providerRequestId, startedAt);
         }
 
         int maxBatch = Math.max(1, properties.getMaxBatchSize());
         if (ops.size() > maxBatch) {
-            return batchFailure(ERROR_BATCH_TOO_LARGE, "Batch size exceeds maxBatchSize=" + maxBatch, startedAt);
+            return batchFailure(ERROR_BATCH_TOO_LARGE, "Batch size exceeds maxBatchSize=" + maxBatch, providerRequestId, startedAt);
         }
 
         List<String> denied = new ArrayList<>();
@@ -272,26 +273,26 @@ public class DataSyncService {
         for (int i = 0; i < ops.size(); i++) {
             DataSyncOperation op = ops.get(i);
             if (op == null || op.getType() == null) {
-                return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " is missing type.", startedAt);
+                return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " is missing type.", providerRequestId, startedAt);
             }
             String vectorSpace = safeText(op.getVectorSpace());
             String logicalId = safeText(op.getId());
             if (!StringUtils.hasText(vectorSpace) || !StringUtils.hasText(logicalId)) {
-                return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " must include vectorSpace and id.", startedAt);
+                return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " must include vectorSpace and id.", providerRequestId, startedAt);
             }
             String id = resolveEffectiveId(logicalId, op.getIdentity());
 
             AIEntityConfig config = configBySpace.computeIfAbsent(vectorSpace, entityConfigurationLoader::getEntityConfig);
             if (config == null) {
-                return batchFailure(ERROR_VECTOR_SPACE_NOT_FOUND, "Unknown vectorSpace: " + vectorSpace, startedAt);
+                return batchFailure(ERROR_VECTOR_SPACE_NOT_FOUND, "Unknown vectorSpace: " + vectorSpace, providerRequestId, startedAt);
             }
             if (op.getType() == DataSyncOperationType.UPSERT && !config.isIndexable()) {
-                return batchFailure(ERROR_VECTOR_SPACE_NOT_INDEXABLE, "Vector space is not indexable: " + vectorSpace, startedAt);
+                return batchFailure(ERROR_VECTOR_SPACE_NOT_INDEXABLE, "Vector space is not indexable: " + vectorSpace, providerRequestId, startedAt);
             }
             if (op.getType() == DataSyncOperationType.UPSERT
                 && !StringUtils.hasText(op.getContent())
                 && (op.getEntity() == null || op.getEntity().isEmpty())) {
-                return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " must include content or entity for UPSERT.", startedAt);
+                return batchFailure(ERROR_INVALID_REQUEST, "Operation at index " + i + " must include content or entity for UPSERT.", providerRequestId, startedAt);
             }
 
             String operationType = op.getType() == DataSyncOperationType.DELETE ? OPERATION_DELETE : OPERATION_WRITE;
@@ -315,6 +316,7 @@ public class DataSyncService {
             response.setSuccess(false);
             response.setErrorCode(ERROR_ACCESS_DENIED);
             response.setMessage("Access denied for one or more operations.");
+            response.setProviderRequestId(providerRequestId);
             response.setTotalOperations(ops.size());
             response.setSucceededOperations(0);
             response.setFailedOperations(ops.size());
@@ -358,6 +360,7 @@ public class DataSyncService {
         DataSyncBatchResponse response = new DataSyncBatchResponse();
         response.setSuccess(failed == 0);
         response.setMessage(failed == 0 ? "OK" : "Completed with failures");
+        response.setProviderRequestId(providerRequestId);
         response.setTotalOperations(results.size());
         response.setSucceededOperations(successCount);
         response.setFailedOperations(failed);
@@ -488,6 +491,11 @@ public class DataSyncService {
         return hasScope(authContext.getGrantedScopes(), requiredScope(operationType));
     }
 
+    private String providerRequestId(DataSyncTrace trace) {
+        String requestId = trace != null ? safeText(trace.getRequestId()) : null;
+        return StringUtils.hasText(requestId) ? requestId : "sync_" + ulidGenerator.nextUlid();
+    }
+
     private boolean hasScope(List<String> grantedScopes, String requiredScope) {
         if (!StringUtils.hasText(requiredScope) || grantedScopes == null || grantedScopes.isEmpty()) {
             return false;
@@ -544,7 +552,7 @@ public class DataSyncService {
         return response;
     }
 
-    private DataSyncBatchResponse batchFailure(String errorCode, String message, long startedAt) {
+    private DataSyncBatchResponse batchFailure(String errorCode, String message, String providerRequestId, long startedAt) {
         long processingMs = nanosToMillis(System.nanoTime() - startedAt);
         DataSyncOperationResponse marker = new DataSyncOperationResponse();
         marker.setSuccess(false);
@@ -556,6 +564,7 @@ public class DataSyncService {
         response.setSuccess(false);
         response.setErrorCode(errorCode);
         response.setMessage(StringUtils.hasText(message) ? message : "Batch request failed.");
+        response.setProviderRequestId(providerRequestId);
         response.setTotalOperations(0);
         response.setSucceededOperations(0);
         response.setFailedOperations(0);

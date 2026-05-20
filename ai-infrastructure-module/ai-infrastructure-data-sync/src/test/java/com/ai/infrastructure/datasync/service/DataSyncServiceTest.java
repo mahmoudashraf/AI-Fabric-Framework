@@ -4,8 +4,12 @@ import com.ai.infrastructure.access.AIAccessControlService;
 import com.ai.infrastructure.config.AIEntityConfigurationLoader;
 import com.ai.infrastructure.core.AIEmbeddingService;
 import com.ai.infrastructure.datasync.AIDataSyncProperties;
+import com.ai.infrastructure.datasync.dto.DataSyncBatchRequest;
+import com.ai.infrastructure.datasync.dto.DataSyncBatchResponse;
 import com.ai.infrastructure.datasync.dto.DataSyncIdentity;
+import com.ai.infrastructure.datasync.dto.DataSyncOperation;
 import com.ai.infrastructure.datasync.dto.DataSyncOperationResponse;
+import com.ai.infrastructure.datasync.dto.DataSyncOperationType;
 import com.ai.infrastructure.datasync.dto.DataSyncTrace;
 import com.ai.infrastructure.datasync.dto.DataSyncUpsertRequest;
 import com.ai.infrastructure.datasync.dto.DataSyncVerifiedAuthContext;
@@ -258,6 +262,57 @@ class DataSyncServiceTest {
             .containsEntry("subjectId", "verified-system")
             .containsEntry("authMode", "PRIVATE_RUNTIME_BACKEND_MEDIATED")
             .containsEntry("deploymentId", "dep-123");
+    }
+
+    @Test
+    void batch_shouldReturnProviderRequestIdFromTrace() {
+        AIDataSyncProperties props = new AIDataSyncProperties();
+        AIEntityConfigurationLoader loader = mock(AIEntityConfigurationLoader.class);
+        AIEmbeddingService embeddingService = mock(AIEmbeddingService.class);
+        VectorManagementService vectorManagementService = mock(VectorManagementService.class);
+        AIAccessControlService accessControlService = mock(AIAccessControlService.class);
+
+        when(loader.getEntityConfig("product")).thenReturn(AIEntityConfig.builder()
+            .entityType("product")
+            .indexable(true)
+            .build());
+        when(accessControlService.checkAccess(any())).thenReturn(AIAccessControlResponse.builder()
+            .accessGranted(true)
+            .build());
+        when(embeddingService.generateEmbedding(any())).thenReturn(AIEmbeddingResponse.builder()
+            .embedding(List.of(0.1, 0.2))
+            .build());
+        when(vectorManagementService.storeVector(anyString(), anyString(), anyString(), any(), any()))
+            .thenReturn("vec_batch");
+
+        DataSyncService service = new DataSyncService(
+            props,
+            loader,
+            embeddingService,
+            vectorManagementService,
+            accessControlService,
+            new DataSyncEntityNormalizer(props, null),
+            Clock.fixed(Instant.parse("2026-02-12T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        DataSyncTrace trace = verifiedTrace("system", null, "produs-safe-knowledge-sync-req-1");
+        DataSyncOperation operation = new DataSyncOperation(
+            DataSyncOperationType.UPSERT,
+            "product",
+            "p-batch",
+            "hello",
+            null,
+            Map.of("source", "test"),
+            null
+        );
+
+        DataSyncBatchResponse response = service.batch(new DataSyncBatchRequest(trace, List.of(operation)));
+
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getProviderRequestId()).isEqualTo("produs-safe-knowledge-sync-req-1");
+        assertThat(response.getTotalOperations()).isEqualTo(1);
+        assertThat(response.getSucceededOperations()).isEqualTo(1);
+        assertThat(response.getFailedOperations()).isZero();
     }
 
     @Test

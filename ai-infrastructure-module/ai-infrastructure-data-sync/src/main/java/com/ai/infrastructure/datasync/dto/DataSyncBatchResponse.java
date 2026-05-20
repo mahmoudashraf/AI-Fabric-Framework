@@ -13,6 +13,8 @@ public class DataSyncBatchResponse {
 
     private String message;
 
+    private String providerRequestId;
+
     private Integer totalOperations;
 
     private Integer succeededOperations;
@@ -27,6 +29,7 @@ public class DataSyncBatchResponse {
     public DataSyncBatchResponse(Boolean success,
                                  String errorCode,
                                  String message,
+                                 String providerRequestId,
                                  Integer totalOperations,
                                  Integer succeededOperations,
                                  Integer failedOperations,
@@ -34,6 +37,7 @@ public class DataSyncBatchResponse {
         this.success = success;
         this.errorCode = errorCode;
         this.message = message;
+        this.providerRequestId = providerRequestId;
         this.totalOperations = totalOperations;
         this.succeededOperations = succeededOperations;
         this.failedOperations = failedOperations;
@@ -62,6 +66,14 @@ public class DataSyncBatchResponse {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getProviderRequestId() {
+        return providerRequestId;
+    }
+
+    public void setProviderRequestId(String providerRequestId) {
+        this.providerRequestId = providerRequestId;
     }
 
     public Integer getTotalOperations() {

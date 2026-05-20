@@ -1,0 +1,699 @@
+# ProdUS LoomAI Staging Deployment Dev Guide
+
+Status: current staging guide, last verified 2026-05-20.
+
+This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
+
+Do not paste raw secrets into this file. Runtime API keys, HMAC signing secrets, Platform API keys, Coolify API tokens, and MCP API keys must stay in private secret stores or local `0600` temp files.
+
+The current raw ProdUS staging auth material is recorded only in `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md` under `2026-05-20 ProdUS Direct Runtime Auth Material (Private)`.
+
+## 1. Staging Deployment Summary
+
+| Field | Value |
+| --- | --- |
+| Platform deployment id | `dep-7706fafb` |
+| Platform deployment name | `ProdUS AI Enablement Staging` |
+| Stable consumer/customer id | `produs-staging` |
+| Runtime base URL | `http://dep-7706fafb.46.224.145.148.sslip.io` |
+| Runtime template | `dev-openai-qdrant` |
+| Active version | `v2` |
+| Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
+| Connector Coolify app | `rest-connector-dep-7706fafb` / `f8v02rd1luusupszsnbrny7i` |
+| ProdUS backend app | `produs-backend-staging` / `jk3n39yatabf8zc9sn5nknj9` |
+| ProdUS frontend app | `produs-frontend-staging` / `wfvdve1ezt7vixejye4bhrgl` |
+| Target integration | `BACKEND_MEDIATED_PRIVATE_RUNTIME` |
+| Runtime auth mode | `PRIVATE_RUNTIME_ASSERTION` |
+
+Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on staging; unauthenticated `/mcp` calls fail closed and authenticated calls return the LoomAI productization tools. The read-only ProdUS MCP Marketplace action bundle is published, installed, applied, and visible in runtime actions overview.
+
+## 2. Tools Used
+
+Local tools:
+
+```bash
+curl
+jq
+python3
+rg
+sed
+git
+```
+
+Tracked scripts and references:
+
+```text
+scripts/verify-coolify-provider.sh
+scripts/verify-marketplace-install-flow.sh
+scripts/run-platform-deployment-verification.sh
+scripts/verify-vector-deployment.sh
+Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md
+Final_Documentation/Development_Guides/PRIVATE_RUNTIME_CUSTOMER_INTEGRATION_GUIDE.md
+doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_5_LOOMAI_CANONICAL_RUNTIME_BRIDGE_CONTRACT_STANDARDIZATION_PLAN.md
+/Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/LOOMAI_STAGING_DEPLOYMENT_HANDOVER.md
+/Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/planning/Scanners-AI-integration/LOOMAI_STAGING_DIRECT_RUNTIME_REQUEST.md
+```
+
+Local private material expected by the commands:
+
+```text
+/tmp/coolify_api_tokens.env
+```
+
+The token file is expected to define `COOLIFY_STAGING_BASE_URL` and `COOLIFY_STAGING_API_TOKEN`. Keep it mode `0600`.
+
+## 3. Platform Deployment Creation Flow
+
+The deployment is a normal Platform deployment using the existing template system. Use this flow to recreate the deployment from Platform API if needed.
+
+Create or confirm Platform deployment:
+
+```bash
+PLATFORM_BASE_URL="https://loomai-platform-backend.46.224.145.148.sslip.io"
+PLATFORM_API_KEY="<platform-operator-or-admin-api-key>"
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/deployments" \
+  --data '{
+    "name": "ProdUS AI Enablement Staging",
+    "environment": "staging",
+    "templateId": "dev-openai-qdrant",
+    "curatedModuleId": null,
+    "vectorProvisioningMode": "MANAGED_CLOUD_CLUSTER",
+    "customerId": "produs-staging"
+  }'
+```
+
+Read the draft:
+
+```bash
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/draft" \
+  | jq '{id, deploymentId, status}'
+```
+
+Publish the draft:
+
+```bash
+DRAFT_ID="<draft-id>"
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/deployment-drafts/${DRAFT_ID}/publish" \
+  --data '{}'
+```
+
+Apply a version through the Coolify target profile:
+
+```bash
+VERSION_ID="<published-version-id>"
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/apply/${VERSION_ID}" \
+  --data '{"targetProfileId":"dtp-coolify-staging"}'
+```
+
+Monitor release and hosted verification:
+
+```bash
+curl -fsS -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/releases" | jq '.[0]'
+
+curl -fsS -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/verification-runs" | jq '.[0]'
+```
+
+## 4. Coolify App Lookup
+
+Load Coolify credentials:
+
+```bash
+set -euo pipefail
+source /tmp/coolify_api_tokens.env
+COOLIFY_BASE_URL="${COOLIFY_STAGING_BASE_URL:-http://46.224.145.148:8000}"
+```
+
+List related apps:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer ${COOLIFY_STAGING_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "${COOLIFY_BASE_URL}/api/v1/applications" \
+  | jq -r '.[]? | [.uuid, .name, (.fqdn // .domains // ""), (.git_branch // ""), (.status // "")] | @tsv' \
+  | rg 'dep-7706fafb|ProdUS|produs|7706fafb'
+```
+
+Expected relevant runtime row:
+
+```text
+m14c2kdq3qsc2hnofr84wge2  runtime-dep-7706fafb  http://dep-7706fafb.46.224.145.148.sslip.io  Platform-V9  running:healthy
+```
+
+## 5. Runtime Env Configuration
+
+The runtime app must have these values. Secret values must already exist in Coolify or Platform-managed secret resolution and must never be printed.
+
+```bash
+APP_UUID="m14c2kdq3qsc2hnofr84wge2"
+
+env_json="$(curl -fsS \
+  -H "Authorization: Bearer ${COOLIFY_STAGING_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "${COOLIFY_BASE_URL}/api/v1/applications/${APP_UUID}/envs")"
+
+printf '%s' "${env_json}" | jq -r '
+  [.[] | select((.key=="AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"
+    or .key=="AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"
+    or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS"
+    or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES") and (.is_preview|not)) |
+    {
+      key,
+      length: ((.value // "")|length),
+      valuePresent: ((.value // "")|length > 0),
+      hasProdusIssuer: ((.value // "")|contains("produs-staging-backend")),
+      hasProdusAudience: ((.value // "")|contains("dep-7706fafb"))
+    }
+  ]'
+```
+
+Patch non-secret runtime env rows while preserving existing issuer/audience values:
+
+```bash
+patch_json="$(printf '%s' "${env_json}" | jq -c '
+  def envmap: map({(.key): (.value // "")}) | add;
+  def csv_add($raw; $item):
+    (($raw // "") | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)) + [$item] | unique | join(","));
+  envmap as $e |
+  {data: [
+    {key:"AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", value:"VERIFIED_CONTEXT_REQUIRED", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER", value:"X-AIFABRIC-RUNTIME-API-KEY", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_PRIVATE_AUTHORIZATION_HEADER", value:"X-AIFABRIC-RUNTIME-AUTHORIZATION", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_PRIVATE_TOKEN_SCHEME", value:"Bearer", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS; "produs-staging-backend"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES; "dep-7706fafb"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false}
+  ]}
+')"
+
+curl -fsS \
+  -X PATCH \
+  -H "Authorization: Bearer ${COOLIFY_STAGING_API_TOKEN}" \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  --data "${patch_json}" \
+  "${COOLIFY_BASE_URL}/api/v1/applications/${APP_UUID}/envs/bulk" >/dev/null
+```
+
+Trigger a real redeploy and capture the deployment UUID:
+
+```bash
+deployment_json="$(curl -fsS \
+  -H "Authorization: Bearer ${COOLIFY_STAGING_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "${COOLIFY_BASE_URL}/api/v1/applications/${APP_UUID}/start?force=true&instant_deploy=true")"
+
+DEPLOYMENT_UUID="$(printf '%s' "${deployment_json}" | jq -r '.deployment_uuid')"
+printf 'deployment queued: %s\n' "${DEPLOYMENT_UUID}"
+```
+
+Poll deployment completion and runtime health:
+
+```bash
+for i in $(seq 1 120); do
+  dep_json="$(curl -fsS \
+    -H "Authorization: Bearer ${COOLIFY_STAGING_API_TOKEN}" \
+    -H "Accept: application/json" \
+    "${COOLIFY_BASE_URL}/api/v1/deployments/${DEPLOYMENT_UUID}")"
+  dep_status="$(printf '%s' "${dep_json}" | jq -r '.status // ""')"
+  finished_at="$(printf '%s' "${dep_json}" | jq -r '.finished_at // ""')"
+  health="$(curl -fsS --max-time 4 \
+    http://dep-7706fafb.46.224.145.148.sslip.io/actuator/health 2>/dev/null \
+    | jq -r '.status // empty' 2>/dev/null || true)"
+
+  printf 'poll=%s deployment=%s finished=%s health=%s\n' \
+    "$i" "$dep_status" "${finished_at:-no}" "${health:-pending}"
+
+  if [[ "$dep_status" == "finished" && "$health" == "UP" ]]; then
+    break
+  fi
+  if [[ "$dep_status" == "failed" || "$dep_status" == "cancelled" ]]; then
+    exit 1
+  fi
+  sleep 5
+done
+```
+
+## 6. Private Runtime Assertion Contract
+
+ProdUS must call runtime with:
+
+```http
+X-AIFABRIC-RUNTIME-API-KEY: <deployment-scoped-runtime-api-key>
+X-AIFABRIC-RUNTIME-AUTHORIZATION: Bearer rpa1.<base64url-json-payload>.<base64url-hmac-sha256-signature>
+```
+
+Confirmed implementation details:
+
+- Base64url encoding is unpadded.
+- HMAC input is exactly the base64url payload segment.
+- Signature algorithm is HMAC-SHA256.
+- `exp` must be an ISO-8601 UTC instant string accepted by `Instant.parse`, for example `2026-05-20T12:00:00Z`.
+- Numeric epoch seconds are not accepted by the current runtime.
+- Current runtime has no explicit clock-skew grace window; token expiry must be greater than the runtime clock.
+- `subjectType=ANONYMOUS_SESSION` requires `sub == sessionId`.
+- Missing `chat:query` rejects query with `403`.
+- Missing `chat:suggestions` rejects suggestions with `403`.
+- Supplying both public `Authorization` and private `X-AIFABRIC-RUNTIME-AUTHORIZATION` is rejected with `400`.
+
+Generate a smoke token locally without printing secrets:
+
+```bash
+env_json="$(curl -fsS \
+  -H "Authorization: Bearer ${COOLIFY_STAGING_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "${COOLIFY_BASE_URL}/api/v1/applications/${APP_UUID}/envs")"
+
+export LOOMAI_RUNTIME_API_KEY="$(printf '%s' "${env_json}" \
+  | jq -r '.[] | select(.key=="AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY" and (.is_preview|not)) | .value' | tail -1)"
+
+export LOOMAI_ASSERTION_SIGNING_SECRET="$(printf '%s' "${env_json}" \
+  | jq -r '.[] | select(.key=="AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY" and (.is_preview|not)) | .value' | tail -1)"
+
+LOOMAI_PRIVATE_ASSERTION="$(python3 - <<'PY'
+import base64, hashlib, hmac, json, os
+from datetime import datetime, timezone, timedelta
+
+payload = {
+    "sub": "produs-smoke-user",
+    "subjectType": "END_USER",
+    "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+    "callerType": "TRUSTED_BACKEND",
+    "sessionId": "produs-smoke-session",
+    "deploymentId": "dep-7706fafb",
+    "customerId": "produs-staging",
+    "tenantId": "produs-smoke-tenant",
+    "iss": "produs-staging-backend",
+    "aud": "dep-7706fafb",
+    "exp": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat().replace("+00:00", "Z"),
+    "scopes": ["chat:query", "chat:suggestions", "chat:conversations"],
+}
+
+def b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+payload_segment = b64(json.dumps(payload, separators=(",", ":")).encode())
+signature = hmac.new(
+    os.environ["LOOMAI_ASSERTION_SIGNING_SECRET"].encode(),
+    payload_segment.encode(),
+    hashlib.sha256,
+).digest()
+print("rpa1." + payload_segment + "." + b64(signature))
+PY
+)"
+```
+
+## 7. Direct Runtime Smoke Commands
+
+Auth context:
+
+```bash
+curl -fsS \
+  -H "X-AIFABRIC-RUNTIME-API-KEY: ${LOOMAI_RUNTIME_API_KEY}" \
+  -H "X-AIFABRIC-RUNTIME-AUTHORIZATION: Bearer ${LOOMAI_PRIVATE_ASSERTION}" \
+  "http://dep-7706fafb.46.224.145.148.sslip.io/api/chat/me/auth-context" \
+  | jq '{subjectId, subjectType, authMode, callerType, sessionId, deploymentId, customerId, tenantId, issuer, audiences, grantedScopes}'
+```
+
+Expected field names are `subjectId`, `issuer`, `audiences`, and `grantedScopes`.
+
+Query:
+
+```bash
+curl -fsS \
+  -H "Content-Type: application/json" \
+  -H "X-AIFABRIC-RUNTIME-API-KEY: ${LOOMAI_RUNTIME_API_KEY}" \
+  -H "X-AIFABRIC-RUNTIME-AUTHORIZATION: Bearer ${LOOMAI_PRIVATE_ASSERTION}" \
+  -X POST \
+  "http://dep-7706fafb.46.224.145.148.sslip.io/api/chat/me/query" \
+  --data '{
+    "query": "What can you help me with for productization?",
+    "conversationId": "produs-direct-runtime-smoke",
+    "mode": "support_assistant",
+    "position": "productization",
+    "context": {
+      "pageType": "owner-product-workspace",
+      "actorRole": "PRODUCT_OWNER",
+      "productStage": "PROTOTYPE"
+    }
+  }' \
+  | jq '{success,type,conversationId,mode,position,hasAnswer:(.answer|type=="string" and length>0),providerRequestId, actionsType:(.actions|type), sourcesType:(.sources|type), suggestionsType:(.suggestions|type)}'
+```
+
+Suggestions:
+
+```bash
+curl -fsS \
+  -H "Content-Type: application/json" \
+  -H "X-AIFABRIC-RUNTIME-API-KEY: ${LOOMAI_RUNTIME_API_KEY}" \
+  -H "X-AIFABRIC-RUNTIME-AUTHORIZATION: Bearer ${LOOMAI_PRIVATE_ASSERTION}" \
+  -X POST \
+  "http://dep-7706fafb.46.224.145.148.sslip.io/api/chat/me/suggestions" \
+  --data '{
+    "content": "Owner is reviewing product launch blockers",
+    "maxSuggestions": 4
+  }' \
+  | jq '{success, count:(.suggestions|length), suggestionsType:(.suggestions|type)}'
+```
+
+Negative auth checks:
+
+```bash
+curl -sS -o /tmp/produs-missing-key-response.json -w '%{http_code}\n' \
+  -H "X-AIFABRIC-RUNTIME-AUTHORIZATION: Bearer ${LOOMAI_PRIVATE_ASSERTION}" \
+  "http://dep-7706fafb.46.224.145.148.sslip.io/api/chat/me/auth-context"
+```
+
+Expected: `401`.
+
+## 8. Runtime API Contract Answers For ProdUS
+
+Chat query:
+
+- `mode=support_assistant` is accepted and echoed back.
+- `position=productization` is accepted and echoed back; it is useful as a routing/context signal.
+- Product-specific context belongs under canonical `context`.
+- Do not send top-level `userId`, `ownerId`, `tenantId`, `sessionId`, or `storefrontContext`; identity comes from the private assertion.
+- `providerRequestId` is the canonical response field for trace correlation.
+- Prefer `answer` for display and keep `safeSummary` as equivalent/fallback safe copy.
+
+Action/error evidence:
+
+- Runtime preserves `actions[].errorCode` and `actions[].actionResult.errorCode` when action/tool failures carry machine codes.
+- UI branches must use `errorCode`, `fallbackReason`, or structured action evidence, not English text matching.
+
+Current `type` values from the runtime orchestration enum:
+
+```text
+ACTION_EXECUTED
+ACTION_DENIED
+INFORMATION_PROVIDED
+CONFIRMATION_REQUIRED
+CLARIFICATION_REQUIRED
+OUT_OF_SCOPE
+COMPOUND_HANDLED
+ERROR
+```
+
+Suggestions:
+
+- Current runtime `SuggestionsRequest` supports `content`, `attachments`, and `maxSuggestions`.
+- It does not currently accept `conversationId` or `context` on `/api/chat/me/suggestions`; unexpected fields are rejected.
+- If ProdUS wants suggestion context, include safe concise text in `content` or add safe attachments.
+
+Auth context:
+
+- Endpoint is live at `/api/chat/me/auth-context`.
+- Response uses `subjectId`, `issuer`, `audiences`, and `grantedScopes`.
+
+Rate limits and retries:
+
+- No explicit runtime rate-limit headers are currently emitted by this deployment.
+- Recommended ProdUS backend timeout: `8000ms`.
+- Recommended retry policy: no retry for auth/client errors; one short retry for network/`5xx` failures on read-only query/suggestions; never retry side-effecting confirmed actions without idempotency.
+
+## 9. MCP Discovery Commands
+
+Check ProdUS backend:
+
+```bash
+curl -fsS https://produs-api-staging.46.224.145.148.sslip.io/health | jq .
+```
+
+Check allowlist without the MCP key:
+
+```bash
+curl -sS -o /tmp/produs-tool-allowlist-noauth.json -w '%{http_code}\n' \
+  https://produs-api-staging.46.224.145.148.sslip.io/loomai/tool-allowlist
+```
+
+Expected result: `401` with `PRODUS_MCP_AUTH_REQUIRED`.
+
+Check allowlist with the MCP key from the private handoff or `/tmp/produs_mcp_api_key.secret`:
+
+```bash
+curl -fsS \
+  -H "X-MCP-API-KEY: $(cat /tmp/produs_mcp_api_key.secret)" \
+  https://produs-api-staging.46.224.145.148.sslip.io/loomai/tool-allowlist | jq .
+```
+
+Expected result: `200`, `ready=true`, and 17 tools.
+
+Check unauthenticated MCP discovery:
+
+```bash
+curl -sS -o /tmp/produs-mcp-noauth.json -w '%{http_code}\n' \
+  -H "Content-Type: application/json" \
+  -X POST \
+  https://produs-api-staging.46.224.145.148.sslip.io/mcp \
+  --data '{"jsonrpc":"2.0","id":"smoke","method":"tools/list","params":{}}'
+```
+
+Expected result: `401` with `PRODUS_MCP_AUTH_REQUIRED`.
+
+Authenticated Marketplace discovery target shape:
+
+```bash
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/marketplace/mcp/discover" \
+  --data '{
+    "serverRef": "produs-staging",
+    "server": {
+      "transport": "STREAMABLE_HTTP",
+      "endpointUrl": "https://produs-api-staging.46.224.145.148.sslip.io/mcp",
+      "auth": {
+        "mode": "API_KEY_HEADER_SECRET",
+        "headerName": "X-MCP-API-KEY",
+        "secretRef": "MCP_SECRET_PRODUS_STAGING_MCP_API_KEY"
+      }
+    },
+    "trace": {
+      "environment": "staging",
+      "source": "produs-ai-enablement"
+    },
+    "allowedTools": [],
+    "gatewayServiceRef": "mcp-execution-gateway"
+  }'
+```
+
+`GET /loomai/tool-allowlist` and `POST /mcp` both require `X-MCP-API-KEY` in the current staging deployment.
+
+## 10. Safe Knowledge Ingestion
+
+Current status:
+
+- ProdUS plans `GET /api/ai/loomai/knowledge-preview` and `POST /api/ai/loomai/knowledge-sync`.
+- Runtime import path for ProdUS safe records is not finalized in this deployment.
+- Until finalized, treat safe knowledge ingestion as intentionally disabled/skipped.
+
+Preferred next implementation options:
+
+1. Runtime-managed import endpoint with explicit upsert/delete schema, idempotency key, batch size, and namespace.
+2. ProdUS-specific Marketplace `DATA` plugin that compiles safe exported records into deployment knowledge sources.
+
+Use a separate vector namespace or source id for ProdUS safe knowledge; do not mix it with generic help-center/policy seed data.
+
+## 11. Verification Results From 2026-05-20
+
+Runtime/Coolify:
+
+- Runtime app env patched for explicit private runtime headers and ProdUS issuer.
+- Coolify deployment queued and finished.
+- Runtime health returned `UP`.
+
+Direct private runtime:
+
+- `GET /api/chat/me/auth-context`: passed with issuer `produs-staging-backend`.
+- `POST /api/chat/me/query`: passed with canonical response, non-empty answer, and `providerRequestId`.
+- `POST /api/chat/me/suggestions`: passed with four suggestions.
+- Missing runtime API key: `401`.
+- Wrong issuer: `401`.
+
+ProdUS service:
+
+- `GET /health`: `200`.
+- `GET /loomai/tool-allowlist` without API key: `401`, `PRODUS_MCP_AUTH_REQUIRED`.
+- `GET /loomai/tool-allowlist` with API key: `200`, `ready=true`, 17 tools.
+- `POST /mcp tools/list` without API key: `401`, `PRODUS_MCP_AUTH_REQUIRED`.
+- `POST /mcp tools/list` with API key: `200`, 17 tools.
+
+Marketplace/read-action deployment:
+
+- Marketplace MCP discovery for `produs-staging`: `ready=true`, 17 tools.
+- Published plugin: `mkp-action-produs-productization-read-mcp@0.1.0`.
+- Installed on deployment `dep-7706fafb` as an enabled `ACTION` plugin with `READY` readiness and active entitlement.
+- Published deployment version: `v3`.
+- Applied release: `rel-dcd6fd36`, status `APPLIED_VERIFIED`.
+- Runtime `/api/admin/actions/overview`: 8 ProdUS read actions loaded.
+- Runtime `POST /api/chat/me/query`: passed after apply with canonical response and `providerRequestId`.
+- Runtime `POST /api/chat/me/suggestions`: passed after apply with four suggestions.
+
+Imported read actions:
+
+```text
+produs_catalog_search
+produs_product_list
+produs_package_inspect
+produs_workspace_inspect
+produs_scan_status
+produs_finding_inspect
+produs_evidence_list
+produs_milestone_review_evidence
+```
+
+Mutation MCP tools were not imported. They require a reviewed confirmed-action manifest because the generic MCP importer creates read-only action definitions.
+
+## 12. ProdUS Safe Knowledge DATA Plugin
+
+Status: verified live on 2026-05-21.
+
+Published plugin:
+
+```text
+mkp-data-produs-safe-knowledge@0.1.0
+```
+
+Installed/applied state:
+
+- Deployment: `dep-7706fafb`
+- Install: enabled, `READY`, live, free entitlement active
+- Applied release: `rel-2cf55a81`
+- Release status: `APPLIED_VERIFIED`
+- Verification status: `PASSED`
+- Marketplace dataset sync: 12 datasets synchronized, including the 10 ProdUS datasets plus the existing help-center/policy datasets
+
+ProdUS vector spaces registered by the plugin:
+
+```text
+service-category
+service-module
+service-dependency
+package-template
+ai-capability-contract
+milestone-template
+acceptance-criteria-template
+evidence-template
+scanner-tool-description
+case-pattern
+```
+
+Creation flow used:
+
+```bash
+PLATFORM_BASE_URL="https://loomai-platform-backend.46.224.145.148.sslip.io"
+PLATFORM_API_KEY="<platform-admin-api-key>"
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/marketplace/publishers/loom/submissions" \
+  --data @/tmp/produs-data-plugin-submission.json
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/marketplace/submissions/<plugin-version-id>/validate" \
+  --data '{"reviewNotes":"ProdUS safe knowledge DATA plugin for staging vector-space enablement."}'
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/marketplace/submissions/<plugin-version-id>/publish" \
+  --data '{"reviewNotes":"ProdUS safe knowledge DATA plugin for staging vector-space enablement."}'
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/marketplace-installs" \
+  --data '{"pluginId":"mkp-data-produs-safe-knowledge","pluginVersion":"0.1.0","config":{},"secretRefs":{}}'
+```
+
+After install, publish/apply the modified deployment draft through `dtp-coolify-staging` using the normal commands in Section 3.
+
+Runtime smoke checks used:
+
+```bash
+curl -fsS \
+  -H "X-AIFABRIC-RUNTIME-API-KEY: ${LOOMAI_RUNTIME_API_KEY}" \
+  http://dep-7706fafb.46.224.145.148.sslip.io/api/ai/data-sync/vector-spaces
+
+curl -fsS \
+  -H "X-AIFABRIC-RUNTIME-API-KEY: ${LOOMAI_RUNTIME_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  http://dep-7706fafb.46.224.145.148.sslip.io/api/ai/data-sync/batch \
+  --data @/tmp/produs-data-plugin-smoke-upsert.json
+```
+
+Observed results:
+
+- `/api/ai/data-sync/vector-spaces`: returned all 10 ProdUS vector spaces with `missing=[]`.
+- Platform-internal smoke batch: 10 upserts succeeded and 10 deletes succeeded.
+- ProdUS-shaped `SYSTEM_PROCESS` smoke batch: one `service-module` upsert succeeded and its cleanup delete succeeded.
+- Temporary retrieval smoke: a synthetic `service-module` record was indexed, answered through `POST /api/chat/me/query` with a grounded answer and provider request id, then deleted.
+
+ProdUS safe knowledge sync must use canonical `trace + operations`; do not send the old top-level `environment/source/records` shape. The sync trace should use:
+
+```json
+{
+  "subjectId": "system:produs-safe-knowledge-sync",
+  "subjectType": "SYSTEM_PROCESS",
+  "authMode": "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+  "callerType": "SYSTEM_PROCESS",
+  "deploymentId": "dep-7706fafb",
+  "customerId": "produs-staging",
+  "issuer": "produs-staging-backend",
+  "grantedScopes": ["data-sync:upsert"]
+}
+```
+
+Known operational follow-up: Platform apply can overwrite manually added accepted private assertion issuers. After this apply, Coolify runtime env was patched back to include `produs-staging-backend` and `platform-produs-data-plugin-smoke`, then the runtime was redeployed and health returned `UP`. This should be hardened in Platform env rendering so future applies preserve registered private runtime issuers.
+
+## 13. Rollback
+
+If direct runtime auth breaks after enabling ProdUS:
+
+1. Set `LOOMAI_ENABLED=false` in ProdUS backend env to restore ProdUS local fallback.
+2. Keep the LoomAI runtime running; do not rotate secrets during incident triage unless compromise is suspected.
+3. Verify runtime health:
+
+```bash
+curl -fsS http://dep-7706fafb.46.224.145.148.sslip.io/actuator/health | jq .
+```
+
+4. Rerun `/api/chat/me/auth-context` with a fresh short-lived `rpa1` token.
+5. Check Coolify deployment status and logs:
+
+```bash
+curl -fsS \
+  -H "Authorization: Bearer ${COOLIFY_STAGING_API_TOKEN}" \
+  -H "Accept: application/json" \
+  "${COOLIFY_BASE_URL}/api/v1/applications/m14c2kdq3qsc2hnofr84wge2/logs?lines=100"
+```
+
+6. If the latest env change caused failure, restore previous issuer/audience/header env rows from Coolify history or private ops notes and redeploy.
