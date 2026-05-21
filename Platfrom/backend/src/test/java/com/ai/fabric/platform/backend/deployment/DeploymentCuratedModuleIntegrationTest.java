@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentCuratedModuleRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.security.PlatformTestSecurity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,9 @@ class DeploymentCuratedModuleIntegrationTest {
 
     @Autowired
     private DeploymentService deploymentService;
+
+    @Autowired
+    private VectorizationPlanRepository vectorizationPlanRepository;
 
     @BeforeEach
     void authenticate() {
@@ -229,5 +233,11 @@ class DeploymentCuratedModuleIntegrationTest {
         assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("qdrant");
         assertThat(providerConfig.path("qdrantManagedCollectionsEnabled").asBoolean()).isTrue();
         assertThat(providerConfig.path("qdrantHost").asText("")).isEmpty();
+        assertThat(vectorizationPlanRepository.findByDeploymentId(deployment.id()))
+            .hasValueSatisfying(plan -> {
+                assertThat(plan.getRunnerMode()).isEqualTo("PLATFORM_MANAGED_AUTO");
+                assertThat(plan.getSyncState()).isEqualTo("BOOTSTRAP_REQUIRED");
+                assertThat(plan.getSyncReasonCodesJson()).contains("MANAGED_TEMPLATE_DEFAULT");
+            });
     }
 }

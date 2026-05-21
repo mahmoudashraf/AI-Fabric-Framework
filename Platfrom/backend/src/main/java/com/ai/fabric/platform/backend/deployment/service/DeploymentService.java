@@ -61,10 +61,13 @@ import com.ai.fabric.platform.backend.security.PlatformRole;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerTenantService;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -118,6 +121,7 @@ public class DeploymentService {
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
+    private VectorizationPlanRepository vectorizationPlanRepository;
 
     private final List<DeploymentTemplateSummary> templates = List.of(
         template(
@@ -147,13 +151,13 @@ public class DeploymentService {
         template(
             "dev-openai-qdrant",
             "OpenAI / Qdrant Cloud",
-            "Deployment-verified OpenAI stack with a platform-managed Qdrant Cloud cluster. The platform can create or reuse the cluster, issue a deployment-scoped database key, and reconcile collections automatically.",
+            "Deployment-verified OpenAI stack with a platform-managed Qdrant Cloud cluster and managed vectorization runner. The platform can create or reuse the cluster, issue a deployment-scoped database key, reconcile collections, and attach a source-driven indexing worker automatically.",
             "openai",
             "openai",
             "qdrant",
             true,
             "MANAGED_CLOUD_CLUSTER",
-            "After create, open Providers to choose the Qdrant Cloud region. Apply will create or reuse a deployment-owned Qdrant Cloud cluster and one collection per configured entity type."
+            "After create, open Providers to choose the Qdrant Cloud region and Vectorization to configure the source. Apply will create or reuse a deployment-owned Qdrant Cloud cluster, one collection per configured entity type, and a managed vectorization runner."
         ),
         template(
             "dev-openai-pinecone",
@@ -688,6 +692,7 @@ public class DeploymentService {
         deployment.setActiveDraftId(draft.getId());
         deploymentRepository.save(deployment);
         draftRepository.save(draft);
+        seedManagedVectorizationPlanIfNeeded(deployment, template, vectorProvisioningMode, now);
         deploymentAssignmentService.grantCreatorAccessIfNeeded(deployment);
         platformAuditService.record(
             "DEPLOYMENT_CREATED",
@@ -706,6 +711,45 @@ public class DeploymentService {
         );
 
         return toSummary(deployment);
+    }
+
+    @Autowired(required = false)
+    void setVectorizationPlanRepository(VectorizationPlanRepository vectorizationPlanRepository) {
+        this.vectorizationPlanRepository = vectorizationPlanRepository;
+    }
+
+    private void seedManagedVectorizationPlanIfNeeded(DeploymentEntity deployment,
+                                                       DeploymentTemplateSummary template,
+                                                       String vectorProvisioningMode,
+                                                       Instant now) {
+        if (vectorizationPlanRepository == null
+            || !ManagedDeploymentProfileCatalog.VECTOR_PROVISIONING_MODE_PLATFORM_MANAGED.equals(vectorProvisioningMode)
+            || !ManagedDeploymentProfileCatalog.supportsPlatformManagedVector(template.vectorStrategy())) {
+            return;
+        }
+        if (vectorizationPlanRepository.findByDeploymentId(deployment.getId()).isPresent()) {
+            return;
+        }
+        VectorizationPlanEntity plan = new VectorizationPlanEntity();
+        plan.setId(generateId("vpl"));
+        plan.setDeploymentId(deployment.getId());
+        plan.setCustomerId(deployment.getCustomerId());
+        plan.setTenantId(deployment.getTenantId());
+        plan.setName(deployment.getName() + " vectorization");
+        plan.setStatus("ACTIVE");
+        plan.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        plan.setSyncState("BOOTSTRAP_REQUIRED");
+        plan.setSyncReasonCodesJson(writeJson(objectMapper.createArrayNode()
+            .add("PLAN_CREATED")
+            .add("MANAGED_TEMPLATE_DEFAULT")));
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("templateId", template.id());
+        details.put("vectorStrategy", template.vectorStrategy());
+        details.put("sourceConnectionRequired", true);
+        plan.setSyncReasonDetailsJson(writeJson(details));
+        plan.setCreatedAt(now);
+        plan.setUpdatedAt(now);
+        vectorizationPlanRepository.save(plan);
     }
 
     @Transactional
