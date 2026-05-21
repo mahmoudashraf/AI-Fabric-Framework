@@ -543,7 +543,7 @@ Live Platform configuration:
 | Active revision | `vpr-d9e4b704`, revision `2` |
 | Runner mode | `PLATFORM_MANAGED_AUTO` |
 | Runner registration | `vrr-cb21c848`, `ACTIVE`, `CURRENT` |
-| Latest successful run | `vrn-9f98d115` |
+| Latest successful run | `vrn-39e54227` |
 
 Plan mapping:
 
@@ -575,7 +575,7 @@ The per-vector-space static metadata is required because the runtime shared-inde
 Latest bootstrap/reindex evidence:
 
 ```text
-run: vrn-9f98d115
+run: vrn-39e54227
 status: COMPLETED
 processed: 157
 succeeded: 157
@@ -616,9 +616,18 @@ curl -fsS \
 
 curl -fsS \
   -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
-  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/vectorization/runs/vrn-9f98d115" \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/vectorization/runs/vrn-39e54227" \
   | jq '{run, checkpoints, failureBuckets}'
 ```
+
+Reset/reindex verification on 2026-05-21:
+
+- Governed Platform runtime vector reset removed `164` vectors from the Qdrant runtime index.
+- Runtime indexing overview immediately after reset reported `totalVectors=0`.
+- Managed vectorization run `vrn-39e54227` reindexed the ProdUS export successfully with `157` processed, `157` succeeded, and `0` failed.
+- Runtime indexing overview after reindex reported `totalVectors=157`, including `service-module=75`, `package-template=12`, `team-profile=1`, and `solo-expert-profile=1`.
+- Runtime vector metadata still includes `datasetId=produs-safe-knowledge`, `exportVersion=produs-safe-knowledge-v1`, and DATA plugin source handle metadata.
+- Live retrieval checks after reindex still returned grounded answers, and runtime diagnostics showed nonzero successful results for all ProdUS DATA sources.
 
 Known hygiene follow-up: ProdUS staging Coolify currently has duplicate `LOOMAI_SAFE_KNOWLEDGE_EXPORT_TOKEN` env rows. LoomAI stored only one non-empty value in the managed Platform secret, but the duplicate rows should be cleaned on the ProdUS app to avoid operator confusion during future rotation.
 
@@ -662,7 +671,7 @@ Managed vectorization and retrieval:
 - Runtime version `ver-0b3324cd` applied through release `rel-579d7fce`, status `APPLIED_VERIFIED`, verification `PASSED`.
 - Runtime prompt artifact loaded from the Platform version URL and contains `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000`.
 - Vectorization runner `vectorization-runner-dep-7706fafb` is registered as `ACTIVE` and `CURRENT`.
-- Reindex run `vrn-9f98d115` completed with `157/157` records succeeded and no failures.
+- Reindex run `vrn-39e54227` completed with `157/157` records succeeded and no failures after a governed runtime vector reset.
 - Runtime indexing overview shows ProdUS vectors in the dedicated spaces, including `service-module=75`, `package-template=12`, `team-profile=1`, and `solo-expert-profile=1`.
 - Retrieval diagnostics after live queries show nonzero successful search results for ProdUS DATA plugin sources, including `service-module`, `package-template`, `team-profile`, and `solo-expert-profile`.
 - Live query checks returned grounded answers for API security review, CI/CD plus dependency risk, launch-readiness package template, and public team/solo expert recommendations.
