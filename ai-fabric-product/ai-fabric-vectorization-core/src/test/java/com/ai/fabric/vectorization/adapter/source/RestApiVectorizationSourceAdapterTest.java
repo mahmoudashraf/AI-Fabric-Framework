@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RestApiVectorizationSourceAdapterTest {
 
@@ -84,7 +85,34 @@ class RestApiVectorizationSourceAdapterTest {
         }
     }
 
+    @Test
+    void authHeadersRejectMultilineBearerTokenWithoutLeakingValue() throws Exception {
+        JsonNode config = objectMapper.readTree("""
+            {"baseUrl": "http://localhost:1", "path": "/api/knowledge-export"}
+            """);
+        VectorizationExecutionBundle bundle = bundle(
+            config,
+            "BEARER",
+            new ResolvedSourceAuthMaterial(Map.of("token", "secret-line-1\nsecret-line-2"), Map.of())
+        );
+
+        assertThatThrownBy(() -> VectorizationSourceAdapterSupport.authHeaders(
+            bundle.connectionDescriptor(),
+            bundle.sourceAuthMaterial(),
+            config
+        ))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("invalid header value")
+            .hasMessageNotContaining("secret-line");
+    }
+
     private VectorizationExecutionBundle bundle(JsonNode connectionConfig) {
+        return bundle(connectionConfig, "NONE", new ResolvedSourceAuthMaterial(Map.of(), Map.of()));
+    }
+
+    private VectorizationExecutionBundle bundle(JsonNode connectionConfig,
+                                                String authMode,
+                                                ResolvedSourceAuthMaterial authMaterial) {
         JsonNode empty = objectMapper.createObjectNode();
         return new VectorizationExecutionBundle(
             "dep-1",
@@ -96,8 +124,8 @@ class RestApiVectorizationSourceAdapterTest {
             List.of("produs-safe-knowledge"),
             empty,
             empty,
-            new ConnectionDescriptor("vcn-1", "ProdUS", "REST_API", "NONE", connectionConfig, empty),
-            new ResolvedSourceAuthMaterial(Map.of(), Map.of()),
+            new ConnectionDescriptor("vcn-1", "ProdUS", "REST_API", authMode, connectionConfig, empty),
+            authMaterial,
             empty,
             new TargetConnectionDescriptor("RUNTIME_DATA_SYNC", "http://runtime.example", "/batch", "/spaces", "X-Key", "secret")
         );

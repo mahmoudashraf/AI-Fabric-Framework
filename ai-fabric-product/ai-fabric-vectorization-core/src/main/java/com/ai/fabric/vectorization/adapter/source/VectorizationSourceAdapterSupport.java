@@ -62,13 +62,13 @@ final class VectorizationSourceAdapterSupport {
                 }
                 String apiKey = authMaterial.secret("apiKey");
                 if (StringUtils.hasText(apiKey)) {
-                    headers.put(header.trim(), apiKey.trim());
+                    putHeader(headers, header, apiKey, "API_KEY");
                 }
             }
             case "BEARER" -> {
                 String token = authMaterial.secret("token");
                 if (StringUtils.hasText(token)) {
-                    headers.put("Authorization", "Bearer " + token.trim());
+                    putHeader(headers, "Authorization", "Bearer " + token.trim(), "BEARER");
                 }
             }
             case "BASIC" -> {
@@ -76,13 +76,38 @@ final class VectorizationSourceAdapterSupport {
                 String password = authMaterial.secret("password");
                 if (StringUtils.hasText(username) && password != null) {
                     String basic = Base64.getEncoder().encodeToString((username.trim() + ":" + password).getBytes(StandardCharsets.UTF_8));
-                    headers.put("Authorization", "Basic " + basic);
+                    putHeader(headers, "Authorization", "Basic " + basic, "BASIC");
                 }
             }
             default -> {
             }
         }
         return headers;
+    }
+
+    private static void putHeader(Map<String, String> headers, String name, String value, String authMode) {
+        String normalizedName = name == null ? "" : name.trim();
+        String normalizedValue = value == null ? "" : value.trim();
+        if (!StringUtils.hasText(normalizedName) || containsHeaderControl(normalizedName) || normalizedName.contains(":")) {
+            throw new IllegalArgumentException("REST_API source " + authMode + " auth contains an invalid header name.");
+        }
+        if (containsHeaderControl(normalizedValue)) {
+            throw new IllegalArgumentException("REST_API source " + authMode + " auth contains an invalid header value.");
+        }
+        headers.put(normalizedName, normalizedValue);
+    }
+
+    private static boolean containsHeaderControl(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int index = 0; index < value.length(); index++) {
+            char candidate = value.charAt(index);
+            if (candidate == '\r' || candidate == '\n') {
+                return true;
+            }
+        }
+        return false;
     }
 
     static URI buildUri(String baseUrl, String relativePath, Map<String, String> queryParams) {
