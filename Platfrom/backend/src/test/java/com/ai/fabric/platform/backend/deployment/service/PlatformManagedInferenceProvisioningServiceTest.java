@@ -85,7 +85,6 @@ class PlatformManagedInferenceProvisioningServiceTest {
             .thenReturn(new RailwayGraphqlClient.RailwayServiceDomainSummary("dom-1", "shared-embeddings.example.com"));
 
         when(platformSecretService.isSecretPresent(serviceEntity.getSecretName())).thenReturn(false);
-        doNothing().when(platformSecretService).upsertManagedSecret(eq(serviceEntity.getSecretName()), any(), any());
         when(platformSecretService.resolveSecret(serviceEntity.getSecretName())).thenReturn("secret-value");
 
         PlatformManagedInferenceProvisioningService service = new PlatformManagedInferenceProvisioningService(

@@ -241,7 +241,6 @@ class PlatformManagedInferenceAdminServiceTest {
         when(platformSecretService.isSecretPresent(service.getSecretName())).thenReturn(true);
         when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(provisioningService.reconcile("shared-embeddings-standard")).thenReturn(serviceSummary(service));
-        doNothing().when(platformSecretService).upsertManagedSecret(eq(service.getSecretName()), eq("new-secret"), any());
         when(endpointRepository.findAllByServiceIdOrderByProfileRefAsc(service.getId())).thenReturn(List.of());
 
         PlatformManagedInferenceAdminService adminService = new PlatformManagedInferenceAdminService(

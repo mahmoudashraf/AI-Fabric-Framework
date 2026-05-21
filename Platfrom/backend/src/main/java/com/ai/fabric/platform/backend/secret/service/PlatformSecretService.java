@@ -59,6 +59,18 @@ public class PlatformSecretService {
         return SUPPORTED_SECRETS.containsKey(name);
     }
 
+    public PlatformSecretSummary describeSecret(String name) {
+        SecretDefinition definition = SUPPORTED_SECRETS.get(name);
+        if (definition == null) {
+            if (!isManagedSecretName(name)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported platform secret: " + name);
+            }
+            definition = managedSecretDefinition();
+        }
+        PlatformSecretEntity stored = platformSecretRepository.findById(name).orElse(null);
+        return toSummary(name, definition, stored);
+    }
+
     public String resolveSecret(String name) {
         SecretDefinition definition = SUPPORTED_SECRETS.get(name);
         if (definition == null) {
@@ -111,13 +123,12 @@ public class PlatformSecretService {
     }
 
     @Transactional
-    public void upsertManagedSecret(String name, String value, Map<String, ?> auditDetails) {
+    public PlatformSecretSummary upsertManagedSecret(String name, String value, Map<String, ?> auditDetails) {
         if (!isManagedSecretName(name)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported managed platform secret name: " + name);
         }
         if (value == null || value.isBlank()) {
-            clearManagedSecret(name, auditDetails);
-            return;
+            return clearManagedSecret(name, auditDetails);
         }
 
         PlatformSecretEntity entity = platformSecretRepository.findById(name).orElseGet(PlatformSecretEntity::new);
@@ -132,10 +143,11 @@ public class PlatformSecretService {
             name,
             auditDetails == null ? Map.of() : Map.copyOf(auditDetails)
         );
+        return toSummary(name, managedSecretDefinition(), entity);
     }
 
     @Transactional
-    public void clearManagedSecret(String name, Map<String, ?> auditDetails) {
+    public PlatformSecretSummary clearManagedSecret(String name, Map<String, ?> auditDetails) {
         if (!isManagedSecretName(name)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported managed platform secret name: " + name);
         }
@@ -146,6 +158,7 @@ public class PlatformSecretService {
             name,
             auditDetails == null ? Map.of() : Map.copyOf(auditDetails)
         );
+        return toSummary(name, managedSecretDefinition(), null);
     }
 
     @Transactional
@@ -271,6 +284,14 @@ public class PlatformSecretService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported platform secret: " + name);
         }
         return definition;
+    }
+
+    private SecretDefinition managedSecretDefinition() {
+        return new SecretDefinition(
+            "Managed Platform Secret",
+            "Deployment-scoped managed secret stored by Platform automation for provisioned services and source integrations.",
+            false
+        );
     }
 
     private static Map<String, SecretDefinition> createSupportedSecrets() {

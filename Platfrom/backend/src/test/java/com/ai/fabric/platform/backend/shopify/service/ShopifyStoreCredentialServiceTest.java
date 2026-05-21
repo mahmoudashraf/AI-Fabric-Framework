@@ -72,7 +72,6 @@ class ShopifyStoreCredentialServiceTest {
         entity.setUpdatedAt(Instant.parse("2026-04-18T10:00:00Z"));
         when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(entity));
         when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(platformSecretService).upsertManagedSecret(any(), any(), any());
 
         ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
             repository,
@@ -180,7 +179,6 @@ class ShopifyStoreCredentialServiceTest {
         when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(entity));
         when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(platformSecretService.isManagedSecretName(any())).thenReturn(true);
-        doNothing().when(platformSecretService).clearManagedSecret(any(), any());
 
         ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
             repository,
@@ -256,7 +254,6 @@ class ShopifyStoreCredentialServiceTest {
 
         when(repository.findByShopDomainIgnoreCase("alpha.myshopify.com")).thenReturn(Optional.of(entity));
         when(repository.save(any(ShopifyStoreConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(platformSecretService).upsertManagedSecret(any(), any(), any());
 
         ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
             repository,

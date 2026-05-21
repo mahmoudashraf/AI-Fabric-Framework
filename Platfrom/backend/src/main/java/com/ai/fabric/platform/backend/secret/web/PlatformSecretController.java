@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/platform/secrets")
@@ -69,6 +70,18 @@ public class PlatformSecretController {
         return platformSecretService.updateSecret(name, request.value());
     }
 
+    @PutMapping("/managed/{name}")
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformSecretSummary upsertManagedSecret(@PathVariable String name,
+                                                     @RequestBody UpdatePlatformSecretRequest request) {
+        return platformSecretService.upsertManagedSecret(
+            name,
+            request.value(),
+            Map.of("source", "PLATFORM_SECRET_API")
+        );
+    }
+
     @PutMapping("/deployment-overrides/{name}")
     @ResponseStatus(HttpStatus.OK)
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
@@ -81,6 +94,15 @@ public class PlatformSecretController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public PlatformSecretSummary clearSecret(@PathVariable String name) {
         return platformSecretService.clearSecret(name);
+    }
+
+    @DeleteMapping("/managed/{name}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformSecretSummary clearManagedSecret(@PathVariable String name) {
+        return platformSecretService.clearManagedSecret(
+            name,
+            Map.of("source", "PLATFORM_SECRET_API")
+        );
     }
 
     @DeleteMapping("/deployment-overrides/{name}")
