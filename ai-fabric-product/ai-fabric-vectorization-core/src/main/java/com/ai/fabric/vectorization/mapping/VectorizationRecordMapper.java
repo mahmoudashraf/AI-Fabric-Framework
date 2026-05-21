@@ -33,6 +33,8 @@ public class VectorizationRecordMapper {
             entity = objectMapper.convertValue(sourceRecord, Map.class);
         }
         Map<String, Object> metadata = mappedObject(sourceRecord, entityMapping.path("metadataFieldMappings"));
+        metadata.putAll(staticObject(entityMapping.path("metadataStaticValues")));
+        metadata.putAll(staticObjectForTarget(entityMapping.path("metadataStaticValuesByTargetEntityType"), targetEntityType));
 
         return new VectorizationMappedRecord(
             targetEntityType,
@@ -54,6 +56,29 @@ public class VectorizationRecordMapper {
                 }
                 values.put(entry.getKey(), objectMapper.convertValue(sourceValue, Object.class));
             });
+        }
+        return values;
+    }
+
+    private Map<String, Object> staticObject(JsonNode valuesNode) {
+        if (valuesNode == null || !valuesNode.isObject()) {
+            return Map.of();
+        }
+        return objectMapper.convertValue(valuesNode, Map.class);
+    }
+
+    private Map<String, Object> staticObjectForTarget(JsonNode valuesByTargetNode, String targetEntityType) {
+        if (valuesByTargetNode == null || !valuesByTargetNode.isObject() || !StringUtils.hasText(targetEntityType)) {
+            return Map.of();
+        }
+        Map<String, Object> values = new LinkedHashMap<>();
+        JsonNode wildcard = valuesByTargetNode.path("*");
+        if (wildcard.isObject()) {
+            values.putAll(staticObject(wildcard));
+        }
+        JsonNode targetSpecific = valuesByTargetNode.path(targetEntityType.trim());
+        if (targetSpecific.isObject()) {
+            values.putAll(staticObject(targetSpecific));
         }
         return values;
     }
