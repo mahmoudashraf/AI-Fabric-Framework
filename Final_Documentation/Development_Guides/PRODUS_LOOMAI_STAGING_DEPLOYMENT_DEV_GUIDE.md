@@ -1,6 +1,6 @@
 # ProdUS LoomAI Staging Deployment Dev Guide
 
-Status: current staging guide, last verified 2026-05-20.
+Status: current staging guide, last verified 2026-05-21.
 
 This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
 
@@ -17,15 +17,19 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Stable consumer/customer id | `produs-staging` |
 | Runtime base URL | `http://dep-7706fafb.46.224.145.148.sslip.io` |
 | Runtime template | `dev-openai-qdrant` |
-| Active version | `v2` |
+| Active version | `v7` / `ver-0b3324cd` |
+| Latest applied release | `rel-579d7fce` |
 | Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
 | Connector Coolify app | `rest-connector-dep-7706fafb` / `f8v02rd1luusupszsnbrny7i` |
+| Vectorization runner Coolify app | `vectorization-runner-dep-7706fafb` / `fm2pdlbk55tjx6gmh4xqo9t7` |
 | ProdUS backend app | `produs-backend-staging` / `jk3n39yatabf8zc9sn5nknj9` |
 | ProdUS frontend app | `produs-frontend-staging` / `wfvdve1ezt7vixejye4bhrgl` |
 | Target integration | `BACKEND_MEDIATED_PRIVATE_RUNTIME` |
 | Runtime auth mode | `PRIVATE_RUNTIME_ASSERTION` |
 
 Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on staging; unauthenticated `/mcp` calls fail closed and authenticated calls return the LoomAI productization tools. The read-only ProdUS MCP Marketplace action bundle is published, installed, applied, and visible in runtime actions overview.
+
+Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
 
 ## 2. Tools Used
 
@@ -499,22 +503,126 @@ curl -fsS \
 
 `GET /loomai/tool-allowlist` and `POST /mcp` both require `X-MCP-API-KEY` in the current staging deployment.
 
-## 10. Safe Knowledge Ingestion
+## 10. Managed Safe Knowledge Vectorization
 
-Current status:
+Current status: live and verified on 2026-05-21.
 
-- ProdUS plans `GET /api/ai/loomai/knowledge-preview` and `POST /api/ai/loomai/knowledge-sync`.
-- Runtime import path for ProdUS safe records is not finalized in this deployment.
-- Until finalized, treat safe knowledge ingestion as intentionally disabled/skipped.
+ProdUS exposes a backend-only cursor export endpoint:
 
-Preferred next implementation options:
+```text
+GET https://produs-api-staging.46.224.145.148.sslip.io/api/ai/loomai/knowledge-export?cursor=<opaque-cursor>&limit=<page-size>
+Authorization: Bearer <produs-owned-export-token>
+```
 
-1. Runtime-managed import endpoint with explicit upsert/delete schema, idempotency key, batch size, and namespace.
-2. ProdUS-specific Marketplace `DATA` plugin that compiles safe exported records into deployment knowledge sources.
+LoomAI owns the managed vectorization run lifecycle for this export:
 
-Use a separate vector namespace or source id for ProdUS safe knowledge; do not mix it with generic help-center/policy seed data.
+```text
+ProdUS safe export endpoint
+  -> LoomAI Platform source connection
+  -> managed vectorization runner
+  -> runtime /api/ai/data-sync/batch
+  -> Qdrant vector index
+  -> runtime retrieval over DATA-plugin source handles
+```
 
-## 11. Verification Results From 2026-05-20
+Live Platform configuration:
+
+| Field | Value |
+| --- | --- |
+| Source connection | `vcn-a9bb577d` |
+| Source adapter | `REST_API` |
+| Source status | `READY` |
+| Source base URL | `https://produs-api-staging.46.224.145.148.sslip.io` |
+| Source path | `/api/ai/loomai/knowledge-export` |
+| Auth mode | `BEARER` |
+| Token secret ref | `MANAGED_PRODUS_SAFE_KNOWLEDGE_EXPORT_TOKEN_DEP_DEP_7706FAFB` |
+| Pagination | cursor, `cursor`, `limit`, page size `100` |
+| Items path | `records` |
+| Vector space field | `vectorSpace` |
+| Plan | `vpl-33b42e24` |
+| Active revision | `vpr-d9e4b704`, revision `2` |
+| Runner mode | `PLATFORM_MANAGED_AUTO` |
+| Runner registration | `vrr-cb21c848`, `ACTIVE`, `CURRENT` |
+| Latest successful run | `vrn-9f98d115` |
+
+Plan mapping:
+
+```json
+{
+  "entityMappings": {
+    "produs-safe-knowledge": {
+      "recordIdField": "id",
+      "recordVersionField": "metadata.sourceRecordVersion",
+      "targetEntityTypeField": "vectorSpace",
+      "metadataStaticValues": {
+        "datasetId": "produs-safe-knowledge",
+        "exportVersion": "produs-safe-knowledge-v1"
+      },
+      "metadataStaticValuesByTargetEntityType": {
+        "<vectorSpace>": {
+          "knowledgeSourceHandleRef": "<deployment DATA plugin handle ref>",
+          "knowledgeSourceId": "<deployment DATA source id>",
+          "knowledgeSourceDatasetRef": "<deployment DATA dataset ref>"
+        }
+      }
+    }
+  }
+}
+```
+
+The per-vector-space static metadata is required because the runtime shared-index retriever filters records by the installed DATA plugin source handle. Do not remove it when rotating the export source or re-creating the plan.
+
+Latest bootstrap/reindex evidence:
+
+```text
+run: vrn-9f98d115
+status: COMPLETED
+processed: 157
+succeeded: 157
+failed: 0
+checkpoints: 2 pages
+failureBuckets: []
+```
+
+Checkpoint details:
+
+- page 1: `100` records, `hasMore=true`
+- page 2: `57` records, `hasMore=false`
+
+Observed source discovery counts:
+
+```text
+service-category: 8
+service-module: 75
+service-dependency: 18
+package-template: 12
+milestone-template: 12
+case-pattern: 12
+acceptance-criteria-template: 1
+evidence-template: 1
+ai-capability-contract: 6
+scanner-tool-description: 10
+team-profile: 1
+solo-expert-profile: 1
+```
+
+Operational commands:
+
+```bash
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/vectorization" \
+  | jq '{sourceConnection, plan, runner, recentRuns}'
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/vectorization/runs/vrn-9f98d115" \
+  | jq '{run, checkpoints, failureBuckets}'
+```
+
+Known hygiene follow-up: ProdUS staging Coolify currently has duplicate `LOOMAI_SAFE_KNOWLEDGE_EXPORT_TOKEN` env rows. LoomAI stored only one non-empty value in the managed Platform secret, but the duplicate rows should be cleaned on the ProdUS app to avoid operator confusion during future rotation.
+
+## 11. Verification Results From 2026-05-20 And 2026-05-21
 
 Runtime/Coolify:
 
@@ -548,6 +656,16 @@ Marketplace/read-action deployment:
 - Runtime `/api/admin/actions/overview`: 8 ProdUS read actions loaded.
 - Runtime `POST /api/chat/me/query`: passed after apply with canonical response and `providerRequestId`.
 - Runtime `POST /api/chat/me/suggestions`: passed after apply with four suggestions.
+
+Managed vectorization and retrieval:
+
+- Runtime version `ver-0b3324cd` applied through release `rel-579d7fce`, status `APPLIED_VERIFIED`, verification `PASSED`.
+- Runtime prompt artifact loaded from the Platform version URL and contains `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000`.
+- Vectorization runner `vectorization-runner-dep-7706fafb` is registered as `ACTIVE` and `CURRENT`.
+- Reindex run `vrn-9f98d115` completed with `157/157` records succeeded and no failures.
+- Runtime indexing overview shows ProdUS vectors in the dedicated spaces, including `service-module=75`, `package-template=12`, `team-profile=1`, and `solo-expert-profile=1`.
+- Retrieval diagnostics after live queries show nonzero successful search results for ProdUS DATA plugin sources, including `service-module`, `package-template`, `team-profile`, and `solo-expert-profile`.
+- Live query checks returned grounded answers for API security review, CI/CD plus dependency risk, launch-readiness package template, and public team/solo expert recommendations.
 
 Imported read actions:
 
