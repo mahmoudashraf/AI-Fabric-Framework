@@ -571,17 +571,17 @@ Status: verified live on 2026-05-21.
 Published plugin:
 
 ```text
-mkp-data-produs-safe-knowledge@0.1.0
+mkp-data-produs-safe-knowledge@0.1.1
 ```
 
 Installed/applied state:
 
 - Deployment: `dep-7706fafb`
 - Install: enabled, `READY`, live, free entitlement active
-- Applied release: `rel-2cf55a81`
+- Applied release: `rel-f17c4793`
 - Release status: `APPLIED_VERIFIED`
 - Verification status: `PASSED`
-- Marketplace dataset sync: 12 datasets synchronized, including the 10 ProdUS datasets plus the existing help-center/policy datasets
+- Marketplace dataset sync: 14 datasets synchronized, including the 12 ProdUS datasets plus the existing help-center/policy datasets
 
 ProdUS vector spaces registered by the plugin:
 
@@ -596,7 +596,11 @@ acceptance-criteria-template
 evidence-template
 scanner-tool-description
 case-pattern
+team-profile
+solo-expert-profile
 ```
+
+Map `TEAM_PROFILE` records to `team-profile` and `SOLO_EXPERT_PROFILE` records to `solo-expert-profile`. The older temporary mapping into `case-pattern` is no longer valid for staging.
 
 Creation flow used:
 
@@ -630,7 +634,7 @@ curl -fsS \
   -H "Content-Type: application/json" \
   -X POST \
   "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/marketplace-installs" \
-  --data '{"pluginId":"mkp-data-produs-safe-knowledge","pluginVersion":"0.1.0","config":{},"secretRefs":{}}'
+  --data '{"pluginId":"mkp-data-produs-safe-knowledge","pluginVersion":"0.1.1","config":{},"secretRefs":{}}'
 ```
 
 After install, publish/apply the modified deployment draft through `dtp-coolify-staging` using the normal commands in Section 3.
@@ -652,9 +656,10 @@ curl -fsS \
 
 Observed results:
 
-- `/api/ai/data-sync/vector-spaces`: returned all 10 ProdUS vector spaces with `missing=[]`.
+- `/api/ai/data-sync/vector-spaces`: returned all 12 ProdUS vector spaces with `missing=[]`.
 - Platform-internal smoke batch: 10 upserts succeeded and 10 deletes succeeded.
 - ProdUS-shaped `SYSTEM_PROCESS` smoke batch: one `service-module` upsert succeeded and its cleanup delete succeeded.
+- Dedicated profile-space smoke batch: `team-profile` and `solo-expert-profile` upserts succeeded and cleanup deletes succeeded.
 - Live data-sync response now includes `providerRequestId` plus `totalOperations`, `succeededOperations`, and `failedOperations`.
 - Temporary retrieval smoke: a synthetic `service-module` record was indexed, answered through `POST /api/chat/me/query` with a grounded answer and provider request id, then deleted.
 
