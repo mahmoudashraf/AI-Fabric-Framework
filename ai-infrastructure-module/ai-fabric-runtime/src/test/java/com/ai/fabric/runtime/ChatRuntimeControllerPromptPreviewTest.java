@@ -402,6 +402,37 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void meQueryExposesSafeResultMetadataInCanonicalResponse() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        Map<String, Object> readActionResolution = Map.of(
+            "attempted", true,
+            "executedActionsCount", 1,
+            "executedActions", List.of(Map.of("action", "check_availability"))
+        );
+        when(orchestrator.orchestrate(eq("Check live availability for SKU-0001"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("SKU-0001 is available.")
+                .metadata(Map.of("readActionResolution", readActionResolution))
+                .data(Map.of("readActionResolution", readActionResolution))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Check live availability for SKU-0001");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMetadata()).containsKey("readActionResolution");
+        assertThat(response.getMetadata().get("readActionResolution")).isEqualTo(readActionResolution);
+    }
+
+    @Test
     void meQueryRequiresVerifiedAuthContext() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());

@@ -226,6 +226,7 @@ public class ChatRuntimeController {
                 sanitizedPayload.get("errorCode"),
                 resultType
             );
+        Map<String, Object> metadata = canonicalMetadata(sanitizedPayload, data, rawData, result);
         return ChatQueryResponse.builder()
             .success(result != null && result.isSuccess())
             .type(resultType)
@@ -239,12 +240,44 @@ public class ChatRuntimeController {
             .suggestions(firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
             .fallbackReason(fallbackReason)
             .providerRequestId(providerRequestId)
-            .metadata(Map.of())
+            .metadata(metadata)
             .message(answer)
             .sessionId(context == null ? null : context.getSessionId())
             .authContext(toResponseAuthContext(identity))
             .result(result)
             .build();
+    }
+
+    private Map<String, Object> canonicalMetadata(Map<String, Object> sanitizedPayload,
+                                                  Map<String, Object> data,
+                                                  Map<String, Object> rawData,
+                                                  OrchestrationResult result) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        putAllMetadata(metadata, sanitizedPayload == null ? null : sanitizedPayload.get("metadata"));
+        putAllMetadata(metadata, rawData == null ? null : rawData.get("metadata"));
+        putAllMetadata(metadata, data == null ? null : data.get("metadata"));
+        if (result != null && result.getMetadata() != null && !result.getMetadata().isEmpty()) {
+            metadata.putAll(result.getMetadata());
+        }
+        putDiagnosticIfMap(metadata, "readActionResolution", rawData == null ? null : rawData.get("readActionResolution"));
+        putDiagnosticIfMap(metadata, "readActionResolution", data == null ? null : data.get("readActionResolution"));
+        return metadata.isEmpty()
+            ? Map.of()
+            : Collections.unmodifiableMap(new LinkedHashMap<>(metadata));
+    }
+
+    private void putAllMetadata(Map<String, Object> target, Object value) {
+        if (target == null || !(value instanceof Map<?, ?> map) || map.isEmpty()) {
+            return;
+        }
+        target.putAll(normalizeMap(map));
+    }
+
+    private void putDiagnosticIfMap(Map<String, Object> target, String key, Object value) {
+        if (target == null || !StringUtils.hasText(key) || !(value instanceof Map<?, ?> map) || map.isEmpty()) {
+            return;
+        }
+        target.put(key.trim(), Collections.unmodifiableMap(normalizeMap(map)));
     }
 
     private Map<String, Object> enrichCanonicalData(Map<String, Object> data,
