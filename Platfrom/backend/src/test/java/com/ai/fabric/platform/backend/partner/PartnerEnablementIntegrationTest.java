@@ -832,7 +832,7 @@ class PartnerEnablementIntegrationTest {
               },
               "widget": {
                 "settings": {
-                  "enabledSurfaces": ["ai-search", "order-lookup"],
+                  "enabledSurfaces": ["contextual-pill", "product-faq", "comparison", "order-lookup"],
                   "allowedConversationModes": ["navigator"],
                   "defaultConversationMode": "navigator"
                 }

@@ -1944,14 +1944,13 @@ public class PartnerEnablementService {
                 List<String> catalogSurfaces = catalogSource.listCatalog().stream()
                     .map(PartnerCatalogEntrySummary::surfaceId)
                     .toList();
-                boolean hasSearch = configuredSurfaces.contains("ai-search");
                 List<String> unknown = configuredSurfaces.stream()
                     .filter(surface -> !catalogSurfaces.contains(surface) && !ELITE_PARTNER_SURFACES.contains(surface))
                     .toList();
-                status = hasSearch && unknown.isEmpty() ? "PASSED" : "FAILED";
+                status = !configuredSurfaces.isEmpty() && unknown.isEmpty() ? "PASSED" : "FAILED";
                 message = status.equals("PASSED")
                     ? "Elite surfaces are configured from known product and governed Elite surfaces."
-                    : "Elite surfaces include unknown entries or are missing AI search.";
+                    : "Elite surfaces include unknown entries or no store-configured surfaces.";
                 evidence = List.of(
                     "enabledSurfaces=" + String.join(",", configuredSurfaces),
                     "unknownSurfaces=" + String.join(",", unknown)
