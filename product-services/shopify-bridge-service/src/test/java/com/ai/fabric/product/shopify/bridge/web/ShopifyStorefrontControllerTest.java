@@ -147,7 +147,7 @@ class ShopifyStorefrontControllerTest {
         when(storefrontChatService.query(eq("alpha.myshopify.com"), eq(objectMapper.readTree("""
             {
               "query":"Show me backpacks",
-              "storefrontContext":{
+              "context":{
                 "pageType":"product",
                 "product":{"handle":"travel-pack","title":"Travel Pack"}
               }
@@ -162,7 +162,7 @@ class ShopifyStorefrontControllerTest {
                 .content("""
                     {
                       "query":"Show me backpacks",
-                      "storefrontContext":{
+                      "context":{
                         "pageType":"product",
                         "product":{"handle":"travel-pack","title":"Travel Pack"}
                       }
@@ -177,7 +177,7 @@ class ShopifyStorefrontControllerTest {
             eq(objectMapper.readTree("""
                 {
                   "query":"Show me backpacks",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "product":{"handle":"travel-pack","title":"Travel Pack"}
                   }
