@@ -433,6 +433,48 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void meQueryExposesRawResultDocumentsWhenSanitizedPayloadOmitsSources() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        List<Map<String, Object>> documents = List.of(Map.of(
+            "id", "policy-shared-refund",
+            "source", "shared-marketplace-refund-policy",
+            "metadata", Map.of("adapterType", "shared-index")
+        ));
+        when(orchestrator.orchestrate(eq("What is the refund policy?"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Refunds are available within 30 days.")
+                .data(Map.of(
+                    "answer", "Refunds are available within 30 days.",
+                    "documents", documents
+                ))
+                .sanitizedPayload(Map.of(
+                    "safeSummary", "Refunds are available within 30 days.",
+                    "data", Map.of("answer", "Refunds are available within 30 days.")
+                ))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("What is the refund policy?");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getSources()).hasSize(1);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> source = (Map<String, Object>) response.getSources().getFirst();
+        assertThat(source)
+            .containsEntry("id", "policy-shared-refund")
+            .containsEntry("source", "shared-marketplace-refund-policy");
+    }
+
+    @Test
     void meQueryRequiresVerifiedAuthContext() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());

@@ -235,7 +235,7 @@ public class ChatRuntimeController {
             .conversationId(conversationId)
             .mode(request == null ? null : trimToNull(request.getMode()))
             .position(request == null ? null : trimToNull(request.getPosition()))
-            .sources(firstList(sanitizedPayload.get("sources"), sanitizedPayload.get("documents"), data.get("sources"), data.get("documents")))
+            .sources(canonicalSources(sanitizedPayload, data, rawData))
             .actions(actions)
             .suggestions(firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
             .fallbackReason(fallbackReason)
@@ -246,6 +246,28 @@ public class ChatRuntimeController {
             .authContext(toResponseAuthContext(identity))
             .result(result)
             .build();
+    }
+
+    private List<Object> canonicalSources(Map<String, Object> sanitizedPayload,
+                                          Map<String, Object> data,
+                                          Map<String, Object> rawData) {
+        Map<String, Object> sanitizedRagResponse = firstMap(sanitizedPayload == null ? null : sanitizedPayload.get("ragResponse"));
+        Map<String, Object> dataRagResponse = firstMap(data == null ? null : data.get("ragResponse"));
+        Map<String, Object> rawRagResponse = firstMap(rawData == null ? null : rawData.get("ragResponse"));
+        return firstList(
+            sanitizedPayload == null ? null : sanitizedPayload.get("sources"),
+            sanitizedPayload == null ? null : sanitizedPayload.get("documents"),
+            sanitizedRagResponse.get("sources"),
+            sanitizedRagResponse.get("documents"),
+            data == null ? null : data.get("sources"),
+            data == null ? null : data.get("documents"),
+            dataRagResponse.get("sources"),
+            dataRagResponse.get("documents"),
+            rawData == null ? null : rawData.get("sources"),
+            rawData == null ? null : rawData.get("documents"),
+            rawRagResponse.get("sources"),
+            rawRagResponse.get("documents")
+        );
     }
 
     private Map<String, Object> canonicalMetadata(Map<String, Object> sanitizedPayload,
