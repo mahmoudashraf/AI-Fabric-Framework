@@ -2,7 +2,7 @@
 
 Date: 2026-05-22
 
-Status: implemented in runtime controller, shared chat-session pipeline, and focused/broader runtime tests on 2026-05-22. Live deployment verification pending until the managed runtime is redeployed with this code.
+Status: implemented, tested, deployed, and live-verified on managed ProdUS staging runtime `dep-7706fafb` on 2026-05-22.
 
 Parent plans:
 
@@ -35,6 +35,16 @@ Greenfield contract rule:
 - Product backends choose the endpoint based on UX intent, not by relying on generated ephemeral conversation ids.
 - Runtime propagates this as internal orchestration metadata `queryPersistenceMode=NEVER_PERSIST` for `/query-once` and `queryPersistenceMode=PERSIST_IF_AVAILABLE` for `/query`; clients do not send a `persistConversation` flag.
 - The shared chat-session pipeline honors `NEVER_PERSIST` by skipping persisted conversation history loading/session auto-creation and by skipping conversation turn recording.
+
+Live verification:
+
+- Coolify deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` successfully.
+- `GET /actuator/health` returned `UP`.
+- `GET /api/chat/me/auth-context` returned `200` with a ProdUS-shaped private runtime assertion.
+- `POST /api/chat/me/query-once` returned `200`, `success=true`, `type=INFORMATION_PROVIDED`.
+- `GET /api/chat/me/conversations/{queryOnceConversationId}` returned `404`, proving no chat session was created for the one-time correlation id.
+- `POST /api/chat/me/query` returned `200`, `success=true`, `type=INFORMATION_PROVIDED`.
+- `GET /api/chat/me/conversations/{queryConversationId}` returned `200`, proving the normal chat endpoint still persists as expected.
 
 ## 2. Current Runtime State
 

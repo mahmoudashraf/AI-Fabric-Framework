@@ -31,6 +31,8 @@ Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on s
 
 Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
 
+Runtime code deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` on 2026-05-22. Live smoke verified `/api/chat/me/query-once` returns a one-time answer without creating a conversation record, while `/api/chat/me/query` still creates the expected persisted conversation.
+
 ## 2. Tools Used
 
 Local tools:
