@@ -111,6 +111,60 @@ class IntentHandlingStepReadActionResolutionTest {
     }
 
     @Test
+    void shouldRunReadActionPlannerBeforeReturningInformationDirectAnswer() {
+        RAGProvider ragProvider = mock(RAGProvider.class);
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateTextResponse(anyString(), any(LlmPurpose.class)))
+            .thenReturn(AIGenerationResponse.builder().content("SKU-0001 is available with 6 in stock.").build());
+
+        ReadActionResolutionService readActionResolutionService = mock(ReadActionResolutionService.class);
+        when(readActionResolutionService.resolve(any(), any(), any())).thenReturn(
+            ReadActionResolutionService.ResolutionOutcome.answerFromActionsOnly(
+                "READ ACTION EVIDENCE\n- action: check_availability\n  success: true\n  evidence: SKU-0001 has 6 in stock.",
+                List.of("product"),
+                List.of(new ReadActionResolutionService.ExecutedReadAction(
+                    "check_availability",
+                    Map.of("sku", "SKU-0001"),
+                    null,
+                    null,
+                    true,
+                    "SKU-0001 has 6 in stock.",
+                    null
+                )),
+                Map.of("attempted", true, "executedActionsCount", 1)
+            )
+        );
+
+        IntentHandlingStep step = buildStep(ragProvider, aiCoreService);
+        ReflectionTestUtils.setField(step, "readActionResolutionServiceProvider", providerOf(readActionResolutionService));
+
+        Intent intent = Intent.builder()
+            .type(IntentType.INFORMATION)
+            .intent("Check live availability for SKU-0001.")
+            .requiresRetrieval(false)
+            .requiresGeneration(false)
+            .directAnswer("SKU-0001 is not present in the live store data.")
+            .build();
+
+        PipelineContext context = PipelineContext.from("Check live availability for SKU-0001.", OrchestrationContext.forUser("user-1"))
+            .toBuilder()
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        OrchestrationResult result = step.process(context).getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.INFORMATION_PROVIDED);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo("SKU-0001 is available with 6 in stock.");
+        assertThat(result.getMetadata()).containsKey("readActionResolution");
+        assertThat(result.getData()).containsKey("readActionResolution");
+        verify(readActionResolutionService).resolve(any(), any(), any());
+        verify(aiCoreService).generateTextResponse(anyString(), eq(LlmPurpose.GENERATION));
+        verify(ragProvider, never()).performRag(any());
+        verify(ragProvider, never()).performRAGQuery(any());
+    }
+
+    @Test
     void shouldForceRagWhenReadActionPlannerRequestsAdditionalGrounding() {
         RAGProvider ragProvider = mock(RAGProvider.class);
         AICoreService aiCoreService = mock(AICoreService.class);

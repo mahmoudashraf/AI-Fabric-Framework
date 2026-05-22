@@ -3641,6 +3641,8 @@ public class IntentHandlingStep implements PipelineStep {
                 .build();
         }
 
+        ReadActionResolutionService.ResolutionOutcome readActionResolution = null;
+
         if (!requiresRetrieval) {
             if (!needsGeneration) {
                 if (hasPendingAction(context)) {
@@ -3650,16 +3652,49 @@ public class IntentHandlingStep implements PipelineStep {
                         .message("Please confirm or reject the pending action.")
                         .build();
                 }
-                return handleInformationDirectAnswer(intent, context, pipelineContext);
+                readActionResolution = maybeResolveReadActionResolution(
+                    intent,
+                    context,
+                    pipelineContext,
+                    metadata
+                );
+                if (readActionResolution.attempted()
+                    && (readActionResolution.hasGroundingEvidence() || readActionResolution.useRag())) {
+                    needsGeneration = true;
+                    metadata.put("readActionResolutionForcedGeneration", true);
+                    metadata.put(DATA_KEY_REQUIRES_GENERATION, true);
+                }
+                if (readActionResolution.canAnswerFromActionEvidenceOnly()) {
+                    return handleInformationFromReadActionEvidence(
+                        intent,
+                        context,
+                        pipelineContext,
+                        generationQuery,
+                        metadata,
+                        readActionResolution
+                    );
+                }
+                if (readActionResolution.attempted() && readActionResolution.useRag()) {
+                    requiresRetrieval = true;
+                    metadata.put("readActionResolutionForcedRetrieval", true);
+                    metadata.put(DATA_KEY_REQUIRES_GENERATION, needsGeneration);
+                    metadata.put("requiresRetrieval", true);
+                }
+                if (!requiresRetrieval && !needsGeneration) {
+                    OrchestrationResult direct = handleInformationDirectAnswer(intent, context, pipelineContext);
+                    return attachReadActionResolutionDiagnostics(direct, readActionResolution);
+                }
             }
         }
 
-        ReadActionResolutionService.ResolutionOutcome readActionResolution = maybeResolveReadActionResolution(
-            intent,
-            context,
-            pipelineContext,
-            metadata
-        );
+        if (readActionResolution == null) {
+            readActionResolution = maybeResolveReadActionResolution(
+                intent,
+                context,
+                pipelineContext,
+                metadata
+            );
+        }
         if (!needsGeneration
             && readActionResolution.attempted()
             && (readActionResolution.hasGroundingEvidence() || readActionResolution.useRag())) {
