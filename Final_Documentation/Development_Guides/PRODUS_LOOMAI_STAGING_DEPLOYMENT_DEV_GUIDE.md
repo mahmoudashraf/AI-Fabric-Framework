@@ -1,6 +1,6 @@
 # ProdUS LoomAI Staging Deployment Dev Guide
 
-Status: current staging guide, last verified 2026-05-21.
+Status: current staging guide, last verified 2026-05-22.
 
 This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
 
@@ -275,6 +275,7 @@ Confirmed implementation details:
 - Current runtime has no explicit clock-skew grace window; token expiry must be greater than the runtime clock.
 - `subjectType=ANONYMOUS_SESSION` requires `sub == sessionId`.
 - Missing `chat:query` rejects query with `403`.
+- Missing `chat:query` also rejects one-time query with `403`.
 - Missing `chat:suggestions` rejects suggestions with `403`.
 - Supplying both public `Authorization` and private `X-AIFABRIC-RUNTIME-AUTHORIZATION` is rejected with `400`.
 
@@ -362,6 +363,31 @@ curl -fsS \
   | jq '{success,type,conversationId,mode,position,hasAnswer:(.answer|type=="string" and length>0),providerRequestId, actionsType:(.actions|type), sourcesType:(.sources|type), suggestionsType:(.suggestions|type)}'
 ```
 
+One-time query:
+
+Use this endpoint for page helpers, inline analysis, smoke checks, and any answer that must not create conversation history. Request and response shape match `/api/chat/me/query`; it uses the same `chat:query` scope.
+
+```bash
+curl -fsS \
+  -H "Content-Type: application/json" \
+  -H "X-AIFABRIC-RUNTIME-API-KEY: ${LOOMAI_RUNTIME_API_KEY}" \
+  -H "X-AIFABRIC-RUNTIME-AUTHORIZATION: Bearer ${LOOMAI_PRIVATE_ASSERTION}" \
+  -X POST \
+  "http://dep-7706fafb.46.224.145.148.sslip.io/api/chat/me/query-once" \
+  --data '{
+    "query": "Which package template is appropriate for launch readiness?",
+    "conversationId": "produs-direct-runtime-query-once-smoke",
+    "mode": "support_assistant",
+    "position": "productization",
+    "context": {
+      "pageType": "owner-product-workspace",
+      "actorRole": "PRODUCT_OWNER",
+      "productStage": "PROTOTYPE"
+    }
+  }' \
+  | jq '{success,type,conversationId,mode,position,hasAnswer:(.answer|type=="string" and length>0),providerRequestId, actionsType:(.actions|type), sourcesType:(.sources|type), suggestionsType:(.suggestions|type)}'
+```
+
 Suggestions:
 
 ```bash
@@ -394,6 +420,8 @@ Chat query:
 
 - `mode=support_assistant` is accepted and echoed back.
 - `position=productization` is accepted and echoed back; it is useful as a routing/context signal.
+- Use `/api/chat/me/query` for chat panels with stable conversation history.
+- Use `/api/chat/me/query-once` for one-time answers. Runtime treats `conversationId` as correlation only on this endpoint, skips persisted chat-memory loading, and skips conversation turn recording. Do not send a `persistConversation` flag; choose the endpoint by UX intent.
 - Product-specific context belongs under canonical `context`.
 - Do not send top-level `userId`, `ownerId`, `tenantId`, `sessionId`, or `storefrontContext`; identity comes from the private assertion.
 - `providerRequestId` is the canonical response field for trace correlation.

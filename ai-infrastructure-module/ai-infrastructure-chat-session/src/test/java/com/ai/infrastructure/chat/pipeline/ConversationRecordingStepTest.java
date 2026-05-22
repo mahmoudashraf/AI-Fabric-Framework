@@ -10,6 +10,7 @@ import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.ActionResultContracts;
 import com.ai.infrastructure.intent.action.ActionTargetRef;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
@@ -22,11 +23,13 @@ import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -78,6 +81,44 @@ class ConversationRecordingStepTest {
             "safe message",
             Map.of("_resultType", "INFORMATION_PROVIDED")
         );
+    }
+
+    @Test
+    void shouldNotRecordTurnForNeverPersistQuery() {
+        ChatSessionService chatSessionService = mock(ChatSessionService.class);
+
+        ChatSessionProperties properties = new ChatSessionProperties();
+        properties.setEnabled(true);
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<PIIDetectionService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(null);
+
+        ConversationRecordingStep step = new ConversationRecordingStep(chatSessionService, properties, provider);
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user-1")
+            .conversationId("correlation-1")
+            .metadata(Map.of(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, "NEVER_PERSIST"))
+            .build();
+
+        OrchestrationResult result = OrchestrationResult.builder()
+            .type(OrchestrationResultType.INFORMATION_PROVIDED)
+            .success(true)
+            .message("one-time answer")
+            .build();
+
+        PipelineContext context = PipelineContext.from("Explain this once", orchestrationContext)
+            .toBuilder()
+            .intentResult(result)
+            .sanitizedPayload(Map.of("message", "one-time answer"))
+            .build();
+
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated).isSameAs(context);
+        verify(chatSessionService, never()).recordTurn(anyString(), anyString(), anyString(), anyString(), any());
+        verify(chatSessionService, never()).mergeSessionMetadata(anyString(), anyString(), any());
     }
 
     @Test

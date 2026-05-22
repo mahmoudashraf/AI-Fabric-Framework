@@ -17,6 +17,7 @@ import com.ai.infrastructure.core.AICoreService;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -39,6 +40,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ChatRuntimeControllerPromptPreviewTest {
@@ -255,7 +257,96 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("subjectId", "platform-user-1")
-            .containsEntry("requestedScopes", java.util.List.of("chat:query"));
+            .containsEntry("requestedScopes", java.util.List.of("chat:query"))
+            .containsEntry(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, "PERSIST_IF_AVAILABLE");
+    }
+
+    @Test
+    void queryOnceUsesCanonicalResponseWithoutConversationPersistence() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Summarize this workspace"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Workspace is ready for launch.")
+                .build()
+        );
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        ChatRuntimeController controller = instantiateController(
+            provider(orchestrator),
+            conversationGateway,
+            provider(null),
+            provider(null),
+            provider(null),
+            provider(null),
+            strictAuthResolver()
+        );
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Summarize this workspace");
+        request.setConversationId("correlation-prod-us-1");
+        request.setMode("support_assistant");
+        request.setPosition("productization");
+        request.setContext(Map.of("pageType", "owner-product-workspace"));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.queryOnce(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getAnswer()).isEqualTo("Workspace is ready for launch.");
+        assertThat(response.getSafeSummary()).isEqualTo("Workspace is ready for launch.");
+        assertThat(response.getConversationId()).isEqualTo("correlation-prod-us-1");
+        assertThat(response.getMode()).isEqualTo("support_assistant");
+        assertThat(response.getPosition()).isEqualTo("productization");
+        verifyNoInteractions(conversationGateway);
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Summarize this workspace"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, java.util.List.of("chat:query"))
+            .containsEntry(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, "NEVER_PERSIST");
+    }
+
+    @Test
+    void queryOnceRejectsUnexpectedLegacyIdentityFieldsWithQueryOncePath() {
+        ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Explain this once");
+        request.getUnexpectedFields().put("userId", "forged-user");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        assertThatThrownBy(() -> controller.queryOnce(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/query-once")
+            .hasMessageContaining("userId");
+    }
+
+    @Test
+    void queryOnceRequiresChatQueryScope() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("One-time answer");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", List.of("chat:suggestions"));
+
+        assertThatThrownBy(() -> controller.queryOnce(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("chat:query");
+        verify(orchestrator, never()).orchestrate(
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.<OrchestrationContext>any()
+        );
     }
 
     @Test

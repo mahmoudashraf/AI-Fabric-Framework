@@ -87,6 +87,11 @@ public class ChatRuntimeController {
     private static final int MAX_SUGGESTION_METADATA_VALUE_CHARS = 300;
     private static final int MAX_SUGGESTION_METADATA_ENTRIES = 12;
 
+    private enum QueryPersistenceMode {
+        PERSIST_IF_AVAILABLE,
+        NEVER_PERSIST
+    }
+
     private static final String SUGGESTIONS_SYSTEM_PROMPT_TEMPLATE = """
         You generate short, clickable UI suggestions for a user.
         Output MUST be valid JSON: an array of strings.
@@ -107,12 +112,20 @@ public class ChatRuntimeController {
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
                                                    HttpServletRequest servletRequest) {
         rejectUnexpectedFields("/api/chat/me/query", request.getUnexpectedFields());
-        return handleQuery(request, servletRequest, "/api/chat/me/query");
+        return handleQuery(request, servletRequest, "/api/chat/me/query", QueryPersistenceMode.PERSIST_IF_AVAILABLE);
+    }
+
+    @PostMapping("/me/query-once")
+    public ResponseEntity<ChatQueryResponse> queryOnce(@Valid @RequestBody ChatQueryRequest request,
+                                                       HttpServletRequest servletRequest) {
+        rejectUnexpectedFields("/api/chat/me/query-once", request.getUnexpectedFields());
+        return handleQuery(request, servletRequest, "/api/chat/me/query-once", QueryPersistenceMode.NEVER_PERSIST);
     }
 
     private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
                                                           HttpServletRequest servletRequest,
-                                                          String requestPath) {
+                                                          String requestPath,
+                                                          QueryPersistenceMode persistenceMode) {
         long requestStartTime = System.currentTimeMillis();
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
@@ -150,7 +163,8 @@ public class ChatRuntimeController {
             identity,
             requestPromptPreview.isEmpty()
                 ? List.of(SCOPE_CHAT_QUERY)
-                : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW)
+                : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW),
+            persistenceMode
         );
         long contextBuildDurationMs = System.currentTimeMillis() - contextBuildStartTime;
         long orchestrationStartTime = System.currentTimeMillis();
@@ -601,7 +615,8 @@ public class ChatRuntimeController {
                                               String conversationId,
                                               Map<String, String> promptPreview,
                                               RuntimeResolvedIdentity identity,
-                                              List<String> requestedScopes) {
+                                              List<String> requestedScopes,
+                                              QueryPersistenceMode persistenceMode) {
         String verifiedUserId = identity != null ? identity.orchestrationUserId() : null;
         String sessionId = identity != null && StringUtils.hasText(identity.orchestrationSessionId())
             ? identity.orchestrationSessionId()
@@ -706,6 +721,9 @@ public class ChatRuntimeController {
             }
             if (requestedScopes != null && !requestedScopes.isEmpty()) {
                 metadata.put(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, List.copyOf(requestedScopes));
+            }
+            if (persistenceMode != null) {
+                metadata.put(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, persistenceMode.name());
             }
             context.setMetadata(metadata);
         }

@@ -2,7 +2,7 @@
 
 Date: 2026-05-22
 
-Status: draft for review.
+Status: implemented in runtime controller, shared chat-session pipeline, and focused/broader runtime tests on 2026-05-22. Live deployment verification pending until the managed runtime is redeployed with this code.
 
 Parent plans:
 
@@ -33,6 +33,8 @@ Greenfield contract rule:
 - `/api/chat/me/query-once` never persists conversation turns.
 - `/api/chat/me/query` is the persistent conversational endpoint when conversation storage is enabled.
 - Product backends choose the endpoint based on UX intent, not by relying on generated ephemeral conversation ids.
+- Runtime propagates this as internal orchestration metadata `queryPersistenceMode=NEVER_PERSIST` for `/query-once` and `queryPersistenceMode=PERSIST_IF_AVAILABLE` for `/query`; clients do not send a `persistConversation` flag.
+- The shared chat-session pipeline honors `NEVER_PERSIST` by skipping persisted conversation history loading/session auto-creation and by skipping conversation turn recording.
 
 ## 2. Current Runtime State
 
@@ -109,6 +111,7 @@ Rules:
 - `query` is required.
 - `conversationId` is optional and used only for trace/correlation in `query-once`.
 - Runtime may generate a response `conversationId` if omitted, but it must not create a persisted conversation.
+- Runtime must not use a query-once `conversationId` to load persisted chat memory; treat it as correlation only.
 - `mode`, `position`, `context`, `attachments`, and `promptPreview` follow the same validation rules as `/api/chat/me/query`.
 - The endpoint must reject unsupported legacy fields exactly like `/api/chat/me/query`.
 - If a future request DTO adds `persistConversation`, `/api/chat/me/query-once` must reject `persistConversation=true`.
