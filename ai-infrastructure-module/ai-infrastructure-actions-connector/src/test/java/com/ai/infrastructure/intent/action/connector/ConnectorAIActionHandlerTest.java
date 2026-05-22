@@ -263,6 +263,75 @@ class ConnectorAIActionHandlerTest {
     }
 
     @Test
+    void shouldUseGenericFallbackProjectionForSingleReadObjectWhenNoCatalogProjectionIsConfigured() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Product details")
+            .data(ActionPayload.object(Map.of(
+                "sku", "SKU-0001",
+                "name", "Premium Wireless Headphones",
+                "price", 50.99,
+                "currency", "USD",
+                "inStockQty", 6,
+                "metadata", Map.of(
+                    "category", "Travel",
+                    "internalList", List.of("ignored")
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        assertThat(facts.get()).containsEntry("recordCount", 1);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> record = (Map<String, Object>) facts.get().get("record");
+        assertThat(record)
+            .containsEntry("sku", "SKU-0001")
+            .containsEntry("name", "Premium Wireless Headphones")
+            .containsEntry("price", 50.99)
+            .containsEntry("currency", "USD")
+            .containsEntry("inStockQty", 6)
+            .containsEntry("category", "Travel")
+            .doesNotContainKey("internalList");
+    }
+
+    @Test
+    void shouldNotUseGenericFallbackProjectionForSingleWriteObjectWhenNoCatalogProjectionIsConfigured() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Cart updated")
+            .data(ActionPayload.object(Map.of(
+                "cartId", "cart-1",
+                "checkoutUrl", "https://checkout.example"
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            AIActionMetaData.builder()
+                .name("update_cart")
+                .category("generic")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .build(),
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        assertThat(facts.get()).doesNotContainKeys("record", "recordCount");
+    }
+
+    @Test
     void shouldExposeMcpToolTextJsonAsFallbackDocuments() {
         ActionResult actionResult = ActionResult.builder()
             .success(true)

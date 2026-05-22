@@ -194,6 +194,17 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 putMcpToolContentFacts(facts, payload);
             }
         }
+        if (!hasPrimaryList && supportsObjectFallbackFacts()
+            && !facts.containsKey("documents") && !facts.containsKey("record")) {
+            putFallbackObjectFacts(facts, rootPayload);
+        }
+    }
+
+    private boolean supportsObjectFallbackFacts() {
+        if (metadata == null || metadata.getAccessMode() == null) {
+            return false;
+        }
+        return metadata.getAccessMode() != com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY;
     }
 
     private void putConfiguredList(Map<String, Object> facts,
@@ -263,6 +274,19 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
         facts.put(target, records);
         facts.put(target + "Count", records.size());
+        return true;
+    }
+
+    private boolean putFallbackObjectFacts(Map<String, Object> facts, Map<String, Object> payload) {
+        if (facts == null || payload == null || payload.isEmpty()) {
+            return false;
+        }
+        Map<String, Object> record = compactFallbackRecord(payload);
+        if (record.isEmpty()) {
+            return false;
+        }
+        facts.put("record", Collections.unmodifiableMap(record));
+        facts.put("recordCount", 1);
         return true;
     }
 
