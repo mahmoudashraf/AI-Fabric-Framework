@@ -12,7 +12,9 @@ public record ShopifyCompanionVerificationExpectationOverrides(
     Boolean orderLookupScopeGranted,
     Boolean orderLookupAppScopesWebhookReady,
     Boolean historicalOrderLookupSupported,
-    String supportLifecycleStage
+    String supportLifecycleStage,
+    String enabledSurfaces,
+    String configuredEnabledSurfaces
 ) {
 
     public Map<String, String> toEnvironmentOverrides() {
@@ -26,6 +28,8 @@ public record ShopifyCompanionVerificationExpectationOverrides(
         putBoolean(overrides, "EXPECT_ORDER_LOOKUP_APP_SCOPES_WEBHOOK_READY", orderLookupAppScopesWebhookReady);
         putBoolean(overrides, "EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED", historicalOrderLookupSupported);
         putText(overrides, "EXPECT_SUPPORT_LIFECYCLE_STAGE", supportLifecycleStage);
+        putText(overrides, "EXPECT_ENABLED_SURFACES", enabledSurfaces);
+        putText(overrides, "EXPECT_CONFIGURED_ENABLED_SURFACES", configuredEnabledSurfaces);
         return Map.copyOf(overrides);
     }
 

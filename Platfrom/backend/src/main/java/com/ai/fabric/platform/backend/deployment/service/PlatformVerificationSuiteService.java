@@ -265,14 +265,31 @@ public class PlatformVerificationSuiteService {
         PlatformVerificationSuiteDispatchRequest request
     ) {
         com.fasterxml.jackson.databind.node.ObjectNode details = objectMapper.createObjectNode();
-        ShopifyCompanionVerificationExpectationOverrides expectations = request == null ? null : request.shopifyCompanionExpectations();
+        ShopifyCompanionVerificationExpectationOverrides expectations = expectationsForStage(stage.targetRef(), request);
         if (expectations == null
             || expectations.isEmpty()
-            || !PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION.equalsIgnoreCase(stage.targetRef())) {
+            || !supportsShopifyExpectationOverrides(stage.targetRef())) {
             return details;
         }
         details.set("scriptEnvironmentOverrides", objectMapper.valueToTree(expectations.toEnvironmentOverrides()));
         return details;
+    }
+
+    private ShopifyCompanionVerificationExpectationOverrides expectationsForStage(String targetRef,
+                                                                                  PlatformVerificationSuiteDispatchRequest request) {
+        if (request == null || !supportsShopifyExpectationOverrides(targetRef)) {
+            return null;
+        }
+        if (PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT.equalsIgnoreCase(targetRef)
+            && request.shopifyFirstProductReadinessExpectations() != null) {
+            return request.shopifyFirstProductReadinessExpectations();
+        }
+        return request.shopifyCompanionExpectations();
+    }
+
+    private boolean supportsShopifyExpectationOverrides(String targetRef) {
+        return PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION.equalsIgnoreCase(targetRef)
+            || PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT.equalsIgnoreCase(targetRef);
     }
 
     private int runStageOrder(com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteStageDefinitionSummary stage,
