@@ -16,8 +16,10 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -100,6 +102,42 @@ public class ShopifyStorefrontChatService {
     private static final Set<String> CUSTOMER_ACCOUNT_RETURN_ACTION_IDS = Set.of(
         "shopify_request_return",
         "shopify_start_return_request"
+    );
+    private static final String DEBUG_CONTRACT_VERSION = "SHOPIFY_STOREFRONT_DEBUG_V1";
+    private static final int DEBUG_MAX_DEPTH = 8;
+    private static final int DEBUG_MAX_ARRAY_ITEMS = 24;
+    private static final int DEBUG_MAX_STRING_LENGTH = 2_000;
+    private static final Set<String> DEBUG_SENSITIVE_FIELD_NAMES = Set.of(
+        "access_token",
+        "accesstoken",
+        "api_key",
+        "apikey",
+        "auth",
+        "authcontext",
+        "authorization",
+        "authorizationurl",
+        "authtoken",
+        "callbackurl",
+        "cookie",
+        "customeremail",
+        "email",
+        "headers",
+        "hmac",
+        "id_token",
+        "idtoken",
+        "key",
+        "password",
+        "raw",
+        "refresh_token",
+        "refreshtoken",
+        "secret",
+        "session",
+        "sessionid",
+        "customersessionid",
+        "mcpsessionid",
+        "shoppersessionid",
+        "starturl",
+        "token"
     );
     private static final Set<String> APPROVED_ORDER_SELF_SERVICE_ACTION_PACKAGES = Set.of(
         "order-self-service",
@@ -633,10 +671,17 @@ public class ShopifyStorefrontChatService {
                                              ShopifyBridgeBillingSummary billingSummary) {
         JsonNode policyResponse = storefrontPolicyResponse(response, request, store, billingSummary);
         if (policyResponse != null) {
+            if (policyResponse.isObject() && storefrontDebugEnabled(store)) {
+                attachDebugPayload((ObjectNode) policyResponse, response, request);
+            }
             return policyResponse;
         }
         String answer = extractAnswer(response);
-        return ensureCanonicalStorefrontPayload(response, answer);
+        ObjectNode shaped = ensureCanonicalStorefrontPayload(response, answer);
+        if (storefrontDebugEnabled(store)) {
+            attachDebugPayload(shaped, response, request);
+        }
+        return shaped;
     }
 
     private JsonNode storefrontPolicyResponse(JsonNode response,
@@ -800,11 +845,21 @@ public class ShopifyStorefrontChatService {
             || StringUtils.hasText(textOrNull(context, "productTitle"));
     }
 
-    private JsonNode ensureCanonicalStorefrontPayload(JsonNode response, String answer) {
-        if (response == null || !response.isObject()) {
-            return response;
-        }
+    private ObjectNode ensureCanonicalStorefrontPayload(JsonNode response, String answer) {
         ObjectNode shaped = objectMapper.createObjectNode();
+        if (response == null || !response.isObject()) {
+            if (answer != null) {
+                shaped.put("answer", answer);
+                shaped.put("safeSummary", answer);
+            }
+            shaped.put("success", true);
+            shaped.put("type", "INFORMATION_PROVIDED");
+            shaped.put("conversationId", "chat-" + UUID.randomUUID());
+            shaped.putArray("sources");
+            shaped.putArray("actions");
+            shaped.putArray("suggestions");
+            return shaped;
+        }
         boolean success = response.has("success")
             ? response.path("success").asBoolean(true)
             : firstPresent(response.path("result").path("success"), response.path("result").path("sanitizedPayload").path("success")).asBoolean(true);
@@ -833,7 +888,12 @@ public class ShopifyStorefrontChatService {
             nestedNode(response, "result.sanitizedPayload.data.documents"),
             nestedNode(response, "result.sanitizedPayload.data.ragResponse.documents")
         );
-        shaped.set("sources", storefrontSafeDocuments(sources));
+        ArrayNode safeSources = storefrontSafeDocuments(sources);
+        shaped.set("sources", safeSources);
+        JsonNode ragResponse = storefrontSafeRagResponse(response, sources, safeSources);
+        if (ragResponse != null && !ragResponse.isEmpty()) {
+            shaped.set("ragResponse", ragResponse);
+        }
         shaped.set("actions", canonicalActions(response));
         JsonNode suggestions = firstArrayNode(
             response.get("suggestions"),
@@ -846,6 +906,180 @@ public class ShopifyStorefrontChatService {
             shaped.set("metadata", metadata.deepCopy());
         }
         return shaped;
+    }
+
+    private JsonNode storefrontSafeRagResponse(JsonNode response, JsonNode rawDocuments, ArrayNode safeSources) {
+        JsonNode ragResponse = firstObjectNode(
+            response == null ? null : response.get("ragResponse"),
+            nestedNode(response, "result.data.ragResponse"),
+            nestedNode(response, "result.sanitizedPayload.data.ragResponse")
+        );
+        if (ragResponse == null || !ragResponse.isObject()) {
+            return null;
+        }
+        ObjectNode safe = objectMapper.createObjectNode();
+        copySafeValue(ragResponse, safe, "query");
+        copySafeValue(ragResponse, safe, "optimizedQuery");
+        copySafeValue(ragResponse, safe, "embeddingQuery");
+        copySafeValue(ragResponse, safe, "entityType");
+        copySafeValue(ragResponse, safe, "usedDocuments");
+        copySafeValue(ragResponse, safe, "processingTimeMs");
+        copySafeValue(ragResponse, safe, "requiresRetrieval");
+        copySafeValue(ragResponse, safe, "requiresGeneration");
+
+        String metadataEmbeddingQuery = firstNonBlank(
+            nestedText(ragResponse, "metadata.embeddingQuery"),
+            nestedText(response, "result.data.metadata.embeddingQuery"),
+            nestedText(response, "result.metadata.embeddingQuery")
+        );
+        if (metadataEmbeddingQuery != null && !safe.has("embeddingQuery")) {
+            safe.put("embeddingQuery", metadataEmbeddingQuery);
+        }
+
+        JsonNode documents = firstArrayNode(ragResponse.get("documents"), rawDocuments);
+        ArrayNode safeDocuments = storefrontSafeDocuments(documents);
+        if (safeDocuments.isEmpty() && safeSources != null && !safeSources.isEmpty()) {
+            safeDocuments = safeSources.deepCopy();
+        }
+        safe.set("documents", safeDocuments);
+        if (!safe.has("usedDocuments")) {
+            safe.put("usedDocuments", safeDocuments.size());
+        }
+        return safe;
+    }
+
+    private JsonNode firstObjectNode(JsonNode... nodes) {
+        if (nodes == null) {
+            return null;
+        }
+        for (JsonNode node : nodes) {
+            if (node != null && node.isObject()) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private boolean storefrontDebugEnabled(ShopifyBridgeStoreSummary store) {
+        return store != null
+            && store.widgetDetail() != null
+            && store.widgetDetail().settings() != null
+            && store.widgetDetail().settings().debugEnabled();
+    }
+
+    private void attachDebugPayload(ObjectNode shaped, JsonNode upstreamResponse, ObjectNode normalizedRequest) {
+        ObjectNode debug = objectMapper.createObjectNode();
+        debug.put("contractVersion", DEBUG_CONTRACT_VERSION);
+        debug.set("normalizedRequest", debugSafeNode(normalizedRequest, 0));
+        debug.set("upstreamResponse", debugSafeNode(upstreamResponse, 0));
+
+        ObjectNode diagnostics = objectMapper.createObjectNode();
+        diagnostics.put("upstreamSuccess", upstreamResponse == null || !upstreamResponse.has("success")
+            || upstreamResponse.path("success").asBoolean(true));
+        copySafeValue(upstreamResponse, diagnostics, "conversationId");
+        copySafeValue(upstreamResponse, diagnostics, "providerRequestId");
+        copySafeValue(upstreamResponse, diagnostics, "fallbackReason");
+        copySafeValue(shaped, diagnostics, "type");
+        copySafeValue(shaped, diagnostics, "mode");
+        copySafeValue(shaped, diagnostics, "position");
+        diagnostics.put("extractedSourcesCount", shaped.path("sources").isArray() ? shaped.path("sources").size() : 0);
+        diagnostics.put("extractedActionsCount", shaped.path("actions").isArray() ? shaped.path("actions").size() : 0);
+        diagnostics.put("upstreamSourcesCount", debugSourceCount(upstreamResponse));
+        diagnostics.put("upstreamActionsCount", debugActionCount(upstreamResponse));
+        debug.set("diagnostics", diagnostics);
+
+        shaped.set("debug", debug);
+    }
+
+    private int debugSourceCount(JsonNode response) {
+        JsonNode sources = firstArrayNode(
+            response == null ? null : response.get("sources"),
+            response == null ? null : response.get("documents"),
+            nestedNode(response, "result.data.documents"),
+            nestedNode(response, "result.data.ragResponse.documents"),
+            nestedNode(response, "result.sanitizedPayload.data.documents"),
+            nestedNode(response, "result.sanitizedPayload.data.ragResponse.documents")
+        );
+        return sources == null ? 0 : sources.size();
+    }
+
+    private int debugActionCount(JsonNode response) {
+        JsonNode actions = response == null ? null : response.get("actions");
+        if (actions != null && actions.isArray()) {
+            return actions.size();
+        }
+        JsonNode resultData = firstPresent(
+            nestedNode(response, "result.data"),
+            nestedNode(response, "result.sanitizedPayload.data")
+        );
+        return resultData != null && resultData.isObject() && !resultData.isEmpty() ? 1 : 0;
+    }
+
+    private JsonNode debugSafeNode(JsonNode node, int depth) {
+        if (node == null || node.isNull()) {
+            return objectMapper.getNodeFactory().nullNode();
+        }
+        if (depth >= DEBUG_MAX_DEPTH) {
+            return objectMapper.getNodeFactory().textNode("[debug-truncated-depth]");
+        }
+        if (node.isObject()) {
+            ObjectNode safe = objectMapper.createObjectNode();
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> field = fields.next();
+                if (debugSensitiveField(field.getKey())) {
+                    safe.put(field.getKey(), "[redacted]");
+                } else {
+                    safe.set(field.getKey(), debugSafeNode(field.getValue(), depth + 1));
+                }
+            }
+            return safe;
+        }
+        if (node.isArray()) {
+            ArrayNode safe = objectMapper.createArrayNode();
+            int index = 0;
+            for (JsonNode item : node) {
+                if (index >= DEBUG_MAX_ARRAY_ITEMS) {
+                    ObjectNode marker = objectMapper.createObjectNode();
+                    marker.put("debugTruncated", true);
+                    marker.put("remainingItems", node.size() - DEBUG_MAX_ARRAY_ITEMS);
+                    safe.add(marker);
+                    break;
+                }
+                safe.add(debugSafeNode(item, depth + 1));
+                index++;
+            }
+            return safe;
+        }
+        if (node.isTextual()) {
+            return objectMapper.getNodeFactory().textNode(debugSafeText(node.asText("")));
+        }
+        return node.deepCopy();
+    }
+
+    private boolean debugSensitiveField(String fieldName) {
+        String normalized = fieldName == null ? "" : fieldName.replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
+        if (DEBUG_SENSITIVE_FIELD_NAMES.contains(normalized)) {
+            return true;
+        }
+        return normalized.contains("token")
+            || normalized.contains("secret")
+            || normalized.contains("password")
+            || normalized.contains("authorization")
+            || normalized.contains("cookie")
+            || normalized.contains("signature");
+    }
+
+    private String debugSafeText(String value) {
+        String safe = value == null ? "" : value;
+        safe = safe.replaceAll("(?i)Bearer\\s+[A-Za-z0-9._~+/=-]+", "Bearer [redacted]");
+        safe = safe.replaceAll("(?i)(shpat|shpss|shpca|shpua|shppa)_[A-Za-z0-9_]+", "$1_[redacted]");
+        safe = safe.replaceAll("(?i)([?&](?:key|token|access_token|refresh_token|id_token|signature|hmac)=)[^&#\\s]+", "$1[redacted]");
+        safe = safe.replaceAll("(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", "[redacted-email]");
+        if (safe.length() > DEBUG_MAX_STRING_LENGTH) {
+            return safe.substring(0, DEBUG_MAX_STRING_LENGTH) + "...[debug-truncated]";
+        }
+        return safe;
     }
 
     private ArrayNode canonicalActions(JsonNode response) {

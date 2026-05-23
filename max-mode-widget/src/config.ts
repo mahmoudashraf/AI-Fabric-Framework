@@ -152,6 +152,8 @@ export interface MaxModeHostCustomerAccountAuthConfig {
 }
 
 export interface MaxModeHostConfig {
+  /** Host-specific full-screen experience. Defaults to the generic Max Mode workspace. */
+  experience?: "default" | "shopify-shopping-workspace";
   /** Visible launcher label for storefront/product hosts */
   launcherLabel?: string;
   /** Accessible launcher label override */
@@ -261,6 +263,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   position: "bottom-right",
   launcher: true,
   host: {
+    experience: "default",
     launcherLabel: undefined,
     launcherAriaLabel: undefined,
     launcherVariant: "icon",

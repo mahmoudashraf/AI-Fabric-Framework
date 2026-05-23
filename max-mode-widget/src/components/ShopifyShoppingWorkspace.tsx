@@ -1,0 +1,1366 @@
+import type { FormEvent, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import {
+  ArrowRight,
+  BadgeCheck,
+  Box,
+  Check,
+  ChevronRight,
+  Circle,
+  Filter,
+  Gift,
+  Info,
+  PackageSearch,
+  Search,
+  ShoppingBag,
+  ShoppingCart,
+  SlidersHorizontal,
+  Sparkles,
+  Tag,
+  Truck,
+  X,
+} from "lucide-react";
+import { motion } from "framer-motion";
+
+import { MessageList } from "./Chat/MessageList";
+import { MaxModeCollectionAnimation } from "./MaxModeView/MaxModeCollectionAnimation";
+import { MaxModeComposerBar } from "./MaxModeView/MaxModeComposerBar";
+import { MaxModeOverlays } from "./MaxModeView/MaxModeOverlays";
+
+import { getWidgetConfig } from "@/config";
+import type { MaxModeMode, MaxModePosition } from "@/constants";
+import type { Document } from "@/types";
+import type { MaxModeController } from "@/hooks/useMaxModeController";
+
+type ShopifyWorkspaceState = "discovery" | "browsing" | "product" | "comparison" | "policy" | "cart";
+
+type ProductCardModel = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  price?: string;
+  compareAtPrice?: string;
+  availability?: string;
+  imageUrl?: string;
+  url?: string;
+  variantId?: number;
+  source?: Document;
+};
+
+type ShopifyCartSnapshot = {
+  item_count: number;
+  total_price: number;
+  items: Array<{
+    id: number;
+    title: string;
+    product_title?: string;
+    variant_title?: string;
+    quantity: number;
+    final_line_price: number;
+    image?: string;
+    url?: string;
+  }>;
+};
+
+const SHOPIFY_QUICK_ASKS = [
+  { label: "Best sellers", query: "Show me your best sellers", position: "search" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
+  { label: "Compare products", query: "Compare your top product categories", position: "search" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
+  { label: "Shipping policy", query: "What is your shipping policy?", position: "landing" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
+  { label: "Returns", query: "What is your return policy?", position: "landing" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
+];
+
+const COLLECTIONS = [
+  { label: "Products", query: "Show me your product categories", icon: PackageSearch },
+  { label: "Deals", query: "Show me products with current discounts", icon: Tag },
+  { label: "Gift ideas", query: "Help me find gift ideas from this store", icon: Gift },
+  { label: "Policies", query: "Show me store policies that matter before buying", icon: Info },
+];
+
+const POLICY_TOPICS = [
+  { label: "Shipping", query: "What is your shipping policy?", icon: Truck },
+  { label: "Returns", query: "What is your return policy?", icon: ArrowRight },
+  { label: "Payment", query: "What payment options are available?", icon: BadgeCheck },
+  { label: "FAQ", query: "What should I know before buying from this store?", icon: Info },
+];
+
+export function ShopifyShoppingWorkspace({
+  onClose,
+  controller,
+}: {
+  onClose: () => void;
+  controller: MaxModeController;
+}) {
+  const config = getWidgetConfig();
+  const requestContext = config.host?.requestContext ?? {};
+  const storeName = deriveStoreName(requestContext);
+  const pageGroup = String(requestContext.shopifyPageModeGroup || "").toLowerCase();
+  const [workspaceState, setWorkspaceState] = useState<ShopifyWorkspaceState>(() =>
+    initialWorkspaceState(controller, pageGroup),
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [cart, setCart] = useState<ShopifyCartSnapshot | null>(null);
+  const [cartError, setCartError] = useState<string | null>(null);
+  const products = useMemo(() => deriveProducts(controller.contextDocuments, requestContext), [
+    controller.contextDocuments,
+    requestContext,
+  ]);
+  const spotlight = useMemo(
+    () => deriveSpotlight(controller.selectedProduct, products, requestContext),
+    [controller.selectedProduct, products, requestContext],
+  );
+  const policyDocs = useMemo(() => derivePolicyDocuments(controller.contextDocuments), [controller.contextDocuments]);
+
+  useEffect(() => {
+    const next = deriveWorkspaceState(controller, pageGroup, products, policyDocs);
+    setWorkspaceState((current) => (current === "comparison" || current === "policy" ? current : next));
+  }, [controller.currentPosition, controller.isCartView, controller.selectedProduct, pageGroup, products.length, policyDocs.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchShopifyCart()
+      .then((snapshot) => {
+        if (!cancelled) {
+          setCart(snapshot);
+          setCartError(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCartError("Cart unavailable");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const dispatchPrompt = (query: string, position: MaxModePosition, mode: MaxModeMode) => {
+    setSearchQuery("");
+    controller.handleQuickAction(query, position, mode);
+  };
+
+  const handleSearchSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) {
+      return;
+    }
+    setWorkspaceState("browsing");
+    dispatchPrompt(query, "search", "thinker_deep");
+  };
+
+  const handleAddVariant = async (product: ProductCardModel) => {
+    if (!product.variantId) {
+      dispatchPrompt(`Add ${product.title} to my cart.`, "cart", "executor");
+      return;
+    }
+    await addVariantToShopifyCart(product.variantId, 1);
+    const snapshot = await fetchShopifyCart();
+    setCart(snapshot);
+    setWorkspaceState("cart");
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] overflow-hidden bg-[#f7f8fc] font-sans text-slate-950"
+    >
+      <div className="hidden h-full min-h-0 grid-rows-[72px_minmax(0,1fr)] md:grid">
+        <ShopifyWorkspaceTopBar
+          storeName={storeName}
+          cartCount={cart?.item_count ?? 0}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          onSearchSubmit={handleSearchSubmit}
+          onCart={() => setWorkspaceState("cart")}
+          onClose={onClose}
+        />
+        <div className="grid min-h-0 grid-cols-[280px_minmax(0,1fr)_340px] border-t border-slate-200">
+          <ShopifyLeftRail
+            state={workspaceState}
+            products={products}
+            spotlight={spotlight}
+            policyDocs={policyDocs}
+            cart={cart}
+            onState={setWorkspaceState}
+            onPrompt={dispatchPrompt}
+            onOpenProduct={(product) => {
+              if (product.source) controller.openProductDetails(product.source);
+              setWorkspaceState("product");
+            }}
+          />
+          <ShopifyConversationColumn
+            controller={controller}
+            state={workspaceState}
+            storeName={storeName}
+            products={products}
+            spotlight={spotlight}
+            policyDocs={policyDocs}
+            onPrompt={dispatchPrompt}
+            onState={setWorkspaceState}
+            onAddVariant={handleAddVariant}
+          />
+          <ShopifyRightPanel
+            state={workspaceState}
+            products={products}
+            spotlight={spotlight}
+            policyDocs={policyDocs}
+            cart={cart}
+            cartError={cartError}
+            onState={setWorkspaceState}
+            onPrompt={dispatchPrompt}
+            onOpenProduct={(product) => {
+              if (product.source) controller.openProductDetails(product.source);
+              setWorkspaceState("product");
+            }}
+            onAddVariant={handleAddVariant}
+          />
+        </div>
+      </div>
+
+      <div className="flex h-full flex-col bg-white md:hidden">
+        <ShopifyMobileWorkspace
+          storeName={storeName}
+          state={workspaceState}
+          products={products}
+          spotlight={spotlight}
+          policyDocs={policyDocs}
+          cart={cart}
+          controller={controller}
+          onClose={onClose}
+          onPrompt={dispatchPrompt}
+          onState={setWorkspaceState}
+          onAddVariant={handleAddVariant}
+        />
+      </div>
+
+      <MaxModeCollectionAnimation collectingItem={controller.collectingItem} />
+      <MaxModeOverlays controller={controller} />
+    </motion.div>
+  );
+}
+
+function ShopifyWorkspaceTopBar({
+  storeName,
+  cartCount,
+  searchQuery,
+  onSearchQueryChange,
+  onSearchSubmit,
+  onCart,
+  onClose,
+}: {
+  storeName: string;
+  cartCount: number;
+  searchQuery: string;
+  onSearchQueryChange: (value: string) => void;
+  onSearchSubmit: (event: FormEvent) => void;
+  onCart: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex h-[72px] items-center gap-5 bg-white px-6">
+      <button className="flex min-w-[220px] items-center gap-3 text-left" onClick={() => window.location.assign(shopifyRoute(""))}>
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <ShoppingBag className="h-5 w-5" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-lg font-extrabold">{storeName}</span>
+          <span className="block text-xs font-medium text-slate-500">Shopping workspace</span>
+        </span>
+      </button>
+      <form onSubmit={onSearchSubmit} className="mx-auto flex h-11 w-full max-w-[520px] items-center gap-2 rounded-full bg-slate-100 px-4">
+        <Search className="h-4 w-4 text-slate-400" />
+        <input
+          value={searchQuery}
+          onChange={(event) => onSearchQueryChange(event.target.value)}
+          className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
+          placeholder="Search products, sizes, policies..."
+        />
+      </form>
+      <button className="inline-flex h-10 items-center gap-2 rounded-full bg-indigo-50 px-4 text-sm font-bold text-indigo-600">
+        <Sparkles className="h-4 w-4" />
+        Max Mode
+      </button>
+      <button
+        onClick={onCart}
+        className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+      >
+        <ShoppingCart className="h-4 w-4" />
+        Cart ({cartCount})
+      </button>
+      <button
+        onClick={onClose}
+        aria-label="Close Max Mode"
+        className="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+      >
+        <X className="h-5 w-5" />
+      </button>
+    </div>
+  );
+}
+
+function ShopifyLeftRail({
+  state,
+  products,
+  spotlight,
+  policyDocs,
+  cart,
+  onState,
+  onPrompt,
+  onOpenProduct,
+}: {
+  state: ShopifyWorkspaceState;
+  products: ProductCardModel[];
+  spotlight: ProductCardModel | null;
+  policyDocs: Document[];
+  cart: ShopifyCartSnapshot | null;
+  onState: (state: ShopifyWorkspaceState) => void;
+  onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  onOpenProduct: (product: ProductCardModel) => void;
+}) {
+  return (
+    <aside className="min-h-0 overflow-y-auto border-r border-slate-200 bg-slate-50 px-5 py-6">
+      {state === "browsing" ? (
+        <RailSection title="Filters">
+          <FilterGroup title="Category" values={["All", "Products", "Deals"]} selected="All" />
+          <FilterGroup title="Sort by" values={["Relevant", "Price low", "Price high"]} selected="Relevant" />
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-3 flex items-center justify-between text-sm font-bold">
+              <span>Stock</span>
+              <span className="text-emerald-600">In stock first</span>
+            </div>
+            <div className="h-2 rounded-full bg-slate-100">
+              <div className="h-2 w-2/3 rounded-full bg-indigo-500" />
+            </div>
+          </div>
+        </RailSection>
+      ) : state === "product" && spotlight ? (
+        <RailSection title="About this product">
+          <ProductRailCard product={spotlight} onOpen={() => onOpenProduct(spotlight)} />
+          <button
+            onClick={() => onPrompt(`Compare ${spotlight.title} with similar options.`, "search", "thinker_deep")}
+            className="w-full rounded-2xl border border-indigo-200 bg-white px-4 py-3 text-sm font-bold text-indigo-600"
+          >
+            Compare similar products
+          </button>
+        </RailSection>
+      ) : state === "comparison" ? (
+        <RailSection title="Comparing">
+          {(products.length ? products.slice(0, 3) : spotlight ? [spotlight] : []).map((product) => (
+            <SelectableProductCard key={product.id} product={product} selected onClick={() => onOpenProduct(product)} />
+          ))}
+          <button
+            onClick={() => onPrompt("Add another product to this comparison.", "search", "thinker_deep")}
+            className="w-full rounded-2xl border border-indigo-300 bg-white px-4 py-3 text-sm font-bold text-indigo-600"
+          >
+            Add product
+          </button>
+        </RailSection>
+      ) : state === "policy" ? (
+        <RailSection title="Store info">
+          {POLICY_TOPICS.map((topic, index) => (
+            <button
+              key={topic.label}
+              onClick={() => onPrompt(topic.query, "landing", "thinker_deep")}
+              className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-4 text-left ${
+                index === 0 ? "border-indigo-400 bg-indigo-50" : "border-slate-200 bg-white"
+              }`}
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                <topic.icon className="h-5 w-5" />
+              </span>
+              <span className="font-bold">{topic.label}</span>
+            </button>
+          ))}
+          {policyDocs.slice(0, 3).map((doc) => (
+            <div key={doc.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="line-clamp-1 text-sm font-bold">{doc.title}</div>
+              <p className="mt-1 line-clamp-3 text-xs text-slate-500">{doc.content}</p>
+            </div>
+          ))}
+        </RailSection>
+      ) : state === "cart" ? (
+        <RailSection title="Your picks">
+          {cart?.items?.length ? (
+            cart.items.slice(0, 4).map((item) => <CartLineCard key={`${item.id}-${item.quantity}`} item={item} />)
+          ) : (
+            <EmptyRailCard title="Cart is ready" body="Ask for a product or choose an item to start building your cart." />
+          )}
+          <RailSection title="You might also like" nested>
+            {products.slice(0, 2).map((product) => (
+              <SelectableProductCard key={product.id} product={product} onClick={() => onOpenProduct(product)} />
+            ))}
+          </RailSection>
+        </RailSection>
+      ) : (
+        <RailSection title="Discover">
+          {COLLECTIONS.map((collection, index) => (
+            <button
+              key={collection.label}
+              onClick={() => {
+                onState(collection.label === "Policies" ? "policy" : "browsing");
+                onPrompt(collection.query, collection.label === "Policies" ? "landing" : "search", "thinker_deep");
+              }}
+              className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-4 text-left ${
+                index === 0 ? "border-indigo-400 bg-indigo-50" : "border-slate-200 bg-white"
+              }`}
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                <collection.icon className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block font-extrabold">{collection.label}</span>
+                <span className="text-sm text-slate-500">Browse with AI</span>
+              </span>
+            </button>
+          ))}
+          <RailSection title="Quick ask" nested>
+            {SHOPIFY_QUICK_ASKS.map((ask) => (
+              <button
+                key={ask.label}
+                onClick={() => {
+                  onState(ask.label.includes("Shipping") || ask.label.includes("Returns") ? "policy" : "browsing");
+                  onPrompt(ask.query, ask.position, ask.mode);
+                }}
+                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700"
+              >
+                {ask.label}
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              </button>
+            ))}
+          </RailSection>
+        </RailSection>
+      )}
+    </aside>
+  );
+}
+
+function ShopifyConversationColumn({
+  controller,
+  state,
+  storeName,
+  products,
+  spotlight,
+  policyDocs,
+  onPrompt,
+  onState,
+  onAddVariant,
+}: {
+  controller: MaxModeController;
+  state: ShopifyWorkspaceState;
+  storeName: string;
+  products: ProductCardModel[];
+  spotlight: ProductCardModel | null;
+  policyDocs: Document[];
+  onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  onState: (state: ShopifyWorkspaceState) => void;
+  onAddVariant: (product: ProductCardModel) => Promise<void>;
+}) {
+  const hasMessages = controller.chatMessages.some((message) => message.type === "user");
+  return (
+    <main className="relative min-h-0 bg-white">
+      {!hasMessages && (
+        <div className="absolute inset-x-0 top-0 z-10 px-10 py-10">
+          <DiscoveryHero
+            storeName={storeName}
+            products={products}
+            spotlight={spotlight}
+            onPrompt={onPrompt}
+            onState={onState}
+            onAddVariant={onAddVariant}
+          />
+        </div>
+      )}
+      {hasMessages && (
+        <div className="absolute inset-x-0 top-0 z-10 px-10 pt-7">
+          <StateSummary state={state} products={products} spotlight={spotlight} policyDocs={policyDocs} onPrompt={onPrompt} />
+        </div>
+      )}
+      {hasMessages && (
+        <MessageList
+          containerClassName="absolute inset-x-0 bottom-0 top-0 overflow-y-auto px-8 pb-[150px] pt-[170px]"
+          messages={controller.chatMessages}
+          latestMessageRef={controller.latestMessageRef}
+          messagesEndRef={controller.messagesEndRef}
+          isLoading={controller.isLoading}
+          getAiStyles={controller.getResultStyles}
+          isPanelVisible={false}
+          attachedItems={controller.attachedItems}
+          confirmationStatus={controller.confirmationStatus as Record<string, "confirmed" | "rejected">}
+          expandedActions={controller.expandedActions}
+          debugEnabled={controller.debugEnabled}
+          onOpenDebug={controller.openDebugInspector}
+          onResendAction={(fullMessage) => void controller.resendChatQuery(fullMessage)}
+          onReattachItem={controller.reattachItemWithToast}
+          onOpenSourcesMobile={controller.openSourcesMobile}
+          onOpenSourcesDesktop={controller.openSourcesDesktop}
+          onConfirm={(messageId, confirmed, msg) => controller.handleConfirmation(messageId, confirmed, msg)}
+          onExpandActionResults={controller.expandActionResults}
+          isItemAttached={controller.isItemAttached}
+          onAttachActionResultItem={controller.handleAttachActionResultItem}
+          onNextStepClick={(query) => void controller.resendChatQuery(query)}
+          onCustomerAccountConnect={controller.connectCustomerAccount}
+          onClarificationSubmit={controller.handleClarificationSubmit}
+        />
+      )}
+      <MaxModeComposerBar controller={controller} />
+    </main>
+  );
+}
+
+function ShopifyRightPanel({
+  state,
+  products,
+  spotlight,
+  policyDocs,
+  cart,
+  cartError,
+  onState,
+  onPrompt,
+  onOpenProduct,
+  onAddVariant,
+}: {
+  state: ShopifyWorkspaceState;
+  products: ProductCardModel[];
+  spotlight: ProductCardModel | null;
+  policyDocs: Document[];
+  cart: ShopifyCartSnapshot | null;
+  cartError: string | null;
+  onState: (state: ShopifyWorkspaceState) => void;
+  onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  onOpenProduct: (product: ProductCardModel) => void;
+  onAddVariant: (product: ProductCardModel) => Promise<void>;
+}) {
+  return (
+    <aside className="min-h-0 overflow-y-auto border-l border-slate-200 bg-slate-50 px-5 py-6">
+      {state === "policy" ? (
+        <RightPanelSection title="Policy details">
+          {policyDocs.length ? (
+            policyDocs.slice(0, 3).map((doc) => <PolicyCard key={doc.id} doc={doc} />)
+          ) : (
+            <PolicyCard
+              doc={{
+                id: "policy-helper",
+                title: "Store policy helper",
+                content: "Ask about shipping, returns, payment, or product fit. The assistant will use indexed store policy data when available.",
+                type: "policy",
+              }}
+            />
+          )}
+        </RightPanelSection>
+      ) : state === "cart" ? (
+        <RightPanelSection title="Cart summary">
+          <CartSummary cart={cart} cartError={cartError} />
+          {products.length > 0 && (
+            <RightPanelSection title="Also consider" nested>
+              <div className="grid grid-cols-2 gap-3">
+                {products.slice(0, 4).map((product) => (
+                  <MiniProductCard key={product.id} product={product} onClick={() => onAddVariant(product)} actionLabel="Add" />
+                ))}
+              </div>
+            </RightPanelSection>
+          )}
+        </RightPanelSection>
+      ) : state === "comparison" ? (
+        <RightPanelSection title="Comparison">
+          <ComparisonCard products={products} onOpenProduct={onOpenProduct} />
+        </RightPanelSection>
+      ) : spotlight ? (
+        <RightPanelSection title={state === "product" ? "Product gallery" : "Product spotlight"}>
+          <SpotlightCard product={spotlight} onOpenProduct={() => onOpenProduct(spotlight)} onAddVariant={() => onAddVariant(spotlight)} />
+          <button
+            onClick={() => {
+              onState("comparison");
+              onPrompt(`Compare ${spotlight.title} with similar options.`, "search", "thinker_deep");
+            }}
+            className="mt-3 w-full rounded-2xl border border-indigo-300 bg-white px-4 py-3 text-sm font-bold text-indigo-600"
+          >
+            Compare
+          </button>
+          {products.length > 1 && (
+            <RightPanelSection title="Trending" nested>
+              <div className="grid grid-cols-2 gap-3">
+                {products.slice(0, 4).map((product) => (
+                  <MiniProductCard key={product.id} product={product} onClick={() => onOpenProduct(product)} />
+                ))}
+              </div>
+            </RightPanelSection>
+          )}
+        </RightPanelSection>
+      ) : (
+        <RightPanelSection title="Spotlight">
+          <EmptyRailCard title="Ask to browse products" body="Product cards appear here when catalog evidence is returned." />
+        </RightPanelSection>
+      )}
+    </aside>
+  );
+}
+
+function ShopifyMobileWorkspace({
+  storeName,
+  state,
+  products,
+  spotlight,
+  policyDocs,
+  cart,
+  controller,
+  onClose,
+  onPrompt,
+  onState,
+  onAddVariant,
+}: {
+  storeName: string;
+  state: ShopifyWorkspaceState;
+  products: ProductCardModel[];
+  spotlight: ProductCardModel | null;
+  policyDocs: Document[];
+  cart: ShopifyCartSnapshot | null;
+  controller: MaxModeController;
+  onClose: () => void;
+  onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  onState: (state: ShopifyWorkspaceState) => void;
+  onAddVariant: (product: ProductCardModel) => Promise<void>;
+}) {
+  const hasMessages = controller.chatMessages.some((message) => message.type === "user");
+  return (
+    <div className="relative flex h-full min-h-0 flex-col bg-white">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-4">
+        <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-slate-100">
+          <X className="h-5 w-5" />
+        </button>
+        <div className="inline-flex items-center gap-2 text-sm font-extrabold text-indigo-600">
+          <Sparkles className="h-4 w-4" />
+          Max Mode
+        </div>
+        <button onClick={() => onState("cart")} className="flex h-10 items-center gap-1 rounded-full px-2 text-sm text-slate-600">
+          <ShoppingCart className="h-4 w-4" />
+          {cart?.item_count ?? 0}
+        </button>
+      </div>
+      <div className="relative min-h-0 flex-1 overflow-y-auto bg-white px-4 pb-[140px] pt-4">
+        <div className="mb-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-lg font-extrabold">{storeName}</div>
+              <div className="text-sm text-slate-500">Shop, compare, and ask naturally.</div>
+            </div>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">Online</span>
+          </div>
+        </div>
+
+        {!hasMessages && (
+          <>
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              {(products.length ? products.slice(0, 4) : COLLECTIONS).map((item: any) => {
+                const product = "title" in item ? (item as ProductCardModel) : null;
+                return (
+                  <button
+                    key={product?.id ?? item.label}
+                    onClick={() => {
+                      if (product) {
+                        onState("product");
+                        if (product.source) controller.openProductDetails(product.source);
+                      } else {
+                        onState("browsing");
+                        onPrompt(item.query, "search", "thinker_deep");
+                      }
+                    }}
+                    className="rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm"
+                  >
+                    <ProductVisual product={product ?? undefined} className="mb-3 h-20" />
+                    <div className="line-clamp-2 text-sm font-extrabold">{product?.title ?? item.label}</div>
+                    {product?.price && <div className="text-sm font-bold text-slate-700">{product.price}</div>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {SHOPIFY_QUICK_ASKS.slice(0, 4).map((ask) => (
+                <button
+                  key={ask.label}
+                  onClick={() => onPrompt(ask.query, ask.position, ask.mode)}
+                  className="rounded-full border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700"
+                >
+                  {ask.label}
+                </button>
+              ))}
+            </div>
+            {spotlight && (
+              <SpotlightCard
+                product={spotlight}
+                onOpenProduct={() => {
+                  onState("product");
+                  if (spotlight.source) controller.openProductDetails(spotlight.source);
+                }}
+                onAddVariant={() => onAddVariant(spotlight)}
+                compact
+              />
+            )}
+          </>
+        )}
+
+        {hasMessages && (
+          <MessageList
+            containerClassName="relative px-0 pb-4"
+            messages={controller.chatMessages}
+            latestMessageRef={controller.latestMessageRef}
+            messagesEndRef={controller.messagesEndRef}
+            isLoading={controller.isLoading}
+            getAiStyles={controller.getResultStyles}
+            isPanelVisible={false}
+            attachedItems={controller.attachedItems}
+            confirmationStatus={controller.confirmationStatus as Record<string, "confirmed" | "rejected">}
+            expandedActions={controller.expandedActions}
+            debugEnabled={controller.debugEnabled}
+            onOpenDebug={controller.openDebugInspector}
+            onResendAction={(fullMessage) => void controller.resendChatQuery(fullMessage)}
+            onReattachItem={controller.reattachItemWithToast}
+            onOpenSourcesMobile={controller.openSourcesMobile}
+            onOpenSourcesDesktop={controller.openSourcesDesktop}
+            onConfirm={(messageId, confirmed, msg) => controller.handleConfirmation(messageId, confirmed, msg)}
+            onExpandActionResults={controller.expandActionResults}
+            isItemAttached={controller.isItemAttached}
+            onAttachActionResultItem={controller.handleAttachActionResultItem}
+            onNextStepClick={(query) => void controller.resendChatQuery(query)}
+            onCustomerAccountConnect={controller.connectCustomerAccount}
+            onClarificationSubmit={controller.handleClarificationSubmit}
+          />
+        )}
+
+        {state === "policy" && policyDocs.length > 0 && policyDocs.slice(0, 1).map((doc) => <PolicyCard key={doc.id} doc={doc} />)}
+      </div>
+      <MaxModeComposerBar controller={controller} />
+      <MaxModeCollectionAnimation collectingItem={controller.collectingItem} />
+      <MaxModeOverlays controller={controller} />
+    </div>
+  );
+}
+
+function DiscoveryHero({
+  storeName,
+  products,
+  spotlight,
+  onPrompt,
+  onState,
+  onAddVariant,
+}: {
+  storeName: string;
+  products: ProductCardModel[];
+  spotlight: ProductCardModel | null;
+  onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  onState: (state: ShopifyWorkspaceState) => void;
+  onAddVariant: (product: ProductCardModel) => Promise<void>;
+}) {
+  return (
+    <div className="mx-auto max-w-2xl rounded-[2rem] bg-slate-100 p-7 shadow-sm">
+      <div className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-indigo-600 shadow-sm">
+        <Sparkles className="h-5 w-5" />
+      </div>
+      <h2 className="text-2xl font-extrabold">Welcome to {storeName}</h2>
+      <p className="mt-3 max-w-xl text-base text-slate-600">
+        Ask about products, policies, availability, fit, or checkout help. I can browse the catalog with you and keep useful store context visible.
+      </p>
+      <div className="mt-5 flex flex-wrap gap-2">
+        {SHOPIFY_QUICK_ASKS.map((ask) => (
+          <button
+            key={ask.label}
+            onClick={() => {
+              onState(ask.label.includes("Shipping") || ask.label.includes("Returns") ? "policy" : "browsing");
+              onPrompt(ask.query, ask.position, ask.mode);
+            }}
+            className="rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm"
+          >
+            {ask.label}
+          </button>
+        ))}
+      </div>
+      {spotlight && (
+        <div className="mt-6">
+          <SpotlightCard product={spotlight} onOpenProduct={() => onState("product")} onAddVariant={() => onAddVariant(spotlight)} compact />
+        </div>
+      )}
+      {products.length > 1 && (
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          {products.slice(0, 3).map((product) => (
+            <MiniProductCard key={product.id} product={product} onClick={() => onState("browsing")} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StateSummary({
+  state,
+  products,
+  spotlight,
+  policyDocs,
+  onPrompt,
+}: {
+  state: ShopifyWorkspaceState;
+  products: ProductCardModel[];
+  spotlight: ProductCardModel | null;
+  policyDocs: Document[];
+  onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+}) {
+  if (state === "comparison" && products.length > 1) {
+    return <ComparisonCard products={products} compact />;
+  }
+  if (state === "product" && spotlight) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-3xl bg-slate-100 p-5">
+        <div className="flex gap-4">
+          <ProductVisual product={spotlight} className="h-24 w-28 shrink-0" />
+          <div className="min-w-0">
+            <div className="text-lg font-extrabold">{spotlight.title}</div>
+            <div className="mt-1 line-clamp-2 text-sm text-slate-600">{spotlight.subtitle}</div>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => onPrompt(`Compare ${spotlight.title} with similar products.`, "search", "thinker_deep")}
+                className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-700"
+              >
+                Compare
+              </button>
+              <button
+                onClick={() => spotlight.url && window.open(spotlight.url, "_blank", "noopener,noreferrer")}
+                className="rounded-full bg-indigo-600 px-3 py-2 text-xs font-bold text-white"
+              >
+                View in Store
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (state === "policy" && policyDocs.length > 0) {
+    return <PolicyCard doc={policyDocs[0]} compact />;
+  }
+  if (products.length > 0) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-3xl bg-slate-100 p-5">
+        <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
+          <Sparkles className="h-4 w-4 text-indigo-500" />
+          Shoppable results
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {products.slice(0, 3).map((product) => (
+            <MiniProductCard key={product.id} product={product} onClick={() => onPrompt(`Tell me more about ${product.title}.`, "catalog", "thinker_deep")} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
+function RailSection({
+  title,
+  children,
+  nested = false,
+}: {
+  title: string;
+  children: ReactNode;
+  nested?: boolean;
+}) {
+  return (
+    <section className={nested ? "space-y-3" : "space-y-3 pb-6"}>
+      <h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function RightPanelSection({
+  title,
+  children,
+  nested = false,
+}: {
+  title: string;
+  children: ReactNode;
+  nested?: boolean;
+}) {
+  return (
+    <section className={nested ? "mt-6 space-y-3" : "space-y-3"}>
+      <h3 className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function FilterGroup({ title, values, selected }: { title: string; values: string[]; selected: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 text-sm font-extrabold">{title}</div>
+      <div className="space-y-2">
+        {values.map((value) => (
+          <div key={value} className="flex items-center gap-2 text-sm text-slate-700">
+            {value === selected ? <Check className="h-4 w-4 text-indigo-600" /> : <Circle className="h-4 w-4 text-slate-300" />}
+            {value}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductRailCard({ product, onOpen }: { product: ProductCardModel; onOpen: () => void }) {
+  return (
+    <button onClick={onOpen} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm">
+      <ProductVisual product={product} className="mb-3 h-28" />
+      <div className="line-clamp-2 text-lg font-extrabold">{product.title}</div>
+      {product.compareAtPrice && <div className="text-sm text-slate-400 line-through">{product.compareAtPrice}</div>}
+      {product.price && <div className="text-2xl font-extrabold">{product.price}</div>}
+      <AvailabilityLabel value={product.availability} />
+    </button>
+  );
+}
+
+function SpotlightCard({
+  product,
+  onOpenProduct,
+  onAddVariant,
+  compact = false,
+}: {
+  product: ProductCardModel;
+  onOpenProduct: () => void;
+  onAddVariant: () => void | Promise<void>;
+  compact?: boolean;
+}) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <ProductVisual product={product} className={compact ? "mb-3 h-24" : "mb-4 h-52"} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="line-clamp-2 text-xl font-extrabold">{product.title}</div>
+          {product.price && <div className="mt-2 text-3xl font-extrabold">{product.price}</div>}
+        </div>
+        {product.compareAtPrice && <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-extrabold text-red-500">Sale</span>}
+      </div>
+      <AvailabilityLabel value={product.availability} />
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button onClick={onOpenProduct} className="rounded-2xl border border-indigo-300 px-3 py-3 text-sm font-bold text-indigo-600">
+          Details
+        </button>
+        <button onClick={onAddVariant} className="rounded-2xl bg-indigo-600 px-3 py-3 text-sm font-bold text-white">
+          Add
+        </button>
+      </div>
+      {product.subtitle && <p className="mt-3 line-clamp-3 text-sm text-slate-600">{product.subtitle}</p>}
+    </div>
+  );
+}
+
+function SelectableProductCard({
+  product,
+  selected = false,
+  onClick,
+}: {
+  product: ProductCardModel;
+  selected?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full rounded-2xl border p-4 text-left shadow-sm ${
+        selected ? "border-indigo-400 bg-indigo-50" : "border-slate-200 bg-white"
+      }`}
+    >
+      <ProductVisual product={product} className="mb-3 h-20" />
+      <div className="line-clamp-2 font-extrabold">{product.title}</div>
+      {product.price && <div className="font-bold">{product.price}</div>}
+      {selected && <div className="mt-1 text-sm font-bold text-emerald-600">selected</div>}
+    </button>
+  );
+}
+
+function MiniProductCard({
+  product,
+  onClick,
+  actionLabel,
+}: {
+  product: ProductCardModel;
+  onClick: () => void;
+  actionLabel?: string;
+}) {
+  return (
+    <button onClick={onClick} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm">
+      <ProductVisual product={product} className="mb-2 h-20" />
+      <div className="line-clamp-2 text-sm font-extrabold">{product.title}</div>
+      {product.price && <div className="text-sm font-bold">{product.price}</div>}
+      {actionLabel && <div className="mt-2 text-sm font-extrabold text-indigo-600">+ {actionLabel}</div>}
+    </button>
+  );
+}
+
+function ProductVisual({ product, className }: { product?: ProductCardModel; className: string }) {
+  return (
+    <div className={`flex items-center justify-center overflow-hidden rounded-2xl bg-indigo-100 ${className}`}>
+      {product?.imageUrl ? (
+        <img src={product.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <Box className="h-10 w-10 text-slate-700" />
+      )}
+    </div>
+  );
+}
+
+function AvailabilityLabel({ value }: { value?: string }) {
+  if (!value) {
+    return null;
+  }
+  const available = /available|in stock/i.test(value);
+  return (
+    <div className={`mt-2 inline-flex items-center gap-2 text-sm font-bold ${available ? "text-emerald-600" : "text-amber-600"}`}>
+      <span className={`h-2 w-2 rounded-full ${available ? "bg-emerald-500" : "bg-amber-500"}`} />
+      {value}
+    </div>
+  );
+}
+
+function PolicyCard({ doc, compact = false }: { doc: Document; compact?: boolean }) {
+  return (
+    <div className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? "mx-auto max-w-2xl p-5" : "p-5"}`}>
+      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
+        <Info className="h-4 w-4 text-indigo-500" />
+        Policy info
+      </div>
+      <h4 className="text-xl font-extrabold">{doc.title}</h4>
+      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{truncate(doc.content, compact ? 320 : 640)}</p>
+    </div>
+  );
+}
+
+function ComparisonCard({
+  products,
+  onOpenProduct,
+  compact = false,
+}: {
+  products: ProductCardModel[];
+  onOpenProduct?: (product: ProductCardModel) => void;
+  compact?: boolean;
+}) {
+  const compared = products.slice(0, 2);
+  if (compared.length < 2) {
+    return <EmptyRailCard title="Comparison ready" body="Ask the assistant to compare two products from the catalog." />;
+  }
+  return (
+    <div className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? "mx-auto max-w-2xl p-5" : "p-4"}`}>
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        {compared.map((product) => (
+          <button key={product.id} onClick={() => onOpenProduct?.(product)} className="rounded-2xl border border-slate-200 p-3 text-left">
+            <ProductVisual product={product} className="mb-2 h-20" />
+            <div className="line-clamp-2 text-sm font-extrabold">{product.title}</div>
+            {product.price && <div className="font-bold">{product.price}</div>}
+          </button>
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 text-sm">
+        <CompareRow label="Price" left={compared[0].price || "Not indexed"} right={compared[1].price || "Not indexed"} />
+        <CompareRow label="Stock" left={compared[0].availability || "Unknown"} right={compared[1].availability || "Unknown"} />
+      </div>
+      <div className="mt-4 rounded-2xl bg-indigo-50 p-4 text-sm font-bold text-indigo-700">
+        AI can explain the tradeoffs from indexed product evidence and current store context.
+      </div>
+    </div>
+  );
+}
+
+function CompareRow({ label, left, right }: { label: string; left: string; right: string }) {
+  return (
+    <div className="grid grid-cols-[90px_1fr_1fr] border-b border-slate-200 last:border-b-0">
+      <div className="bg-slate-50 px-3 py-3 font-bold text-slate-500">{label}</div>
+      <div className="px-3 py-3 font-bold">{left}</div>
+      <div className="px-3 py-3 font-bold">{right}</div>
+    </div>
+  );
+}
+
+function CartSummary({ cart, cartError }: { cart: ShopifyCartSnapshot | null; cartError: string | null }) {
+  if (cartError) {
+    return <EmptyRailCard title="Cart unavailable" body="The storefront cart could not be loaded in this browser session." />;
+  }
+  if (!cart || cart.item_count === 0) {
+    return <EmptyRailCard title="Cart is empty" body="Add an item from a product card or ask the assistant to help complete your cart." />;
+  }
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="space-y-3">
+        {cart.items.slice(0, 4).map((item) => (
+          <CartLineCard key={`${item.id}-${item.quantity}`} item={item} />
+        ))}
+      </div>
+      <div className="mt-4 border-t border-slate-200 pt-4">
+        <div className="flex items-center justify-between text-sm text-slate-600">
+          <span>Subtotal</span>
+          <span className="font-bold text-slate-950">{formatCents(cart.total_price)}</span>
+        </div>
+        <button
+          onClick={() => window.location.assign(shopifyRoute("checkout"))}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 font-extrabold text-white"
+        >
+          Checkout
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CartLineCard({ item }: { item: ShopifyCartSnapshot["items"][number] }) {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-indigo-100">
+        {item.image ? <img src={item.image} alt="" className="h-full w-full object-cover" loading="lazy" /> : <ShoppingCart className="m-5 h-6 w-6" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="line-clamp-2 text-sm font-extrabold">{item.product_title || item.title}</div>
+        {item.variant_title && item.variant_title !== "Default Title" && <div className="text-xs text-slate-500">{item.variant_title}</div>}
+        <div className="mt-1 text-sm font-bold">
+          {formatCents(item.final_line_price)} x {item.quantity}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyRailCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="font-extrabold">{title}</div>
+      <p className="mt-1 text-sm text-slate-500">{body}</p>
+    </div>
+  );
+}
+
+function initialWorkspaceState(controller: MaxModeController, pageGroup: string): ShopifyWorkspaceState {
+  if (controller.isCartView || controller.currentPosition === "cart" || pageGroup === "cart" || pageGroup === "account") {
+    return "cart";
+  }
+  if (controller.selectedProduct || pageGroup === "product") {
+    return "product";
+  }
+  if (pageGroup === "collection" || controller.currentPosition === "catalog" || controller.currentPosition === "search") {
+    return "browsing";
+  }
+  return "discovery";
+}
+
+function deriveWorkspaceState(
+  controller: MaxModeController,
+  pageGroup: string,
+  products: ProductCardModel[],
+  policyDocs: Document[],
+): ShopifyWorkspaceState {
+  if (controller.isCartView || controller.currentPosition === "cart" || pageGroup === "cart" || pageGroup === "account") {
+    return "cart";
+  }
+  if (controller.selectedProduct || pageGroup === "product") {
+    return "product";
+  }
+  if (policyDocs.length > 0 && products.length === 0) {
+    return "policy";
+  }
+  if (products.length > 1 || pageGroup === "collection" || controller.currentPosition === "catalog" || controller.currentPosition === "search") {
+    return "browsing";
+  }
+  return "discovery";
+}
+
+function deriveProducts(documents: Document[], requestContext: Record<string, any>): ProductCardModel[] {
+  const products = documents
+    .map((doc) => toProductCard(doc))
+    .filter((product): product is ProductCardModel => Boolean(product));
+  if (products.length) {
+    return dedupeProducts(products).slice(0, 8);
+  }
+  const currentProduct = requestContext.product;
+  if (currentProduct && typeof currentProduct === "object" && currentProduct.title) {
+    const variantId = numericVariantId(currentProduct.variantId);
+    return [
+      {
+        id: String(currentProduct.id || currentProduct.handle || currentProduct.title),
+        title: String(currentProduct.title),
+        subtitle: [currentProduct.vendor, currentProduct.type].filter(Boolean).join(" / ") || undefined,
+        price: formatCentsFromUnknown(currentProduct.priceCents),
+        availability: variantId ? "Available" : undefined,
+        url: currentProduct.handle ? shopifyRoute(`products/${currentProduct.handle}`) : undefined,
+        variantId,
+      },
+    ];
+  }
+  return [];
+}
+
+function deriveSpotlight(selectedProduct: unknown, products: ProductCardModel[], requestContext: Record<string, any>) {
+  if (selectedProduct && typeof selectedProduct === "object") {
+    const asDoc = selectedProduct as Document;
+    const card = toProductCard(asDoc);
+    if (card) {
+      return card;
+    }
+  }
+  if (products.length > 0) {
+    return products[0];
+  }
+  return deriveProducts([], requestContext)[0] ?? null;
+}
+
+function derivePolicyDocuments(documents: Document[]) {
+  return documents.filter((doc) => {
+    const type = String(doc.type || "").toLowerCase();
+    const category = String(doc.metadata?.category || doc.metadata?.vectorSpace || "").toLowerCase();
+    return type.includes("policy") || category.includes("policy") || category.includes("shipping") || category.includes("return");
+  });
+}
+
+function toProductCard(doc: Document): ProductCardModel | null {
+  const type = String(doc.type || doc.metadata?.category || doc.metadata?.vectorSpace || "").toLowerCase();
+  const looksLikeProduct =
+    type.includes("product") ||
+    Boolean(doc.product_variant_id) ||
+    Boolean(doc.metadata?.product_variant_id) ||
+    Boolean(doc.metadata?.variantId) ||
+    Boolean(doc.metadata?.price) ||
+    Boolean(doc.priceRange);
+  if (!looksLikeProduct) {
+    return null;
+  }
+  const title = cleanProductTitle(doc.title || doc.metadata?.title || doc.metadata?.name || "Product");
+  const variant = doc.product_variant_id || doc.metadata?.product_variant_id || doc.metadata?.variantId || doc.metadata?.variant_id;
+  return {
+    id: String(doc.id || title),
+    title,
+    subtitle: truncate(stripJsonNoise(doc.content || doc.metadata?.description || ""), 180),
+    price: stringFrom(doc.priceRange || doc.metadata?.priceRange || doc.metadata?.price || doc.metadata?.amount),
+    compareAtPrice: stringFrom(doc.metadata?.compareAtPrice || doc.metadata?.compare_at_price),
+    availability: doc.availability || doc.metadata?.availability || doc.metadata?.status,
+    imageUrl: stringFrom(doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image),
+    url: stringFrom(doc.metadata?.url) || (doc.metadata?.handle ? shopifyRoute(`products/${doc.metadata.handle}`) : undefined),
+    variantId: numericVariantId(variant),
+    source: doc,
+  };
+}
+
+function dedupeProducts(products: ProductCardModel[]) {
+  const seen = new Set<string>();
+  return products.filter((product) => {
+    const key = [product.id, product.title].filter(Boolean).join("|").toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function cleanProductTitle(value: string) {
+  const normalized = value.replace(/\\"/g, '"');
+  if (normalized.includes('","description"')) {
+    return normalized.split('","description"')[0].replace(/^"+|"+$/g, "").trim() || value;
+  }
+  return normalized.replace(/^"+|"+$/g, "").trim();
+}
+
+function stripJsonNoise(value: string) {
+  return value
+    .replace(/\\"/g, '"')
+    .replace(/[{}[\]]/g, " ")
+    .replace(/"\w+":/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncate(value: string | undefined, max: number) {
+  if (!value) {
+    return "";
+  }
+  return value.length > max ? value.slice(0, max - 1).trimEnd() + "..." : value;
+}
+
+function stringFrom(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  return String(value);
+}
+
+function deriveStoreName(requestContext: Record<string, any>) {
+  const title = String(requestContext.pageTitle || "").trim();
+  if (title && !/password|not found/i.test(title)) {
+    return title;
+  }
+  if (typeof window !== "undefined") {
+    const shop = (window as any).Shopify?.shop;
+    if (typeof shop === "string" && shop.trim()) {
+      return shop.replace(".myshopify.com", "").replace(/[-_]+/g, " ");
+    }
+  }
+  return "Store";
+}
+
+function numericVariantId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) {
+    return undefined;
+  }
+  const match = text.match(/(\d+)$/);
+  if (!match) {
+    return undefined;
+  }
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function shopifyRoute(path: string) {
+  const root = typeof window !== "undefined" ? ((window as any).Shopify?.routes?.root || "/") : "/";
+  const normalizedRoot = String(root || "/").replace(/\/?$/, "/");
+  return normalizedRoot + path.replace(/^\/+/, "");
+}
+
+function formatCentsFromUnknown(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const cents = Number(value);
+  if (!Number.isFinite(cents)) {
+    return String(value);
+  }
+  return formatCents(cents);
+}
+
+function formatCents(cents: number) {
+  const currency = typeof window !== "undefined" ? ((window as any).Shopify?.currency?.active || "USD") : "USD";
+  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+}
+
+async function fetchShopifyCart(): Promise<ShopifyCartSnapshot> {
+  const response = await fetch(shopifyRoute("cart.js"), {
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    throw new Error(`Shopify cart fetch failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function addVariantToShopifyCart(variantId: number, quantity: number) {
+  const response = await fetch(shopifyRoute("cart/add.js"), {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ items: [{ id: variantId, quantity }] }),
+  });
+  if (!response.ok) {
+    throw new Error(`Shopify cart add failed: ${response.status}`);
+  }
+  return response.json();
+}

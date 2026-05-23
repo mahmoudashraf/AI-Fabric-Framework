@@ -2,7 +2,15 @@ import { ArrowRight } from "lucide-react";
 
 import type { DebugData } from "../../../types";
 
-export function RequestSection({ debugRequest }: { debugRequest: DebugData["request"] | null }) {
+export function RequestSection({
+  debugRequest,
+  debugResponse,
+}: {
+  debugRequest: DebugData["request"] | null;
+  debugResponse?: DebugData["response"] | null;
+}) {
+  const normalizedRequest = debugResponse?.data?.debug?.normalizedRequest;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -94,6 +102,17 @@ export function RequestSection({ debugRequest }: { debugRequest: DebugData["requ
               {JSON.stringify(debugRequest.payload, null, 2)}
             </pre>
           </details>
+
+          {normalizedRequest && (
+            <details className="bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <summary className="px-2 py-1.5 cursor-pointer text-[10px] font-semibold text-blue-700 dark:text-blue-300 uppercase hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg">
+                Bridge Normalized Request
+              </summary>
+              <pre className="px-2 pb-2 text-[8px] overflow-auto max-h-32 text-blue-900 dark:text-blue-100 font-mono">
+                {JSON.stringify(normalizedRequest, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
       )}
     </div>

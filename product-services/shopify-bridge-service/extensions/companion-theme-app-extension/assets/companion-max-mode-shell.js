@@ -140,6 +140,7 @@
       position: 'bottom-right',
       launcher: launcherEnabled === true,
       host: {
+        experience: 'shopify-shopping-workspace',
         launcherLabel: runtime.resolvedLauncherLabel,
         launcherAriaLabel: runtime.resolvedLauncherLabel,
         launcherVariant: 'pill',

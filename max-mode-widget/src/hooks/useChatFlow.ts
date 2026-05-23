@@ -261,6 +261,7 @@ export function useChatFlow({
           if (resultType === "INFORMATION_PROVIDED" || resultType === "COMPOUND_HANDLED") {
             const rawDocs =
               data.sources ||
+              data.ragResponse?.documents ||
               data.documents ||
               data.result?.data?.documents ||
               data.result?.data?.ragResponse?.documents ||
@@ -269,7 +270,7 @@ export function useChatFlow({
               [];
 
             const entityType =
-              data.result?.data?.ragResponse?.entityType || resultData.ragResponse?.entityType || "document";
+              data.ragResponse?.entityType || data.result?.data?.ragResponse?.entityType || resultData.ragResponse?.entityType || "document";
 
             if (rawDocs.length > 0) {
               messageDocs = rawDocs.map((doc: any, idx: number) => {

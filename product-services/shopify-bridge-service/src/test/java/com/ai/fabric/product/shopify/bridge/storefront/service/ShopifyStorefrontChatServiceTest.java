@@ -1265,6 +1265,184 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryIncludesBoundedDebugPayloadWhenStorefrontDebugIsEnabled() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY", true));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "providerRequestId":"prv-1",
+              "authContext":{
+                "accessToken":"shpat_private_token",
+                "customerEmail":"buyer@example.com"
+              },
+              "result":{
+                "type":"INFORMATION_PROVIDED",
+                "success":true,
+                "message":"Selling Plans Ski Wax is available.",
+                "data":{
+                  "readActionResolution":{"executedActionsCount":1},
+                  "documents":[
+                    {
+                      "id":"gid://shopify/Product/1",
+                      "type":"product",
+                      "score":0.9,
+                      "metadata":{
+                        "shopifyDocumentTitle":"Selling Plans Ski Wax",
+                        "raw":"tenant-secret debug raw document"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Search products for wax",
+                  "mode":"thinker_deep",
+                  "context":{
+                    "pageType":"search",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("safeSummary").asText()).isEqualTo("Selling Plans Ski Wax is available.");
+        JsonNode debug = response.path("debug");
+        assertThat(debug.path("contractVersion").asText()).isEqualTo("SHOPIFY_STOREFRONT_DEBUG_V1");
+        assertThat(debug.path("normalizedRequest").path("context").path("pageType").asText()).isEqualTo("search");
+        assertThat(debug.path("upstreamResponse").path("result").path("data").path("documents").path(0).path("metadata").path("shopifyDocumentTitle").asText())
+            .isEqualTo("Selling Plans Ski Wax");
+        assertThat(debug.path("upstreamResponse").path("result").path("data").path("documents").path(0).path("metadata").path("raw").asText())
+            .isEqualTo("[redacted]");
+        assertThat(debug.path("upstreamResponse").path("authContext").asText()).isEqualTo("[redacted]");
+        assertThat(debug.path("diagnostics").path("providerRequestId").asText()).isEqualTo("prv-1");
+        assertThat(debug.path("diagnostics").path("upstreamSourcesCount").asInt()).isEqualTo(1);
+        assertThat(debug.path("diagnostics").path("extractedActionsCount").asInt()).isEqualTo(1);
+        assertThat(response.toString()).doesNotContain("shpat_private_token", "buyer@example.com", "tenant-secret");
+    }
+
+    @Test
+    void queryReturnsSafeCanonicalRagResponseForDocumentPanel() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"INFORMATION_PROVIDED",
+                "success":true,
+                "message":"Shipping usually takes 3-5 business days.",
+                "data":{
+                  "ragResponse":{
+                    "query":"What is your shipping policy?",
+                    "optimizedQuery":"shipping policy delivery time",
+                    "entityType":"support-policy",
+                    "usedDocuments":1,
+                    "processingTimeMs":42,
+                    "documents":[
+                      {
+                        "id":"policy-shipping",
+                        "type":"support-policy",
+                        "score":0.91,
+                        "content":"Shipping usually takes 3-5 business days.",
+                        "metadata":{
+                          "title":"Shipping Policy",
+                          "storefrontUrl":"https://alpha.myshopify.com/policies/shipping-policy",
+                          "raw":"tenant-secret internal metadata"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What is your shipping policy?",
+                  "mode":"thinker_deep",
+                  "context":{
+                    "pageType":"index",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("sources").path(0).path("title").asText()).isEqualTo("Shipping Policy");
+        assertThat(response.path("ragResponse").path("query").asText()).isEqualTo("What is your shipping policy?");
+        assertThat(response.path("ragResponse").path("optimizedQuery").asText()).isEqualTo("shipping policy delivery time");
+        assertThat(response.path("ragResponse").path("entityType").asText()).isEqualTo("support-policy");
+        assertThat(response.path("ragResponse").path("documents").path(0).path("title").asText()).isEqualTo("Shipping Policy");
+        assertThat(response.path("ragResponse").path("documents").path(0).has("metadata")).isFalse();
+        assertThat(response.toString()).doesNotContain("tenant-secret", "internal metadata");
+    }
+
+    @Test
+    void queryOmitsDebugPayloadWhenStorefrontDebugIsDisabled() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":true,
+              "conversationId":"conv-1",
+              "result":{
+                "type":"INFORMATION_PROVIDED",
+                "success":true,
+                "message":"Search completed.",
+                "data":{"documents":[{"id":"doc-1","title":"Search Evidence"}]}
+              }
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Search products",
+                  "mode":"thinker_deep",
+                  "context":{
+                    "pageType":"search",
+                    "shopifySurfaceEntry":"max-mode"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("safeSummary").asText()).isEqualTo("Search completed.");
+        assertThat(response.has("debug")).isFalse();
+    }
+
+    @Test
     void queryDoesNotInventEvidenceSummaryWhenRuntimeAnswerIsGeneric() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
@@ -2045,6 +2223,18 @@ class ShopifyStorefrontChatServiceTest {
         return store(installStatus, sourceReadinessStatus, readiness(sourceReadinessStatus));
     }
 
+    private ShopifyBridgeStoreSummary store(String installStatus,
+                                            String sourceReadinessStatus,
+                                            boolean debugEnabled) {
+        return store(
+            installStatus,
+            sourceReadinessStatus,
+            readiness(sourceReadinessStatus),
+            List.of("ai-search", "max-mode"),
+            debugEnabled
+        );
+    }
+
     private ShopifyBridgeStoreSummary supportBlockedStore() {
         return store(
             "INSTALLED",
@@ -2063,13 +2253,21 @@ class ShopifyStorefrontChatServiceTest {
     private ShopifyBridgeStoreSummary store(String installStatus,
                                             String sourceReadinessStatus,
                                             ShopifyBridgeStoreReadinessSummary readiness) {
-        return store(installStatus, sourceReadinessStatus, readiness, null);
+        return store(installStatus, sourceReadinessStatus, readiness, null, false);
     }
 
     private ShopifyBridgeStoreSummary store(String installStatus,
                                             String sourceReadinessStatus,
                                             ShopifyBridgeStoreReadinessSummary readiness,
                                             List<String> enabledSurfaces) {
+        return store(installStatus, sourceReadinessStatus, readiness, enabledSurfaces, false);
+    }
+
+    private ShopifyBridgeStoreSummary store(String installStatus,
+                                            String sourceReadinessStatus,
+                                            ShopifyBridgeStoreReadinessSummary readiness,
+                                            List<String> enabledSurfaces,
+                                            boolean debugEnabled) {
         return new ShopifyBridgeStoreSummary(
             "shp-1",
             "alpha.myshopify.com",
@@ -2118,7 +2316,7 @@ class ShopifyStorefrontChatServiceTest {
                         "Ask the store assistant",
                         "Store assistant is ready.",
                         "SHOPIFY_COMPANION",
-                        false,
+                        debugEnabled,
                         enabledSurfaces,
                         "navigator",
                         List.of("navigator", "navigator_deep"),

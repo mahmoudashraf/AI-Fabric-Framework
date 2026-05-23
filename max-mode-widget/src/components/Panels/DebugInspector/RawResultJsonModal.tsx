@@ -49,7 +49,8 @@ export function RawResultJsonModal({
               <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
                 {(() => {
                   const debugResponse = selectedDebugMessage?.debugData?.response || lastResponseData;
-                  return JSON.stringify(debugResponse?.data?.result, null, 2);
+                  const data = debugResponse?.data;
+                  return JSON.stringify(data?.debug || data?.result || data, null, 2);
                 })()}
               </pre>
             </div>
@@ -59,4 +60,3 @@ export function RawResultJsonModal({
     </AnimatePresence>
   );
 }
-

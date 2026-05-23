@@ -69,6 +69,7 @@ export function canonicalChatResult(payload: any): ChatResult | undefined {
   const success = typeof payload.success === "boolean" ? payload.success : true;
   const answer = extractChatResultMessage(payload, success ? "I processed your query successfully." : "I could not process that request.");
   const sources = Array.isArray(payload.sources) ? payload.sources : [];
+  const ragResponse = payload.ragResponse && typeof payload.ragResponse === "object" ? payload.ragResponse : undefined;
   const actions = Array.isArray(payload.actions) ? payload.actions : [];
   const data: Record<string, any> = {};
   if (answer) {
@@ -76,6 +77,12 @@ export function canonicalChatResult(payload: any): ChatResult | undefined {
   }
   if (sources.length > 0) {
     data.documents = sources;
+  }
+  if (ragResponse) {
+    data.ragResponse = ragResponse;
+    if (!data.documents && Array.isArray(ragResponse.documents)) {
+      data.documents = ragResponse.documents;
+    }
   }
   if (actions.length === 1 && actions[0] && typeof actions[0] === "object") {
     Object.assign(data, actions[0]);
