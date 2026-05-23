@@ -10,6 +10,7 @@ import {
   Circle,
   Filter,
   Gift,
+  Home,
   Info,
   PackageSearch,
   Search,
@@ -98,6 +99,7 @@ export function ShopifyShoppingWorkspace({
   const [workspaceState, setWorkspaceState] = useState<ShopifyWorkspaceState>(() =>
     initialWorkspaceState(controller, pageGroup),
   );
+  const [showDiscoveryHome, setShowDiscoveryHome] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<ShopifyCartSnapshot | null>(null);
   const [cartError, setCartError] = useState<string | null>(null);
@@ -112,9 +114,20 @@ export function ShopifyShoppingWorkspace({
   const policyDocs = useMemo(() => derivePolicyDocuments(controller.contextDocuments), [controller.contextDocuments]);
 
   useEffect(() => {
+    if (showDiscoveryHome) {
+      return;
+    }
     const next = deriveWorkspaceState(controller, pageGroup, products, policyDocs);
     setWorkspaceState((current) => (current === "comparison" || current === "policy" ? current : next));
-  }, [controller.currentPosition, controller.isCartView, controller.selectedProduct, pageGroup, products.length, policyDocs.length]);
+  }, [
+    controller.currentPosition,
+    controller.isCartView,
+    controller.selectedProduct,
+    pageGroup,
+    policyDocs.length,
+    products.length,
+    showDiscoveryHome,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +150,23 @@ export function ShopifyShoppingWorkspace({
 
   const dispatchPrompt = (query: string, position: MaxModePosition, mode: MaxModeMode) => {
     setSearchQuery("");
+    setShowDiscoveryHome(false);
     controller.handleQuickAction(query, position, mode);
+  };
+
+  const openStartPage = () => {
+    setSearchQuery("");
+    controller.closeCart();
+    controller.closeProductDetails();
+    controller.setCurrentPosition("landing");
+    controller.setCurrentMode(controller.allowedConversationModes.includes("thinker_deep") ? "thinker_deep" : controller.allowedConversationModes[0] ?? "navigator");
+    setWorkspaceState("discovery");
+    setShowDiscoveryHome(true);
+  };
+
+  const updateWorkspaceState = (state: ShopifyWorkspaceState) => {
+    setShowDiscoveryHome(false);
+    setWorkspaceState(state);
   };
 
   const handleSearchSubmit = (event: FormEvent) => {
@@ -146,7 +175,7 @@ export function ShopifyShoppingWorkspace({
     if (!query) {
       return;
     }
-    setWorkspaceState("browsing");
+    updateWorkspaceState("browsing");
     dispatchPrompt(query, "search", "thinker_deep");
   };
 
@@ -158,7 +187,7 @@ export function ShopifyShoppingWorkspace({
     await addVariantToShopifyCart(product.variantId, 1);
     const snapshot = await fetchShopifyCart();
     setCart(snapshot);
-    setWorkspaceState("cart");
+    updateWorkspaceState("cart");
   };
 
   return (
@@ -175,7 +204,8 @@ export function ShopifyShoppingWorkspace({
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           onSearchSubmit={handleSearchSubmit}
-          onCart={() => setWorkspaceState("cart")}
+          onStartPage={openStartPage}
+          onCart={() => updateWorkspaceState("cart")}
           onClose={onClose}
         />
         <div className="grid min-h-0 grid-cols-[280px_minmax(0,1fr)_340px] border-t border-slate-200">
@@ -185,11 +215,11 @@ export function ShopifyShoppingWorkspace({
             spotlight={spotlight}
             policyDocs={policyDocs}
             cart={cart}
-            onState={setWorkspaceState}
+            onState={updateWorkspaceState}
             onPrompt={dispatchPrompt}
             onOpenProduct={(product) => {
               if (product.source) controller.openProductDetails(product.source);
-              setWorkspaceState("product");
+              updateWorkspaceState("product");
             }}
           />
           <ShopifyConversationColumn
@@ -200,8 +230,9 @@ export function ShopifyShoppingWorkspace({
             spotlight={spotlight}
             policyDocs={policyDocs}
             onPrompt={dispatchPrompt}
-            onState={setWorkspaceState}
+            onState={updateWorkspaceState}
             onAddVariant={handleAddVariant}
+            showStartPage={showDiscoveryHome}
           />
           <ShopifyRightPanel
             state={workspaceState}
@@ -210,11 +241,11 @@ export function ShopifyShoppingWorkspace({
             policyDocs={policyDocs}
             cart={cart}
             cartError={cartError}
-            onState={setWorkspaceState}
+            onState={updateWorkspaceState}
             onPrompt={dispatchPrompt}
             onOpenProduct={(product) => {
               if (product.source) controller.openProductDetails(product.source);
-              setWorkspaceState("product");
+              updateWorkspaceState("product");
             }}
             onAddVariant={handleAddVariant}
           />
@@ -232,8 +263,10 @@ export function ShopifyShoppingWorkspace({
           controller={controller}
           onClose={onClose}
           onPrompt={dispatchPrompt}
-          onState={setWorkspaceState}
+          onState={updateWorkspaceState}
           onAddVariant={handleAddVariant}
+          onStartPage={openStartPage}
+          showStartPage={showDiscoveryHome}
         />
       </div>
 
@@ -249,6 +282,7 @@ function ShopifyWorkspaceTopBar({
   searchQuery,
   onSearchQueryChange,
   onSearchSubmit,
+  onStartPage,
   onCart,
   onClose,
 }: {
@@ -257,6 +291,7 @@ function ShopifyWorkspaceTopBar({
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: (event: FormEvent) => void;
+  onStartPage: () => void;
   onCart: () => void;
   onClose: () => void;
 }) {
@@ -280,6 +315,14 @@ function ShopifyWorkspaceTopBar({
           placeholder="Search products, sizes, policies..."
         />
       </form>
+      <button
+        onClick={onStartPage}
+        aria-label="Back to Max Mode start page"
+        className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+      >
+        <Home className="h-4 w-4" />
+        Start
+      </button>
       <button className="inline-flex h-10 items-center gap-2 rounded-full bg-indigo-50 px-4 text-sm font-bold text-indigo-600">
         <Sparkles className="h-4 w-4" />
         Max Mode
@@ -448,6 +491,7 @@ function ShopifyConversationColumn({
   onPrompt,
   onState,
   onAddVariant,
+  showStartPage,
 }: {
   controller: MaxModeController;
   state: ShopifyWorkspaceState;
@@ -458,11 +502,13 @@ function ShopifyConversationColumn({
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
   onState: (state: ShopifyWorkspaceState) => void;
   onAddVariant: (product: ProductCardModel) => Promise<void>;
+  showStartPage: boolean;
 }) {
   const hasMessages = controller.chatMessages.some((message) => message.type === "user");
+  const showDiscovery = showStartPage || !hasMessages;
   return (
     <main className="relative min-h-0 bg-white">
-      {!hasMessages && (
+      {showDiscovery && (
         <div className="absolute inset-x-0 top-0 z-10 px-10 py-10">
           <DiscoveryHero
             storeName={storeName}
@@ -474,12 +520,12 @@ function ShopifyConversationColumn({
           />
         </div>
       )}
-      {hasMessages && (
+      {!showDiscovery && hasMessages && (
         <div className="absolute inset-x-0 top-0 z-10 px-10 pt-7">
           <StateSummary state={state} products={products} spotlight={spotlight} policyDocs={policyDocs} onPrompt={onPrompt} />
         </div>
       )}
-      {hasMessages && (
+      {!showDiscovery && hasMessages && (
         <MessageList
           containerClassName="absolute inset-x-0 bottom-0 top-0 overflow-y-auto px-8 pb-[150px] pt-[170px]"
           messages={controller.chatMessages}
@@ -611,6 +657,8 @@ function ShopifyMobileWorkspace({
   onPrompt,
   onState,
   onAddVariant,
+  onStartPage,
+  showStartPage,
 }: {
   storeName: string;
   state: ShopifyWorkspaceState;
@@ -623,14 +671,30 @@ function ShopifyMobileWorkspace({
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
   onState: (state: ShopifyWorkspaceState) => void;
   onAddVariant: (product: ProductCardModel) => Promise<void>;
+  onStartPage: () => void;
+  showStartPage: boolean;
 }) {
   const hasMessages = controller.chatMessages.some((message) => message.type === "user");
+  const showDiscovery = showStartPage || !hasMessages;
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-white">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-4">
-        <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-slate-100">
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onClose}
+            aria-label="Close Max Mode"
+            className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-slate-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <button
+            onClick={onStartPage}
+            aria-label="Back to Max Mode start page"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+          >
+            <Home className="h-5 w-5" />
+          </button>
+        </div>
         <div className="inline-flex items-center gap-2 text-sm font-extrabold text-indigo-600">
           <Sparkles className="h-4 w-4" />
           Max Mode
@@ -651,7 +715,7 @@ function ShopifyMobileWorkspace({
           </div>
         </div>
 
-        {!hasMessages && (
+        {showDiscovery && (
           <>
             <div className="mb-4 grid grid-cols-2 gap-3">
               {(products.length ? products.slice(0, 4) : COLLECTIONS).map((item: any) => {
@@ -702,7 +766,7 @@ function ShopifyMobileWorkspace({
           </>
         )}
 
-        {hasMessages && (
+        {!showDiscovery && hasMessages && (
           <MessageList
             containerClassName="relative px-0 pb-4"
             messages={controller.chatMessages}
