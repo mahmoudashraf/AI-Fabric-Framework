@@ -236,6 +236,7 @@ public class ChatRuntimeController {
             .mode(request == null ? null : trimToNull(request.getMode()))
             .position(request == null ? null : trimToNull(request.getPosition()))
             .sources(canonicalSources(sanitizedPayload, data, rawData))
+            .ragResponse(canonicalRagResponse(sanitizedPayload, data, rawData))
             .actions(actions)
             .suggestions(firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
             .fallbackReason(fallbackReason)
@@ -251,10 +252,10 @@ public class ChatRuntimeController {
     private List<Object> canonicalSources(Map<String, Object> sanitizedPayload,
                                           Map<String, Object> data,
                                           Map<String, Object> rawData) {
-        Map<String, Object> sanitizedRagResponse = firstMap(sanitizedPayload == null ? null : sanitizedPayload.get("ragResponse"));
-        Map<String, Object> dataRagResponse = firstMap(data == null ? null : data.get("ragResponse"));
-        Map<String, Object> rawRagResponse = firstMap(rawData == null ? null : rawData.get("ragResponse"));
-        return firstList(
+        Map<String, Object> sanitizedRagResponse = objectMap(sanitizedPayload == null ? null : sanitizedPayload.get("ragResponse"));
+        Map<String, Object> dataRagResponse = objectMap(data == null ? null : data.get("ragResponse"));
+        Map<String, Object> rawRagResponse = objectMap(rawData == null ? null : rawData.get("ragResponse"));
+        List<Object> retrievedSources = firstList(
             sanitizedPayload == null ? null : sanitizedPayload.get("sources"),
             sanitizedPayload == null ? null : sanitizedPayload.get("documents"),
             sanitizedRagResponse.get("sources"),
@@ -268,6 +269,110 @@ public class ChatRuntimeController {
             rawRagResponse.get("sources"),
             rawRagResponse.get("documents")
         );
+        return !retrievedSources.isEmpty()
+            ? retrievedSources
+            : readActionEvidenceSources(data, rawData);
+    }
+
+    private Map<String, Object> canonicalRagResponse(Map<String, Object> sanitizedPayload,
+                                                     Map<String, Object> data,
+                                                     Map<String, Object> rawData) {
+        Map<String, Object> ragResponse = firstNonEmptyMap(
+            objectMap(sanitizedPayload == null ? null : sanitizedPayload.get("ragResponse")),
+            objectMap(data == null ? null : data.get("ragResponse")),
+            objectMap(rawData == null ? null : rawData.get("ragResponse"))
+        );
+        if (!ragResponse.isEmpty()) {
+            return ragResponse;
+        }
+
+        List<Object> sources = canonicalSources(sanitizedPayload, data, rawData);
+        if (sources.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(Map.of("documents", sources));
+    }
+
+    private List<Object> readActionEvidenceSources(Map<String, Object> data, Map<String, Object> rawData) {
+        Map<String, Object> diagnostics = readActionResolutionDiagnostics(data, rawData);
+        List<Object> executedActions = firstList(diagnostics.get("executedActions"));
+        if (executedActions.isEmpty()) {
+            return List.of();
+        }
+        List<Object> sources = new ArrayList<>();
+        for (int i = 0; i < executedActions.size(); i++) {
+            Object rawAction = executedActions.get(i);
+            if (!(rawAction instanceof Map<?, ?> actionMapRaw)) {
+                continue;
+            }
+            Map<String, Object> actionMap = normalizeMap(actionMapRaw);
+            if (!Boolean.TRUE.equals(actionMap.get("groundingUsable"))) {
+                continue;
+            }
+            String evidenceSummary = firstText(actionMap.get("evidenceSummary"), actionMap.get("message"));
+            if (!StringUtils.hasText(evidenceSummary)) {
+                continue;
+            }
+            String actionName = firstText(actionMap.get("action"), "read-action");
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("source", "read-action-resolution");
+            metadata.put("action", actionName);
+            if (StringUtils.hasText(firstText(actionMap.get("category")))) {
+                metadata.put("category", firstText(actionMap.get("category")));
+            }
+            metadata.put("groundingUsable", true);
+
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("id", "read-action:" + actionName + ":" + i);
+            source.put("title", actionName);
+            source.put("content", evidenceSummary);
+            source.put("type", "read-action-evidence");
+            source.put("score", 0.9d);
+            source.put("metadata", Collections.unmodifiableMap(metadata));
+            sources.add(Collections.unmodifiableMap(source));
+        }
+        return sources.isEmpty() ? List.of() : List.copyOf(sources);
+    }
+
+    private Map<String, Object> readActionResolutionDiagnostics(Map<String, Object> data, Map<String, Object> rawData) {
+        Map<String, Object> dataMetadata = firstMap(data == null ? null : data.get("metadata"));
+        Map<String, Object> rawMetadata = firstMap(rawData == null ? null : rawData.get("metadata"));
+        return firstNonEmptyMap(
+            firstMap(data == null ? null : data.get("readActionResolution")),
+            firstMap(rawData == null ? null : rawData.get("readActionResolution")),
+            firstMap(dataMetadata.get("readActionResolution")),
+            firstMap(rawMetadata.get("readActionResolution"))
+        );
+    }
+
+    private Map<String, Object> firstNonEmptyMap(Map<String, Object>... values) {
+        if (values == null) {
+            return Map.of();
+        }
+        for (Map<String, Object> value : values) {
+            if (value != null && !value.isEmpty()) {
+                return Collections.unmodifiableMap(new LinkedHashMap<>(value));
+            }
+        }
+        return Map.of();
+    }
+
+    private Map<String, Object> objectMap(Object value) {
+        Map<String, Object> map = firstMap(value);
+        if (!map.isEmpty() || value == null) {
+            return map;
+        }
+        if (value instanceof String || value instanceof Number || value instanceof Boolean || value instanceof List<?>) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> converted = OBJECT_MAPPER.convertValue(value, new TypeReference<>() { });
+            return converted == null || converted.isEmpty()
+                ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(converted));
+        } catch (IllegalArgumentException ex) {
+            return Map.of();
+        }
     }
 
     private Map<String, Object> canonicalMetadata(Map<String, Object> sanitizedPayload,

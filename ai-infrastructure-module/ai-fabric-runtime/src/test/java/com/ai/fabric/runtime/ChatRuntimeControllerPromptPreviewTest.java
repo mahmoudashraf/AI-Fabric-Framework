@@ -14,6 +14,7 @@ import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -472,6 +473,93 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(source)
             .containsEntry("id", "policy-shared-refund")
             .containsEntry("source", "shared-marketplace-refund-policy");
+    }
+
+    @Test
+    void meQueryExposesCanonicalRagResponseDocuments() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        RAGResponse ragResponse = RAGResponse.builder()
+            .documents(List.of(RAGResponse.RAGDocument.builder()
+                .id("product-ironpeak")
+                .title("IronPeak Workstation 17 Laptop")
+                .content("High performance laptop evidence")
+                .type("product")
+                .score(0.92d)
+                .metadata(Map.of("vectorSpace", "product"))
+                .build()))
+            .context("High performance laptop evidence")
+            .success(true)
+            .build();
+        when(orchestrator.orchestrate(eq("summarize high performance laptops for gaming"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("IronPeak is available.")
+                .data(Map.of(
+                    "answer", "IronPeak is available.",
+                    "documents", ragResponse.getDocuments(),
+                    "ragResponse", ragResponse
+                ))
+                .sanitizedPayload(Map.of("safeSummary", "IronPeak is available."))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("summarize high performance laptops for gaming");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getSources()).hasSize(1);
+        assertThat(response.getRagResponse()).containsKey("documents");
+    }
+
+    @Test
+    void meQueryExposesReadActionEvidenceAsSourcesWhenNoRagDocumentsExist() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        Map<String, Object> readActionResolution = Map.of(
+            "attempted", true,
+            "executedActions", List.of(Map.of(
+                "action", "catalog_search",
+                "category", "catalog",
+                "groundingUsable", true,
+                "evidenceSummary", "{\"items\":[{\"title\":\"Titan Gaming 16 Laptop\",\"price\":\"2199.00\"}]}"
+            ))
+        );
+        when(orchestrator.orchestrate(eq("Find gaming laptops"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Titan Gaming 16 Laptop is listed.")
+                .data(Map.of(
+                    "answer", "Titan Gaming 16 Laptop is listed.",
+                    "documents", List.of(),
+                    "readActionResolution", readActionResolution
+                ))
+                .metadata(Map.of("readActionResolution", readActionResolution))
+                .sanitizedPayload(Map.of("safeSummary", "Titan Gaming 16 Laptop is listed."))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Find gaming laptops");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getSources()).hasSize(1);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> source = (Map<String, Object>) response.getSources().getFirst();
+        assertThat(source)
+            .containsEntry("title", "catalog_search")
+            .containsEntry("type", "read-action-evidence");
+        assertThat(source.get("content")).asString().contains("Titan Gaming 16 Laptop");
     }
 
     @Test

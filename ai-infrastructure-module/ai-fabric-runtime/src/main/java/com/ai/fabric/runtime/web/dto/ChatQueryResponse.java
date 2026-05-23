@@ -25,6 +25,8 @@ public class ChatQueryResponse {
     @Builder.Default
     private List<Object> sources = List.of();
     @Builder.Default
+    private Map<String, Object> ragResponse = Map.of();
+    @Builder.Default
     private List<Object> actions = List.of();
     @Builder.Default
     private List<Object> suggestions = List.of();

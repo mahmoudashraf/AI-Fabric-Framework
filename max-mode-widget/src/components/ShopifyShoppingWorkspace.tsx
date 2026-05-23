@@ -8,6 +8,7 @@ import {
   Check,
   ChevronRight,
   Circle,
+  FileText,
   Filter,
   Gift,
   Home,
@@ -133,6 +134,7 @@ export function ShopifyShoppingWorkspace({
     [controller.selectedProduct, displayProducts, requestContext],
   );
   const policyDocs = useMemo(() => derivePolicyDocuments(controller.contextDocuments), [controller.contextDocuments]);
+  const sourceDocs = useMemo(() => deriveSourceDocuments(controller.contextDocuments), [controller.contextDocuments]);
 
   useEffect(() => {
     if (showDiscoveryHome) {
@@ -284,6 +286,7 @@ export function ShopifyShoppingWorkspace({
             products={displayProducts}
             spotlight={spotlight}
             policyDocs={policyDocs}
+            sourceDocs={sourceDocs}
             cart={cart}
             cartError={cartError}
             productsLoading={storefrontProductsLoading && products.length === 0}
@@ -608,6 +611,7 @@ function ShopifyRightPanel({
   products,
   spotlight,
   policyDocs,
+  sourceDocs,
   cart,
   cartError,
   productsLoading,
@@ -620,6 +624,7 @@ function ShopifyRightPanel({
   products: ProductCardModel[];
   spotlight: ProductCardModel | null;
   policyDocs: Document[];
+  sourceDocs: Document[];
   cart: ShopifyCartSnapshot | null;
   cartError: string | null;
   productsLoading: boolean;
@@ -696,6 +701,15 @@ function ShopifyRightPanel({
               }}
             />
           )}
+        </RightPanelSection>
+      )}
+      {sourceDocs.length > 0 && (
+        <RightPanelSection title="Grounding sources">
+          <div className="space-y-3">
+            {sourceDocs.slice(0, 5).map((doc) => (
+              <SourceEvidenceCard key={`${doc.messageId || "source"}-${doc.id}`} doc={doc} />
+            ))}
+          </div>
         </RightPanelSection>
       )}
     </aside>
@@ -1156,6 +1170,32 @@ function PolicyCard({ doc, compact = false }: { doc: Document; compact?: boolean
   );
 }
 
+function SourceEvidenceCard({ doc }: { doc: Document }) {
+  const score = typeof doc.score === "number" ? doc.score : typeof doc.similarity === "number" ? doc.similarity : null;
+  const sourceType = String(doc.type || doc.metadata?.vectorSpace || "source");
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <FileText className="h-4 w-4 shrink-0 text-indigo-500" />
+          <h4 className="truncate text-sm font-extrabold text-slate-900">{doc.title || doc.id || "Source"}</h4>
+        </div>
+        {score != null && (
+          <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-600">
+            {Math.round(score * 100)}%
+          </span>
+        )}
+      </div>
+      <p className="line-clamp-4 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+        {truncate(stripJsonNoise(doc.content || String(doc.metadata?.summary || "")), 420)}
+      </p>
+      <div className="mt-3 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
+        {sourceType}
+      </div>
+    </div>
+  );
+}
+
 function ComparisonCard({
   products,
   onOpenProduct,
@@ -1364,6 +1404,21 @@ function derivePolicyDocuments(documents: Document[]) {
     const type = String(doc.type || "").toLowerCase();
     const category = String(doc.metadata?.category || doc.metadata?.vectorSpace || "").toLowerCase();
     return type.includes("policy") || category.includes("policy") || category.includes("shipping") || category.includes("return");
+  });
+}
+
+function deriveSourceDocuments(documents: Document[]) {
+  const seen = new Set<string>();
+  return documents.filter((doc) => {
+    if (!doc || (!doc.content && !doc.title)) {
+      return false;
+    }
+    const key = String(doc.id || doc.title || doc.content);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
   });
 }
 
