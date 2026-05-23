@@ -64,6 +64,24 @@ type ShopifyCartSnapshot = {
   }>;
 };
 
+type ShopifyStorefrontProduct = {
+  id?: number | string;
+  title?: string;
+  handle?: string;
+  vendor?: string;
+  product_type?: string;
+  body_html?: string;
+  featured_image?: string;
+  images?: Array<{ src?: string } | string>;
+  variants?: Array<{
+    id?: number | string;
+    title?: string;
+    price?: number | string;
+    compare_at_price?: number | string | null;
+    available?: boolean;
+  }>;
+};
+
 const SHOPIFY_QUICK_ASKS = [
   { label: "Best sellers", query: "Show me your best sellers", position: "search" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
   { label: "Compare products", query: "Compare your top product categories", position: "search" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
@@ -103,13 +121,16 @@ export function ShopifyShoppingWorkspace({
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<ShopifyCartSnapshot | null>(null);
   const [cartError, setCartError] = useState<string | null>(null);
+  const [storefrontProducts, setStorefrontProducts] = useState<ProductCardModel[]>([]);
+  const [storefrontProductsLoading, setStorefrontProductsLoading] = useState(false);
   const products = useMemo(() => deriveProducts(controller.contextDocuments, requestContext), [
     controller.contextDocuments,
     requestContext,
   ]);
+  const displayProducts = products.length ? products : storefrontProducts;
   const spotlight = useMemo(
-    () => deriveSpotlight(controller.selectedProduct, products, requestContext),
-    [controller.selectedProduct, products, requestContext],
+    () => deriveSpotlight(controller.selectedProduct, displayProducts, requestContext),
+    [controller.selectedProduct, displayProducts, requestContext],
   );
   const policyDocs = useMemo(() => derivePolicyDocuments(controller.contextDocuments), [controller.contextDocuments]);
 
@@ -128,6 +149,30 @@ export function ShopifyShoppingWorkspace({
     products.length,
     showDiscoveryHome,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStorefrontProductsLoading(true);
+    fetchShopifyStorefrontProducts(8)
+      .then((nextProducts) => {
+        if (!cancelled) {
+          setStorefrontProducts(nextProducts);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStorefrontProducts([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setStorefrontProductsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,7 +256,7 @@ export function ShopifyShoppingWorkspace({
         <div className="grid min-h-0 grid-cols-[280px_minmax(0,1fr)_340px] border-t border-slate-200">
           <ShopifyLeftRail
             state={workspaceState}
-            products={products}
+            products={displayProducts}
             spotlight={spotlight}
             policyDocs={policyDocs}
             cart={cart}
@@ -226,7 +271,7 @@ export function ShopifyShoppingWorkspace({
             controller={controller}
             state={workspaceState}
             storeName={storeName}
-            products={products}
+            products={displayProducts}
             spotlight={spotlight}
             policyDocs={policyDocs}
             onPrompt={dispatchPrompt}
@@ -236,11 +281,12 @@ export function ShopifyShoppingWorkspace({
           />
           <ShopifyRightPanel
             state={workspaceState}
-            products={products}
+            products={displayProducts}
             spotlight={spotlight}
             policyDocs={policyDocs}
             cart={cart}
             cartError={cartError}
+            productsLoading={storefrontProductsLoading && products.length === 0}
             onState={updateWorkspaceState}
             onPrompt={dispatchPrompt}
             onOpenProduct={(product) => {
@@ -256,7 +302,7 @@ export function ShopifyShoppingWorkspace({
         <ShopifyMobileWorkspace
           storeName={storeName}
           state={workspaceState}
-          products={products}
+          products={displayProducts}
           spotlight={spotlight}
           policyDocs={policyDocs}
           cart={cart}
@@ -564,6 +610,7 @@ function ShopifyRightPanel({
   policyDocs,
   cart,
   cartError,
+  productsLoading,
   onState,
   onPrompt,
   onOpenProduct,
@@ -575,6 +622,7 @@ function ShopifyRightPanel({
   policyDocs: Document[];
   cart: ShopifyCartSnapshot | null;
   cartError: string | null;
+  productsLoading: boolean;
   onState: (state: ShopifyWorkspaceState) => void;
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
   onOpenProduct: (product: ProductCardModel) => void;
@@ -638,7 +686,16 @@ function ShopifyRightPanel({
         </RightPanelSection>
       ) : (
         <RightPanelSection title="Spotlight">
-          <EmptyRailCard title="Ask to browse products" body="Product cards appear here when catalog evidence is returned." />
+          {productsLoading ? (
+            <EmptyRailCard title="Loading store picks" body="Fetching live storefront products for this shopping panel." />
+          ) : (
+            <QuickBrowseCard
+              onPrompt={(ask) => {
+                onState(ask.label.includes("Shipping") || ask.label.includes("Returns") ? "policy" : "browsing");
+                onPrompt(ask.query, ask.position, ask.mode);
+              }}
+            />
+          )}
         </RightPanelSection>
       )}
     </aside>
@@ -1201,6 +1258,34 @@ function EmptyRailCard({ title, body }: { title: string; body: string }) {
   );
 }
 
+function QuickBrowseCard({ onPrompt }: { onPrompt: (ask: (typeof SHOPIFY_QUICK_ASKS)[number]) => void }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+          <Sparkles className="h-4 w-4" />
+        </span>
+        <div>
+          <div className="font-extrabold">Explore the store</div>
+          <p className="text-sm text-slate-500">Ask Max Mode to bring product cards into this panel.</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2">
+        {SHOPIFY_QUICK_ASKS.slice(0, 3).map((ask) => (
+          <button
+            key={ask.label}
+            onClick={() => onPrompt(ask)}
+            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+          >
+            {ask.label}
+            <ChevronRight className="h-4 w-4 text-slate-400" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function initialWorkspaceState(controller: MaxModeController, pageGroup: string): ShopifyWorkspaceState {
   if (controller.isCartView || controller.currentPosition === "cart" || pageGroup === "cart" || pageGroup === "account") {
     return "cart";
@@ -1403,6 +1488,72 @@ function formatCentsFromUnknown(value: unknown) {
 function formatCents(cents: number) {
   const currency = typeof window !== "undefined" ? ((window as any).Shopify?.currency?.active || "USD") : "USD";
   return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / 100);
+}
+
+async function fetchShopifyStorefrontProducts(limit: number): Promise<ProductCardModel[]> {
+  const response = await fetch(shopifyRoute(`products.json?limit=${Math.max(1, Math.min(limit, 20))}`), {
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    throw new Error(`Shopify product fetch failed: ${response.status}`);
+  }
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    throw new Error("Shopify product fetch did not return JSON");
+  }
+  const payload = (await response.json()) as { products?: ShopifyStorefrontProduct[] };
+  const cards = (payload.products || [])
+    .map((product) => toStorefrontProductCard(product))
+    .filter((product): product is ProductCardModel => Boolean(product));
+  return dedupeProducts(cards).slice(0, limit);
+}
+
+function toStorefrontProductCard(product: ShopifyStorefrontProduct): ProductCardModel | null {
+  if (!product || !product.title) {
+    return null;
+  }
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const selectedVariant = variants.find((variant) => variant.available !== false) || variants[0];
+  const image = firstStorefrontImage(product);
+  return {
+    id: String(product.id || product.handle || product.title),
+    title: cleanProductTitle(String(product.title)),
+    subtitle: truncate(
+      [product.product_type, product.vendor, stripHtml(String(product.body_html || ""))].filter(Boolean).join(" / "),
+      140,
+    ),
+    price: formatStorefrontPrice(selectedVariant?.price),
+    compareAtPrice: formatStorefrontPrice(selectedVariant?.compare_at_price),
+    availability: selectedVariant?.available === false ? "Unavailable" : "In stock",
+    imageUrl: image,
+    url: product.handle ? shopifyRoute(`products/${product.handle}`) : undefined,
+    variantId: numericVariantId(selectedVariant?.id),
+  };
+}
+
+function firstStorefrontImage(product: ShopifyStorefrontProduct) {
+  const image = Array.isArray(product.images) ? product.images[0] : undefined;
+  if (typeof image === "string") {
+    return image;
+  }
+  return image?.src || product.featured_image || undefined;
+}
+
+function formatStorefrontPrice(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return String(value);
+  }
+  const currency = typeof window !== "undefined" ? ((window as any).Shopify?.currency?.active || "USD") : "USD";
+  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+}
+
+function stripHtml(value: string) {
+  return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
 async function fetchShopifyCart(): Promise<ShopifyCartSnapshot> {
