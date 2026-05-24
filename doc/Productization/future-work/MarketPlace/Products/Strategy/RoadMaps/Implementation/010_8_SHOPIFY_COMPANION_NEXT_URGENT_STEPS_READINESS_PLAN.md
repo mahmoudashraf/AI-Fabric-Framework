@@ -12,6 +12,7 @@ Parent plans:
 - [010.3 Shopify Companion Query Speed, Accuracy, And Reliability Optimization Plan](010_3_SHOPIFY_COMPANION_QUERY_SPEED_ACCURACY_RELIABILITY_OPTIMIZATION_PLAN.md)
 - [010.4 Shopify Companion Indexing Architecture Cleanup Plan](010_4_SHOPIFY_COMPANION_INDEXING_ARCHITECTURE_CLEANUP_PLAN.md)
 - [010.5 LoomAI Canonical Runtime Bridge Contract Standardization Plan](010_5_LOOMAI_CANONICAL_RUNTIME_BRIDGE_CONTRACT_STANDARDIZATION_PLAN.md)
+- [010.6 Private Runtime Asymmetric Assertion Auth Plan](010_6_PRIVATE_RUNTIME_ASYMMETRIC_ASSERTION_AUTH_PLAN.md)
 - [010.7 Runtime Query Once Endpoint Contract Plan](010_7_RUNTIME_QUERY_ONCE_ENDPOINT_CONTRACT_PLAN.md)
 
 ## Purpose
@@ -42,6 +43,25 @@ Current non-claim posture:
 - Do not claim Customer Account MCP order, return, refund, or store-credit features beyond tools that have fresh live proof.
 - Do not claim Checkout MCP automation as live until checkout-specific credentials, storefront access, and managed tools/call proof are recorded.
 - Do not sell MCP, Coolify, Hetzner, or AI Fabric internals to merchants.
+
+## Consolidated Next Urgent Steps From Latest Readiness Review
+
+These are the active release-gating points that must stay visible in this plan.
+
+1. Run a fresh hosted/full Shopify release gate on the current deployed branch. The May 8 gate is expired and cannot be used for a new release decision.
+2. Execute controlled production-promotion proof through `dtp-coolify-production`: real `Go production` mutation, production verification, rollback/deactivation proof, and a failed-promotion proof that staging stays untouched.
+3. Finish Customer Account and Checkout public-claim gates: durable Customer Account OAuth across Bridge redeploy/recreate, successful owned-resource `tools/call` proof, and Checkout MCP proof without storefront password redirects.
+4. Fix or re-verify the support-readiness mismatch: Platform package posture must match storefront bootstrap flags, so the storefront never advertises a capability that Platform marks unsupported.
+5. Implement durable owned-resource refs/cart-handle persistence if we want reliable "my cart", "my latest order", and "return last order" behavior across turns and redeploys.
+6. Complete merchant-facing production packaging: pricing, onboarding, support, private/App Store listing copy, escalation path, and limitations copy.
+7. Implement 010.6 asymmetric private-runtime assertions before external-customer production use. This is not the top Shopify blocker, but it is required for ProdUS-style production integrations.
+
+Release status from this review:
+
+- Controlled design-partner launch: close, viable only after a fresh staging gate passes.
+- Public self-service Shopify production/App Store launch: not ready.
+- Current product architecture is real, but production evidence is missing.
+- Do not claim broad public readiness, terminal checkout automation, refund/return automation, or protected customer-data automation until the relevant gates above pass.
 
 ## What Must Be Done If We Release What We Have Now
 
@@ -193,6 +213,14 @@ Prove checkout-specific credentials, storefront access, managed live call path, 
 
 Persist Customer Account OAuth sessions or explicitly gate customer-owned features as beta/reauthorization-required. This can be deferred for a small private pilot, but not for public launch.
 
+6. Durable owned-resource reference posture
+
+Persist short-lived, scoped owned-resource references such as cart handles, selected order references, and return-intent context when they are needed across turns. This must remain tenant/session scoped, time bounded, and redacted from debug output. Without this proof, "my cart", "my latest order", and "return my last order" must stay gated or re-ask safely for missing context.
+
+7. 010.6 asymmetric private-runtime assertion auth
+
+Implement asymmetric assertion verification before external-customer production integrations rely on direct/private runtime access. HMAC-based staging integrations can remain for current controlled testing, but production external integrations should not depend on shared symmetric assertion secrets.
+
 ## Recommended Next Execution Sequence
 
 ### Slice A: Staging Deploy Reconciliation
@@ -341,6 +369,8 @@ Pass only when all design-partner gates pass plus:
 - failed promotion isolation proof is complete
 - Customer Account MCP public claims are proven feature-by-feature
 - Checkout MCP public claims are proven feature-by-feature
+- durable owned-resource refs are implemented or customer-owned flows remain explicitly gated
+- 010.6 asymmetric private-runtime assertion auth is implemented for external-customer production integrations
 - App Store/private listing, support, pricing, and merchant onboarding are finalized
 - production support runbook and incident response are ready
 

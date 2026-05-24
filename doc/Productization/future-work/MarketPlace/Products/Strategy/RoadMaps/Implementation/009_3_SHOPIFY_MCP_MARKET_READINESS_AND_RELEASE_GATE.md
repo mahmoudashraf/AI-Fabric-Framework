@@ -1,6 +1,6 @@
 # 009.3 Shopify MCP Market Readiness And Release Gate
 
-Status: staging release gate passed on 2026-05-08. Latest full pass is `vsr-4a50d909`, completed at `2026-05-08T22:41:28.687806Z`; release-gate freshness expires at `2026-05-09T10:41:28.687806Z`. Staging is the active target. Production is not deployed by this plan.
+Status: staging release gate passed on 2026-05-08. Latest recorded full pass in this plan is `vsr-4a50d909`, completed at `2026-05-08T22:41:28.687806Z`; that release-gate freshness expired at `2026-05-09T10:41:28.687806Z`. As of 2026-05-22, later 010.x work has superseded parts of this gate, but a fresh hosted full release gate is still required before any release decision. Staging is the active target. Production is not deployed by this plan.
 
 Parent plans:
 
@@ -31,9 +31,17 @@ Marketplace ACTION plugin
 The target market posture is:
 
 ```text
-Design-partner ready: yes, after staging release gate passes.
-Broad self-serve production launch: no, until production deployment, PR/review gates, app-review posture, self-serve packaging, and Customer Account/Checkout auth gates are completed.
+Design-partner ready: yes, after a fresh staging release gate passes.
+Broad self-serve production launch: no, until production deployment proof, current release gates, app-review posture, self-serve packaging, and Customer Account/Checkout live-claim gates are completed.
 ```
+
+Current release posture as of 2026-05-22:
+
+- Controlled design-partner staging remains the safest go-to-market posture.
+- Public/self-serve Shopify production remains blocked by evidence gates, not by the core Marketplace -> MCP Gateway architecture.
+- The stale 2026-05-08 gate must be rerun on the current deployed branch before it can be used for launch readiness.
+- Customer Account MCP setup and token brokerage are implemented, but public owned-resource claims still require durable OAuth redeploy/recreate proof plus successful live customer-owned `tools/call` evidence for the exact capability being claimed.
+- Checkout MCP credential/token plumbing is prepared, but public checkout claims still require managed live proof against a storefront endpoint that does not redirect to password protection and explicit approval for any terminal checkout operation.
 
 ---
 
@@ -57,8 +65,8 @@ Claims to avoid until separately verified:
 
 - full public Shopify App Store readiness
 - fully self-serve onboarding for all merchants
-- live Customer Account MCP execution
-- live Checkout MCP execution
+- broad public Customer Account MCP execution
+- broad public Checkout MCP execution
 - terminal checkout automation
 - payment, refund, or protected customer data automation without explicit approvals and auth material
 
@@ -68,7 +76,7 @@ Claims to avoid until separately verified:
 
 These items do not block controlled design-partner shipping, but they do block a broad public Shopify App Store / self-serve launch claim:
 
-- Merge PR `#156` (`Platform v8`) or otherwise land its production-intended work. Current posture at the time of this note: open, mergeable, and still carrying the Platform V8 MCP/Coolify/product-service release work.
+- Refresh the current release/PR posture before launch. Earlier versions of this plan tracked PR `#156` as open and release-relevant; do not rely on that stale status without checking the current branch and CI state.
 - Keep the PR `#156` P1/P2 review fixes release-gated: Coolify transport failures must continue returning the structured `502` / `COOLIFY_UPSTREAM_FAILURE` contract, and MCP Gateway Streamable HTTP connect/read timeouts must remain wired into the HTTP request factory.
 - Keep Platform release/verification async work off a single-thread bottleneck. Release execution and verification-suite execution must use bounded parallel executors so one slow Coolify or repair call cannot starve unrelated platform operations.
 - Keep higher-tier public claims gated until Shopify Customer Account MCP and Checkout MCP have the required external Shopify auth/security material, protected customer data posture, credentials, storefront readiness, and live `tools/list` / safe `tools/call` evidence. Customer Account MCP now has read-only staging `tools/call` proof. Checkout MCP credentials now exist in staging and Shopify token exchange succeeds, but live Checkout MCP remains gated until the staging store serves `/api/ucp/mcp` without storefront-password redirects.

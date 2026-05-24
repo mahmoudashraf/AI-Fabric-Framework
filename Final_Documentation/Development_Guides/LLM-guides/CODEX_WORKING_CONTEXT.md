@@ -1224,3 +1224,11 @@ Critical fixes that made the gate pass:
 - Commerce curated modes now allow Shopify read actions (`shopify_get_cart`, Customer Account order/status/store-credit tools, and Storefront search/policy/product reads) for thinker/resolver/executor/cart-assistant read-action resolution.
 - Marketplace migration `V109__shopify_owned_resource_param_resolution.sql` publishes hidden cart/session params and lets `shopify_request_return.order_number` resolve from `shopify_get_most_recent_order_status` when the shopper asks for the latest/last order.
 - Durable `owned_resource_refs` runtime DB persistence and cart-handle persistence from MCP `update_cart` results are still a follow-up hardening slice; do not claim cross-turn/redeploy owned-resource continuity until that slice is implemented and release-gate verified.
+
+## 2026-05-22 Plan Review: Shopify Release And ProdUS Query-Once
+
+- 010.7 query-once endpoint is implemented, tested, deployed, and live-verified on managed ProdUS staging runtime `dep-7706fafb`. `/api/chat/me/query-once` is the non-persistent one-time answer endpoint; `/api/chat/me/query` remains the persistent chat endpoint.
+- Latest runtime deployment after documentation alignment is Coolify deployment `kpx28b02ryukztitqvem2399` on commit `969f87dfb`. Live smoke proved query-once returns a one-time answer while `GET /api/chat/me/conversations/{queryOnceConversationId}` returns `404`, and normal query still persists.
+- 009.3/010/010.1 documentation was refreshed to mark the stale 2026-05-08 Shopify release gate as expired. A fresh hosted full release gate is required before any current release decision.
+- Shopify Companion release posture remains: controlled design-partner staging is viable after a fresh gate; public/self-service production is blocked by controlled production-promotion proof, production provisioning verification, rollback/deactivation proof, failed-promotion staging-isolation proof, claim-safe Customer Account/Checkout live evidence, and merchant-facing support/App Store packaging.
+- Do not treat ProdUS query-once or private-runtime work as reducing Shopify production gates. They help the generic platform/external-customer path, while Shopify still needs its production release evidence.

@@ -38,7 +38,8 @@ Greenfield contract rule:
 
 Live verification:
 
-- Coolify deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` successfully.
+- Coolify deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` successfully for the implementation smoke.
+- Follow-up Coolify deployment `kpx28b02ryukztitqvem2399` deployed commit `969f87dfb` successfully after this plan/status documentation was recorded.
 - `GET /actuator/health` returned `UP`.
 - `GET /api/chat/me/auth-context` returned `200` with a ProdUS-shaped private runtime assertion.
 - `POST /api/chat/me/query-once` returned `200`, `success=true`, `type=INFORMATION_PROVIDED`.
