@@ -8,10 +8,12 @@ import {
   Check,
   ChevronRight,
   Circle,
+  ExternalLink,
   FileText,
   Filter,
   Gift,
   Home,
+  ImageIcon,
   Info,
   PackageSearch,
   Search,
@@ -83,6 +85,29 @@ type ShopifyStorefrontProduct = {
   }>;
 };
 
+const SHOPIFY_SCROLLBAR_STYLE = `
+.shopify-rich-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: #818cf8 #eef2ff;
+  scrollbar-gutter: stable;
+}
+.shopify-rich-scrollbar::-webkit-scrollbar {
+  width: 14px;
+}
+.shopify-rich-scrollbar::-webkit-scrollbar-track {
+  background: #eef2ff;
+  border-radius: 9999px;
+}
+.shopify-rich-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #818cf8, #4f46e5);
+  border: 3px solid #eef2ff;
+  border-radius: 9999px;
+}
+.shopify-rich-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #6366f1, #3730a3);
+}
+`;
+
 const SHOPIFY_QUICK_ASKS = [
   { label: "Best sellers", query: "Show me your best sellers", position: "search" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
   { label: "Compare products", query: "Compare your top product categories", position: "search" as MaxModePosition, mode: "thinker_deep" as MaxModeMode },
@@ -128,13 +153,26 @@ export function ShopifyShoppingWorkspace({
     controller.contextDocuments,
     requestContext,
   ]);
-  const displayProducts = products.length ? products : storefrontProducts;
+  const policyDocs = useMemo(() => derivePolicyDocuments(controller.contextDocuments), [controller.contextDocuments]);
+  const sourceDocs = useMemo(() => deriveSourceDocuments(controller.contextDocuments), [controller.contextDocuments]);
+  const sourceStorefrontProducts = useShopifySourceProducts(sourceDocs);
+  const liveProductPool = useMemo(
+    () => dedupeProducts([...sourceStorefrontProducts, ...storefrontProducts]),
+    [sourceStorefrontProducts, storefrontProducts],
+  );
+  const hydratedProducts = useMemo(
+    () => hydrateProductsFromStorefront(products, liveProductPool),
+    [products, liveProductPool],
+  );
+  const displayProducts = hydratedProducts.length ? hydratedProducts : storefrontProducts;
+  const sourceProductPool = useMemo(
+    () => dedupeProducts([...hydratedProducts, ...sourceStorefrontProducts, ...storefrontProducts]),
+    [hydratedProducts, sourceStorefrontProducts, storefrontProducts],
+  );
   const spotlight = useMemo(
     () => deriveSpotlight(controller.selectedProduct, displayProducts, requestContext),
     [controller.selectedProduct, displayProducts, requestContext],
   );
-  const policyDocs = useMemo(() => derivePolicyDocuments(controller.contextDocuments), [controller.contextDocuments]);
-  const sourceDocs = useMemo(() => deriveSourceDocuments(controller.contextDocuments), [controller.contextDocuments]);
 
   useEffect(() => {
     if (showDiscoveryHome) {
@@ -244,6 +282,7 @@ export function ShopifyShoppingWorkspace({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] overflow-hidden bg-[#f7f8fc] font-sans text-slate-950"
     >
+      <style>{SHOPIFY_SCROLLBAR_STYLE}</style>
       <div className="hidden h-full min-h-0 grid-rows-[72px_minmax(0,1fr)] md:grid">
         <ShopifyWorkspaceTopBar
           storeName={storeName}
@@ -287,6 +326,7 @@ export function ShopifyShoppingWorkspace({
             spotlight={spotlight}
             policyDocs={policyDocs}
             sourceDocs={sourceDocs}
+            sourceProducts={sourceProductPool}
             cart={cart}
             cartError={cartError}
             productsLoading={storefrontProductsLoading && products.length === 0}
@@ -612,6 +652,7 @@ function ShopifyRightPanel({
   spotlight,
   policyDocs,
   sourceDocs,
+  sourceProducts,
   cart,
   cartError,
   productsLoading,
@@ -625,6 +666,7 @@ function ShopifyRightPanel({
   spotlight: ProductCardModel | null;
   policyDocs: Document[];
   sourceDocs: Document[];
+  sourceProducts: ProductCardModel[];
   cart: ShopifyCartSnapshot | null;
   cartError: string | null;
   productsLoading: boolean;
@@ -634,20 +676,13 @@ function ShopifyRightPanel({
   onAddVariant: (product: ProductCardModel) => Promise<void>;
 }) {
   return (
-    <aside className="min-h-0 overflow-y-auto border-l border-slate-200 bg-slate-50 px-5 py-6">
+    <aside className="shopify-rich-scrollbar min-h-0 overflow-y-auto border-l border-slate-200 bg-slate-50 px-4 py-6">
       {state === "policy" ? (
         <RightPanelSection title="Policy details">
           {policyDocs.length ? (
             policyDocs.slice(0, 3).map((doc) => <PolicyCard key={doc.id} doc={doc} />)
           ) : (
-            <PolicyCard
-              doc={{
-                id: "policy-helper",
-                title: "Store policy helper",
-                content: "Ask about shipping, returns, payment, or product fit. The assistant will use indexed store policy data when available.",
-                type: "policy",
-              }}
-            />
+            <EmptyRailCard title="No policy sources yet" body="Ask a policy question and indexed store documents will appear here when returned." />
           )}
         </RightPanelSection>
       ) : state === "cart" ? (
@@ -706,8 +741,12 @@ function ShopifyRightPanel({
       {sourceDocs.length > 0 && (
         <RightPanelSection title="Grounding sources">
           <div className="space-y-3">
-            {sourceDocs.slice(0, 5).map((doc) => (
-              <SourceEvidenceCard key={`${doc.messageId || "source"}-${doc.id}`} doc={doc} />
+            {sourceDocs.slice(0, 6).map((doc) => (
+              <SourceEvidenceCard
+                key={`${doc.messageId || "source"}-${doc.id}`}
+                doc={doc}
+                product={resolveSourceProduct(doc, sourceProducts)}
+              />
             ))}
           </div>
         </RightPanelSection>
@@ -1170,27 +1209,56 @@ function PolicyCard({ doc, compact = false }: { doc: Document; compact?: boolean
   );
 }
 
-function SourceEvidenceCard({ doc }: { doc: Document }) {
+function SourceEvidenceCard({ doc, product }: { doc: Document; product?: ProductCardModel | null }) {
   const score = typeof doc.score === "number" ? doc.score : typeof doc.similarity === "number" ? doc.similarity : null;
-  const sourceType = String(doc.type || doc.metadata?.vectorSpace || "source");
+  const sourceType = friendlySourceType(String(doc.type || doc.metadata?.vectorSpace || "source"));
+  const parsed = parseDocumentContent(doc.content);
+  const title = product?.title || cleanProductTitle(stringFrom(parsed?.name || doc.metadata?.title || doc.metadata?.name || doc.title) || "Source");
+  const imageUrl = product?.imageUrl || documentImageUrl(doc);
+  const url = product?.url || sourceUrlFromDocument(doc);
+  const availability = product?.availability || stringFrom((doc as any).availability || doc.metadata?.availability);
+  const price = product?.price || stringFrom((doc as any).priceRange || doc.metadata?.priceRange || doc.metadata?.price);
+  const preview = sourcePreview(doc, parsed);
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-4 w-4 shrink-0 text-indigo-500" />
-          <h4 className="truncate text-sm font-extrabold text-slate-900">{doc.title || doc.id || "Source"}</h4>
+    <div className="overflow-hidden rounded-3xl border border-indigo-100 bg-white shadow-sm ring-1 ring-white">
+      <div className="relative h-28 bg-gradient-to-br from-indigo-100 via-violet-100 to-slate-100">
+        {imageUrl ? (
+          <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <ImageIcon className="h-9 w-9 text-indigo-400" />
+          </div>
+        )}
+        <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[11px] font-extrabold text-indigo-700 shadow-sm">
+          <FileText className="h-3.5 w-3.5" />
+          {sourceType}
         </div>
         {score != null && (
-          <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-600">
+          <span className="absolute right-3 top-3 rounded-full bg-indigo-600 px-2 py-1 text-[11px] font-extrabold text-white shadow-sm">
             {Math.round(score * 100)}%
           </span>
         )}
       </div>
-      <p className="line-clamp-4 whitespace-pre-wrap text-xs leading-5 text-slate-600">
-        {truncate(stripJsonNoise(doc.content || String(doc.metadata?.summary || "")), 420)}
-      </p>
-      <div className="mt-3 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
-        {sourceType}
+      <div className="p-4">
+        <h4 className="line-clamp-2 text-sm font-extrabold leading-5 text-slate-950">{title}</h4>
+        {(price || availability) && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {price && <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-extrabold text-slate-700">{price}</span>}
+            {availability && (
+              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-700">{availability}</span>
+            )}
+          </div>
+        )}
+        <p className="mt-3 line-clamp-4 whitespace-pre-wrap text-xs leading-5 text-slate-600">{truncate(preview, 360)}</p>
+        {url && (
+          <button
+            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-extrabold text-indigo-700 hover:bg-indigo-100"
+          >
+            Open source
+            <ExternalLink className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1422,6 +1490,29 @@ function deriveSourceDocuments(documents: Document[]) {
   });
 }
 
+function hydrateProductsFromStorefront(products: ProductCardModel[], storefrontProducts: ProductCardModel[]) {
+  if (!products.length || !storefrontProducts.length) {
+    return products;
+  }
+  return products.map((product) => {
+    const storefront = resolveProductFromPool(product, storefrontProducts);
+    if (!storefront) {
+      return product;
+    }
+    return {
+      ...product,
+      title: product.title || storefront.title,
+      subtitle: product.subtitle || storefront.subtitle,
+      price: product.price || storefront.price,
+      compareAtPrice: product.compareAtPrice || storefront.compareAtPrice,
+      availability: product.availability || storefront.availability,
+      imageUrl: product.imageUrl || storefront.imageUrl,
+      url: product.url || storefront.url,
+      variantId: product.variantId || storefront.variantId,
+    };
+  });
+}
+
 function toProductCard(doc: Document): ProductCardModel | null {
   const type = String(doc.type || doc.metadata?.category || doc.metadata?.vectorSpace || "").toLowerCase();
   const looksLikeProduct =
@@ -1436,6 +1527,8 @@ function toProductCard(doc: Document): ProductCardModel | null {
   }
   const title = cleanProductTitle(doc.title || doc.metadata?.title || doc.metadata?.name || "Product");
   const variant = doc.product_variant_id || doc.metadata?.product_variant_id || doc.metadata?.variantId || doc.metadata?.variant_id;
+  const sourceUrl = sourceUrlFromDocument(doc);
+  const handle = shopifyProductHandleFromDocument(doc);
   return {
     id: String(doc.id || title),
     title,
@@ -1443,8 +1536,8 @@ function toProductCard(doc: Document): ProductCardModel | null {
     price: stringFrom(doc.priceRange || doc.metadata?.priceRange || doc.metadata?.price || doc.metadata?.amount),
     compareAtPrice: stringFrom(doc.metadata?.compareAtPrice || doc.metadata?.compare_at_price),
     availability: doc.availability || doc.metadata?.availability || doc.metadata?.status,
-    imageUrl: stringFrom(doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image),
-    url: stringFrom(doc.metadata?.url) || (doc.metadata?.handle ? shopifyRoute(`products/${doc.metadata.handle}`) : undefined),
+    imageUrl: documentImageUrl(doc),
+    url: sourceUrl || (handle ? shopifyRoute(`products/${handle}`) : undefined),
     variantId: numericVariantId(variant),
     source: doc,
   };
@@ -1460,6 +1553,175 @@ function dedupeProducts(products: ProductCardModel[]) {
     seen.add(key);
     return true;
   });
+}
+
+function useShopifySourceProducts(sourceDocs: Document[]) {
+  const handles = useMemo(() => {
+    const seen = new Set<string>();
+    return sourceDocs
+      .map((doc) => shopifyProductHandleFromDocument(doc))
+      .filter((handle): handle is string => Boolean(handle))
+      .filter((handle) => {
+        if (seen.has(handle)) {
+          return false;
+        }
+        seen.add(handle);
+        return true;
+      })
+      .slice(0, 8);
+  }, [sourceDocs]);
+  const handlesKey = handles.join("|");
+  const [products, setProducts] = useState<ProductCardModel[]>([]);
+
+  useEffect(() => {
+    if (!handles.length) {
+      setProducts([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(handles.map((handle) => fetchShopifyProductByHandle(handle).catch(() => null)))
+      .then((nextProducts) => {
+        if (!cancelled) {
+          setProducts(dedupeProducts(nextProducts.filter((product): product is ProductCardModel => Boolean(product))));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProducts([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [handlesKey]);
+
+  return products;
+}
+
+function resolveSourceProduct(doc: Document, products: ProductCardModel[]) {
+  const docCard = toProductCard(doc);
+  const storefront = docCard ? resolveProductFromPool(docCard, products) : resolveProductByDocument(doc, products);
+  if (docCard && storefront) {
+    return {
+      ...docCard,
+      title: storefront.title || docCard.title,
+      subtitle: docCard.subtitle || storefront.subtitle,
+      price: docCard.price || storefront.price,
+      compareAtPrice: docCard.compareAtPrice || storefront.compareAtPrice,
+      availability: docCard.availability || storefront.availability,
+      imageUrl: docCard.imageUrl || storefront.imageUrl,
+      url: docCard.url || storefront.url,
+      variantId: docCard.variantId || storefront.variantId,
+    };
+  }
+  return storefront || docCard;
+}
+
+function resolveProductFromPool(product: ProductCardModel, products: ProductCardModel[]) {
+  const productHandle = shopifyProductHandleFromUrl(product.url);
+  const normalizedTitle = normalizeLookupText(product.title);
+  return products.find((candidate) => {
+    if (product.variantId && candidate.variantId && product.variantId === candidate.variantId) {
+      return true;
+    }
+    if (product.id && candidate.id && String(product.id) === String(candidate.id)) {
+      return true;
+    }
+    const candidateHandle = shopifyProductHandleFromUrl(candidate.url);
+    if (productHandle && candidateHandle && productHandle === candidateHandle) {
+      return true;
+    }
+    return normalizedTitle && normalizedTitle === normalizeLookupText(candidate.title);
+  });
+}
+
+function resolveProductByDocument(doc: Document, products: ProductCardModel[]) {
+  const handle = shopifyProductHandleFromDocument(doc);
+  const title = cleanProductTitle(stringFrom(parseDocumentContent(doc.content)?.name || doc.title) || "");
+  return products.find((candidate) => {
+    if (handle && shopifyProductHandleFromUrl(candidate.url) === handle) {
+      return true;
+    }
+    return title && normalizeLookupText(title) === normalizeLookupText(candidate.title);
+  });
+}
+
+function shopifyProductHandleFromDocument(doc: Document) {
+  const metadata = doc.metadata || {};
+  return (
+    stringFrom(metadata.handle) ||
+    shopifyProductHandleFromUrl(sourceUrlFromDocument(doc)) ||
+    shopifyProductHandleFromUrl(stringFrom(metadata.storefrontUrl))
+  );
+}
+
+function shopifyProductHandleFromUrl(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(value, typeof window !== "undefined" ? window.location.href : "https://store.local/");
+    const match = parsed.pathname.match(/\/products\/([^/?#]+)/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+  } catch {
+    const match = value.match(/\/products\/([^/?#]+)/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+  }
+}
+
+function sourceUrlFromDocument(doc: Document) {
+  return stringFrom((doc as any).url || (doc as any).storefrontUrl || doc.metadata?.url || doc.metadata?.storefrontUrl);
+}
+
+function documentImageUrl(doc: Document) {
+  return stringFrom(
+    (doc as any).imageUrl ||
+      (doc as any).featuredImage ||
+      doc.metadata?.imageUrl ||
+      doc.metadata?.image_url ||
+      doc.metadata?.featuredImage ||
+      doc.metadata?.featured_image ||
+      doc.metadata?.image,
+  );
+}
+
+function parseDocumentContent(value: string | undefined): Record<string, any> | null {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{")) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function sourcePreview(doc: Document, parsed: Record<string, any> | null) {
+  return (
+    stringFrom(parsed?.description) ||
+    stringFrom(parsed?.summary) ||
+    stringFrom(doc.metadata?.summary || doc.metadata?.description) ||
+    stripJsonNoise(doc.content || "")
+  );
+}
+
+function friendlySourceType(value: string) {
+  return value
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim() || "Source";
+}
+
+function normalizeLookupText(value: string | undefined) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function cleanProductTitle(value: string) {
@@ -1562,6 +1824,21 @@ async function fetchShopifyStorefrontProducts(limit: number): Promise<ProductCar
     .map((product) => toStorefrontProductCard(product))
     .filter((product): product is ProductCardModel => Boolean(product));
   return dedupeProducts(cards).slice(0, limit);
+}
+
+async function fetchShopifyProductByHandle(handle: string): Promise<ProductCardModel | null> {
+  const response = await fetch(shopifyRoute(`products/${encodeURIComponent(handle)}.js`), {
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    throw new Error(`Shopify product fetch failed: ${response.status}`);
+  }
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json") && !contentType.includes("javascript")) {
+    throw new Error("Shopify product detail fetch did not return product JSON");
+  }
+  return toStorefrontProductCard((await response.json()) as ShopifyStorefrontProduct);
 }
 
 function toStorefrontProductCard(product: ShopifyStorefrontProduct): ProductCardModel | null {

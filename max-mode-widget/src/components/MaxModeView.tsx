@@ -32,9 +32,7 @@ export function MaxModeView({
     >
       <MaxModeHeader
         onClose={onClose}
-        onShowSampleDocuments={controller.showSampleDocuments}
         assistantLabel={controller.assistantLabel}
-        showUtilityPanel={controller.showUtilityPanel}
       />
       <MaxModeQuickActions controller={controller} />
       <MaxModeMainContent controller={controller} />

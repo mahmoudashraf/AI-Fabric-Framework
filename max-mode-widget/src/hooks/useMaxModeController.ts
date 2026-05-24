@@ -976,37 +976,6 @@ export function useMaxModeController({
     setTimeout(() => handleChatQuery(query, position, mode), 100);
   };
 
-  const showSampleDocuments = () => {
-    const sampleDocs: Document[] = [
-      {
-        id: "1",
-        title: "Return Policy",
-        content: "You can return items within 30 days of purchase. Items must be in original condition with tags attached.",
-        type: "policy",
-        metadata: { category: "returns", updated: "2024-01-15" }
-      },
-      {
-        id: "2",
-        title: "Wireless Headphones Pro",
-        content: "Premium noise-canceling headphones with 30-hour battery life and crystal-clear audio.",
-        type: "product",
-        metadata: { price: "$299.99", stock: "In Stock", imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop" }
-      },
-      {
-        id: "3",
-        title: "Shipping Information",
-        content: "Free shipping on orders over $50. Standard delivery takes 3-5 business days.",
-        type: "document",
-        metadata: { region: "US", type: "shipping" }
-      }
-    ];
-    setContextDocuments(sampleDocs);
-    toast({
-      title: "✨ Sample Documents Loaded",
-      description: "Check the right panel!",
-    });
-  };
-
   const getResultStyles = (resultType?: ResultType, success = true) => {
     switch (resultType) {
       case "ACTION_EXECUTED":
@@ -1151,7 +1120,6 @@ export function useMaxModeController({
     handleAISearchCategory,
     handleOpenBottomSheet,
     handleCloseNewDocsPreview,
-    showSampleDocuments,
     handleSelectSearchCategory: (category: string) =>
       handleSelectSearchCategory(category, {
         closeMenus: () => {
