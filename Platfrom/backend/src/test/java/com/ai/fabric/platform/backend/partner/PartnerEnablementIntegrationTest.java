@@ -442,6 +442,7 @@ class PartnerEnablementIntegrationTest {
                       "launcherLabel": "Ask Loom Companion",
                       "welcomeMessage": "Ask about products, collections, policy details, or size guidance.",
                       "shellModeProfile": "GUIDED_SUPPORT",
+                      "colorScheme": "emerald",
                       "enabledSurfaces": ["ai-search", "product-faq", "comparison"],
                       "defaultConversationMode": "navigator_deep",
                       "allowedConversationModes": ["navigator", "navigator_deep"],
@@ -453,6 +454,7 @@ class PartnerEnablementIntegrationTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.widgetSettings.launcherLabel", is("Ask Loom Companion")))
+            .andExpect(jsonPath("$.widgetSettings.colorScheme", is("emerald")))
             .andExpect(jsonPath("$.widgetSettings.assistantDockEnabled", is(true)))
             .andExpect(jsonPath("$.widgetSettings.askAssistantLauncherEnabled", is(false)))
             .andExpect(jsonPath("$.widgetSettings.enabledSurfaces", hasItem("comparison")))

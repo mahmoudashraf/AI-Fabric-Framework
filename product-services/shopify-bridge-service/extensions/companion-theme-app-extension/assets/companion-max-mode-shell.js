@@ -131,12 +131,7 @@
         conversations: false,
         quickActions: true,
       },
-      theme: {
-        primaryColor: '#111827',
-        borderRadius: '1rem',
-        fontFamily: '"Helvetica Neue", Arial, sans-serif',
-        darkMode: false,
-      },
+      theme: themeForColorScheme(options.payload.colorScheme),
       position: 'bottom-right',
       launcher: launcherEnabled === true,
       host: {
@@ -194,6 +189,28 @@
     }).catch(function () {
       return null
     })
+  }
+
+  function themeForColorScheme(value) {
+    var palette = {
+      graphite: '#111827',
+      violet: '#6d5dfc',
+      blue: '#2563eb',
+      emerald: '#059669',
+      rose: '#e11d48',
+    }
+    var scheme = normalizeColorScheme(value)
+    return {
+      primaryColor: palette[scheme] || palette.graphite,
+      borderRadius: '1rem',
+      fontFamily: '"Helvetica Neue", Arial, sans-serif',
+      darkMode: false,
+    }
+  }
+
+  function normalizeColorScheme(value) {
+    var normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+    return ['graphite', 'violet', 'blue', 'emerald', 'rose'].indexOf(normalized) >= 0 ? normalized : 'graphite'
   }
 
   function currentCustomerAuthClaim() {

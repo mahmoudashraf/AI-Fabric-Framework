@@ -47,7 +47,10 @@ class ShopifyStoreWidgetSettingsServiceTest {
                 List.of("ai-search", "comparison", "order-lookup"),
                 "thinker_deep",
                 List.of("thinker_deep", "executor"),
-                Map.of("account", "executor", "landing", "thinker_deep")
+                Map.of("account", "executor", "landing", "thinker_deep"),
+                true,
+                false,
+                "violet"
             )
         );
 
@@ -58,6 +61,7 @@ class ShopifyStoreWidgetSettingsServiceTest {
         assertThat(store.getDetailsJson()).contains("\"debugEnabled\":true");
         assertThat(store.getDetailsJson()).contains("\"assistantDockEnabled\":true");
         assertThat(store.getDetailsJson()).contains("\"askAssistantLauncherEnabled\":false");
+        assertThat(store.getDetailsJson()).contains("\"colorScheme\":\"violet\"");
         assertThat(store.getDetailsJson()).contains("\"enabledSurfaces\":[\"ai-search\",\"comparison\",\"order-lookup\"]");
         assertThat(store.getDetailsJson()).contains("\"defaultConversationMode\":\"thinker_deep\"");
         assertThat(store.getDetailsJson()).contains("\"allowedConversationModes\":[\"thinker_deep\",\"executor\"]");

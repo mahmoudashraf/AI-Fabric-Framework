@@ -82,6 +82,7 @@ class ShopifyStorefrontControllerTest {
             true,
             true,
             false,
+            "violet",
             "navigator",
             "navigator",
             List.of("navigator"),
@@ -121,6 +122,7 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.billingTier").value("FREE"))
             .andExpect(jsonPath("$.chatFallbackEnabled").value(false))
             .andExpect(jsonPath("$.shellModeProfile").value("SHOPIFY_COMPANION"))
+            .andExpect(jsonPath("$.colorScheme").value("violet"))
             .andExpect(jsonPath("$.defaultConversationMode").value("navigator"))
             .andExpect(jsonPath("$.effectiveConversationMode").value("navigator"))
             .andExpect(jsonPath("$.allowedConversationModes[0]").value("navigator"))

@@ -92,6 +92,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.chatFallbackEnabled()).isFalse();
         assertThat(response.assistantDockEnabled()).isTrue();
         assertThat(response.askAssistantLauncherEnabled()).isFalse();
+        assertThat(response.colorScheme()).isEqualTo("violet");
         assertThat(response.launcherLabel()).isEqualTo("Need help?");
         assertThat(response.welcomeMessage()).isEqualTo("Ask me about products and store policies.");
         assertThat(response.enabledSurfaces()).containsExactly("ai-search");
@@ -437,7 +438,10 @@ class ShopifyStorefrontBootstrapServiceTest {
                     List.of("ai-search", "comparison"),
                     "navigator",
                     List.of("navigator", "executor"),
-                    Map.of("account", "executor")
+                    Map.of("account", "executor"),
+                    true,
+                    false,
+                    "violet"
                 )
             ),
             null,

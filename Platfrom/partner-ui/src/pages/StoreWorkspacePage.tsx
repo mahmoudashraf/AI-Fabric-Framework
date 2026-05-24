@@ -84,6 +84,14 @@ const STOREFRONT_SURFACES = [
 
 const CONVERSATION_MODES = ['navigator', 'navigator_deep', 'cart_assistant', 'executor']
 
+const WIDGET_COLOR_SCHEMES = [
+  { label: 'Graphite', value: 'graphite', color: '#111827' },
+  { label: 'Violet', value: 'violet', color: '#6d5dfc' },
+  { label: 'Blue', value: 'blue', color: '#2563eb' },
+  { label: 'Emerald', value: 'emerald', color: '#059669' },
+  { label: 'Rose', value: 'rose', color: '#e11d48' },
+]
+
 const SOURCE_CATEGORIES = [
   { key: 'productsEnabled', label: 'Products' },
   { key: 'collectionsEnabled', label: 'Collections' },
@@ -299,6 +307,11 @@ function toggleValue(values: string[], value: string) {
 
 function uniqueStrings(values: string[]) {
   return Array.from(new Set(values.filter((value) => value.trim().length > 0)))
+}
+
+function normalizeWidgetColorScheme(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase()
+  return WIDGET_COLOR_SCHEMES.some((scheme) => scheme.value === normalized) ? normalized! : 'graphite'
 }
 
 function trimNullable(value: string) {
@@ -540,6 +553,7 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
   const [launcherLabel, setLauncherLabel] = useState('')
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const [shellModeProfile, setShellModeProfile] = useState('SHOPIFY_COMPANION')
+  const [colorScheme, setColorScheme] = useState('graphite')
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [assistantDockEnabled, setAssistantDockEnabled] = useState(true)
   const [askAssistantLauncherEnabled, setAskAssistantLauncherEnabled] = useState(false)
@@ -573,6 +587,7 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
     setLauncherLabel(controls.widgetSettings.launcherLabel)
     setWelcomeMessage(controls.widgetSettings.welcomeMessage)
     setShellModeProfile(controls.widgetSettings.shellModeProfile)
+    setColorScheme(normalizeWidgetColorScheme(controls.widgetSettings.colorScheme))
     setDebugEnabled(controls.widgetSettings.debugEnabled ?? false)
     setAssistantDockEnabled(controls.widgetSettings.assistantDockEnabled ?? true)
     setAskAssistantLauncherEnabled(controls.widgetSettings.askAssistantLauncherEnabled ?? false)
@@ -608,6 +623,7 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
       launcherLabel,
       welcomeMessage,
       shellModeProfile,
+      colorScheme,
       debugEnabled,
       assistantDockEnabled,
       askAssistantLauncherEnabled,
@@ -697,9 +713,35 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
               <TextField select label="Shell profile" value={shellModeProfile} onChange={(event) => setShellModeProfile(event.target.value)} disabled={!canChangeWidget || widgetMutation.isPending}>
                 {['SHOPIFY_COMPANION', 'GUIDED_COMMERCE', 'GUIDED_SUPPORT'].map((profile) => <MenuItem key={profile} value={profile}>{titleize(profile)}</MenuItem>)}
               </TextField>
+              <TextField select label="Color scheme" value={colorScheme} onChange={(event) => setColorScheme(normalizeWidgetColorScheme(event.target.value))} disabled={!canChangeWidget || widgetMutation.isPending}>
+                {WIDGET_COLOR_SCHEMES.map((scheme) => <MenuItem key={scheme.value} value={scheme.value}>{scheme.label}</MenuItem>)}
+              </TextField>
               <TextField select label="Default mode" value={defaultConversationMode} onChange={(event) => setDefaultConversationMode(event.target.value)} disabled={!canChangeWidget || widgetMutation.isPending}>
                 {CONVERSATION_MODES.map((mode) => <MenuItem key={mode} value={mode}>{titleize(mode)}</MenuItem>)}
               </TextField>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              {WIDGET_COLOR_SCHEMES.map((scheme) => (
+                <Box
+                  key={scheme.value}
+                  component="button"
+                  type="button"
+                  aria-label={`Use ${scheme.label} color scheme`}
+                  onClick={() => setColorScheme(scheme.value)}
+                  disabled={!canChangeWidget || widgetMutation.isPending}
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '999px',
+                    border: colorScheme === scheme.value ? '3px solid #111827' : '1px solid #cbd5e1',
+                    backgroundColor: scheme.color,
+                    cursor: canChangeWidget && !widgetMutation.isPending ? 'pointer' : 'not-allowed',
+                  }}
+                />
+              ))}
+              <Typography variant="caption" color="text.secondary">
+                {WIDGET_COLOR_SCHEMES.find((scheme) => scheme.value === colorScheme)?.label ?? 'Graphite'} accents on Max Mode and the storefront dock.
+              </Typography>
             </Box>
             <FormControlLabel
               control={<Checkbox checked={debugEnabled} onChange={(event) => setDebugEnabled(event.target.checked)} />}

@@ -211,6 +211,7 @@ export function useChatFlow({
           if (item.data.content) contentParts.push(item.data.content);
           if (item.data.price) contentParts.push(`Price: ${item.data.price} ${item.data.currency || "USD"}`);
           if (item.data.category) contentParts.push(`Category: ${item.data.category}`);
+          if (item.data.availability) contentParts.push(`Availability: ${item.data.availability}`);
           if (item.data.status) contentParts.push(`Status: ${item.data.status}`);
           if (item.data.orderId) contentParts.push(`Order ID: ${item.data.orderId}`);
           if (item.data.orderNumber) contentParts.push(`Order #${item.data.orderNumber}`);
@@ -237,6 +238,7 @@ export function useChatFlow({
             name: item.data.name,
             title: item.data.title,
             price: item.data.price,
+            availability: item.data.availability,
             product_variant_id: item.data.product_variant_id,
             firstAvailableVariantTitle: item.data.firstAvailableVariantTitle,
             totalPrice: item.data.totalPrice,

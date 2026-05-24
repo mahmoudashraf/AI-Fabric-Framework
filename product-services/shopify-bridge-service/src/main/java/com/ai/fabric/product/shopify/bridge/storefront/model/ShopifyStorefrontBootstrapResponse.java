@@ -23,6 +23,7 @@ public record ShopifyStorefrontBootstrapResponse(
     boolean debugEnabled,
     boolean assistantDockEnabled,
     boolean askAssistantLauncherEnabled,
+    String colorScheme,
     String defaultConversationMode,
     String effectiveConversationMode,
     List<String> allowedConversationModes,

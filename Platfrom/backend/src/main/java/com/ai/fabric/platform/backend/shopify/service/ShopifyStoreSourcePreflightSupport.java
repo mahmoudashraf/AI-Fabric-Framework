@@ -29,6 +29,7 @@ public class ShopifyStoreSourcePreflightSupport {
     private static final boolean DEFAULT_DEBUG_ENABLED = false;
     private static final boolean DEFAULT_ASSISTANT_DOCK_ENABLED = true;
     private static final boolean DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED = false;
+    private static final String DEFAULT_COLOR_SCHEME = "graphite";
     private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
         "ai-search",
@@ -142,7 +143,8 @@ public class ShopifyStoreSourcePreflightSupport {
                             ? DEFAULT_PAGE_MODE_MAPPINGS
                             : readStringMap(settings.get("pageModeMappings")),
                         settings.path("assistantDockEnabled").asBoolean(DEFAULT_ASSISTANT_DOCK_ENABLED),
-                        settings.path("askAssistantLauncherEnabled").asBoolean(DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED)
+                        settings.path("askAssistantLauncherEnabled").asBoolean(DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED),
+                        text(settings, "colorScheme") == null ? DEFAULT_COLOR_SCHEME : text(settings, "colorScheme")
                     )
                     : new ShopifyStoreWidgetSettingsSummary(
                         DEFAULT_LAUNCHER_LABEL,
@@ -154,7 +156,8 @@ public class ShopifyStoreSourcePreflightSupport {
                         DEFAULT_ALLOWED_CONVERSATION_MODES,
                         DEFAULT_PAGE_MODE_MAPPINGS,
                         DEFAULT_ASSISTANT_DOCK_ENABLED,
-                        DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED
+                        DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED,
+                        DEFAULT_COLOR_SCHEME
                     )
             );
         } catch (Exception ex) {

@@ -37,6 +37,7 @@ public class ShopifyStorefrontBootstrapService {
     private static final boolean DEFAULT_DEBUG_ENABLED = false;
     private static final boolean DEFAULT_ASSISTANT_DOCK_ENABLED = true;
     private static final boolean DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED = false;
+    private static final String DEFAULT_COLOR_SCHEME = "graphite";
     private static final String BASE_NAVIGATOR_CONVERSATION_MODE = "navigator";
     private static final String THINKER_CONVERSATION_MODE = "thinker_deep";
     private static final String RESOLVER_CONVERSATION_MODE = "executor";
@@ -53,6 +54,13 @@ public class ShopifyStorefrontBootstrapService {
     private static final Set<String> ACTION_CONVERSATION_MODES = Set.of(
         "cart_assistant",
         "executor"
+    );
+    private static final Set<String> ALLOWED_COLOR_SCHEMES = Set.of(
+        "graphite",
+        "violet",
+        "blue",
+        "emerald",
+        "rose"
     );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
@@ -144,6 +152,9 @@ public class ShopifyStorefrontBootstrapService {
         boolean askAssistantLauncherEnabled = updated.widgetDetail() != null
             && updated.widgetDetail().settings() != null
             && Boolean.TRUE.equals(updated.widgetDetail().settings().askAssistantLauncherEnabled());
+        String colorScheme = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            ? normalizeColorScheme(updated.widgetDetail().settings().colorScheme())
+            : DEFAULT_COLOR_SCHEME;
         String configuredDefaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().defaultConversationMode() != null
             && !updated.widgetDetail().settings().defaultConversationMode().isBlank()
@@ -225,6 +236,7 @@ public class ShopifyStorefrontBootstrapService {
             debugEnabled,
             assistantDockEnabled,
             askAssistantLauncherEnabled,
+            colorScheme,
             defaultConversationMode,
             effectiveConversationMode,
             allowedConversationModes,
@@ -278,6 +290,7 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_DEBUG_ENABLED,
             DEFAULT_ASSISTANT_DOCK_ENABLED,
             DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED,
+            DEFAULT_COLOR_SCHEME,
             defaultConversationMode,
             resolveEffectiveConversationMode(
                 pageType,
@@ -482,6 +495,14 @@ public class ShopifyStorefrontBootstrapService {
             normalized.put(key.trim().toLowerCase(Locale.ROOT), normalizedMode);
         });
         return normalized.isEmpty() ? DEFAULT_PAGE_MODE_MAPPINGS : Map.copyOf(normalized);
+    }
+
+    private String normalizeColorScheme(String value) {
+        if (value == null || value.isBlank()) {
+            return DEFAULT_COLOR_SCHEME;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return ALLOWED_COLOR_SCHEMES.contains(normalized) ? normalized : DEFAULT_COLOR_SCHEME;
     }
 
     private Map<String, String> defaultPageModeMappings(List<String> allowedConversationModes) {

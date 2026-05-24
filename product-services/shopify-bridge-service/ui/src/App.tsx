@@ -143,6 +143,7 @@ type WidgetSettingsState = {
   launcherLabel: string
   welcomeMessage: string
   shellModeProfile: string
+  colorScheme: string
   debugEnabled: boolean
   assistantDockEnabled: boolean
   askAssistantLauncherEnabled: boolean
@@ -177,6 +178,14 @@ const WIDGET_SURFACE_OPTIONS = [
   { label: 'FAQ prompts', value: 'product-faq' },
   { label: 'Comparison block', value: 'comparison' },
   { label: 'Elite order lookup block', value: 'order-lookup' },
+]
+
+const WIDGET_COLOR_SCHEME_OPTIONS = [
+  { label: 'Graphite', value: 'graphite', color: '#111827' },
+  { label: 'Violet', value: 'violet', color: '#6d5dfc' },
+  { label: 'Blue', value: 'blue', color: '#2563eb' },
+  { label: 'Emerald', value: 'emerald', color: '#059669' },
+  { label: 'Rose', value: 'rose', color: '#e11d48' },
 ]
 
 const STARTER_SURFACE_IDS = [
@@ -253,6 +262,7 @@ function normalizePageModeMappings(values: Record<string, string> | null | undef
 
 function buildWidgetSettingsState(snapshot?: WidgetSettingsSnapshot | null): WidgetSettingsState {
   const shellModeProfile = snapshot?.shellModeProfile ?? 'SHOPIFY_COMPANION'
+  const colorScheme = normalizeColorScheme(snapshot?.colorScheme)
   const defaultConversationMode =
     snapshot?.defaultConversationMode ?? defaultConversationModeForShellProfile(shellModeProfile)
   const allowedConversationModes = normalizeAllowedConversationModes(
@@ -264,6 +274,7 @@ function buildWidgetSettingsState(snapshot?: WidgetSettingsSnapshot | null): Wid
     welcomeMessage:
       snapshot?.welcomeMessage ?? 'Store assistant is ready. Ask about products, policies, or collections.',
     shellModeProfile,
+    colorScheme,
     debugEnabled: snapshot?.debugEnabled === true,
     assistantDockEnabled: snapshot?.assistantDockEnabled !== false,
     askAssistantLauncherEnabled: snapshot?.askAssistantLauncherEnabled === true,
@@ -272,6 +283,11 @@ function buildWidgetSettingsState(snapshot?: WidgetSettingsSnapshot | null): Wid
     pageModeMappings: normalizePageModeMappings(snapshot?.pageModeMappings, allowedConversationModes),
     enabledSurfaces: snapshot?.enabledSurfaces?.length ? [...snapshot.enabledSurfaces] : [...DEFAULT_WIDGET_SURFACES],
   }
+}
+
+function normalizeColorScheme(value: string | null | undefined): string {
+  const normalized = value?.trim().toLowerCase()
+  return WIDGET_COLOR_SCHEME_OPTIONS.some((option) => option.value === normalized) ? normalized! : 'graphite'
 }
 
 function buildVectorizationPolicyDraft(summary: ShopifyBridgeStoreVectorizationSummary | null): VectorizationPolicyDraft | null {
@@ -1171,6 +1187,7 @@ export default function App() {
         persisted.launcherLabel !== widgetSettings.launcherLabel ||
         persisted.welcomeMessage !== widgetSettings.welcomeMessage ||
         persisted.shellModeProfile !== widgetSettings.shellModeProfile ||
+        persisted.colorScheme !== widgetSettings.colorScheme ||
         persisted.debugEnabled !== widgetSettings.debugEnabled ||
         persisted.assistantDockEnabled !== widgetSettings.assistantDockEnabled ||
         persisted.askAssistantLauncherEnabled !== widgetSettings.askAssistantLauncherEnabled ||
@@ -3327,6 +3344,36 @@ export default function App() {
                     }
                     disabled={billingSummary?.chatFallbackEnabled === false}
                   />
+                  <BlockStack gap="150">
+                    <Select
+                      label="Widget color scheme"
+                      options={WIDGET_COLOR_SCHEME_OPTIONS.map(({ label, value }) => ({ label, value }))}
+                      value={widgetSettings.colorScheme}
+                      onChange={(value) => setWidgetSettings((current) => ({ ...current, colorScheme: normalizeColorScheme(value) }))}
+                      helpText="Applies to the Max Mode assistant accents on the storefront. Content, package gates, and actions are unchanged."
+                    />
+                    <InlineStack gap="150" blockAlign="center">
+                      {WIDGET_COLOR_SCHEME_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-label={`Use ${option.label} color scheme`}
+                          onClick={() => setWidgetSettings((current) => ({ ...current, colorScheme: option.value }))}
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            border: widgetSettings.colorScheme === option.value ? '3px solid #111827' : '1px solid #d0d5dd',
+                            background: option.color,
+                            cursor: 'pointer',
+                          }}
+                        />
+                      ))}
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        {WIDGET_COLOR_SCHEME_OPTIONS.find((option) => option.value === widgetSettings.colorScheme)?.label ?? 'Graphite'}
+                      </Text>
+                    </InlineStack>
+                  </BlockStack>
                   <Checkbox
                     label="Legacy Ask assistant launcher"
                     checked={widgetSettings.askAssistantLauncherEnabled}
@@ -4288,6 +4335,7 @@ type WidgetSettingsSnapshot = {
   launcherLabel?: string | null
   welcomeMessage?: string | null
   shellModeProfile?: string | null
+  colorScheme?: string | null
   debugEnabled?: boolean
   assistantDockEnabled?: boolean | null
   askAssistantLauncherEnabled?: boolean | null

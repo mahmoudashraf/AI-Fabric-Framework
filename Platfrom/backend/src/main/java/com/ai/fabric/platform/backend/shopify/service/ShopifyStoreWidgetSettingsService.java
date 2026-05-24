@@ -34,6 +34,7 @@ public class ShopifyStoreWidgetSettingsService {
     private static final boolean DEFAULT_DEBUG_ENABLED = false;
     private static final boolean DEFAULT_ASSISTANT_DOCK_ENABLED = true;
     private static final boolean DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED = false;
+    private static final String DEFAULT_COLOR_SCHEME = "graphite";
     private static final String DEFAULT_CONVERSATION_MODE = "thinker_deep";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
         "ai-search",
@@ -48,6 +49,13 @@ public class ShopifyStoreWidgetSettingsService {
         "SHOPIFY_COMPANION",
         "GUIDED_COMMERCE",
         "GUIDED_SUPPORT"
+    );
+    private static final Set<String> ALLOWED_COLOR_SCHEMES = Set.of(
+        "graphite",
+        "violet",
+        "blue",
+        "emerald",
+        "rose"
     );
     private static final Set<String> ALLOWED_SURFACES = Set.of(
         "ai-search",
@@ -109,6 +117,7 @@ public class ShopifyStoreWidgetSettingsService {
         boolean askAssistantLauncherEnabled = request.askAssistantLauncherEnabled() != null
             ? request.askAssistantLauncherEnabled()
             : DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED;
+        String colorScheme = normalizeColorScheme(request.colorScheme());
         List<String> enabledSurfaces = normalizeEnabledSurfaces(request.enabledSurfaces());
         String defaultConversationMode = normalizeDefaultConversationMode(request.defaultConversationMode(), shellModeProfile);
         List<String> allowedConversationModes = normalizeAllowedConversationModes(
@@ -130,6 +139,7 @@ public class ShopifyStoreWidgetSettingsService {
         settings.put("debugEnabled", debugEnabled);
         settings.put("assistantDockEnabled", assistantDockEnabled);
         settings.put("askAssistantLauncherEnabled", askAssistantLauncherEnabled);
+        settings.put("colorScheme", colorScheme);
         ArrayNode enabledSurfacesNode = settings.putArray("enabledSurfaces");
         enabledSurfaces.forEach(enabledSurfacesNode::add);
         settings.put("defaultConversationMode", defaultConversationMode);
@@ -154,6 +164,7 @@ public class ShopifyStoreWidgetSettingsService {
                 Map.entry("debugEnabled", Boolean.toString(debugEnabled)),
                 Map.entry("assistantDockEnabled", Boolean.toString(assistantDockEnabled)),
                 Map.entry("askAssistantLauncherEnabled", Boolean.toString(askAssistantLauncherEnabled)),
+                Map.entry("colorScheme", colorScheme),
                 Map.entry("enabledSurfaces", String.join(",", enabledSurfaces)),
                 Map.entry("defaultConversationMode", defaultConversationMode),
                 Map.entry("allowedConversationModes", String.join(",", allowedConversationModes)),
@@ -191,6 +202,14 @@ public class ShopifyStoreWidgetSettingsService {
         String normalized = hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : DEFAULT_SHELL_MODE_PROFILE;
         if (!ALLOWED_SHELL_MODE_PROFILES.contains(normalized)) {
             throw new ResponseStatusException(CONFLICT, "shellModeProfile must be one of " + ALLOWED_SHELL_MODE_PROFILES + ".");
+        }
+        return normalized;
+    }
+
+    private String normalizeColorScheme(String value) {
+        String normalized = hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : DEFAULT_COLOR_SCHEME;
+        if (!ALLOWED_COLOR_SCHEMES.contains(normalized)) {
+            throw new ResponseStatusException(CONFLICT, "colorScheme must be one of " + ALLOWED_COLOR_SCHEMES + ".");
         }
         return normalized;
     }

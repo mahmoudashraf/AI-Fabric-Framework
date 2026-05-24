@@ -209,7 +209,8 @@ public class PartnerEnablementService {
         List.of("navigator"),
         Map.of(),
         Boolean.TRUE,
-        Boolean.FALSE
+        Boolean.FALSE,
+        "graphite"
     );
     private static final String MERCHANT_CONFIGURED_TIER = "MERCHANT_CONFIGURED";
     private static final String FULL_STORE_ACCESS_SCOPE = "FULL_STORE_ACCESS";
@@ -2879,7 +2880,8 @@ public class PartnerEnablementService {
             DEFAULT_WIDGET_SETTINGS.allowedConversationModes(),
             DEFAULT_WIDGET_SETTINGS.pageModeMappings(),
             DEFAULT_WIDGET_SETTINGS.assistantDockEnabled(),
-            DEFAULT_WIDGET_SETTINGS.askAssistantLauncherEnabled()
+            DEFAULT_WIDGET_SETTINGS.askAssistantLauncherEnabled(),
+            DEFAULT_WIDGET_SETTINGS.colorScheme()
         );
     }
 

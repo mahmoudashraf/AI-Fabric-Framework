@@ -13,8 +13,34 @@ public record UpdateShopifyStoreWidgetSettingsRequest(
     List<String> allowedConversationModes,
     Map<String, String> pageModeMappings,
     Boolean assistantDockEnabled,
-    Boolean askAssistantLauncherEnabled
+    Boolean askAssistantLauncherEnabled,
+    String colorScheme
 ) {
+    public UpdateShopifyStoreWidgetSettingsRequest(String launcherLabel,
+                                                   String welcomeMessage,
+                                                   String shellModeProfile,
+                                                   Boolean debugEnabled,
+                                                   List<String> enabledSurfaces,
+                                                   String defaultConversationMode,
+                                                   List<String> allowedConversationModes,
+                                                   Map<String, String> pageModeMappings,
+                                                   Boolean assistantDockEnabled,
+                                                   Boolean askAssistantLauncherEnabled) {
+        this(
+            launcherLabel,
+            welcomeMessage,
+            shellModeProfile,
+            debugEnabled,
+            enabledSurfaces,
+            defaultConversationMode,
+            allowedConversationModes,
+            pageModeMappings,
+            assistantDockEnabled,
+            askAssistantLauncherEnabled,
+            null
+        );
+    }
+
     public UpdateShopifyStoreWidgetSettingsRequest(String launcherLabel,
                                                    String welcomeMessage,
                                                    String shellModeProfile,
@@ -32,6 +58,7 @@ public record UpdateShopifyStoreWidgetSettingsRequest(
             defaultConversationMode,
             allowedConversationModes,
             pageModeMappings,
+            null,
             null,
             null
         );

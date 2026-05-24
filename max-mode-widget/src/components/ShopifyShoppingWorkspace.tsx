@@ -1,4 +1,4 @@
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent, MouseEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -15,6 +15,7 @@ import {
   Home,
   ImageIcon,
   Info,
+  MessageSquarePlus,
   PackageSearch,
   Search,
   ShoppingBag,
@@ -275,6 +276,27 @@ export function ShopifyShoppingWorkspace({
     updateWorkspaceState("cart");
   };
 
+  const isProductAttached = (product: ProductCardModel) => {
+    return controller.isItemAttached(product.source?.id || product.id) || controller.isItemAttached(product.id);
+  };
+
+  const attachProductToChat = (product: ProductCardModel) => {
+    if (product.source) {
+      controller.handleAttachDocument(product.source);
+      return;
+    }
+    const attachment = productToChatAttachment(product);
+    controller.handleAttachActionResultItem(attachment.data);
+  };
+
+  const isCartLineAttached = (item: ShopifyCartSnapshot["items"][number]) => {
+    return controller.isItemAttached(cartLineAttachmentId(item)) || controller.isItemAttached(String(item.id));
+  };
+
+  const attachCartLineToChat = (item: ShopifyCartSnapshot["items"][number]) => {
+    controller.handleAttachActionResultItem(cartLineToChatItem(item));
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -303,6 +325,12 @@ export function ShopifyShoppingWorkspace({
             cart={cart}
             onState={updateWorkspaceState}
             onPrompt={dispatchPrompt}
+            isProductAttached={isProductAttached}
+            onAttachProduct={attachProductToChat}
+            isCartLineAttached={isCartLineAttached}
+            onAttachCartLine={attachCartLineToChat}
+            isDocumentAttached={controller.isItemAttached}
+            onAttachDocument={controller.handleAttachDocument}
             onOpenProduct={(product) => {
               if (product.source) controller.openProductDetails(product.source);
               updateWorkspaceState("product");
@@ -318,6 +346,10 @@ export function ShopifyShoppingWorkspace({
             onPrompt={dispatchPrompt}
             onState={updateWorkspaceState}
             onAddVariant={handleAddVariant}
+            isProductAttached={isProductAttached}
+            onAttachProduct={attachProductToChat}
+            isDocumentAttached={controller.isItemAttached}
+            onAttachDocument={controller.handleAttachDocument}
             showStartPage={showDiscoveryHome}
           />
           <ShopifyRightPanel
@@ -332,6 +364,12 @@ export function ShopifyShoppingWorkspace({
             productsLoading={storefrontProductsLoading && products.length === 0}
             onState={updateWorkspaceState}
             onPrompt={dispatchPrompt}
+            isProductAttached={isProductAttached}
+            onAttachProduct={attachProductToChat}
+            isCartLineAttached={isCartLineAttached}
+            onAttachCartLine={attachCartLineToChat}
+            isDocumentAttached={controller.isItemAttached}
+            onAttachDocument={controller.handleAttachDocument}
             onOpenProduct={(product) => {
               if (product.source) controller.openProductDetails(product.source);
               updateWorkspaceState("product");
@@ -354,6 +392,10 @@ export function ShopifyShoppingWorkspace({
           onPrompt={dispatchPrompt}
           onState={updateWorkspaceState}
           onAddVariant={handleAddVariant}
+          isProductAttached={isProductAttached}
+          onAttachProduct={attachProductToChat}
+          isDocumentAttached={controller.isItemAttached}
+          onAttachDocument={controller.handleAttachDocument}
           onStartPage={openStartPage}
           showStartPage={showDiscoveryHome}
         />
@@ -442,6 +484,12 @@ function ShopifyLeftRail({
   cart,
   onState,
   onPrompt,
+  isProductAttached,
+  onAttachProduct,
+  isCartLineAttached,
+  onAttachCartLine,
+  isDocumentAttached,
+  onAttachDocument,
   onOpenProduct,
 }: {
   state: ShopifyWorkspaceState;
@@ -451,6 +499,12 @@ function ShopifyLeftRail({
   cart: ShopifyCartSnapshot | null;
   onState: (state: ShopifyWorkspaceState) => void;
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  isProductAttached: (product: ProductCardModel) => boolean;
+  onAttachProduct: (product: ProductCardModel) => void;
+  isCartLineAttached: (item: ShopifyCartSnapshot["items"][number]) => boolean;
+  onAttachCartLine: (item: ShopifyCartSnapshot["items"][number]) => void;
+  isDocumentAttached: (itemId: string) => boolean;
+  onAttachDocument: (doc: Document) => void;
   onOpenProduct: (product: ProductCardModel) => void;
 }) {
   return (
@@ -471,7 +525,12 @@ function ShopifyLeftRail({
         </RailSection>
       ) : state === "product" && spotlight ? (
         <RailSection title="About this product">
-          <ProductRailCard product={spotlight} onOpen={() => onOpenProduct(spotlight)} />
+          <ProductRailCard
+            product={spotlight}
+            onOpen={() => onOpenProduct(spotlight)}
+            isAttached={isProductAttached(spotlight)}
+            onAttach={() => onAttachProduct(spotlight)}
+          />
           <button
             onClick={() => onPrompt(`Compare ${spotlight.title} with similar options.`, "search", "thinker_deep")}
             className="w-full rounded-2xl border border-indigo-200 bg-white px-4 py-3 text-sm font-bold text-indigo-600"
@@ -482,7 +541,14 @@ function ShopifyLeftRail({
       ) : state === "comparison" ? (
         <RailSection title="Comparing">
           {(products.length ? products.slice(0, 3) : spotlight ? [spotlight] : []).map((product) => (
-            <SelectableProductCard key={product.id} product={product} selected onClick={() => onOpenProduct(product)} />
+            <SelectableProductCard
+              key={product.id}
+              product={product}
+              selected
+              onClick={() => onOpenProduct(product)}
+              isAttached={isProductAttached(product)}
+              onAttach={() => onAttachProduct(product)}
+            />
           ))}
           <button
             onClick={() => onPrompt("Add another product to this comparison.", "search", "thinker_deep")}
@@ -508,22 +574,37 @@ function ShopifyLeftRail({
             </button>
           ))}
           {policyDocs.slice(0, 3).map((doc) => (
-            <div key={doc.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="line-clamp-1 text-sm font-bold">{doc.title}</div>
-              <p className="mt-1 line-clamp-3 text-xs text-slate-500">{doc.content}</p>
-            </div>
+            <PolicyMiniCard
+              key={doc.id}
+              doc={doc}
+              isAttached={isDocumentAttached(doc.id)}
+              onAttach={() => onAttachDocument(doc)}
+            />
           ))}
         </RailSection>
       ) : state === "cart" ? (
         <RailSection title="Your picks">
           {cart?.items?.length ? (
-            cart.items.slice(0, 4).map((item) => <CartLineCard key={`${item.id}-${item.quantity}`} item={item} />)
+            cart.items.slice(0, 4).map((item) => (
+              <CartLineCard
+                key={`${item.id}-${item.quantity}`}
+                item={item}
+                isAttached={isCartLineAttached(item)}
+                onAttach={() => onAttachCartLine(item)}
+              />
+            ))
           ) : (
             <EmptyRailCard title="Cart is ready" body="Ask for a product or choose an item to start building your cart." />
           )}
           <RailSection title="You might also like" nested>
             {products.slice(0, 2).map((product) => (
-              <SelectableProductCard key={product.id} product={product} onClick={() => onOpenProduct(product)} />
+              <SelectableProductCard
+                key={product.id}
+                product={product}
+                onClick={() => onOpenProduct(product)}
+                isAttached={isProductAttached(product)}
+                onAttach={() => onAttachProduct(product)}
+              />
             ))}
           </RailSection>
         </RailSection>
@@ -580,6 +661,10 @@ function ShopifyConversationColumn({
   onPrompt,
   onState,
   onAddVariant,
+  isProductAttached,
+  onAttachProduct,
+  isDocumentAttached,
+  onAttachDocument,
   showStartPage,
 }: {
   controller: MaxModeController;
@@ -591,6 +676,10 @@ function ShopifyConversationColumn({
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
   onState: (state: ShopifyWorkspaceState) => void;
   onAddVariant: (product: ProductCardModel) => Promise<void>;
+  isProductAttached: (product: ProductCardModel) => boolean;
+  onAttachProduct: (product: ProductCardModel) => void;
+  isDocumentAttached: (itemId: string) => boolean;
+  onAttachDocument: (doc: Document) => void;
   showStartPage: boolean;
 }) {
   const hasMessages = controller.chatMessages.some((message) => message.type === "user");
@@ -606,12 +695,24 @@ function ShopifyConversationColumn({
             onPrompt={onPrompt}
             onState={onState}
             onAddVariant={onAddVariant}
+            isProductAttached={isProductAttached}
+            onAttachProduct={onAttachProduct}
           />
         </div>
       )}
       {!showDiscovery && hasMessages && (
         <div className="absolute inset-x-0 top-0 z-10 px-10 pt-7">
-          <StateSummary state={state} products={products} spotlight={spotlight} policyDocs={policyDocs} onPrompt={onPrompt} />
+          <StateSummary
+            state={state}
+            products={products}
+            spotlight={spotlight}
+            policyDocs={policyDocs}
+            onPrompt={onPrompt}
+            isProductAttached={isProductAttached}
+            onAttachProduct={onAttachProduct}
+            isDocumentAttached={isDocumentAttached}
+            onAttachDocument={onAttachDocument}
+          />
         </div>
       )}
       {!showDiscovery && hasMessages && (
@@ -658,6 +759,12 @@ function ShopifyRightPanel({
   productsLoading,
   onState,
   onPrompt,
+  isProductAttached,
+  onAttachProduct,
+  isCartLineAttached,
+  onAttachCartLine,
+  isDocumentAttached,
+  onAttachDocument,
   onOpenProduct,
   onAddVariant,
 }: {
@@ -672,6 +779,12 @@ function ShopifyRightPanel({
   productsLoading: boolean;
   onState: (state: ShopifyWorkspaceState) => void;
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  isProductAttached: (product: ProductCardModel) => boolean;
+  onAttachProduct: (product: ProductCardModel) => void;
+  isCartLineAttached: (item: ShopifyCartSnapshot["items"][number]) => boolean;
+  onAttachCartLine: (item: ShopifyCartSnapshot["items"][number]) => void;
+  isDocumentAttached: (itemId: string) => boolean;
+  onAttachDocument: (doc: Document) => void;
   onOpenProduct: (product: ProductCardModel) => void;
   onAddVariant: (product: ProductCardModel) => Promise<void>;
 }) {
@@ -680,19 +793,38 @@ function ShopifyRightPanel({
       {state === "policy" ? (
         <RightPanelSection title="Policy details">
           {policyDocs.length ? (
-            policyDocs.slice(0, 3).map((doc) => <PolicyCard key={doc.id} doc={doc} />)
+            policyDocs.slice(0, 3).map((doc) => (
+              <PolicyCard
+                key={doc.id}
+                doc={doc}
+                isAttached={isDocumentAttached(doc.id)}
+                onAttach={() => onAttachDocument(doc)}
+              />
+            ))
           ) : (
             <EmptyRailCard title="No policy sources yet" body="Ask a policy question and indexed store documents will appear here when returned." />
           )}
         </RightPanelSection>
       ) : state === "cart" ? (
         <RightPanelSection title="Cart summary">
-          <CartSummary cart={cart} cartError={cartError} />
+          <CartSummary
+            cart={cart}
+            cartError={cartError}
+            isCartLineAttached={isCartLineAttached}
+            onAttachCartLine={onAttachCartLine}
+          />
           {products.length > 0 && (
             <RightPanelSection title="Also consider" nested>
               <div className="grid grid-cols-2 gap-3">
                 {products.slice(0, 4).map((product) => (
-                  <MiniProductCard key={product.id} product={product} onClick={() => onAddVariant(product)} actionLabel="Add" />
+                  <MiniProductCard
+                    key={product.id}
+                    product={product}
+                    onClick={() => onAddVariant(product)}
+                    actionLabel="Add"
+                    isAttached={isProductAttached(product)}
+                    onAttach={() => onAttachProduct(product)}
+                  />
                 ))}
               </div>
             </RightPanelSection>
@@ -700,11 +832,22 @@ function ShopifyRightPanel({
         </RightPanelSection>
       ) : state === "comparison" ? (
         <RightPanelSection title="Comparison">
-          <ComparisonCard products={products} onOpenProduct={onOpenProduct} />
+          <ComparisonCard
+            products={products}
+            onOpenProduct={onOpenProduct}
+            isProductAttached={isProductAttached}
+            onAttachProduct={onAttachProduct}
+          />
         </RightPanelSection>
       ) : spotlight ? (
         <RightPanelSection title={state === "product" ? "Product gallery" : "Product spotlight"}>
-          <SpotlightCard product={spotlight} onOpenProduct={() => onOpenProduct(spotlight)} onAddVariant={() => onAddVariant(spotlight)} />
+          <SpotlightCard
+            product={spotlight}
+            onOpenProduct={() => onOpenProduct(spotlight)}
+            onAddVariant={() => onAddVariant(spotlight)}
+            isAttached={isProductAttached(spotlight)}
+            onAttach={() => onAttachProduct(spotlight)}
+          />
           <button
             onClick={() => {
               onState("comparison");
@@ -718,7 +861,13 @@ function ShopifyRightPanel({
             <RightPanelSection title="Trending" nested>
               <div className="grid grid-cols-2 gap-3">
                 {products.slice(0, 4).map((product) => (
-                  <MiniProductCard key={product.id} product={product} onClick={() => onOpenProduct(product)} />
+                  <MiniProductCard
+                    key={product.id}
+                    product={product}
+                    onClick={() => onOpenProduct(product)}
+                    isAttached={isProductAttached(product)}
+                    onAttach={() => onAttachProduct(product)}
+                  />
                 ))}
               </div>
             </RightPanelSection>
@@ -746,6 +895,8 @@ function ShopifyRightPanel({
                 key={`${doc.messageId || "source"}-${doc.id}`}
                 doc={doc}
                 product={resolveSourceProduct(doc, sourceProducts)}
+                isAttached={isDocumentAttached(doc.id)}
+                onAttach={() => onAttachDocument(doc)}
               />
             ))}
           </div>
@@ -767,6 +918,10 @@ function ShopifyMobileWorkspace({
   onPrompt,
   onState,
   onAddVariant,
+  isProductAttached,
+  onAttachProduct,
+  isDocumentAttached,
+  onAttachDocument,
   onStartPage,
   showStartPage,
 }: {
@@ -781,6 +936,10 @@ function ShopifyMobileWorkspace({
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
   onState: (state: ShopifyWorkspaceState) => void;
   onAddVariant: (product: ProductCardModel) => Promise<void>;
+  isProductAttached: (product: ProductCardModel) => boolean;
+  onAttachProduct: (product: ProductCardModel) => void;
+  isDocumentAttached: (itemId: string) => boolean;
+  onAttachDocument: (doc: Document) => void;
   onStartPage: () => void;
   showStartPage: boolean;
 }) {
@@ -831,23 +990,34 @@ function ShopifyMobileWorkspace({
               {(products.length ? products.slice(0, 4) : COLLECTIONS).map((item: any) => {
                 const product = "title" in item ? (item as ProductCardModel) : null;
                 return (
-                  <button
-                    key={product?.id ?? item.label}
-                    onClick={() => {
-                      if (product) {
-                        onState("product");
-                        if (product.source) controller.openProductDetails(product.source);
-                      } else {
-                        onState("browsing");
-                        onPrompt(item.query, "search", "thinker_deep");
-                      }
-                    }}
-                    className="rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm"
-                  >
-                    <ProductVisual product={product ?? undefined} className="mb-3 h-20" />
-                    <div className="line-clamp-2 text-sm font-extrabold">{product?.title ?? item.label}</div>
-                    {product?.price && <div className="text-sm font-bold text-slate-700">{product.price}</div>}
-                  </button>
+                  <div key={product?.id ?? item.label} className="relative rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    {product && (
+                      <AttachToChatButton
+                        isAttached={isProductAttached(product)}
+                        onAttach={(event) => {
+                          onAttachProduct(product);
+                        }}
+                        compact
+                        className="absolute right-2 top-2 z-10"
+                      />
+                    )}
+                    <button
+                      onClick={() => {
+                        if (product) {
+                          onState("product");
+                          if (product.source) controller.openProductDetails(product.source);
+                        } else {
+                          onState("browsing");
+                          onPrompt(item.query, "search", "thinker_deep");
+                        }
+                      }}
+                      className="block w-full p-3 text-left"
+                    >
+                      <ProductVisual product={product ?? undefined} className="mb-3 h-20" />
+                      <div className="line-clamp-2 text-sm font-extrabold">{product?.title ?? item.label}</div>
+                      {product?.price && <div className="text-sm font-bold text-slate-700">{product.price}</div>}
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -870,6 +1040,8 @@ function ShopifyMobileWorkspace({
                   if (spotlight.source) controller.openProductDetails(spotlight.source);
                 }}
                 onAddVariant={() => onAddVariant(spotlight)}
+                isAttached={isProductAttached(spotlight)}
+                onAttach={() => onAttachProduct(spotlight)}
                 compact
               />
             )}
@@ -904,7 +1076,14 @@ function ShopifyMobileWorkspace({
           />
         )}
 
-        {state === "policy" && policyDocs.length > 0 && policyDocs.slice(0, 1).map((doc) => <PolicyCard key={doc.id} doc={doc} />)}
+        {state === "policy" && policyDocs.length > 0 && policyDocs.slice(0, 1).map((doc) => (
+          <PolicyCard
+            key={doc.id}
+            doc={doc}
+            isAttached={isDocumentAttached(doc.id)}
+            onAttach={() => onAttachDocument(doc)}
+          />
+        ))}
       </div>
       <MaxModeComposerBar controller={controller} />
       <MaxModeCollectionAnimation collectingItem={controller.collectingItem} />
@@ -920,6 +1099,8 @@ function DiscoveryHero({
   onPrompt,
   onState,
   onAddVariant,
+  isProductAttached,
+  onAttachProduct,
 }: {
   storeName: string;
   products: ProductCardModel[];
@@ -927,6 +1108,8 @@ function DiscoveryHero({
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
   onState: (state: ShopifyWorkspaceState) => void;
   onAddVariant: (product: ProductCardModel) => Promise<void>;
+  isProductAttached: (product: ProductCardModel) => boolean;
+  onAttachProduct: (product: ProductCardModel) => void;
 }) {
   return (
     <div className="mx-auto max-w-2xl rounded-[2rem] bg-slate-100 p-7 shadow-sm">
@@ -953,13 +1136,26 @@ function DiscoveryHero({
       </div>
       {spotlight && (
         <div className="mt-6">
-          <SpotlightCard product={spotlight} onOpenProduct={() => onState("product")} onAddVariant={() => onAddVariant(spotlight)} compact />
+          <SpotlightCard
+            product={spotlight}
+            onOpenProduct={() => onState("product")}
+            onAddVariant={() => onAddVariant(spotlight)}
+            isAttached={isProductAttached(spotlight)}
+            onAttach={() => onAttachProduct(spotlight)}
+            compact
+          />
         </div>
       )}
       {products.length > 1 && (
         <div className="mt-4 grid grid-cols-3 gap-3">
           {products.slice(0, 3).map((product) => (
-            <MiniProductCard key={product.id} product={product} onClick={() => onState("browsing")} />
+            <MiniProductCard
+              key={product.id}
+              product={product}
+              onClick={() => onState("browsing")}
+              isAttached={isProductAttached(product)}
+              onAttach={() => onAttachProduct(product)}
+            />
           ))}
         </div>
       )}
@@ -973,20 +1169,36 @@ function StateSummary({
   spotlight,
   policyDocs,
   onPrompt,
+  isProductAttached,
+  onAttachProduct,
+  isDocumentAttached,
+  onAttachDocument,
 }: {
   state: ShopifyWorkspaceState;
   products: ProductCardModel[];
   spotlight: ProductCardModel | null;
   policyDocs: Document[];
   onPrompt: (query: string, position: MaxModePosition, mode: MaxModeMode) => void;
+  isProductAttached: (product: ProductCardModel) => boolean;
+  onAttachProduct: (product: ProductCardModel) => void;
+  isDocumentAttached: (itemId: string) => boolean;
+  onAttachDocument: (doc: Document) => void;
 }) {
   if (state === "comparison" && products.length > 1) {
-    return <ComparisonCard products={products} compact />;
+    return <ComparisonCard products={products} compact isProductAttached={isProductAttached} onAttachProduct={onAttachProduct} />;
   }
   if (state === "product" && spotlight) {
     return (
       <div className="mx-auto max-w-2xl rounded-3xl bg-slate-100 p-5">
-        <div className="flex gap-4">
+        <div className="relative flex gap-4">
+          <AttachToChatButton
+            isAttached={isProductAttached(spotlight)}
+            onAttach={(event) => {
+              event.stopPropagation();
+              onAttachProduct(spotlight);
+            }}
+            className="absolute right-0 top-0 z-10"
+          />
           <ProductVisual product={spotlight} className="h-24 w-28 shrink-0" />
           <div className="min-w-0">
             <div className="text-lg font-extrabold">{spotlight.title}</div>
@@ -1011,7 +1223,14 @@ function StateSummary({
     );
   }
   if (state === "policy" && policyDocs.length > 0) {
-    return <PolicyCard doc={policyDocs[0]} compact />;
+    return (
+      <PolicyCard
+        doc={policyDocs[0]}
+        compact
+        isAttached={isDocumentAttached(policyDocs[0].id)}
+        onAttach={() => onAttachDocument(policyDocs[0])}
+      />
+    );
   }
   if (products.length > 0) {
     return (
@@ -1022,7 +1241,13 @@ function StateSummary({
         </div>
         <div className="grid grid-cols-3 gap-3">
           {products.slice(0, 3).map((product) => (
-            <MiniProductCard key={product.id} product={product} onClick={() => onPrompt(`Tell me more about ${product.title}.`, "catalog", "thinker_deep")} />
+            <MiniProductCard
+              key={product.id}
+              product={product}
+              onClick={() => onPrompt(`Tell me more about ${product.title}.`, "catalog", "thinker_deep")}
+              isAttached={isProductAttached(product)}
+              onAttach={() => onAttachProduct(product)}
+            />
           ))}
         </div>
       </div>
@@ -1081,15 +1306,58 @@ function FilterGroup({ title, values, selected }: { title: string; values: strin
   );
 }
 
-function ProductRailCard({ product, onOpen }: { product: ProductCardModel; onOpen: () => void }) {
+function AttachToChatButton({
+  isAttached = false,
+  onAttach,
+  compact = false,
+  className = "",
+}: {
+  isAttached?: boolean;
+  onAttach: (event: MouseEvent<HTMLButtonElement>) => void;
+  compact?: boolean;
+  className?: string;
+}) {
   return (
-    <button onClick={onOpen} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm">
-      <ProductVisual product={product} className="mb-3 h-28" />
-      <div className="line-clamp-2 text-lg font-extrabold">{product.title}</div>
-      {product.compareAtPrice && <div className="text-sm text-slate-400 line-through">{product.compareAtPrice}</div>}
-      {product.price && <div className="text-2xl font-extrabold">{product.price}</div>}
-      <AvailabilityLabel value={product.availability} />
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onAttach(event);
+      }}
+      aria-label={isAttached ? "Already attached to AI chat" : "Attach to AI chat"}
+      title={isAttached ? "Already attached to AI chat" : "Attach to AI chat"}
+      className={`inline-flex items-center justify-center rounded-full border border-white/80 shadow-lg transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+        compact ? "h-8 w-8" : "h-10 w-10"
+      } ${isAttached ? "bg-emerald-500 text-white" : "bg-indigo-600 text-white hover:bg-indigo-700"} ${className}`}
+    >
+      {isAttached ? <Check className={compact ? "h-4 w-4" : "h-5 w-5"} /> : <MessageSquarePlus className={compact ? "h-4 w-4" : "h-5 w-5"} />}
     </button>
+  );
+}
+
+function ProductRailCard({
+  product,
+  onOpen,
+  isAttached = false,
+  onAttach,
+}: {
+  product: ProductCardModel;
+  onOpen: () => void;
+  isAttached?: boolean;
+  onAttach?: () => void;
+}) {
+  return (
+    <div className="relative rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} compact className="absolute right-3 top-3 z-10" />}
+      <button onClick={onOpen} className="block w-full p-4 text-left">
+        <ProductVisual product={product} className="mb-3 h-28" />
+        <div className="line-clamp-2 text-lg font-extrabold">{product.title}</div>
+        {product.compareAtPrice && <div className="text-sm text-slate-400 line-through">{product.compareAtPrice}</div>}
+        {product.price && <div className="text-2xl font-extrabold">{product.price}</div>}
+        <AvailabilityLabel value={product.availability} />
+      </button>
+    </div>
   );
 }
 
@@ -1098,14 +1366,19 @@ function SpotlightCard({
   onOpenProduct,
   onAddVariant,
   compact = false,
+  isAttached = false,
+  onAttach,
 }: {
   product: ProductCardModel;
   onOpenProduct: () => void;
   onAddVariant: () => void | Promise<void>;
   compact?: boolean;
+  isAttached?: boolean;
+  onAttach?: () => void;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="relative rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} className="absolute right-4 top-4 z-10" compact={compact} />}
       <ProductVisual product={product} className={compact ? "mb-3 h-24" : "mb-4 h-52"} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -1132,23 +1405,29 @@ function SelectableProductCard({
   product,
   selected = false,
   onClick,
+  isAttached = false,
+  onAttach,
 }: {
   product: ProductCardModel;
   selected?: boolean;
   onClick: () => void;
+  isAttached?: boolean;
+  onAttach?: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`w-full rounded-2xl border p-4 text-left shadow-sm ${
+    <div
+      className={`relative rounded-2xl border shadow-sm ${
         selected ? "border-indigo-400 bg-indigo-50" : "border-slate-200 bg-white"
       }`}
     >
-      <ProductVisual product={product} className="mb-3 h-20" />
-      <div className="line-clamp-2 font-extrabold">{product.title}</div>
-      {product.price && <div className="font-bold">{product.price}</div>}
-      {selected && <div className="mt-1 text-sm font-bold text-emerald-600">selected</div>}
-    </button>
+      {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} compact className="absolute right-3 top-3 z-10" />}
+      <button onClick={onClick} className="block w-full p-4 text-left">
+        <ProductVisual product={product} className="mb-3 h-20" />
+        <div className="line-clamp-2 font-extrabold">{product.title}</div>
+        {product.price && <div className="font-bold">{product.price}</div>}
+        {selected && <div className="mt-1 text-sm font-bold text-emerald-600">selected</div>}
+      </button>
+    </div>
   );
 }
 
@@ -1156,18 +1435,25 @@ function MiniProductCard({
   product,
   onClick,
   actionLabel,
+  isAttached = false,
+  onAttach,
 }: {
   product: ProductCardModel;
   onClick: () => void;
   actionLabel?: string;
+  isAttached?: boolean;
+  onAttach?: () => void;
 }) {
   return (
-    <button onClick={onClick} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm">
-      <ProductVisual product={product} className="mb-2 h-20" />
-      <div className="line-clamp-2 text-sm font-extrabold">{product.title}</div>
-      {product.price && <div className="text-sm font-bold">{product.price}</div>}
-      {actionLabel && <div className="mt-2 text-sm font-extrabold text-indigo-600">+ {actionLabel}</div>}
-    </button>
+    <div className="relative min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} compact className="absolute right-2 top-2 z-10" />}
+      <button onClick={onClick} className="block w-full p-3 text-left">
+        <ProductVisual product={product} className="mb-2 h-20" />
+        <div className="line-clamp-2 text-sm font-extrabold">{product.title}</div>
+        {product.price && <div className="text-sm font-bold">{product.price}</div>}
+        {actionLabel && <div className="mt-2 text-sm font-extrabold text-indigo-600">+ {actionLabel}</div>}
+      </button>
+    </div>
   );
 }
 
@@ -1196,10 +1482,46 @@ function AvailabilityLabel({ value }: { value?: string }) {
   );
 }
 
-function PolicyCard({ doc, compact = false }: { doc: Document; compact?: boolean }) {
+function PolicyMiniCard({
+  doc,
+  isAttached = false,
+  onAttach,
+}: {
+  doc: Document;
+  isAttached?: boolean;
+  onAttach?: () => void;
+}) {
   return (
-    <div className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? "mx-auto max-w-2xl p-5" : "p-5"}`}>
-      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
+    <div className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} compact className="absolute right-3 top-3 z-10" />}
+      <div className="flex items-start gap-3 pr-8">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+          <FileText className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="line-clamp-2 text-sm font-extrabold">{doc.title}</div>
+          <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{truncate(doc.content, 180)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PolicyCard({
+  doc,
+  compact = false,
+  isAttached = false,
+  onAttach,
+}: {
+  doc: Document;
+  compact?: boolean;
+  isAttached?: boolean;
+  onAttach?: () => void;
+}) {
+  return (
+    <div className={`relative rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? "mx-auto max-w-2xl p-5" : "p-5"}`}>
+      {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} compact className="absolute right-4 top-4 z-10" />}
+      <div className="mb-3 flex items-center gap-2 pr-10 text-sm font-bold text-slate-500">
         <Info className="h-4 w-4 text-indigo-500" />
         Policy info
       </div>
@@ -1209,7 +1531,17 @@ function PolicyCard({ doc, compact = false }: { doc: Document; compact?: boolean
   );
 }
 
-function SourceEvidenceCard({ doc, product }: { doc: Document; product?: ProductCardModel | null }) {
+function SourceEvidenceCard({
+  doc,
+  product,
+  isAttached = false,
+  onAttach,
+}: {
+  doc: Document;
+  product?: ProductCardModel | null;
+  isAttached?: boolean;
+  onAttach?: () => void;
+}) {
   const score = typeof doc.score === "number" ? doc.score : typeof doc.similarity === "number" ? doc.similarity : null;
   const sourceType = friendlySourceType(String(doc.type || doc.metadata?.vectorSpace || "source"));
   const parsed = parseDocumentContent(doc.content);
@@ -1238,6 +1570,7 @@ function SourceEvidenceCard({ doc, product }: { doc: Document; product?: Product
             {Math.round(score * 100)}%
           </span>
         )}
+        {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} compact className="absolute bottom-3 right-3 z-10" />}
       </div>
       <div className="p-4">
         <h4 className="line-clamp-2 text-sm font-extrabold leading-5 text-slate-950">{title}</h4>
@@ -1268,10 +1601,14 @@ function ComparisonCard({
   products,
   onOpenProduct,
   compact = false,
+  isProductAttached,
+  onAttachProduct,
 }: {
   products: ProductCardModel[];
   onOpenProduct?: (product: ProductCardModel) => void;
   compact?: boolean;
+  isProductAttached?: (product: ProductCardModel) => boolean;
+  onAttachProduct?: (product: ProductCardModel) => void;
 }) {
   const compared = products.slice(0, 2);
   if (compared.length < 2) {
@@ -1281,11 +1618,21 @@ function ComparisonCard({
     <div className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? "mx-auto max-w-2xl p-5" : "p-4"}`}>
       <div className="mb-4 grid grid-cols-2 gap-3">
         {compared.map((product) => (
-          <button key={product.id} onClick={() => onOpenProduct?.(product)} className="rounded-2xl border border-slate-200 p-3 text-left">
-            <ProductVisual product={product} className="mb-2 h-20" />
-            <div className="line-clamp-2 text-sm font-extrabold">{product.title}</div>
-            {product.price && <div className="font-bold">{product.price}</div>}
-          </button>
+          <div key={product.id} className="relative rounded-2xl border border-slate-200">
+            {onAttachProduct && (
+              <AttachToChatButton
+                isAttached={isProductAttached?.(product) ?? false}
+                onAttach={() => onAttachProduct(product)}
+                compact
+                className="absolute right-2 top-2 z-10"
+              />
+            )}
+            <button onClick={() => onOpenProduct?.(product)} className="block w-full p-3 text-left">
+              <ProductVisual product={product} className="mb-2 h-20" />
+              <div className="line-clamp-2 text-sm font-extrabold">{product.title}</div>
+              {product.price && <div className="font-bold">{product.price}</div>}
+            </button>
+          </div>
         ))}
       </div>
       <div className="overflow-hidden rounded-2xl border border-slate-200 text-sm">
@@ -1309,7 +1656,17 @@ function CompareRow({ label, left, right }: { label: string; left: string; right
   );
 }
 
-function CartSummary({ cart, cartError }: { cart: ShopifyCartSnapshot | null; cartError: string | null }) {
+function CartSummary({
+  cart,
+  cartError,
+  isCartLineAttached,
+  onAttachCartLine,
+}: {
+  cart: ShopifyCartSnapshot | null;
+  cartError: string | null;
+  isCartLineAttached?: (item: ShopifyCartSnapshot["items"][number]) => boolean;
+  onAttachCartLine?: (item: ShopifyCartSnapshot["items"][number]) => void;
+}) {
   if (cartError) {
     return <EmptyRailCard title="Cart unavailable" body="The storefront cart could not be loaded in this browser session." />;
   }
@@ -1320,7 +1677,12 @@ function CartSummary({ cart, cartError }: { cart: ShopifyCartSnapshot | null; ca
     <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="space-y-3">
         {cart.items.slice(0, 4).map((item) => (
-          <CartLineCard key={`${item.id}-${item.quantity}`} item={item} />
+          <CartLineCard
+            key={`${item.id}-${item.quantity}`}
+            item={item}
+            isAttached={isCartLineAttached?.(item) ?? false}
+            onAttach={onAttachCartLine ? () => onAttachCartLine(item) : undefined}
+          />
         ))}
       </div>
       <div className="mt-4 border-t border-slate-200 pt-4">
@@ -1340,9 +1702,18 @@ function CartSummary({ cart, cartError }: { cart: ShopifyCartSnapshot | null; ca
   );
 }
 
-function CartLineCard({ item }: { item: ShopifyCartSnapshot["items"][number] }) {
+function CartLineCard({
+  item,
+  isAttached = false,
+  onAttach,
+}: {
+  item: ShopifyCartSnapshot["items"][number];
+  isAttached?: boolean;
+  onAttach?: () => void;
+}) {
   return (
-    <div className="flex gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+    <div className="relative flex gap-3 rounded-2xl border border-slate-200 bg-white p-3 pr-12">
+      {onAttach && <AttachToChatButton isAttached={isAttached} onAttach={() => onAttach()} compact className="absolute right-2 top-2 z-10" />}
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-indigo-100">
         {item.image ? <img src={item.image} alt="" className="h-full w-full object-cover" loading="lazy" /> : <ShoppingCart className="m-5 h-6 w-6" />}
       </div>
@@ -1392,6 +1763,78 @@ function QuickBrowseCard({ onPrompt }: { onPrompt: (ask: (typeof SHOPIFY_QUICK_A
       </div>
     </div>
   );
+}
+
+function productToChatAttachment(product: ProductCardModel) {
+  const productVariantId =
+    stringFrom(product.source?.product_variant_id) ||
+    stringFrom(product.source?.metadata?.product_variant_id) ||
+    stringFrom(product.source?.metadata?.firstAvailableVariantId) ||
+    (product.variantId ? `gid://shopify/ProductVariant/${product.variantId}` : undefined);
+  const metadata: Record<string, unknown> = {
+    title: product.title,
+    price: product.price,
+    availability: product.availability,
+    product_variant_id: productVariantId,
+    url: product.url,
+    imageUrl: product.imageUrl,
+  };
+  Object.keys(metadata).forEach((key) => {
+    if (metadata[key] === undefined || metadata[key] === "") {
+      delete metadata[key];
+    }
+  });
+
+  const data: Record<string, unknown> = {
+    id: product.id,
+    name: product.title,
+    title: product.title,
+    description: product.subtitle,
+    content: product.subtitle,
+    price: product.price,
+    category: "product",
+    availability: product.availability,
+    imageUrl: product.imageUrl,
+    url: product.url,
+    product_variant_id: productVariantId,
+    variantId: product.variantId,
+    metadata,
+  };
+  Object.keys(data).forEach((key) => {
+    if (data[key] === undefined || data[key] === "") {
+      delete data[key];
+    }
+  });
+
+  return { type: "product", data };
+}
+
+function cartLineAttachmentId(item: ShopifyCartSnapshot["items"][number]) {
+  return `cart-line-${item.id}`;
+}
+
+function cartLineToChatItem(item: ShopifyCartSnapshot["items"][number]) {
+  const title = item.product_title || item.title;
+  const data: Record<string, unknown> = {
+    id: cartLineAttachmentId(item),
+    name: title,
+    title,
+    description: [item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : undefined, `Quantity: ${item.quantity}`]
+      .filter(Boolean)
+      .join(" | "),
+    price: formatCents(item.final_line_price),
+    quantity: item.quantity,
+    category: "cart-item",
+    status: "in cart",
+    imageUrl: item.image,
+    url: item.url ? shopifyRoute(item.url) : undefined,
+  };
+  Object.keys(data).forEach((key) => {
+    if (data[key] === undefined || data[key] === "") {
+      delete data[key];
+    }
+  });
+  return data;
 }
 
 function initialWorkspaceState(controller: MaxModeController, pageGroup: string): ShopifyWorkspaceState {

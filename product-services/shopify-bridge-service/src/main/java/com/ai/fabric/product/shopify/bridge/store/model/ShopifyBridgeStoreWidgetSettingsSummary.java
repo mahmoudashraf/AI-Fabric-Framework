@@ -13,8 +13,34 @@ public record ShopifyBridgeStoreWidgetSettingsSummary(
     List<String> allowedConversationModes,
     Map<String, String> pageModeMappings,
     Boolean assistantDockEnabled,
-    Boolean askAssistantLauncherEnabled
+    Boolean askAssistantLauncherEnabled,
+    String colorScheme
 ) {
+    public ShopifyBridgeStoreWidgetSettingsSummary(String launcherLabel,
+                                                   String welcomeMessage,
+                                                   String shellModeProfile,
+                                                   boolean debugEnabled,
+                                                   List<String> enabledSurfaces,
+                                                   String defaultConversationMode,
+                                                   List<String> allowedConversationModes,
+                                                   Map<String, String> pageModeMappings,
+                                                   Boolean assistantDockEnabled,
+                                                   Boolean askAssistantLauncherEnabled) {
+        this(
+            launcherLabel,
+            welcomeMessage,
+            shellModeProfile,
+            debugEnabled,
+            enabledSurfaces,
+            defaultConversationMode,
+            allowedConversationModes,
+            pageModeMappings,
+            assistantDockEnabled,
+            askAssistantLauncherEnabled,
+            "graphite"
+        );
+    }
+
     public ShopifyBridgeStoreWidgetSettingsSummary(String launcherLabel,
                                                    String welcomeMessage,
                                                    String shellModeProfile,
@@ -33,7 +59,8 @@ public record ShopifyBridgeStoreWidgetSettingsSummary(
             allowedConversationModes,
             pageModeMappings,
             Boolean.TRUE,
-            Boolean.FALSE
+            Boolean.FALSE,
+            "graphite"
         );
     }
 }
