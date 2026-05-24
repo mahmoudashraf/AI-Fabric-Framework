@@ -46,6 +46,7 @@ class CommerceCuratedPackTest {
                 "shopify_get_product_details",
                 "shopify_search_policies",
                 "shopify_get_cart",
+                "shopify_get_customer_context_summary",
                 "shopify_get_most_recent_order_status",
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"
@@ -55,6 +56,7 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes().get("executor").getReadActionResolution().getAllowedReadActions())
             .contains(
                 "shopify_get_cart",
+                "shopify_get_customer_context_summary",
                 "shopify_get_most_recent_order_status",
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"
@@ -63,6 +65,7 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes().get("cart_assistant").getReadActionResolution().getAllowedReadActions())
             .contains(
                 "shopify_get_cart",
+                "shopify_get_customer_context_summary",
                 "shopify_get_most_recent_order_status",
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"
@@ -79,6 +82,7 @@ class CommerceCuratedPackTest {
                 "shopify_get_product_details",
                 "shopify_search_policies",
                 "shopify_get_cart",
+                "shopify_get_customer_context_summary",
                 "shopify_get_most_recent_order_status",
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"
@@ -94,6 +98,7 @@ class CommerceCuratedPackTest {
                 "shopify_get_product_details",
                 "shopify_search_policies",
                 "shopify_get_cart",
+                "shopify_get_customer_context_summary",
                 "shopify_get_most_recent_order_status",
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"

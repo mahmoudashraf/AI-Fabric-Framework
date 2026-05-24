@@ -62,6 +62,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         "shopify_get_product_details",
         "shopify_search_policies",
         "shopify_get_cart",
+        "shopify_get_customer_context_summary",
         "shopify_update_cart",
         "shopify_get_most_recent_order_status",
         "shopify_get_order_status",

@@ -47,6 +47,7 @@ ai:
             - shopify_get_product_details
             - shopify_search_policies
             - shopify_get_cart
+            - shopify_get_customer_context_summary
             - shopify_get_most_recent_order_status
             - shopify_get_order_status
             - shopify_get_store_credit_balances
@@ -77,6 +78,7 @@ ai:
           allowed-read-actions:
             - shopify_search_catalog
             - shopify_get_cart
+            - shopify_get_customer_context_summary
             - shopify_get_most_recent_order_status
             - shopify_get_order_status
             - shopify_get_store_credit_balances
@@ -96,6 +98,7 @@ ai:
           allowed-read-actions:
             - shopify_search_catalog
             - shopify_get_cart
+            - shopify_get_customer_context_summary
             - shopify_get_most_recent_order_status
             - shopify_get_order_status
             - shopify_get_store_credit_balances
@@ -126,6 +129,7 @@ ai:
             - shopify_get_product_details
             - shopify_search_policies
             - shopify_get_cart
+            - shopify_get_customer_context_summary
             - shopify_get_most_recent_order_status
             - shopify_get_order_status
             - shopify_get_store_credit_balances
@@ -158,6 +162,7 @@ ai:
             - shopify_get_product_details
             - shopify_search_policies
             - shopify_get_cart
+            - shopify_get_customer_context_summary
             - shopify_get_most_recent_order_status
             - shopify_get_order_status
             - shopify_get_store_credit_balances

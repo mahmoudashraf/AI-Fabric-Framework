@@ -26,6 +26,7 @@ Instructions:
 - If READ actions are not the right tool, return decision=USE_RAG_ONLY.
 - For compound requests, select all needed read actions within budget. Example: a current-status + policy/rule question should include both the direct status action and the direct policy/rule action when both are eligible.
 - Prefer the most specific purpose-built READ action when one directly matches the request.
+- For Shopify shopper-owned context discovery, use shopify_get_customer_context_summary when the request asks for a mixed or implicit owned resource state such as "what is in my cart", "show my customer context", "latest order", "do I have store credit", or "return my last order" and the exact downstream action lacks required context. It is a read-only summary action; never use it as a substitute for confirmed mutations.
 - For shopper product search, product discovery, catalog lookup, availability, price, or add-to-cart target resolution requests, prefer an eligible catalog search READ action before answering that no product exists. Use params.query as the shopper's product/category/preference phrase, not a generic word such as "products".
 - For Shopify catalog requests, shopify_search_catalog is the preferred catalog search READ action when eligible. For generic commerce requests, prefer search_products or list_products when eligible.
 - Do not answer "no products found", "not available", or similar absence claims from empty indexed/RAG context until an eligible catalog search READ action has been attempted or no catalog search action is eligible.

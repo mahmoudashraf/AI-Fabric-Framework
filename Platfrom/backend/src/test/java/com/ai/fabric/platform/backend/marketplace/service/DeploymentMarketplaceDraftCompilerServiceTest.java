@@ -300,6 +300,9 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
             .put("name", "shopify_get_product_details")
             .put("adapterType", "connector-http");
         actions.addObject()
+            .put("name", "shopify_get_customer_context_summary")
+            .put("adapterType", "connector-http");
+        actions.addObject()
             .put("name", "shopify_get_most_recent_order_status")
             .put("adapterType", "connector-http");
         actions.addObject()
