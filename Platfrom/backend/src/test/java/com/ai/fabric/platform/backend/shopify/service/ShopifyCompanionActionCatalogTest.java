@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ShopifyCompanionActionCatalogTest {
@@ -63,5 +65,22 @@ class ShopifyCompanionActionCatalogTest {
         assertThat(changed).isTrue();
         assertThat(action.path("llmFacts").path("copyFields").get(0).asText()).isEqualTo("customField");
         assertThat(action.path("params").findValuesAsText("name")).contains("maxPrice", "availableOnly");
+    }
+
+    @Test
+    void routeActionIdsIncludesManagedCustomerAccountAndCheckoutPlugins() {
+        ObjectNode actionsConfig = JsonNodeFactory.instance.objectNode();
+        var actions = actionsConfig.putArray("actions");
+        actions.addObject()
+            .put("name", "shopify_get_customer_context_summary")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_CUSTOMER_ACCOUNT_MCP_PLUGIN_ID);
+        actions.addObject()
+            .put("name", "shopify_create_checkout")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_CHECKOUT_MCP_PLUGIN_ID);
+
+        Set<String> routeActionIds = ShopifyCompanionActionCatalog.routeActionIds(actionsConfig);
+
+        assertThat(routeActionIds)
+            .contains("shopify_get_customer_context_summary", "shopify_create_checkout");
     }
 }
