@@ -6,6 +6,10 @@ import { Button } from "@/ui/button";
 import type { Document } from "@/types";
 import { formatFieldName, formatFieldValue } from "@/utils";
 
+function documentImageUrl(doc: Document) {
+  return doc.imageUrl || doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image;
+}
+
 export function ProductDetailsView({
   selectedProduct,
   cartEnabled,
@@ -17,6 +21,7 @@ export function ProductDetailsView({
   onAddToCart: (product: Document) => void;
   onAttachProductToChat: (product: Document) => void;
 }) {
+  const imageUrl = documentImageUrl(selectedProduct);
   return (
     <div
       className="flex-1 overflow-y-auto space-y-6"
@@ -25,9 +30,9 @@ export function ProductDetailsView({
         scrollbarColor: "rgba(168, 85, 247, 0.5) rgba(243, 232, 255, 0.2)",
       }}
     >
-      {selectedProduct.metadata?.imageUrl && (
+      {imageUrl && (
         <div className="relative h-80 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-100 to-white">
-          <img src={selectedProduct.metadata.imageUrl} alt={selectedProduct.title} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={selectedProduct.title} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         </div>
       )}
@@ -51,7 +56,7 @@ export function ProductDetailsView({
             <h4 className="font-semibold text-gray-900">Product Details</h4>
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(selectedProduct.metadata).map(([key, value]) => {
-                if (key === "imageUrl") return null;
+                if (key === "imageUrl" || key === "imageAltText" || key === "image_url") return null;
                 return (
                   <div key={key} className="p-3 bg-white/60 rounded-lg border border-purple-200">
                     <p className="text-xs text-gray-500 mb-1">{formatFieldName(key)}</p>

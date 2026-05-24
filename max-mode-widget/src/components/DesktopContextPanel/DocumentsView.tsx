@@ -28,6 +28,10 @@ const getDocumentIcon = (type: string) => {
   }
 };
 
+function documentImageUrl(doc: Document) {
+  return doc.imageUrl || doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image;
+}
+
 export function DocumentsView({
   contextDocuments,
   focusedMessageId,
@@ -82,6 +86,7 @@ export function DocumentsView({
             const DocIcon = getDocumentIcon(doc.type);
             const isFocused = doc.messageId === focusedMessageId;
             const isNewDoc = !viewedDocumentIds.has(doc.id) && newDocuments.some((nd) => nd.id === doc.id);
+            const imageUrl = documentImageUrl(doc);
 
             return (
               <motion.div
@@ -103,10 +108,10 @@ export function DocumentsView({
                         : "border-blue-300 hover:border-blue-500 bg-gradient-to-br from-white via-blue-50/50 to-white"
                   } dark:from-gray-800 dark:to-blue-900/20 overflow-hidden`}
                 >
-                  {doc.metadata?.imageUrl && (
+                  {imageUrl && (
                     <div className="relative h-48 overflow-hidden bg-gradient-to-br from-blue-100 to-white">
                       <img
-                        src={doc.metadata.imageUrl}
+                        src={imageUrl}
                         alt={doc.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                       />
@@ -140,7 +145,7 @@ export function DocumentsView({
                   <CardHeader className="pb-3 relative pt-2">
                     <div className="flex items-start justify-between gap-2 pr-12">
                       <div className="flex items-start gap-3 flex-1">
-                        {!doc.metadata?.imageUrl && (
+                        {!imageUrl && (
                           <motion.div
                             whileHover={{ rotate: [0, -10, 10, -10, 0], scale: 1.1 }}
                             transition={{ duration: 0.5 }}
@@ -197,6 +202,8 @@ export function DocumentsView({
                                 !key.startsWith("_") &&
                                 !key.includes("indexedCreatedAt") &&
                                 key !== "imageUrl" &&
+                                key !== "imageAltText" &&
+                                key !== "image_url" &&
                                 key !== "vectorSpace",
                             )
                             .slice(0, 4)
@@ -241,4 +248,3 @@ export function DocumentsView({
     </div>
   );
 }
-

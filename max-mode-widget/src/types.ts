@@ -112,6 +112,11 @@ export interface Document {
   content: string;
   type: string;
   metadata?: any;
+  imageUrl?: string;
+  imageAltText?: string;
+  url?: string;
+  storefrontUrl?: string;
+  handle?: string;
   messageId?: string;
   similarity?: number;
   score?: number;
