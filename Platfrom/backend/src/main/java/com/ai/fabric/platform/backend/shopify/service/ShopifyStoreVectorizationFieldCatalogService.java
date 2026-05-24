@@ -94,7 +94,9 @@ public class ShopifyStoreVectorizationFieldCatalogService {
                 new ShopifyStoreVectorizationFieldDefinition("products.handle", "products", "product", "handle", "Product handle", true),
                 new ShopifyStoreVectorizationFieldDefinition("products.vendor", "products", "product", "vendor", "Vendor", true),
                 new ShopifyStoreVectorizationFieldDefinition("products.productType", "products", "product", "productType", "Product type", true),
-                new ShopifyStoreVectorizationFieldDefinition("products.storefrontUrl", "products", "product", "storefrontUrl", "Product URL", true)
+                new ShopifyStoreVectorizationFieldDefinition("products.storefrontUrl", "products", "product", "storefrontUrl", "Product URL", true),
+                new ShopifyStoreVectorizationFieldDefinition("products.imageUrl", "products", "product", "imageUrl", "Product image URL", true),
+                new ShopifyStoreVectorizationFieldDefinition("products.imageAltText", "products", "product", "imageAltText", "Product image alt text", true)
             )
         );
         definitions.put(

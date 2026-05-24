@@ -42,6 +42,10 @@ public class ShopifyBridgeStoreSyncService {
                 vendor
                 productType
                 tags
+                featuredImage {
+                  url
+                  altText
+                }
                 totalInventory
                 priceRangeV2 {
                   minVariantPrice {
@@ -252,7 +256,9 @@ public class ShopifyBridgeStoreSyncService {
                     "productType", text(node, "productType"),
                     "metafieldKeys", ShopifyKeyProductMetafields.keys(node),
                     "updatedAt", text(node, "updatedAt"),
-                    "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle")))
+                    "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle"))),
+                    "imageUrl", productImageUrl(node),
+                    "imageAltText", productImageAltText(node)
                 ));
                 metadata.putAll(ShopifyProductCommerceEvidence.metadata(node));
                 metadata.putAll(reviewSignals.metadata());
@@ -604,6 +610,15 @@ public class ShopifyBridgeStoreSyncService {
         }
         String text = nestedValue.toString().trim();
         return text.isEmpty() ? null : text;
+    }
+
+    private String productImageUrl(Map<String, Object> node) {
+        return nestedText(node, "featuredImage", "url");
+    }
+
+    private String productImageAltText(Map<String, Object> node) {
+        String altText = nestedText(node, "featuredImage", "altText");
+        return altText == null ? text(node, "title") : altText;
     }
 
     private String articleStorefrontUrl(String shopDomain, Map<String, Object> node) {

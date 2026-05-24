@@ -391,10 +391,15 @@ public class ShopifyStoreVectorizationService {
         productFields.put("name", "title");
         productFields.put("description", "content");
         productFields.put("category", "sourceCategory");
+        productFields.put("storefrontUrl", "storefrontUrl");
+        productFields.put("imageUrl", "imageUrl");
+        productFields.put("imageAltText", "imageAltText");
         ObjectNode productMetadata = productMapping.putObject("metadataFieldMappings");
         productMetadata.put("sourceCategory", "sourceCategory");
         productMetadata.put("documentType", "documentType");
         productMetadata.put("storefrontUrl", "storefrontUrl");
+        productMetadata.put("imageUrl", "imageUrl");
+        productMetadata.put("imageAltText", "imageAltText");
         productMetadata.put("handle", "handle");
         productMetadata.put("vendor", "vendor");
         productMetadata.put("productType", "productType");

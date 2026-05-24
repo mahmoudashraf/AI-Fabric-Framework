@@ -1367,6 +1367,9 @@ class ShopifyStorefrontChatServiceTest {
                         "metadata":{
                           "title":"Shipping Policy",
                           "storefrontUrl":"https://alpha.myshopify.com/policies/shipping-policy",
+                          "handle":"shipping-policy",
+                          "imageUrl":"https://cdn.shopify.com/s/files/1/0000/files/shipping.jpg",
+                          "imageAltText":"Shipping box",
                           "raw":"tenant-secret internal metadata"
                         }
                       }
@@ -1393,6 +1396,9 @@ class ShopifyStorefrontChatServiceTest {
         );
 
         assertThat(response.path("sources").path(0).path("title").asText()).isEqualTo("Shipping Policy");
+        assertThat(response.path("sources").path(0).path("handle").asText()).isEqualTo("shipping-policy");
+        assertThat(response.path("sources").path(0).path("imageUrl").asText()).isEqualTo("https://cdn.shopify.com/s/files/1/0000/files/shipping.jpg");
+        assertThat(response.path("sources").path(0).path("imageAltText").asText()).isEqualTo("Shipping box");
         assertThat(response.path("ragResponse").path("query").asText()).isEqualTo("What is your shipping policy?");
         assertThat(response.path("ragResponse").path("optimizedQuery").asText()).isEqualTo("shipping policy delivery time");
         assertThat(response.path("ragResponse").path("entityType").asText()).isEqualTo("support-policy");

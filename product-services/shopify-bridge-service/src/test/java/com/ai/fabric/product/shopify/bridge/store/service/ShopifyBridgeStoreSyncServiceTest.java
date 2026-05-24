@@ -51,6 +51,10 @@ class ShopifyBridgeStoreSyncServiceTest {
                 vendor
                 productType
                 tags
+                featuredImage {
+                  url
+                  altText
+                }
                 totalInventory
                 priceRangeV2 {
                   minVariantPrice {
@@ -158,7 +162,9 @@ class ShopifyBridgeStoreSyncServiceTest {
             .containsEntry("reviewProvider", "Judge.me")
             .containsEntry("reviewAverage", "4.8")
             .containsEntry("reviewCount", 128)
-            .containsEntry("reviewSignalsPresent", true);
+            .containsEntry("reviewSignalsPresent", true)
+            .containsEntry("imageUrl", "https://cdn.shopify.com/s/files/1/0000/products/travel-backpack.jpg")
+            .containsEntry("imageAltText", "Travel Backpack packed for a flight");
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
 
         ArgumentCaptor<ShopifyBridgeRecordSyncStatusRequest> statusCaptor =
@@ -367,6 +373,10 @@ class ShopifyBridgeStoreSyncServiceTest {
         node.put("vendor", "Loom");
         node.put("productType", "Bag");
         node.put("tags", List.of("travel", "carry-on"));
+        node.put("featuredImage", Map.of(
+            "url", "https://cdn.shopify.com/s/files/1/0000/products/travel-backpack.jpg",
+            "altText", "Travel Backpack packed for a flight"
+        ));
         node.put("totalInventory", 12);
         node.put("priceRangeV2", Map.of(
             "minVariantPrice", Map.of("amount", "79.00", "currencyCode", "USD"),

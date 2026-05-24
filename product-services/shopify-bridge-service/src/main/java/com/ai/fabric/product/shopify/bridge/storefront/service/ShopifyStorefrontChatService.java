@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -1208,8 +1209,12 @@ public class ShopifyStorefrontChatService {
             copySafeValue(document, safeDocument, "url");
             String title = firstNonBlank(
                 textOrNull(document, "title"),
+                textOrNull(document, "name"),
+                textOrNull(document.path("entity"), "name"),
                 textOrNull(document.path("metadata"), "shopifyDocumentTitle"),
-                textOrNull(document.path("metadata"), "title")
+                textOrNull(document.path("metadata"), "title"),
+                textOrNull(document.path("metadata"), "name"),
+                sourceTitleFromContent(document)
             );
             if (title != null) {
                 safeDocument.put("title", title);
@@ -1222,6 +1227,30 @@ public class ShopifyStorefrontChatService {
             if (storefrontUrl != null) {
                 safeDocument.put("storefrontUrl", storefrontUrl);
                 safeDocument.put("url", storefrontUrl);
+            }
+            String handle = firstNonBlank(
+                textOrNull(document, "handle"),
+                textOrNull(document.path("metadata"), "handle")
+            );
+            if (handle != null) {
+                safeDocument.put("handle", handle);
+            }
+            String imageUrl = safeImageUrl(firstNonBlank(
+                textOrNull(document, "imageUrl"),
+                textOrNull(document.path("metadata"), "imageUrl"),
+                textOrNull(document.path("metadata"), "featuredImageUrl"),
+                textOrNull(document.path("metadata"), "productImageUrl")
+            ));
+            if (imageUrl != null) {
+                safeDocument.put("imageUrl", imageUrl);
+            }
+            String imageAltText = firstNonBlank(
+                textOrNull(document, "imageAltText"),
+                textOrNull(document.path("metadata"), "imageAltText"),
+                textOrNull(document.path("metadata"), "featuredImageAltText")
+            );
+            if (imageAltText != null) {
+                safeDocument.put("imageAltText", imageAltText.length() > 120 ? imageAltText.substring(0, 120) : imageAltText);
             }
             String productVariantId = safeProductVariantGid(firstNonBlank(
                 textOrNull(document, "product_variant_id"),
@@ -1243,6 +1272,50 @@ public class ShopifyStorefrontChatService {
             safeDocuments.add(safeDocument);
         }
         return safeDocuments;
+    }
+
+    private String safeImageUrl(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null || normalized.length() > 1_000) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(normalized);
+            String scheme = uri.getScheme();
+            if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
+                return null;
+            }
+            if (!StringUtils.hasText(uri.getHost()) || uri.getUserInfo() != null) {
+                return null;
+            }
+            return uri.toString();
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String sourceTitleFromContent(JsonNode document) {
+        String content = trimToNull(textOrNull(document, "content"));
+        if (content == null) {
+            return null;
+        }
+        if (content.startsWith("{")) {
+            try {
+                JsonNode parsed = objectMapper.readTree(content);
+                String title = firstNonBlank(textOrNull(parsed, "name"), textOrNull(parsed, "title"));
+                if (title != null) {
+                    return title.length() > 120 ? title.substring(0, 120) : title;
+                }
+            } catch (Exception ignored) {
+                // Fall back to plain-text extraction below.
+            }
+        }
+        String firstLine = content.lines()
+            .map(String::trim)
+            .filter(line -> !line.isBlank())
+            .findFirst()
+            .orElse(null);
+        return firstLine == null || firstLine.length() > 120 ? null : firstLine;
     }
 
     private String safeProductVariantGid(String value) {

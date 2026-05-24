@@ -98,6 +98,8 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             assertThat(item.sourceCategory()).isEqualTo("products");
             assertThat(item.documentType()).isEqualTo("product");
             assertThat(item.title()).isEqualTo("Trail Shoe");
+            assertThat(item.imageUrl()).isEqualTo("https://cdn.shopify.com/s/files/1/0000/products/trail-shoe.jpg");
+            assertThat(item.imageAltText()).isEqualTo("Trail Shoe on rock path");
             assertThat(item.priceRange()).isEqualTo("120.00 USD");
             assertThat(item.availability()).isEqualTo("available");
             assertThat(item.variantCount()).isEqualTo(1);
@@ -288,6 +290,10 @@ class ShopifyBridgeVectorizationSourceServiceTest {
         node.put("descriptionHtml", "<p>Breathable trail shoe</p>");
         node.put("vendor", "Loom");
         node.put("productType", "Shoes");
+        node.put("featuredImage", Map.of(
+            "url", "https://cdn.shopify.com/s/files/1/0000/products/trail-shoe.jpg",
+            "altText", "Trail Shoe on rock path"
+        ));
         node.put("totalInventory", 8);
         node.put("priceRangeV2", Map.of(
             "minVariantPrice", Map.of("amount", "120.00", "currencyCode", "USD"),

@@ -389,8 +389,11 @@ class ShopifyStoreVectorizationServiceTest {
         verify(vectorizationService).upsertPlan(eq("dep-123"), argThat(request ->
             "PLATFORM_MANAGED_AUTO".equals(request.runnerMode())
                 && "title".equals(request.mappingConfig().path("entityMappings").path("product").path("entityFieldMappings").path("name").asText())
+                && "imageUrl".equals(request.mappingConfig().path("entityMappings").path("product").path("entityFieldMappings").path("imageUrl").asText())
                 && "priceRange".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("priceRange").asText())
                 && "availability".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("availability").asText())
+                && "imageUrl".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("imageUrl").asText())
+                && "imageAltText".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("imageAltText").asText())
                 && "variantSummary".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("variantSummary").asText())
                 && "productVariantId".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("product_variant_id").asText())
                 && request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("firstAvailableVariantId").isMissingNode()

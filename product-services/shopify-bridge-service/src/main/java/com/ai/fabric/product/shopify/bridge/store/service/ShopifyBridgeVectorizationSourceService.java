@@ -94,6 +94,10 @@ public class ShopifyBridgeVectorizationSourceService {
                 descriptionHtml
                 vendor
                 productType
+                featuredImage {
+                  url
+                  altText
+                }
                 totalInventory
                 priceRangeV2 {
                   minVariantPrice {
@@ -149,6 +153,10 @@ public class ShopifyBridgeVectorizationSourceService {
               descriptionHtml
               vendor
               productType
+              featuredImage {
+                url
+                altText
+              }
               totalInventory
               priceRangeV2 {
                 minVariantPrice {
@@ -609,6 +617,8 @@ public class ShopifyBridgeVectorizationSourceService {
             "products",
             "product",
             storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle"))),
+            productImageUrl(node),
+            productImageAltText(node),
             text(node, "handle"),
             text(node, "vendor"),
             text(node, "productType"),
@@ -1104,6 +1114,15 @@ public class ShopifyBridgeVectorizationSourceService {
         }
         Object nestedValue = nested.get(nestedFieldName);
         return nestedValue == null ? null : nestedValue.toString();
+    }
+
+    private String productImageUrl(Map<String, Object> node) {
+        return nestedText(node, "featuredImage", "url");
+    }
+
+    private String productImageAltText(Map<String, Object> node) {
+        String altText = nestedText(node, "featuredImage", "altText");
+        return altText == null || altText.isBlank() ? text(node, "title") : altText;
     }
 
     private String articleStorefrontUrl(String shopDomain, Map<String, Object> node) {
