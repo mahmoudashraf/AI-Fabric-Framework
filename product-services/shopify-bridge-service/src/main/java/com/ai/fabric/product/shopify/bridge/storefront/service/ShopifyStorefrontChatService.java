@@ -28,6 +28,8 @@ import java.util.UUID;
 public class ShopifyStorefrontChatService {
 
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
+    private static final int MAX_CONTEXT_ATTACHMENT_TEXT_LENGTH = 1_200;
+    private static final int MAX_CONTEXT_CART_ITEMS = 5;
     private static final Set<String> CONTEXT_TOP_LEVEL_FIELDS = Set.of(
         "pageType",
         "pageTitle",
@@ -245,6 +247,10 @@ public class ShopifyStorefrontChatService {
                 copyLimitedTextField(rawCart, metadata, "id", "cart_id");
                 copyLimitedTextField(rawCart, metadata, "cartId", "cart_id");
                 copyLimitedTextField(rawCart, metadata, "cart_id", "cart_id");
+                copyLimitedTextField(rawCart, metadata, "itemCount", "cartItemCount");
+                copyLimitedTextField(rawCart, metadata, "totalPriceCents", "cartTotalPriceCents");
+                copyLimitedTextField(rawCart, metadata, "currency", "cartCurrency");
+                putLimitedTextField(metadata, "cartSummary", liveCartSummary(rawCart), MAX_CONTEXT_ATTACHMENT_TEXT_LENGTH);
             }
             copyLimitedTextField(rawContext, metadata, "cartId", "cart_id");
             copyLimitedTextFieldIfMissing(rawContext, metadata, "cart_id");
@@ -316,6 +322,10 @@ public class ShopifyStorefrontChatService {
     }
 
     private void putLimitedTextField(ObjectNode target, String targetField, String value) {
+        putLimitedTextField(target, targetField, value, MAX_CONTEXT_TEXT_LENGTH);
+    }
+
+    private void putLimitedTextField(ObjectNode target, String targetField, String value, int maxLength) {
         if (target == null || !StringUtils.hasText(targetField)) {
             return;
         }
@@ -323,8 +333,9 @@ public class ShopifyStorefrontChatService {
         if (value == null) {
             return;
         }
-        if (value.length() > MAX_CONTEXT_TEXT_LENGTH) {
-            value = value.substring(0, MAX_CONTEXT_TEXT_LENGTH);
+        int boundedMaxLength = Math.max(1, maxLength);
+        if (value.length() > boundedMaxLength) {
+            value = value.substring(0, boundedMaxLength);
         }
         target.put(targetField, value);
     }
@@ -341,6 +352,7 @@ public class ShopifyStorefrontChatService {
         addSummaryPart(parts, metadata, "shopifyPageModeGroup", "Shopify page group");
         addSummaryPart(parts, metadata, "shopifyEffectiveConversationMode", "Shopify mode");
         addSummaryPart(parts, metadata, "cart_id", "Cart id");
+        addSummaryPart(parts, metadata, "cartSummary", "Current cart");
         addSummaryPart(parts, metadata, "productTitle", "Product");
         addSummaryPart(parts, metadata, "productHandle", "Product handle");
         addSummaryPart(parts, metadata, "productVendor", "Product vendor");
@@ -355,9 +367,87 @@ public class ShopifyStorefrontChatService {
             return null;
         }
         String summary = String.join(". ", parts);
-        return summary.length() > MAX_CONTEXT_TEXT_LENGTH
-            ? summary.substring(0, MAX_CONTEXT_TEXT_LENGTH)
+        return summary.length() > MAX_CONTEXT_ATTACHMENT_TEXT_LENGTH
+            ? summary.substring(0, MAX_CONTEXT_ATTACHMENT_TEXT_LENGTH)
             : summary;
+    }
+
+    private String liveCartSummary(JsonNode cart) {
+        if (cart == null || !cart.isObject() || cart.isEmpty()) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        String itemCount = trimToNull(textOrNull(cart, "itemCount"));
+        String currency = trimToNull(textOrNull(cart, "currency"));
+        String totalPriceCents = trimToNull(textOrNull(cart, "totalPriceCents"));
+        if (itemCount != null) {
+            parts.add(itemCount + ("1".equals(itemCount) ? " item" : " items"));
+        }
+        String total = moneyFromCents(totalPriceCents, currency);
+        if (total != null) {
+            parts.add("total " + total);
+        }
+        List<String> itemSummaries = liveCartItemSummaries(cart.path("items"), currency);
+        if (!itemSummaries.isEmpty()) {
+            parts.add("items: " + String.join("; ", itemSummaries));
+        }
+        return parts.isEmpty() ? null : String.join(", ", parts);
+    }
+
+    private List<String> liveCartItemSummaries(JsonNode items, String currency) {
+        if (items == null || !items.isArray() || items.isEmpty()) {
+            return List.of();
+        }
+        List<String> summaries = new ArrayList<>();
+        int count = 0;
+        for (JsonNode item : items) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            if (count >= MAX_CONTEXT_CART_ITEMS) {
+                summaries.add("and " + (items.size() - count) + " more");
+                break;
+            }
+            String title = firstNonBlank(
+                textOrNull(item, "title"),
+                textOrNull(item, "productTitle")
+            );
+            if (title == null) {
+                continue;
+            }
+            String quantity = trimToNull(textOrNull(item, "quantity"));
+            String price = moneyFromCents(
+                firstNonBlank(textOrNull(item, "finalLinePriceCents"), textOrNull(item, "priceCents")),
+                currency
+            );
+            String variantTitle = trimToNull(textOrNull(item, "variantTitle"));
+            List<String> details = new ArrayList<>();
+            if (quantity != null) {
+                details.add("qty " + quantity);
+            }
+            if (price != null) {
+                details.add(price);
+            }
+            if (variantTitle != null && !"Default Title".equalsIgnoreCase(variantTitle)) {
+                details.add(variantTitle);
+            }
+            summaries.add(details.isEmpty() ? title : title + " (" + String.join(", ", details) + ")");
+            count++;
+        }
+        return summaries;
+    }
+
+    private String moneyFromCents(String centsText, String currency) {
+        if (!StringUtils.hasText(centsText)) {
+            return null;
+        }
+        try {
+            long cents = Long.parseLong(centsText.trim());
+            java.math.BigDecimal amount = java.math.BigDecimal.valueOf(cents, 2).stripTrailingZeros();
+            return amount.toPlainString() + (StringUtils.hasText(currency) ? " " + currency.trim() : "");
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private void addSummaryPart(List<String> parts, ObjectNode metadata, String field, String label) {

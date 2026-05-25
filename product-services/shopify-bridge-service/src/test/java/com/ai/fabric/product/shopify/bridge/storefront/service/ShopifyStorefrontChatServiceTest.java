@@ -201,6 +201,57 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void querySummarizesLiveCartContextForRuntimePromptContext() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"ok"}}
+            """));
+
+        service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What's in my cart?",
+                  "context":{
+                    "pageType":"cart",
+                    "cart":{
+                      "token":"ajax-cart-token",
+                      "itemCount":1,
+                      "totalPriceCents":94900,
+                      "currency":"USD",
+                      "items":[
+                        {
+                          "variantId":44525890895955,
+                          "productId":7939427434579,
+                          "title":"Atlas Slate Max 13 Tablet",
+                          "quantity":1,
+                          "finalLinePriceCents":94900,
+                          "url":"/products/atlas-slate-max-13-tablet"
+                        }
+                      ]
+                    }
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        ArgumentCaptor<JsonNode> requestCaptor = ArgumentCaptor.forClass(JsonNode.class);
+        verify(platformClient).queryConsumerBridgeChat(anyString(), requestCaptor.capture(), anyString());
+        JsonNode attachment = requestCaptor.getValue().path("attachments").path(0);
+        assertThat(attachment.path("contentText").asText())
+            .contains("Page type: cart")
+            .contains("Current cart: 1 item, total 949 USD")
+            .contains("Atlas Slate Max 13 Tablet (qty 1, 949 USD)");
+        assertThat(attachment.path("metadata").path("cartItemCount").asText()).isEqualTo("1");
+        assertThat(attachment.path("metadata").path("cartTotalPriceCents").asText()).isEqualTo("94900");
+        assertThat(attachment.path("metadata").path("cartCurrency").asText()).isEqualTo("USD");
+        assertThat(attachment.path("metadata").has("cart_id")).isFalse();
+    }
+
+    @Test
     void querySanitizesCustomerAccountAuthRequiredErrorsForShoppers() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
