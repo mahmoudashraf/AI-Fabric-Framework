@@ -181,6 +181,59 @@ Remaining release boundaries:
 - Controlled staging/design-partner release is supported only while the 2026-05-25 full gate remains fresh or after rerunning it.
 - Public self-service Shopify/App Store launch still requires controlled production-promotion proof, production rollback/deactivation proof, failed-promotion staging isolation proof, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture, and complete public support/App Store packaging.
 
+## 2026-05-25 Platform-V10 Branch Switch And Fresh Hosted Gate
+
+Run directory: `/tmp/platform-v10-release-gate-20260525T222058Z`
+
+Branch/commit: `Platform-V10` at `726a24980` (`Align staging branch defaults to Platform-V10`).
+
+Status: passed for current controlled staging/design-partner launch posture. Public self-service production/App Store remains blocked by the production and public-claim gates listed below.
+
+### Platform-V10 Reconciliation
+
+Status: passed.
+
+Evidence:
+
+- All Coolify staging AI-Fabric app Git sources that still pointed at `Platform-V9` were updated to `Platform-V10`; readback reported `updated_platform_v10_count=23` and `remaining_platform_v9_count=0`.
+- Platform backend deployment env now has `PLATFORM_DEPLOY_BRANCH=Platform-V10` for normal and preview env entries.
+- Redeployed branch-critical services on Platform-V10: Platform backend, Platform UI, Partner UI, landing site, ecommerce store, shared runtime, MCP Gateway, Shopify Bridge staging, Shopify runtime/rest/vectorization services for `dep-8c3e7259`, and ProdUS runtime/rest/vectorization services for `dep-7706fafb`.
+- All 14 triggered Coolify deployments finished. Final status table: `/tmp/platform-v10-coolify-update/deployment-status-final.tsv`.
+- Health checks returned `UP` for Platform backend, Shopify Bridge, MCP Gateway, shared runtime, Shopify runtime `dep-8c3e7259`, and ProdUS runtime `dep-7706fafb`.
+
+### Hosted Gate Remediation
+
+Status: fixed and rerun.
+
+Evidence:
+
+- First Platform-V10 hosted full gate run `vsr-9eb12613` failed at `marketplace-hosted-verification`.
+- Failure cause: the shared demo ecommerce verification store returned zero products from `/api/products`, so the Marketplace hosted verifier could not resolve two distinct sample SKUs for comparison checks.
+- Remediation: `loomai-ecommerce-store` Coolify env `APP_DEMO_SEED_DATA` was changed from `false` to `true` for normal and preview env entries and redeployed as Coolify deployment `xvwn4s5fru71prxlx1fksi10`.
+- Post-remediation proof: `/api/products/count` returned `2`; `/api/products?limit=5` returned distinct canonical products `SKU-0001` and `SKU-0002`.
+
+### Fresh Platform-V10 Hosted Full Release Gate
+
+Status: passed.
+
+Evidence:
+
+- Hosted full suite run: `vsr-bde04505`.
+- Result: `PASSED`, completed `2026-05-25T22:28:09.424629Z`.
+- `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, expiring `2026-05-26T10:28:09.424629Z`.
+- Final gate artifact: `/tmp/platform-v10-release-gate-20260525T222058Z/release-gate-summary.json`.
+
+Passed hosted summaries:
+
+- Marketplace hosted verification: `hvr-6068a29d`, 42 passes, 2 warnings.
+- Ecommerce hosted verification: `hvr-60477a69`, 43 passes, 2 warnings.
+- Qdrant hosted verification: `hvr-ee549d06`, 25 passes, 2 warnings.
+
+Current release boundary after Platform-V10:
+
+- Controlled staging/design-partner launch remains green while this Platform-V10 gate is fresh.
+- Public self-service Shopify/App Store launch is still blocked by controlled production promotion, production rollback/deactivation, failed-promotion staging-isolation proof, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture, and complete public support/App Store packaging.
+
 ## What Must Be Done If We Release What We Have Now
 
 This section is the minimum path for a controlled design-partner/private release using the current product.
