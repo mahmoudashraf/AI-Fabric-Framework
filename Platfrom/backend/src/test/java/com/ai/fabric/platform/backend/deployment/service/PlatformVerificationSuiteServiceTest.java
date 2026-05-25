@@ -177,6 +177,8 @@ class PlatformVerificationSuiteServiceTest {
                     false,
                     true,
                     false,
+                    "STARTER",
+                    "ACTIVE",
                     "PENDING_SCOPE_GRANT",
                     false,
                     false,
@@ -190,6 +192,8 @@ class PlatformVerificationSuiteServiceTest {
                     true,
                     true,
                     true,
+                    "ELITE",
+                    "ACTIVE",
                     "READY",
                     true,
                     true,
@@ -210,6 +214,8 @@ class PlatformVerificationSuiteServiceTest {
             .findFirst()
             .orElseThrow();
         assertThat(shopifyStage.getDetailsJson()).contains("EXPECT_STOREFRONT_READY");
+        assertThat(shopifyStage.getDetailsJson()).contains("EXPECT_BILLING_TIER");
+        assertThat(shopifyStage.getDetailsJson()).contains("STARTER");
         assertThat(shopifyStage.getDetailsJson()).contains("PENDING_SCOPE_GRANT");
         assertThat(shopifyStage.getDetailsJson()).contains("SCOPE_APPROVAL");
         assertThat(shopifyStage.getDetailsJson()).contains("EXPECT_ENABLED_SURFACES");
@@ -220,6 +226,7 @@ class PlatformVerificationSuiteServiceTest {
             .findFirst()
             .orElseThrow();
         assertThat(readinessAuditStage.getDetailsJson()).contains("EXPECT_ENABLED_SURFACES");
+        assertThat(readinessAuditStage.getDetailsJson()).contains("ELITE");
         assertThat(readinessAuditStage.getDetailsJson()).contains("RECENT_ORDER_ONLY");
         assertThat(readinessAuditStage.getDetailsJson()).contains("comparison,contextual-pill,order-lookup,policy-strip,product-faq,product-insight");
     }

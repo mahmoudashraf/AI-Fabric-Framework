@@ -7,6 +7,8 @@ public record ShopifyCompanionVerificationExpectationOverrides(
     Boolean storefrontReady,
     Boolean storefrontShopperTrafficReady,
     Boolean goLiveEligible,
+    String billingTier,
+    String billingStatus,
     String orderLookupStatus,
     Boolean orderLookupSupported,
     Boolean orderLookupScopeGranted,
@@ -22,6 +24,8 @@ public record ShopifyCompanionVerificationExpectationOverrides(
         putBoolean(overrides, "EXPECT_STOREFRONT_READY", storefrontReady);
         putBoolean(overrides, "EXPECT_STOREFRONT_SHOPPER_TRAFFIC_READY", storefrontShopperTrafficReady);
         putBoolean(overrides, "EXPECT_GO_LIVE_ELIGIBLE", goLiveEligible);
+        putText(overrides, "EXPECT_BILLING_TIER", billingTier);
+        putText(overrides, "EXPECT_BILLING_STATUS", billingStatus);
         putText(overrides, "EXPECT_ORDER_LOOKUP_STATUS", orderLookupStatus);
         putBoolean(overrides, "EXPECT_ORDER_LOOKUP_SUPPORTED", orderLookupSupported);
         putBoolean(overrides, "EXPECT_ORDER_LOOKUP_SCOPE_GRANTED", orderLookupScopeGranted);
