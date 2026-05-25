@@ -106,6 +106,10 @@ public class ShopifyStoreVectorizationService {
         return reconcile(shopDomain, false);
     }
 
+    /**
+     * Reconciles Shopify vectorization plugins for an internal Shopify provisioning workflow that already
+     * resolved and authorized the store/deployment. Controller paths must use reconcile so store access is checked.
+     */
     @Transactional
     public ShopifyStoreVectorizationSummary reconcileForTrustedCaller(String shopDomain) {
         return reconcile(shopDomain, true);

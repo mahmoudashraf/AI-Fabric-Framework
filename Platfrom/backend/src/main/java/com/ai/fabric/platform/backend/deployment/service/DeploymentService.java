@@ -903,6 +903,10 @@ public class DeploymentService {
         return getActiveDraftForDeploymentInternal(deploymentId, false);
     }
 
+    /**
+     * Loads the active draft after an upstream platform workflow has already resolved and authorized the deployment.
+     * Do not call this from controller or public API paths that have not performed their own deployment ownership check.
+     */
     public DeploymentDraftResponse getActiveDraftForDeploymentForTrustedCaller(String deploymentId) {
         return getActiveDraftForDeploymentInternal(deploymentId, true);
     }
@@ -1028,6 +1032,10 @@ public class DeploymentService {
         return updateDraftInternal(draftId, request, false);
     }
 
+    /**
+     * Updates a draft after an upstream platform workflow has already resolved and authorized the target draft/deployment.
+     * Do not expose this as a direct controller path; external callers must use the checked updateDraft variants.
+     */
     public DeploymentDraftResponse updateDraftForTrustedCaller(String draftId, UpdateDeploymentDraftRequest request) {
         return updateDraftInternal(draftId, request, true);
     }
@@ -1378,13 +1386,22 @@ public class DeploymentService {
         return applyVersionInternal(deploymentId, versionId, approvalId, false, targetProfileId, sourceArtifactId);
     }
 
+    /**
+     * Applies a version after an upstream platform workflow has already resolved and authorized the deployment.
+     * Do not call this from controller or public API paths that have not performed their own deployment ownership check.
+     */
     @Transactional
     public DeploymentReleaseSummary applyVersionForTrustedCaller(String deploymentId, String versionId) {
         return applyVersionInternal(deploymentId, versionId, null, true, null, null);
     }
 
+    /**
+     * Applies a version for a public API client only after PublicProvisioningApiService has resolved a binding
+     * for the current client id and deployment id. This bypasses Platform role checks because public API clients
+     * authenticate through the binding contract instead of Platform user roles.
+     */
     @Transactional
-    DeploymentReleaseSummary applyVersionForPublicApi(String deploymentId, String versionId) {
+    DeploymentReleaseSummary applyVersionForVerifiedPublicApiBinding(String deploymentId, String versionId) {
         return applyVersionInternal(deploymentId, versionId, null, true, null, null);
     }
 

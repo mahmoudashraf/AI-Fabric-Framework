@@ -33,6 +33,11 @@ import java.util.regex.Pattern;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
+/**
+ * Bridges public consumer chat calls to a deployment runtime only after resolving a registered consumer binding.
+ * The caller is authorized by the public consumer id, shopper session header, and private-runtime assertion scopes;
+ * request context is normalized before forwarding so storefront clients cannot pass unsupported top-level fields.
+ */
 @Service
 public class PublicConsumerBridgeChatService {
 

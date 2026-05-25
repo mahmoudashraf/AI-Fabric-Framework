@@ -205,7 +205,10 @@ public class PublicProvisioningApiService {
             );
         }
 
-        DeploymentReleaseSummary release = deploymentService.applyVersionForPublicApi(binding.getDeploymentId(), version.id());
+        DeploymentReleaseSummary release = deploymentService.applyVersionForVerifiedPublicApiBinding(
+            binding.getDeploymentId(),
+            version.id()
+        );
         platformAuditService.record(
             "PUBLIC_API_APPLY_REQUESTED",
             "DEPLOYMENT_RELEASE",

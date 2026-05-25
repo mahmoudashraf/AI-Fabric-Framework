@@ -13,6 +13,7 @@ import com.ai.fabric.platform.backend.shopify.model.ShopifyReadinessAuditQuerySu
 import com.ai.fabric.platform.backend.shopify.model.ShopifyReadinessAuditStateSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -28,17 +29,21 @@ import java.util.regex.Pattern;
 public class ShopifyCompanionReadinessAuditService {
 
     private static final String PRODUCT_REF = "shopify-companion";
-    private static final String TARGET_STORE = "shopping-companion-test.myshopify.com";
-    private static final String ARTIFACT_ROOT = "/tmp/shopify-first-product-readiness-audit";
     private static final Duration EVIDENCE_FRESHNESS_WINDOW = Duration.ofDays(7);
     private static final Pattern DECISION_PATTERN = Pattern.compile("Readiness decision:\\s*`?([A-Z_]+)`?");
 
     private final PlatformVerificationSuiteService verificationSuiteService;
     private final ObjectMapper objectMapper;
+    private final String targetStore;
+    private final String artifactRoot;
 
     public ShopifyCompanionReadinessAuditService(PlatformVerificationSuiteService verificationSuiteService,
+                                                 @Value("${platform.verification.suites.shopify-shop-domain:unconfigured-shopify-shop-domain}") String targetStore,
+                                                 @Value("${platform.verification.suites.shopify-readiness-artifact-root:/var/lib/loomai/shopify-first-product-readiness-audit}") String artifactRoot,
                                                  ObjectMapper objectMapper) {
         this.verificationSuiteService = verificationSuiteService;
+        this.targetStore = normalizeRequired(targetStore, "unconfigured-shopify-shop-domain");
+        this.artifactRoot = normalizeArtifactRoot(artifactRoot);
         this.objectMapper = objectMapper;
     }
 
@@ -47,9 +52,9 @@ public class ShopifyCompanionReadinessAuditService {
             PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY,
             PRODUCT_REF,
             "Shopify Companion first-product readiness audit",
-            TARGET_STORE,
+            targetStore,
             "STARTER",
-            ARTIFACT_ROOT,
+            artifactRoot,
             List.of("TECHNICAL_READY", "DESIGN_PARTNER_READY", "PARTIAL", "NOT_READY"),
             List.of("grounded", "helpful", "honest", "tier_safe", "merchant_safe", "context_aware", "stable"),
             List.of(
@@ -378,13 +383,13 @@ public class ShopifyCompanionReadinessAuditService {
 
     private String evidenceFor(String key) {
         return switch (key) {
-            case "product-truth" -> ARTIFACT_ROOT + "/product-truth-scan.txt";
-            case "answer-quality" -> ARTIFACT_ROOT + "/answer-quality-audit.md";
+            case "product-truth" -> artifactRoot + "/product-truth-scan.txt";
+            case "answer-quality" -> artifactRoot + "/answer-quality-audit.md";
             case "operator-audit-ui" -> "/shopify-readiness-audit";
-            case "live-verifier" -> ARTIFACT_ROOT + "/live-verification-summary.txt";
-            case "storefront-product-experience" -> ARTIFACT_ROOT + "/browser-proof-summary.md";
-            case "design-partner-readiness" -> ARTIFACT_ROOT + "/summary.md";
-            default -> ARTIFACT_ROOT + "/readiness-matrix.md";
+            case "live-verifier" -> artifactRoot + "/live-verification-summary.txt";
+            case "storefront-product-experience" -> artifactRoot + "/browser-proof-summary.md";
+            case "design-partner-readiness" -> artifactRoot + "/summary.md";
+            default -> artifactRoot + "/readiness-matrix.md";
         };
     }
 
@@ -483,10 +488,22 @@ public class ShopifyCompanionReadinessAuditService {
         return new ShopifyReadinessAuditEvidenceArtifactSummary(
             name,
             category,
-            ARTIFACT_ROOT + "/" + name,
+            artifactRoot + "/" + name,
             description,
             status
         );
+    }
+
+    private String normalizeRequired(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
+    private String normalizeArtifactRoot(String value) {
+        String normalized = normalizeRequired(value, "/var/lib/loomai/shopify-first-product-readiness-audit");
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private String text(JsonNode node, String field) {

@@ -116,6 +116,10 @@ public class DeploymentMarketplaceDraftCompilerService {
         return syncDeploymentDraft(deploymentId, false);
     }
 
+    /**
+     * Syncs marketplace-managed draft content for an internal platform workflow that has already authorized
+     * the deployment. Controller/public callers must use syncDeploymentDraft so deployment access is checked.
+     */
     @Transactional
     public DeploymentDraftResponse syncDeploymentDraftForTrustedCaller(String deploymentId) {
         return syncDeploymentDraft(deploymentId, true);

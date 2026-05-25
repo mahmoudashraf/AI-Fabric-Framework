@@ -95,6 +95,10 @@ public class DeploymentMarketplaceInstallService {
         return summarizeInstalls(deployment);
     }
 
+    /**
+     * Lists installs for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use listInstalls so deployment visibility is checked.
+     */
     public List<DeploymentMarketplaceInstallSummary> listInstallsForTrustedCaller(DeploymentEntity deployment) {
         return summarizeInstalls(deployment);
     }
@@ -124,12 +128,20 @@ public class DeploymentMarketplaceInstallService {
         return createInstallForDeployment(deployment, request, false, true);
     }
 
+    /**
+     * Creates an install for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use createInstall so deployment edit access is checked.
+     */
     @Transactional
     public DeploymentMarketplaceInstallSummary createInstallForTrustedCaller(DeploymentEntity deployment,
                                                                             CreateDeploymentMarketplaceInstallRequest request) {
         return createInstallForDeployment(deployment, request, true, true);
     }
 
+    /**
+     * Creates an install without immediate draft synchronization for a bounded internal provisioning workflow
+     * that already authorized the deployment and will synchronize the draft explicitly.
+     */
     @Transactional
     public DeploymentMarketplaceInstallSummary createInstallForTrustedCallerWithoutDraftSync(
         DeploymentEntity deployment,
@@ -211,6 +223,10 @@ public class DeploymentMarketplaceInstallService {
         return updateInstallForDeployment(deployment, installId, request, false, true);
     }
 
+    /**
+     * Updates an install for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use updateInstall so deployment edit access is checked.
+     */
     @Transactional
     public DeploymentMarketplaceInstallSummary updateInstallForTrustedCaller(DeploymentEntity deployment,
                                                                             String installId,
@@ -218,6 +234,10 @@ public class DeploymentMarketplaceInstallService {
         return updateInstallForDeployment(deployment, installId, request, true, true);
     }
 
+    /**
+     * Updates an install without immediate draft synchronization for a bounded internal provisioning workflow
+     * that already authorized the deployment and will synchronize the draft explicitly.
+     */
     @Transactional
     public DeploymentMarketplaceInstallSummary updateInstallForTrustedCallerWithoutDraftSync(
         DeploymentEntity deployment,
@@ -289,6 +309,10 @@ public class DeploymentMarketplaceInstallService {
         deleteInstallForDeployment(deployment, installId, false);
     }
 
+    /**
+     * Deletes or disables an install for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use deleteInstall so deployment edit access is checked.
+     */
     @Transactional
     public void deleteInstallForTrustedCaller(DeploymentEntity deployment, String installId) {
         deleteInstallForDeployment(deployment, installId, true);
@@ -344,6 +368,10 @@ public class DeploymentMarketplaceInstallService {
         return updateEntitlementForDeployment(deployment, installId, request, true);
     }
 
+    /**
+     * Updates entitlement data without immediate draft synchronization for a bounded internal provisioning workflow
+     * that already authorized the deployment and will synchronize the draft explicitly.
+     */
     @Transactional
     public DeploymentMarketplaceInstallSummary updateEntitlementForTrustedCallerWithoutDraftSync(
         DeploymentEntity deployment,

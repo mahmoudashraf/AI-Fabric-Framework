@@ -1,3 +1,6 @@
+-- Owned-resource parameter resolution is intentionally metadata-driven, not text-matching.
+-- cart_id values are hidden internal handles and must only be resolved from trusted Bridge/session context
+-- or allowlisted read-action results; shopper-supplied cart_id values are not ownership proof.
 update platform_marketplace_plugin_versions
 set
     version = '1.0.1',

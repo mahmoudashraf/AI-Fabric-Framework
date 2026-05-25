@@ -484,6 +484,8 @@ Rules:
 
 - Do not ask shoppers for internal handles such as `cart_id`, `shopperSessionId`, customer tokens, or confirmation gate flags.
 - Do not add Bridge/runtime text matching for phrases like "my cart" or "last order". The LLM selects the action from catalog metadata; deterministic resolvers complete trusted params.
+- `OWNED_RESOURCE` values must originate from current request/session context inserted by the Shopify Bridge or from an allowlisted read-action result in the same governed orchestration. The runtime must not accept shopper-supplied `cart_id` values as owned-resource proof.
+- Shopify cart ownership is revalidated at the boundary by scoping the request to the current public consumer/shop, Bridge shopper session, and Shopify Storefront/MCP cart handle semantics. Missing or invalid handles fail closed with owned-resource guidance instead of a clarification prompt.
 - `READ_ACTION` param resolution is allowed only when the current orchestration policy allowlists the read action and the action is `groundingEligible` / `readActionResolutionEligible`.
 - Values produced by trusted resolvers satisfy provenance validation. LLM-supplied public values still need normal user/pinned evidence unless they are hidden/system params.
 - Durable cross-turn owned-resource continuity still requires the `owned_resource_refs` runtime table slice before claiming persistence across redeploy/recreate.

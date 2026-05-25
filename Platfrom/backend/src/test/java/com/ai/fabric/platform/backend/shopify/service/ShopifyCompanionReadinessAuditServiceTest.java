@@ -72,9 +72,16 @@ class ShopifyCompanionReadinessAuditServiceTest {
             new ObjectMapper()
         );
 
-        ShopifyCompanionReadinessAuditService service = new ShopifyCompanionReadinessAuditService(verificationSuiteService, new ObjectMapper());
+        ShopifyCompanionReadinessAuditService service = new ShopifyCompanionReadinessAuditService(
+            verificationSuiteService,
+            "shop.example.test",
+            "/var/lib/loomai/shopify-first-product-readiness-audit",
+            new ObjectMapper()
+        );
 
         assertThat(service.definition().suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY);
+        assertThat(service.definition().targetStore()).isEqualTo("shop.example.test");
+        assertThat(service.definition().artifactRoot()).isEqualTo("/var/lib/loomai/shopify-first-product-readiness-audit");
         assertThat(service.definition().checklist()).hasSize(10);
         assertThat(service.definition().queryPack()).hasSize(15);
         assertThat(service.definition().queryPack()).extracting("queryId")
@@ -148,7 +155,12 @@ class ShopifyCompanionReadinessAuditServiceTest {
             new ObjectMapper()
         );
 
-        ShopifyCompanionReadinessAuditService service = new ShopifyCompanionReadinessAuditService(verificationSuiteService, new ObjectMapper());
+        ShopifyCompanionReadinessAuditService service = new ShopifyCompanionReadinessAuditService(
+            verificationSuiteService,
+            "shop.example.test",
+            "/var/lib/loomai/shopify-first-product-readiness-audit",
+            new ObjectMapper()
+        );
 
         assertThat(service.latest().latestRun().id()).isEqualTo("vsr-full");
         assertThat(service.latest().latestStage().stageKey()).isEqualTo(PlatformVerificationSuiteCatalog.SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT_SUITE_KEY);

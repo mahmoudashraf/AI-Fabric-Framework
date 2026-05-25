@@ -2,20 +2,14 @@ package com.ai.fabric.vectorization.adapter.source;
 
 import com.ai.fabric.integration.connection.ConnectionDescriptor;
 import com.ai.fabric.integration.credential.ResolvedSourceAuthMaterial;
-import com.ai.fabric.integration.discovery.DiscoveryCountMethod;
 import com.ai.fabric.vectorization.model.TargetConnectionDescriptor;
-import com.ai.fabric.vectorization.model.VectorizationDiscoveryResult;
 import com.ai.fabric.vectorization.model.VectorizationExecutionBundle;
 import com.ai.fabric.vectorization.model.VectorizationRunReason;
 import com.ai.fabric.vectorization.model.VectorizationRunnerMode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -28,61 +22,54 @@ class RestApiVectorizationSourceAdapterTest {
     private final RestApiVectorizationSourceAdapter adapter = new RestApiVectorizationSourceAdapter(objectMapper);
 
     @Test
-    void discoverCanGroupCountsBySourceRecordVectorSpaceAcrossCursorPages() throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/api/knowledge-export", exchange -> {
-            String query = exchange.getRequestURI().getRawQuery();
-            boolean secondPage = query != null && query.contains("cursor=page-2");
-            byte[] body = (secondPage ? """
-                {
-                  "records": [
-                    {"id":"team-1","vectorSpace":"team-profile","title":"Scanner team"}
-                  ],
-                  "hasMore": false
-                }
-                """ : """
-                {
-                  "records": [
-                    {"id":"module-1","vectorSpace":"service-module","title":"Scanner module"},
-                    {"id":"module-2","vectorSpace":"service-module","title":"Evidence module"}
-                  ],
-                  "nextCursor": "page-2",
-                  "hasMore": true
-                }
-                """).getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().add("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, body.length);
-            try (OutputStream outputStream = exchange.getResponseBody()) {
-                outputStream.write(body);
-            }
-        });
-        server.start();
-        try {
-            JsonNode config = objectMapper.readTree("""
-                {
-                  "baseUrl": "http://localhost:%d",
-                  "path": "/api/knowledge-export",
-                  "itemsPath": "records",
-                  "paginationMode": "CURSOR",
-                  "cursorParam": "cursor",
-                  "pageSizeParam": "limit",
-                  "nextCursorPath": "nextCursor",
-                  "hasMorePath": "hasMore",
-                  "pageSize": 100,
-                  "recordVectorSpacePath": "vectorSpace"
-                }
-                """.formatted(server.getAddress().getPort()));
-            VectorizationDiscoveryResult result = adapter.discover(bundle(config), List.of("produs-safe-knowledge"));
+    void buildUriAllowsPublicHttpsAndEncodesQueryParams() {
+        assertThat(VectorizationSourceAdapterSupport.buildUri(
+            "https://93.184.216.34/",
+            "api/knowledge-export",
+            Map.of("cursor", "page 2")
+        ).toString())
+            .isEqualTo("https://93.184.216.34/api/knowledge-export?cursor=page+2");
+    }
 
-            assertThat(result.countsByEntityType())
-                .containsEntry("service-module", 2L)
-                .containsEntry("team-profile", 1L);
-            assertThat(result.countMethodByEntityType())
-                .containsEntry("service-module", DiscoveryCountMethod.EXACT)
-                .containsEntry("team-profile", DiscoveryCountMethod.EXACT);
-        } finally {
-            server.stop(0);
-        }
+    @Test
+    void buildUriRejectsHttpScheme() {
+        assertThatThrownBy(() -> VectorizationSourceAdapterSupport.buildUri(
+            "http://93.184.216.34",
+            "/api/knowledge-export",
+            Map.of()
+        ))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("HTTPS");
+    }
+
+    @Test
+    void buildUriRejectsLocalhostAndPrivateIpTargets() {
+        assertThatThrownBy(() -> VectorizationSourceAdapterSupport.buildUri(
+            "https://localhost",
+            "/api/knowledge-export",
+            Map.of()
+        ))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("host is not allowed");
+
+        assertThatThrownBy(() -> VectorizationSourceAdapterSupport.buildUri(
+            "https://10.0.0.1",
+            "/api/knowledge-export",
+            Map.of()
+        ))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("private address");
+    }
+
+    @Test
+    void buildUriRejectsAbsoluteRelativePath() {
+        assertThatThrownBy(() -> VectorizationSourceAdapterSupport.buildUri(
+            "https://93.184.216.34",
+            "https://169.254.169.254/latest/meta-data",
+            Map.of()
+        ))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("path must be relative");
     }
 
     @Test
@@ -104,6 +91,25 @@ class RestApiVectorizationSourceAdapterTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("invalid header value")
             .hasMessageNotContaining("secret-line");
+    }
+
+    @Test
+    void connectorAuthDescriptorsMaskSecretsInToString() {
+        ResolvedSourceAuthMaterial sourceAuth = new ResolvedSourceAuthMaterial(
+            Map.of("token", "secret-token"),
+            Map.of("apiKey", "SECRET_ENV")
+        );
+        TargetConnectionDescriptor targetConnection = new TargetConnectionDescriptor(
+            "RUNTIME_DATA_SYNC",
+            "https://runtime.example",
+            "/batch",
+            "/spaces",
+            "X-Key",
+            "runtime-secret"
+        );
+
+        assertThat(sourceAuth.toString()).doesNotContain("secret-token", "SECRET_ENV");
+        assertThat(targetConnection.toString()).doesNotContain("runtime-secret");
     }
 
     private VectorizationExecutionBundle bundle(JsonNode connectionConfig) {
