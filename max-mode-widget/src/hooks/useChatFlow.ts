@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { emitEvent } from "@/config";
+import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
@@ -105,6 +106,7 @@ export function useChatFlow({
   currentPosition,
   currentMode,
   requestContext,
+  requestContextProvider,
 }: {
   chatQuery: string;
   setChatQuery: Dispatch<SetStateAction<string>>;
@@ -124,6 +126,7 @@ export function useChatFlow({
   currentPosition: "landing" | "catalog" | "search" | "cart";
   currentMode: MaxModeMode;
   requestContext?: Record<string, any>;
+  requestContextProvider?: MaxModeHostRequestContextProvider;
 }) {
   const handleChatQuery = useCallback(
     async (
@@ -275,8 +278,21 @@ export function useChatFlow({
           };
         });
 
+        let liveRequestContext: Record<string, any> | undefined;
+        if (typeof requestContextProvider === "function") {
+          try {
+            const resolvedContext = await requestContextProvider();
+            if (resolvedContext && typeof resolvedContext === "object" && !Array.isArray(resolvedContext)) {
+              liveRequestContext = resolvedContext;
+            }
+          } catch (error) {
+            console.warn("[MaxMode] Failed to resolve live request context:", error);
+          }
+        }
+
         const mergedRequestContext = {
           ...(requestContext || {}),
+          ...(liveRequestContext || {}),
           ...(extraRequestContext || {}),
         };
         if (hasShopifyRequestContext(mergedRequestContext)) {
@@ -439,6 +455,7 @@ export function useChatFlow({
       currentMode,
       currentPosition,
       requestContext,
+      requestContextProvider,
       searchCategory,
       setChatMessages,
       setChatQuery,

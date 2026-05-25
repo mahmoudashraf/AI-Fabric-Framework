@@ -151,6 +151,12 @@ export interface MaxModeHostCustomerAccountAuthConfig {
   returnTo?: string;
 }
 
+export type MaxModeHostRequestContextProvider = () =>
+  | Record<string, any>
+  | undefined
+  | null
+  | Promise<Record<string, any> | undefined | null>;
+
 export interface MaxModeHostConfig {
   /** Host-specific full-screen experience. Defaults to the generic Max Mode workspace. */
   experience?: "default" | "shopify-shopping-workspace";
@@ -170,6 +176,8 @@ export interface MaxModeHostConfig {
   starterSuggestions?: string[];
   /** Optional host-owned request payload merged into query and suggestions calls */
   requestContext?: Record<string, any>;
+  /** Optional host-owned live request context merged just before each chat query */
+  requestContextProvider?: MaxModeHostRequestContextProvider;
   /** Default user-selectable conversation mode for this host */
   defaultConversationMode?: MaxModeMode;
   /** Effective conversation mode after host/page routing is resolved */
@@ -272,6 +280,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     starterPrompts: undefined,
     starterSuggestions: undefined,
     requestContext: undefined,
+    requestContextProvider: undefined,
     defaultConversationMode: undefined,
     effectiveConversationMode: undefined,
     allowedConversationModes: undefined,

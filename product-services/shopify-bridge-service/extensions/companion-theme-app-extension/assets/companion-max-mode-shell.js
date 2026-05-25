@@ -144,6 +144,9 @@
         starterPrompts: starterPromptsForContext(runtime.starterSuggestions, runtime.effectiveConversationMode, options.storefrontContext),
         starterSuggestions: runtime.starterSuggestions,
         requestContext: runtime.requestContext,
+        requestContextProvider: function () {
+          return buildLiveRequestContext(runtime.requestContext)
+        },
         defaultConversationMode: runtime.defaultConversationMode,
         effectiveConversationMode: runtime.effectiveConversationMode,
         allowedConversationModes: runtime.allowedConversationModes,
@@ -448,6 +451,152 @@
     context.shopifyAllowedConversationModes = allowedConversationModes || []
     context.shopifyPageModeMappings = pageModeMappings || {}
     return context
+  }
+
+  function buildLiveRequestContext(baseContext) {
+    return resolveShopifyCartContext()
+      .then(function (cartContext) {
+        if (!cartContext) {
+          return baseContext || {}
+        }
+        var mergedContext = {}
+        if (baseContext && typeof baseContext === 'object') {
+          Object.keys(baseContext).forEach(function (key) {
+            mergedContext[key] = baseContext[key]
+          })
+        }
+        mergedContext.cart = cartContext
+        return mergedContext
+      })
+      .catch(function () {
+        return baseContext || {}
+      })
+  }
+
+  function resolveShopifyCartContext() {
+    if (typeof window === 'undefined' || typeof fetch !== 'function') {
+      return Promise.resolve(null)
+    }
+    return fetch(shopifyRoute('cart.js'), {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+      .then(function (response) {
+        if (!response || !response.ok) {
+          return null
+        }
+        return response.json()
+      })
+      .then(function (cart) {
+        return normalizeShopifyCartContext(cart)
+      })
+      .catch(function () {
+        return null
+      })
+  }
+
+  function normalizeShopifyCartContext(cart) {
+    if (!cart || typeof cart !== 'object') {
+      return null
+    }
+    var itemCount = finiteNumber(cart.item_count, cart.itemCount) || 0
+    var token = trimValue(cart.token)
+    var items = Array.isArray(cart.items)
+      ? cart.items.slice(0, 10).map(normalizeShopifyCartItem).filter(Boolean)
+      : []
+    if (!token && itemCount <= 0 && items.length === 0) {
+      return null
+    }
+    var context = {
+      token: token || undefined,
+      itemCount: itemCount,
+      totalPriceCents: finiteNumber(cart.total_price, cart.totalPrice),
+      originalTotalPriceCents: finiteNumber(cart.original_total_price, cart.originalTotalPrice),
+      totalDiscountCents: finiteNumber(cart.total_discount, cart.totalDiscount),
+      currency: resolveShopifyCurrency(cart),
+      items: items,
+    }
+    Object.keys(context).forEach(function (key) {
+      if (context[key] === undefined || context[key] === null) {
+        delete context[key]
+      }
+    })
+    return context
+  }
+
+  function normalizeShopifyCartItem(item) {
+    if (!item || typeof item !== 'object') {
+      return null
+    }
+    var normalized = {
+      key: trimValue(item.key),
+      variantId: finiteNumber(item.variant_id, item.variantId, item.id),
+      productId: finiteNumber(item.product_id, item.productId),
+      title: trimValue(item.title),
+      productTitle: trimValue(item.product_title, item.productTitle),
+      variantTitle: trimValue(item.variant_title, item.variantTitle),
+      vendor: trimValue(item.vendor),
+      quantity: finiteNumber(item.quantity),
+      priceCents: finiteNumber(item.price),
+      finalLinePriceCents: finiteNumber(item.final_line_price, item.finalLinePrice),
+      url: trimValue(item.url),
+      imageUrl: normalizeShopifyImageUrl(item.image),
+    }
+    Object.keys(normalized).forEach(function (key) {
+      if (normalized[key] === undefined || normalized[key] === null || normalized[key] === '') {
+        delete normalized[key]
+      }
+    })
+    return Object.keys(normalized).length ? normalized : null
+  }
+
+  function shopifyRoute(path) {
+    var root = '/'
+    if (window.Shopify && window.Shopify.routes && typeof window.Shopify.routes.root === 'string' && window.Shopify.routes.root) {
+      root = window.Shopify.routes.root
+    }
+    if (root.charAt(root.length - 1) !== '/') {
+      root += '/'
+    }
+    return root + String(path || '').replace(/^\/+/, '')
+  }
+
+  function resolveShopifyCurrency(cart) {
+    if (cart && typeof cart.currency === 'string' && cart.currency.trim()) {
+      return cart.currency.trim()
+    }
+    if (window.Shopify && window.Shopify.currency && typeof window.Shopify.currency.active === 'string') {
+      return window.Shopify.currency.active.trim() || undefined
+    }
+    return undefined
+  }
+
+  function normalizeShopifyImageUrl(value) {
+    var imageUrl = trimValue(value)
+    if (!imageUrl) {
+      return undefined
+    }
+    if (imageUrl.indexOf('//') === 0) {
+      return window.location.protocol + imageUrl
+    }
+    return imageUrl
+  }
+
+  function finiteNumber() {
+    for (var i = 0; i < arguments.length; i += 1) {
+      var value = arguments[i]
+      if (value === undefined || value === null || value === '') {
+        continue
+      }
+      var parsed = Number(value)
+      if (Number.isFinite(parsed)) {
+        return parsed
+      }
+    }
+    return undefined
   }
 
   function normalizeShellModeProfile(value) {

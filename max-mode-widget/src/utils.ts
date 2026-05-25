@@ -16,6 +16,7 @@ const SHOPIFY_REQUEST_CONTEXT_FIELDS = new Set([
   "pageTitle",
   "product",
   "collection",
+  "cart",
   "document",
   "shopifyShellModeProfile",
   "shopifySurfaceEntry",

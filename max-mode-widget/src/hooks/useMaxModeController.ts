@@ -523,6 +523,7 @@ export function useMaxModeController({
     currentPosition,
     currentMode,
     requestContext: hostRequestContext,
+    requestContextProvider: hostConfig?.requestContextProvider,
   });
 
   const handleProgrammaticPrompt = useCallback(
