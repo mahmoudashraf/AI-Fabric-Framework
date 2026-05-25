@@ -1,5 +1,3 @@
--- Customer context summary is a bounded read action. It may consume trusted owned-resource handles
--- from Bridge/session context, but it must not persist shopper-owned resources or perform mutations.
 update platform_marketplace_plugin_versions
 set
     version = '1.0.6',
