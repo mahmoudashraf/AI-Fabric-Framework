@@ -23,7 +23,7 @@ The goal is not to reopen product strategy. The goal is to decide what must happ
 
 ## Current Release Posture
 
-Controlled design-partner/private launch: conditionally allowed after a fresh hosted staging release gate passes on the current deployed branch.
+Controlled design-partner/private launch: passed for the current staged branch after the 2026-05-25 hosted release gate. This evidence remains valid only inside the gate freshness window recorded below.
 
 Public self-service Shopify App Store launch: not ready.
 
@@ -58,10 +58,128 @@ These are the active release-gating points that must stay visible in this plan.
 
 Release status from this review:
 
-- Controlled design-partner launch: close, viable only after a fresh staging gate passes.
+- Controlled design-partner launch: current staging gate passed on 2026-05-25 and is viable for a private/design-partner launch while the evidence remains fresh.
 - Public self-service Shopify production/App Store launch: not ready.
 - Current product architecture is real, but production evidence is missing.
 - Do not claim broad public readiness, terminal checkout automation, refund/return automation, or protected customer-data automation until the relevant gates above pass.
+
+## 2026-05-25 Fresh Hosted Staging Release Gate Execution
+
+Run directory: `/tmp/shopify-release-gate-20260525T021738Z`
+
+Branch/commit: `Platform-V9` at `09024adc4` (`Fix Shopify release gate billing expectations`).
+
+The full six-point staging gate was executed against the hosted staging environment. Result: design-partner staging gate passed; public self-service production/App Store remains blocked by production-promotion and public-claim proof gates.
+
+### 1. Staging Deploy Reconciliation
+
+Status: passed.
+
+Evidence:
+
+- Platform backend redeployed through Coolify staging as deployment `jdh3149u7nufk5iy28n986cn` and health returned `UP`.
+- Current Shopify staging dependencies returned healthy: Platform backend, Shopify Bridge, Runtime, MCP Gateway, Shopify runtime deployment `dep-8c3e7259`, and vectorization runner `vectorization-runner-dep-8c3e7259`.
+- Coolify reconciliation artifact: `/tmp/shopify-release-gate-20260525T021738Z/coolify-staging-deployment-reconciliation.json`.
+- Stale non-current runtime deployments on older branches still exist on the host, but the active Shopify staging deployment used by the gate is on `Platform-V9`.
+
+Implementation fix discovered during the hosted gate:
+
+- The hosted release suite hard-coded Shopify Companion expectations as `STARTER/ACTIVE`, which downgraded order-lookup readiness during the suite even though the staging launch store is `ELITE/ACTIVE`.
+- Commit `09024adc4` added billing tier/status expectation overrides to the Platform verification-suite dispatch model and script context.
+- Local focused tests passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformVerificationSuiteServiceTest,PlatformVerificationSuiteScriptContextServiceTest,PlatformVerificationSuiteExecutionServiceTest test`.
+
+### 2. Fresh Hosted Full Shopify Release Gate
+
+Status: passed.
+
+Evidence:
+
+- Hosted full suite run: `vsr-e9e4ea6f`.
+- Result: `PASSED`, completed `2026-05-25T04:02:44.671947Z`.
+- `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, expiring `2026-05-25T16:02:44.671947Z`.
+- Final gate artifact: `/tmp/shopify-release-gate-20260525T021738Z/full-platform-release-gate-final.json`.
+
+Passed stages:
+
+- shared inference health
+- platform admin live regression
+- canonical rollout inventory
+- managed vector provider verification
+- Coolify provider verification
+- Marketplace install flow
+- Shopify Companion verification
+- Shopify MCP Gateway verification
+- Shopify first-product readiness audit
+- Partner Enablement verification
+- Thinker Resolver readiness
+- Marketplace hosted verification: 42 passes, 2 warnings
+- Ecommerce hosted verification: 43 passes, 2 warnings
+- Qdrant hosted verification: 25 passes, 2 warnings
+
+Operator remediation during the run:
+
+- The first hosted rerun failed at Partner Enablement because the stored short-lived `PARTNER_SUPABASE_JWT` was expired/stale.
+- A fresh Supabase email test-user JWT was generated from private operator material, stored only in `/tmp/partner_supabase_jwt.secret`, and written back to Platform secret `PARTNER_SUPABASE_JWT` without printing token material.
+- Standalone strict Partner Enablement verification then passed before the final full hosted gate rerun.
+
+### 3. Storefront Answer-Quality Repeat Gate
+
+Status: passed.
+
+Evidence:
+
+- Repeat gate command: `scripts/verify-shopify-companion-answer-quality-repeats.sh`.
+- Repeat count: 3.
+- Result: 20/20 passed on each repeat.
+- Summary JSON: `/tmp/shopify-release-gate-20260525T021738Z/shopify-answer-quality-20260525T022158Z-repeats/repeat-summary.json`.
+- Summary Markdown: `/tmp/shopify-release-gate-20260525T021738Z/shopify-answer-quality-20260525T022158Z-repeats/repeat-summary.md`.
+- First-product readiness audit also passed with `Readiness decision: DESIGN_PARTNER_READY`.
+
+### 4. Debug/RAG Inspector Proof
+
+Status: passed.
+
+Evidence:
+
+- Direct API proof for `summarize high performance laptops for gaming` returned `metadata.responseGenerationPath=RAG_ANSWER`.
+- Response included `ragResponse.documents` count `5`, `sources` count `5`, and `readActionResolution.finalDecision=EXECUTE_READ_ACTIONS_AND_RAG`.
+- Executed read action: `shopify_search_catalog`.
+- Source metadata included product image URLs and Shopify identifiers.
+- API proof artifact: `/tmp/shopify-release-gate-20260525T021738Z/debug-rag-response.json`.
+- Browser widget proof captured a canonical chat response with `hasRagResponse=true`, `ragDocumentCount=5`, `sourceCount=5`, `debugButtonCount=6`, and live Shopify CDN image URLs on rendered cards.
+- Browser proof artifact: `/tmp/shopify-release-gate-20260525T021738Z/debug-rag-widget-ui-proof.json`.
+- Screenshot: `/tmp/shopify-release-gate-20260525T021738Z/debug-rag-widget-final-proof.png`.
+
+### 5. Support/Package Readiness Mismatch
+
+Status: passed for current staging posture.
+
+Evidence:
+
+- Platform support readiness and Bridge support readiness both reported `READY`.
+- Storefront bootstrap reported `billingTier=ELITE`, `billingStatus=ACTIVE`, `orderLookupEnabled=true`.
+- Enabled/configured surfaces were aligned: `contextual-pill,product-insight,policy-strip,product-faq,comparison,order-lookup`.
+- Allowed conversation modes were aligned: `thinker_deep,executor`.
+- Artifacts:
+  - `/tmp/shopify-release-gate-20260525T021738Z/platform-support-readiness.json`
+  - `/tmp/shopify-release-gate-20260525T021738Z/bridge-support-readiness.json`
+  - `/tmp/shopify-release-gate-20260525T021738Z/storefront-bootstrap-proof.json`
+
+### 6. Design-Partner Launch Material And Status
+
+Status: passed for current controlled staging/design-partner launch posture; public packaging remains blocked.
+
+Evidence:
+
+- Partner UI build and smoke passed.
+- Strict Partner Enablement live gate passed after JWT refresh, including merchant approval deep-link workspace, product controls, evidence bundle, support-profile write/restore, rollback/deactivation request, and revoked-access proof.
+- Hosted full release gate also passed the Partner Enablement stage.
+- This plan and the working context now record the exact run IDs, evidence locations, and remaining public-launch blockers.
+
+Remaining release boundaries:
+
+- Controlled staging/design-partner release is supported only while the 2026-05-25 full gate remains fresh or after rerunning it.
+- Public self-service Shopify/App Store launch still requires controlled production-promotion proof, production rollback/deactivation proof, failed-promotion staging isolation proof, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture, and complete public support/App Store packaging.
 
 ## What Must Be Done If We Release What We Have Now
 
