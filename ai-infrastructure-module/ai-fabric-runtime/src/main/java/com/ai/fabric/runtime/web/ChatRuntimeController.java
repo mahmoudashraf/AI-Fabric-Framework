@@ -23,6 +23,7 @@ import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
@@ -86,6 +87,11 @@ public class ChatRuntimeController {
     private static final int MAX_SUGGESTION_METADATA_VALUE_CHARS = 300;
     private static final int MAX_SUGGESTION_METADATA_ENTRIES = 12;
 
+    private enum QueryPersistenceMode {
+        PERSIST_IF_AVAILABLE,
+        NEVER_PERSIST
+    }
+
     private static final String SUGGESTIONS_SYSTEM_PROMPT_TEMPLATE = """
         You generate short, clickable UI suggestions for a user.
         Output MUST be valid JSON: an array of strings.
@@ -106,18 +112,29 @@ public class ChatRuntimeController {
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
                                                    HttpServletRequest servletRequest) {
         rejectUnexpectedFields("/api/chat/me/query", request.getUnexpectedFields());
-        return handleQuery(request, servletRequest, "/api/chat/me/query");
+        return handleQuery(request, servletRequest, "/api/chat/me/query", QueryPersistenceMode.PERSIST_IF_AVAILABLE);
+    }
+
+    @PostMapping("/me/query-once")
+    public ResponseEntity<ChatQueryResponse> queryOnce(@Valid @RequestBody ChatQueryRequest request,
+                                                       HttpServletRequest servletRequest) {
+        rejectUnexpectedFields("/api/chat/me/query-once", request.getUnexpectedFields());
+        return handleQuery(request, servletRequest, "/api/chat/me/query-once", QueryPersistenceMode.NEVER_PERSIST);
     }
 
     private ResponseEntity<ChatQueryResponse> handleQuery(ChatQueryRequest request,
                                                           HttpServletRequest servletRequest,
-                                                          String requestPath) {
+                                                          String requestPath,
+                                                          QueryPersistenceMode persistenceMode) {
         long requestStartTime = System.currentTimeMillis();
         RAGOrchestrator orchestrator = orchestratorProvider.getIfAvailable();
         if (orchestrator == null) {
             return okWithAuthHeaders(ChatQueryResponse.builder()
                 .success(false)
-                .message("Orchestrator not configured")
+                .type("ERROR")
+                .answer("Orchestrator not configured")
+                .safeSummary("Orchestrator not configured")
+                .fallbackReason("ORCHESTRATOR_NOT_CONFIGURED")
                 .build(), null, requestPath);
         }
 
@@ -146,7 +163,8 @@ public class ChatRuntimeController {
             identity,
             requestPromptPreview.isEmpty()
                 ? List.of(SCOPE_CHAT_QUERY)
-                : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW)
+                : List.of(SCOPE_CHAT_QUERY, SCOPE_CHAT_PROMPT_PREVIEW),
+            persistenceMode
         );
         long contextBuildDurationMs = System.currentTimeMillis() - contextBuildStartTime;
         long orchestrationStartTime = System.currentTimeMillis();
@@ -155,13 +173,424 @@ public class ChatRuntimeController {
         long requestDurationMs = System.currentTimeMillis() - requestStartTime;
         attachRuntimeTimingMetadata(result, requestDurationMs, authDurationMs, contextBuildDurationMs, orchestrationDurationMs);
 
-        return okWithAuthHeaders(ChatQueryResponse.builder()
-            .success(true)
+        return okWithAuthHeaders(toCanonicalChatResponse(request, conversationId, context, result, identity), identity, requestPath);
+    }
+
+    private ChatQueryResponse toCanonicalChatResponse(ChatQueryRequest request,
+                                                      String conversationId,
+                                                      OrchestrationContext context,
+                                                      OrchestrationResult result,
+                                                      RuntimeResolvedIdentity identity) {
+        Map<String, Object> sanitizedPayload = result == null || result.getSanitizedPayload() == null
+            ? Map.of()
+            : result.getSanitizedPayload();
+        Map<String, Object> rawData = firstMap(result == null ? null : result.getData());
+        Map<String, Object> data = enrichCanonicalData(
+            firstMap(sanitizedPayload.get("data"), rawData),
+            rawData,
+            result
+        );
+        String answer = firstText(
+            sanitizedPayload.get("safeSummary"),
+            sanitizedPayload.get("answer"),
+            sanitizedPayload.get("message"),
+            data.get("answer"),
+            result == null ? null : result.getMessage()
+        );
+        if (!StringUtils.hasText(answer)) {
+            answer = result != null && result.isSuccess()
+                ? "I processed your request."
+                : "I could not process that request.";
+        }
+        String safeSummary = firstText(
+            sanitizedPayload.get("safeSummary"),
+            sanitizedPayload.get("answer"),
+            sanitizedPayload.get("message"),
+            answer
+        );
+        String resultType = result != null && result.getType() != null
+            ? result.getType().name()
+            : (result != null && result.isSuccess() ? "INFORMATION_PROVIDED" : "ERROR");
+        List<Object> actions = firstList(sanitizedPayload.get("actions"), data.get("actions"));
+        actions = enrichCanonicalActions(actions, firstList(rawData.get("actions")), rawData, result);
+        if (actions.isEmpty() && containsActionLikeEvidence(data)) {
+            actions = List.of(data);
+        }
+        String providerRequestId = context == null ? null : context.getOrGenerateRequestId();
+        String fallbackReason = result != null && result.isSuccess()
+            ? null
+            : firstText(
+                result == null ? null : result.getErrorCode(),
+                data.get("errorCode"),
+                firstActionErrorCode(actions),
+                sanitizedPayload.get("errorCode"),
+                resultType
+            );
+        Map<String, Object> metadata = canonicalMetadata(sanitizedPayload, data, rawData, result);
+        return ChatQueryResponse.builder()
+            .success(result != null && result.isSuccess())
+            .type(resultType)
+            .answer(answer)
+            .safeSummary(safeSummary)
             .conversationId(conversationId)
-            .sessionId(context.getSessionId())
+            .mode(request == null ? null : trimToNull(request.getMode()))
+            .position(request == null ? null : trimToNull(request.getPosition()))
+            .sources(canonicalSources(sanitizedPayload, data, rawData))
+            .ragResponse(canonicalRagResponse(sanitizedPayload, data, rawData))
+            .actions(actions)
+            .suggestions(firstList(sanitizedPayload.get("suggestions"), data.get("suggestions")))
+            .fallbackReason(fallbackReason)
+            .providerRequestId(providerRequestId)
+            .metadata(metadata)
+            .message(answer)
+            .sessionId(context == null ? null : context.getSessionId())
             .authContext(toResponseAuthContext(identity))
             .result(result)
-            .build(), identity, requestPath);
+            .build();
+    }
+
+    private List<Object> canonicalSources(Map<String, Object> sanitizedPayload,
+                                          Map<String, Object> data,
+                                          Map<String, Object> rawData) {
+        Map<String, Object> sanitizedRagResponse = objectMap(sanitizedPayload == null ? null : sanitizedPayload.get("ragResponse"));
+        Map<String, Object> dataRagResponse = objectMap(data == null ? null : data.get("ragResponse"));
+        Map<String, Object> rawRagResponse = objectMap(rawData == null ? null : rawData.get("ragResponse"));
+        List<Object> retrievedSources = firstList(
+            sanitizedPayload == null ? null : sanitizedPayload.get("sources"),
+            sanitizedPayload == null ? null : sanitizedPayload.get("documents"),
+            sanitizedRagResponse.get("sources"),
+            sanitizedRagResponse.get("documents"),
+            data == null ? null : data.get("sources"),
+            data == null ? null : data.get("documents"),
+            dataRagResponse.get("sources"),
+            dataRagResponse.get("documents"),
+            rawData == null ? null : rawData.get("sources"),
+            rawData == null ? null : rawData.get("documents"),
+            rawRagResponse.get("sources"),
+            rawRagResponse.get("documents")
+        );
+        return !retrievedSources.isEmpty()
+            ? retrievedSources
+            : readActionEvidenceSources(data, rawData);
+    }
+
+    private Map<String, Object> canonicalRagResponse(Map<String, Object> sanitizedPayload,
+                                                     Map<String, Object> data,
+                                                     Map<String, Object> rawData) {
+        Map<String, Object> ragResponse = firstNonEmptyMap(
+            objectMap(sanitizedPayload == null ? null : sanitizedPayload.get("ragResponse")),
+            objectMap(data == null ? null : data.get("ragResponse")),
+            objectMap(rawData == null ? null : rawData.get("ragResponse"))
+        );
+        if (!ragResponse.isEmpty()) {
+            return ragResponse;
+        }
+
+        List<Object> sources = canonicalSources(sanitizedPayload, data, rawData);
+        if (sources.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(Map.of("documents", sources));
+    }
+
+    private List<Object> readActionEvidenceSources(Map<String, Object> data, Map<String, Object> rawData) {
+        Map<String, Object> diagnostics = readActionResolutionDiagnostics(data, rawData);
+        List<Object> executedActions = firstList(diagnostics.get("executedActions"));
+        if (executedActions.isEmpty()) {
+            return List.of();
+        }
+        List<Object> sources = new ArrayList<>();
+        for (int i = 0; i < executedActions.size(); i++) {
+            Object rawAction = executedActions.get(i);
+            if (!(rawAction instanceof Map<?, ?> actionMapRaw)) {
+                continue;
+            }
+            Map<String, Object> actionMap = normalizeMap(actionMapRaw);
+            if (!Boolean.TRUE.equals(actionMap.get("groundingUsable"))) {
+                continue;
+            }
+            String evidenceSummary = firstText(actionMap.get("evidenceSummary"), actionMap.get("message"));
+            if (!StringUtils.hasText(evidenceSummary)) {
+                continue;
+            }
+            String actionName = firstText(actionMap.get("action"), "read-action");
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("source", "read-action-resolution");
+            metadata.put("action", actionName);
+            if (StringUtils.hasText(firstText(actionMap.get("category")))) {
+                metadata.put("category", firstText(actionMap.get("category")));
+            }
+            metadata.put("groundingUsable", true);
+
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("id", "read-action:" + actionName + ":" + i);
+            source.put("title", actionName);
+            source.put("content", evidenceSummary);
+            source.put("type", "read-action-evidence");
+            source.put("score", 0.9d);
+            source.put("metadata", Collections.unmodifiableMap(metadata));
+            sources.add(Collections.unmodifiableMap(source));
+        }
+        return sources.isEmpty() ? List.of() : List.copyOf(sources);
+    }
+
+    private Map<String, Object> readActionResolutionDiagnostics(Map<String, Object> data, Map<String, Object> rawData) {
+        Map<String, Object> dataMetadata = firstMap(data == null ? null : data.get("metadata"));
+        Map<String, Object> rawMetadata = firstMap(rawData == null ? null : rawData.get("metadata"));
+        return firstNonEmptyMap(
+            firstMap(data == null ? null : data.get("readActionResolution")),
+            firstMap(rawData == null ? null : rawData.get("readActionResolution")),
+            firstMap(dataMetadata.get("readActionResolution")),
+            firstMap(rawMetadata.get("readActionResolution"))
+        );
+    }
+
+    private Map<String, Object> firstNonEmptyMap(Map<String, Object>... values) {
+        if (values == null) {
+            return Map.of();
+        }
+        for (Map<String, Object> value : values) {
+            if (value != null && !value.isEmpty()) {
+                return Collections.unmodifiableMap(new LinkedHashMap<>(value));
+            }
+        }
+        return Map.of();
+    }
+
+    private Map<String, Object> objectMap(Object value) {
+        Map<String, Object> map = firstMap(value);
+        if (!map.isEmpty() || value == null) {
+            return map;
+        }
+        if (value instanceof String || value instanceof Number || value instanceof Boolean || value instanceof List<?>) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> converted = OBJECT_MAPPER.convertValue(value, new TypeReference<>() { });
+            return converted == null || converted.isEmpty()
+                ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(converted));
+        } catch (IllegalArgumentException ex) {
+            return Map.of();
+        }
+    }
+
+    private Map<String, Object> canonicalMetadata(Map<String, Object> sanitizedPayload,
+                                                  Map<String, Object> data,
+                                                  Map<String, Object> rawData,
+                                                  OrchestrationResult result) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        putAllMetadata(metadata, sanitizedPayload == null ? null : sanitizedPayload.get("metadata"));
+        putAllMetadata(metadata, rawData == null ? null : rawData.get("metadata"));
+        putAllMetadata(metadata, data == null ? null : data.get("metadata"));
+        if (result != null && result.getMetadata() != null && !result.getMetadata().isEmpty()) {
+            metadata.putAll(result.getMetadata());
+        }
+        putDiagnosticIfMap(metadata, "readActionResolution", rawData == null ? null : rawData.get("readActionResolution"));
+        putDiagnosticIfMap(metadata, "readActionResolution", data == null ? null : data.get("readActionResolution"));
+        return metadata.isEmpty()
+            ? Map.of()
+            : Collections.unmodifiableMap(new LinkedHashMap<>(metadata));
+    }
+
+    private void putAllMetadata(Map<String, Object> target, Object value) {
+        if (target == null || !(value instanceof Map<?, ?> map) || map.isEmpty()) {
+            return;
+        }
+        target.putAll(normalizeMap(map));
+    }
+
+    private void putDiagnosticIfMap(Map<String, Object> target, String key, Object value) {
+        if (target == null || !StringUtils.hasText(key) || !(value instanceof Map<?, ?> map) || map.isEmpty()) {
+            return;
+        }
+        target.put(key.trim(), Collections.unmodifiableMap(normalizeMap(map)));
+    }
+
+    private Map<String, Object> enrichCanonicalData(Map<String, Object> data,
+                                                    Map<String, Object> rawData,
+                                                    OrchestrationResult result) {
+        if ((data == null || data.isEmpty()) && (rawData == null || rawData.isEmpty())) {
+            return Map.of();
+        }
+        Map<String, Object> enriched = new LinkedHashMap<>(data == null ? Map.of() : data);
+        String errorCode = firstText(
+            enriched.get("errorCode"),
+            actionResultErrorCode(enriched.get("actionResult")),
+            rawData == null ? null : rawData.get("errorCode"),
+            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult")),
+            result == null ? null : result.getErrorCode()
+        );
+        if (StringUtils.hasText(errorCode) && !StringUtils.hasText(firstText(enriched.get("errorCode")))) {
+            enriched.put("errorCode", errorCode);
+        }
+        Object actionResult = enriched.get("actionResult");
+        if (actionResult instanceof Map<?, ?> actionResultMap
+            && StringUtils.hasText(errorCode)
+            && !StringUtils.hasText(actionResultErrorCode(actionResultMap))) {
+            Map<String, Object> safeActionResult = normalizeMap(actionResultMap);
+            safeActionResult.put("errorCode", errorCode);
+            enriched.put("actionResult", Collections.unmodifiableMap(safeActionResult));
+        }
+        return Collections.unmodifiableMap(enriched);
+    }
+
+    private List<Object> enrichCanonicalActions(List<Object> actions,
+                                                List<Object> rawActions,
+                                                Map<String, Object> rawData,
+                                                OrchestrationResult result) {
+        if (actions == null || actions.isEmpty()) {
+            return List.of();
+        }
+        List<Object> enriched = new ArrayList<>(actions.size());
+        for (int i = 0; i < actions.size(); i++) {
+            Object action = actions.get(i);
+            Object rawAction = rawActions != null && i < rawActions.size() ? rawActions.get(i) : null;
+            if (action instanceof Map<?, ?> actionMap) {
+                enriched.add(enrichCanonicalAction(normalizeMap(actionMap), rawAction, rawData, result));
+            } else {
+                enriched.add(action);
+            }
+        }
+        return List.copyOf(enriched);
+    }
+
+    private Map<String, Object> enrichCanonicalAction(Map<String, Object> action,
+                                                      Object rawAction,
+                                                      Map<String, Object> rawData,
+                                                      OrchestrationResult result) {
+        Map<String, Object> enriched = new LinkedHashMap<>(action);
+        String errorCode = firstText(
+            enriched.get("errorCode"),
+            actionResultErrorCode(enriched.get("actionResult")),
+            actionMapErrorCode(rawAction),
+            rawData == null ? null : rawData.get("errorCode"),
+            rawData == null ? null : actionResultErrorCode(rawData.get("actionResult")),
+            result == null ? null : result.getErrorCode()
+        );
+        if (StringUtils.hasText(errorCode) && !StringUtils.hasText(firstText(enriched.get("errorCode")))) {
+            enriched.put("errorCode", errorCode);
+        }
+        Object actionResult = enriched.get("actionResult");
+        if (actionResult instanceof Map<?, ?> actionResultMap
+            && StringUtils.hasText(errorCode)
+            && !StringUtils.hasText(actionResultErrorCode(actionResultMap))) {
+            Map<String, Object> safeActionResult = normalizeMap(actionResultMap);
+            safeActionResult.put("errorCode", errorCode);
+            enriched.put("actionResult", Collections.unmodifiableMap(safeActionResult));
+        }
+        return Collections.unmodifiableMap(enriched);
+    }
+
+    private String firstActionErrorCode(List<Object> actions) {
+        if (actions == null || actions.isEmpty()) {
+            return null;
+        }
+        for (Object action : actions) {
+            String errorCode = actionMapErrorCode(action);
+            if (StringUtils.hasText(errorCode)) {
+                return errorCode;
+            }
+        }
+        return null;
+    }
+
+    private String actionMapErrorCode(Object action) {
+        if (action instanceof Map<?, ?> actionMap) {
+            Map<String, Object> normalized = normalizeMap(actionMap);
+            return firstText(
+                normalized.get("errorCode"),
+                actionResultErrorCode(normalized.get("actionResult"))
+            );
+        }
+        return actionResultErrorCode(action);
+    }
+
+    private String actionResultErrorCode(Object actionResult) {
+        if (actionResult instanceof ActionResult result) {
+            return result.getErrorCode();
+        }
+        if (actionResult instanceof Map<?, ?> map) {
+            return firstText(normalizeMap(map).get("errorCode"));
+        }
+        return null;
+    }
+
+    private Map<String, Object> normalizeMap(Map<?, ?> map) {
+        if (map == null || map.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry != null && entry.getKey() != null) {
+                normalized.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return normalized;
+    }
+
+    private boolean containsActionLikeEvidence(Map<String, Object> data) {
+        return data != null && (
+            data.containsKey("action")
+                || data.containsKey("actionId")
+                || data.containsKey("actionResult")
+                || data.containsKey("toolResult")
+                || data.containsKey("errorCode")
+                || data.containsKey("customerAccountAuth")
+                || data.containsKey("customerAccountAuthRequired")
+        );
+    }
+
+    private Map<String, Object> firstMap(Object... values) {
+        if (values == null) {
+            return Map.of();
+        }
+        for (Object value : values) {
+            if (value instanceof Map<?, ?> map && !map.isEmpty()) {
+                Map<String, Object> normalized = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    if (entry != null && entry.getKey() != null) {
+                        normalized.put(String.valueOf(entry.getKey()), entry.getValue());
+                    }
+                }
+                if (!normalized.isEmpty()) {
+                    return Collections.unmodifiableMap(normalized);
+                }
+            }
+        }
+        return Map.of();
+    }
+
+    private List<Object> firstList(Object... values) {
+        if (values == null) {
+            return List.of();
+        }
+        for (Object value : values) {
+            if (value instanceof List<?> list && !list.isEmpty()) {
+                List<Object> normalized = new ArrayList<>();
+                for (Object item : list) {
+                    if (item != null) {
+                        normalized.add(item);
+                    }
+                }
+                if (!normalized.isEmpty()) {
+                    return List.copyOf(normalized);
+                }
+            }
+        }
+        return List.of();
+    }
+
+    private String firstText(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value instanceof String text && StringUtils.hasText(text)) {
+                return text.trim();
+            }
+        }
+        return null;
     }
 
     private void attachRuntimeTimingMetadata(OrchestrationResult result,
@@ -346,7 +775,8 @@ public class ChatRuntimeController {
                                               String conversationId,
                                               Map<String, String> promptPreview,
                                               RuntimeResolvedIdentity identity,
-                                              List<String> requestedScopes) {
+                                              List<String> requestedScopes,
+                                              QueryPersistenceMode persistenceMode) {
         String verifiedUserId = identity != null ? identity.orchestrationUserId() : null;
         String sessionId = identity != null && StringUtils.hasText(identity.orchestrationSessionId())
             ? identity.orchestrationSessionId()
@@ -379,7 +809,9 @@ public class ChatRuntimeController {
         Integer responseGenerationMaxTokensConcise = deploymentResponseGenerationMaxTokensConcise();
         Integer responseGenerationMaxTokensStandard = deploymentResponseGenerationMaxTokensStandard();
         Integer responseGenerationMaxTokensDeep = deploymentResponseGenerationMaxTokensDeep();
+        Map<String, Object> requestContext = sanitizeRequestContext(request.getContext());
         if (!promptPreview.isEmpty()
+            || !requestContext.isEmpty()
             || identity != null
             || ragSimilarityThreshold != null
             || ragMaxDocumentsUsedForContext != null
@@ -394,6 +826,9 @@ public class ChatRuntimeController {
                 : new LinkedHashMap<>(context.getMetadata());
             if (!promptPreview.isEmpty()) {
                 metadata.put(OrchestrationContextMetadataKeys.PROMPT_PREVIEW, promptPreview);
+            }
+            if (!requestContext.isEmpty()) {
+                metadata.put("requestContext", requestContext);
             }
             if (ragSimilarityThreshold != null) {
                 metadata.put(OrchestrationContextMetadataKeys.RAG_SIMILARITY_THRESHOLD, ragSimilarityThreshold);
@@ -447,10 +882,85 @@ public class ChatRuntimeController {
             if (requestedScopes != null && !requestedScopes.isEmpty()) {
                 metadata.put(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, List.copyOf(requestedScopes));
             }
+            if (persistenceMode != null) {
+                metadata.put(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, persistenceMode.name());
+            }
             context.setMetadata(metadata);
         }
         context.validate();
         return context;
+    }
+
+    private Map<String, Object> sanitizeRequestContext(Map<String, Object> rawContext) {
+        if (rawContext == null || rawContext.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        int count = 0;
+        for (Map.Entry<String, Object> entry : rawContext.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || count >= MAX_SUGGESTION_METADATA_ENTRIES) {
+                continue;
+            }
+            Object value = sanitizeContextValue(entry.getValue());
+            if (value != null) {
+                sanitized.put(entry.getKey().trim(), value);
+                count += 1;
+            }
+        }
+        return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
+    }
+
+    private Object sanitizeContextValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String text) {
+            String trimmed = trimToNull(text);
+            if (trimmed == null) {
+                return null;
+            }
+            return trimmed.length() > MAX_SUGGESTION_METADATA_VALUE_CHARS
+                ? trimmed.substring(0, MAX_SUGGESTION_METADATA_VALUE_CHARS)
+                : trimmed;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            int count = 0;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry == null || entry.getKey() == null || count >= MAX_SUGGESTION_METADATA_ENTRIES) {
+                    continue;
+                }
+                Object nestedValue = sanitizeContextValue(entry.getValue());
+                if (nestedValue != null) {
+                    nested.put(String.valueOf(entry.getKey()), nestedValue);
+                    count += 1;
+                }
+            }
+            return nested.isEmpty() ? null : Map.copyOf(nested);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> nested = new ArrayList<>();
+            for (Object item : list) {
+                if (nested.size() >= MAX_SUGGESTION_METADATA_ENTRIES) {
+                    break;
+                }
+                Object nestedValue = sanitizeContextValue(item);
+                if (nestedValue != null) {
+                    nested.add(nestedValue);
+                }
+            }
+            return nested.isEmpty() ? null : List.copyOf(nested);
+        }
+        String text = trimToNull(String.valueOf(value));
+        if (text == null) {
+            return null;
+        }
+        return text.length() > MAX_SUGGESTION_METADATA_VALUE_CHARS
+            ? text.substring(0, MAX_SUGGESTION_METADATA_VALUE_CHARS)
+            : text;
     }
 
     private Map<String, String> sanitizePromptPreview(Map<String, String> promptPreview) {

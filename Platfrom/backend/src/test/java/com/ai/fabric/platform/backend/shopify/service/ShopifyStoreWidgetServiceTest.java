@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 class ShopifyStoreWidgetServiceTest {
 
     @Test
-    void recordMarksLiveWhenWidgetEnabledAfterSyncAndReadiness() {
+    void recordMarksLiveWhenWidgetEnabledAfterSourceReadinessAndVerifiedRelease() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
         ShopifyStoreConnectionService connectionService = mock(ShopifyStoreConnectionService.class);
@@ -29,6 +29,7 @@ class ShopifyStoreWidgetServiceTest {
         ShopifyStoreSourcePreflightSupport support = new ShopifyStoreSourcePreflightSupport(new ObjectMapper());
 
         ShopifyStoreConnectionEntity store = store();
+        store.setSyncStatus("NOT_SYNCED");
         store.setDetailsJson("""
             {"widget":{"settings":{"launcherLabel":"Need help?","welcomeMessage":"Ask me about products and policies.","shellModeProfile":"GUIDED_COMMERCE","enabledSurfaces":["ai-search","comparison"]}}}
             """);

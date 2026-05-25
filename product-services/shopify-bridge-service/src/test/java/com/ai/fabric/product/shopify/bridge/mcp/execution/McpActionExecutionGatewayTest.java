@@ -80,10 +80,15 @@ class McpActionExecutionGatewayTest {
     void storefrontReadinessVerifiesLiveStorefrontMcpEndpoint() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ShopifyCustomerAccountOAuthService customerAccountOAuthService = mock(ShopifyCustomerAccountOAuthService.class);
+        when(customerAccountOAuthService.resolveAccessToken("alpha.myshopify.com", "shopper-session-1"))
+            .thenReturn(Optional.of("customer-token"));
         McpActionExecutionGateway gateway = new McpActionExecutionGateway(
             properties("https://mcp-gateway.internal", "secret"),
+            externalAuth(true, false, false),
+            customerAccountOAuthService,
             objectMapper,
-            builder
+            builder.build()
         );
 
         server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/servers/tools/list"))
@@ -234,6 +239,203 @@ class McpActionExecutionGatewayTest {
 
         assertThat(result.success()).isTrue();
         assertThat(result.data()).containsEntry("orderCount", 1);
+        server.verify();
+    }
+
+    @Test
+    void executeMapsGatewaySuccessWithToolErrorToBridgeFailure() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ShopifyCustomerAccountOAuthService customerAccountOAuthService = mock(ShopifyCustomerAccountOAuthService.class);
+        when(customerAccountOAuthService.resolveAccessToken("alpha.myshopify.com", "shopper-session-1"))
+            .thenReturn(Optional.of("customer-token"));
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            externalAuth(true, false, false),
+            customerAccountOAuthService,
+            objectMapper,
+            builder.build()
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andRespond(withSuccess("""
+                {
+                  "success": true,
+                  "message": "MCP tool result",
+                  "data": {
+                    "adapterType": "mcp-tool",
+                    "toolResult": {
+                      "content": [
+                        {"type": "text", "text": "No orders found for this customer."}
+                      ],
+                      "isError": true
+                    }
+                  }
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_get_most_recent_order_status",
+                Map.of(),
+                null,
+                Map.of(
+                    "shopperSessionId", "shopper-session-1",
+                    "actionConfig", Map.of(
+                        "execution", Map.of("mcp", Map.of(
+                            "serverRef", "shopify-customer-account",
+                            "toolName", "get_most_recent_order_status"
+                        ))
+                    )
+                )
+            )
+        );
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("OWNED_RESOURCE_NOT_FOUND");
+        assertThat(result.message()).isEqualTo("No orders found for this customer.");
+        assertThat(result.message()).doesNotContain("MCP", "tool result");
+        server.verify();
+    }
+
+    @Test
+    void executeMapsGatewayToolErrorFailureToBridgeFailure() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            objectMapper,
+            builder
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andRespond(withSuccess("""
+                {
+                  "success": false,
+                  "message": "Invalid global id 'Selling Plans Ski Wax'",
+                  "errorCode": "MCP_TOOL_REPORTED_ERROR",
+                  "data": {
+                    "adapterType": "mcp-tool",
+                    "toolResult": {
+                      "content": [
+                        {"type": "text", "text": "{\\"cart\\":{},\\"errors\\":[{\\"message\\":\\"Invalid global id 'Selling Plans Ski Wax'\\"}]}"}
+                      ]
+                    }
+                  }
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_update_cart",
+                Map.of("add_items", List.of(Map.of("product_variant_id", "gid://shopify/ProductVariant/1", "quantity", 1))),
+                null,
+                Map.of("actionConfig", Map.of(
+                    "execution", Map.of("mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "toolName", "update_cart"
+                    ))
+                ))
+            )
+        );
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("MCP_TOOL_REPORTED_ERROR");
+        assertThat(result.message()).contains("Invalid global id 'Selling Plans Ski Wax'");
+        server.verify();
+    }
+
+    @Test
+    void executeForwardsRuntimeParamSchemaToGatewayActionConfig() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            objectMapper,
+            builder
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andExpect(content().json("""
+                {
+                  "actionId": "shopify_update_cart",
+                  "params": {
+                    "add_items": [
+                      {"product_id": "gid://shopify/Product/1", "quantity": 1}
+                    ]
+                  },
+                  "trace": {
+                    "shopDomain": "alpha.myshopify.com",
+                    "actionConfig": {
+                      "params": [
+                        {
+                          "name": "add_items",
+                          "type": "ARRAY",
+                          "items": {
+                            "type": "OBJECT",
+                            "requiredProperties": ["product_variant_id", "quantity"]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "actionConfig": {
+                    "params": [
+                      {
+                        "name": "add_items",
+                        "type": "ARRAY",
+                        "items": {
+                          "type": "OBJECT",
+                          "requiredProperties": ["product_variant_id", "quantity"]
+                        }
+                      }
+                    ]
+                  }
+                }
+                """))
+            .andRespond(withSuccess("""
+                {
+                  "success": false,
+                  "message": "add_items[0] is missing required property product_variant_id.",
+                  "errorCode": "INVALID_MCP_ACTION_ARGUMENTS"
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            new ShopifyBridgeActionExecuteRequest(
+                "shopify_update_cart",
+                Map.of("add_items", List.of(Map.of("product_id", "gid://shopify/Product/1", "quantity", 1))),
+                "idem-1",
+                Map.of("actionConfig", Map.of(
+                    "params", List.of(Map.of(
+                        "name", "add_items",
+                        "type", "ARRAY",
+                        "items", Map.of(
+                            "type", "OBJECT",
+                            "requiredProperties", List.of("product_variant_id", "quantity")
+                        )
+                    )),
+                    "execution", Map.of("mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "update_cart"
+                    ))
+                ))
+            )
+        );
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("INVALID_MCP_ACTION_ARGUMENTS");
+        assertThat(result.message()).contains("product_variant_id");
         server.verify();
     }
 

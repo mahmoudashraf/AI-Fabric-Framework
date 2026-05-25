@@ -6,12 +6,15 @@ import com.ai.fabric.platform.backend.secret.model.PlatformSecretSummary;
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -114,5 +117,42 @@ class PlatformSecretServiceTest {
         assertThat(service.listSecrets())
             .extracting(PlatformSecretSummary::name)
             .contains("COOLIFY_STAGING_API_TOKEN", "COOLIFY_PRODUCTION_API_TOKEN");
+    }
+
+    @Test
+    void upsertManagedSecretReturnsDeploymentManagedSummary() {
+        PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
+        when(repository.findById("MANAGED_PRODUS_SAFE_KNOWLEDGE_EXPORT_TOKEN_DEP_DEP_7706FAFB")).thenReturn(Optional.empty());
+        when(repository.save(any(PlatformSecretEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PlatformSecretService service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+
+        PlatformSecretSummary summary = service.upsertManagedSecret(
+            "MANAGED_PRODUS_SAFE_KNOWLEDGE_EXPORT_TOKEN_DEP_DEP_7706FAFB",
+            "secret-value",
+            Map.of("deploymentId", "dep-7706fafb", "source", "test")
+        );
+
+        assertThat(summary.present()).isTrue();
+        assertThat(summary.source()).isEqualTo("DATABASE");
+        assertThat(summary.scopeType()).isEqualTo("DEPLOYMENT_MANAGED");
+        assertThat(summary.ownerType()).isEqualTo("PLATFORM_MANAGED");
+        assertThat(summary.deploymentId()).isEqualTo("dep-7706fafb");
+        assertThat(summary.managedByPlatform()).isTrue();
+    }
+
+    @Test
+    void describeSecretAllowsManagedNamesButRejectsArbitraryNames() {
+        PlatformSecretRepository repository = mock(PlatformSecretRepository.class);
+        when(repository.findById("MANAGED_PRODUS_SAFE_KNOWLEDGE_EXPORT_TOKEN_DEP_DEP_7706FAFB")).thenReturn(Optional.empty());
+        PlatformSecretService service = new PlatformSecretService(repository, mock(PlatformAuditService.class), new MockEnvironment());
+
+        PlatformSecretSummary summary = service.describeSecret("MANAGED_PRODUS_SAFE_KNOWLEDGE_EXPORT_TOKEN_DEP_DEP_7706FAFB");
+
+        assertThat(summary.present()).isFalse();
+        assertThat(summary.required()).isFalse();
+        assertThat(summary.scopeType()).isEqualTo("DEPLOYMENT_MANAGED");
+        assertThatThrownBy(() -> service.describeSecret("SOURCE_API_KEY"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Unsupported platform secret");
     }
 }

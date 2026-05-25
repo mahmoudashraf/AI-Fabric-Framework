@@ -87,4 +87,76 @@ class VectorizationRecordMapperTest {
             .containsEntry("days", 30);
         assertThat(record.metadata()).isEmpty();
     }
+
+    @Test
+    void mapCanRouteRecordToSourceProvidedTargetEntityType() throws Exception {
+        JsonNode mappingConfig = objectMapper.readTree("""
+            {
+              "entityMappings": {
+                "produs-safe-knowledge": {
+                  "recordIdField": "id",
+                  "recordVersionField": "metadata.sourceRecordVersion",
+                  "targetEntityTypeField": "vectorSpace"
+                }
+              }
+            }
+            """);
+        JsonNode sourceRecord = objectMapper.readTree("""
+            {
+              "id": "svc-module-1",
+              "vectorSpace": "service-module",
+              "title": "Scanner orchestration",
+              "metadata": {
+                "sourceRecordVersion": "2026-05-21T10:00:00Z"
+              }
+            }
+            """);
+
+        VectorizationMappedRecord record = mapper.map("produs-safe-knowledge", mappingConfig, sourceRecord);
+
+        assertThat(record.entityType()).isEqualTo("service-module");
+        assertThat(record.logicalEntityId()).isEqualTo("svc-module-1");
+        assertThat(record.sourceRecordVersion()).isEqualTo("2026-05-21T10:00:00Z");
+        assertThat(record.entity()).containsEntry("vectorSpace", "service-module");
+    }
+
+    @Test
+    void mapCanAttachStaticMetadataForResolvedTargetEntityType() throws Exception {
+        JsonNode mappingConfig = objectMapper.readTree("""
+            {
+              "entityMappings": {
+                "produs-safe-knowledge": {
+                  "recordIdField": "id",
+                  "targetEntityTypeField": "vectorSpace",
+                  "metadataStaticValues": {
+                    "datasetId": "produs-safe-knowledge"
+                  },
+                  "metadataStaticValuesByTargetEntityType": {
+                    "*": {
+                      "environment": "staging"
+                    },
+                    "service-module": {
+                      "knowledgeSourceHandleRef": "plugin/mkp-data-produs-safe-knowledge/service-module"
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        JsonNode sourceRecord = objectMapper.readTree("""
+            {
+              "id": "service-module:api-security-review",
+              "vectorSpace": "service-module",
+              "title": "API security review"
+            }
+            """);
+
+        VectorizationMappedRecord record = mapper.map("produs-safe-knowledge", mappingConfig, sourceRecord);
+
+        assertThat(record.entityType()).isEqualTo("service-module");
+        assertThat(record.metadata())
+            .containsEntry("datasetId", "produs-safe-knowledge")
+            .containsEntry("environment", "staging")
+            .containsEntry("knowledgeSourceHandleRef", "plugin/mkp-data-produs-safe-knowledge/service-module");
+    }
 }

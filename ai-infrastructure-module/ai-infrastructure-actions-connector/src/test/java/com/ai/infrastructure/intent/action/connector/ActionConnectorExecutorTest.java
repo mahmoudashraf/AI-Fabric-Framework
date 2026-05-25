@@ -134,7 +134,20 @@ class ActionConnectorExecutorTest {
             Map.of(
                 "adapterType", "mcp-tool",
                 "execution", Map.of("mcp", Map.of("serverRef", "inventory-mcp", "toolName", "inventory.search")),
-                "mcpServers", Map.of("inventory-mcp", Map.of("endpointUrl", "https://inventory.example/mcp"))
+                "mcpServers", Map.of("inventory-mcp", Map.of("endpointUrl", "https://inventory.example/mcp")),
+                "params", List.of(Map.of(
+                    "name", "selected_items",
+                    "type", "ARRAY",
+                    "batchTargets", true,
+                    "items", Map.of(
+                        "type", "OBJECT",
+                        "requiredProperties", List.of("product_variant_id", "quantity"),
+                        "properties", Map.of(
+                            "product_variant_id", Map.of("type", "STRING", "required", true),
+                            "quantity", Map.of("type", "INTEGER", "required", true)
+                        )
+                    )
+                ))
             )
         );
 
@@ -146,7 +159,13 @@ class ActionConnectorExecutorTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> actionConfig = (Map<String, Object>) trace.get("actionConfig");
         assertThat(actionConfig).containsEntry("adapterType", "mcp-tool");
-        assertThat(actionConfig).containsKeys("execution", "mcpServers");
+        assertThat(actionConfig).containsKeys("execution", "mcpServers", "params");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> params = (List<Map<String, Object>>) actionConfig.get("params");
+        assertThat(params.getFirst()).containsEntry("name", "selected_items");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> items = (Map<String, Object>) params.getFirst().get("items");
+        assertThat(items).containsEntry("requiredProperties", List.of("product_variant_id", "quantity"));
     }
 
     @Test

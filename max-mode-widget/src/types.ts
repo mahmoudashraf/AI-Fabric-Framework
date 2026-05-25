@@ -28,9 +28,11 @@ export type ResultType =
 export interface SanitizedPayload {
   type: ResultType;
   success: boolean;
-  message: string;
+  message?: string;
   data?: any;
   safeSummary?: string;
+  answer?: string;
+  errorCode?: string;
   sanitization?: {
     risk: string;
     detectedTypes: string[];
@@ -87,10 +89,21 @@ export interface ChatMessage {
   timestamp: string;
   result?: ChatResult;
   resultType?: ResultType;
+  success?: boolean;
+  customerAccountConnect?: CustomerAccountConnectAction;
   attachedItems?: Array<{ type: string; data: any }>;
   documents?: Document[];
   debugData?: DebugData;
   searchCategory?: string;
+}
+
+export interface CustomerAccountConnectAction {
+  startUrl: string;
+  sessionUrl?: string;
+  shopperSessionId?: string;
+  returnTo?: string;
+  label?: string;
+  description?: string;
 }
 
 export interface Document {
@@ -99,9 +112,18 @@ export interface Document {
   content: string;
   type: string;
   metadata?: any;
+  imageUrl?: string;
+  imageAltText?: string;
+  url?: string;
+  storefrontUrl?: string;
+  handle?: string;
   messageId?: string;
   similarity?: number;
   score?: number;
+  product_variant_id?: string;
+  firstAvailableVariantTitle?: string;
+  priceRange?: string;
+  availability?: string;
 }
 
 export interface Conversation {

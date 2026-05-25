@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class ShopifyBridgeBillingServiceTest {
 
     @Test
-    void freeModeIsActiveAndNotBlocked() {
+    void freeModeDefaultsToEliteWhenFreePackageDisabled() {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("FREE", "", "", "", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
@@ -38,15 +38,18 @@ class ShopifyBridgeBillingServiceTest {
         var summary = service.summarize();
 
         assertThat(summary.mode()).isEqualTo("FREE");
-        assertThat(summary.tierKey()).isEqualTo("FREE");
+        assertThat(summary.tierKey()).isEqualTo("ELITE");
         assertThat(summary.status()).isEqualTo("ACTIVE");
         assertThat(summary.launchBlocked()).isFalse();
         assertThat(summary.merchantApprovalRequired()).isFalse();
-        assertThat(summary.catalogProductCap()).isEqualTo(50);
-        assertThat(summary.allowedSurfaces()).containsExactly("ai-search");
+        assertThat(summary.catalogProductCap()).isNull();
+        assertThat(summary.actionCapable()).isTrue();
+        assertThat(summary.actionPackages()).contains("guided-commerce", "order-self-service");
+        assertThat(summary.allowedSurfaces()).contains("ai-search", "comparison", "order-lookup");
         assertThat(summary.availablePlans())
             .anySatisfy(plan -> {
                 if ("FREE".equals(plan.tierKey())) {
+                    assertThat(plan.commerciallyAvailable()).isFalse();
                     assertThat(plan.allowedSurfaces()).containsExactly("ai-search");
                     assertThat(plan.chatFallbackEnabled()).isFalse();
                 }
@@ -54,7 +57,21 @@ class ShopifyBridgeBillingServiceTest {
     }
 
     @Test
-    void paidModeWithoutRecurringPricingConfigKeepsFreeTierActive() {
+    void effectiveAllowedSurfacesPreservesExplicitStoreDisablement() {
+        ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
+            billingProperties("FREE", "", "", "", 0, false, false),
+            properties("https://bridge.example.com", "shopify-api-key"),
+            mock(ShopifyAdminGraphqlClient.class),
+            mock(ShopifyInstallRecordService.class),
+            null
+        );
+
+        assertThat(service.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("not-a-surface"))).isEmpty();
+        assertThat(service.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of())).contains("ai-search", "comparison", "order-lookup");
+    }
+
+    @Test
+    void paidModeWithoutRecurringPricingConfigKeepsDefaultEliteTierActive() {
         ShopifyBridgeBillingService service = new ShopifyBridgeBillingService(
             billingProperties("SHOPIFY_APP_SUBSCRIPTION", "", "", "", 0, false, false),
             properties("https://bridge.example.com", "shopify-api-key"),
@@ -66,7 +83,7 @@ class ShopifyBridgeBillingServiceTest {
         var summary = service.summarize();
 
         assertThat(summary.mode()).isEqualTo("SHOPIFY_APP_SUBSCRIPTION");
-        assertThat(summary.tierKey()).isEqualTo("FREE");
+        assertThat(summary.tierKey()).isEqualTo("ELITE");
         assertThat(summary.status()).isEqualTo("ACTIVE");
         assertThat(summary.launchBlocked()).isFalse();
         assertThat(summary.merchantApprovalRequired()).isFalse();
@@ -99,7 +116,7 @@ class ShopifyBridgeBillingServiceTest {
         var summary = service.summarizeForShop("alpha.myshopify.com", "token");
 
         assertThat(summary.status()).isEqualTo("ACTIVE");
-        assertThat(summary.tierKey()).isEqualTo("FREE");
+        assertThat(summary.tierKey()).isEqualTo("ELITE");
         assertThat(summary.merchantApprovalRequired()).isFalse();
         assertThat(summary.availablePlans())
             .anySatisfy(plan -> {
@@ -326,6 +343,8 @@ class ShopifyBridgeBillingServiceTest {
                                                              boolean eliteEnabled) {
         return new ShopifyBridgeBillingProperties(
             mode,
+            "ELITE",
+            false,
             "Companion Free",
             "",
             "",

@@ -332,9 +332,9 @@ public class ShopifyBridgeUsageService {
 
     private String extractSurfaceId(JsonNode request, String fallbackSurfaceId) {
         if (request != null && request.isObject()) {
-            JsonNode storefrontContext = request.get("storefrontContext");
-            if (storefrontContext != null && storefrontContext.isObject()) {
-                JsonNode surfaceEntry = storefrontContext.get("shopifySurfaceEntry");
+            JsonNode context = request.get("context");
+            if (context != null && context.isObject()) {
+                JsonNode surfaceEntry = context.get("shopifySurfaceEntry");
                 if (surfaceEntry != null && surfaceEntry.isValueNode()) {
                     return surfaceEntry.asText(fallbackSurfaceId);
                 }

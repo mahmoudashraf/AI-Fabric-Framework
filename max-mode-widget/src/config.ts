@@ -140,7 +140,26 @@ export interface MaxModeHostStarterPrompt {
   mode?: MaxModeMode;
 }
 
+export interface MaxModeHostCustomerAccountAuthConfig {
+  /** Bridge Customer Account OAuth start URL exposed by the Shopify bootstrap */
+  startUrl?: string;
+  /** Optional Bridge Customer Account session-status URL for host probes */
+  sessionUrl?: string;
+  /** Stable storefront shopper session id sent with chat requests */
+  shopperSessionId?: string;
+  /** Optional return URL after Shopify Customer Account authorization */
+  returnTo?: string;
+}
+
+export type MaxModeHostRequestContextProvider = () =>
+  | Record<string, any>
+  | undefined
+  | null
+  | Promise<Record<string, any> | undefined | null>;
+
 export interface MaxModeHostConfig {
+  /** Host-specific full-screen experience. Defaults to the generic Max Mode workspace. */
+  experience?: "default" | "shopify-shopping-workspace";
   /** Visible launcher label for storefront/product hosts */
   launcherLabel?: string;
   /** Accessible launcher label override */
@@ -157,6 +176,8 @@ export interface MaxModeHostConfig {
   starterSuggestions?: string[];
   /** Optional host-owned request payload merged into query and suggestions calls */
   requestContext?: Record<string, any>;
+  /** Optional host-owned live request context merged just before each chat query */
+  requestContextProvider?: MaxModeHostRequestContextProvider;
   /** Default user-selectable conversation mode for this host */
   defaultConversationMode?: MaxModeMode;
   /** Effective conversation mode after host/page routing is resolved */
@@ -169,6 +190,10 @@ export interface MaxModeHostConfig {
   initialAttachments?: MaxModeHostAttachment[];
   /** Hide POC-only utility controls when embedding in storefronts */
   showUtilityPanel?: boolean;
+  /** Render the compact storefront dock that shares the Max Mode chat runtime */
+  companionDock?: boolean;
+  /** Optional Shopify Customer Account auth handoff used for customer-owned resources */
+  customerAccountAuth?: MaxModeHostCustomerAccountAuthConfig;
 }
 
 export interface MaxModeWidgetConfig {
@@ -204,6 +229,7 @@ export type MaxModeEventType =
   | "widget:closed"
   | "message:sent"
   | "message:received"
+  | "customer-account-auth:start"
   | "cart:add"
   | "cart:remove"
   | "cart:checkout"
@@ -245,6 +271,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
   position: "bottom-right",
   launcher: true,
   host: {
+    experience: "default",
     launcherLabel: undefined,
     launcherAriaLabel: undefined,
     launcherVariant: "icon",
@@ -253,12 +280,15 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     starterPrompts: undefined,
     starterSuggestions: undefined,
     requestContext: undefined,
+    requestContextProvider: undefined,
     defaultConversationMode: undefined,
     effectiveConversationMode: undefined,
     allowedConversationModes: undefined,
     pageModeMappings: undefined,
     initialAttachments: undefined,
     showUtilityPanel: true,
+    companionDock: false,
+    customerAccountAuth: undefined,
   },
   onEvent: undefined,
   onClose: undefined,

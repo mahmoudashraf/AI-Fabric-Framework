@@ -625,15 +625,16 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
         AIActionParamType type = schema.getType() != null ? schema.getType() : AIActionParamType.UNKNOWN;
         String suffix = Boolean.TRUE.equals(schema.getRequired()) ? "!" : "";
         String batch = Boolean.TRUE.equals(schema.getBatchTargets()) ? " [batchTargets]" : "";
+        String defaultValue = schema.getDefaultValue() != null ? " default=" + schema.getDefaultValue() : "";
 
-        return switch (type) {
-            case STRING -> "string" + suffix + batch;
-            case INTEGER -> "integer" + suffix + batch;
-            case NUMBER -> "number" + suffix + batch;
-            case BOOLEAN -> "boolean" + suffix + batch;
+        String summary = switch (type) {
+            case STRING -> "string" + suffix + batch + defaultValue;
+            case INTEGER -> "integer" + suffix + batch + defaultValue;
+            case NUMBER -> "number" + suffix + batch + defaultValue;
+            case BOOLEAN -> "boolean" + suffix + batch + defaultValue;
             case ARRAY -> {
                 String item = schema.getItems() != null ? summarizeSchema(schema.getItems(), depth + 1) : "unknown";
-                yield "array<" + item + ">" + suffix + batch;
+                yield "array<" + item + ">" + suffix + batch + defaultValue;
             }
             case OBJECT -> {
                 if (schema.getProperties() != null && !schema.getProperties().isEmpty()) {
@@ -642,12 +643,20 @@ public class MultiStepIntentExtractionStrategy implements IntentExtractionStrate
                         .limit(12)
                         .map(e -> e.getKey() + ":" + summarizeSchema(e.getValue(), depth + 1))
                         .collect(Collectors.joining(", "));
-                    yield "object{" + props + "}" + suffix + batch;
+                    yield "object{" + props + "}" + suffix + batch + defaultValue;
                 }
-                yield "object" + suffix + batch;
+                yield "object" + suffix + batch + defaultValue;
             }
-            case UNKNOWN -> "unknown" + suffix + batch;
+            case UNKNOWN -> "unknown" + suffix + batch + defaultValue;
         };
+        if (!StringUtils.hasText(schema.getDescription())) {
+            return summary;
+        }
+        String description = schema.getDescription().trim().replaceAll("\\s+", " ");
+        if (description.length() > 220) {
+            description = description.substring(0, 217) + "...";
+        }
+        return summary + " - " + description;
     }
 
     private MultiIntentResponse buildResponse(String query,

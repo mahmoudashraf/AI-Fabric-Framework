@@ -25,7 +25,8 @@ Rules:
 - Production Shopify bridge root served a bundle containing new `Loom Companion` admin UI strings after commit `277da57d`; merchant may need Shopify Admin/hard refresh to see it.
 - Support tools tab should explain internal/support purpose and avoid rendering long generated packet text; full packets stay available through copy/download actions.
 - Created `doc/Productization/future-work/MarketPlace/Products/Strategy/PARTNER_DASHBOARD_STRATEGY_PLAN.md` and updated `Codex_Strategic_Context.md`: partner dashboard owns runbooks/packets/diagnostics/referrals/commissions; merchant admin stays merchant-safe.
-- Clarified indexing boundary: Shopify Bridge uses platform vectorization; merchant UI should say Knowledge Sync, while raw vectorization/index/reindex/replay controls belong to partner/operator.
+- Clarified indexing boundary: Shopify Admin API is source of truth; Bridge exposes Shopify-backed vectorization source endpoints; Platform owns vectorization runs/evidence; Runtime stores only the derived retrieval index. Merchant UI should say `Refresh knowledge` / `Reindex`, not `Sync now`.
+- 010.4 cleanup removed hidden legacy `runSync` preconditions from manual vectorization and webhook-driven auto indexing. Legacy document sync can remain for compatibility/operator repair, but it is not shopper-facing source truth or a merchant freshness requirement.
 - Technical LLM implementation sessions must read this file before starting, keep it updated with compact ongoing decisions/status/blockers/changed files, and leave a clear handoff note before ending.
 - Created first implementation handoff: `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/001_SHOPIFY_COMPANION_LAUNCH_TRUTH_ENFORCEMENT.md`; it briefs Launch Truth Enforcement and requires sessions to keep this working context updated.
 - Enriched Launch Truth Enforcement handoff with technical code map, implementation guidance, verification commands, live-check rules, and required LLM handoff output.
@@ -1120,3 +1121,141 @@ Critical fixes that made the gate pass:
 - Local verification passed before redeploy: `bash scripts/verify-loomai-landing-site.sh`, `docker build -f Real_Apps/loomai-landing-site/Dockerfile -t loomai-landing-site:local .`, and `git diff --check`.
 - Pushed commits `a9755fc3a` and `8e335c085`, then redeployed the existing staging Coolify landing app (`bdzny0asckbk7nhtukflg8fy`). Final deployment `vez7uc4yvkxuyba04py4xngw` finished and the app returned to `running:healthy`.
 - Hosted product-suite verification passed on staging: `/health` returned `UP`, merchant page contains `LoomAI products for commerce and support work`, partner page contains `Help clients launch LoomAI products`, and Playwright desktop/mobile checks passed with screenshots in `/tmp/loomai-landing-site-product-suite-hosted`.
+
+## 2026-05-11 Shopify Companion Runtime-Led Answer Quality
+
+- Corrected the 010.3 answer-quality fix to align with the architecture rule: Shopify Bridge must not invent semantic fallback answers from shopper text, generic `Search completed.` responses, out-of-scope runtime results, or vector-space policy misses.
+- Commerce runtime pack now sets `ai.orchestration.always-generate-information=true`, so Companion retrieval flows produce LLM-generated answers from retrieved evidence instead of relying on Bridge-side summaries.
+- Runtime now hides system-context-only missing action parameters such as `shopperSessionId` from public clarification text/validation metadata; trusted storefront session context is still injected before validation when present.
+- Runtime OUT_OF_SCOPE handling can use LLM-provided `actionParams.userMessage`, and commerce/default intent prompts now require safe user-facing OUT_OF_SCOPE copy without implementation terms.
+- Bridge remains responsible for public response sanitization and structured governance after runtime action selection: action ID/package/page-context policy, not shopper text matching.
+- Decision rationale: shopper-facing semantic recovery belongs in Runtime/Thinker because only the runtime has prompt, retrieval, read-action evidence, model context, and package policy together. Bridge does not have enough semantic state to safely classify shopper intent or summarize weak evidence without brittle text matching.
+- Decision rationale: generic `Search completed.` responses and vector-space/domain clarification leaks are runtime answer-quality defects, not storefront copy defects. Fixing them in Bridge would hide runtime regressions and create divergent behavior across Max mode, Companion mode, and future MCP-backed products.
+- Decision rationale: unsupported legal/professional/internal-implementation requests must be shaped by runtime/LLM policy into a store-safe redirect. Bridge should only enforce structured action/package/page-context governance and final sanitization, otherwise language variants will bypass hardcoded Bridge logic.
+- Future guardrail: do not reintroduce shopper-query keyword matching, Bridge-side semantic fallback answers, or Bridge evidence summaries. Add tests at runtime prompt/policy/orchestration layers; keep Bridge tests focused on pass-through behavior, sanitization, and structured governance.
+- Focused verification passed locally: `ShopifyStorefrontChatServiceTest`, `IntentHandlingStepAlwaysGenerateInformationTest`, `IntentHandlingStepRequiredParamsPlaceholderTest`, `RAGOrchestratorTest`, and `CommerceCuratedPackTest`.
+- Follow-up live query-quality repair pushed through `3a396f486`: runtime generation now handles weak fan-out evidence instead of returning code-authored vector-space/domain clarification when generation is requested; OUT_OF_SCOPE ignores schema-invalid `directAnswer` and uses `actionParams.userMessage` or the store-safe default; commerce generation redirects internal/professional-advice requests without echoing forbidden implementation terms.
+- Staging redeploys completed on Coolify for Bridge app `c12bjqdcyqdt7tzgr48pev3z` and runtime app `t7hmq6mu0618dalir4jrv6fs`; both read back `running:healthy` on branch `Platform-V9`, Bridge health returned `UP`, and runtime health returned `UP`.
+- Final live answer-quality gate passed: `python3 scripts/evaluate-shopify-companion-answers.py --bridge-base-url https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io --shop-domain shopping-companion-test.myshopify.com --query-pack scripts/verification/shopify-first-product-readiness/answer-quality-query-pack.json --out /tmp/shopify-answer-quality-20260511112039 --timeout 60` returned `PASS (11/11 passed)`.
+
+## 2026-05-11 Shopify Add-To-Cart Confirmation Optimization
+
+- Add-to-cart confirmation copy must remain runtime/LLM-led and Marketplace-config-driven. Do not add Bridge-side shopper text matching or semantic fallback responses for cart confirmation wording.
+- Marketplace action `shopify_update_cart` carries optional presentation-only `cart_update_confirmation`; confirmation template uses `{{cart_update_confirmation|Update your cart}}?` so missing LLM detail still degrades safely.
+- Runtime primary, completion, and multi-step extraction prompts now expose parameter schema descriptions and explicitly allow optional presentation/confirmation params when faithfully derived from the shopper request or authoritative attachments.
+- Shopify Bridge context normalization now preserves flat `productTitle`/`productHandle` storefront context as the same attachment metadata used for nested product context, so manual/staging traffic and widget traffic both give the runtime authoritative page context.
+- Platform migrations `V99__shopify_cart_confirmation_param_guidance.sql` and `V100__shopify_cart_confirmation_param_guidance_fragment.sql` update the marketplace param description to clarify that quantity `1` is valid when a shopper asks to add one product and no quantity is specified. This is display guidance only; executable MCP arguments still come from configured action params and Bridge/session governance.
+- Staging verification: cart Marketplace install `mpi-b210e590` was resynced so deployment draft `drf-2b3adea6` picked up the current published plugin guidance, then version `ver-73911c97` was applied to staging as release `rel-06cd6242`; it reached `APPLIED_VERIFIED` with verification `PASSED`.
+- Live Bridge proof after the apply: `Add this to my cart` on product context `Selling Plans Ski Wax` returned `CONFIRMATION_REQUIRED` with `Add Selling Plans Ski Wax to cart?`; `Add two of this wax to my cart` with flat product context returned `Add two Selling Plans Ski Wax to my cart?`. The previous generic `Update your cart?` response was not reproduced.
+
+## 2026-05-11 Shopify Search/Action Query Sweep Remediation
+
+- Extended live query sweep found three runtime/gateway integration defects: Storefront MCP `shopify_search_catalog` could receive blank optional values and fail with `Invalid params`; catalog/search extraction could ask for `query` even when the shopper already supplied a product-search phrase; and cart/account action paths could ask for internal cart/auth details.
+- Decision rationale: keep this runtime/MCP-led. Do not add shopper text matching in Bridge. The fix is generic MCP argument pruning, prompt/Marketplace param guidance for search `query`, trusted storefront cart context forwarding, and structured Customer Account auth-error sanitization.
+- MCP Gateway now prunes null, missing, blank textual, and empty object/array values from rendered action arguments before `tools/call`, preserving configured arguments while avoiding schema-invalid optional blanks.
+- Runtime extraction prompts and Marketplace search metadata now instruct the LLM to fill catalog/search `query` from the shopper-facing product/category/preference phrase, including price or size constraints when no dedicated structured parameter exists.
+- Shopify Bridge now forwards `cart`, `cartId`, and `cart_id` storefront context into normalized attachment metadata as `cart_id`, maps generic `shopify_get_cart` MCP result sentinels to shopper-safe cart guidance, and maps `CUSTOMER_ACCOUNT_AUTH_REQUIRED` / `INVALID_CUSTOMER_ACCOUNT_SESSION` / `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED` to shopper-safe sign-in/support guidance.
+- The answer-quality query pack now covers the new search/action failure modes: ski wax search, priced ski search, cart-context safe copy, and Customer Account auth-safe-copy. Keep future changes in this gate rather than one-off manual probes.
+- Live vectorization readiness exposed a legacy-alias masking issue: disabled `mkp-action-shopify-companion-read` canonicalized to `mkp-action-shopify-storefront-read-mcp` and overwrote the enabled canonical MCP install in the readiness map. Platform now prefers enabled canonical installs over disabled legacy aliases so vectorization can run with the greenfield Storefront MCP action bundle while retaining the disabled legacy install record.
+- Live proof after deploy: Platform backend `8143bc11a`, Runtime/MCP Gateway `b6ee0c348`, and Bridge `aa21c681a` were healthy on staging. Deployment version `ver-d0e6c12d` applied as release `rel-a58bfa25` with `APPLIED_VERIFIED` / `PASSED`.
+- Vectorization proof: readiness changed from blocked to `readyToRun=true`, then full reindex run `vrn-8a3a6f55` completed and the store returned `syncState=IN_SYNC`.
+- Expanded answer-quality proof: `/tmp/shopify-answer-quality-20260511T212114Z-expanded-final` passed `15/15`, including ski wax search, priced ski search, gift card, return/shipping source-gap behavior, cart confirmation, cart-context safe copy, customer-account auth safe copy, and internal-language guard.
+
+## 2026-05-12 Shopify Bridge Staging Service Ref Cleanup
+
+- Staging Platform product-service naming drift was corrected in place: the lifecycle-owning record `psv-48d286fa` now uses `serviceRef=shopify-bridge-staging`, display name `Shopify Bridge Service - Staging`, `environmentScope=staging`, and `secretName=MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY`.
+- The transient duplicate staging record was removed, the staging shop `shopping-companion-test.myshopify.com` remains bound to `psv-48d286fa`, and `/api/product-services/shopify-bridge-prod` now returns `404` on staging.
+- Bridge Coolify env `SHOPIFY_BRIDGE_SERVICE_REF` was changed to `shopify-bridge-staging`; Bridge was redeployed through Coolify deployment `t140poe2e0n1icri5e0et87y` and `/api/admin/overview` reported `serviceRef=shopify-bridge-staging`, `environmentScope=staging`, and `status=READY`.
+- Coolify app label was cleaned to `shopify-bridge-shopify-bridge-staging` with description `Managed product service shopify-bridge-staging`.
+- Final Platform vectorization proof through the renamed binding passed: reindex run `vrn-43385c9f` completed with `processedRecords=80`, `succeededRecords=80`, `failedRecords=0`, and store `syncState=IN_SYNC`.
+- Operational script defaults and guides now use `shopify-bridge-staging` for staging. Production records should use explicit production refs such as `shopify-bridge-production`; do not reuse staging service refs or staging managed secret names for production.
+
+## 2026-05-12 Shopify Companion Expanded Answer-Quality Gate
+
+- Expanded the canonical Shopify Companion answer-quality pack to 20 live queries covering search, product FAQ, comparison, policy gaps, cart actions, cart reads, Customer Account auth gates, medical/product-claim gaps, missing current-product context, and internal implementation-language guards.
+- Bridge now enforces a structural product-context guard for product-scoped surfaces (`product-insight`, `product-faq`) when no concrete product id/handle/title is present. This prevents random catalog substitution for prompts like `this product` without adding shopper text matching.
+- Internal implementation-language handling remains runtime/LLM-led. Do not add Bridge-side semantic keyword routing for shopper queries; the Bridge test `queryForwardsInternalImplementationQuestionToRuntimePolicyInsteadOfBridgeTextMatching` must stay valid.
+- Commerce curated prompts now put internal implementation/runtime/tool-status requests at highest priority for safe shopper-facing redirection, and answer prompts explicitly avoid treating those requests as missing product/policy evidence.
+- Canonical readiness context was corrected so product-page tests that are meant to exercise product behavior include concrete product context. The separate missing-current-product query proves the Bridge structural guard.
+- Live staging proof after deploy: Platform backend and active runtime were redeployed to `2d293b2b8`; Shopify Bridge retained the deployed structural guard from `6986ca6b4`. Health checks passed for Platform backend, Bridge, and runtime. Final live gate output `/tmp/shopify-answer-quality-20260512T143924Z-expanded-canonical-final` returned `PASS (20/20 passed)`.
+
+## 2026-05-16 Shopify Companion Indexing Architecture Cleanup
+
+- 010.4 source-of-truth decision is implemented: Shopify Admin API remains canonical, Bridge source endpoints expose bounded Shopify data, Platform orchestrates vectorization runs/evidence, and Runtime stores only the derived retrieval index.
+- Removed hidden legacy document-sync preconditions from manual Shopify vectorization and automatic live indexing. Normal `index-all`, `reindex-all`, `reindex-selected`, and auto event dispatch no longer call Bridge `/run-sync` or Platform `/documents/sync`.
+- Readiness and widget-live promotion no longer require the historical `SYNCED` document-sync status; failed derived-index verification can still block shopper traffic with indexing-specific guidance.
+- Merchant embedded UI now teaches `Refresh knowledge` / `Reindex` as the freshness operation. Keep legacy `Sync now` as compatibility/operator repair only, not merchant launch flow.
+- Added regression coverage for manual reindex, auto indexing, readiness, and widget-live promotion. Full local suites passed for Platform backend and Shopify Bridge, plus Bridge UI build and vectorization core/runner reactor tests.
+- Commit `e34c6c85b` was pushed to `Platform-V9` and deployed on staging for Platform backend and Shopify Bridge; both health checks returned `UP`.
+- Live staging freshness proof passed: Shopify Admin changed `MetroTab 11 5G Tablet` price from `679.00` to `681.00`; Platform reindex-only run `vrn-4826fc3b` completed; storefront chat answered `$681.00` with evidence containing `Price range: 681.0 USD` and variant price `681.00 USD`.
+- Runtime logs checked after the proof for Platform backend and Shopify Bridge showed zero `/run-sync`, `/documents/sync`, or `runSync` mentions in the post-proof window. Evidence files are under `/tmp/loomai-0104-*`.
+
+## 2026-05-16 Customer Account MCP Token Broker Fix
+
+- Root cause of repeated `Connect store account` loop: Shopify Customer Account browser OAuth successfully bound the shopper session in Shopify Bridge, but the generic MCP Gateway could not read Bridge-owned customer tokens.
+- Implemented Bridge internal token broker endpoint `POST /api/admin/customer-account/shops/{shopDomain}/token/resolve`, protected by the Bridge admin API key. It resolves Customer Account OAuth tokens from the canonical shop plus verified shopper session and masks token values in server-side `toString()`.
+- Implemented MCP Gateway `CUSTOMER_OAUTH_PKCE` token-broker support. Gateway resolves the broker base URL from allowlisted profile ref `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`, resolves the broker API key from `MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY`, enforces public HTTPS and a tight broker header allowlist, and then forwards the returned token as the MCP Authorization header.
+- Marketplace migration `V104__shopify_customer_account_mcp_token_broker.sql` updates the live Customer Account MCP action bundle to remove LLM-filled `shopperSessionId` params and declare broker auth under `execution.mcp.auth.tokenBroker`.
+- Decision: customer session identity must travel through verified runtime trace/auth context, not through shopper/LLM action parameters. Do not reintroduce `shopperSessionId` as a required action parameter.
+- Local verification passed: full `mcp-execution-gateway-service` tests; targeted Shopify Bridge Customer Account OAuth/token-broker/MCP/storefront chat tests; Platform backend Marketplace manifest/compiler tests with all 104 migrations applied.
+
+## 2026-05-16 Customer Account MCP Shopify 401 Scope Fix
+
+- Live staging order lookup reproduced Shopify Customer Account MCP `HTTP 401` after Customer Account OAuth and token brokerage were already working. Direct diagnosis showed `initialize` / `tools/list` could succeed, but order `tools/call` failed until the Shopify app version included Customer Account API app scopes.
+- Fixed tracked Shopify app config and render defaults to include `customer_read_customers`, `customer_read_orders`, `customer_write_orders`, and `customer_read_store_credit_accounts` alongside product/content/Admin scopes. Deployed Shopify app version `loom-companion-43` with message `Enable Customer Account MCP order scopes`.
+- Bridge staging env was returned to product OAuth scope `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES=customer-account-mcp-api:full` after a temporary diagnostic expansion. A fresh browser authorization then bound shopper session `chrome-v104-...d6c8` again.
+- Post-fix live proof: Bridge direct action and storefront chat no longer return `MCP server returned HTTP 401`; they execute Customer Account MCP and return Shopify's current tool text `No orders found for this customer.` Admin API confirms order `#1001` / legacy id `7019362451539` exists for customer `engmahmoudalgamal@gmail.com`, financial status `PENDING`, fulfillment `UNFULFILLED`. Remaining issue is Shopify MCP order visibility for that pending order, not LoomAI token brokerage/auth.
+
+## 2026-05-17 Customer Account MCP Internal Controls
+
+- Decision: defer durable Customer Account OAuth redeploy/recreate proof to the public/self-serve release gate. Design-partner staging can require shoppers to reconnect after a Bridge redeploy until stable datasource/encryption/HMAC material is proven live across recreate.
+- Implemented semantic MCP failure handling without query text matching: MCP Gateway maps Customer Account read-owned tool errors to `OWNED_RESOURCE_NOT_FOUND`, Customer Account write-owned tool errors to `OWNED_RESOURCE_ACTION_FAILED`, and non-Customer MCP tool errors to `MCP_TOOL_REPORTED_ERROR`. Shopify Bridge has the same fallback for older Gateway responses that return `success=true` with `toolResult.isError=true`.
+- Expanded the Customer Account MCP Marketplace bundle from two order tools to the four live `tools/list` observed tools: `shopify_get_most_recent_order_status`, `shopify_get_order_status`, `shopify_get_store_credit_balances`, and `shopify_request_return`. The actions stay explicit Marketplace config, not runtime discovery-as-product-truth.
+- Runtime routing remains prompt/catalog driven. The commerce action-selection prompt now tells the LLM to select customer-owned actions from allowed action metadata and avoid using order-status tools for generic account-profile questions.
+- Legacy Admin order lookup no longer requests Shopify `statusPageUrl`; GraphQL protected-field failures fail closed as `ORDER_LOOKUP_UNAVAILABLE` with merchant-safe copy.
+- Support-readiness is diagnostic only. It must not inspect Shopify billing and write package/billing state or enqueue provisioning as a side effect; package state changes must go through the explicit billing/package operation. This prevents readiness checks from downgrading an Elite staging/design-partner package to Free when Shopify subscription state is not the active package source.
+
+## 2026-05-18 Owned Resource Param Resolution
+
+- Decision: shopper-owned context support remains generic runtime/Marketplace config, not Bridge text matching and not Shopify-specific runtime routing.
+- ACTION param schemas now support `visibility`, `askUser`, and `resolveFrom`; connector catalogs preserve these into runtime config.
+- Runtime hides internal/system/secret or `askUser=false` params from prompt-visible action metadata and shopper clarification. Missing `cart_id` now fails closed without asking the shopper to provide `cart_id`.
+- Runtime resolves missing params from trusted `RUNTIME_CONTEXT`, `ATTACHMENT_METADATA`, `OWNED_RESOURCE`, and policy-allowed `READ_ACTION` sources before required-param validation. READ_ACTION-derived values are tracked as trusted resolver provenance; hallucinated public params still fail normal provenance checks.
+- Commerce curated modes now allow Shopify read actions (`shopify_get_cart`, Customer Account order/status/store-credit tools, and Storefront search/policy/product reads) for thinker/resolver/executor/cart-assistant read-action resolution.
+- Marketplace migration `V109__shopify_owned_resource_param_resolution.sql` publishes hidden cart/session params and lets `shopify_request_return.order_number` resolve from `shopify_get_most_recent_order_status` when the shopper asks for the latest/last order.
+- Durable `owned_resource_refs` runtime DB persistence and cart-handle persistence from MCP `update_cart` results are still a follow-up hardening slice; do not claim cross-turn/redeploy owned-resource continuity until that slice is implemented and release-gate verified.
+
+## 2026-05-22 Plan Review: Shopify Release And ProdUS Query-Once
+
+- 010.7 query-once endpoint is implemented, tested, deployed, and live-verified on managed ProdUS staging runtime `dep-7706fafb`. `/api/chat/me/query-once` is the non-persistent one-time answer endpoint; `/api/chat/me/query` remains the persistent chat endpoint.
+- Latest runtime deployment after documentation alignment is Coolify deployment `kpx28b02ryukztitqvem2399` on commit `969f87dfb`. Live smoke proved query-once returns a one-time answer while `GET /api/chat/me/conversations/{queryOnceConversationId}` returns `404`, and normal query still persists.
+- 009.3/010/010.1 documentation was refreshed to mark the stale 2026-05-08 Shopify release gate as expired. A fresh hosted full release gate is required before any current release decision.
+- Shopify Companion release posture remains: controlled design-partner staging is viable after a fresh gate; public/self-service production is blocked by controlled production-promotion proof, production provisioning verification, rollback/deactivation proof, failed-promotion staging-isolation proof, claim-safe Customer Account/Checkout live evidence, and merchant-facing support/App Store packaging.
+- Do not treat ProdUS query-once or private-runtime work as reducing Shopify production gates. They help the generic platform/external-customer path, while Shopify still needs its production release evidence.
+
+## 2026-05-25 Shopify Companion Fresh Hosted Staging Release Gate
+
+- Full execution artifacts are under `/tmp/shopify-release-gate-20260525T021738Z`.
+- A hosted full-gate blocker was fixed in commit `09024adc4`: Platform verification-suite Shopify expectation overrides now include `billingTier` and `billingStatus`, so the hosted suite can verify the actual staging launch store posture `ELITE/ACTIVE` instead of forcing the historical `STARTER/ACTIVE` defaults.
+- Platform backend was redeployed on Coolify staging as deployment `jdh3149u7nufk5iy28n986cn`; health returned `UP`.
+- The fresh Shopify/MCP gates passed individually: `scripts/verify-shopify-mcp-gateway.sh`, `scripts/verify-shopify-companion.sh` with actual staged surfaces, `scripts/verify-shopify-companion-max-widget-live.sh`, and `scripts/verify-shopify-first-product-readiness-audit.sh`.
+- Staging shop reindex run `vrn-67cc5eda` completed successfully and the store returned `syncState=IN_SYNC`.
+- Repeat answer-quality gate passed three times: 20/20, 20/20, 20/20. Summary artifacts are in `/tmp/shopify-release-gate-20260525T021738Z/shopify-answer-quality-20260525T022158Z-repeats/`.
+- Debug/RAG proof passed for `summarize high performance laptops for gaming`: Bridge returned canonical `ragResponse.documents` count `5`, `sources` count `5`, `responseGenerationPath=RAG_ANSWER`, and read-action decision `EXECUTE_READ_ACTIONS_AND_RAG`; browser widget proof rendered debug buttons and live Shopify product cards with CDN image URLs. Artifacts: `debug-rag-response.json`, `debug-rag-widget-ui-proof.json`, and `debug-rag-widget-final-proof.png`.
+- Support/package posture is aligned for current staging: Platform support readiness, Bridge readiness, and storefront bootstrap all report `ELITE/ACTIVE`, support readiness `READY`, `orderLookupEnabled=true`, enabled surfaces `contextual-pill,product-insight,policy-strip,product-faq,comparison,order-lookup`, and modes `thinker_deep,executor`.
+- The first hosted rerun failed at Partner Enablement because the stored `PARTNER_SUPABASE_JWT` had expired. A fresh Supabase email test-user token was generated from private operator material, stored only in `/tmp/partner_supabase_jwt.secret`, and written back to Platform secret `PARTNER_SUPABASE_JWT` without printing token material.
+- Standalone strict Partner Enablement verification passed after the JWT refresh, including merchant approval/deep-link workspace, product controls, evidence bundle, support-profile write/restore, rollback/deactivation request, and revoked-access proof.
+- Final hosted full release gate passed: run `vsr-e9e4ea6f`, status `PASSED`, completed `2026-05-25T04:02:44.671947Z`. `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, expiring `2026-05-25T16:02:44.671947Z`.
+- Final hosted stage summaries: Marketplace hosted verification passed with 42 passes / 2 warnings, Ecommerce hosted verification passed with 43 passes / 2 warnings, Qdrant hosted verification passed with 25 passes / 2 warnings.
+- Release posture after this run: controlled staging/design-partner launch is green while the gate remains fresh; public self-service Shopify/App Store launch is still blocked by controlled production promotion, production rollback/deactivation, failed-promotion staging-isolation proof, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture, and complete public support/App Store packaging.
+
+## 2026-05-25 ProdUS Confirmed Project Creation Action
+
+- ProdUS exposed bounded MCP mutation `produs.productization_project.create` for the owner-approved AI-assisted productization project creation flow.
+- LoomAI published and installed Marketplace action plugin `mkp-action-produs-productization-project-create-mcp@0.1.1` on deployment `dep-7706fafb` as install `mpi-47247a04`.
+- The action reuses existing MCP server ref `produs-staging`; no duplicate MCP server contribution is installed. Runtime action name is `produs_productization_project_create`.
+- Deployment version `ver-f9069ce5` was applied through release `rel-623c91a0`; release status was `APPLIED_VERIFIED` with verification `PASSED`.
+- Runtime `/api/admin/actions/overview` now reports 9 ProdUS actions: 8 read actions plus `produs_productization_project_create`.
+- Confirmed action properties: `WRITE_ONLY`, `sideEffectLevel=MUTATING`, `confirmationRequired=false`, `groundingEligible=false`, `readActionResolutionEligible=false`, schema hash `sha256:6a64c636165a0e6c92e7fefd41fad8e53132f411f2aa7d107a992c6e517867c0`.
+- Negative live execution-path proof through MCP Gateway reached the ProdUS MCP tool, matched schema hash, returned schema drift `OK`, and failed closed with `Project creation intent not found` for an intentionally invalid creation intent. This proves LoomAI config/routing/guard behavior without creating data.
+- Positive creation proof still requires a real owner-approved ProdUS `runtimeActionPayload` from `POST /api/products/ai-assisted/analyze`; do not claim project creation success until that payload is executed live.

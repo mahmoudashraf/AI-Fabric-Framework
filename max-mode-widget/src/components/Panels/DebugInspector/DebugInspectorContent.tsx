@@ -37,7 +37,7 @@ export function DebugInspectorContent({
 
   return (
     <div className="space-y-4">
-      <RequestSection debugRequest={debugRequest} />
+      <RequestSection debugRequest={debugRequest} debugResponse={debugResponse} />
       <ResponseSection
         debugRequest={debugRequest}
         debugResponse={debugResponse}

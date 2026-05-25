@@ -94,6 +94,37 @@ public class ShopifyBridgeVectorizationSourceService {
                 descriptionHtml
                 vendor
                 productType
+                featuredImage {
+                  url
+                  altText
+                }
+                totalInventory
+                priceRangeV2 {
+                  minVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                  maxVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                }
+                variants(first: 20) {
+                  edges {
+                    node {
+                      id
+                      title
+                      sku
+                      availableForSale
+                      price
+                      compareAtPrice
+                      selectedOptions {
+                        name
+                        value
+                      }
+                    }
+                  }
+                }
                 metafields(first: 12) {
                   edges {
                     node {
@@ -122,6 +153,37 @@ public class ShopifyBridgeVectorizationSourceService {
               descriptionHtml
               vendor
               productType
+              featuredImage {
+                url
+                altText
+              }
+              totalInventory
+              priceRangeV2 {
+                minVariantPrice {
+                  amount
+                  currencyCode
+                }
+                maxVariantPrice {
+                  amount
+                  currencyCode
+                }
+              }
+              variants(first: 20) {
+                edges {
+                  node {
+                    id
+                    title
+                    sku
+                    availableForSale
+                    price
+                    compareAtPrice
+                    selectedOptions {
+                      name
+                      value
+                    }
+                  }
+                }
+              }
               metafields(first: 12) {
                 edges {
                   node {
@@ -363,28 +425,7 @@ public class ShopifyBridgeVectorizationSourceService {
                 accessToken,
                 sourceObjectId,
                 "Product",
-                node -> new ShopifyBridgeVectorizationSourceRecord(
-                    requiredText(node, "id"),
-                    text(node, "updatedAt"),
-                    text(node, "title"),
-                    joinContent(
-                        text(node, "title"),
-                        text(node, "vendor"),
-                        text(node, "productType"),
-                        sanitizeRichText(text(node, "descriptionHtml")),
-                        ShopifyProductReviewSignals.content(node),
-                        ShopifyKeyProductMetafields.content(node)
-                    ),
-                    "products",
-                    "product",
-                    storefrontUrl(store.shopDomain(), "/products/" + safePath(text(node, "handle"))),
-                    text(node, "handle"),
-                    text(node, "vendor"),
-                    text(node, "productType"),
-                    null,
-                    null,
-                    null
-                )
+                node -> productRecord(store.shopDomain(), node)
             ));
             case "collections" -> loadNodeRecord(
                 store.shopDomain(),
@@ -404,6 +445,13 @@ public class ShopifyBridgeVectorizationSourceService {
                     "collection",
                     storefrontUrl(store.shopDomain(), "/collections/" + safePath(text(node, "handle"))),
                     text(node, "handle"),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -428,6 +476,13 @@ public class ShopifyBridgeVectorizationSourceService {
                     "page",
                     storefrontUrl(store.shopDomain(), "/pages/" + safePath(text(node, "handle"))),
                     text(node, "handle"),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -541,29 +596,46 @@ public class ShopifyBridgeVectorizationSourceService {
         return applyProductCap(pageFromConnection(
             response,
             "products",
-            node -> new ShopifyBridgeVectorizationSourceRecord(
-                requiredText(node, "id"),
-                text(node, "updatedAt"),
+            node -> productRecord(shopDomain, node)
+        ), catalogProductCap);
+    }
+
+    private ShopifyBridgeVectorizationSourceRecord productRecord(String shopDomain, Map<String, Object> node) {
+        return new ShopifyBridgeVectorizationSourceRecord(
+            requiredText(node, "id"),
+            text(node, "updatedAt"),
+            text(node, "title"),
+            joinContent(
                 text(node, "title"),
-                joinContent(
-                    text(node, "title"),
-                    text(node, "vendor"),
-                    text(node, "productType"),
-                    sanitizeRichText(text(node, "descriptionHtml")),
-                    ShopifyProductReviewSignals.content(node),
-                    ShopifyKeyProductMetafields.content(node)
-                ),
-                "products",
-                "product",
-                storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle"))),
-                text(node, "handle"),
                 text(node, "vendor"),
                 text(node, "productType"),
-                null,
-                null,
-                null
-            )
-        ), catalogProductCap);
+                ShopifyProductCommerceEvidence.content(node),
+                sanitizeRichText(text(node, "descriptionHtml")),
+                ShopifyProductReviewSignals.content(node),
+                ShopifyKeyProductMetafields.content(node)
+            ),
+            "products",
+            "product",
+            storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle"))),
+            productImageUrl(node),
+            productImageAltText(node),
+            text(node, "handle"),
+            text(node, "vendor"),
+            text(node, "productType"),
+            null,
+            null,
+            null,
+            ShopifyProductCommerceEvidence.priceRange(node),
+            ShopifyProductCommerceEvidence.currencyCode(node),
+            ShopifyProductCommerceEvidence.availability(node),
+            ShopifyProductCommerceEvidence.variantSummary(node),
+            ShopifyProductCommerceEvidence.productVariantId(node),
+            ShopifyProductCommerceEvidence.productVariantId(node),
+            ShopifyProductCommerceEvidence.productVariantTitle(node),
+            ShopifyProductCommerceEvidence.variantCount(node),
+            ShopifyProductCommerceEvidence.totalInventory(node),
+            ShopifyProductCommerceEvidence.availableVariantCount(node)
+        );
     }
 
     private ShopifyBridgeVectorizationSourceRecord requireProductWithinTierCap(String shopDomain,
@@ -631,6 +703,13 @@ public class ShopifyBridgeVectorizationSourceService {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
             )
         );
@@ -661,6 +740,13 @@ public class ShopifyBridgeVectorizationSourceService {
                 "page",
                 storefrontUrl(shopDomain, "/pages/" + safePath(text(node, "handle"))),
                 text(node, "handle"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -751,6 +837,13 @@ public class ShopifyBridgeVectorizationSourceService {
                 null,
                 text(node, "type"),
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
             ))
             .toList();
@@ -789,6 +882,13 @@ public class ShopifyBridgeVectorizationSourceService {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             null
         );
     }
@@ -818,7 +918,14 @@ public class ShopifyBridgeVectorizationSourceService {
             null,
             null,
             entry.type(),
-            entry.definitionName()
+            entry.definitionName(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
         );
     }
 
@@ -1007,6 +1114,15 @@ public class ShopifyBridgeVectorizationSourceService {
         }
         Object nestedValue = nested.get(nestedFieldName);
         return nestedValue == null ? null : nestedValue.toString();
+    }
+
+    private String productImageUrl(Map<String, Object> node) {
+        return nestedText(node, "featuredImage", "url");
+    }
+
+    private String productImageAltText(Map<String, Object> node) {
+        String altText = nestedText(node, "featuredImage", "altText");
+        return altText == null || altText.isBlank() ? text(node, "title") : altText;
     }
 
     private String articleStorefrontUrl(String shopDomain, Map<String, Object> node) {

@@ -2,7 +2,7 @@ import type { RefObject } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
 
-import type { ChatMessage, ResultType } from "@/types";
+import type { ChatMessage, CustomerAccountConnectAction, ResultType } from "@/types";
 import type { AiStyles } from "./MessageBubble";
 import { MessageBubble } from "./MessageBubble";
 import { AIThinkingAnimation } from "./AIThinkingAnimation";
@@ -29,6 +29,7 @@ export function MessageList({
   isItemAttached,
   onAttachActionResultItem,
   onNextStepClick,
+  onCustomerAccountConnect,
   onClarificationSubmit,
 }: {
   containerClassName: string;
@@ -36,7 +37,7 @@ export function MessageList({
   latestMessageRef: RefObject<HTMLDivElement>;
   messagesEndRef: RefObject<HTMLDivElement>;
   isLoading: boolean;
-  getAiStyles: (resultType?: ResultType) => AiStyles;
+  getAiStyles: (resultType?: ResultType, success?: boolean) => AiStyles;
   isPanelVisible: boolean;
   attachedItems: Array<{ type: string; data: any }>;
   confirmationStatus: Record<string, "confirmed" | "rejected" | undefined>;
@@ -52,6 +53,7 @@ export function MessageList({
   isItemAttached: (itemId: string) => boolean;
   onAttachActionResultItem: (item: any) => void;
   onNextStepClick: (query: string) => void;
+  onCustomerAccountConnect: (action: CustomerAccountConnectAction) => void;
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
 }) {
   return (
@@ -59,7 +61,7 @@ export function MessageList({
       <div className="max-w-3xl mx-auto space-y-4">
         <AnimatePresence mode="popLayout">
           {messages.map((message, index) => {
-            const aiStyles = message.type === "ai" ? getAiStyles(message.resultType) : null;
+            const aiStyles = message.type === "ai" ? getAiStyles(message.resultType, message.success) : null;
             const isLatest = index === messages.length - 1;
 
             return (
@@ -84,6 +86,7 @@ export function MessageList({
                 isItemAttached={isItemAttached}
                 onAttachActionResultItem={onAttachActionResultItem}
                 onNextStepClick={onNextStepClick}
+                onCustomerAccountConnect={onCustomerAccountConnect}
                 onClarificationSubmit={onClarificationSubmit}
               />
             );

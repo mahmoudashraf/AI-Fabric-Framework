@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 public final class ConnectorAIActionHandler implements AIActionHandler {
 
     private static final String REDACTED = "[REDACTED]";
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)\\s*}}");
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([a-zA-Z0-9_]+)(?:\\s*\\|\\s*([^{}]*?))?\\s*}}");
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int FALLBACK_MAX_RECORDS = 5;
     private static final int FALLBACK_MAX_SCALAR_FIELDS = 16;
@@ -153,6 +153,11 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return Optional.of(Collections.unmodifiableMap(facts));
     }
 
+    @Override
+    public Map<String, Object> actionRuntimeConfig() {
+        return actionConfig;
+    }
+
     private void applyConfiguredFacts(Map<String, Object> facts, Map<String, Object> rootPayload, ActionContext context) {
         if (rootPayload == null || rootPayload.isEmpty()) {
             return;
@@ -189,6 +194,17 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
                 putMcpToolContentFacts(facts, payload);
             }
         }
+        if (!hasPrimaryList && supportsObjectFallbackFacts()
+            && !facts.containsKey("documents") && !facts.containsKey("record")) {
+            putFallbackObjectFacts(facts, rootPayload);
+        }
+    }
+
+    private boolean supportsObjectFallbackFacts() {
+        if (metadata == null || metadata.getAccessMode() == null) {
+            return false;
+        }
+        return metadata.getAccessMode() != com.ai.infrastructure.intent.action.ActionAccessMode.WRITE_ONLY;
     }
 
     private void putConfiguredList(Map<String, Object> facts,
@@ -261,6 +277,19 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         return true;
     }
 
+    private boolean putFallbackObjectFacts(Map<String, Object> facts, Map<String, Object> payload) {
+        if (facts == null || payload == null || payload.isEmpty()) {
+            return false;
+        }
+        Map<String, Object> record = compactFallbackRecord(payload);
+        if (record.isEmpty()) {
+            return false;
+        }
+        facts.put("record", Collections.unmodifiableMap(record));
+        facts.put("recordCount", 1);
+        return true;
+    }
+
     private boolean putMcpToolContentFacts(Map<String, Object> facts, Map<String, Object> payload) {
         if (facts == null || facts.containsKey("documents") || payload == null || payload.isEmpty()) {
             return false;
@@ -326,7 +355,13 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         }
         if (llmFacts != null && StringUtils.hasText(llmFacts.rootPath())) {
             Object configuredRoot = resolvePath(payload, llmFacts.rootPath());
-            return configuredRoot instanceof Map<?, ?> map ? toStringObjectMap(map) : Map.of();
+            if (configuredRoot instanceof Map<?, ?> map) {
+                return toStringObjectMap(map);
+            }
+            if (configuredRoot instanceof CharSequence text) {
+                return parseJsonObject(text.toString());
+            }
+            return Map.of();
         }
         Object nested = mapObject(payload, "data");
         return nested instanceof Map<?, ?> nestedMap ? toStringObjectMap(nestedMap) : payload;
@@ -763,15 +798,47 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
             if (!StringUtils.hasText(part)) {
                 return null;
             }
-            if (!(current instanceof Map<?, ?> map)) {
+            String segment = part.trim();
+            if (current instanceof Map<?, ?> map) {
+                current = mapObject(map, segment);
+            } else if (current instanceof List<?> list) {
+                Integer index = parseIndex(segment);
+                current = index != null && index >= 0 && index < list.size() ? list.get(index) : null;
+            } else {
                 return null;
             }
-            current = mapObject(map, part.trim());
             if (current == null) {
                 return null;
             }
         }
         return current;
+    }
+
+    private Integer parseIndex(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private Map<String, Object> parseJsonObject(String value) {
+        if (!StringUtils.hasText(value)) {
+            return Map.of();
+        }
+        String trimmed = value.trim();
+        if (!trimmed.startsWith("{")) {
+            return Map.of();
+        }
+        try {
+            Object decoded = JSON.readValue(trimmed, Object.class);
+            return decoded instanceof Map<?, ?> map ? toStringObjectMap(map) : Map.of();
+        } catch (JsonProcessingException ex) {
+            return Map.of();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -823,30 +890,38 @@ public final class ConnectorAIActionHandler implements AIActionHandler {
         StringBuffer out = new StringBuffer();
         while (matcher.find()) {
             String name = matcher.group(1);
-            String replacement = renderValue(name, params);
+            String fallback = matcher.group(2);
+            String replacement = renderValue(name, fallback, params);
             matcher.appendReplacement(out, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(out);
         return out.toString();
     }
 
-    private String renderValue(String name, Map<String, Object> params) {
+    private String renderValue(String name, String fallback, Map<String, Object> params) {
         if (!StringUtils.hasText(name)) {
             return "";
         }
         String key = name.trim();
+        Object raw = params != null ? params.get(key) : null;
+        if (raw == null) {
+            return renderFallback(fallback);
+        }
         if (sensitiveParams.contains(key)) {
             return REDACTED;
         }
-        Object raw = params != null ? params.get(key) : null;
-        if (raw == null) {
-            return "";
-        }
         String s = raw.toString();
         if (!StringUtils.hasText(s)) {
-            return "";
+            return renderFallback(fallback);
         }
         return escapeHtml(s.trim());
+    }
+
+    private String renderFallback(String fallback) {
+        if (!StringUtils.hasText(fallback)) {
+            return "";
+        }
+        return escapeHtml(fallback.trim());
     }
 
     private String defaultConfirmationMessage(Map<String, Object> params) {

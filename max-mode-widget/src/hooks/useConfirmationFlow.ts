@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
+import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -60,12 +61,15 @@ export function useConfirmationFlow({
         let result: ChatResult | undefined;
         let resultType: ResultType | undefined;
 
-        if (data.result && data.result.sanitizedPayload) {
-          messageContent = data.result.sanitizedPayload.message || "I processed your confirmation.";
-          result = data.result;
-          resultType = data.result.type;
+        const customerAccountConnect = extractCustomerAccountConnectAction(data);
+        const canonicalResult = canonicalChatResult(data);
+
+        if (canonicalResult?.sanitizedPayload) {
+          messageContent = extractChatResultMessage(data, "I processed your confirmation.");
+          result = canonicalResult;
+          resultType = canonicalResult.type;
         } else {
-          messageContent = data.response || data.message || "I processed your confirmation.";
+          messageContent = extractChatResultMessage(data, "I processed your confirmation.");
         }
 
         const aiMessage: ChatMessage = {
@@ -75,6 +79,8 @@ export function useConfirmationFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          success: result?.success ?? data.result?.success ?? data.success ?? true,
+          customerAccountConnect,
         };
 
         setChatMessages((prev) => [...prev, aiMessage]);

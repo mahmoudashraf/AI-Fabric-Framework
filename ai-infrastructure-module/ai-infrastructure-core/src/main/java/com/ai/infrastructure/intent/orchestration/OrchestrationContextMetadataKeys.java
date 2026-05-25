@@ -115,4 +115,9 @@ public final class OrchestrationContextMetadataKeys {
      * Scopes explicitly requested by the current runtime entrypoint.
      */
     public static final String REQUESTED_SCOPES = "requestedScopes";
+
+    /**
+     * Runtime entrypoint persistence contract for conversation turn storage.
+     */
+    public static final String QUERY_PERSISTENCE_MODE = "queryPersistenceMode";
 }

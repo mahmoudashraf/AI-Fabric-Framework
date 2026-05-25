@@ -90,6 +90,9 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.catalogProductCap()).isEqualTo(50);
         assertThat(response.poweredByBadgeRequired()).isTrue();
         assertThat(response.chatFallbackEnabled()).isFalse();
+        assertThat(response.assistantDockEnabled()).isTrue();
+        assertThat(response.askAssistantLauncherEnabled()).isFalse();
+        assertThat(response.colorScheme()).isEqualTo("violet");
         assertThat(response.launcherLabel()).isEqualTo("Need help?");
         assertThat(response.welcomeMessage()).isEqualTo("Ask me about products and store policies.");
         assertThat(response.enabledSurfaces()).containsExactly("ai-search");
@@ -100,7 +103,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.defaultConversationMode()).isEqualTo("navigator");
         assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
         assertThat(response.allowedConversationModes()).containsExactly("navigator");
-        assertThat(response.pageModeMappings()).isEmpty();
+        assertThat(response.pageModeMappings()).containsEntry("product", "navigator");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
@@ -185,6 +188,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.available()).isTrue();
         assertThat(response.orderLookupEnabled()).isFalse();
         assertThat(response.effectiveConversationMode()).isEqualTo("navigator");
+        assertThat(response.pageModeMappings()).containsEntry("account", "navigator");
         assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
     }
 
@@ -237,6 +241,7 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.defaultConversationMode()).isEqualTo("thinker_deep");
         assertThat(response.allowedConversationModes()).containsExactly("navigator", "executor", "thinker_deep");
         assertThat(response.pageModeMappings()).containsEntry("account", "executor");
+        assertThat(response.pageModeMappings()).containsEntry("product", "thinker_deep");
         assertThat(response.effectiveConversationMode()).isEqualTo("executor");
     }
 
@@ -300,7 +305,7 @@ class ShopifyStorefrontBootstrapServiceTest {
             true,
             true,
             true,
-            List.of("guided-commerce"),
+            List.of("guided-commerce", "order-self-service"),
             List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
             List.of(),
             "Elite tier is active."
@@ -433,7 +438,10 @@ class ShopifyStorefrontBootstrapServiceTest {
                     List.of("ai-search", "comparison"),
                     "navigator",
                     List.of("navigator", "executor"),
-                    Map.of("account", "executor")
+                    Map.of("account", "executor"),
+                    true,
+                    false,
+                    "violet"
                 )
             ),
             null,

@@ -364,7 +364,9 @@ class PlatformVerificationSuiteExecutionServiceTest {
               "EXPECT_ORDER_LOOKUP_STATUS":"PENDING_SCOPE_GRANT",
               "EXPECT_ORDER_LOOKUP_SUPPORTED":"false",
               "EXPECT_ORDER_LOOKUP_SCOPE_GRANTED":"false",
-              "EXPECT_SUPPORT_LIFECYCLE_STAGE":"SCOPE_APPROVAL"
+              "EXPECT_SUPPORT_LIFECYCLE_STAGE":"SCOPE_APPROVAL",
+              "EXPECT_ENABLED_SURFACES":"comparison,contextual-pill,policy-strip,product-faq,product-insight",
+              "EXPECT_CONFIGURED_ENABLED_SURFACES":"comparison,contextual-pill,policy-strip,product-faq,product-insight"
             }}
             """);
         stage.setCreatedAt(Instant.now());
@@ -381,7 +383,9 @@ class PlatformVerificationSuiteExecutionServiceTest {
             "EXPECT_ORDER_LOOKUP_STATUS", "PENDING_SCOPE_GRANT",
             "EXPECT_ORDER_LOOKUP_SUPPORTED", "false",
             "EXPECT_ORDER_LOOKUP_SCOPE_GRANTED", "false",
-            "EXPECT_SUPPORT_LIFECYCLE_STAGE", "SCOPE_APPROVAL"
+            "EXPECT_SUPPORT_LIFECYCLE_STAGE", "SCOPE_APPROVAL",
+            "EXPECT_ENABLED_SURFACES", "comparison,contextual-pill,policy-strip,product-faq,product-insight",
+            "EXPECT_CONFIGURED_ENABLED_SURFACES", "comparison,contextual-pill,policy-strip,product-faq,product-insight"
         );
 
         when(scriptContextService.build(PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_COMPANION_VERIFICATION, expectedOverrides))

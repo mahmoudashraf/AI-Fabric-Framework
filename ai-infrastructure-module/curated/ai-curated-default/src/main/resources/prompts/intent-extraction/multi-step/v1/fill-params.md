@@ -12,6 +12,9 @@ Rules:
 - Only include keys that are valid for that action's allowed parameters.
 - Follow paramsSchema shapes when present (arrays/objects must be valid JSON arrays/objects).
 - Only set a parameter when its value is explicitly present in the USER REQUEST (including any ATTACHMENTS / pinned targets metadata/contentText).
+- Fill optional parameters when the paramsSchema/description says they improve presentation, confirmation copy, or safe display and the value can be faithfully derived from the USER REQUEST or authoritative ATTACHMENTS / pinned targets.
+- Presentation-only optional params must not invent executable identifiers, prices, availability, discounts, or order data; keep them concise and shopper-facing.
+- For catalog/search actions with a valid required `query` parameter, fill `query` from the shopper's product-search phrase, including explicit category, price, size, or preference words when no dedicated structured parameter exists.
 - Never fabricate values for required parameters to "make the action executable".
 - Omit missing required parameters (do not fabricate); the backend will ask the user for missing required params.
 - Do NOT copy parameter descriptions/examples into parameter values.

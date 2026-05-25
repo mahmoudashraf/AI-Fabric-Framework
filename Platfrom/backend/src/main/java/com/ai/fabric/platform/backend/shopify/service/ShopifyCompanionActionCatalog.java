@@ -12,9 +12,6 @@ import java.util.Set;
 
 final class ShopifyCompanionActionCatalog {
 
-    static final String ACTION_PLUGIN_ID = ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID;
-    static final String CART_ACTION_PLUGIN_ID = ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID;
-    static final String LEGACY_ACTION_PLUGIN_ID = ShopifyCompanionPluginSelection.LEGACY_ACTION_READ_PLUGIN_ID;
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
     private static final Set<String> DISABLED_ACTION_IDS = Set.of(
         "relationship_query"
@@ -393,8 +390,10 @@ final class ShopifyCompanionActionCatalog {
         if (DEFAULT_ACTION_IDS.contains(actionId)) {
             return true;
         }
-        String pluginId = blankToNull(action.path("marketplacePluginId").asText(null));
-        if (ACTION_PLUGIN_ID.equals(pluginId) || CART_ACTION_PLUGIN_ID.equals(pluginId) || LEGACY_ACTION_PLUGIN_ID.equals(pluginId)) {
+        String pluginId = ShopifyCompanionPluginSelection.canonicalizePluginId(
+            blankToNull(action.path("marketplacePluginId").asText(null))
+        );
+        if (ShopifyCompanionPluginSelection.managedActionPluginIds().contains(pluginId)) {
             return true;
         }
         String category = blankToNull(action.path("category").asText(null));

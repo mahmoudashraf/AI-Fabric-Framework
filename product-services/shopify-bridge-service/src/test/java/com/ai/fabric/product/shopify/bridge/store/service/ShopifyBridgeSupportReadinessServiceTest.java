@@ -9,7 +9,6 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyInstallRecordSu
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyInstallRecordService;
 import com.ai.fabric.product.shopify.bridge.mcp.execution.McpActionExecutionGateway;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
-import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordedBillingStateSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportProfileSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreReadinessSummary;
@@ -24,9 +23,11 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -177,7 +178,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
     }
 
     @Test
-    void usesPlatformBillingStateBeforeStaleLocalInstallBilling() {
+    void usesBillingSummaryBeforeStaleLocalInstallBilling() {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
         ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
@@ -191,15 +192,6 @@ class ShopifyBridgeSupportReadinessServiceTest {
             null,
             true
         ));
-        when(platformClient.getBillingState("alpha.myshopify.com")).thenReturn(new ShopifyBridgeRecordedBillingStateSummary(
-            "alpha.myshopify.com",
-            "ELITE",
-            "ACTIVE",
-            null,
-            "Loom Companion Elite",
-            Instant.parse("2026-04-23T12:00:00Z"),
-            "Live verification activation"
-        ));
         when(installRecordService.findByShopDomain("alpha.myshopify.com")).thenReturn(Optional.of(installRecord(
             "read_products,read_content,read_legal_policies",
             true,
@@ -207,6 +199,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
             "ACTIVE",
             List.of()
         )));
+        when(billingService.summarizeForShop(eq("alpha.myshopify.com"), isNull())).thenReturn(eliteBillingSummary());
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
@@ -265,8 +258,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
                 "Expected subscription is present."
             ));
         when(billingService.summarize()).thenReturn(billingSummary());
-        when(billingService.inspectStoreBillingState("alpha.myshopify.com", "access-token"))
-            .thenReturn(new ShopifyBridgeStoreBillingState("FREE", "ACTIVE", List.of()));
+        when(billingService.summarizeForShop("alpha.myshopify.com", "access-token")).thenReturn(billingSummary());
 
         ShopifyBridgeSupportReadinessService service = new ShopifyBridgeSupportReadinessService(
             platformClient,
@@ -283,14 +275,8 @@ class ShopifyBridgeSupportReadinessServiceTest {
         assertThat(summary.appScopesUpdateWebhookReady()).isTrue();
         assertThat(summary.lifecycleStage()).isEqualTo("MERCHANT_HANDOFF");
         verify(installRecordService).recordAppScopesUpdateWebhookReady("alpha.myshopify.com", true);
-        verify(platformClient).recordBillingState(eq("alpha.myshopify.com"), argThat(request ->
-            "FREE".equals(request.tierKey()) && "ACTIVE".equals(request.status())
-        ));
-        verify(platformClient).enqueueProvisioning(eq("alpha.myshopify.com"), argThat(request ->
-            "PACKAGE_CHANGE".equals(request.jobType())
-                && "FREE".equals(request.requestedTierKey())
-                && Boolean.FALSE.equals(request.processImmediately())
-        ));
+        verify(platformClient, never()).recordBillingState(eq("alpha.myshopify.com"), any());
+        verify(platformClient, never()).enqueueProvisioning(eq("alpha.myshopify.com"), any());
     }
 
     @Test
@@ -532,7 +518,7 @@ class ShopifyBridgeSupportReadinessServiceTest {
             true,
             true,
             true,
-            List.of("guided-commerce"),
+            List.of("guided-commerce", "order-self-service"),
             List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison", "order-lookup"),
             List.of(),
             "Elite tier is active."

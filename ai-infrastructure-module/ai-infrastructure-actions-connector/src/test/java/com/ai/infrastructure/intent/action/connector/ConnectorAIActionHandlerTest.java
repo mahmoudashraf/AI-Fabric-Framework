@@ -19,6 +19,48 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ConnectorAIActionHandlerTest {
 
     @Test
+    void shouldRenderConfirmationTemplateWithFallbackPlaceholder() {
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            AIActionMetaData.builder()
+                .name("shopify_update_cart")
+                .category("shopify")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .build(),
+            true,
+            "{{cart_update_confirmation|Update your cart}}?",
+            Set.of(),
+            null
+        );
+
+        assertThat(handler.getConfirmationMessage(
+            Map.of("cart_update_confirmation", "Add 1 Selling Plans Ski Wax to your cart"),
+            null
+        )).isEqualTo("Add 1 Selling Plans Ski Wax to your cart?");
+        assertThat(handler.getConfirmationMessage(Map.of(), null)).isEqualTo("Update your cart?");
+    }
+
+    @Test
+    void shouldEscapeConfirmationFallbackAndResolvedValue() {
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            AIActionMetaData.builder()
+                .name("shopify_update_cart")
+                .category("shopify")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .build(),
+            true,
+            "{{cart_update_confirmation|Add <item> to cart}}?",
+            Set.of(),
+            null
+        );
+
+        assertThat(handler.getConfirmationMessage(
+            Map.of("cart_update_confirmation", "Add <Wax> to your cart"),
+            null
+        )).isEqualTo("Add &lt;Wax&gt; to your cart?");
+        assertThat(handler.getConfirmationMessage(Map.of(), null)).isEqualTo("Add &lt;item&gt; to cart?");
+    }
+
+    @Test
     void shouldBuildCompactLlmFactsFromConfiguredProjection() {
         ActionResult actionResult = ActionResult.builder()
             .success(true)
@@ -221,6 +263,75 @@ class ConnectorAIActionHandlerTest {
     }
 
     @Test
+    void shouldUseGenericFallbackProjectionForSingleReadObjectWhenNoCatalogProjectionIsConfigured() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Product details")
+            .data(ActionPayload.object(Map.of(
+                "sku", "SKU-0001",
+                "name", "Premium Wireless Headphones",
+                "price", 50.99,
+                "currency", "USD",
+                "inStockQty", 6,
+                "metadata", Map.of(
+                    "category", "Travel",
+                    "internalList", List.of("ignored")
+                )
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        assertThat(facts.get()).containsEntry("recordCount", 1);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> record = (Map<String, Object>) facts.get().get("record");
+        assertThat(record)
+            .containsEntry("sku", "SKU-0001")
+            .containsEntry("name", "Premium Wireless Headphones")
+            .containsEntry("price", 50.99)
+            .containsEntry("currency", "USD")
+            .containsEntry("inStockQty", 6)
+            .containsEntry("category", "Travel")
+            .doesNotContainKey("internalList");
+    }
+
+    @Test
+    void shouldNotUseGenericFallbackProjectionForSingleWriteObjectWhenNoCatalogProjectionIsConfigured() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Cart updated")
+            .data(ActionPayload.object(Map.of(
+                "cartId", "cart-1",
+                "checkoutUrl", "https://checkout.example"
+            )))
+            .build();
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            AIActionMetaData.builder()
+                .name("update_cart")
+                .category("generic")
+                .accessMode(ActionAccessMode.WRITE_ONLY)
+                .build(),
+            false,
+            null,
+            Set.of(),
+            null
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        assertThat(facts.get()).doesNotContainKeys("record", "recordCount");
+    }
+
+    @Test
     void shouldExposeMcpToolTextJsonAsFallbackDocuments() {
         ActionResult actionResult = ActionResult.builder()
             .success(true)
@@ -266,6 +377,74 @@ class ConnectorAIActionHandlerTest {
         assertThat(documents.getFirst())
             .containsEntry("question", "Do you allow customers to request and manage their own returns?")
             .containsEntry("answer", "Customers must contact the merchant to request a return.");
+    }
+
+    @Test
+    void shouldBuildConfiguredFactsFromJsonTextRootAndIndexedListPaths() {
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("MCP tool result")
+            .data(ActionPayload.object(Map.of(
+                "toolResult", Map.of(
+                    "content", List.of(Map.of(
+                        "type", "text",
+                        "text", """
+                            {
+                              "products": [
+                                {
+                                  "id": "gid://shopify/Product/7930570047571",
+                                  "title": "Selling Plans Ski Wax",
+                                  "variants": [
+                                    {
+                                      "id": "gid://shopify/ProductVariant/44506675314771",
+                                      "title": "Selling Plans Ski Wax",
+                                      "availability": {"available": true}
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                            """
+                    )),
+                    "isError", false
+                )
+            )))
+            .build();
+        ConnectorActionLlmFactsListDefinition variants = new ConnectorActionLlmFactsListDefinition(
+            "products.0.variants",
+            "documents",
+            3,
+            List.of("id", "title", "availability.available"),
+            null,
+            300,
+            List.of(),
+            null,
+            List.of()
+        );
+        ConnectorAIActionHandler handler = new ConnectorAIActionHandler(
+            metadata(),
+            false,
+            null,
+            Set.of(),
+            null,
+            new ConnectorActionLlmFactsDefinition(
+                "toolResult.content.0.text",
+                List.of(),
+                List.of(variants),
+                List.of()
+            )
+        );
+
+        Optional<Map<String, Object>> facts = handler.buildPostActionLlmFacts(actionResult, null);
+
+        assertThat(facts).isPresent();
+        assertThat(facts.get()).containsEntry("documentsCount", 1);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> documents = (List<Map<String, Object>>) facts.get().get("documents");
+        assertThat(documents).singleElement().satisfies(document -> assertThat(document)
+            .containsEntry("id", "gid://shopify/ProductVariant/44506675314771")
+            .containsEntry("title", "Selling Plans Ski Wax")
+            .containsEntry("available", true));
     }
 
     private AIActionMetaData metadata() {

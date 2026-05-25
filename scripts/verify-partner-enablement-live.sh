@@ -15,6 +15,7 @@ TARGET_STORE_ID="${PARTNER_LIVE_STORE_ID:-}"
 TARGET_SHOP_DOMAIN="${PARTNER_LIVE_SHOP_DOMAIN:-${SHOP_DOMAIN:-}}"
 PRODUCTION_PROMOTION_PROOF="${PARTNER_LIVE_PRODUCTION_PROMOTION_PROOF:-false}"
 RUN_TAG="${PARTNER_LIVE_RUN_TAG:-release-gate-$(date -u +%Y%m%dT%H%M%SZ)}"
+REQUIRED_STORE_SURFACES="${PARTNER_LIVE_REQUIRED_STORE_SURFACES:-}"
 PACKAGE_TRIAL_PRIVILEGE="PACKAGE_TRIAL_ACTIVATE"
 TEMP_ACCESS_REQUEST_ID=""
 TEMP_ACCESS_SHOP_DOMAIN=""
@@ -666,13 +667,14 @@ PY
     eligible_status="$(partner_request GET "${BASE_URL}/api/partners/eligible-stores?query=${encoded_target_shop}" "${eligible_body}")"
     cp "${eligible_body}" "${TMP_DIR}/last-body"
     assert_status "${eligible_status}" "200" "installed store eligibility reachable"
-    store_connection_id="$(python3 - <<'PY' "${eligible_body}" "${TARGET_SHOP_DOMAIN}"
+    store_connection_id="$(python3 - <<'PY' "${eligible_body}" "${TARGET_SHOP_DOMAIN}" "${REQUIRED_STORE_SURFACES}"
 import json
 import pathlib
 import sys
 
 stores = json.loads(pathlib.Path(sys.argv[1]).read_text())
 target_shop = sys.argv[2].lower()
+required_surfaces = {item.strip() for item in sys.argv[3].split(",") if item.strip()}
 matches = [store for store in stores if str(store.get("shopDomain") or "").lower() == target_shop]
 if not matches:
     print(f"FAIL: no installed eligible store found for {target_shop}", file=sys.stderr)
@@ -681,8 +683,13 @@ store = matches[0]
 if str(store.get("installStatus") or "").upper() != "INSTALLED":
     print(f"FAIL: eligible store {target_shop} is not installed: {store.get('installStatus')}", file=sys.stderr)
     raise SystemExit(1)
-if "ai-search" not in (store.get("enabledSurfaces") or []):
-    print(f"FAIL: eligible store {target_shop} does not expose ai-search in store-configured surfaces", file=sys.stderr)
+enabled_surfaces = set(store.get("enabledSurfaces") or [])
+if not enabled_surfaces:
+    print(f"FAIL: eligible store {target_shop} has no store-configured surfaces", file=sys.stderr)
+    raise SystemExit(1)
+missing_surfaces = sorted(required_surfaces - enabled_surfaces)
+if missing_surfaces:
+    print(f"FAIL: eligible store {target_shop} is missing required store-configured surfaces: {missing_surfaces}", file=sys.stderr)
     raise SystemExit(1)
 print(store["storeConnectionId"])
 PY
@@ -695,17 +702,20 @@ PY
       -d "{\"clientName\":\"Release Gate ${RUN_TAG}\",\"contactEmail\":\"release-gate@loom.test\",\"storeConnectionId\":\"${store_connection_id}\",\"vertical\":\"release-gate\",\"knownIntegrations\":[\"release-gate\"],\"notes\":\"Automated release gate approval proof for ${RUN_TAG}.\"}")"
     cp "${implementation_body}" "${TMP_DIR}/last-body"
     assert_status "${implementation_status}" "201" "client implementation request created"
-    implementation_id="$(python3 - <<'PY' "${implementation_body}" "${TARGET_SHOP_DOMAIN}"
+    implementation_id="$(python3 - <<'PY' "${implementation_body}" "${TARGET_SHOP_DOMAIN}" "${REQUIRED_STORE_SURFACES}"
 import json
 import pathlib
 import sys
 
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 target_shop = sys.argv[2].lower()
+required_surfaces = {item.strip() for item in sys.argv[3].split(",") if item.strip()}
 assert data["status"] == "WAITING_ON_MERCHANT", data
 assert str(data.get("shopDomain") or "").lower() == target_shop, data
 assert data["requestedTier"] == "MERCHANT_CONFIGURED", data
-assert "ai-search" in data.get("requestedSurfaces", []), data
+requested_surfaces = set(data.get("requestedSurfaces") or [])
+assert requested_surfaces, data
+assert required_surfaces.issubset(requested_surfaces), data
 assert data.get("approvalUrl"), data
 print(data["id"])
 PY
@@ -860,12 +870,13 @@ PY
   store_detail_status="$(partner_request GET "${BASE_URL}/api/partners/stores/${workflow_store_id}" "${store_detail_body}")"
   cp "${store_detail_body}" "${TMP_DIR}/last-body"
   assert_status "${store_detail_status}" "200" "active partner store detail reachable"
-  workflow_shop_domain="$(python3 - <<'PY' "${store_detail_body}"
+  workflow_shop_domain="$(python3 - <<'PY' "${store_detail_body}" "${REQUIRED_STORE_SURFACES}"
 import json
 import pathlib
 import sys
 
 store = json.loads(pathlib.Path(sys.argv[1]).read_text())
+required_surfaces = {item.strip() for item in sys.argv[2].split(",") if item.strip()}
 assert store["assignmentStatus"] == "ACTIVE", store
 assert store["status"] == "READY", store
 assert store.get("storeConnectionId"), store
@@ -874,7 +885,9 @@ assert store.get("widgetStatus") == "ENABLED", store
 assert store.get("approvedAt"), store
 assert "VERIFICATION_READ" in (store.get("permissions") or []), store
 assert "products" in (store.get("enabledSourceCategories") or []), store
-assert "ai-search" in store.get("enabledSurfaces", []), store
+enabled_surfaces = set(store.get("enabledSurfaces") or [])
+assert enabled_surfaces, store
+assert required_surfaces.issubset(enabled_surfaces), store
 raw = json.dumps(store).lower()
 for forbidden in ("deployment", "provider", "secret", "vectorization", "runtime"):
     assert forbidden not in raw, store
@@ -889,7 +902,7 @@ PY
   assert_status "${product_controls_status}" "200" "partner product controls reachable"
   product_support_restore_payload="${TMP_DIR}/product-support-restore.json"
   product_support_update_payload="${TMP_DIR}/product-support-update.json"
-  python3 - <<'PY' "${product_controls_body}" "${workflow_store_id}" "${workflow_shop_domain}" "${RUN_TAG}" "${product_support_restore_payload}" "${product_support_update_payload}"
+  python3 - <<'PY' "${product_controls_body}" "${workflow_store_id}" "${workflow_shop_domain}" "${RUN_TAG}" "${product_support_restore_payload}" "${product_support_update_payload}" "${REQUIRED_STORE_SURFACES}"
 import json
 import pathlib
 import sys
@@ -900,6 +913,7 @@ shop = sys.argv[3].lower()
 run_tag = sys.argv[4]
 restore_path = pathlib.Path(sys.argv[5])
 update_path = pathlib.Path(sys.argv[6])
+required_surfaces = {item.strip() for item in sys.argv[7].split(",") if item.strip()}
 assert controls["storeId"] == store_id, controls
 assert str(controls.get("shopDomain") or "").lower() == shop, controls
 assert controls["assignmentStatus"] == "ACTIVE", controls
@@ -908,7 +922,9 @@ assert "PRODUCT_CONFIG_READ" in (controls.get("capabilities") or []), controls
 assert "STOREFRONT_SURFACE_CONTROL" in (controls.get("capabilities") or []), controls
 assert "KNOWLEDGE_SOURCE_CONTROL" in (controls.get("capabilities") or []), controls
 assert "SUPPORT_MANAGE" in (controls.get("capabilities") or []), controls
-assert "ai-search" in (controls.get("enabledSurfaces") or []), controls
+enabled_surfaces = set(controls.get("enabledSurfaces") or [])
+assert enabled_surfaces, controls
+assert required_surfaces.issubset(enabled_surfaces), controls
 assert controls.get("sourceSettings", {}).get("productsEnabled") is True, controls
 raw = json.dumps(controls).lower()
 for forbidden in ("secret", "token", "password", "credential", "runtimebaseurl", "deploymentstatus"):
@@ -1126,7 +1142,12 @@ message = response.get("message")
 result = response.get("result") if isinstance(response.get("result"), dict) else {}
 sanitized = result.get("sanitizedPayload") if isinstance(result.get("sanitizedPayload"), dict) else {}
 answer = (
-    result.get("answer")
+    response.get("answer")
+    or response.get("safeSummary")
+    or response.get("response")
+    or response.get("text")
+    or response.get("content")
+    or result.get("answer")
     or result.get("response")
     or result.get("text")
     or result.get("content")

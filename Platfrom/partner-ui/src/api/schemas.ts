@@ -69,16 +69,24 @@ export const partnerStoreSchema = z.object({
   packageProfile: partnerProductPackageSchema.nullable().optional(),
 })
 
-export const partnerProductWidgetSettingsSchema = z.object({
+const partnerProductWidgetSettingsBaseSchema = z.object({
   launcherLabel: z.string(),
   welcomeMessage: z.string(),
   shellModeProfile: z.string(),
+  colorScheme: nullableString,
   debugEnabled: z.boolean(),
+  assistantDockEnabled: z.boolean().optional(),
+  askAssistantLauncherEnabled: z.boolean().optional(),
   enabledSurfaces: z.array(z.string()),
   defaultConversationMode: z.string(),
   allowedConversationModes: z.array(z.string()),
   pageModeMappings: z.record(z.string()),
 })
+
+export const partnerProductWidgetSettingsSchema = partnerProductWidgetSettingsBaseSchema.transform((settings) => ({
+  ...settings,
+  colorScheme: settings.colorScheme ?? 'graphite',
+}))
 
 export const partnerProductSupportProfileSchema = z.object({
   contactEmail: nullableString,

@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.model.DeploymentMarketplaceInstallSummary;
+import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceEntitlementRequest;
 import com.ai.fabric.platform.backend.marketplace.model.UpdateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceDraftCompilerService;
 import com.ai.fabric.platform.backend.marketplace.service.DeploymentMarketplaceInstallService;
@@ -336,7 +337,7 @@ public class ShopifyStoreProvisioningService {
             boolean disabledByProfile = disabledPluginIds.stream().anyMatch(disabled -> disabled.equalsIgnoreCase(pluginId));
             boolean noLongerDesired = desiredPluginIds.stream().noneMatch(desired -> desired.equalsIgnoreCase(pluginId));
             if (disabledByProfile || noLongerDesired) {
-                marketplaceInstallService.updateInstallForTrustedCaller(
+                marketplaceInstallService.updateInstallForTrustedCallerWithoutDraftSync(
                     deployment,
                     install.id(),
                     new UpdateDeploymentMarketplaceInstallRequest(null, "DISABLED", null, null)
@@ -361,7 +362,7 @@ public class ShopifyStoreProvisioningService {
                 .orElse(null);
             if (existing == null) {
                 String version = marketplaceCatalogService.resolveLatestPublishedVersionLabel(desiredPluginId);
-                marketplaceInstallService.createInstallForTrustedCaller(
+                marketplaceInstallService.createInstallForTrustedCallerWithoutDraftSync(
                     deployment,
                     new CreateDeploymentMarketplaceInstallRequest(
                         desiredPluginId,
@@ -371,7 +372,7 @@ public class ShopifyStoreProvisioningService {
                     )
                 );
             } else {
-                marketplaceInstallService.updateInstallForTrustedCaller(
+                marketplaceInstallService.updateInstallForTrustedCallerWithoutDraftSync(
                     deployment,
                     existing.id(),
                     new UpdateDeploymentMarketplaceInstallRequest(null, "ENABLED", null, null)
@@ -381,7 +382,42 @@ public class ShopifyStoreProvisioningService {
                 job.setVectorReindexRequired(true);
             }
         }
+        List<DeploymentMarketplaceInstallSummary> finalInstalls = marketplaceInstallService.listInstallsForTrustedCaller(deployment);
+        activateBundledEntitlementsIfPackageIncludesAccess(deployment, profile, desiredPluginIds, finalInstalls);
         draftCompilerService.syncDeploymentDraftForTrustedCaller(deployment.getId());
+    }
+
+    private void activateBundledEntitlementsIfPackageIncludesAccess(
+        DeploymentEntity deployment,
+        ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile,
+        LinkedHashSet<String> desiredPluginIds,
+        List<DeploymentMarketplaceInstallSummary> installs
+    ) {
+        if (!packageProfileIncludesMarketplaceAccess(profile) || installs == null || installs.isEmpty()) {
+            return;
+        }
+        for (DeploymentMarketplaceInstallSummary install : installs) {
+            if (install == null || "DISABLED".equalsIgnoreCase(install.status()) || install.entitlement() == null) {
+                continue;
+            }
+            if (!isManagedPackageInstall(install) || desiredPluginIds.stream().noneMatch(id -> id.equalsIgnoreCase(install.pluginId()))) {
+                continue;
+            }
+            String status = install.entitlement().status();
+            if ("ACTIVE".equalsIgnoreCase(status)) {
+                continue;
+            }
+            marketplaceInstallService.updateEntitlementForTrustedCallerWithoutDraftSync(
+                deployment,
+                install.id(),
+                new UpdateDeploymentMarketplaceEntitlementRequest(
+                    "ACTIVE",
+                    null,
+                    null,
+                    "Activated by Shopify Companion package profile " + profile.profileKey() + "."
+                )
+            );
+        }
     }
 
     private void persistEffectiveProfile(ShopifyStoreConnectionEntity store,
@@ -622,6 +658,14 @@ public class ShopifyStoreProvisioningService {
             return ShopifyCompanionPluginSelection.requiresPoliciesData(store);
         }
         return true;
+    }
+
+    private boolean packageProfileIncludesMarketplaceAccess(ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile) {
+        if (profile == null || profile.summary() == null || !hasText(profile.summary().detailsJson())) {
+            return false;
+        }
+        JsonNode root = detailsSupport.readJsonNode(profile.summary().detailsJson());
+        return root != null && root.isObject() && root.has("requiresBilling") && !root.path("requiresBilling").asBoolean(true);
     }
 
     private boolean isManagedPackageInstall(DeploymentMarketplaceInstallSummary install) {

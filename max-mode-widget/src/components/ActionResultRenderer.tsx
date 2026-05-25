@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/ui/card";
 import { CheckCircle2, ExternalLink, Paperclip, Search, Sparkles, Star } from "lucide-react";
 
 import { formatFieldName, formatFieldValue } from "@/utils";
+import { normalizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
 
 type ResultRecord = Record<string, any>;
 
@@ -45,6 +46,11 @@ const hasRenderableArray = (value: ResultRecord) =>
 
 const unwrapActionResultData = (value: any): any => {
   if (!isRecord(value)) return value;
+
+  const shopifyMcpCatalogResult = normalizeShopifyMcpCatalogResult(value);
+  if (shopifyMcpCatalogResult) {
+    return shopifyMcpCatalogResult;
+  }
 
   if (isRecord(value.actionResult)) {
     return unwrapActionResultData(value.actionResult.data);

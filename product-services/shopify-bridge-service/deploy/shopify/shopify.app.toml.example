@@ -7,7 +7,7 @@ extension_directories = ["extensions/*"]
 web_directories = [".", "ui"]
 
 [access_scopes]
-scopes = "read_products,read_content,read_legal_policies,read_metaobjects,read_metaobject_definitions,read_orders"
+scopes = "read_products,read_content,read_legal_policies,read_metaobjects,read_metaobject_definitions,read_orders,customer_read_customers,customer_read_orders,customer_write_orders,customer_read_store_credit_accounts"
 
 [auth]
 redirect_urls = [

@@ -15,7 +15,15 @@ import {
   type MaxModeHostConfig,
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
-import type { ChatMessage, Document, ResultType, RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
+import { buildCustomerAccountConnectUrl } from "@/chatResult";
+import type {
+  ChatMessage,
+  CustomerAccountConnectAction,
+  Document,
+  ResultType,
+  RuntimeAuthContextSummary,
+  RuntimeShellConfigSummary,
+} from "@/types";
 import { useAttachmentsController } from "./useAttachmentsController";
 import { useCartController } from "./useCartController";
 import { useChatFlow } from "./useChatFlow";
@@ -348,6 +356,7 @@ export function useMaxModeController({
   const widgetConfig = getWidgetConfig();
   const hostConfig = widgetConfig.host;
   const debugEnabled = widgetConfig.features?.debug === true;
+  const conversationsEnabled = widgetConfig.features?.conversations ?? true;
   const resolvedAssistantLabel = assistantLabel?.trim() || hostConfig?.assistantLabel?.trim() || "MAX AI";
   const resolvedShowUtilityPanel = showUtilityPanel ?? (hostConfig?.showUtilityPanel ?? true);
   const hostStarterSuggestions = useMemo(() => deriveStarterSuggestions(hostConfig), [hostConfig]);
@@ -482,6 +491,7 @@ export function useMaxModeController({
     startNewConversation,
     openConversationsPanel,
   } = useConversationsController({
+    enabled: conversationsEnabled,
     isOpen,
     chatMessagesLength: chatMessages.length,
     currentConversationId,
@@ -513,6 +523,7 @@ export function useMaxModeController({
     currentPosition,
     currentMode,
     requestContext: hostRequestContext,
+    requestContextProvider: hostConfig?.requestContextProvider,
   });
 
   const handleProgrammaticPrompt = useCallback(
@@ -890,6 +901,20 @@ export function useMaxModeController({
     setFocusedMessageId(messageId);
   }, []);
 
+  const connectCustomerAccount = useCallback((action: CustomerAccountConnectAction) => {
+    const targetUrl = buildCustomerAccountConnectUrl(action);
+    if (!targetUrl) {
+      toast({
+        title: "Account connection unavailable",
+        description: "This store has not published a customer account connection URL yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+    emitEvent("customer-account-auth:start");
+    window.location.assign(targetUrl);
+  }, [toast]);
+
   const expandActionResults = useCallback((messageId: string, nextCount: number) => {
     setExpandedActions((prev) => ({
       ...prev,
@@ -952,40 +977,12 @@ export function useMaxModeController({
     setTimeout(() => handleChatQuery(query, position, mode), 100);
   };
 
-  const showSampleDocuments = () => {
-    const sampleDocs: Document[] = [
-      {
-        id: "1",
-        title: "Return Policy",
-        content: "You can return items within 30 days of purchase. Items must be in original condition with tags attached.",
-        type: "policy",
-        metadata: { category: "returns", updated: "2024-01-15" }
-      },
-      {
-        id: "2",
-        title: "Wireless Headphones Pro",
-        content: "Premium noise-canceling headphones with 30-hour battery life and crystal-clear audio.",
-        type: "product",
-        metadata: { price: "$299.99", stock: "In Stock", imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop" }
-      },
-      {
-        id: "3",
-        title: "Shipping Information",
-        content: "Free shipping on orders over $50. Standard delivery takes 3-5 business days.",
-        type: "document",
-        metadata: { region: "US", type: "shipping" }
-      }
-    ];
-    setContextDocuments(sampleDocs);
-    toast({
-      title: "✨ Sample Documents Loaded",
-      description: "Check the right panel!",
-    });
-  };
-
-  const getResultStyles = (resultType?: ResultType) => {
+  const getResultStyles = (resultType?: ResultType, success = true) => {
     switch (resultType) {
       case "ACTION_EXECUTED":
+        if (!success) {
+          return { icon: XCircle, bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-700", iconColor: "text-red-600", label: "Action Failed" };
+        }
         return { icon: CheckCircle2, bg: "bg-green-500/10", border: "border-green-500/30", text: "text-green-700", iconColor: "text-green-600", label: "Action Executed" };
       case "ACTION_DENIED":
         return { icon: Ban, bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-700", iconColor: "text-red-600", label: "Action Denied" };
@@ -1061,6 +1058,7 @@ export function useMaxModeController({
     setLastRequestData,
     lastResponseData,
     setLastResponseData,
+    conversationsEnabled,
     isConversationsOpen,
     setIsConversationsOpen,
     conversations,
@@ -1123,7 +1121,6 @@ export function useMaxModeController({
     handleAISearchCategory,
     handleOpenBottomSheet,
     handleCloseNewDocsPreview,
-    showSampleDocuments,
     handleSelectSearchCategory: (category: string) =>
       handleSelectSearchCategory(category, {
         closeMenus: () => {
@@ -1138,6 +1135,7 @@ export function useMaxModeController({
     reattachItemWithToast,
     openSourcesMobile,
     openSourcesDesktop,
+    connectCustomerAccount,
     expandActionResults,
     removeNonAiAttachmentByIndex,
     removeAiSearchAttachment,

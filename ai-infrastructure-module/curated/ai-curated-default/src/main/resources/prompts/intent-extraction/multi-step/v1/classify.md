@@ -12,6 +12,7 @@ Output MUST be valid JSON and MUST match the following schema:
       "responseProfile": "CONCISE | STANDARD | DEEP",
       "requiresTargetResolution": false,
       "directAnswer": "required when type=INFORMATION and requiresRetrieval=false (short reply)",
+      "actionParams": {"userMessage": "required when type=OUT_OF_SCOPE; user-safe 1 sentence without implementation terms"},
       "generationInstructions": "optional follow-up instruction when requiresGeneration is true",
       "needsAdvancedRAG": false,
       "optimizedQuery": "optional optimized query",
@@ -56,7 +57,9 @@ Rules:
 - Set requiresTargetResolution=true when the request depends on resolving specific target(s) from attachments or prior retrieved results.
   - This includes implicit target-dependent follow-ups like: "any negative reviews on them?", "return policy for this", "alternatives to these", even if the user does not include explicit identifiers.
 - Optional: set metadata.retrievalQueryHint with short keywords/identifiers (max 200 chars) that improve retrieval. Never include sensitive personal contact details.
-- Use OUT_OF_SCOPE only when the request is clearly unrelated to the system or asks for an unsupported action.
+- Use OUT_OF_SCOPE only when the request is clearly unrelated to the assistant, asks for an unsupported action, asks for professional/legal/medical/financial advice, or asks about assistant implementation/infrastructure such as runtime behavior, vectorization, providers, platform internals, logs, deployments, or secrets.
+- When using OUT_OF_SCOPE, set actionParams.userMessage to a user-safe one-sentence response that redirects to supported information or actions.
+- OUT_OF_SCOPE userMessage must not repeat or quote the unsupported topic/request, and must not mention implementation terms, internal systems, retrieval, vector spaces, providers, or knowledge bases.
 - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 
 USER REQUEST:

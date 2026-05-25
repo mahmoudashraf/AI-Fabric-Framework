@@ -49,7 +49,11 @@ export function useMaxModeViewSync({
   }, [chatMessages, latestMessageRef]);
 
   useEffect(() => {
-    if (chatInputRef.current && isOpen) {
+    if (
+      chatInputRef.current
+      && isOpen
+      && chatInputRef.current.dataset.maxModeAutofocus !== "false"
+    ) {
       chatInputRef.current.focus();
     }
   }, [chatMessages, chatInputRef, isOpen]);

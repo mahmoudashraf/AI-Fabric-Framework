@@ -31,7 +31,7 @@ Inside the embedded Shopify admin app, the merchant can:
 - run source preflight
 - bootstrap and go live
 - reconcile indexing support
-- run indexing and bounded reindex flows
+- refresh knowledge and run bounded reindex flows
 - preview storefront placement guidance
 - review tier posture and billing state
 - inspect Thinker deep diagnosis health when Elite diagnosis is enabled
@@ -60,7 +60,7 @@ Use this order:
 7. Run go-live when the store is eligible.
 8. Open storefront preview and theme placement guidance.
 9. Enable the theme app extension and place the intended blocks.
-10. Run indexing or reindexing only after readiness and reconcile state are clean.
+10. Refresh knowledge or run reindexing only after readiness and reconcile state are clean.
 
 ### 2.2 Partner-assisted launch flow
 
@@ -83,7 +83,7 @@ If the merchant changes source scope:
 1. Save source settings.
 2. Re-run source preflight.
 3. Reconcile deployment support if requested by the app.
-4. Index all enabled data.
+4. Refresh knowledge from Shopify for all enabled data.
 5. Recheck storefront readiness and launch posture.
 
 ---
@@ -110,6 +110,8 @@ The product can also detect compatible review/rating metafields when present.
 Important rule:
 
 - treat review-aware grounding as detected store evidence, not as a promise that every provider is always available
+- Shopify Admin remains the source of truth. If product price, inventory, or availability looks wrong, fix it in Shopify first, then refresh knowledge or reindex from the merchant app.
+- The old `Sync now` wording is legacy/internal. Merchants should use `Refresh knowledge`, `Reindex all enabled data`, or `Reindex selected types`.
 
 ---
 
@@ -117,6 +119,7 @@ Important rule:
 
 The current merchant-placeable surface set is:
 
+- Companion dock on every page
 - AI search
 - contextual pill
 - product insight
@@ -126,6 +129,7 @@ The current merchant-placeable surface set is:
 
 Use them this way:
 
+- Companion dock is the default shopper chat entry point. It stays minimized as a bottom composer, expands when the shopper clicks the input, renders the same message/result cards as full Max Mode, and can open full Max Mode from the MAX button.
 - AI search is the Free-tier storefront wedge
 - contextual pill keeps guided prompts visible inline
 - product insight and policy strip help the shopper at the product decision point

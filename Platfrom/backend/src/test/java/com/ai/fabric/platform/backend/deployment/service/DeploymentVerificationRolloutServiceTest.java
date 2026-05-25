@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -385,8 +386,15 @@ class DeploymentVerificationRolloutServiceTest {
         DeploymentVerificationRolloutSummary summary = service.recreateRollouts();
 
         assertThat(summary.items()).hasSize(6);
-        assertThat(summary.items()).extracting(item -> item.verificationProfile())
-            .contains("ecommerce", "marketplace-runtime");
+        assertThat(summary.items()).extracting(item -> item.key(), item -> item.verificationProfile())
+            .contains(
+                tuple("ecommerce", "ecommerce"),
+                tuple("marketplace", "marketplace-runtime"),
+                tuple("qdrant", "vector"),
+                tuple("pinecone", "ecommerce"),
+                tuple("milvus", "ecommerce"),
+                tuple("weaviate", "ecommerce")
+            );
         assertThat(summary.items()).allMatch(item -> item.exists() || !item.verificationReady());
 
         ArgumentCaptor<CreateDeploymentRequest> createCaptor = ArgumentCaptor.forClass(CreateDeploymentRequest.class);
@@ -613,7 +621,7 @@ class DeploymentVerificationRolloutServiceTest {
     }
 
     @Test
-    void canonicalVerificationProfileReturnsEcommerceForCanonicalVectorDeployment() {
+    void canonicalVerificationProfileReturnsStageSpecificProfilesForCanonicalDeployments() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
         DeploymentService deploymentService = mock(DeploymentService.class);
@@ -631,12 +639,18 @@ class DeploymentVerificationRolloutServiceTest {
         deployment.setName("OpenAI Pinecone Verification");
         deployment.setEnvironmentName("dev");
 
+        DeploymentEntity qdrant = new DeploymentEntity();
+        qdrant.setId("dep-qdrant");
+        qdrant.setName("OpenAI Qdrant Verification");
+        qdrant.setEnvironmentName("dev");
+
         DeploymentEntity marketplace = new DeploymentEntity();
         marketplace.setId("dep-marketplace");
         marketplace.setName("Marketplace Runtime Verification");
         marketplace.setEnvironmentName("dev");
 
         when(deploymentRepository.findById(eq("dep-pinecone"))).thenReturn(java.util.Optional.of(deployment));
+        when(deploymentRepository.findById(eq("dep-qdrant"))).thenReturn(java.util.Optional.of(qdrant));
         when(deploymentRepository.findById(eq("dep-marketplace"))).thenReturn(java.util.Optional.of(marketplace));
 
         DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
@@ -656,8 +670,10 @@ class DeploymentVerificationRolloutServiceTest {
         );
 
         assertThat(service.canonicalVerificationProfile("dep-pinecone")).isEqualTo("ecommerce");
+        assertThat(service.canonicalVerificationProfile("dep-qdrant")).isEqualTo("vector");
         assertThat(service.canonicalVerificationProfile("dep-marketplace")).isEqualTo("marketplace-runtime");
         assertThat(service.isCanonicalRolloutDeployment("dep-pinecone")).isTrue();
+        assertThat(service.isCanonicalRolloutDeployment("dep-qdrant")).isTrue();
         assertThat(service.isCanonicalRolloutDeployment("dep-marketplace")).isTrue();
     }
 

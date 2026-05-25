@@ -16,6 +16,7 @@ const SHOPIFY_REQUEST_CONTEXT_FIELDS = new Set([
   "pageTitle",
   "product",
   "collection",
+  "cart",
   "document",
   "shopifyShellModeProfile",
   "shopifySurfaceEntry",
@@ -51,15 +52,9 @@ export const withRequestContext = <T extends Record<string, any>>(
   if (!cleaned) {
     return payload;
   }
-  if (hasShopifyRequestContext(cleaned)) {
-    return {
-      ...payload,
-      storefrontContext: cleaned,
-    };
-  }
   return {
     ...payload,
-    ...cleaned,
+    context: cleaned,
   };
 };
 

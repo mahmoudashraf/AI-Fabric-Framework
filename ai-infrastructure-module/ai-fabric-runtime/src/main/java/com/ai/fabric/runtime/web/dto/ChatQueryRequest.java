@@ -20,6 +20,7 @@ public class ChatQueryRequest {
     private String conversationId;
     private String position;
     private String mode;
+    private Map<String, Object> context;
     private List<OrchestrationAttachment> attachments;
     private Map<String, String> promptPreview;
 

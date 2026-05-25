@@ -246,6 +246,7 @@ public class RuntimeAdminOverviewController {
         out.put("publicBootstrap", bootstrap);
         out.put("supportedChatEndpoints", List.of(
             "/api/chat/me/query",
+            "/api/chat/me/query-once",
             "/api/chat/me/suggestions",
             "/api/chat/me/auth-context",
             "/api/chat/me/shell-config",

@@ -95,6 +95,10 @@ public class DeploymentMarketplaceInstallService {
         return summarizeInstalls(deployment);
     }
 
+    /**
+     * Lists installs for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use listInstalls so deployment visibility is checked.
+     */
     public List<DeploymentMarketplaceInstallSummary> listInstallsForTrustedCaller(DeploymentEntity deployment) {
         return summarizeInstalls(deployment);
     }
@@ -121,18 +125,35 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
                                                              CreateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        return createInstallForDeployment(deployment, request, false);
+        return createInstallForDeployment(deployment, request, false, true);
     }
 
+    /**
+     * Creates an install for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use createInstall so deployment edit access is checked.
+     */
     @Transactional
     public DeploymentMarketplaceInstallSummary createInstallForTrustedCaller(DeploymentEntity deployment,
                                                                             CreateDeploymentMarketplaceInstallRequest request) {
-        return createInstallForDeployment(deployment, request, true);
+        return createInstallForDeployment(deployment, request, true, true);
+    }
+
+    /**
+     * Creates an install without immediate draft synchronization for a bounded internal provisioning workflow
+     * that already authorized the deployment and will synchronize the draft explicitly.
+     */
+    @Transactional
+    public DeploymentMarketplaceInstallSummary createInstallForTrustedCallerWithoutDraftSync(
+        DeploymentEntity deployment,
+        CreateDeploymentMarketplaceInstallRequest request
+    ) {
+        return createInstallForDeployment(deployment, request, true, false);
     }
 
     private DeploymentMarketplaceInstallSummary createInstallForDeployment(DeploymentEntity deployment,
                                                                           CreateDeploymentMarketplaceInstallRequest request,
-                                                                          boolean trustedCaller) {
+                                                                          boolean trustedCaller,
+                                                                          boolean syncDraft) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(request.pluginId());
         MarketplacePluginVersionEntity version = marketplaceCatalogService.requirePluginVersionEntity(
             plugin.getId(),
@@ -187,7 +208,9 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
-        syncDeploymentDraft(deployment.getId(), trustedCaller);
+        if (syncDraft) {
+            syncDeploymentDraft(deployment.getId(), trustedCaller);
+        }
 
         return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }
@@ -197,20 +220,38 @@ public class DeploymentMarketplaceInstallService {
                                                              String installId,
                                                              UpdateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        return updateInstallForDeployment(deployment, installId, request, false);
+        return updateInstallForDeployment(deployment, installId, request, false, true);
     }
 
+    /**
+     * Updates an install for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use updateInstall so deployment edit access is checked.
+     */
     @Transactional
     public DeploymentMarketplaceInstallSummary updateInstallForTrustedCaller(DeploymentEntity deployment,
                                                                             String installId,
                                                                             UpdateDeploymentMarketplaceInstallRequest request) {
-        return updateInstallForDeployment(deployment, installId, request, true);
+        return updateInstallForDeployment(deployment, installId, request, true, true);
+    }
+
+    /**
+     * Updates an install without immediate draft synchronization for a bounded internal provisioning workflow
+     * that already authorized the deployment and will synchronize the draft explicitly.
+     */
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateInstallForTrustedCallerWithoutDraftSync(
+        DeploymentEntity deployment,
+        String installId,
+        UpdateDeploymentMarketplaceInstallRequest request
+    ) {
+        return updateInstallForDeployment(deployment, installId, request, true, false);
     }
 
     private DeploymentMarketplaceInstallSummary updateInstallForDeployment(DeploymentEntity deployment,
                                                                           String installId,
                                                                           UpdateDeploymentMarketplaceInstallRequest request,
-                                                                          boolean trustedCaller) {
+                                                                          boolean trustedCaller,
+                                                                          boolean syncDraft) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = resolveUpdatedVersion(plugin, install, request.pluginVersion());
@@ -255,7 +296,9 @@ public class DeploymentMarketplaceInstallService {
                 "status", install.getStatus()
             )
         );
-        syncDeploymentDraft(deployment.getId(), trustedCaller);
+        if (syncDraft) {
+            syncDeploymentDraft(deployment.getId(), trustedCaller);
+        }
 
         return toSummary(deployment, activeDraft, resolveActiveVersion(deployment), install);
     }
@@ -266,6 +309,10 @@ public class DeploymentMarketplaceInstallService {
         deleteInstallForDeployment(deployment, installId, false);
     }
 
+    /**
+     * Deletes or disables an install for an internal workflow that already resolved and authorized the deployment entity.
+     * Public/controller paths must use deleteInstall so deployment edit access is checked.
+     */
     @Transactional
     public void deleteInstallForTrustedCaller(DeploymentEntity deployment, String installId) {
         deleteInstallForDeployment(deployment, installId, true);
@@ -318,6 +365,26 @@ public class DeploymentMarketplaceInstallService {
                                                                  String installId,
                                                                  UpdateDeploymentMarketplaceEntitlementRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return updateEntitlementForDeployment(deployment, installId, request, true);
+    }
+
+    /**
+     * Updates entitlement data without immediate draft synchronization for a bounded internal provisioning workflow
+     * that already authorized the deployment and will synchronize the draft explicitly.
+     */
+    @Transactional
+    public DeploymentMarketplaceInstallSummary updateEntitlementForTrustedCallerWithoutDraftSync(
+        DeploymentEntity deployment,
+        String installId,
+        UpdateDeploymentMarketplaceEntitlementRequest request
+    ) {
+        return updateEntitlementForDeployment(deployment, installId, request, false);
+    }
+
+    private DeploymentMarketplaceInstallSummary updateEntitlementForDeployment(DeploymentEntity deployment,
+                                                                              String installId,
+                                                                              UpdateDeploymentMarketplaceEntitlementRequest request,
+                                                                              boolean syncDraft) {
         DeploymentMarketplacePluginInstallEntity install = requireInstall(deployment.getId(), installId);
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
         MarketplacePluginVersionEntity version = requirePluginVersionById(install.getPluginVersionId());
@@ -334,7 +401,9 @@ public class DeploymentMarketplaceInstallService {
                 "pluginVersion", version.getVersion()
             )
         );
-        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        if (syncDraft) {
+            deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.getId());
+        }
         return toSummary(deployment, resolveActiveDraft(deployment), resolveActiveVersion(deployment), install);
     }
 

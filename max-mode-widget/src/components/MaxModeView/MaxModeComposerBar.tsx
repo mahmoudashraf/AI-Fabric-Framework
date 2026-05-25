@@ -28,6 +28,7 @@ export function MaxModeComposerBar({ controller }: { controller: MaxModeControll
     currentMode,
     allowedConversationModes,
     debugEnabled,
+    conversationsEnabled,
     setCurrentMode,
     openDebugInspector,
     handleChatQuery,
@@ -60,6 +61,7 @@ export function MaxModeComposerBar({ controller }: { controller: MaxModeControll
       availableModes={allowedConversationModes}
       onModeChange={setCurrentMode}
       debugEnabled={debugEnabled}
+      conversationsEnabled={conversationsEnabled}
       onOpenDebug={() => openDebugInspector()}
       onSubmit={() => handleChatQuery()}
     />

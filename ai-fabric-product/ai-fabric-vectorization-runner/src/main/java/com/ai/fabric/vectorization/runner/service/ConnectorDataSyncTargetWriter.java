@@ -19,6 +19,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class ConnectorDataSyncTargetWriter {
@@ -59,11 +60,14 @@ public class ConnectorDataSyncTargetWriter {
 
         ArrayNode operations = body.putArray("operations");
         for (VectorizationMappedRecord record : records) {
+            boolean delete = deleteRecord(record);
             ObjectNode operation = operations.addObject();
-            operation.put("type", "UPSERT");
-            operation.put("vectorSpace", entityType);
+            operation.put("type", delete ? "DELETE" : "UPSERT");
+            operation.put("vectorSpace", targetVectorSpace(record, entityType));
             operation.put("id", record.logicalEntityId());
-            operation.set("entity", objectMapper.valueToTree(record.entity()));
+            if (!delete) {
+                operation.set("entity", objectMapper.valueToTree(record.entity()));
+            }
             operation.set("metadata", objectMapper.valueToTree(record.metadata()));
             ObjectNode identity = operation.putObject("identity");
             identity.put("sourceRecordId", record.sourceRecordId());
@@ -102,6 +106,28 @@ public class ConnectorDataSyncTargetWriter {
             throw new IllegalStateException("Vectorization target returned invalid batch counts.");
         }
         return new VectorizationTargetWriteResult(succeeded, failed);
+    }
+
+    private String targetVectorSpace(VectorizationMappedRecord record, String fallbackEntityType) {
+        return StringUtils.hasText(record.entityType()) ? record.entityType().trim() : fallbackEntityType;
+    }
+
+    private boolean deleteRecord(VectorizationMappedRecord record) {
+        return truthy(record.entity(), "deleted")
+            || truthy(record.entity(), "tombstone")
+            || truthy(record.metadata(), "deleted")
+            || truthy(record.metadata(), "tombstone");
+    }
+
+    private boolean truthy(Map<String, Object> values, String key) {
+        if (values == null || !values.containsKey(key)) {
+            return false;
+        }
+        Object value = values.get(key);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return value instanceof String text && "true".equalsIgnoreCase(text.trim());
     }
 
     private String summarizeFailure(JsonNode bodyJson) {

@@ -56,7 +56,6 @@ class ShopifyStorefrontOrderLookupServiceTest {
                             "createdAt", "2026-04-23T12:00:00Z",
                             "displayFinancialStatus", "PAID",
                             "displayFulfillmentStatus", "FULFILLED",
-                            "statusPageUrl", "https://alpha.myshopify.com/orders/status/1001",
                             "currentTotalPriceSet", Map.of(
                                 "shopMoney", Map.of("amount", "59.00", "currencyCode", "USD")
                             ),
@@ -96,7 +95,44 @@ class ShopifyStorefrontOrderLookupServiceTest {
         assertThat(response.order()).isNotNull();
         assertThat(response.order().orderName()).isEqualTo("#1001");
         assertThat(response.order().trackingNumberMasked()).endsWith("9999");
+        assertThat(response.order().statusPageUrl()).isNull();
         assertThat(response.order().lineItems()).hasSize(1);
+    }
+
+    @Test
+    void failsClosedWhenShopifyRejectsOrderLookupQuery() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyInstallRecordService installRecordService = mock(ShopifyInstallRecordService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyAdminGraphqlClient shopifyAdminGraphqlClient = mock(ShopifyAdminGraphqlClient.class);
+
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store(true, List.of("ai-search", "order-lookup")));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
+            .thenReturn(Optional.of(acquisition("read_products,read_content,read_legal_policies,read_orders")));
+        when(installRecordService.findByShopDomain("alpha.myshopify.com"))
+            .thenReturn(Optional.of(installRecord("read_products,read_content,read_legal_policies,read_orders")));
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", "access-token", List.of("ai-search", "order-lookup")))
+            .thenReturn(List.of("ai-search", "order-lookup"));
+        when(shopifyAdminGraphqlClient.execute(eq("alpha.myshopify.com"), eq("access-token"), anyString(), anyMap()))
+            .thenReturn(Map.of("errors", List.of(Map.of("message", "Access denied for protected customer data field."))));
+
+        ShopifyStorefrontOrderLookupService service = new ShopifyStorefrontOrderLookupService(
+            platformClient,
+            installCredentialService,
+            installRecordService,
+            billingService,
+            shopifyAdminGraphqlClient
+        );
+
+        var response = service.lookup(
+            "alpha.myshopify.com",
+            new ShopifyStorefrontOrderLookupRequest("#1001", "shopper@example.com", "order-lookup")
+        );
+
+        assertThat(response.available()).isFalse();
+        assertThat(response.matched()).isFalse();
+        assertThat(response.status()).isEqualTo("ORDER_LOOKUP_UNAVAILABLE");
     }
 
     @Test

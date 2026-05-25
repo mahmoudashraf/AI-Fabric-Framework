@@ -1,6 +1,6 @@
 # 010.1 Shopify Companion UI Launch Readiness
 
-Status: staging-verified implementation (created 2026-05-09; deployed and live-gated on staging)
+Status: staging-verified implementation (created 2026-05-09; deployed and live-gated on staging). As of 2026-05-22, the UI launch kit is not the remaining blocker; current blockers are fresh release-gate evidence, controlled production promotion proof, and public-claim packaging.
 
 Owner mode: product UI / GTM readiness / launch operations LLM session
 
@@ -77,6 +77,12 @@ run full release gate, then schedule and execute the controlled production promo
 ```
 
 Production mutation must remain behind an intentional operator-controlled proof gate until the owner explicitly chooses the proof window.
+
+2026-05-22 status update:
+
+- The Shopify Companion UI readiness work is complete enough for controlled design-partner staging after a fresh gate.
+- It is not enough by itself for public production launch because production promotion, rollback/deactivation, failed-promotion isolation, and support/App Store packaging still need release evidence.
+- The one-time runtime endpoint work in 010.7 is useful for external product integrations, but it does not reduce the Shopify production proof requirements in this plan.
 
 ---
 

@@ -80,4 +80,68 @@ class ShopifyStoreReadinessEvaluatorTest {
         assertThat(readiness.storefrontBlockingReasons())
             .contains("The bound deployment is archived and cannot serve the Shopify storefront safely.");
     }
+
+    @Test
+    void evaluateDoesNotBlockStorefrontForPendingLegacySyncWhenSourceAndReleaseAreReady() {
+        ShopifyStoreReadinessEvaluator evaluator = new ShopifyStoreReadinessEvaluator();
+
+        ShopifyStoreConnectionEntity store = new ShopifyStoreConnectionEntity();
+        store.setInstallStatus("INSTALLED");
+        store.setCustomerId("cust-1");
+        store.setDeploymentId("dep-1");
+        store.setConsumerId("consumer-1");
+        store.setSourceReadinessStatus("READY");
+        store.setSyncStatus("NOT_SYNCED");
+        store.setWidgetStatus("ENABLED");
+        store.setOnboardingStatus("PLATFORM_BOOTSTRAPPED");
+
+        ShopifyStoreCredentialSummary credentials = new ShopifyStoreCredentialSummary(
+            "READY",
+            true,
+            true,
+            "ACCESS_SECRET",
+            "REFRESH_SECRET",
+            Instant.parse("2026-04-22T10:00:00Z"),
+            Instant.parse("2026-04-22T11:00:00Z"),
+            Instant.parse("2026-07-22T10:00:00Z"),
+            "read_products",
+            true
+        );
+
+        DeploymentReleaseSummary latestRelease = new DeploymentReleaseSummary(
+            "rel-1",
+            "dep-1",
+            "ver-1",
+            "APPLIED_VERIFIED",
+            "PASSED",
+            "SUCCEEDED",
+            "RAILWAY",
+            null,
+            null,
+            null,
+            null,
+            "verify_release",
+            "Verified.",
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-22T10:05:00Z"),
+            Instant.parse("2026-04-22T10:10:00Z"),
+            Instant.parse("2026-04-22T10:11:00Z")
+        );
+
+        ShopifyStoreReadinessSummary readiness = evaluator.evaluate(
+            store,
+            credentials,
+            null,
+            null,
+            null,
+            latestRelease,
+            false
+        );
+
+        assertThat(readiness.goLiveEligible()).isTrue();
+        assertThat(readiness.storefrontReady()).isTrue();
+        assertThat(readiness.storefrontBlockingReasons()).isEmpty();
+    }
 }

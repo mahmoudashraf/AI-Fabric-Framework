@@ -80,6 +80,9 @@ class ShopifyStorefrontControllerTest {
             "Ask me about products and policies.",
             "SHOPIFY_COMPANION",
             true,
+            true,
+            false,
+            "violet",
             "navigator",
             "navigator",
             List.of("navigator"),
@@ -119,6 +122,7 @@ class ShopifyStorefrontControllerTest {
             .andExpect(jsonPath("$.billingTier").value("FREE"))
             .andExpect(jsonPath("$.chatFallbackEnabled").value(false))
             .andExpect(jsonPath("$.shellModeProfile").value("SHOPIFY_COMPANION"))
+            .andExpect(jsonPath("$.colorScheme").value("violet"))
             .andExpect(jsonPath("$.defaultConversationMode").value("navigator"))
             .andExpect(jsonPath("$.effectiveConversationMode").value("navigator"))
             .andExpect(jsonPath("$.allowedConversationModes[0]").value("navigator"))
@@ -145,7 +149,7 @@ class ShopifyStorefrontControllerTest {
         when(storefrontChatService.query(eq("alpha.myshopify.com"), eq(objectMapper.readTree("""
             {
               "query":"Show me backpacks",
-              "storefrontContext":{
+              "context":{
                 "pageType":"product",
                 "product":{"handle":"travel-pack","title":"Travel Pack"}
               }
@@ -160,7 +164,7 @@ class ShopifyStorefrontControllerTest {
                 .content("""
                     {
                       "query":"Show me backpacks",
-                      "storefrontContext":{
+                      "context":{
                         "pageType":"product",
                         "product":{"handle":"travel-pack","title":"Travel Pack"}
                       }
@@ -175,7 +179,7 @@ class ShopifyStorefrontControllerTest {
             eq(objectMapper.readTree("""
                 {
                   "query":"Show me backpacks",
-                  "storefrontContext":{
+                  "context":{
                     "pageType":"product",
                     "product":{"handle":"travel-pack","title":"Travel Pack"}
                   }

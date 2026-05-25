@@ -52,43 +52,7 @@ class ShopifyBridgeVectorizationSourceServiceTest {
                     "edges", List.of(
                         Map.of(
                             "node",
-                            Map.of(
-                                "id", "gid://shopify/Product/1",
-                                "title", "Trail Shoe",
-                                "handle", "trail-shoe",
-                                "descriptionHtml", "<p>Breathable trail shoe</p>",
-                                "vendor", "Loom",
-                                "productType", "Shoes",
-                                "metafields", Map.of(
-                                    "edges", List.of(
-                                        Map.of("node", Map.of(
-                                            "namespace", "custom",
-                                            "key", "materials",
-                                            "type", "multi_line_text_field",
-                                            "value", "Breathable mesh upper"
-                                        )),
-                                        Map.of("node", Map.of(
-                                            "namespace", "judgeme",
-                                            "key", "rating",
-                                            "type", "number_decimal",
-                                            "value", "4.7"
-                                        )),
-                                        Map.of("node", Map.of(
-                                            "namespace", "judgeme",
-                                            "key", "review_count",
-                                            "type", "number_integer",
-                                            "value", "64"
-                                        )),
-                                        Map.of("node", Map.of(
-                                            "namespace", "custom",
-                                            "key", "fit_notes",
-                                            "type", "single_line_text_field",
-                                            "value", "Runs true to size"
-                                        ))
-                                    )
-                                ),
-                                "updatedAt", "2026-04-19T10:00:00Z"
-                            )
+                            productNode()
                         )
                     )
                 )
@@ -134,6 +98,21 @@ class ShopifyBridgeVectorizationSourceServiceTest {
             assertThat(item.sourceCategory()).isEqualTo("products");
             assertThat(item.documentType()).isEqualTo("product");
             assertThat(item.title()).isEqualTo("Trail Shoe");
+            assertThat(item.imageUrl()).isEqualTo("https://cdn.shopify.com/s/files/1/0000/products/trail-shoe.jpg");
+            assertThat(item.imageAltText()).isEqualTo("Trail Shoe on rock path");
+            assertThat(item.priceRange()).isEqualTo("120.00 USD");
+            assertThat(item.availability()).isEqualTo("available");
+            assertThat(item.variantCount()).isEqualTo(1);
+            assertThat(item.totalInventory()).isEqualTo(8);
+            assertThat(item.availableVariantCount()).isEqualTo(1);
+            assertThat(item.variantSummary()).isEqualTo("Default variant, SKU SHOE-TRAIL, price 120.00 USD, available");
+            assertThat(item.productVariantId()).isEqualTo("gid://shopify/ProductVariant/1");
+            assertThat(item.firstAvailableVariantId()).isEqualTo("gid://shopify/ProductVariant/1");
+            assertThat(item.firstAvailableVariantTitle()).isEqualTo("Default variant");
+            assertThat(item.content()).contains("Price range: 120.00 USD.");
+            assertThat(item.content()).contains("Total inventory: 8.");
+            assertThat(item.content()).contains("Availability: available.");
+            assertThat(item.content()).contains("Variant details: Default variant, SKU SHOE-TRAIL, price 120.00 USD, available.");
             assertThat(item.content()).contains("Average rating: 4.7 / 5 from 64 reviews (Judge.me).");
             assertThat(item.content()).contains("Materials: Breathable mesh upper");
             assertThat(item.content()).contains("Fit notes: Runs true to size");
@@ -300,6 +279,67 @@ class ShopifyBridgeVectorizationSourceServiceTest {
         node.put("publishedAt", publishedAt);
         node.put("blog", Map.of("title", "News", "handle", "news"));
         node.put("author", Map.of("name", "Loom Team"));
+        return node;
+    }
+
+    private Map<String, Object> productNode() {
+        LinkedHashMap<String, Object> node = new LinkedHashMap<>();
+        node.put("id", "gid://shopify/Product/1");
+        node.put("title", "Trail Shoe");
+        node.put("handle", "trail-shoe");
+        node.put("descriptionHtml", "<p>Breathable trail shoe</p>");
+        node.put("vendor", "Loom");
+        node.put("productType", "Shoes");
+        node.put("featuredImage", Map.of(
+            "url", "https://cdn.shopify.com/s/files/1/0000/products/trail-shoe.jpg",
+            "altText", "Trail Shoe on rock path"
+        ));
+        node.put("totalInventory", 8);
+        node.put("priceRangeV2", Map.of(
+            "minVariantPrice", Map.of("amount", "120.00", "currencyCode", "USD"),
+            "maxVariantPrice", Map.of("amount", "120.00", "currencyCode", "USD")
+        ));
+        node.put("variants", Map.of(
+            "edges", List.of(
+                Map.of("node", Map.of(
+                    "id", "gid://shopify/ProductVariant/1",
+                    "title", "Default Title",
+                    "sku", "SHOE-TRAIL",
+                    "availableForSale", true,
+                    "price", "120.00",
+                    "selectedOptions", List.of(Map.of("name", "Title", "value", "Default Title"))
+                ))
+            )
+        ));
+        node.put("metafields", Map.of(
+            "edges", List.of(
+                Map.of("node", Map.of(
+                    "namespace", "custom",
+                    "key", "materials",
+                    "type", "multi_line_text_field",
+                    "value", "Breathable mesh upper"
+                )),
+                Map.of("node", Map.of(
+                    "namespace", "judgeme",
+                    "key", "rating",
+                    "type", "number_decimal",
+                    "value", "4.7"
+                )),
+                Map.of("node", Map.of(
+                    "namespace", "judgeme",
+                    "key", "review_count",
+                    "type", "number_integer",
+                    "value", "64"
+                )),
+                Map.of("node", Map.of(
+                    "namespace", "custom",
+                    "key", "fit_notes",
+                    "type", "single_line_text_field",
+                    "value", "Runs true to size"
+                ))
+            )
+        ));
+        node.put("updatedAt", "2026-04-19T10:00:00Z");
         return node;
     }
 

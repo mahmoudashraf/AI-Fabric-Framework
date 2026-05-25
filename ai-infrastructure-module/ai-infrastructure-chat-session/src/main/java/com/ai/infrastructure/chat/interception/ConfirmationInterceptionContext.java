@@ -106,7 +106,13 @@ public final class ConfirmationInterceptionContext {
         Map<String, Object> params = top.actionParams();
         Map<String, Object> next = params != null ? new HashMap<>(params) : new HashMap<>();
         next.put(key, true);
-        replaceTopPending(new PendingAction(top.action(), Map.copyOf(next), top.description(), top.createdAt()));
+        replaceTopPending(new PendingAction(
+            top.action(),
+            Map.copyOf(next),
+            top.description(),
+            top.createdAt(),
+            top.trustedEvidenceValuesByKey()
+        ));
     }
 
     public boolean isTopPendingParamTrue(String key) {

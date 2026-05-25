@@ -8,4 +8,14 @@ public record TargetConnectionDescriptor(
     String authHeader,
     String apiKey
 ) {
+
+    @Override
+    public String toString() {
+        return "TargetConnectionDescriptor[targetType=" + targetType
+            + ", baseUrl=" + baseUrl
+            + ", batchPath=" + batchPath
+            + ", vectorSpacesPath=" + vectorSpacesPath
+            + ", authHeader=" + authHeader
+            + ", apiKey=<masked>]";
+    }
 }

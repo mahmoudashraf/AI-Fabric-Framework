@@ -8,6 +8,8 @@ import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.dto.IntentType;
 import com.ai.infrastructure.intent.IntentExtractionJsonSupport;
 import com.ai.infrastructure.intent.IntentExtractionValidator;
+import com.ai.infrastructure.intent.action.AIActionParamSchema;
+import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -15,6 +17,7 @@ import com.ai.infrastructure.prompt.ClasspathPromptTemplateStore;
 import com.ai.infrastructure.prompt.PromptRenderer;
 import com.ai.infrastructure.prompt.PromptTemplateResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +27,7 @@ import org.springframework.core.io.DefaultResourceLoader;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -162,6 +166,66 @@ class MultiStepIntentExtractionStrategyTest {
         verify(aiCoreService, times(1)).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION));
     }
 
+    @Test
+    void shouldExposeAndPreserveOptionalPresentationParamsDuringFill() {
+        AIActionMetaData action = AIActionMetaData.builder()
+            .name("shopify_update_cart")
+            .description("Update Shopify cart")
+            .parameters(Map.of(
+                "cart_update_confirmation", "Presentation-only shopper-facing confirmation phrase (optional)"
+            ))
+            .parameterSchemas(Map.of(
+                "cart_update_confirmation",
+                AIActionParamSchema.builder()
+                    .name("cart_update_confirmation")
+                    .type(AIActionParamType.STRING)
+                    .required(false)
+                    .description("Presentation-only shopper-facing confirmation phrase")
+                    .build()
+            ))
+            .requiredParameters(Set.of())
+            .build();
+
+        when(actionHandlerRegistry.getAllMetadata()).thenReturn(List.of(action));
+        when(validator.validate(any())).thenReturn(
+            new IntentExtractionValidator.ValidationResult(true, IntentExtractionValidator.ErrorCategory.NONE, List.of(), List.of())
+        );
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.ORCHESTRATION)))
+            .thenReturn(AIGenerationResponse.builder().content(classificationWithShopifyCartAction()).build())
+            .thenReturn(AIGenerationResponse.builder().content("""
+                {"mappings":[{"intentIndex":0,"selectedAction":"shopify_update_cart"}]}
+                """).build())
+            .thenReturn(AIGenerationResponse.builder().content("""
+                {"mappings":[{"intentIndex":0,"actionParams":{"cart_update_confirmation":"Add 1 Selling Plans Ski Wax to your cart"}}]}
+                """).build());
+
+        MultiStepIntentExtractionStrategy strategy = new MultiStepIntentExtractionStrategy(
+            aiCoreService,
+            actionHandlerRegistry,
+            jsonSupport,
+            validator,
+            promptRenderer,
+            promptTemplateResolver
+        );
+
+        ExtractionAttempt attempt = strategy.attemptExtract(
+            input("Add Selling Plans Ski Wax to my cart"),
+            OrchestrationContext.forUser("user-5")
+        );
+
+        assertThat(attempt.isSuccess()).isTrue();
+        assertThat(attempt.getResponse().getIntents()).hasSize(1);
+        assertThat(attempt.getResponse().getIntents().getFirst().getActionParams())
+            .containsEntry("cart_update_confirmation", "Add 1 Selling Plans Ski Wax to your cart");
+
+        ArgumentCaptor<AIGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService, times(3)).generateContent(requestCaptor.capture(), eq(LlmPurpose.ORCHESTRATION));
+        assertThat(requestCaptor.getAllValues().get(2).getPrompt())
+            .contains("cart_update_confirmation: string - Presentation-only shopper-facing confirmation phrase")
+            .contains("Fill optional parameters when the paramsSchema/description says they improve presentation")
+            .contains("For catalog/search actions with a valid required `query` parameter");
+    }
+
     private String classificationWithAction() {
         return """
             {
@@ -184,6 +248,22 @@ class MultiStepIntentExtractionStrategyTest {
               "intents": [
                 {
                   "type": "CONFIRMATION_POSITIVE"
+                }
+              ]
+            }
+            """;
+    }
+
+    private String classificationWithShopifyCartAction() {
+        return """
+            {
+              "intents": [
+                {
+                  "type": "ACTION",
+                  "intent": "shopify_update_cart",
+                  "actionHint": "add to cart",
+                  "requiresRetrieval": false,
+                  "requiresGeneration": false
                 }
               ]
             }

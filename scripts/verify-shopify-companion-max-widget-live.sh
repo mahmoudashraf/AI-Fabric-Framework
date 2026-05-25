@@ -28,6 +28,8 @@ set -euo pipefail
 #   PLATFORM_LOGIN_EMAIL / PLATFORM_LOGIN_PASSWORD, or *_FILE variants
 #   EXPECT_BILLING_TIER=ELITE
 #   EXPECT_CHAT_FALLBACK_ENABLED=true
+#   EXPECT_ENABLED_SURFACES=contextual-pill,product-insight,policy-strip,product-faq,comparison,order-lookup
+#   EXPECT_ALLOWED_CONVERSATION_MODES=thinker_deep,executor
 #   MAX_WIDGET_SCREENSHOT_PATH=/tmp/shopify-companion-max-widget.png
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,6 +54,8 @@ PLATFORM_LOGIN_EMAIL_FILE="${PLATFORM_LOGIN_EMAIL_FILE:-}"
 PLATFORM_LOGIN_PASSWORD_FILE="${PLATFORM_LOGIN_PASSWORD_FILE:-}"
 EXPECT_BILLING_TIER="${EXPECT_BILLING_TIER:-ELITE}"
 EXPECT_CHAT_FALLBACK_ENABLED="${EXPECT_CHAT_FALLBACK_ENABLED:-true}"
+EXPECT_ENABLED_SURFACES="${EXPECT_ENABLED_SURFACES:-contextual-pill,product-insight,policy-strip,product-faq,comparison,order-lookup}"
+EXPECT_ALLOWED_CONVERSATION_MODES="${EXPECT_ALLOWED_CONVERSATION_MODES:-thinker_deep,executor}"
 SHOPPER_SESSION_ID="${SHOPPER_SESSION_ID:-max-widget-live-$(date +%s)}"
 MAX_WIDGET_QUERY="${MAX_WIDGET_QUERY:-Open the store assistant and recommend one product from this store.}"
 MAX_WIDGET_SCREENSHOT_PATH="${MAX_WIDGET_SCREENSHOT_PATH:-/tmp/shopify-companion-max-widget-${SHOP_DOMAIN:-store}-$(date +%s).png}"
@@ -220,6 +224,22 @@ if expected not in values:
 PY
 }
 
+json_array_contains_csv() {
+  local payload="$1"
+  local path="$2"
+  local expected_csv="$3"
+  local label="$4"
+  local raw expected
+
+  IFS=',' read -ra expected_values <<< "${expected_csv}"
+  for raw in "${expected_values[@]}"; do
+    expected="$(printf '%s' "${raw}" | xargs)"
+    if [[ -n "${expected}" ]]; then
+      json_array_contains "${payload}" "${path}" "${expected}" "${label} ${expected}"
+    fi
+  done
+}
+
 init_platform_auth() {
   if [[ "${VERIFY_POC_AUTH_PATHS}" != "true" ]]; then
     return
@@ -273,10 +293,8 @@ verify_storefront_contract() {
   assert_nonempty "$(json_get "${bootstrap_json}" "deploymentId")" "storefront deploymentId"
   assert_nonempty "$(json_get "${bootstrap_json}" "bridgeQueryUrl")" "storefront bridgeQueryUrl"
   assert_nonempty "$(json_get "${bootstrap_json}" "bridgeSuggestionsUrl")" "storefront bridgeSuggestionsUrl"
-  json_array_contains "${bootstrap_json}" "enabledSurfaces" "ai-search" "storefront enabled surfaces"
-  if [[ "${EXPECT_BILLING_TIER}" == "ELITE" ]]; then
-    json_array_contains "${bootstrap_json}" "allowedConversationModes" "navigator" "storefront allowed conversation modes"
-  fi
+  json_array_contains_csv "${bootstrap_json}" "enabledSurfaces" "${EXPECT_ENABLED_SURFACES}" "storefront enabled surface"
+  json_array_contains_csv "${bootstrap_json}" "allowedConversationModes" "${EXPECT_ALLOWED_CONVERSATION_MODES}" "storefront allowed conversation mode"
   if [[ -z "${PLATFORM_DEPLOYMENT_ID}" ]]; then
     PLATFORM_DEPLOYMENT_ID="$(json_get "${bootstrap_json}" "deploymentId")"
   fi
@@ -290,7 +308,7 @@ import json
 import os
 print(json.dumps({
     "query": os.environ["MAX_WIDGET_QUERY"],
-    "storefrontContext": {
+    "context": {
         "pageType": "product",
         "shopifyShellModeProfile": "SHOPIFY_COMPANION",
         "shopifySurfaceEntry": "max-mode",

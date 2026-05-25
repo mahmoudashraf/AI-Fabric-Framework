@@ -134,6 +134,10 @@ public class VectorizationService {
         return buildOverview(deployment);
     }
 
+    /**
+     * Builds vectorization overview data for an internal workflow that already resolved and authorized the deployment.
+     * Public/controller paths must use getOverview so deployment edit access is checked.
+     */
     @Transactional(readOnly = true)
     public VectorizationOverviewSummary getOverviewForTrustedCaller(DeploymentEntity deployment) {
         return buildOverview(deployment);
@@ -299,6 +303,10 @@ public class VectorizationService {
         return createRunForDeployment(deployment, request, currentActorId());
     }
 
+    /**
+     * Queues a vectorization run for an internal workflow that already resolved and authorized the deployment.
+     * Public/controller paths must use createRun so deployment operator access is checked.
+     */
     @Transactional
     public VectorizationRunSummary createRunForTrustedCaller(String deploymentId,
                                                              CreateVectorizationRunRequest request,

@@ -32,13 +32,17 @@ public class ShopifyStorefrontBootstrapService {
 
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
-        "Store assistant is ready. Ask about products, policies, or collections.";
+        "Shopping Assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
     private static final boolean DEFAULT_DEBUG_ENABLED = false;
-    private static final String DEFAULT_CONVERSATION_MODE = "navigator";
+    private static final boolean DEFAULT_ASSISTANT_DOCK_ENABLED = true;
+    private static final boolean DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED = false;
+    private static final String DEFAULT_COLOR_SCHEME = "graphite";
+    private static final String BASE_NAVIGATOR_CONVERSATION_MODE = "navigator";
     private static final String THINKER_CONVERSATION_MODE = "thinker_deep";
+    private static final String RESOLVER_CONVERSATION_MODE = "executor";
+    private static final String DEFAULT_CONVERSATION_MODE = THINKER_CONVERSATION_MODE;
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of("ai-search");
-    private static final List<String> DEFAULT_ALLOWED_CONVERSATION_MODES = List.of(DEFAULT_CONVERSATION_MODE);
     private static final Map<String, String> DEFAULT_PAGE_MODE_MAPPINGS = Map.of();
     private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
         "navigator",
@@ -50,6 +54,13 @@ public class ShopifyStorefrontBootstrapService {
     private static final Set<String> ACTION_CONVERSATION_MODES = Set.of(
         "cart_assistant",
         "executor"
+    );
+    private static final Set<String> ALLOWED_COLOR_SCHEMES = Set.of(
+        "graphite",
+        "violet",
+        "blue",
+        "emerald",
+        "rose"
     );
 
     private final PlatformShopifyStoreClient platformShopifyStoreClient;
@@ -134,6 +145,16 @@ public class ShopifyStorefrontBootstrapService {
         boolean debugEnabled = updated.widgetDetail() != null
             && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().debugEnabled();
+        boolean assistantDockEnabled = updated.widgetDetail() == null
+            || updated.widgetDetail().settings() == null
+            || updated.widgetDetail().settings().assistantDockEnabled() == null
+            || updated.widgetDetail().settings().assistantDockEnabled();
+        boolean askAssistantLauncherEnabled = updated.widgetDetail() != null
+            && updated.widgetDetail().settings() != null
+            && Boolean.TRUE.equals(updated.widgetDetail().settings().askAssistantLauncherEnabled());
+        String colorScheme = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
+            ? normalizeColorScheme(updated.widgetDetail().settings().colorScheme())
+            : DEFAULT_COLOR_SCHEME;
         String configuredDefaultConversationMode = updated.widgetDetail() != null && updated.widgetDetail().settings() != null
             && updated.widgetDetail().settings().defaultConversationMode() != null
             && !updated.widgetDetail().settings().defaultConversationMode().isBlank()
@@ -142,14 +163,16 @@ public class ShopifyStorefrontBootstrapService {
         String defaultConversationMode = resolveDefaultConversationMode(
             configuredDefaultConversationMode,
             shellModeProfile,
-            billingSummary
+            billingSummary,
+            resolverModeEligible(updated, billingSummary)
         );
         List<String> allowedConversationModes = normalizeAllowedConversationModes(
             updated.widgetDetail() != null && updated.widgetDetail().settings() != null
                 ? updated.widgetDetail().settings().allowedConversationModes()
                 : null,
             defaultConversationMode,
-            billingSummary
+            billingSummary,
+            resolverModeEligible(updated, billingSummary)
         );
         Map<String, String> pageModeMappings = normalizePageModeMappings(
             updated.widgetDetail() != null && updated.widgetDetail().settings() != null
@@ -211,6 +234,9 @@ public class ShopifyStorefrontBootstrapService {
             welcomeMessage,
             shellModeProfile,
             debugEnabled,
+            assistantDockEnabled,
+            askAssistantLauncherEnabled,
+            colorScheme,
             defaultConversationMode,
             effectiveConversationMode,
             allowedConversationModes,
@@ -244,7 +270,8 @@ public class ShopifyStorefrontBootstrapService {
                                                            String bridgeEventUrl,
                                                            String customerAccountAuthStartUrl,
                                                            String customerAccountAuthSessionUrl) {
-        String defaultConversationMode = DEFAULT_CONVERSATION_MODE;
+        String defaultConversationMode = BASE_NAVIGATOR_CONVERSATION_MODE;
+        List<String> allowedConversationModes = List.of(defaultConversationMode);
         return new ShopifyStorefrontBootstrapResponse(
             false,
             store.shopDomain(),
@@ -261,14 +288,17 @@ public class ShopifyStorefrontBootstrapService {
             DEFAULT_WELCOME_MESSAGE,
             DEFAULT_SHELL_MODE_PROFILE,
             DEFAULT_DEBUG_ENABLED,
+            DEFAULT_ASSISTANT_DOCK_ENABLED,
+            DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED,
+            DEFAULT_COLOR_SCHEME,
             defaultConversationMode,
             resolveEffectiveConversationMode(
                 pageType,
                 defaultConversationMode,
-                DEFAULT_ALLOWED_CONVERSATION_MODES,
+                allowedConversationModes,
                 DEFAULT_PAGE_MODE_MAPPINGS
             ),
-            DEFAULT_ALLOWED_CONVERSATION_MODES,
+            allowedConversationModes,
             DEFAULT_PAGE_MODE_MAPPINGS,
             DEFAULT_ENABLED_SURFACES,
             groundingSignals(store),
@@ -378,10 +408,11 @@ public class ShopifyStorefrontBootstrapService {
 
     private String resolveDefaultConversationMode(String configuredDefaultConversationMode,
                                                   String shellModeProfile,
-                                                  ShopifyBridgeBillingSummary billingSummary) {
-        String resolved = normalizeConversationMode(configuredDefaultConversationMode, billingSummary)
-            .or(() -> normalizeConversationMode(defaultConversationModeForShellProfile(shellModeProfile), billingSummary))
-            .orElse(DEFAULT_CONVERSATION_MODE);
+                                                  ShopifyBridgeBillingSummary billingSummary,
+                                                  boolean resolverModeEligible) {
+        String resolved = normalizeConversationMode(configuredDefaultConversationMode, billingSummary, resolverModeEligible)
+            .or(() -> normalizeConversationMode(defaultConversationModeForShellProfile(shellModeProfile), billingSummary, resolverModeEligible))
+            .orElse(fallbackConversationMode(billingSummary));
         return promoteDepthModeToThinker(resolved, billingSummary);
     }
 
@@ -389,13 +420,15 @@ public class ShopifyStorefrontBootstrapService {
         if (billingSummary == null || !billingSummary.chatFallbackEnabled()) {
             return mode;
         }
-        if (DEFAULT_CONVERSATION_MODE.equals(mode) || "navigator_deep".equals(mode)) {
+        if (BASE_NAVIGATOR_CONVERSATION_MODE.equals(mode) || "navigator_deep".equals(mode)) {
             return THINKER_CONVERSATION_MODE;
         }
         return mode;
     }
 
-    private Optional<String> normalizeConversationMode(String value, ShopifyBridgeBillingSummary billingSummary) {
+    private Optional<String> normalizeConversationMode(String value,
+                                                       ShopifyBridgeBillingSummary billingSummary,
+                                                       boolean resolverModeEligible) {
         if (value == null || value.isBlank()) {
             return Optional.empty();
         }
@@ -403,44 +436,54 @@ public class ShopifyStorefrontBootstrapService {
         if (!CANONICAL_CONVERSATION_MODES.contains(normalized)) {
             return Optional.empty();
         }
-        if (!conversationModeEntitled(normalized, billingSummary)) {
+        if (!conversationModeEntitled(normalized, billingSummary, resolverModeEligible)) {
             return Optional.empty();
         }
         return Optional.of(normalized);
     }
 
-    private boolean conversationModeEntitled(String mode, ShopifyBridgeBillingSummary billingSummary) {
-        if (DEFAULT_CONVERSATION_MODE.equals(mode)) {
+    private boolean conversationModeEntitled(String mode,
+                                             ShopifyBridgeBillingSummary billingSummary,
+                                             boolean resolverModeEligible) {
+        if (BASE_NAVIGATOR_CONVERSATION_MODE.equals(mode)) {
             return true;
         }
         if ("navigator_deep".equals(mode) || THINKER_CONVERSATION_MODE.equals(mode)) {
             return billingSummary != null && billingSummary.chatFallbackEnabled();
         }
         if (ACTION_CONVERSATION_MODES.contains(mode)) {
-            return billingSummary != null && billingSummary.actionCapable();
+            return billingSummary != null && billingSummary.actionCapable() && resolverModeEligible;
         }
         return false;
     }
 
     private List<String> normalizeAllowedConversationModes(List<String> configured,
                                                            String defaultConversationMode,
-                                                           ShopifyBridgeBillingSummary billingSummary) {
+                                                           ShopifyBridgeBillingSummary billingSummary,
+                                                           boolean resolverModeEligible) {
         if (configured == null || configured.isEmpty()) {
-            return List.of(defaultConversationMode);
+            java.util.LinkedHashSet<String> defaults = new java.util.LinkedHashSet<>();
+            defaults.add(defaultConversationMode);
+            if (resolverModeEligible) {
+                defaults.add(RESOLVER_CONVERSATION_MODE);
+            }
+            return List.copyOf(defaults);
         }
         java.util.LinkedHashSet<String> normalized = new java.util.LinkedHashSet<>();
         configured.forEach(mode -> {
-            normalizeConversationMode(mode, billingSummary).ifPresent(normalized::add);
+            normalizeConversationMode(mode, billingSummary, resolverModeEligible).ifPresent(normalized::add);
         });
         normalized.add(defaultConversationMode.trim().toLowerCase(Locale.ROOT));
         return List.copyOf(normalized);
     }
 
     private Map<String, String> normalizePageModeMappings(Map<String, String> configured, List<String> allowedConversationModes) {
+        java.util.LinkedHashMap<String, String> normalized = new java.util.LinkedHashMap<>(
+            defaultPageModeMappings(allowedConversationModes)
+        );
         if (configured == null || configured.isEmpty()) {
-            return DEFAULT_PAGE_MODE_MAPPINGS;
+            return normalized.isEmpty() ? DEFAULT_PAGE_MODE_MAPPINGS : Map.copyOf(normalized);
         }
-        java.util.LinkedHashMap<String, String> normalized = new java.util.LinkedHashMap<>();
         configured.forEach((key, value) -> {
             if (key == null || key.isBlank() || value == null || value.isBlank()) {
                 return;
@@ -452,6 +495,36 @@ public class ShopifyStorefrontBootstrapService {
             normalized.put(key.trim().toLowerCase(Locale.ROOT), normalizedMode);
         });
         return normalized.isEmpty() ? DEFAULT_PAGE_MODE_MAPPINGS : Map.copyOf(normalized);
+    }
+
+    private String normalizeColorScheme(String value) {
+        if (value == null || value.isBlank()) {
+            return DEFAULT_COLOR_SCHEME;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return ALLOWED_COLOR_SCHEMES.contains(normalized) ? normalized : DEFAULT_COLOR_SCHEME;
+    }
+
+    private Map<String, String> defaultPageModeMappings(List<String> allowedConversationModes) {
+        if (allowedConversationModes == null || allowedConversationModes.isEmpty()) {
+            return DEFAULT_PAGE_MODE_MAPPINGS;
+        }
+        String shoppingMode = allowedConversationModes.contains(THINKER_CONVERSATION_MODE)
+            ? THINKER_CONVERSATION_MODE
+            : allowedConversationModes.getFirst();
+        String accountOrderMode = allowedConversationModes.contains(RESOLVER_CONVERSATION_MODE)
+            ? RESOLVER_CONVERSATION_MODE
+            : shoppingMode;
+        return Map.ofEntries(
+            Map.entry("landing", shoppingMode),
+            Map.entry("product", shoppingMode),
+            Map.entry("collection", shoppingMode),
+            Map.entry("search", shoppingMode),
+            Map.entry("content", shoppingMode),
+            Map.entry("cart", accountOrderMode),
+            Map.entry("account", accountOrderMode),
+            Map.entry("support", accountOrderMode)
+        );
     }
 
     private String resolveEffectiveConversationMode(String rawPageType,
@@ -475,6 +548,12 @@ public class ShopifyStorefrontBootstrapService {
         return THINKER_CONVERSATION_MODE;
     }
 
+    private String fallbackConversationMode(ShopifyBridgeBillingSummary billingSummary) {
+        return billingSummary != null && billingSummary.chatFallbackEnabled()
+            ? THINKER_CONVERSATION_MODE
+            : BASE_NAVIGATOR_CONVERSATION_MODE;
+    }
+
     private String pageModeKey(String rawPageType) {
         String normalized = rawPageType == null ? "" : rawPageType.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
@@ -482,10 +561,21 @@ public class ShopifyStorefrontBootstrapService {
             case "collection", "list-collections" -> "collection";
             case "search" -> "search";
             case "cart" -> "cart";
+            case "contact", "support", "help", "returns", "return" -> "support";
             case "article", "blog", "page" -> "content";
-            case "customers/account", "customers/login", "customers/register", "customers/order", "account", "orders" -> "account";
+            case "customers/account", "customers/login", "customers/register", "customers/order", "account", "orders",
+                "order", "order_status", "order-status" -> "account";
             case "index", "home", "landing" -> "landing";
             default -> "landing";
         };
+    }
+
+    private boolean resolverModeEligible(ShopifyBridgeStoreSummary store, ShopifyBridgeBillingSummary billingSummary) {
+        return billingSummary != null
+            && billingSummary.actionCapable()
+            && store != null
+            && store.readiness() != null
+            && store.readiness().goLiveEligible()
+            && store.readiness().storefrontReady();
     }
 }

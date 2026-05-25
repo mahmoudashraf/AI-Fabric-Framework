@@ -14,8 +14,11 @@ import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.RAGResponse;
+import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
@@ -38,6 +41,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ChatRuntimeControllerPromptPreviewTest {
@@ -254,7 +258,308 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getSessionId()).isEqualTo("platform-session-1");
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry("subjectId", "platform-user-1")
-            .containsEntry("requestedScopes", java.util.List.of("chat:query"));
+            .containsEntry("requestedScopes", java.util.List.of("chat:query"))
+            .containsEntry(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, "PERSIST_IF_AVAILABLE");
+    }
+
+    @Test
+    void queryOnceUsesCanonicalResponseWithoutConversationPersistence() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Summarize this workspace"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Workspace is ready for launch.")
+                .build()
+        );
+        RuntimeConversationGateway conversationGateway = mock(RuntimeConversationGateway.class);
+        ChatRuntimeController controller = instantiateController(
+            provider(orchestrator),
+            conversationGateway,
+            provider(null),
+            provider(null),
+            provider(null),
+            provider(null),
+            strictAuthResolver()
+        );
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Summarize this workspace");
+        request.setConversationId("correlation-prod-us-1");
+        request.setMode("support_assistant");
+        request.setPosition("productization");
+        request.setContext(Map.of("pageType", "owner-product-workspace"));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.queryOnce(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getAnswer()).isEqualTo("Workspace is ready for launch.");
+        assertThat(response.getSafeSummary()).isEqualTo("Workspace is ready for launch.");
+        assertThat(response.getConversationId()).isEqualTo("correlation-prod-us-1");
+        assertThat(response.getMode()).isEqualTo("support_assistant");
+        assertThat(response.getPosition()).isEqualTo("productization");
+        verifyNoInteractions(conversationGateway);
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Summarize this workspace"), contextCaptor.capture());
+        assertThat(contextCaptor.getValue().getMetadata())
+            .containsEntry(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, java.util.List.of("chat:query"))
+            .containsEntry(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, "NEVER_PERSIST");
+    }
+
+    @Test
+    void queryOnceRejectsUnexpectedLegacyIdentityFieldsWithQueryOncePath() {
+        ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Explain this once");
+        request.getUnexpectedFields().put("userId", "forged-user");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        assertThatThrownBy(() -> controller.queryOnce(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST")
+            .hasMessageContaining("Unexpected request fields are not allowed on verified runtime endpoint /api/chat/me/query-once")
+            .hasMessageContaining("userId");
+    }
+
+    @Test
+    void queryOnceRequiresChatQueryScope() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("One-time answer");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", List.of("chat:suggestions"));
+
+        assertThatThrownBy(() -> controller.queryOnce(request, servletRequest))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("chat:query");
+        verify(orchestrator, never()).orchestrate(
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.<OrchestrationContext>any()
+        );
+    }
+
+    @Test
+    void meQueryPreservesActionErrorCodeInCanonicalActionEvidence() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("I want to return my last order"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.ACTION_EXECUTED)
+                .success(false)
+                .message("Customer Account MCP requires a bound customer OAuth/PKCE access token.")
+                .data(Map.of(
+                    "action", "shopify_get_most_recent_order_status",
+                    "actionResult", ActionResult.builder()
+                        .success(false)
+                        .message("Customer Account MCP requires a bound customer OAuth/PKCE access token.")
+                        .errorCode("CUSTOMER_ACCOUNT_AUTH_REQUIRED")
+                        .build()
+                ))
+                .sanitizedPayload(Map.of(
+                    "safeSummary", "Customer Account MCP requires a bound customer OAuth/PKCE access token.",
+                    "data", Map.of(
+                        "action", "shopify_get_most_recent_order_status",
+                        "actionResult", Map.of(
+                            "success", false,
+                            "message", "Customer Account MCP requires a bound customer OAuth/PKCE access token."
+                        )
+                    )
+                ))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("I want to return my last order");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getFallbackReason()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+        assertThat(response.getActions()).hasSize(1);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> action = (Map<String, Object>) response.getActions().get(0);
+        assertThat(action).containsEntry("action", "shopify_get_most_recent_order_status");
+        assertThat(action).containsEntry("errorCode", "CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actionResult = (Map<String, Object>) action.get("actionResult");
+        assertThat(actionResult).containsEntry("errorCode", "CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+    }
+
+    @Test
+    void meQueryExposesSafeResultMetadataInCanonicalResponse() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        Map<String, Object> readActionResolution = Map.of(
+            "attempted", true,
+            "executedActionsCount", 1,
+            "executedActions", List.of(Map.of("action", "check_availability"))
+        );
+        when(orchestrator.orchestrate(eq("Check live availability for SKU-0001"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("SKU-0001 is available.")
+                .metadata(Map.of("readActionResolution", readActionResolution))
+                .data(Map.of("readActionResolution", readActionResolution))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Check live availability for SKU-0001");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMetadata()).containsKey("readActionResolution");
+        assertThat(response.getMetadata().get("readActionResolution")).isEqualTo(readActionResolution);
+    }
+
+    @Test
+    void meQueryExposesRawResultDocumentsWhenSanitizedPayloadOmitsSources() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        List<Map<String, Object>> documents = List.of(Map.of(
+            "id", "policy-shared-refund",
+            "source", "shared-marketplace-refund-policy",
+            "metadata", Map.of("adapterType", "shared-index")
+        ));
+        when(orchestrator.orchestrate(eq("What is the refund policy?"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Refunds are available within 30 days.")
+                .data(Map.of(
+                    "answer", "Refunds are available within 30 days.",
+                    "documents", documents
+                ))
+                .sanitizedPayload(Map.of(
+                    "safeSummary", "Refunds are available within 30 days.",
+                    "data", Map.of("answer", "Refunds are available within 30 days.")
+                ))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("What is the refund policy?");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getSources()).hasSize(1);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> source = (Map<String, Object>) response.getSources().getFirst();
+        assertThat(source)
+            .containsEntry("id", "policy-shared-refund")
+            .containsEntry("source", "shared-marketplace-refund-policy");
+    }
+
+    @Test
+    void meQueryExposesCanonicalRagResponseDocuments() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        RAGResponse ragResponse = RAGResponse.builder()
+            .documents(List.of(RAGResponse.RAGDocument.builder()
+                .id("product-ironpeak")
+                .title("IronPeak Workstation 17 Laptop")
+                .content("High performance laptop evidence")
+                .type("product")
+                .score(0.92d)
+                .metadata(Map.of("vectorSpace", "product"))
+                .build()))
+            .context("High performance laptop evidence")
+            .success(true)
+            .build();
+        when(orchestrator.orchestrate(eq("summarize high performance laptops for gaming"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("IronPeak is available.")
+                .data(Map.of(
+                    "answer", "IronPeak is available.",
+                    "documents", ragResponse.getDocuments(),
+                    "ragResponse", ragResponse
+                ))
+                .sanitizedPayload(Map.of("safeSummary", "IronPeak is available."))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("summarize high performance laptops for gaming");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getSources()).hasSize(1);
+        assertThat(response.getRagResponse()).containsKey("documents");
+    }
+
+    @Test
+    void meQueryExposesReadActionEvidenceAsSourcesWhenNoRagDocumentsExist() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        Map<String, Object> readActionResolution = Map.of(
+            "attempted", true,
+            "executedActions", List.of(Map.of(
+                "action", "catalog_search",
+                "category", "catalog",
+                "groundingUsable", true,
+                "evidenceSummary", "{\"items\":[{\"title\":\"Titan Gaming 16 Laptop\",\"price\":\"2199.00\"}]}"
+            ))
+        );
+        when(orchestrator.orchestrate(eq("Find gaming laptops"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Titan Gaming 16 Laptop is listed.")
+                .data(Map.of(
+                    "answer", "Titan Gaming 16 Laptop is listed.",
+                    "documents", List.of(),
+                    "readActionResolution", readActionResolution
+                ))
+                .metadata(Map.of("readActionResolution", readActionResolution))
+                .sanitizedPayload(Map.of("safeSummary", "Titan Gaming 16 Laptop is listed."))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Find gaming laptops");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getSources()).hasSize(1);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> source = (Map<String, Object>) response.getSources().getFirst();
+        assertThat(source)
+            .containsEntry("title", "catalog_search")
+            .containsEntry("type", "read-action-evidence");
+        assertThat(source.get("content")).asString().contains("Titan Gaming 16 Laptop");
     }
 
     @Test

@@ -905,7 +905,7 @@ public class DeploymentVerificationRolloutService {
                 "Canonical OpenAI plus platform-managed Qdrant Cloud verification deployment.",
                 "dev-openai-qdrant",
                 "PLATFORM_MANAGED",
-                "ecommerce",
+                "vector",
                 true
             ) {
                 @Override

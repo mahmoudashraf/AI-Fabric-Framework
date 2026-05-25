@@ -62,7 +62,7 @@ public class CompoundConfirmationResolver extends ConfirmationResolverSupport {
                     .confidence(1.0d)
                     .build();
                 next.add(confirmedAction);
-                context = markConfirmed(context, confirmed.action());
+                context = markConfirmed(context, confirmed);
             }
         } else if (negative) {
             popPending(context);

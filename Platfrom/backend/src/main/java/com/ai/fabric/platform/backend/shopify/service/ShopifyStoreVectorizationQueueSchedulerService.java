@@ -31,7 +31,6 @@ public class ShopifyStoreVectorizationQueueSchedulerService {
     private final ShopifyStoreVectorizationEventService eventService;
     private final ShopifyStoreVectorizationPolicyService policyService;
     private final ShopifyStoreVectorizationEligibilityEvaluator eligibilityEvaluator;
-    private final ShopifyBridgeAdminClient bridgeAdminClient;
     private final ShopifyStoreVectorizationRunEnqueuer runEnqueuer;
     private final ShopifyStoreVectorizationTriggerProperties properties;
     private final VectorizationService vectorizationService;
@@ -41,7 +40,6 @@ public class ShopifyStoreVectorizationQueueSchedulerService {
                                                           ShopifyStoreVectorizationEventService eventService,
                                                           ShopifyStoreVectorizationPolicyService policyService,
                                                           ShopifyStoreVectorizationEligibilityEvaluator eligibilityEvaluator,
-                                                          ShopifyBridgeAdminClient bridgeAdminClient,
                                                           ShopifyStoreVectorizationRunEnqueuer runEnqueuer,
                                                           ShopifyStoreVectorizationTriggerProperties properties,
                                                           VectorizationService vectorizationService) {
@@ -50,7 +48,6 @@ public class ShopifyStoreVectorizationQueueSchedulerService {
         this.eventService = eventService;
         this.policyService = policyService;
         this.eligibilityEvaluator = eligibilityEvaluator;
-        this.bridgeAdminClient = bridgeAdminClient;
         this.runEnqueuer = runEnqueuer;
         this.properties = properties;
         this.vectorizationService = vectorizationService;
@@ -144,25 +141,6 @@ public class ShopifyStoreVectorizationQueueSchedulerService {
                 automation.lastSuccessfulAutoIndexAt().plusSeconds(minimumRunIntervalSeconds),
                 "Waiting for the minimum live auto indexing interval before dispatch."
             );
-            return;
-        }
-
-        try {
-            bridgeAdminClient.runSync(store);
-        } catch (RuntimeException ex) {
-            for (Decision decision : decisions) {
-                if (!decision.evaluation.dispatch()) {
-                    eventService.markSkipped(decision.event, decision.evaluation.summary());
-                    continue;
-                }
-                eventService.failEvent(
-                    decision.event,
-                    ShopifyStoreVectorizationConstants.FAILURE_BRIDGE_UNAVAILABLE,
-                    ex.getMessage() == null || ex.getMessage().isBlank()
-                        ? "Shopify bridge sync could not complete before live auto indexing."
-                        : ex.getMessage()
-                );
-            }
             return;
         }
 

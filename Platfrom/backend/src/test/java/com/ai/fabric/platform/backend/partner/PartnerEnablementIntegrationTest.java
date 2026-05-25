@@ -442,6 +442,7 @@ class PartnerEnablementIntegrationTest {
                       "launcherLabel": "Ask Loom Companion",
                       "welcomeMessage": "Ask about products, collections, policy details, or size guidance.",
                       "shellModeProfile": "GUIDED_SUPPORT",
+                      "colorScheme": "emerald",
                       "enabledSurfaces": ["ai-search", "product-faq", "comparison"],
                       "defaultConversationMode": "navigator_deep",
                       "allowedConversationModes": ["navigator", "navigator_deep"],
@@ -453,6 +454,9 @@ class PartnerEnablementIntegrationTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.widgetSettings.launcherLabel", is("Ask Loom Companion")))
+            .andExpect(jsonPath("$.widgetSettings.colorScheme", is("emerald")))
+            .andExpect(jsonPath("$.widgetSettings.assistantDockEnabled", is(true)))
+            .andExpect(jsonPath("$.widgetSettings.askAssistantLauncherEnabled", is(false)))
             .andExpect(jsonPath("$.widgetSettings.enabledSurfaces", hasItem("comparison")))
             .andExpect(jsonPath("$.enabledSurfaces", hasItem("product-faq")));
 
@@ -830,7 +834,7 @@ class PartnerEnablementIntegrationTest {
               },
               "widget": {
                 "settings": {
-                  "enabledSurfaces": ["ai-search", "order-lookup"],
+                  "enabledSurfaces": ["contextual-pill", "product-faq", "comparison", "order-lookup"],
                   "allowedConversationModes": ["navigator"],
                   "defaultConversationMode": "navigator"
                 }
@@ -1022,7 +1026,7 @@ class PartnerEnablementIntegrationTest {
             mockMvc.perform(get("/api/shopify/stores/{shopDomain}/billing-state", "trial-client.myshopify.com")
                     .header("X-PLATFORM-API-KEY", "operator-test-key"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tierKey", is("FREE")))
+                .andExpect(jsonPath("$.tierKey", is("ELITE")))
                 .andExpect(jsonPath("$.reason", is("Past due cleanup")));
 
             assertThat(bridgeBillingStateRequests.get())

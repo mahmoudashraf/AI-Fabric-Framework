@@ -3,9 +3,89 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { emitEvent } from "@/config";
+import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
+import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
+import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function objectValue(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
+}
+
+function normalizeRuntimeDocument(doc: any, idx: number, options?: { entityType?: string; idPrefix?: string }): Document {
+  const metadata = { ...objectValue(doc?.metadata) };
+  let title = firstString(doc?.title, doc?.name, doc?.label, metadata.title, metadata.name);
+  const content = firstString(doc?.content, doc?.contentText, doc?.text, doc?.summary, doc?.snippet, doc?.excerpt);
+
+  if (!title && content) {
+    const parts = content.split(" ");
+    const titleParts = parts
+      .slice(1, 8)
+      .filter(
+        (word: string) =>
+          !word.match(/^[A-Z]+-[A-Z]+-\d+$/) && !word.match(/^\d+\.\d+$/) && word.toLowerCase() !== "usd",
+      );
+    title = titleParts.join(" ") + (parts.length > 8 ? "..." : "");
+  }
+
+  let docType = firstString(doc?.type, metadata.vectorSpace, metadata.classification);
+  const entityType = options?.entityType || "document";
+  if (!docType) {
+    docType = entityType.includes(",") ? entityType.split(",")[0].trim() : entityType;
+  }
+
+  const imageUrl = firstString(
+    doc?.imageUrl,
+    doc?.image,
+    doc?.imageSrc,
+    doc?.featuredImage,
+    metadata.imageUrl,
+    metadata.image_url,
+    metadata.featuredImage,
+    metadata.featured_image,
+    metadata.image,
+  );
+  const imageAltText = firstString(doc?.imageAltText, doc?.altText, metadata.imageAltText, metadata.altText, metadata.image_alt_text);
+  const url = firstString(doc?.url, doc?.link, doc?.storefrontUrl, metadata.url, metadata.link, metadata.storefrontUrl);
+  const storefrontUrl = firstString(doc?.storefrontUrl, metadata.storefrontUrl, url);
+  const handle = firstString(doc?.handle, metadata.handle);
+
+  if (imageUrl && !metadata.imageUrl) metadata.imageUrl = imageUrl;
+  if (imageAltText && !metadata.imageAltText) metadata.imageAltText = imageAltText;
+  if (url && !metadata.url) metadata.url = url;
+  if (storefrontUrl && !metadata.storefrontUrl) metadata.storefrontUrl = storefrontUrl;
+  if (handle && !metadata.handle) metadata.handle = handle;
+
+  return {
+    id: firstString(doc?.id, doc?.sourceId, doc?.url, doc?.link, title) || `${options?.idPrefix || "doc"}-${idx}`,
+    title: title || `Document ${idx + 1}`,
+    content: content || "No content available",
+    type: docType || "document",
+    metadata,
+    imageUrl,
+    imageAltText,
+    url,
+    storefrontUrl,
+    handle,
+    product_variant_id: firstString(doc?.product_variant_id, metadata.product_variant_id, metadata.variantId, metadata.variant_id),
+    firstAvailableVariantTitle: firstString(doc?.firstAvailableVariantTitle, metadata.firstAvailableVariantTitle),
+    priceRange: firstString(doc?.priceRange, metadata.priceRange, metadata.price, metadata.amount),
+    availability: firstString(doc?.availability, metadata.availability, metadata.status),
+    score: typeof doc?.score === "number" ? doc.score : typeof metadata.score === "number" ? metadata.score : undefined,
+    similarity: typeof doc?.similarity === "number" ? doc.similarity : typeof metadata.similarity === "number" ? metadata.similarity : undefined,
+  };
+}
 
 export function useChatFlow({
   chatQuery,
@@ -26,6 +106,7 @@ export function useChatFlow({
   currentPosition,
   currentMode,
   requestContext,
+  requestContextProvider,
 }: {
   chatQuery: string;
   setChatQuery: Dispatch<SetStateAction<string>>;
@@ -45,6 +126,7 @@ export function useChatFlow({
   currentPosition: "landing" | "catalog" | "search" | "cart";
   currentMode: MaxModeMode;
   requestContext?: Record<string, any>;
+  requestContextProvider?: MaxModeHostRequestContextProvider;
 }) {
   const handleChatQuery = useCallback(
     async (
@@ -132,6 +214,7 @@ export function useChatFlow({
           if (item.data.content) contentParts.push(item.data.content);
           if (item.data.price) contentParts.push(`Price: ${item.data.price} ${item.data.currency || "USD"}`);
           if (item.data.category) contentParts.push(`Category: ${item.data.category}`);
+          if (item.data.availability) contentParts.push(`Availability: ${item.data.availability}`);
           if (item.data.status) contentParts.push(`Status: ${item.data.status}`);
           if (item.data.orderId) contentParts.push(`Order ID: ${item.data.orderId}`);
           if (item.data.orderNumber) contentParts.push(`Order #${item.data.orderNumber}`);
@@ -145,14 +228,22 @@ export function useChatFlow({
             vectorSpace = docCategory === "order" ? "order" : "product";
           }
 
+          const sourceMetadata: Record<string, any> = { ...(item.data.metadata || {}) };
+          delete sourceMetadata.productVariantId;
+          delete sourceMetadata.firstAvailableVariantId;
+          delete sourceMetadata.variantId;
+
           const fullMetadata: Record<string, any> = {
-            ...(item.data.metadata || {}),
+            ...sourceMetadata,
             id: item.data.id,
             sku: item.data.sku,
             category: item.data.category || item.data.type,
             name: item.data.name,
             title: item.data.title,
             price: item.data.price,
+            availability: item.data.availability,
+            product_variant_id: item.data.product_variant_id,
+            firstAvailableVariantTitle: item.data.firstAvailableVariantTitle,
             totalPrice: item.data.totalPrice,
             quantity: item.data.quantity,
             status: item.data.status,
@@ -187,8 +278,21 @@ export function useChatFlow({
           };
         });
 
+        let liveRequestContext: Record<string, any> | undefined;
+        if (typeof requestContextProvider === "function") {
+          try {
+            const resolvedContext = await requestContextProvider();
+            if (resolvedContext && typeof resolvedContext === "object" && !Array.isArray(resolvedContext)) {
+              liveRequestContext = resolvedContext;
+            }
+          } catch (error) {
+            console.warn("[MaxMode] Failed to resolve live request context:", error);
+          }
+        }
+
         const mergedRequestContext = {
           ...(requestContext || {}),
+          ...(liveRequestContext || {}),
           ...(extraRequestContext || {}),
         };
         if (hasShopifyRequestContext(mergedRequestContext)) {
@@ -228,10 +332,18 @@ export function useChatFlow({
         let resultType: ResultType | undefined;
         let messageDocs: Document[] | undefined;
 
-        if (data.result && data.result.sanitizedPayload) {
-          messageContent = data.result.sanitizedPayload.message || "I processed your query successfully.";
-          result = data.result;
-          resultType = data.result.type;
+        const customerAccountConnect = extractCustomerAccountConnectAction(data);
+        const canonicalResult = canonicalChatResult(data);
+
+        if (canonicalResult?.sanitizedPayload) {
+          messageContent = extractChatResultMessage(data, "I processed your query successfully.");
+          result = canonicalResult;
+          resultType = canonicalResult.type;
+          const resultData = result.sanitizedPayload.data || (data.result?.data ?? {});
+          messageContent =
+            summarizeShopifyMcpCatalogResult(resultData) ||
+            summarizeShopifyMcpCatalogResult(data.result?.data) ||
+            messageContent;
 
           // Strip empty smart suggestions
           if (result.smartSuggestion) {
@@ -243,73 +355,46 @@ export function useChatFlow({
 
           if (resultType === "INFORMATION_PROVIDED" || resultType === "COMPOUND_HANDLED") {
             const rawDocs =
-              data.result.data?.documents ||
-              data.result.data?.ragResponse?.documents ||
-              data.result.sanitizedPayload.data?.documents ||
-              data.result.sanitizedPayload.data?.ragResponse?.documents ||
+              data.sources ||
+              data.ragResponse?.documents ||
+              data.documents ||
+              data.result?.data?.documents ||
+              data.result?.data?.ragResponse?.documents ||
+              resultData.documents ||
+              resultData.ragResponse?.documents ||
               [];
 
             const entityType =
-              data.result.data?.ragResponse?.entityType || data.result.sanitizedPayload.data?.ragResponse?.entityType || "document";
+              data.ragResponse?.entityType || data.result?.data?.ragResponse?.entityType || resultData.ragResponse?.entityType || "document";
 
             if (rawDocs.length > 0) {
-              messageDocs = rawDocs.map((doc: any, idx: number) => {
-                let title = doc.title;
-                if (!title && doc.content) {
-                  const parts = String(doc.content).split(" ");
-                  const titleParts = parts
-                    .slice(1, 8)
-                    .filter(
-                      (word: string) =>
-                        !word.match(/^[A-Z]+-[A-Z]+-\\d+$/) && !word.match(/^\\d+\\.\\d+$/) && word.toLowerCase() !== "usd",
-                    );
-                  title = titleParts.join(" ") + (parts.length > 8 ? "..." : "");
-                }
-
-                let docType = doc.type || doc.metadata?.vectorSpace || doc.metadata?.classification;
-                if (!docType) {
-                  if (entityType.includes(",")) docType = entityType.split(",")[0].trim();
-                  else docType = entityType;
-                }
-
-                return {
-                  id: doc.id || `doc-${idx}`,
-                  title: title || `Document ${idx + 1}`,
-                  content: doc.content || "No content available",
-                  type: docType,
-                  metadata: doc.metadata || {},
-                  score: doc.score,
-                  similarity: doc.similarity,
-                };
-              });
+              messageDocs = rawDocs.map((doc: any, idx: number) => normalizeRuntimeDocument(doc, idx, { entityType }));
             }
           }
 
           // Merge smart suggestion documents into messageDocs for the panel
-          const smartSugDocs = data.result.smartSuggestion?.documents || data.result.data?.smartSuggestion?.documents;
+          const smartSugDocs = result.smartSuggestion?.documents || data.result?.data?.smartSuggestion?.documents || resultData.smartSuggestion?.documents;
           if (smartSugDocs && Array.isArray(smartSugDocs) && smartSugDocs.length > 0) {
             const existingIds = new Set((messageDocs || []).map((d) => d.id));
             const normalizedSugDocs: Document[] = smartSugDocs
               .filter((doc: any) => !existingIds.has(doc.id))
-              .map((doc: any, idx: number) => ({
-                id: doc.id || `suggestion-doc-${idx}`,
-                title: doc.title || doc.content?.slice(0, 60) || `Suggestion Doc ${idx + 1}`,
-                content: doc.content || "No content available",
-                type: doc.type || doc.metadata?.vectorSpace || "document",
-                metadata: { ...doc.metadata, fromSuggestion: true },
-                score: doc.score,
-                similarity: doc.similarity,
-              }));
+              .map((doc: any, idx: number) => {
+                const normalized = normalizeRuntimeDocument(doc, idx, { idPrefix: "suggestion-doc" });
+                return {
+                  ...normalized,
+                  metadata: { ...normalized.metadata, fromSuggestion: true },
+                };
+              });
             messageDocs = [...(messageDocs || []), ...normalizedSugDocs];
           }
         } else {
-          messageContent = data.response || data.message || "I processed your query successfully.";
+          messageContent = extractChatResultMessage(data, "I processed your query successfully.");
         }
 
         emitEvent("message:received", {
           conversationId: data.conversationId || currentConversationId,
           resultType,
-          success: data.result?.success ?? data.success ?? true,
+          success: result?.success ?? data.result?.success ?? data.success ?? true,
           durationMs,
         });
 
@@ -338,6 +423,8 @@ export function useChatFlow({
           timestamp: new Date().toISOString(),
           result,
           resultType,
+          success: result?.success ?? data.result?.success ?? data.success ?? true,
+          customerAccountConnect,
           documents: messageDocs,
           debugData: messageDebugData,
         };
@@ -368,6 +455,7 @@ export function useChatFlow({
       currentMode,
       currentPosition,
       requestContext,
+      requestContextProvider,
       searchCategory,
       setChatMessages,
       setChatQuery,

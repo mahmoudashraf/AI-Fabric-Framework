@@ -20,6 +20,8 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -70,6 +72,9 @@ public class RegisteredConnectorActionParam {
     @Column(name = "max_value")
     private Long max;
 
+    @Column(name = "default_value", length = 512)
+    private String defaultValue;
+
     @Column(name = "sensitive", nullable = false)
     private boolean sensitive;
 
@@ -85,6 +90,9 @@ public class RegisteredConnectorActionParam {
         entity.allowedValues = definition != null && definition.allowedValues() != null ? new ArrayList<>(definition.allowedValues()) : new ArrayList<>();
         entity.min = definition != null ? definition.min() : null;
         entity.max = definition != null ? definition.max() : null;
+        entity.defaultValue = definition != null && definition.defaultValue() != null
+            ? Objects.toString(definition.defaultValue(), null)
+            : null;
         entity.sensitive = definition != null && definition.sensitive();
         return entity;
     }
@@ -100,8 +108,17 @@ public class RegisteredConnectorActionParam {
             allowedValues != null ? List.copyOf(allowedValues) : List.of(),
             min,
             max,
-            sensitive
+            defaultValue,
+            null,
+            null,
+            Map.of(),
+            sensitive,
+            null,
+            Map.of(),
+            List.of(),
+            false,
+            List.of(),
+            null
         );
     }
 }
-

@@ -30,6 +30,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -352,6 +353,296 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void omitsBlankOptionalTemplateArgumentsBeforeToolsCall() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://example.com/api/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        ArgumentCaptor<JsonNode> arguments = ArgumentCaptor.forClass(JsonNode.class);
+        when(client.initialize(eq(URI.create("https://example.com/api/mcp")), any())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("search_catalog"), arguments.capture(), any()))
+            .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"ok\":true}}"));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_search_catalog",
+            Map.of("query", "ski wax"),
+            null,
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "search_catalog",
+                        "argumentTemplate", Map.of(
+                            "catalog", Map.of(
+                                "query", "{{params.query}}",
+                                "context", Map.of(
+                                    "address_country", "{{params.country}}",
+                                    "intent", "{{params.intent}}"
+                                ),
+                                "pagination", Map.of("limit", "{{params.limit}}")
+                            )
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isTrue();
+        assertThat(arguments.getValue().path("catalog").path("query").asText()).isEqualTo("ski wax");
+        assertThat(arguments.getValue().path("catalog").has("context")).isFalse();
+        assertThat(arguments.getValue().path("catalog").has("pagination")).isFalse();
+    }
+
+    @Test
+    void failsClosedWhenRequiredAnyArgumentsAreEmpty() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_update_cart",
+            Map.of("shopperSessionId", "session-1", "confirmationAccepted", true),
+            null,
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "update_cart",
+                        "requiredAnyArguments", List.of("add_items", "update_items", "remove_line_ids"),
+                        "argumentTemplate", Map.of(
+                            "add_items", "{{params.add_items}}",
+                            "update_items", "{{params.update_items}}",
+                            "remove_line_ids", "{{params.remove_line_ids}}"
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_ARGUMENTS");
+        assertThat(response.message()).contains("add_items");
+        verify(client, never()).initialize(any(), any());
+        verify(client, never()).toolsCall(any(McpStreamableHttpClient.McpSession.class), any(), any(), any());
+        verify(client, never()).toolsCall(any(URI.class), any(), any(), any());
+    }
+
+    @Test
+    void failsClosedWhenArrayArgumentItemMissesRequiredProperties() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_update_cart",
+            Map.of(
+                "add_items", List.of(Map.of("product_id", "gid://shopify/Product/1", "quantity", 1)),
+                "shopperSessionId", "session-1",
+                "confirmationAccepted", true
+            ),
+            null,
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
+                "params", List.of(Map.of(
+                    "name", "add_items",
+                    "type", "ARRAY",
+                    "items", Map.of(
+                        "type", "OBJECT",
+                        "requiredProperties", List.of("product_variant_id", "quantity"),
+                        "properties", Map.of(
+                            "product_variant_id", Map.of("type", "STRING", "required", true),
+                            "quantity", Map.of("type", "INTEGER", "required", true)
+                        )
+                    )
+                )),
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "update_cart",
+                        "requiredAnyArguments", List.of("add_items", "update_items", "remove_line_ids"),
+                        "argumentTemplate", Map.of(
+                            "add_items", "{{params.add_items}}",
+                            "update_items", "{{params.update_items}}",
+                            "remove_line_ids", "{{params.remove_line_ids}}"
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_ARGUMENTS");
+        assertThat(response.message()).contains("add_items[0]");
+        assertThat(response.message()).contains("product_variant_id");
+        verify(client, never()).initialize(any(), any());
+        verify(client, never()).toolsCall(any(McpStreamableHttpClient.McpSession.class), any(), any(), any());
+        verify(client, never()).toolsCall(any(URI.class), any(), any(), any());
+    }
+
+    @Test
+    void failsClosedWhenArrayArgumentItemPatternDoesNotMatch() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_update_cart",
+            Map.of(
+                "add_items", List.of(Map.of("product_variant_id", "Selling Plans Ski Wax", "quantity", 1)),
+                "shopperSessionId", "session-1",
+                "confirmationAccepted", true
+            ),
+            null,
+            Map.of("shopDomain", "example.com", "actionConfig", Map.of(
+                "params", List.of(Map.of(
+                    "name", "add_items",
+                    "type", "ARRAY",
+                    "items", Map.of(
+                        "type", "OBJECT",
+                        "requiredProperties", List.of("product_variant_id", "quantity"),
+                        "properties", Map.of(
+                            "product_variant_id", Map.of(
+                                "type", "STRING",
+                                "required", true,
+                                "pattern", "^gid://shopify/ProductVariant/[0-9]+$"
+                            ),
+                            "quantity", Map.of("type", "INTEGER", "required", true, "min", 1)
+                        )
+                    )
+                )),
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "endpointKind", "STOREFRONT_STANDARD",
+                        "toolName", "update_cart",
+                        "requiredAnyArguments", List.of("add_items", "update_items", "remove_line_ids"),
+                        "argumentTemplate", Map.of(
+                            "add_items", "{{params.add_items}}",
+                            "update_items", "{{params.update_items}}",
+                            "remove_line_ids", "{{params.remove_line_ids}}"
+                        )
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_ARGUMENTS");
+        assertThat(response.message()).contains("add_items[0].product_variant_id");
+        assertThat(response.message()).contains("configured pattern");
+        verify(client, never()).initialize(any(), any());
+        verify(client, never()).toolsCall(any(McpStreamableHttpClient.McpSession.class), any(), any(), any());
+        verify(client, never()).toolsCall(any(URI.class), any(), any(), any());
+    }
+
+    @Test
+    void reportsMcpToolErrorsAsActionFailure() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://example.com/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        when(client.initialize(eq(URI.create("https://example.com/mcp")), any())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("update_cart"), any(), any()))
+            .thenReturn(objectMapper.readTree("""
+                {
+                  "isError": true,
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{\\"cart\\":{},\\"errors\\":[{\\"field\\":[\\"add_items\\",0,\\"product_variant_id\\"],\\"message\\":\\"Invalid global id 'Selling Plans Ski Wax'\\"}]}"
+                    }
+                  ]
+                }
+                """));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_update_cart",
+            Map.of(
+                "add_items", List.of(Map.of("product_variant_id", "gid://shopify/ProductVariant/1", "quantity", 1)),
+                "shopperSessionId", "session-1",
+                "confirmationAccepted", true
+            ),
+            null,
+            Map.of("actionConfig", Map.of(
+                "execution", Map.of(
+                    "adapterType", "mcp-tool",
+                    "mcp", Map.of(
+                        "serverRef", "shopify-storefront",
+                        "toolName", "update_cart",
+                        "argumentTemplate", Map.of("add_items", "{{params.add_items}}")
+                    )
+                ),
+                "mcpServers", Map.of(
+                    "shopify-storefront", Map.of(
+                        "transport", "STREAMABLE_HTTP",
+                        "endpointUrl", "https://example.com/mcp",
+                        "auth", Map.of("mode", "NONE")
+                    )
+                )
+            )),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("MCP_TOOL_REPORTED_ERROR");
+        assertThat(response.message()).contains("Invalid global id 'Selling Plans Ski Wax'");
+        assertThat(response.data()).containsKey("toolResult");
+    }
+
+    @Test
+    void mapsCustomerAccountReadToolErrorsToOwnedResourceNotFound() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://example.com/customer/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        when(client.initialize(eq(URI.create("https://example.com/customer/mcp")), any())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("get_most_recent_order_status"), any(), any()))
+            .thenReturn(objectMapper.readTree("""
+                {
+                  "isError": true,
+                  "content": [
+                    {"type": "text", "text": "No orders found for this customer."}
+                  ]
+                }
+                """));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_get_most_recent_order_status",
+            Map.of(),
+            null,
+            Map.of(
+                "mcpCustomerAccessToken", "customer-token",
+                "actionConfig", customerAccountActionConfig()
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("OWNED_RESOURCE_NOT_FOUND");
+        assertThat(response.message()).isEqualTo("No orders found for this customer.");
+        assertThat(response.data()).containsKey("toolResult");
+    }
+
+    @Test
     void failsClosedForMcpAuthModeWithoutConcreteCredentialBinding() {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
@@ -419,6 +710,157 @@ class McpGatewayExecutionServiceTest {
 
         assertThat(response.success()).isTrue();
         assertThat(options.getValue().headers()).containsEntry("Authorization", "Bearer customer-oauth-token");
+    }
+
+    @Test
+    void resolvesCustomerAccountMcpTokenThroughConfiguredBroker() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        RestClient.Builder tokenBuilder = RestClient.builder();
+        MockRestServiceServer tokenServer = MockRestServiceServer.bindTo(tokenBuilder).build();
+        tokenServer.expect(requestTo("https://example.com/api/admin/customer-account/shops/alpha.myshopify.com/token/resolve"))
+            .andExpect(method(org.springframework.http.HttpMethod.POST))
+            .andExpect(header("X-BRIDGE-API-KEY", "bridge-secret"))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("\"shopperSessionId\":\"shopper-session-1\"")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("customer-account-mcp-api:full")))
+            .andRespond(withSuccess("{\"success\":true,\"accessToken\":\"broker-customer-token\",\"tokenType\":\"Bearer\"}", org.springframework.http.MediaType.APPLICATION_JSON));
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL", "'https://example.com'")
+            .withProperty("MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY", "'bridge-secret'");
+        McpGatewayProperties envProperties = new McpGatewayProperties(
+            "mcp-gateway-test",
+            "test",
+            "secret",
+            "X-MCP-GATEWAY-API-KEY",
+            "2025-11-25",
+            java.util.List.of("X-API-KEY", "X-MCP-API-KEY", "X-LOOM-MCP-KEY"),
+            java.util.List.of("'SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL'"),
+            true,
+            "MCP_SECRET_",
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(5)
+        );
+        McpGatewayExecutionService service = new McpGatewayExecutionService(
+            client,
+            objectMapper,
+            envProperties,
+            environment,
+            tokenBuilder
+        );
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://example.com/customer/mcp"),
+            "2025-11-25",
+            "session-1",
+            objectMapper.createObjectNode()
+        );
+        ArgumentCaptor<McpStreamableHttpClient.McpRequestOptions> options =
+            ArgumentCaptor.forClass(McpStreamableHttpClient.McpRequestOptions.class);
+        when(client.initialize(eq(URI.create("https://example.com/customer/mcp")), options.capture())).thenReturn(session);
+        when(client.toolsCall(eq(session), eq("get_most_recent_order_status"), any(), any()))
+            .thenReturn(objectMapper.readTree("{\"structuredContent\":{\"status\":\"fulfilled\"}}"));
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_get_most_recent_order_status",
+            Map.of(),
+            null,
+            Map.of(
+                "shopDomain", "alpha.myshopify.com",
+                "sessionId", "shopper-session-1",
+                "actionConfig", customerAccountActionConfig()
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isTrue();
+        assertThat(options.getValue().headers()).containsEntry("Authorization", "Bearer broker-customer-token");
+        tokenServer.verify();
+    }
+
+    @Test
+    void keepsCustomerAccountMcpAuthGateWhenBrokerHasNoBoundSession() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        RestClient.Builder tokenBuilder = RestClient.builder();
+        MockRestServiceServer tokenServer = MockRestServiceServer.bindTo(tokenBuilder).build();
+        tokenServer.expect(requestTo("https://example.com/api/admin/customer-account/shops/alpha.myshopify.com/token/resolve"))
+            .andExpect(method(org.springframework.http.HttpMethod.POST))
+            .andRespond(withSuccess("{\"success\":false,\"errorCode\":\"CUSTOMER_ACCOUNT_AUTH_REQUIRED\"}", org.springframework.http.MediaType.APPLICATION_JSON));
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL", "https://example.com")
+            .withProperty("MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY", "bridge-secret");
+        McpGatewayExecutionService service = new McpGatewayExecutionService(
+            client,
+            objectMapper,
+            new McpGatewayProperties(
+                "mcp-gateway-test",
+                "test",
+                "secret",
+                "X-MCP-GATEWAY-API-KEY",
+                "2025-11-25",
+                java.util.List.of("X-API-KEY", "X-MCP-API-KEY", "X-LOOM-MCP-KEY"),
+                java.util.List.of("SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL"),
+                true,
+                "MCP_SECRET_",
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(5)
+            ),
+            environment,
+            tokenBuilder
+        );
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_get_most_recent_order_status",
+            Map.of(),
+            null,
+            Map.of(
+                "shopDomain", "alpha.myshopify.com",
+                "sessionId", "shopper-session-1",
+                "actionConfig", customerAccountActionConfig()
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("CUSTOMER_ACCOUNT_AUTH_REQUIRED");
+        verify(client, never()).initialize(any(), any());
+        tokenServer.verify();
+    }
+
+    @Test
+    void rejectsUnsafeCustomerTokenBrokerConfig() {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);
+
+        ActionExecuteResponse response = service.executeAction(new ActionExecuteRequest(
+            "shopify_get_most_recent_order_status",
+            Map.of(),
+            null,
+            Map.of(
+                "shopDomain", "alpha.myshopify.com",
+                "sessionId", "shopper-session-1",
+                "actionConfig", Map.of(
+                    "execution", Map.of(
+                        "adapterType", "mcp-tool",
+                        "mcp", Map.of(
+                            "serverRef", "shopify-customer-account",
+                            "endpointUrl", "https://example.com/customer/mcp",
+                            "toolName", "get_most_recent_order_status",
+                            "auth", Map.of(
+                                "mode", "CUSTOMER_OAUTH_PKCE",
+                                "tokenBroker", Map.of(
+                                    "url", "https://127.0.0.1/token",
+                                    "apiKeyHeader", "Authorization",
+                                    "apiKeySecretRef", "MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY"
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            null
+        ));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.errorCode()).isEqualTo("INVALID_MCP_ACTION_CONFIG");
+        verify(client, never()).initialize(any(), any());
     }
 
     @Test
@@ -673,6 +1115,30 @@ class McpGatewayExecutionServiceTest {
                     "transport", "STREAMABLE_HTTP",
                     "endpointUrl", "https://example.com/mcp",
                     "auth", Map.of("mode", "NONE")
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> customerAccountActionConfig() {
+        return Map.of(
+            "accessMode", "READ",
+            "execution", Map.of(
+                "adapterType", "mcp-tool",
+                "mcp", Map.of(
+                    "serverRef", "shopify-customer-account",
+                    "endpointUrl", "https://example.com/customer/mcp",
+                    "toolName", "get_most_recent_order_status",
+                    "auth", Map.of(
+                        "mode", "CUSTOMER_OAUTH_PKCE",
+                        "requiredCustomerScopes", List.of("customer-account-mcp-api:full"),
+                        "tokenBroker", Map.of(
+                            "baseUrlProfileRef", "SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL",
+                            "pathTemplate", "/api/admin/customer-account/shops/{{trace.shopDomain}}/token/resolve",
+                            "apiKeyHeader", "X-BRIDGE-API-KEY",
+                            "apiKeySecretRef", "MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY"
+                        )
+                    )
                 )
             )
         );

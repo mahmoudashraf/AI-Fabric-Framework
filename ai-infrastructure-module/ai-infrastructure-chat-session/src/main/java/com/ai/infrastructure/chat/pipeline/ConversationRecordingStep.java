@@ -7,6 +7,7 @@ import com.ai.infrastructure.dto.PIIDetectionResult;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionPayload;
 import com.ai.infrastructure.intent.action.ActionResult;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
@@ -38,6 +39,7 @@ public class ConversationRecordingStep implements PipelineStep {
 
     private static final String STEP_NAME = "ConversationRecording";
     private static final int STEP_ORDER = 95;
+    private static final String QUERY_PERSISTENCE_MODE_NEVER_PERSIST = "NEVER_PERSIST";
 
     private static final String TURN_META_KEY_RESULT_TYPE = "_resultType";
     private static final String TURN_META_KEY_ACTION = "_action";
@@ -95,6 +97,9 @@ public class ConversationRecordingStep implements PipelineStep {
         if (context.isShouldTerminate() && !shouldRecordAfterTermination(context)) {
             return context;
         }
+        if (isConversationPersistenceDisabled(context)) {
+            return context;
+        }
         if (properties == null || !properties.isEnabled()) {
             return context;
         }
@@ -125,6 +130,19 @@ public class ConversationRecordingStep implements PipelineStep {
             log.warn("Failed to record conversation turn conversationId={}: {}", conversationId, ex.getMessage());
         }
         return context;
+    }
+
+    private boolean isConversationPersistenceDisabled(PipelineContext context) {
+        Object mode = null;
+        if (context != null && context.getOrchestrationContext() != null
+            && context.getOrchestrationContext().getMetadata() != null) {
+            mode = context.getOrchestrationContext().getMetadata()
+                .get(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE);
+        }
+        if (mode == null && context != null && context.getMetadata() != null) {
+            mode = context.getMetadata().get(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE);
+        }
+        return mode != null && QUERY_PERSISTENCE_MODE_NEVER_PERSIST.equalsIgnoreCase(mode.toString().trim());
     }
 
     private void persistPinnedTargets(PipelineContext context, String conversationId, String ownerId) {

@@ -95,16 +95,10 @@ public class ShopifyStoreReadinessEvaluator {
             }
         }
 
-        boolean syncReady = equalsIgnoreCase(store.getSyncStatus(), "SYNCED");
-        if (!syncReady) {
-            storefrontBlockers.add(syncDetail != null && equalsIgnoreCase(syncDetail.status(), "FAILED")
-                ? "Apply-time Shopify data sync has failed."
-                : "Apply-time Shopify data sync has not completed yet.");
-            if (syncDetail != null && equalsIgnoreCase(syncDetail.status(), "FAILED")) {
-                nextActions.add("Inspect sync diagnostics and rerun sync after fixing the failure.");
-            } else if (latestReleaseVerified) {
-                nextActions.add("Wait for apply-time sync to finish before enabling shopper traffic.");
-            }
+        boolean syncFailed = syncDetail != null && equalsIgnoreCase(syncDetail.status(), "FAILED");
+        if (syncFailed) {
+            storefrontBlockers.add("Apply-time Shopify derived index verification has failed.");
+            nextActions.add("Inspect indexing diagnostics and reindex after fixing the failure.");
         }
 
         boolean widgetFailed = equalsIgnoreCase(store.getWidgetStatus(), "FAILED")
@@ -121,7 +115,7 @@ public class ShopifyStoreReadinessEvaluator {
             && !deploymentArchived
             && sourceReady
             && latestReleaseVerified
-            && syncReady
+            && !syncFailed
             && !widgetFailed;
 
         if (storefrontReady && !equalsIgnoreCase(store.getWidgetStatus(), "ENABLED")) {

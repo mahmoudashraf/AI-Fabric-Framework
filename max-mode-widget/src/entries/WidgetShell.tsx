@@ -3,9 +3,11 @@
  * Renders inside the Shadow DOM with a floating launcher button.
  */
 import React from "react";
-import { MessageCircle, X } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { MaxModeProvider } from "@/context";
-import { MaxModePage } from "@/components/MaxModePage";
+import { CompanionDock } from "@/components/CompanionDock";
+import { MaxModeView } from "@/components/MaxModeView";
+import { useMaxModeController } from "@/hooks/useMaxModeController";
 import { ToastContainer } from "@/ui/toast-container";
 import { emitEvent, type MaxModeWidgetConfig } from "@/config";
 
@@ -18,7 +20,16 @@ interface WidgetShellProps {
 }
 
 export function WidgetShell({ config, isOpen, onOpenChange }: WidgetShellProps) {
+  return (
+    <MaxModeProvider>
+      <WidgetShellContent config={config} isOpen={isOpen} onOpenChange={onOpenChange} />
+    </MaxModeProvider>
+  );
+}
+
+function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) {
   const showLauncher = config.launcher !== false;
+  const showCompanionDock = config.host?.companionDock === true;
   const position = config.position ?? "bottom-right";
   const isRight = position === "bottom-right";
   const launcherVariant = config.host?.launcherVariant ?? "icon";
@@ -26,6 +37,11 @@ export function WidgetShell({ config, isOpen, onOpenChange }: WidgetShellProps) 
   const launcherAriaLabel = config.host?.launcherAriaLabel?.trim() || launcherLabel;
   const assistantLabel = config.host?.assistantLabel?.trim() || "MAX AI";
   const showUtilityPanel = config.host?.showUtilityPanel ?? true;
+  const controller = useMaxModeController({
+    isOpen: isOpen || showCompanionDock,
+    assistantLabel,
+    showUtilityPanel,
+  });
 
   const handleOpen = () => {
     onOpenChange(true);
@@ -39,7 +55,9 @@ export function WidgetShell({ config, isOpen, onOpenChange }: WidgetShellProps) 
   };
 
   return (
-    <MaxModeProvider>
+    <>
+      {showCompanionDock && !isOpen && <CompanionDock controller={controller} onOpenMax={handleOpen} />}
+
       {/* Floating launcher button */}
       {showLauncher && !isOpen && (
         <button
@@ -96,16 +114,11 @@ export function WidgetShell({ config, isOpen, onOpenChange }: WidgetShellProps) 
             pointerEvents: "auto",
           }}
         >
-          <MaxModePage
-            isOpen={isOpen}
-            onClose={handleClose}
-            assistantLabel={assistantLabel}
-            showUtilityPanel={showUtilityPanel}
-          />
+          <MaxModeView onClose={handleClose} controller={controller} />
         </div>
       )}
 
       <ToastContainer />
-    </MaxModeProvider>
+    </>
   );
 }

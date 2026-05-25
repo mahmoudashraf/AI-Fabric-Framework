@@ -25,6 +25,10 @@ const getDocumentIcon = (type: string) => {
   }
 };
 
+function documentImageUrl(doc: Document) {
+  return doc.imageUrl || doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image;
+}
+
 export function DocumentsView({
   contextDocuments,
   newDocuments,
@@ -45,6 +49,7 @@ export function DocumentsView({
       {[...contextDocuments].reverse().map((doc, idx) => {
         const DocIcon = getDocumentIcon(doc.type);
         const isNewDoc = !viewedDocumentIds.has(doc.id) && newDocuments.some((nd) => nd.id === doc.id);
+        const imageUrl = documentImageUrl(doc);
 
         return (
           <motion.div
@@ -63,9 +68,9 @@ export function DocumentsView({
                   : "border-blue-200 hover:border-blue-400 bg-gradient-to-br from-white via-blue-50/30 to-white"
               }`}
             >
-              {doc.metadata?.imageUrl && (
+              {imageUrl && (
                 <div className="relative h-32 overflow-hidden bg-gradient-to-br from-blue-100 to-white">
-                  <img src={doc.metadata.imageUrl} alt={doc.title} className="w-full h-full object-cover" />
+                  <img src={imageUrl} alt={doc.title} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                   {isNewDoc && (
                     <div className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 text-[9px] font-bold px-2 py-1 rounded-full shadow-lg">
@@ -76,7 +81,7 @@ export function DocumentsView({
               )}
               <CardHeader className="pb-2 pt-3 px-3">
                 <div className="flex items-start gap-2">
-                  {!doc.metadata?.imageUrl && (
+                  {!imageUrl && (
                     <div className="p-2 bg-gradient-to-br from-blue-600 to-blue-500 rounded-lg flex-shrink-0">
                       <DocIcon className="h-4 w-4 text-white" />
                     </div>
@@ -122,4 +127,3 @@ export function DocumentsView({
     </AnimatePresence>
   );
 }
-

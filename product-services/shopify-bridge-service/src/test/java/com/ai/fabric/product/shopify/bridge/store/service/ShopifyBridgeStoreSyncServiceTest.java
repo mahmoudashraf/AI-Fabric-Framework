@@ -51,6 +51,37 @@ class ShopifyBridgeStoreSyncServiceTest {
                 vendor
                 productType
                 tags
+                featuredImage {
+                  url
+                  altText
+                }
+                totalInventory
+                priceRangeV2 {
+                  minVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                  maxVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                }
+                variants(first: 20) {
+                  edges {
+                    node {
+                      id
+                      title
+                      sku
+                      availableForSale
+                      price
+                      compareAtPrice
+                      selectedOptions {
+                        name
+                        value
+                      }
+                    }
+                  }
+                }
                 metafields(first: 12) {
                   edges {
                     node {
@@ -70,44 +101,7 @@ class ShopifyBridgeStoreSyncServiceTest {
             "data", Map.of(
                 "products", Map.of(
                     "pageInfo", pageInfo(false, null),
-                    "edges", List.of(Map.of("node", Map.of(
-                        "id", "gid://shopify/Product/1",
-                        "title", "Travel Backpack",
-                        "handle", "travel-backpack",
-                        "descriptionHtml", "<p>Carry-on sized backpack.</p>",
-                        "vendor", "Loom",
-                        "productType", "Bag",
-                        "tags", List.of("travel", "carry-on"),
-                        "metafields", Map.of(
-                            "edges", List.of(
-                                Map.of("node", Map.of(
-                                    "namespace", "custom",
-                                    "key", "materials",
-                                    "type", "multi_line_text_field",
-                                    "value", "Recycled nylon"
-                                )),
-                                Map.of("node", Map.of(
-                                    "namespace", "judgeme",
-                                    "key", "rating",
-                                    "type", "number_decimal",
-                                    "value", "4.8"
-                                )),
-                                Map.of("node", Map.of(
-                                    "namespace", "judgeme",
-                                    "key", "review_count",
-                                    "type", "number_integer",
-                                    "value", "128"
-                                )),
-                                Map.of("node", Map.of(
-                                    "namespace", "custom",
-                                    "key", "fit_notes",
-                                    "type", "single_line_text_field",
-                                    "value", "Designed for airline personal-item sizing."
-                                ))
-                            )
-                        ),
-                        "updatedAt", "2026-04-18T12:00:00Z"
-                    )))
+                    "edges", List.of(Map.of("node", productNode()))
                 )
             )
         ));
@@ -151,14 +145,26 @@ class ShopifyBridgeStoreSyncServiceTest {
             .extracting(document -> document.sourceCategory() + ":" + document.entityType())
             .containsExactly("products:product", "policies:support-policy");
         assertThat(syncCaptor.getValue().documents().getFirst().content())
+            .contains("Price range: 79.00 USD to 99.00 USD.")
+            .contains("Total inventory: 12.")
+            .contains("Availability: 1 of 2 variants available.")
+            .contains("Variant details: Standard, SKU BAG-STANDARD, price 79.00 USD, compare-at 99.00 USD, available; Large, SKU BAG-LARGE, price 99.00 USD, not currently available.")
             .contains("Average rating: 4.8 / 5 from 128 reviews (Judge.me).")
             .contains("Materials: Recycled nylon")
             .contains("Fit notes: Designed for airline personal-item sizing.");
         assertThat(syncCaptor.getValue().documents().getFirst().metadata())
+            .containsEntry("priceRange", "79.00 USD to 99.00 USD")
+            .containsEntry("totalInventory", 12)
+            .containsEntry("availability", "1 of 2 variants available")
+            .containsEntry("variantCount", 2)
+            .containsEntry("product_variant_id", "gid://shopify/ProductVariant/1")
+            .containsEntry("firstAvailableVariantTitle", "Standard")
             .containsEntry("reviewProvider", "Judge.me")
             .containsEntry("reviewAverage", "4.8")
             .containsEntry("reviewCount", 128)
-            .containsEntry("reviewSignalsPresent", true);
+            .containsEntry("reviewSignalsPresent", true)
+            .containsEntry("imageUrl", "https://cdn.shopify.com/s/files/1/0000/products/travel-backpack.jpg")
+            .containsEntry("imageAltText", "Travel Backpack packed for a flight");
         assertThat(response.shopDomain()).isEqualTo("alpha.myshopify.com");
 
         ArgumentCaptor<ShopifyBridgeRecordSyncStatusRequest> statusCaptor =
@@ -356,6 +362,77 @@ class ShopifyBridgeStoreSyncServiceTest {
         LinkedHashMap<String, Object> variables = new LinkedHashMap<>();
         variables.put("cursor", cursor);
         return variables;
+    }
+
+    private Map<String, Object> productNode() {
+        LinkedHashMap<String, Object> node = new LinkedHashMap<>();
+        node.put("id", "gid://shopify/Product/1");
+        node.put("title", "Travel Backpack");
+        node.put("handle", "travel-backpack");
+        node.put("descriptionHtml", "<p>Carry-on sized backpack.</p>");
+        node.put("vendor", "Loom");
+        node.put("productType", "Bag");
+        node.put("tags", List.of("travel", "carry-on"));
+        node.put("featuredImage", Map.of(
+            "url", "https://cdn.shopify.com/s/files/1/0000/products/travel-backpack.jpg",
+            "altText", "Travel Backpack packed for a flight"
+        ));
+        node.put("totalInventory", 12);
+        node.put("priceRangeV2", Map.of(
+            "minVariantPrice", Map.of("amount", "79.00", "currencyCode", "USD"),
+            "maxVariantPrice", Map.of("amount", "99.00", "currencyCode", "USD")
+        ));
+        node.put("variants", Map.of(
+            "edges", List.of(
+                Map.of("node", Map.of(
+                    "id", "gid://shopify/ProductVariant/1",
+                    "title", "Standard",
+                    "sku", "BAG-STANDARD",
+                    "availableForSale", true,
+                    "price", "79.00",
+                    "compareAtPrice", "99.00",
+                    "selectedOptions", List.of(Map.of("name", "Size", "value", "Standard"))
+                )),
+                Map.of("node", Map.of(
+                    "id", "gid://shopify/ProductVariant/2",
+                    "title", "Large",
+                    "sku", "BAG-LARGE",
+                    "availableForSale", false,
+                    "price", "99.00",
+                    "selectedOptions", List.of(Map.of("name", "Size", "value", "Large"))
+                ))
+            )
+        ));
+        node.put("metafields", Map.of(
+            "edges", List.of(
+                Map.of("node", Map.of(
+                    "namespace", "custom",
+                    "key", "materials",
+                    "type", "multi_line_text_field",
+                    "value", "Recycled nylon"
+                )),
+                Map.of("node", Map.of(
+                    "namespace", "judgeme",
+                    "key", "rating",
+                    "type", "number_decimal",
+                    "value", "4.8"
+                )),
+                Map.of("node", Map.of(
+                    "namespace", "judgeme",
+                    "key", "review_count",
+                    "type", "number_integer",
+                    "value", "128"
+                )),
+                Map.of("node", Map.of(
+                    "namespace", "custom",
+                    "key", "fit_notes",
+                    "type", "single_line_text_field",
+                    "value", "Designed for airline personal-item sizing."
+                ))
+            )
+        ));
+        node.put("updatedAt", "2026-04-18T12:00:00Z");
+        return node;
     }
 
     private Map<String, Object> pageInfo(boolean hasNextPage, String endCursor) {

@@ -155,6 +155,63 @@ class ConnectorDataSyncTargetWriterTest {
         }
     }
 
+    @Test
+    void upsertBatchUsesMappedRecordVectorSpaceAndTombstoneDeleteType() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/ai/data-sync/batch", exchange -> {
+            capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] body = """
+                {"success":true,"totalOperations":2,"succeededOperations":2,"failedOperations":0,"results":[]}
+                """.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(body);
+            }
+        });
+        server.start();
+        try {
+            VectorizationExecutionBundle bundle = bundle("http://localhost:" + server.getAddress().getPort());
+
+            writer.upsertBatch(
+                bundle,
+                "produs-safe-knowledge",
+                List.of(
+                    new VectorizationMappedRecord(
+                        "service-module",
+                        "module-1",
+                        "module-1",
+                        "v1",
+                        Map.of("title", "Scanner orchestration"),
+                        Map.of()
+                    ),
+                    new VectorizationMappedRecord(
+                        "team-profile",
+                        "team-1",
+                        "team-1",
+                        "v2",
+                        Map.of("deleted", true),
+                        Map.of("source", "produs")
+                    )
+                )
+            );
+
+            JsonNode request = objectMapper.readTree(capturedBody.get());
+            JsonNode first = request.path("operations").get(0);
+            assertThat(first.path("type").asText()).isEqualTo("UPSERT");
+            assertThat(first.path("vectorSpace").asText()).isEqualTo("service-module");
+            assertThat(first.path("entity").path("title").asText()).isEqualTo("Scanner orchestration");
+
+            JsonNode second = request.path("operations").get(1);
+            assertThat(second.path("type").asText()).isEqualTo("DELETE");
+            assertThat(second.path("vectorSpace").asText()).isEqualTo("team-profile");
+            assertThat(second.has("entity")).isFalse();
+            assertThat(second.path("identity").path("sourceRecordVersion").asText()).isEqualTo("v2");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private VectorizationExecutionBundle bundle(String baseUrl) {
         ObjectNode empty = objectMapper.createObjectNode();
         ObjectNode authContext = objectMapper.createObjectNode();

@@ -6,7 +6,9 @@ import { MaxModeComposerBar } from "./MaxModeView/MaxModeComposerBar";
 import { MaxModeMainContent } from "./MaxModeView/MaxModeMainContent";
 import { MaxModeOverlays } from "./MaxModeView/MaxModeOverlays";
 import { MaxModeQuickActions } from "./MaxModeView/MaxModeQuickActions";
+import { ShopifyShoppingWorkspace } from "./ShopifyShoppingWorkspace";
 
+import { getWidgetConfig } from "@/config";
 import type { MaxModeController } from "@/hooks/useMaxModeController";
 
 export function MaxModeView({
@@ -16,6 +18,11 @@ export function MaxModeView({
   onClose: () => void;
   controller: MaxModeController;
 }) {
+  const experience = getWidgetConfig().host?.experience;
+  if (experience === "shopify-shopping-workspace") {
+    return <ShopifyShoppingWorkspace onClose={onClose} controller={controller} />;
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -25,9 +32,7 @@ export function MaxModeView({
     >
       <MaxModeHeader
         onClose={onClose}
-        onShowSampleDocuments={controller.showSampleDocuments}
         assistantLabel={controller.assistantLabel}
-        showUtilityPanel={controller.showUtilityPanel}
       />
       <MaxModeQuickActions controller={controller} />
       <MaxModeMainContent controller={controller} />

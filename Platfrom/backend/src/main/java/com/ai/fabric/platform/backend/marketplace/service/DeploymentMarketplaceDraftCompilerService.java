@@ -62,9 +62,12 @@ public class DeploymentMarketplaceDraftCompilerService {
         "shopify_get_product_details",
         "shopify_search_policies",
         "shopify_get_cart",
+        "shopify_get_customer_context_summary",
         "shopify_update_cart",
         "shopify_get_most_recent_order_status",
         "shopify_get_order_status",
+        "shopify_get_store_credit_balances",
+        "shopify_request_return",
         "shopify_create_checkout",
         "shopify_get_checkout",
         "shopify_update_checkout",
@@ -113,6 +116,10 @@ public class DeploymentMarketplaceDraftCompilerService {
         return syncDeploymentDraft(deploymentId, false);
     }
 
+    /**
+     * Syncs marketplace-managed draft content for an internal platform workflow that has already authorized
+     * the deployment. Controller/public callers must use syncDeploymentDraft so deployment access is checked.
+     */
     @Transactional
     public DeploymentDraftResponse syncDeploymentDraftForTrustedCaller(String deploymentId) {
         return syncDeploymentDraft(deploymentId, true);
@@ -203,6 +210,7 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
 
+        synchronizeEntityVectorDimensions(entityRoot, providerRoot);
         boolean routingChanged = pruneRoutesWithoutActions(routingRoot, actionNames(actionsRoot.path("actions")));
         UpdateDeploymentDraftRequest updateRequest = new UpdateDeploymentDraftRequest(
             actionsRoot,
@@ -1286,6 +1294,29 @@ public class DeploymentMarketplaceDraftCompilerService {
         ensureObjectNode(root, "ai-config");
         ensureObjectNode(root, "ai-entities");
         return root;
+    }
+
+    private void synchronizeEntityVectorDimensions(ObjectNode entityRoot, ObjectNode providerRoot) {
+        if (!providerRoot.path(MARKETPLACE_INFERENCE_FIELD).path(MARKETPLACE_MANAGED_FIELD).asBoolean(false)) {
+            return;
+        }
+        int dimensions = resolvedManagedEmbeddingDimensions(providerRoot);
+        if (dimensions <= 0) {
+            return;
+        }
+        ensureObjectNode(entityRoot, "ai-config").put("vector-dimensions", dimensions);
+    }
+
+    private int resolvedManagedEmbeddingDimensions(JsonNode providerRoot) {
+        String embeddingProvider = ManagedDeploymentProfileCatalog.resolveEmbeddingProvider(providerRoot);
+        String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerRoot);
+        if (ManagedDeploymentProfileCatalog.EMBEDDING_PROVIDER_OPENAI.equals(embeddingProvider)) {
+            int configured = ManagedDeploymentProfileCatalog.configuredOpenAiEmbeddingDimensions(providerRoot);
+            return configured > 0
+                ? ManagedDeploymentProfileCatalog.clampVectorDimensions(configured, vectorStrategy)
+                : ManagedDeploymentProfileCatalog.defaultVectorDimensions(embeddingProvider, vectorStrategy);
+        }
+        return 0;
     }
 
     private ObjectNode normalizeShellRoot(JsonNode candidate) {

@@ -1,6 +1,6 @@
 # 010.2 Shopify Companion Two-Mode Surface Simplification
 
-Status: implementation roadmap (created 2026-05-10)
+Status: implemented and live-verified on staging (created 2026-05-10, updated 2026-05-11)
 
 Owner mode: product simplification / storefront mode routing / merchant configuration LLM session
 
@@ -17,6 +17,7 @@ Related implementation references:
 
 - [006 Thinker Resolver Governed Issue Resolution Blueprint](006_THINKER_RESOLVER_GOVERNED_ISSUE_RESOLUTION_BLUEPRINT.md)
 - [006.4 Productized Resolution Assistant Readiness And Rollout](006_4_PRODUCTIZED_RESOLUTION_ASSISTANT_READINESS_AND_ROLLOUT.md)
+- [010.3 Shopify Companion Query Speed, Accuracy, And Reliability Optimization Plan](010_3_SHOPIFY_COMPANION_QUERY_SPEED_ACCURACY_RELIABILITY_OPTIMIZATION_PLAN.md)
 - `Final_Documentation/User_Guides/SHOPIFY_COMPANION_CUSTOMER_CAPABILITIES_GUIDE.md`
 - `Final_Documentation/User_Guides/SHOPIFY_COMPANION_MERCHANT_LAUNCH_AND_SUPPORT_GUIDE.md`
 - `Final_Documentation/User_Guides/THINKER_RESOLVER_USER_GUIDE.md`
@@ -316,14 +317,35 @@ The codebase already has most of the primitives:
 - Thinker/Resolver persistence, policy, dry-run, and support escalation execution exist
 - order lookup surface exists as a gated widget surface
 
-Known simplification gaps:
+010.2 implementation status:
 
-- `ShopifyStoreWidgetSettingsService` does not currently allow `thinker_deep` as a merchant-configurable mode
-- Shopify merchant UI still exposes technical mode labels such as `Navigator`, `Deep`, `Assistant`, and `Resolver`
-- widget mode selector can expose raw mode labels to shoppers
-- Resolver is still visually tied to `executor` instead of the simpler `Account & Order Assistant` concept
-- page routing is available, but the canonical business routing is not yet expressed as the simple Thinker/Resolver page model
-- account/order resolution copy must avoid refund/cancellation/support-desk automation claims
+- `ShopifyStoreWidgetSettingsService` accepts `thinker_deep` as the normal merchant-configurable shopping mode
+- Shopify Bridge storefront bootstrap defaults chat-capable shopping pages to Companion Thinker and keeps free/no-chat fallback stores on the base navigator posture
+- account, cart, and support page routing resolves to Companion Resolver only when package, storefront readiness, and go-live gates pass
+- gated Resolver failures fall back to the safe shopping/handoff posture instead of exposing action modes
+- Shopify merchant setup shows two normal cards: Shopping Assistant and Account & Order Assistant
+- raw technical mode ids remain in advanced/operator routing controls and diagnostics
+- max-mode dock, composer, page pills, and theme-app shell use shopper-friendly labels instead of raw mode names
+- Account & Order Assistant copy avoids refund, cancellation, address-change, order-edit, and unrestricted support-desk automation claims
+
+010.2 staging verification status:
+
+- Platform backend staging deployed successfully at commit `b489ef994`.
+- Shopify Bridge staging deployed successfully at commit `8d8a01e5`.
+- Shopify theme app extension released as `loom-companion-40`.
+- Storefront live proof on `https://shop-staging.loomai.pro/?country=US` passed:
+  - MAX launcher opens the new chat surface.
+  - shopper-visible copy uses `Shopping Assistant`.
+  - page pill copy uses friendly page labels such as `landing page`.
+  - raw mode labels such as `navigator_deep`, `thinker_deep`, `cart_assistant`, and `executor` are not shopper-visible.
+  - unsupported storefront conversation history is hidden and no `/chat/me/conversations` CORS call is made.
+  - live query `Search products for wax` executes `shopify_search_catalog` through the MCP path and renders shopper-safe product output for `Selling Plans Ski Wax`.
+  - MCP adapter/server/tool evidence details are not rendered as shopper-facing chat content.
+- Merchant app live proof against the deployed Bridge UI and live `/api/app/*` APIs passed with an authenticated merchant-session token:
+  - Setup tab renders `Shopping Assistant` and `Account & Order Assistant`.
+  - normal merchant setup copy explains Loom Companion as two shopper-understandable modes.
+  - raw technical ids are not visible in the normal Setup tab content.
+- Current launch posture keeps the Free package retained but disabled. Staging bootstrap now reports `ELITE` / `ACTIVE`; shopping pages route to `thinker_deep`, while account/cart/support pages route to `executor` only through the governed Account & Order Assistant posture. Follow-up query optimization results are tracked in `010.3`.
 
 ---
 

@@ -31,6 +31,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
     handleConfirmation,
     isItemAttached,
     handleAttachActionResultItem,
+    connectCustomerAccount,
     contextPanelRef,
     contextPanelEndRef,
     cartData,
@@ -96,6 +97,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
         onNextStepClick={(query) => {
           void resendChatQuery(query);
         }}
+        onCustomerAccountConnect={connectCustomerAccount}
         onClarificationSubmit={controller.handleClarificationSubmit}
       />
 

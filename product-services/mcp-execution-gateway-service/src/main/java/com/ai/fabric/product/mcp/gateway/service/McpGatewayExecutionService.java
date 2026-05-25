@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 
@@ -86,6 +87,11 @@ public class McpGatewayExecutionService {
     private static final String SHOPIFY_CHECKOUT_TOKEN_URL = "https://api.shopify.com/auth/access_token";
     private static final String SHOPIFY_CHECKOUT_CLIENT_ID_SECRET_REF = "MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_ID";
     private static final String SHOPIFY_CHECKOUT_CLIENT_SECRET_SECRET_REF = "MCP_SECRET_SHOPIFY_CHECKOUT_MCP_CLIENT_SECRET";
+    private static final Set<String> TOKEN_BROKER_HEADER_ALLOWLIST = Set.of(
+        "X-BRIDGE-API-KEY",
+        "X-MCP-TOKEN-BROKER-API-KEY",
+        "X-LOOM-TOKEN-BROKER-KEY"
+    );
 
     private final McpStreamableHttpClient mcpClient;
     private final ObjectMapper objectMapper;
@@ -297,6 +303,8 @@ public class McpGatewayExecutionService {
             JsonNode serverBinding = findServerBinding(trace, actionConfig, serverRef);
             URI endpoint = resolveEndpoint(serverRef, request, trace, mcp, serverBinding);
             JsonNode arguments = renderArguments(request, trace, mcp.path("argumentTemplate"));
+            validateRequiredAnyArguments(mcp, arguments);
+            validateArgumentsAgainstActionParams(actionConfig, arguments);
             Map<String, String> headers = resolveAuthHeaders(trace, mcpAuthConfig(mcp, serverBinding));
             McpStreamableHttpClient.McpRequestOptions options =
                 McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
@@ -315,8 +323,10 @@ public class McpGatewayExecutionService {
                 }
                 result = mcpClient.toolsCall(session, toolName, arguments, options);
             }
-            return normalizeResult(serverRef, toolName, mcp, result, drift);
+            return normalizeResult(serverRef, toolName, actionConfig, mcp, result, drift);
         } catch (McpAuthGateException ex) {
+            return failure(ex.errorCode(), ex.getMessage());
+        } catch (McpArgumentGateException ex) {
             return failure(ex.errorCode(), ex.getMessage());
         } catch (IllegalArgumentException ex) {
             return failure("INVALID_MCP_ACTION_CONFIG", ex.getMessage());
@@ -437,8 +447,210 @@ public class McpGatewayExecutionService {
         );
     }
 
+    private void validateRequiredAnyArguments(JsonNode mcp, JsonNode arguments) {
+        JsonNode requiredAny = mcp.path("requiredAnyArguments");
+        if (!requiredAny.isArray() || requiredAny.isEmpty()) {
+            return;
+        }
+        List<String> names = new ArrayList<>();
+        for (JsonNode entry : requiredAny) {
+            String raw = entry.isTextual() ? entry.asText() : null;
+            if (!StringUtils.hasText(raw)) {
+                continue;
+            }
+            String path = raw.trim().startsWith("$") ? raw.trim() : "$." + raw.trim();
+            names.add(raw.trim());
+            if (hasMeaningfulValue(readRestrictedJsonPath(arguments, path))) {
+                return;
+            }
+        }
+        if (!names.isEmpty()) {
+            throw new McpArgumentGateException(
+                "INVALID_MCP_ACTION_ARGUMENTS",
+                "MCP action requires at least one non-empty argument: " + String.join(", ", names) + "."
+            );
+        }
+    }
+
+    private void validateArgumentsAgainstActionParams(JsonNode actionConfig, JsonNode arguments) {
+        JsonNode params = actionConfig.path("params");
+        if (!params.isArray() || params.isEmpty() || arguments == null || !arguments.isObject()) {
+            return;
+        }
+        for (JsonNode param : params) {
+            String name = text(param, "name");
+            if (!StringUtils.hasText(name)) {
+                continue;
+            }
+            JsonNode argument = arguments.path(name);
+            if (argument.isMissingNode() || argument.isNull()) {
+                continue;
+            }
+            validateArgumentAgainstParamSchema(name, argument, param);
+        }
+    }
+
+    private void validateArgumentAgainstParamSchema(String path, JsonNode argument, JsonNode param) {
+        validateScalarConstraints(path, argument, param);
+        String type = normalizedEnum(text(param, "type"));
+        if ("ARRAY".equals(type)) {
+            if (!argument.isArray()) {
+                throw invalidMcpArgument(path, "must be an array");
+            }
+            JsonNode itemSchema = param.path("items");
+            if (itemSchema.isObject()) {
+                for (int i = 0; i < argument.size(); i++) {
+                    JsonNode item = argument.get(i);
+                    validateArgumentAgainstParamSchema(path + "[" + i + "]", item, itemSchema);
+                }
+            }
+            return;
+        }
+        if ("OBJECT".equals(type)) {
+            if (!argument.isObject()) {
+                throw invalidMcpArgument(path, "must be an object");
+            }
+            validateObjectRequiredProperties(path, argument, param);
+            validateObjectProperties(path, argument, param);
+        }
+    }
+
+    private void validateObjectRequiredProperties(String path, JsonNode value, JsonNode schema) {
+        JsonNode required = schema.path("requiredProperties");
+        if (!required.isArray() || required.isEmpty()) {
+            return;
+        }
+        if (!value.isObject()) {
+            throw invalidMcpArgument(path, "must be an object");
+        }
+        List<String> missing = new ArrayList<>();
+        for (JsonNode entry : required) {
+            if (!entry.isTextual() || !StringUtils.hasText(entry.asText())) {
+                continue;
+            }
+            String property = entry.asText().trim();
+            if (!hasMeaningfulValue(value.path(property))) {
+                missing.add(property);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw invalidMcpArgument(path, "is missing required properties: " + String.join(", ", missing));
+        }
+    }
+
+    private void validateObjectProperties(String path, JsonNode value, JsonNode schema) {
+        JsonNode properties = schema.path("properties");
+        if (!properties.isObject()) {
+            return;
+        }
+        var fields = properties.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> field = fields.next();
+            String property = field.getKey();
+            JsonNode propertySchema = field.getValue();
+            if (!StringUtils.hasText(property) || propertySchema == null || !propertySchema.isObject()) {
+                continue;
+            }
+            JsonNode propertyValue = value.path(property);
+            if (propertyValue.isMissingNode() || propertyValue.isNull()) {
+                continue;
+            }
+            validateArgumentAgainstParamSchema(path + "." + property, propertyValue, propertySchema);
+        }
+    }
+
+    private void validateScalarConstraints(String path, JsonNode argument, JsonNode schema) {
+        validateAllowedValues(path, argument, schema);
+        validatePattern(path, argument, schema);
+        validateNumericBounds(path, argument, schema);
+    }
+
+    private void validateAllowedValues(String path, JsonNode argument, JsonNode schema) {
+        JsonNode allowedValues = schema.path("allowedValues");
+        if (!allowedValues.isArray() || allowedValues.isEmpty()) {
+            return;
+        }
+        if (!argument.isValueNode()) {
+            throw invalidMcpArgument(path, "must be a scalar value");
+        }
+        String actual = argument.asText();
+        for (JsonNode allowed : allowedValues) {
+            if (allowed.isValueNode() && actual.equals(allowed.asText())) {
+                return;
+            }
+        }
+        throw invalidMcpArgument(path, "must be one of the configured allowed values");
+    }
+
+    private void validatePattern(String path, JsonNode argument, JsonNode schema) {
+        String rawPattern = text(schema, "pattern");
+        if (!StringUtils.hasText(rawPattern)) {
+            return;
+        }
+        if (!argument.isTextual()) {
+            throw invalidMcpArgument(path, "must be a string matching the configured pattern");
+        }
+        try {
+            if (!Pattern.compile(rawPattern).matcher(argument.asText()).matches()) {
+                throw invalidMcpArgument(path, "must match the configured pattern");
+            }
+        } catch (PatternSyntaxException ex) {
+            throw new IllegalArgumentException("MCP action parameter " + path + " has an invalid configured pattern.");
+        }
+    }
+
+    private void validateNumericBounds(String path, JsonNode argument, JsonNode schema) {
+        JsonNode min = schema.path("min");
+        JsonNode max = schema.path("max");
+        if ((!min.isNumber() && !max.isNumber()) || !argument.isNumber()) {
+            return;
+        }
+        double value = argument.asDouble();
+        if (min.isNumber() && value < min.asDouble()) {
+            throw invalidMcpArgument(path, "is below the configured minimum");
+        }
+        if (max.isNumber() && value > max.asDouble()) {
+            throw invalidMcpArgument(path, "is above the configured maximum");
+        }
+    }
+
+    private McpArgumentGateException invalidMcpArgument(String path, String reason) {
+        return new McpArgumentGateException(
+            "INVALID_MCP_ACTION_ARGUMENTS",
+            "MCP action argument " + path + " " + reason + "."
+        );
+    }
+
+    private boolean hasMeaningfulValue(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return false;
+        }
+        if (node.isTextual()) {
+            return StringUtils.hasText(node.asText());
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                if (hasMeaningfulValue(child)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node.isObject()) {
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                if (hasMeaningfulValue(fields.next().getValue())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
+    }
+
     private ActionExecuteResponse normalizeResult(String serverRef,
                                                   String toolName,
+                                                  JsonNode actionConfig,
                                                   JsonNode mcp,
                                                   JsonNode result,
                                                   ToolVerificationResult drift) {
@@ -472,7 +684,141 @@ public class McpGatewayExecutionService {
         }
         Map<String, Object> normalized = objectMapper.convertValue(data, new TypeReference<>() {
         });
+        McpToolFailure toolFailure = detectToolFailure(serverRef, toolName, actionConfig, mcp, result);
+        if (toolFailure != null) {
+            return new ActionExecuteResponse(false, toolFailure.message(), normalized, toolFailure.errorCode(), List.of());
+        }
         return new ActionExecuteResponse(true, "MCP tool result", normalized, null, List.of());
+    }
+
+    private McpToolFailure detectToolFailure(String serverRef,
+                                             String toolName,
+                                             JsonNode actionConfig,
+                                             JsonNode mcp,
+                                             JsonNode result) {
+        if (result == null || result.isMissingNode() || result.isNull()) {
+            return null;
+        }
+        String errorCode = mcpToolFailureErrorCode(serverRef, toolName, actionConfig, mcp);
+        JsonNode errors = firstErrorsNode(
+            result.path("errors"),
+            result.path("structuredContent").path("errors"),
+            result.path("data").path("errors")
+        );
+        if (!errors.isMissingNode()) {
+            return new McpToolFailure(errorCode, firstErrorMessage(errors));
+        }
+        for (String text : textContentParts(result)) {
+            JsonNode parsed = parseJsonObject(text);
+            if (parsed == null) {
+                continue;
+            }
+            errors = firstErrorsNode(
+                parsed.path("errors"),
+                parsed.path("structuredContent").path("errors"),
+                parsed.path("data").path("errors")
+            );
+            if (!errors.isMissingNode()) {
+                return new McpToolFailure(errorCode, firstErrorMessage(errors));
+            }
+        }
+        if (result.path("isError").asBoolean(false)) {
+            return new McpToolFailure(errorCode, firstNonBlank(textContent(result), "MCP tool reported an error."));
+        }
+        return null;
+    }
+
+    private String mcpToolFailureErrorCode(String serverRef, String toolName, JsonNode actionConfig, JsonNode mcp) {
+        if (!isCustomerAccountMcp(serverRef, mcp)) {
+            return "MCP_TOOL_REPORTED_ERROR";
+        }
+        return isReadOnlyAction(actionConfig, toolName)
+            ? "OWNED_RESOURCE_NOT_FOUND"
+            : "OWNED_RESOURCE_ACTION_FAILED";
+    }
+
+    private boolean isCustomerAccountMcp(String serverRef, JsonNode mcp) {
+        String endpointKind = normalizedEnum(text(mcp, "endpointKind", "kind"));
+        String authMode = normalizedEnum(text(mcp, "authMode", "mode"));
+        String ref = normalizedEnum(firstNonBlank(serverRef, text(mcp, "serverRef", "id")));
+        return endpointKind.contains("CUSTOMER_ACCOUNT")
+            || "CUSTOMER_OAUTH_PKCE".equals(authMode)
+            || ref.contains("CUSTOMER_ACCOUNT");
+    }
+
+    private boolean isReadOnlyAction(JsonNode actionConfig, String toolName) {
+        String accessMode = normalizedEnum(text(actionConfig, "accessMode"));
+        if (accessMode.contains("READ")) {
+            return true;
+        }
+        if (accessMode.contains("WRITE") || actionConfig.path("requiresConfirmation").asBoolean(false)) {
+            return false;
+        }
+        if (actionConfig.path("readOnly").asBoolean(false)) {
+            return true;
+        }
+        return Set.of(
+            "get_most_recent_order_status",
+            "get_order_status",
+            "get_store_credit_balances"
+        ).contains(toolName == null ? "" : toolName.trim());
+    }
+
+    private JsonNode firstErrorsNode(JsonNode... candidates) {
+        for (JsonNode candidate : candidates) {
+            if (candidate == null || candidate.isMissingNode() || candidate.isNull()) {
+                continue;
+            }
+            if (candidate.isArray() && !candidate.isEmpty()) {
+                return candidate;
+            }
+            if (candidate.isObject() && !candidate.isEmpty()) {
+                return candidate;
+            }
+        }
+        return MissingNode.getInstance();
+    }
+
+    private String firstErrorMessage(JsonNode errors) {
+        String message = null;
+        if (errors != null && errors.isArray() && !errors.isEmpty()) {
+            JsonNode first = errors.get(0);
+            message = firstNonBlank(text(first, "message", "detail", "title"), first.toString());
+        } else if (errors != null && errors.isObject()) {
+            message = firstNonBlank(text(errors, "message", "detail", "title"), errors.toString());
+        }
+        return firstNonBlank(message, "MCP tool reported an error.");
+    }
+
+    private String textContent(JsonNode result) {
+        List<String> parts = textContentParts(result);
+        return parts.isEmpty() ? null : String.join("\n", parts);
+    }
+
+    private List<String> textContentParts(JsonNode result) {
+        JsonNode content = result == null ? MissingNode.getInstance() : result.path("content");
+        if (!content.isArray()) {
+            return List.of();
+        }
+        List<String> parts = new ArrayList<>();
+        for (JsonNode item : content) {
+            if ("text".equalsIgnoreCase(text(item, "type")) && StringUtils.hasText(text(item, "text"))) {
+                parts.add(text(item, "text"));
+            }
+        }
+        return parts;
+    }
+
+    private JsonNode parseJsonObject(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        try {
+            JsonNode parsed = objectMapper.readTree(text);
+            return parsed != null && parsed.isObject() ? parsed : null;
+        } catch (JsonProcessingException ex) {
+            return null;
+        }
     }
 
     private void mapPath(JsonNode mapping, JsonNode source, ObjectNode target, String pathField, String targetField) {
@@ -689,7 +1035,9 @@ public class McpGatewayExecutionService {
         if (!argumentTemplate.isObject()) {
             throw new IllegalArgumentException("MCP argumentTemplate must be an object.");
         }
-        return resolveProfileRefs(renderTemplateNode(argumentTemplate, request, trace), trace);
+        JsonNode rendered = resolveProfileRefs(renderTemplateNode(argumentTemplate, request, trace), trace);
+        JsonNode pruned = pruneEmptyArgumentValues(rendered);
+        return pruned != null && pruned.isObject() ? pruned : objectMapper.createObjectNode();
     }
 
     private String endpointForKind(String endpointKind, Object request, JsonNode trace) {
@@ -795,6 +1143,36 @@ public class McpGatewayExecutionService {
         return objectMapper.getNodeFactory().textNode(out.toString());
     }
 
+    private JsonNode pruneEmptyArgumentValues(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (node.isTextual() && !StringUtils.hasText(node.asText())) {
+            return null;
+        }
+        if (node.isObject()) {
+            ObjectNode out = objectMapper.createObjectNode();
+            node.fields().forEachRemaining(entry -> {
+                JsonNode pruned = pruneEmptyArgumentValues(entry.getValue());
+                if (pruned != null) {
+                    out.set(entry.getKey(), pruned);
+                }
+            });
+            return out.isEmpty() ? null : out;
+        }
+        if (node.isArray()) {
+            ArrayNode out = objectMapper.createArrayNode();
+            for (JsonNode child : node) {
+                JsonNode pruned = pruneEmptyArgumentValues(child);
+                if (pruned != null) {
+                    out.add(pruned);
+                }
+            }
+            return out.isEmpty() ? null : out;
+        }
+        return node.deepCopy();
+    }
+
     private JsonNode resolveProfileRefs(JsonNode node, JsonNode trace) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return node;
@@ -832,7 +1210,7 @@ public class McpGatewayExecutionService {
             trace.path("profileValues"),
             trace.path("config")
         )) {
-            String value = container.path(profileRef).asText("").trim();
+            String value = stripWrappingQuotes(container.path(profileRef).asText("").trim());
             if (StringUtils.hasText(value)) {
                 return value;
             }
@@ -842,9 +1220,9 @@ public class McpGatewayExecutionService {
             .map(value -> value.trim().toUpperCase(Locale.ROOT))
             .collect(java.util.stream.Collectors.toUnmodifiableSet());
         if (environment != null && allowlist.contains(normalizedRef)) {
-            String value = environment.getProperty(profileRef.trim());
+            String value = stripWrappingQuotes(environment.getProperty(profileRef.trim()));
             if (StringUtils.hasText(value)) {
-                return value.trim();
+                return value;
             }
         }
         return null;
@@ -871,10 +1249,27 @@ public class McpGatewayExecutionService {
             "clientIdSecretRef",
             "clientSecretRef",
             "scope",
-            "audience"
+            "audience",
+            "tokenBrokerUrl",
+            "tokenBrokerUrlTemplate",
+            "tokenBrokerBaseUrlProfileRef",
+            "tokenBrokerUrlProfileRef",
+            "tokenBrokerPathTemplate",
+            "tokenBrokerApiKeyHeader",
+            "tokenBrokerApiKeySecretRef"
         )) {
             copyText(mcp, out, field);
             copyText(serverBinding, out, field);
+        }
+        if (mcp.path("requiredCustomerScopes").isArray()) {
+            out.set("requiredCustomerScopes", mcp.path("requiredCustomerScopes").deepCopy());
+        } else if (serverBinding.path("requiredCustomerScopes").isArray()) {
+            out.set("requiredCustomerScopes", serverBinding.path("requiredCustomerScopes").deepCopy());
+        }
+        if (mcp.path("tokenBroker").isObject()) {
+            out.set("tokenBroker", mcp.path("tokenBroker").deepCopy());
+        } else if (serverBinding.path("tokenBroker").isObject()) {
+            out.set("tokenBroker", serverBinding.path("tokenBroker").deepCopy());
         }
         return out;
     }
@@ -1134,7 +1529,117 @@ public class McpGatewayExecutionService {
                 return token;
             }
         }
+        token = fetchCustomerAccountTokenFromBroker(trace, auth);
+        if (StringUtils.hasText(token)) {
+            return token;
+        }
         return null;
+    }
+
+    private String fetchCustomerAccountTokenFromBroker(JsonNode trace, JsonNode auth) {
+        JsonNode broker = firstObject(auth.path("tokenBroker"), auth.path("customerTokenBroker"));
+        String url = tokenBrokerUrl(trace, auth, broker);
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        URI uri = requirePublicHttpsUri(url, "MCP customer token broker URL");
+        String headerName = firstNonBlank(
+            firstNonBlank(text(broker, "apiKeyHeader", "headerName"), text(auth, "tokenBrokerApiKeyHeader")),
+            "X-BRIDGE-API-KEY"
+        );
+        validateTokenBrokerHeader(headerName);
+        String apiKey = resolveSecretValue(
+            trace,
+            firstNonBlank(
+                text(broker, "apiKeySecretRef", "secretRef"),
+                text(auth, "tokenBrokerApiKeySecretRef")
+            )
+        );
+        if (!StringUtils.hasText(apiKey)) {
+            throw new IllegalArgumentException("MCP customer token broker API key is not available.");
+        }
+        String shopDomain = resolveShopDomain(null, trace);
+        String shopperSessionId = firstNonBlank(
+            text(trace, "shopperSessionId", "shopper_session_id", "sessionId"),
+            text(trace.path("authContext"), "shopperSessionId", "shopper_session_id", "sessionId")
+        );
+        if (!StringUtils.hasText(shopDomain) || !StringUtils.hasText(shopperSessionId)) {
+            return null;
+        }
+        ObjectNode request = objectMapper.createObjectNode();
+        request.put("shopperSessionId", shopperSessionId.trim());
+        ArrayNode scopes = request.putArray("requiredScopes");
+        JsonNode configuredScopes = auth.path("requiredCustomerScopes");
+        if (configuredScopes.isArray()) {
+            for (JsonNode scope : configuredScopes) {
+                String value = scope.asText("").trim();
+                if (StringUtils.hasText(value)) {
+                    scopes.add(value);
+                }
+            }
+        }
+        try {
+            JsonNode response = tokenRestClient.post()
+                .uri(uri)
+                .header(headerName.trim(), apiKey.trim())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(JsonNode.class);
+            if (response == null || !response.path("success").asBoolean(false)) {
+                return null;
+            }
+            return firstNonBlank(
+                text(response, "accessToken"),
+                text(response, "authorization", "customerAccessToken")
+            );
+        } catch (RestClientException ex) {
+            throw new IllegalArgumentException("MCP customer token broker request failed.");
+        }
+    }
+
+    private String tokenBrokerUrl(JsonNode trace, JsonNode auth, JsonNode broker) {
+        String url = firstNonBlank(
+            text(broker, "url", "endpointUrl"),
+            text(auth, "tokenBrokerUrl")
+        );
+        if (StringUtils.hasText(url)) {
+            return url;
+        }
+        String urlTemplate = firstNonBlank(
+            text(broker, "urlTemplate", "endpointUrlTemplate"),
+            text(auth, "tokenBrokerUrlTemplate")
+        );
+        if (StringUtils.hasText(urlTemplate)) {
+            return renderEndpointTemplate(urlTemplate, null, trace);
+        }
+        String baseUrl = resolveProfileValue(
+            trace,
+            firstNonBlank(
+                text(broker, "baseUrlProfileRef", "urlProfileRef"),
+                text(auth, "tokenBrokerBaseUrlProfileRef", "tokenBrokerUrlProfileRef")
+            )
+        );
+        if (!StringUtils.hasText(baseUrl)) {
+            return null;
+        }
+        String pathTemplate = firstNonBlank(
+            text(broker, "pathTemplate"),
+            text(auth, "tokenBrokerPathTemplate")
+        );
+        if (!StringUtils.hasText(pathTemplate)) {
+            return baseUrl;
+        }
+        String path = renderEndpointTemplate(pathTemplate, null, trace);
+        return baseUrl.trim().replaceAll("/+$", "") + "/" + path.replaceAll("^/+", "");
+    }
+
+    private void validateTokenBrokerHeader(String headerName) {
+        String normalized = headerName == null ? "" : headerName.trim().toUpperCase(Locale.ROOT);
+        if (!TOKEN_BROKER_HEADER_ALLOWLIST.contains(normalized)) {
+            throw new IllegalArgumentException("MCP customer token broker header is not allowed.");
+        }
     }
 
     private String resolveSecretValue(JsonNode trace, String secretRef) {
@@ -1146,7 +1651,7 @@ public class McpGatewayExecutionService {
             trace.path("secretValues"),
             trace.path("resolvedSecrets")
         )) {
-            String value = container.path(secretRef).asText("").trim();
+            String value = stripWrappingQuotes(container.path(secretRef).asText("").trim());
             if (StringUtils.hasText(value)) {
                 return value;
             }
@@ -1155,12 +1660,28 @@ public class McpGatewayExecutionService {
             && environment != null
             && SAFE_SECRET_REF.matcher(secretRef.trim()).matches()
             && secretRef.trim().startsWith(properties.environmentSecretRefPrefix())) {
-            String value = environment.getProperty(secretRef.trim());
+            String value = stripWrappingQuotes(environment.getProperty(secretRef.trim()));
             if (StringUtils.hasText(value)) {
-                return value.trim();
+                return value;
             }
         }
         return null;
+    }
+
+    private String stripWrappingQuotes(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String normalized = value.trim();
+        if (normalized.length() < 2) {
+            return normalized;
+        }
+        char first = normalized.charAt(0);
+        char last = normalized.charAt(normalized.length() - 1);
+        if ((first == '\'' || first == '"') && first == last) {
+            return normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
     }
 
     private JsonNode readRestrictedJsonPath(JsonNode source, String path) {
@@ -1285,10 +1806,26 @@ public class McpGatewayExecutionService {
         return new ActionExecuteResponse(false, message, Map.of(), errorCode, List.of());
     }
 
+    private record McpToolFailure(String errorCode, String message) {
+    }
+
     private static class McpAuthGateException extends RuntimeException {
         private final String errorCode;
 
         McpAuthGateException(String errorCode, String message) {
+            super(message);
+            this.errorCode = errorCode;
+        }
+
+        String errorCode() {
+            return errorCode;
+        }
+    }
+
+    private static class McpArgumentGateException extends RuntimeException {
+        private final String errorCode;
+
+        McpArgumentGateException(String errorCode, String message) {
             super(message);
             this.errorCode = errorCode;
         }

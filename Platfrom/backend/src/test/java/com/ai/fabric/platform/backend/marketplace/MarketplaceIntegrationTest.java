@@ -169,8 +169,11 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-customer-account-mcp")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-customer-account-mcp")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_customer_context_summary")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_most_recent_order_status")))
-            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_order_status")));
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_order_status")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_store_credit_balances")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_request_return")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-checkout-mcp")))
             .andExpect(status().isOk())

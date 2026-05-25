@@ -71,6 +71,7 @@ Shell and answer-quality verification:
 ```text
 scripts/verify-shopify-first-product-readiness-audit.sh
 scripts/evaluate-shopify-companion-answers.py
+scripts/verify-shopify-companion-answer-quality-repeats.sh
 scripts/verification/shopify-first-product-readiness/answer-quality-query-pack.json
 ```
 
@@ -293,6 +294,44 @@ When adding a query:
 7. Add or update tests when parsing or decision behavior changes.
 
 Do not add broad free-text assertions that make the gate flaky.
+
+### Live Repeat Strategy
+
+The canonical answer-quality gate must be treated as stochastic live product evidence, not a one-shot unit test. After changing prompts, runtime orchestration, Bridge storefront context handling, Marketplace action metadata, MCP gateway behavior, billing/package posture, or Shopify store data, run the canonical pack repeatedly against live staging.
+
+Use:
+
+```bash
+ANSWER_QUALITY_REPEAT_COUNT=3 \
+SHOPIFY_BRIDGE_BASE_URL="https://shopify-bridge-staging.46.224.145.148.sslip.io" \
+SHOP_DOMAIN="shopping-companion-test.myshopify.com" \
+bash scripts/verify-shopify-companion-answer-quality-repeats.sh
+```
+
+Pass criteria:
+
+- every repeat must return `PASS`
+- every repeat must pass all queries in the canonical pack
+- outputs must be kept under `/tmp` or another non-committed evidence directory
+- any single failure blocks release evidence until explained and fixed
+
+The repeat script writes:
+
+```text
+/tmp/shopify-answer-quality-<timestamp>-repeats/repeat-summary.json
+/tmp/shopify-answer-quality-<timestamp>-repeats/repeat-summary.md
+/tmp/shopify-answer-quality-<timestamp>-repeats/run-N/answer-quality-results.json
+/tmp/shopify-answer-quality-<timestamp>-repeats/run-N/answer-quality-audit.md
+```
+
+Mode coverage is defined by the query pack, not by a single script flag. The current canonical pack intentionally exercises:
+
+- `thinker_deep` for Max/search/internal tool guard paths
+- `navigator_deep` for comparison and product-discovery depth paths
+- `executor` for cart and account/order action paths
+- surface-derived behavior for `product-insight`, `product-faq`, and `policy-strip`
+
+Do not call the gate “verified” from one mode only. The release evidence should state the repeat count, the result of each run, and the output root.
 
 ---
 

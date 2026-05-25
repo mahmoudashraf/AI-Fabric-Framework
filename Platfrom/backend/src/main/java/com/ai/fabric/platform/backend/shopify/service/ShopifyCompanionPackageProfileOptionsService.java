@@ -87,18 +87,18 @@ public class ShopifyCompanionPackageProfileOptionsService {
         COST_POSTURES.forEach(posture -> put(costPostures, choice(posture, posture, "Commercial cost posture.", SOURCE_PLATFORM_CATALOG, null, false)));
 
         for (PackageDefinition definition : definitions) {
-            put(packages, choice(definition.packageKey(), definition.packageKey(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(tiers, choice(definition.tierKey(), definition.tierKey(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(profileKeys, choice(definition.profileKey(), definition.profileKey(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(runtimeProfiles, choice(definition.runtimeProfileKey(), definition.runtimeProfileKey(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(vectorProfiles, choice(definition.vectorProfileKey(), definition.vectorProfileKey(), definition.vectorDescription(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(inferencePlugins, choice(definition.inferencePluginId(), definition.inferencePluginId(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(vectorStrategies, choice(definition.vectorStrategy(), definition.vectorStrategy(), "Vector backend strategy.", SOURCE_PLATFORM_CATALOG, null, true));
-            put(vectorProvisioningModes, choice(definition.vectorProvisioningMode(), definition.vectorProvisioningMode(), "Vector resource provisioning mode.", SOURCE_PLATFORM_CATALOG, null, true));
-            put(vectorStoragePostures, choice(definition.vectorStoragePosture(), definition.vectorStoragePosture(), "Vector storage isolation posture.", SOURCE_PLATFORM_CATALOG, null, true));
-            put(verificationPacks, choice(definition.verificationPackId(), definition.verificationPackId(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(templatePlugins, choice(definition.templatePluginId(), definition.templatePluginId(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
-            put(deploymentTemplates, choice(definition.deploymentTemplateId(), definition.deploymentTemplateId(), definition.label(), SOURCE_PLATFORM_CATALOG, null, true));
+            put(packages, choice(definition.packageKey(), definition.packageKey(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(tiers, choice(definition.tierKey(), definition.tierKey(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(profileKeys, choice(definition.profileKey(), definition.profileKey(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(runtimeProfiles, choice(definition.runtimeProfileKey(), definition.runtimeProfileKey(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(vectorProfiles, choice(definition.vectorProfileKey(), definition.vectorProfileKey(), definition.vectorDescription(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(inferencePlugins, choice(definition.inferencePluginId(), definition.inferencePluginId(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(vectorStrategies, choice(definition.vectorStrategy(), definition.vectorStrategy(), "Vector backend strategy.", SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(vectorProvisioningModes, choice(definition.vectorProvisioningMode(), definition.vectorProvisioningMode(), "Vector resource provisioning mode.", SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(vectorStoragePostures, choice(definition.vectorStoragePosture(), definition.vectorStoragePosture(), "Vector storage isolation posture.", SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(verificationPacks, choice(definition.verificationPackId(), definition.verificationPackId(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(templatePlugins, choice(definition.templatePluginId(), definition.templatePluginId(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
+            put(deploymentTemplates, choice(definition.deploymentTemplateId(), definition.deploymentTemplateId(), definition.label(), SOURCE_PLATFORM_CATALOG, definition.lifecycleStatus(), definition.recommended()));
         }
 
         for (DeploymentTemplateSummary template : templates) {
@@ -196,6 +196,7 @@ public class ShopifyCompanionPackageProfileOptionsService {
         String vectorProvisioningMode = upper(request.vectorProvisioningMode());
         String vectorStoragePosture = upper(request.vectorStoragePosture());
         String verificationPackId = text(request.verificationPackId());
+        String status = StringUtils.hasText(request.status()) ? upper(request.status()) : "DRAFT";
 
         requireChoice(options.packages(), packageKey, "packageKey");
         requireChoice(options.tiers(), tierKey, "tierKey");
@@ -212,6 +213,18 @@ public class ShopifyCompanionPackageProfileOptionsService {
                 HttpStatus.BAD_REQUEST,
                 "Package/tier combination is not approved for Shopify Companion profiles: " + packageKey + "/" + tierKey + "."
             ));
+        packageDefinitions().stream()
+            .filter(definition -> definition.packageKey().equalsIgnoreCase(packageKey) && definition.tierKey().equalsIgnoreCase(tierKey))
+            .filter(definition -> "DISABLED".equalsIgnoreCase(definition.lifecycleStatus()))
+            .findFirst()
+            .ifPresent(definition -> {
+                if ("ACTIVE".equals(status)) {
+                    throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Package/tier combination is disabled for new Shopify Companion activation: " + packageKey + "/" + tierKey + "."
+                    );
+                }
+            });
 
         requireAllowed(rule.allowedRuntimeProfileKeys(), runtimeProfileKey, "runtimeProfileKey", rule);
         requireAllowed(rule.allowedVectorProfileKeys(), vectorProfileKey, "vectorProfileKey", rule);
@@ -294,13 +307,15 @@ public class ShopifyCompanionPackageProfileOptionsService {
                 List.of("EXTERNAL_EXISTING"),
                 List.of("SHARED"),
                 List.of("starter-launch-readiness"),
+                "DISABLED",
+                false,
                 "Shared vector storage for the free package."
             ),
             new PackageDefinition(
                 "STARTER_BALANCED",
                 "Starter / balanced shared Qdrant",
                 "Starter profile for managed Shopify Companion launch readiness.",
-                ShopifyCompanionPackageProfileCatalogService.DEFAULT_PROFILE_KEY,
+                ShopifyCompanionPackageProfileCatalogService.STARTER_PROFILE_KEY,
                 "STARTER",
                 "STARTER",
                 "BALANCED",
@@ -322,6 +337,8 @@ public class ShopifyCompanionPackageProfileOptionsService {
                 List.of("EXTERNAL_EXISTING"),
                 List.of("SHARED"),
                 List.of("starter-launch-readiness", "shopify-companion-starter-readiness"),
+                "ACTIVE",
+                true,
                 "Shared Qdrant posture for Starter."
             ),
             new PackageDefinition(
@@ -350,6 +367,8 @@ public class ShopifyCompanionPackageProfileOptionsService {
                 List.of("EXTERNAL_EXISTING", "PLATFORM_MANAGED"),
                 List.of("SHARED", "DEDICATED"),
                 List.of("shopify-companion-elite-readiness", "shopify-companion-verification"),
+                "ACTIVE",
+                true,
                 "High quality profile using shared or dedicated managed vector options."
             ),
             new PackageDefinition(
@@ -378,6 +397,8 @@ public class ShopifyCompanionPackageProfileOptionsService {
                 List.of("PLATFORM_MANAGED", "EXTERNAL_EXISTING"),
                 List.of("DEDICATED", "SHARED"),
                 List.of("shopify-companion-elite-readiness", "shopify-companion-verification"),
+                "ACTIVE",
+                true,
                 "Dedicated vector posture for enterprise isolation."
             )
         );
@@ -583,6 +604,8 @@ public class ShopifyCompanionPackageProfileOptionsService {
         List<String> allowedVectorProvisioningModes,
         List<String> allowedVectorStoragePostures,
         List<String> allowedVerificationPackIds,
+        String lifecycleStatus,
+        boolean recommended,
         String vectorDescription
     ) {
         ShopifyCompanionPackageProfileBlueprintSummary toBlueprint() {

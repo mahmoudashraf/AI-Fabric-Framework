@@ -40,6 +40,11 @@ public class RestApiVectorizationSourceAdapter implements VectorizationSourceAda
         Map<String, DiscoveryCountMethod> methods = new LinkedHashMap<>();
         for (String entityType : entityTypes) {
             JsonNode datasetConfig = VectorizationSourceAdapterSupport.datasetConfig(bundle, entityType);
+            String recordVectorSpacePath = recordVectorSpacePath(bundle, datasetConfig, entityType);
+            if (StringUtils.hasText(recordVectorSpacePath)) {
+                discoverRecordVectorSpaces(bundle, entityType, datasetConfig, recordVectorSpacePath, counts, methods);
+                continue;
+            }
             JsonNode response = fetchResponse(bundle, datasetConfig, null, VectorizationSourceAdapterSupport.pageSize(datasetConfig, bundle.executionConfig(), 100));
             String countPath = VectorizationSourceAdapterSupport.text(datasetConfig, "countPath", null);
             if (StringUtils.hasText(countPath)) {
@@ -131,5 +136,58 @@ public class RestApiVectorizationSourceAdapter implements VectorizationSourceAda
     private JsonNode recordsNode(JsonNode response, JsonNode datasetConfig) {
         String itemsPath = VectorizationSourceAdapterSupport.text(datasetConfig, "itemsPath", null);
         return JsonNavigation.firstArrayCandidate(response, itemsPath);
+    }
+
+    private void discoverRecordVectorSpaces(VectorizationExecutionBundle bundle,
+                                            String sourceEntityType,
+                                            JsonNode datasetConfig,
+                                            String recordVectorSpacePath,
+                                            Map<String, Long> counts,
+                                            Map<String, DiscoveryCountMethod> methods) throws Exception {
+        int pageSize = VectorizationSourceAdapterSupport.pageSize(datasetConfig, bundle.executionConfig(), 100);
+        int maxPages = datasetConfig.path("discoveryMaxPages").asInt(1000);
+        String cursor = null;
+        boolean hasMore;
+        int pages = 0;
+        boolean sawRecord = false;
+        do {
+            if (pages >= maxPages) {
+                throw new IllegalStateException("REST_API discovery exceeded maxPages for source entity '" + sourceEntityType + "'.");
+            }
+            VectorizationSourcePage page = fetchPage(bundle, sourceEntityType, cursor, pageSize);
+            for (JsonNode record : page.records()) {
+                sawRecord = true;
+                String vectorSpace = JsonNavigation.asText(record, recordVectorSpacePath);
+                if (!StringUtils.hasText(vectorSpace)) {
+                    throw new IllegalArgumentException(
+                        "REST_API discovery record is missing vector space field '" + recordVectorSpacePath
+                            + "' for source entity '" + sourceEntityType + "'."
+                    );
+                }
+                String key = vectorSpace.trim();
+                counts.merge(key, 1L, Long::sum);
+                methods.put(key, DiscoveryCountMethod.EXACT);
+            }
+            cursor = page.nextCursor();
+            hasMore = page.hasMore();
+            pages++;
+        } while (hasMore);
+        if (!sawRecord) {
+            counts.put(sourceEntityType, 0L);
+            methods.put(sourceEntityType, DiscoveryCountMethod.EXACT);
+        }
+    }
+
+    private String recordVectorSpacePath(VectorizationExecutionBundle bundle, JsonNode datasetConfig, String entityType) {
+        String configured = VectorizationSourceAdapterSupport.text(datasetConfig, "recordVectorSpacePath", null);
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        JsonNode mapping = bundle.mappingConfig().path("entityMappings").path(entityType);
+        configured = VectorizationSourceAdapterSupport.text(mapping, "targetEntityTypeField", null);
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        return VectorizationSourceAdapterSupport.text(mapping, "vectorSpaceField", null);
     }
 }

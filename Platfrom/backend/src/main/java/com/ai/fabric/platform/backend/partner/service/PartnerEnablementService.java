@@ -207,7 +207,10 @@ public class PartnerEnablementService {
         List.of("ai-search", "contextual-pill", "product-insight", "policy-strip", "product-faq", "comparison"),
         "navigator",
         List.of("navigator"),
-        Map.of()
+        Map.of(),
+        Boolean.TRUE,
+        Boolean.FALSE,
+        "graphite"
     );
     private static final String MERCHANT_CONFIGURED_TIER = "MERCHANT_CONFIGURED";
     private static final String FULL_STORE_ACCESS_SCOPE = "FULL_STORE_ACCESS";
@@ -1942,14 +1945,13 @@ public class PartnerEnablementService {
                 List<String> catalogSurfaces = catalogSource.listCatalog().stream()
                     .map(PartnerCatalogEntrySummary::surfaceId)
                     .toList();
-                boolean hasSearch = configuredSurfaces.contains("ai-search");
                 List<String> unknown = configuredSurfaces.stream()
                     .filter(surface -> !catalogSurfaces.contains(surface) && !ELITE_PARTNER_SURFACES.contains(surface))
                     .toList();
-                status = hasSearch && unknown.isEmpty() ? "PASSED" : "FAILED";
+                status = !configuredSurfaces.isEmpty() && unknown.isEmpty() ? "PASSED" : "FAILED";
                 message = status.equals("PASSED")
                     ? "Elite surfaces are configured from known product and governed Elite surfaces."
-                    : "Elite surfaces include unknown entries or are missing AI search.";
+                    : "Elite surfaces include unknown entries or no store-configured surfaces.";
                 evidence = List.of(
                     "enabledSurfaces=" + String.join(",", configuredSurfaces),
                     "unknownSurfaces=" + String.join(",", unknown)
@@ -2876,7 +2878,10 @@ public class PartnerEnablementService {
             DEFAULT_WIDGET_SETTINGS.enabledSurfaces(),
             DEFAULT_WIDGET_SETTINGS.defaultConversationMode(),
             DEFAULT_WIDGET_SETTINGS.allowedConversationModes(),
-            DEFAULT_WIDGET_SETTINGS.pageModeMappings()
+            DEFAULT_WIDGET_SETTINGS.pageModeMappings(),
+            DEFAULT_WIDGET_SETTINGS.assistantDockEnabled(),
+            DEFAULT_WIDGET_SETTINGS.askAssistantLauncherEnabled(),
+            DEFAULT_WIDGET_SETTINGS.colorScheme()
         );
     }
 

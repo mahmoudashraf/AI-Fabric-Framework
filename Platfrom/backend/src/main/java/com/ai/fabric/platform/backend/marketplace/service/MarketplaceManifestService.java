@@ -340,6 +340,32 @@ public class MarketplaceManifestService {
         validateMcpSchemaHash(plugin, version, mcp.path("toolSchemaHash"), "action '" + actionId + "' execution.mcp.toolSchemaHash");
         validateMcpSchemaDriftPolicy(plugin, version, firstText(mcp, "schemaDriftPolicy"), "action '" + actionId + "' execution.mcp.schemaDriftPolicy");
         validateMcpResponseMapping(plugin, version, mcp.path("responseMapping"), "action '" + actionId + "' execution.mcp.responseMapping");
+        validateMcpRequiredAnyArguments(plugin, version, mcp.path("requiredAnyArguments"), "action '" + actionId + "' execution.mcp.requiredAnyArguments");
+    }
+
+    private void validateMcpRequiredAnyArguments(MarketplacePluginEntity plugin,
+                                                 MarketplacePluginVersionEntity version,
+                                                 JsonNode node,
+                                                 String label) {
+        if (node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        if (!node.isArray() || node.isEmpty()) {
+            throw invalid(plugin, version, label + " must be a non-empty array when provided.");
+        }
+        for (JsonNode entry : node) {
+            String value = entry.asText("").trim();
+            if (!StringUtils.hasText(value)) {
+                throw invalid(plugin, version, label + " entries must be non-empty strings.");
+            }
+            if (value.startsWith("$")) {
+                if (!MCP_RESPONSE_MAPPING_PATH_PATTERN.matcher(value).matches()) {
+                    throw invalid(plugin, version, label + " contains an invalid JSON path.");
+                }
+            } else if (!MCP_REF_PATTERN.matcher(value).matches()) {
+                throw invalid(plugin, version, label + " contains an invalid argument name.");
+            }
+        }
     }
 
     private Set<String> parseMcpServerContributions(MarketplacePluginEntity plugin,

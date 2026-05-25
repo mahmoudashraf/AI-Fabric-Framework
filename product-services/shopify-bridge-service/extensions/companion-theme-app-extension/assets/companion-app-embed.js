@@ -18,7 +18,7 @@
       var maxModeScriptUrl = trimValue(root.dataset.maxModeScriptUrl)
       var embeddedSurfacesScriptUrl = trimValue(root.dataset.embeddedSurfacesScriptUrl)
       var embeddedSurfacesStylesheetUrl = trimValue(root.dataset.embeddedSurfacesStylesheetUrl)
-      var widgetShell = 'max-mode'
+      var widgetShell = trimValue(root.dataset.widgetShell) || 'companion-dock'
       if (!bridgeBaseUrl || !shopDomain) {
         root.dataset.status = 'configuration-required'
         return
@@ -60,7 +60,15 @@
           root.dataset.status = 'ready'
           return renderEmbeddedSurfaces(root, config, payload)
         }
-        return loadShellRenderer(config.widgetShell, config).then(function (renderer) {
+        var activeWidgetShell = payload.assistantDockEnabled === false ? 'max-mode' : 'companion-dock'
+        if (payload.assistantDockEnabled === false && payload.askAssistantLauncherEnabled !== true) {
+          teardownActiveShell(root)
+          teardownEmbeddedSurfaces(root)
+          root.dataset.status = 'ready'
+          return renderEmbeddedSurfaces(root, config, payload)
+        }
+        root.dataset.widgetShell = activeWidgetShell
+        return loadShellRenderer(activeWidgetShell, config).then(function (renderer) {
           teardownActiveShell(root)
           teardownEmbeddedSurfaces(root)
           return Promise.resolve(
@@ -74,7 +82,7 @@
             })
           )
             .then(function () {
-              root.dataset.activeShell = config.widgetShell
+              root.dataset.activeShell = activeWidgetShell
               return renderEmbeddedSurfaces(root, config, payload)
             })
         })

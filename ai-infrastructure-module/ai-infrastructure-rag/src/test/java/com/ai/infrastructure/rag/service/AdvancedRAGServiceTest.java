@@ -133,7 +133,7 @@ class AdvancedRAGServiceTest {
         verify(aiCoreService, times(2)).generateText(promptCaptor.capture());
 
         String responseGenerationPrompt = promptCaptor.getAllValues().get(1);
-        assertThat(responseGenerationPrompt).contains("AUTHORITATIVE CONTEXT");
+        assertThat(responseGenerationPrompt).contains("PRIMARY FACTS");
         assertThat(responseGenerationPrompt).contains("AUTHORITATIVE: pinned targets");
         assertThat(responseGenerationPrompt).contains("retrieved content");
     }

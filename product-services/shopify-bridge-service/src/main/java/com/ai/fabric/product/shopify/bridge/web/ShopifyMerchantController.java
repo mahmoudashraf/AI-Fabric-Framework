@@ -263,7 +263,7 @@ public class ShopifyMerchantController {
                                                           @RequestBody(required = false) ShopifyBridgeUpdateWidgetSettingsRequest request) {
         return merchantStoreService.updateWidgetSettings(
             requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateWidgetSettingsRequest(null, null, null, null, null, null, null, null) : request
+            request == null ? new ShopifyBridgeUpdateWidgetSettingsRequest(null, null, null, null, null, null, null, null, null, null) : request
         );
     }
 

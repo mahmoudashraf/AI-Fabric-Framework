@@ -165,7 +165,13 @@ public class AnnotatedConfirmationInterceptorsResolver extends ConfirmationResol
         }
         Map<String, Object> next = params != null ? new HashMap<>(params) : new HashMap<>();
         next.put(key, true);
-        PendingAction updated = new PendingAction(current.action(), Map.copyOf(next), current.description(), current.createdAt());
+        PendingAction updated = new PendingAction(
+            current.action(),
+            Map.copyOf(next),
+            current.description(),
+            current.createdAt(),
+            current.trustedEvidenceValuesByKey()
+        );
         popPending(context);
         pushPending(context, updated);
     }

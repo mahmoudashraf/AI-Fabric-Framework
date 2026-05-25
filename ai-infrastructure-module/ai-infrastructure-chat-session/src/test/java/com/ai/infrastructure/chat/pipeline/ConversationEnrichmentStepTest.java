@@ -8,6 +8,7 @@ import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResultType;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.dto.AIChatMessage;
@@ -20,6 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ConversationEnrichmentStepTest {
@@ -64,6 +66,37 @@ class ConversationEnrichmentStepTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> chatMeta = (Map<String, Object>) updated.getMetadata().get("chat");
         assertThat(chatMeta).containsEntry("conversationId", "conv-1");
+    }
+
+    @Test
+    void shouldNotLoadHistoryForNeverPersistQuery() {
+        ChatSessionService service = mock(ChatSessionService.class);
+        PendingActionStore pendingActionStore = mock(PendingActionStore.class);
+        ActionDraftStore actionDraftStore = mock(ActionDraftStore.class);
+
+        ChatSessionProperties properties = new ChatSessionProperties();
+        properties.setEnabled(true);
+
+        ConversationEnrichmentStep step = new ConversationEnrichmentStep(
+            service,
+            properties,
+            pendingActionStore,
+            actionDraftStore
+        );
+
+        OrchestrationContext orchestrationContext = OrchestrationContext.builder()
+            .userId("user-1")
+            .conversationId("correlation-1")
+            .metadata(Map.of(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, "NEVER_PERSIST"))
+            .build();
+
+        PipelineContext context = PipelineContext.from("Explain this once", orchestrationContext);
+        PipelineContext updated = step.process(context);
+
+        assertThat(updated).isSameAs(context);
+        assertThat(updated.getHistoryMessages()).isEmpty();
+        assertThat(updated.getMetadata()).doesNotContainKey("chat");
+        verifyNoInteractions(service, pendingActionStore, actionDraftStore);
     }
 
     @Test

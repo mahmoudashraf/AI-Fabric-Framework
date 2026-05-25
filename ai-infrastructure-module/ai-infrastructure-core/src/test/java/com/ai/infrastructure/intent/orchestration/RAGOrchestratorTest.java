@@ -523,7 +523,10 @@ class RAGOrchestratorTest {
     void shouldHandleOutOfScopeIntent() {
         Intent intent = Intent.builder()
             .type(IntentType.OUT_OF_SCOPE)
-            .actionParams(Map.of("reason", "Unsupported domain"))
+            .actionParams(Map.of(
+                "reason", "Unsupported domain",
+                "userMessage", "I can help with supported product and policy questions."
+            ))
             .build();
         when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
             .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
@@ -532,6 +535,24 @@ class RAGOrchestratorTest {
 
         assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
         assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).isEqualTo("I can help with supported product and policy questions.");
+    }
+
+    @Test
+    void shouldUseSafeDefaultForOutOfScopeWhenModelOnlyProvidesDirectAnswer() {
+        Intent intent = Intent.builder()
+            .type(IntentType.OUT_OF_SCOPE)
+            .directAnswer("I cannot provide legal advice.")
+            .build();
+        when(intentQueryExtractor.extract(any(IntentExtractionInput.class), any(OrchestrationContext.class)))
+            .thenReturn(MultiIntentResponse.builder().intents(List.of(intent)).build());
+
+        OrchestrationResult result = orchestrator.orchestrate("Give me legal advice", com.ai.infrastructure.intent.orchestration.OrchestrationContext.forUser("user"));
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.OUT_OF_SCOPE);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).contains("approved product", "order questions");
+        assertThat(result.getMessage()).doesNotContain("legal advice");
     }
 
     @Test

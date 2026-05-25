@@ -49,7 +49,7 @@ public class ShopifyBridgeActionsController {
         }
         return switch (result.errorCode() == null ? "" : result.errorCode()) {
             case "INVALID_REQUEST" -> HttpStatus.BAD_REQUEST;
-            case "NOT_FOUND", "ACTION_NOT_SUPPORTED" -> HttpStatus.NOT_FOUND;
+            case "NOT_FOUND", "ACTION_NOT_SUPPORTED", "OWNED_RESOURCE_NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "NOT_CONNECTED",
                  "PRODUCT_SELECTION_REQUIRED",
                  "VARIANT_SELECTION_REQUIRED",
@@ -59,6 +59,8 @@ public class ShopifyBridgeActionsController {
                  "CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED",
                  "CHECKOUT_MCP_NOT_CONFIGURED",
                  "CHECKOUT_TERMINAL_OPERATION_DISABLED",
+                 "OWNED_RESOURCE_ACTION_FAILED",
+                 "MCP_TOOL_REPORTED_ERROR",
                  "GOVERNED_ACTION_REJECTED" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_GATEWAY;
         };

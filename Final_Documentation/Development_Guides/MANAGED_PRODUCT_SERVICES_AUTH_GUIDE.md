@@ -204,6 +204,9 @@ Blocked header names include platform, bridge, gateway, cookie, host, forwarded,
 Shopify-specific external MCP gates:
 
 - Customer Account MCP uses `CUSTOMER_OAUTH_PKCE`. Bridge must be configured with `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_ENABLED=true`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_PROTECTED_DATA_APPROVED=true`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_ID`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CLIENT_SECRET`, `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_REDIRECT_URI`, and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SCOPES`.
+- The Shopify app configuration must also request and deploy the Customer Account API app scopes needed by the MCP tools. For Loom Companion order lookup and return/status tools, keep the tracked app TOML/render defaults aligned on `customer_read_customers`, `customer_read_orders`, `customer_write_orders`, and `customer_read_store_credit_accounts` in addition to the standard product/content/Admin scopes. After changing these scopes, deploy a new Shopify app version and re-authorize the shopper session; old customer OAuth tokens can keep returning Shopify MCP `401` until refreshed.
+- The managed MCP Gateway must be configured with `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`, `MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY`, and `MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED=true` so it can resolve a shopper-bound Customer Account token from Bridge before calling Customer Account MCP. `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL` is environment/service wiring, not merchant onboarding data: set it once per Gateway deployment to the matching Bridge base URL.
+- `MCP_GATEWAY_PROFILE_REF_ALLOWLIST` must include `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`. The broker API key must match the Bridge admin/internal key and must not be exposed to merchant UI, shopper code, or plugin manifests.
 - Store-specific Customer Account discovery domains are Platform store configuration, not Bridge-wide env. Set them with `PUT /api/shopify/stores/{shopDomain}/customer-account-config` using `{ "storefrontDomain": "shop.example.com" }`, or from the Shopify Stores admin page. The value is stored under the store details `customerAccountMcp.storefrontDomain` and Bridge reads it through Platform before Customer Account OAuth discovery.
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` is now only a fallback/default for staging or emergency single-store deployments. It is not enough for multi-store onboarding because each store can require a different storefront/customer-auth domain.
 - Optional TTL controls are `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STATE_TTL` and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_SESSION_TTL`; optional HTTP timeout controls are `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_CONNECT_TIMEOUT` and `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_READ_TIMEOUT`. Bridge exposes `/api/customer-auth/start`, `/api/customer-auth/callback`, and `/api/customer-auth/session`; customer OAuth token material is encrypted at rest and resolved server-side by shop plus shopper-session binding before MCP execution. Inbound trace/customer-token fields are not accepted as a Customer Account MCP auth source.
@@ -252,15 +255,15 @@ mcp-execution-gateway
   healthPath: /actuator/health
   secretName: MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY
 
-shopify-bridge-prod
+shopify-bridge-staging
   serviceKind: SHOPIFY_BRIDGE_SERVICE
   environmentScope: staging
   baseUrl: https://shopify-bridge-staging.46.224.145.148.sslip.io
   healthPath: /actuator/health
-  secretName: MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY
+  secretName: MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY
 ```
 
-The service ref `shopify-bridge-prod` is a compatibility name in the current staging record. New production records should use explicit production refs and production secret names.
+The staging Bridge service ref is `shopify-bridge-staging`. Production records must use explicit production refs and production secret names, for example `shopify-bridge-production`, rather than reusing staging records.
 
 ## 9. Verification
 
@@ -295,7 +298,7 @@ curl -fsS -b "$PLATFORM_COOKIE_JAR" \
   https://loomai-platform-backend.46.224.145.148.sslip.io/api/product-services/mcp-execution-gateway/health
 
 curl -fsS -b "$PLATFORM_COOKIE_JAR" \
-  https://loomai-platform-backend.46.224.145.148.sslip.io/api/product-services/shopify-bridge-prod/health
+  https://loomai-platform-backend.46.224.145.148.sslip.io/api/product-services/shopify-bridge-staging/health
 ```
 
 Do not print raw secret values during verification.

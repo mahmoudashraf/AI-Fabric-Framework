@@ -27,6 +27,9 @@ public class ShopifyStoreSourcePreflightSupport {
         "Store assistant is ready. Ask about products, policies, or collections.";
     private static final String DEFAULT_SHELL_MODE_PROFILE = "SHOPIFY_COMPANION";
     private static final boolean DEFAULT_DEBUG_ENABLED = false;
+    private static final boolean DEFAULT_ASSISTANT_DOCK_ENABLED = true;
+    private static final boolean DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED = false;
+    private static final String DEFAULT_COLOR_SCHEME = "graphite";
     private static final String DEFAULT_CONVERSATION_MODE = "navigator";
     private static final List<String> DEFAULT_ENABLED_SURFACES = List.of(
         "ai-search",
@@ -138,7 +141,10 @@ public class ShopifyStoreSourcePreflightSupport {
                             : allowedConversationModes,
                         readStringMap(settings.get("pageModeMappings")).isEmpty()
                             ? DEFAULT_PAGE_MODE_MAPPINGS
-                            : readStringMap(settings.get("pageModeMappings"))
+                            : readStringMap(settings.get("pageModeMappings")),
+                        settings.path("assistantDockEnabled").asBoolean(DEFAULT_ASSISTANT_DOCK_ENABLED),
+                        settings.path("askAssistantLauncherEnabled").asBoolean(DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED),
+                        text(settings, "colorScheme") == null ? DEFAULT_COLOR_SCHEME : text(settings, "colorScheme")
                     )
                     : new ShopifyStoreWidgetSettingsSummary(
                         DEFAULT_LAUNCHER_LABEL,
@@ -148,7 +154,10 @@ public class ShopifyStoreSourcePreflightSupport {
                         DEFAULT_ENABLED_SURFACES,
                         DEFAULT_CONVERSATION_MODE,
                         DEFAULT_ALLOWED_CONVERSATION_MODES,
-                        DEFAULT_PAGE_MODE_MAPPINGS
+                        DEFAULT_PAGE_MODE_MAPPINGS,
+                        DEFAULT_ASSISTANT_DOCK_ENABLED,
+                        DEFAULT_ASK_ASSISTANT_LAUNCHER_ENABLED,
+                        DEFAULT_COLOR_SCHEME
                     )
             );
         } catch (Exception ex) {
@@ -246,7 +255,7 @@ public class ShopifyStoreSourcePreflightSupport {
             }
             return new ShopifyStoreBillingStateSummary(
                 shopDomain,
-                text(billingState, "tierKey") == null ? "FREE" : text(billingState, "tierKey"),
+                text(billingState, "tierKey") == null ? "ELITE" : text(billingState, "tierKey"),
                 text(billingState, "status") == null ? "ACTIVE" : text(billingState, "status"),
                 text(billingState, "subscriptionId"),
                 text(billingState, "subscriptionName"),
@@ -335,6 +344,6 @@ public class ShopifyStoreSourcePreflightSupport {
     }
 
     private ShopifyStoreBillingStateSummary defaultBillingState(String shopDomain) {
-        return new ShopifyStoreBillingStateSummary(shopDomain, "FREE", "ACTIVE", null, null, null, null);
+        return new ShopifyStoreBillingStateSummary(shopDomain, "ELITE", "ACTIVE", null, null, null, null);
     }
 }

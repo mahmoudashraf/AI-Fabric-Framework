@@ -167,3 +167,14 @@ databaseChangeLog:
                   defaultValueBoolean: false
                   constraints:
                     nullable: false
+
+  - changeSet:
+      id: 2026-05-16-01-ai-action-param-default-value
+      author: ai-fabric
+      changes:
+        - addColumn:
+            tableName: ai_connector_action_param
+            columns:
+              - column:
+                  name: default_value
+                  type: varchar(512)

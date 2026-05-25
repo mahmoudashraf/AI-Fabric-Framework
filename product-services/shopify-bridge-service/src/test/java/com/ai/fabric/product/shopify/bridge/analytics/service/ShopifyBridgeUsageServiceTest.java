@@ -198,7 +198,7 @@ class ShopifyBridgeUsageServiceTest {
             objectMapper.readTree("""
                 {
                   "query":"Track order 123456 for jane@example.com",
-                  "storefrontContext":{"shopifySurfaceEntry":"product faq"}
+                  "context":{"shopifySurfaceEntry":"product faq"}
                 }
                 """),
             "launcher"

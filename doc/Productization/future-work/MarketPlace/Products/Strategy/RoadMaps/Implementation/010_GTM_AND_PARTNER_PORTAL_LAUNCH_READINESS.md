@@ -1,6 +1,6 @@
 # 010 GTM And Partner Portal Launch Readiness
 
-Status: implementation roadmap (created 2026-05-09)
+Status: implemented through controlled staging/design-partner portal slices; public self-service production proof remains blocked as of 2026-05-22.
 
 Owner mode: GTM / product operations / portal hardening LLM session
 
@@ -169,6 +169,32 @@ Important implementation boundary:
 
 - the current production operation applies the verified deployment version through the resolved production target profile; if the release standard requires a separate cloned production deployment record before public launch, that is the next bounded 010 slice
 - production failures must continue to leave staging untouched and return merchant-safe guidance plus operator-safe diagnostics
+
+## Current Release Status - 2026-05-22
+
+The 010 implementation is strong enough for a controlled design-partner motion after a fresh staging release gate, but it is not complete enough for a broad public Shopify App Store / self-service production launch.
+
+Current gate posture:
+
+- `010_PORTAL_READY`: implementation exists for partner Launch UI, merchant approval workspace, approval/deny/revoke flows, production-promotion request, rollback/deactivation request, evidence/support surfaces, and merchant-safe failure wording. A real browser/email invite receipt path should still be rechecked in the selected release environment before relying on it for launch.
+- `010_SELF_SERVICE_PRODUCTION_READY`: not complete. It still needs a controlled production-promotion proof through `dtp-coolify-production`, production provisioning verification, rollback/deactivation proof, and a failed promotion attempt proving staging remains untouched.
+- `010_DESIGN_PARTNER_ACTIVE`: not complete as a business gate. The software can support a controlled cohort, but the gate requires recorded evidence from real or merchant-equivalent stores, implementation partners, support events, and weekly value reviews.
+
+Urgent blockers before public/self-service production:
+
+- rerun the hosted full release gate on the current deployed branch; earlier gate evidence is stale
+- execute the controlled Go production proof behind the intentional operator opt-in gate
+- prove production rollback/deactivation and failure isolation without mutating staging
+- resolve any remaining support-readiness consistency gap between Platform package posture and storefront bootstrap flags
+- complete claim-safe merchant-facing onboarding, pricing, support, private/App Store listing, and escalation copy in UI and docs
+- keep Customer Account MCP and Checkout MCP public claims gated until their live capability-specific proof is recorded
+
+Release posture:
+
+```text
+Controlled design partner: allowed after fresh staging gate.
+Public self-service production: blocked until the evidence gates above pass.
+```
 
 ---
 

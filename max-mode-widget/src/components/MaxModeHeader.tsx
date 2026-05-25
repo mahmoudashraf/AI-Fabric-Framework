@@ -1,18 +1,14 @@
 import { motion } from "framer-motion";
-import { BrainCircuit, FileText, X } from "lucide-react";
+import { BrainCircuit, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
 
 export function MaxModeHeader({
   onClose,
-  onShowSampleDocuments,
   assistantLabel,
-  showUtilityPanel,
 }: {
   onClose: () => void;
-  onShowSampleDocuments: () => void;
   assistantLabel: string;
-  showUtilityPanel: boolean;
 }) {
   return (
     <motion.div
@@ -20,18 +16,6 @@ export function MaxModeHeader({
       animate={{ opacity: 1, y: 0, x: 0 }}
       className="fixed top-3 right-3 md:top-4 md:right-4 z-50 flex items-center gap-2"
     >
-      {showUtilityPanel && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onShowSampleDocuments}
-          className="hidden md:flex bg-white/90 dark:bg-gray-800/90 hover:bg-white text-blue-600 shadow-lg backdrop-blur-sm text-xs border border-blue-200"
-        >
-          <FileText className="h-4 w-4 mr-1" />
-          Test Panel
-        </Button>
-      )}
-
       <div className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 rounded-full pl-3 pr-1 py-1 shadow-xl border-2 border-white/30">
         <div className="flex items-center gap-2">
           <motion.div

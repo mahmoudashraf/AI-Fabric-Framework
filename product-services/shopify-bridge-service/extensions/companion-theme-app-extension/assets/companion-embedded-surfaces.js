@@ -243,7 +243,7 @@
           query: query,
           mode: state.lastMode,
           conversationId: state.conversationId || undefined,
-          storefrontContext: state.lastRequestContext,
+          context: state.lastRequestContext,
         }),
       })
         .then(function (response) {
@@ -281,7 +281,7 @@
         body: JSON.stringify({
           content: buildContextPrompt(options.storefrontContext),
           maxSuggestions: 4,
-          storefrontContext: createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search'),
+          context: createRequestContext(options.storefrontContext, shellModeProfile, 'ai-search'),
         }),
       })
         .then(function (response) {
@@ -902,7 +902,7 @@
           query: state.lastQuery,
           mode: state.lastMode,
           conversationId: state.conversationId || undefined,
-          storefrontContext: state.lastRequestContext,
+          context: state.lastRequestContext,
         }),
       })
         .then(function (response) {
@@ -1289,7 +1289,7 @@
       body: JSON.stringify({
         query: query,
         mode: mode,
-        storefrontContext: createRequestContext(options.storefrontContext, shellModeProfile, surfaceId),
+        context: createRequestContext(options.storefrontContext, shellModeProfile, surfaceId),
       }),
     })
       .then(function (response) {
@@ -1847,6 +1847,12 @@
     if (!payload || typeof payload !== 'object') {
       return null
     }
+    if (payload.safeSummary) {
+      return String(payload.safeSummary)
+    }
+    if (payload.answer) {
+      return String(payload.answer)
+    }
     if (payload.result && payload.result.sanitizedPayload && payload.result.sanitizedPayload.safeSummary) {
       return String(payload.result.sanitizedPayload.safeSummary)
     }
@@ -1899,6 +1905,7 @@
         readPath(payload, 'result', 'sanitizedPayload', 'products'),
         readPath(payload, 'result', 'products'),
         readPath(payload, 'products'),
+        readPath(payload, 'metadata', 'products'),
         readPath(payload, 'result', 'sanitizedPayload', 'items')
       ) || []
     return candidates.map(normalizeProductCard).filter(Boolean).slice(0, 4)
@@ -1907,9 +1914,10 @@
   function extractSourceCards(payload) {
     var candidates =
       firstArray(
+        readPath(payload, 'sources'),
         readPath(payload, 'result', 'sanitizedPayload', 'sources'),
         readPath(payload, 'result', 'sources'),
-        readPath(payload, 'sources')
+        readPath(payload, 'documents')
       ) || []
     return candidates.map(normalizeSourceCard).filter(Boolean).slice(0, 4)
   }
@@ -1987,9 +1995,11 @@
         title: title,
         name: title,
         vendor: trimValue(item.vendor || item.brand || (fallbackCard && fallbackCard.subtitle)),
-        productType: trimValue(item.productType || item.category),
-        price: item.price != null ? item.price : trimValue(item.priceText || (fallbackCard && fallbackCard.detail)),
-        storefrontUrl: trimValue(item.storefrontUrl || item.url || item.link || item.productUrl || (fallbackCard && fallbackCard.url)),
+	        productType: trimValue(item.productType || item.category),
+	        price: item.price != null ? item.price : trimValue(item.priceText || (fallbackCard && fallbackCard.detail)),
+	        product_variant_id: trimValue(item.product_variant_id),
+	        firstAvailableVariantTitle: trimValue(item.firstAvailableVariantTitle || item.variantTitle),
+	        storefrontUrl: trimValue(item.storefrontUrl || item.url || item.link || item.productUrl || (fallbackCard && fallbackCard.url)),
         imageUrl: trimValue(item.imageUrl || item.image || item.imageSrc),
         description: trimValue(item.description || item.summary || (fallbackCard && fallbackCard.excerpt)),
       },
@@ -2119,7 +2129,7 @@
 
   function normalizeEnabledSurfaces(values) {
     if (!Array.isArray(values) || values.length === 0) {
-      return ['ai-search']
+      return []
     }
     return values
       .map(function (value) {

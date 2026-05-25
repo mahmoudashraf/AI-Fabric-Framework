@@ -8,7 +8,9 @@ import com.ai.infrastructure.intent.action.connector.ConnectorActionParamDefinit
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ConnectorActionDefinitionValidatorTest {
@@ -98,6 +100,31 @@ class ConnectorActionDefinitionValidatorTest {
             .hasMessageContaining("placeholder");
     }
 
+    @Test
+    void validate_acceptsConfirmationTemplatePlaceholderFallback() {
+        ConnectorActionDefinition def = new ConnectorActionDefinition(
+            "a",
+            "A",
+            "desc",
+            "cat",
+            ActionAccessMode.WRITE_ONLY,
+            true,
+            "Create order for {{sku|the selected item}}?",
+            List.of(param("sku")),
+            false,
+            false,
+            false,
+            ActionResultPresentationHint.STATUS,
+            null,
+            null,
+            null,
+            List.of(),
+            null
+        );
+
+        assertThatCode(() -> validator.validate(def)).doesNotThrowAnyException();
+    }
+
     private ConnectorActionParamDefinition param(String name) {
         return new ConnectorActionParamDefinition(
             name,
@@ -109,7 +136,17 @@ class ConnectorActionDefinitionValidatorTest {
             List.of(),
             null,
             null,
-            false
+            null,
+            null,
+            null,
+            Map.of(),
+            false,
+            null,
+            Map.of(),
+            List.of(),
+            false,
+            List.of(),
+            null
         );
     }
 }

@@ -81,6 +81,7 @@ public class ThinkerResolverService {
 
     public static final String ACTION_FAMILY_SUPPORT_ESCALATION = "SUPPORT_ESCALATION";
     public static final String ACTION_ID_CREATE_SUPPORT_ESCALATION = "create_support_escalation";
+    private static final String DEFAULT_SHOPIFY_COMPANION_TIER = "ELITE";
     private static final String TARGET_TYPE_SESSION = "THINKER_ISSUE_SESSION";
     private static final String TARGET_TYPE_RESOLVER = "RESOLVER_PROPOSAL";
     private static final List<String> SHOPIFY_PHASE_1_ALLOWLIST = List.of(
@@ -1418,11 +1419,15 @@ public class ThinkerResolverService {
 
     private String billingTier(ShopifyStoreConnectionEntity store) {
         if (store == null || !StringUtils.hasText(store.getDetailsJson())) {
-            return "FREE";
+            return DEFAULT_SHOPIFY_COMPANION_TIER;
         }
         JsonNode root = readJson(store.getDetailsJson());
         String tier = text(root.path("billingState"), "tierKey");
-        return StringUtils.hasText(tier) ? tier.trim().toUpperCase(Locale.ROOT) : "FREE";
+        if (!StringUtils.hasText(tier)) {
+            return DEFAULT_SHOPIFY_COMPANION_TIER;
+        }
+        String normalized = tier.trim().toUpperCase(Locale.ROOT);
+        return "FREE".equals(normalized) ? DEFAULT_SHOPIFY_COMPANION_TIER : normalized;
     }
 
     private ThinkerReadinessScenarioSummary scenario(String key, String label, String status, String evidence) {

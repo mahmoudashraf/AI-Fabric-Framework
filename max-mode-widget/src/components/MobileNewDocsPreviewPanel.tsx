@@ -24,6 +24,10 @@ const getDocumentIcon = (type: string) => {
   }
 };
 
+function documentImageUrl(doc: Document) {
+  return doc.imageUrl || doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image;
+}
+
 export function MobileNewDocsPreviewPanel({
   isOpen,
   newDocuments,
@@ -78,6 +82,7 @@ export function MobileNewDocsPreviewPanel({
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
               {newDocuments.map((doc, idx) => {
                 const DocIcon = getDocumentIcon(doc.type);
+                const imageUrl = documentImageUrl(doc);
                 return (
                   <motion.div
                     key={doc.id}
@@ -89,9 +94,9 @@ export function MobileNewDocsPreviewPanel({
                       onClick={() => onSelectDocument(doc)}
                       className="relative group active:scale-98 transition-all border-2 border-yellow-300 bg-gradient-to-br from-yellow-50/80 via-blue-50/30 to-white/30 cursor-pointer shadow-lg"
                     >
-                      {doc.metadata?.imageUrl && (
+                      {imageUrl && (
                         <div className="relative h-24 overflow-hidden bg-gradient-to-br from-blue-100 to-white rounded-t-lg">
-                          <img src={doc.metadata.imageUrl} alt={doc.title} className="w-full h-full object-cover" />
+                          <img src={imageUrl} alt={doc.title} className="w-full h-full object-cover" />
                           <div className="absolute top-1 right-1 bg-yellow-400 text-yellow-900 text-[8px] font-bold px-1.5 py-0.5 rounded-full">
                             NEW
                           </div>
@@ -99,7 +104,7 @@ export function MobileNewDocsPreviewPanel({
                       )}
                       <CardHeader className="pb-2 pt-2 px-2">
                         <div className="flex items-start gap-2">
-                          {!doc.metadata?.imageUrl && (
+                          {!imageUrl && (
                             <>
                               <div className="p-1.5 bg-gradient-to-br from-blue-600 to-blue-500 rounded-lg flex-shrink-0">
                                 <DocIcon className="h-3 w-3 text-white" />
@@ -138,4 +143,3 @@ export function MobileNewDocsPreviewPanel({
     </AnimatePresence>
   );
 }
-

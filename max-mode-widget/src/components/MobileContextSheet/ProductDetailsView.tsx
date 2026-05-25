@@ -6,6 +6,10 @@ import { Button } from "@/ui/button";
 import type { Document } from "@/types";
 import { formatFieldName, formatFieldValue } from "@/utils";
 
+function documentImageUrl(doc: Document) {
+  return doc.imageUrl || doc.metadata?.imageUrl || doc.metadata?.image_url || doc.metadata?.featuredImage || doc.metadata?.featured_image;
+}
+
 export function ProductDetailsView({
   selectedProduct,
   cartEnabled,
@@ -17,11 +21,12 @@ export function ProductDetailsView({
   onAddToCart: () => void;
   onAttachProductToChat: () => void;
 }) {
+  const imageUrl = documentImageUrl(selectedProduct);
   return (
     <div className="space-y-4">
-      {selectedProduct.metadata?.imageUrl && (
+      {imageUrl && (
         <div className="relative h-64 overflow-hidden rounded-xl bg-gradient-to-br from-blue-100 to-white -mx-4">
-          <img src={selectedProduct.metadata.imageUrl} alt={selectedProduct.title} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={selectedProduct.title} className="w-full h-full object-cover" />
         </div>
       )}
 
@@ -43,7 +48,7 @@ export function ProductDetailsView({
           <h4 className="font-semibold text-gray-900 text-sm">Product Details</h4>
           <div className="space-y-2">
             {Object.entries(selectedProduct.metadata).map(([key, value]) => {
-              if (key === "imageUrl") return null;
+              if (key === "imageUrl" || key === "imageAltText" || key === "image_url") return null;
               return (
                 <div key={key} className="p-3 bg-white/80 rounded-lg border border-blue-200">
                   <p className="text-xs text-gray-500 mb-0.5">{formatFieldName(key)}</p>

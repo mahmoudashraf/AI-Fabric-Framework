@@ -377,7 +377,69 @@ class ThinkerResolverIntegrationTest {
         assertThat(detail.evidence().getFirst().operatorRawReference()).isEqualTo("/result/data/actionResult");
     }
 
+    @Test
+    void captureRuntimeResponseTreatsLegacyFreeBillingAsEliteLaunchDefault() throws Exception {
+        seedStoreAndPartnerAssignment(List.of("STORE_READ", "PRODUCT_CONFIG_READ", "SUPPORT_MANAGE"), "FREE");
+
+        mockMvc.perform(put("/api/operator/thinker/deployments/{deploymentId}/control", DEPLOYMENT_ID)
+                .header("X-PLATFORM-API-KEY", ADMIN_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "thinkerEnabled": true,
+                      "resolverPreviewEnabled": true,
+                      "governedExecutionEnabled": true,
+                      "disabledActionFamilies": []
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        var deployment = deploymentRepository.findById(DEPLOYMENT_ID).orElseThrow();
+        var captured = thinkerResolverService.captureRuntimeResponse(
+            deployment,
+            "consumer-thinker-resolver",
+            objectMapper.readTree("""
+                {
+                  "query": "Search products for wax.",
+                  "mode": "THINKER_DEEP"
+                }
+                """),
+            objectMapper.readTree("""
+                {
+                  "success": true,
+                  "conversationId": "conv-legacy-free",
+                  "result": {
+                    "message": "Found matching products.",
+                    "metadata": {
+                      "readActionResolution": {
+                        "attempted": true,
+                        "executedActions": [
+                          {
+                            "name": "search_products",
+                            "message": "Selling Plans Ski Wax matched the query.",
+                            "groundingUsable": true
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+                """),
+            "shopper-session-legacy-free"
+        );
+
+        assertThat(captured).hasValueSatisfying(summary -> {
+            assertThat(summary.status()).isEqualTo("RESOLVED");
+            assertThat(summary.evidenceCount()).isEqualTo(1);
+            assertThat(summary.userSafeAnswer()).isEqualTo("Found matching products.");
+        });
+    }
+
     private void seedStoreAndPartnerAssignment(List<String> permissions) {
+        seedStoreAndPartnerAssignment(permissions, "ELITE");
+    }
+
+    private void seedStoreAndPartnerAssignment(List<String> permissions, String billingTier) {
         Instant now = Instant.now();
         seedCustomerTenant(now);
         seedProductService(now);
@@ -419,11 +481,11 @@ class ThinkerResolverIntegrationTest {
         store.setDetailsJson("""
             {
               "billingState": {
-                "tierKey": "ELITE",
+                "tierKey": "%s",
                 "status": "ACTIVE"
               }
             }
-            """);
+            """.formatted(billingTier));
         store.setCreatedAt(now);
         store.setUpdatedAt(now);
         storeConnectionRepository.save(store);

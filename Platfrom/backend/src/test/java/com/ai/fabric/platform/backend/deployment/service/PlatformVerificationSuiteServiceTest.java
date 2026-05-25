@@ -54,7 +54,7 @@ class PlatformVerificationSuiteServiceTest {
 
         PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
             PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
-            new PlatformVerificationSuiteDispatchRequest(false, null)
+            new PlatformVerificationSuiteDispatchRequest(false, null, null)
         );
 
         assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
@@ -127,7 +127,7 @@ class PlatformVerificationSuiteServiceTest {
 
         PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
             PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
-            new PlatformVerificationSuiteDispatchRequest(false, null)
+            new PlatformVerificationSuiteDispatchRequest(false, null, null)
         );
 
         ArgumentCaptor<PlatformVerificationSuiteRunEntity> runCaptor = ArgumentCaptor.forClass(PlatformVerificationSuiteRunEntity.class);
@@ -177,12 +177,31 @@ class PlatformVerificationSuiteServiceTest {
                     false,
                     true,
                     false,
+                    "STARTER",
+                    "ACTIVE",
                     "PENDING_SCOPE_GRANT",
                     false,
                     false,
                     true,
                     false,
-                    "SCOPE_APPROVAL"
+                    "SCOPE_APPROVAL",
+                    "comparison,contextual-pill,policy-strip,product-faq,product-insight",
+                    "comparison,contextual-pill,policy-strip,product-faq,product-insight"
+                ),
+                new ShopifyCompanionVerificationExpectationOverrides(
+                    true,
+                    true,
+                    true,
+                    "ELITE",
+                    "ACTIVE",
+                    "READY",
+                    true,
+                    true,
+                    true,
+                    false,
+                    "RECENT_ORDER_ONLY",
+                    "comparison,contextual-pill,order-lookup,policy-strip,product-faq,product-insight",
+                    "comparison,contextual-pill,order-lookup,policy-strip,product-faq,product-insight"
                 )
             )
         );
@@ -195,8 +214,21 @@ class PlatformVerificationSuiteServiceTest {
             .findFirst()
             .orElseThrow();
         assertThat(shopifyStage.getDetailsJson()).contains("EXPECT_STOREFRONT_READY");
+        assertThat(shopifyStage.getDetailsJson()).contains("EXPECT_BILLING_TIER");
+        assertThat(shopifyStage.getDetailsJson()).contains("STARTER");
         assertThat(shopifyStage.getDetailsJson()).contains("PENDING_SCOPE_GRANT");
         assertThat(shopifyStage.getDetailsJson()).contains("SCOPE_APPROVAL");
+        assertThat(shopifyStage.getDetailsJson()).contains("EXPECT_ENABLED_SURFACES");
+        assertThat(shopifyStage.getDetailsJson()).contains("comparison,contextual-pill,policy-strip,product-faq,product-insight");
+
+        PlatformVerificationSuiteRunStageEntity readinessAuditStage = stageCaptor.getValue().stream()
+            .filter(stage -> PlatformVerificationSuiteScriptContextService.SCRIPT_SHOPIFY_FIRST_PRODUCT_READINESS_AUDIT.equals(stage.getTargetRef()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(readinessAuditStage.getDetailsJson()).contains("EXPECT_ENABLED_SURFACES");
+        assertThat(readinessAuditStage.getDetailsJson()).contains("ELITE");
+        assertThat(readinessAuditStage.getDetailsJson()).contains("RECENT_ORDER_ONLY");
+        assertThat(readinessAuditStage.getDetailsJson()).contains("comparison,contextual-pill,order-lookup,policy-strip,product-faq,product-insight");
     }
 
     @Test

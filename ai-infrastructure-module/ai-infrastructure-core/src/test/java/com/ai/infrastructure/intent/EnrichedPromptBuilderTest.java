@@ -1,6 +1,8 @@
 package com.ai.infrastructure.intent;
 
 import com.ai.infrastructure.intent.action.ActionInfo;
+import com.ai.infrastructure.intent.action.AIActionParamSchema;
+import com.ai.infrastructure.intent.action.AIActionParamType;
 import com.ai.infrastructure.intent.action.AvailableActionsRegistry;
 import com.ai.infrastructure.config.PromptBundleProperties;
 import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
@@ -30,6 +32,20 @@ class EnrichedPromptBuilderTest {
                 .name("cancel_subscription")
                 .description("Cancel active subscription")
                 .category("subscription")
+                .build(),
+            ActionInfo.builder()
+                .name("shopify_update_cart")
+                .description("Update cart")
+                .category("commerce")
+                .parameterSchemas(Map.of(
+                    "cart_update_confirmation",
+                    AIActionParamSchema.builder()
+                        .name("cart_update_confirmation")
+                        .type(AIActionParamType.STRING)
+                        .required(false)
+                        .description("Presentation-only shopper-facing confirmation phrase")
+                        .build()
+                ))
                 .build()
         ));
 
@@ -81,6 +97,9 @@ class EnrichedPromptBuilderTest {
         assertThat(prompt)
             .contains("AVAILABLE ACTIONS")
             .contains("cancel_subscription")
+            .contains("cart_update_confirmation:string - Presentation-only shopper-facing confirmation phrase")
+            .contains("Optional actionParams are allowed when the paramsSchema/description says they improve presentation")
+            .contains("For catalog/search actions with a valid required `query` parameter")
             .contains("KNOWLEDGE BASE OVERVIEW")
             .contains("Total documents: 123")
             .contains("Available vectorSpace values:")

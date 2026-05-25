@@ -46,9 +46,11 @@ Store admins do not edit raw plugins or deployment wiring directly.
 
 Important wording:
 
-- the current implementation still has an internal normalization/sync stage
-- that stage should remain a platform concern
-- the merchant-facing product language should be `Index`, `Reindex`, and `Live updates`, not `Sync`
+- Shopify Admin remains the source of truth for merchant catalog, inventory, price, availability, and policy data
+- Bridge exposes Shopify-backed vectorization source endpoints; it must not become a durable catalog database
+- Platform owns vectorization source connections, plans, runs, evidence, and audit
+- Runtime owns the derived retrieval index only
+- the merchant-facing product language should be `Refresh knowledge`, `Reindex`, and `Live updates`, not `Sync`
 
 ---
 
@@ -82,7 +84,7 @@ Shopify admin app:
 
 Theme app embed:
 
-- storefront launcher and shopper assistant UI
+- storefront Companion dock, optional legacy launcher, and shopper assistant UI
 - merchant-placeable AI search, contextual pill, product insight, policy strip, product FAQ, and comparison blocks
 
 ### 2.2 Current vectorization shape
@@ -95,6 +97,18 @@ The live Shopify vectorization path is:
 - source data provider: Shopify Bridge admin endpoints
 
 This is deliberate. The vectorization runner should not contain Shopify-specific source-adapter logic.
+
+The canonical freshness path is:
+
+```text
+Shopify Admin API
+  -> Shopify Bridge vectorization-source endpoints
+  -> Platform vectorization runner
+  -> Runtime data-sync / vector index
+  -> Storefront chat retrieval
+```
+
+Do not require `Sync now` before manual or automatic vectorization. Legacy document sync endpoints can remain for compatibility or operator repair, but normal merchant refresh and live-update flows must enqueue vectorization runs directly from Shopify-backed source endpoints.
 
 ### 2.3 Current source-category to entity-type mapping
 
@@ -219,7 +233,7 @@ Platform behavior:
 Practical implication:
 
 - developers/operators must treat plugin composition and live deployment release as platform concerns
-- merchants should only see bounded actions such as `Reconcile deployment support`, `Index all enabled data`, and `Reindex selected types`
+- merchants should only see bounded actions such as `Reconcile indexing support`, `Refresh knowledge`, `Reindex all enabled data`, and `Reindex selected types`
 
 ### 3.5 Live vectorization flow
 
@@ -231,7 +245,7 @@ Current expected flow:
 4. platform reconciles vectorization source connection and plan
 5. source connection becomes `REST_API`
 6. runner registration is `ACTIVE`
-7. merchant queues vectorization
+7. merchant queues `Refresh knowledge`, `Reindex all enabled data`, or `Reindex selected types`
 8. run completes and checkpoints are recorded
 
 Expected healthy live signals:
@@ -286,7 +300,7 @@ Recommended repository variables for the workflow:
 - `SHOPIFY_COMPANION_DISPOSABLE_SHOP_DOMAIN`
   default: empty; must be set explicitly for uninstall verification
 - `SHOPIFY_PRODUCT_SERVICE_REF`
-  default: `shopify-bridge-prod`
+  default: `shopify-bridge-staging`
 - `SHOPIFY_EMBEDDED_HOST`
   default: empty; set only when merchant-session coverage is needed
 
@@ -310,6 +324,8 @@ Bridge admin key rule:
 - `SHOPIFY_BRIDGE_ADMIN_API_KEY` is only for Shopify Bridge operator/admin verification endpoints under `/api/admin/*`.
 - The verification script sends it using `SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER`; the default header is `X-BRIDGE-API-KEY`.
 - It is not the Shopify store Admin API token. Use `SHOPIFY_ADMIN_ACCESS_TOKEN` for Shopify Admin API coverage.
+- Managed MCP Gateway also uses this Bridge admin key for the Customer Account token broker. Configure the gateway with `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL` and `MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY`; do not expose either value to merchant UI or shopper-side code.
+- Customer Account actions should receive the verified shopper session through runtime trace/auth context. Do not add `shopperSessionId` to merchant-facing or LLM-filled action parameters.
 - If the value is missing, optional bridge admin checks are skipped. If it is wrong, `/api/admin/*` returns `401`. If the deployed bridge has no admin key configured, `/api/admin/*` returns `503`.
 - Keep this value only in GitHub/Railway/local secrets or the private handoff; do not paste it in chat or logs.
 
@@ -444,6 +460,12 @@ Storefront:
 - edit bounded launcher settings:
   - launcher label
   - welcome message
+- choose storefront assistant shell posture:
+  - Companion dock on every page, enabled by default
+  - legacy Ask assistant launcher, disabled by default and kept only as an explicit compatibility toggle
+  - debug inspector, disabled for normal shopper traffic
+
+The Companion dock is the default shopper chat entry point. It mounts from the theme app embed on every storefront page where the embed is active, starts as a bottom composer, expands when the shopper focuses the input, shows the active mode and page position, and opens full Max Mode from the `MAX` button. The dock is rendered by the Max Mode widget runtime itself, so compact dock messages and full Max Mode messages share the same chat controller, result-type rendering, action-result cards, confirmation/clarification handling, and bridge-backed storefront chat endpoints.
 
 Diagnostics:
 
@@ -486,7 +508,7 @@ For a new store:
 7. Request go-live.
 8. Enable the theme app embed.
 9. Open the storefront once.
-10. Use `Index all enabled data` when the deployment vectorization summary is ready.
+10. Use `Refresh knowledge` when the deployment vectorization summary is ready.
 11. Reindex selected types only when you intentionally want to rebuild part of the enabled scope.
 12. Validate answers in the merchant playground.
 
@@ -602,6 +624,43 @@ This is the correct long-term product posture:
 That keeps the merchant UI usable and safe.
 
 If we expose raw plugins or low-level deployment mechanics in Shopify admin, we will turn a product surface into an infrastructure console. That would be the wrong design.
+
+### 5.1 Storefront Chat Contract
+
+The storefront assistant uses the LoomAI canonical runtime/bridge chat contract.
+
+Theme and Max Mode surfaces send:
+
+```json
+{
+  "query": "What is the return policy?",
+  "conversationId": "chat-session-123",
+  "mode": "thinker_deep",
+  "position": "landing",
+  "context": {
+    "pageType": "index",
+    "shopifySurfaceEntry": "launcher"
+  },
+  "attachments": []
+}
+```
+
+The response is flat:
+
+```json
+{
+  "success": true,
+  "type": "INFORMATION_PROVIDED",
+  "answer": "Safe shopper answer.",
+  "safeSummary": "Safe shopper answer.",
+  "conversationId": "chat-session-123",
+  "sources": [],
+  "actions": [],
+  "suggestions": []
+}
+```
+
+Do not use public `message`, `sessionId`, or `storefrontContext` fields. Do not read `result.sanitizedPayload` from Shopify UI code. Shopify-specific page, product, cart, and customer-auth state belongs inside `context`; server-side auth/session material stays in headers, tokens, and Bridge-managed session storage.
 
 ---
 

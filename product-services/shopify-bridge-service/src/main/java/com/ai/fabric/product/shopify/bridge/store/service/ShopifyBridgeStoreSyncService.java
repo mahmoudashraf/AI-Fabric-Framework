@@ -42,6 +42,37 @@ public class ShopifyBridgeStoreSyncService {
                 vendor
                 productType
                 tags
+                featuredImage {
+                  url
+                  altText
+                }
+                totalInventory
+                priceRangeV2 {
+                  minVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                  maxVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                }
+                variants(first: 20) {
+                  edges {
+                    node {
+                      id
+                      title
+                      sku
+                      availableForSale
+                      price
+                      compareAtPrice
+                      selectedOptions {
+                        name
+                        value
+                      }
+                    }
+                  }
+                }
                 metafields(first: 12) {
                   edges {
                     node {
@@ -225,8 +256,11 @@ public class ShopifyBridgeStoreSyncService {
                     "productType", text(node, "productType"),
                     "metafieldKeys", ShopifyKeyProductMetafields.keys(node),
                     "updatedAt", text(node, "updatedAt"),
-                    "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle")))
+                    "storefrontUrl", storefrontUrl(shopDomain, "/products/" + safePath(text(node, "handle"))),
+                    "imageUrl", productImageUrl(node),
+                    "imageAltText", productImageAltText(node)
                 ));
+                metadata.putAll(ShopifyProductCommerceEvidence.metadata(node));
                 metadata.putAll(reviewSignals.metadata());
                 return new ShopifyBridgeStoreSyncDocument(
                     requiredText(node, "id"),
@@ -238,6 +272,7 @@ public class ShopifyBridgeStoreSyncService {
                         text(node, "vendor"),
                         text(node, "productType"),
                         joinTags(node.get("tags")),
+                        ShopifyProductCommerceEvidence.content(node),
                         sanitizeRichText(text(node, "descriptionHtml")),
                         ShopifyProductReviewSignals.content(node),
                         ShopifyKeyProductMetafields.content(node)
@@ -575,6 +610,15 @@ public class ShopifyBridgeStoreSyncService {
         }
         String text = nestedValue.toString().trim();
         return text.isEmpty() ? null : text;
+    }
+
+    private String productImageUrl(Map<String, Object> node) {
+        return nestedText(node, "featuredImage", "url");
+    }
+
+    private String productImageAltText(Map<String, Object> node) {
+        String altText = nestedText(node, "featuredImage", "altText");
+        return altText == null ? text(node, "title") : altText;
     }
 
     private String articleStorefrontUrl(String shopDomain, Map<String, Object> node) {

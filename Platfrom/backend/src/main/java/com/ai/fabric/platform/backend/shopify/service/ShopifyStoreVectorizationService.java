@@ -65,7 +65,6 @@ public class ShopifyStoreVectorizationService {
     private final ShopifyStoreVectorizationPolicyService policyService;
     private final ShopifyStoreVectorizationFieldCatalogService fieldCatalogService;
     private final ShopifyStoreVectorizationEventService eventService;
-    private final ShopifyBridgeAdminClient bridgeAdminClient;
     private final PlatformAuditService platformAuditService;
 
     public ShopifyStoreVectorizationService(ShopifyStoreConnectionRepository repository,
@@ -80,7 +79,6 @@ public class ShopifyStoreVectorizationService {
                                             ShopifyStoreVectorizationPolicyService policyService,
                                             ShopifyStoreVectorizationFieldCatalogService fieldCatalogService,
                                             ShopifyStoreVectorizationEventService eventService,
-                                            ShopifyBridgeAdminClient bridgeAdminClient,
                                             PlatformAuditService platformAuditService) {
         this.repository = repository;
         this.deploymentRepository = deploymentRepository;
@@ -94,7 +92,6 @@ public class ShopifyStoreVectorizationService {
         this.policyService = policyService;
         this.fieldCatalogService = fieldCatalogService;
         this.eventService = eventService;
-        this.bridgeAdminClient = bridgeAdminClient;
         this.platformAuditService = platformAuditService;
     }
 
@@ -109,6 +106,10 @@ public class ShopifyStoreVectorizationService {
         return reconcile(shopDomain, false);
     }
 
+    /**
+     * Reconciles Shopify vectorization plugins for an internal Shopify provisioning workflow that already
+     * resolved and authorized the store/deployment. Controller paths must use reconcile so store access is checked.
+     */
     @Transactional
     public ShopifyStoreVectorizationSummary reconcileForTrustedCaller(String shopDomain) {
         return reconcile(shopDomain, true);
@@ -394,13 +395,27 @@ public class ShopifyStoreVectorizationService {
         productFields.put("name", "title");
         productFields.put("description", "content");
         productFields.put("category", "sourceCategory");
+        productFields.put("storefrontUrl", "storefrontUrl");
+        productFields.put("imageUrl", "imageUrl");
+        productFields.put("imageAltText", "imageAltText");
         ObjectNode productMetadata = productMapping.putObject("metadataFieldMappings");
         productMetadata.put("sourceCategory", "sourceCategory");
         productMetadata.put("documentType", "documentType");
         productMetadata.put("storefrontUrl", "storefrontUrl");
+        productMetadata.put("imageUrl", "imageUrl");
+        productMetadata.put("imageAltText", "imageAltText");
         productMetadata.put("handle", "handle");
         productMetadata.put("vendor", "vendor");
         productMetadata.put("productType", "productType");
+        productMetadata.put("priceRange", "priceRange");
+        productMetadata.put("currencyCode", "currencyCode");
+        productMetadata.put("availability", "availability");
+        productMetadata.put("variantSummary", "variantSummary");
+        productMetadata.put("product_variant_id", "productVariantId");
+        productMetadata.put("firstAvailableVariantTitle", "firstAvailableVariantTitle");
+        productMetadata.put("variantCount", "variantCount");
+        productMetadata.put("totalInventory", "totalInventory");
+        productMetadata.put("availableVariantCount", "availableVariantCount");
         productMetadata.put("updatedAt", "updatedAt");
 
         ObjectNode supportPolicyMapping = entityMappings.putObject("support-policy");
@@ -587,7 +602,6 @@ public class ShopifyStoreVectorizationService {
             throw new ResponseStatusException(CONFLICT, String.join(" ", reconciled.blockingReasons()));
         }
         List<String> entityTypes = normalizeRequestedEntityTypes(requestedEntityTypes, reconciled.selectedEntityTypes());
-        bridgeAdminClient.runSync(store);
         vectorizationService.createRunForTrustedCaller(
             deployment.getId(),
             new CreateVectorizationRunRequest(
@@ -680,9 +694,25 @@ public class ShopifyStoreVectorizationService {
     private Map<String, DeploymentMarketplaceInstallSummary> installsByPluginId(DeploymentEntity deployment) {
         LinkedHashMap<String, DeploymentMarketplaceInstallSummary> installs = new LinkedHashMap<>();
         for (DeploymentMarketplaceInstallSummary install : deploymentMarketplaceInstallService.listInstallsForTrustedCaller(deployment)) {
-            installs.put(normalizePluginId(install.pluginId()), install);
+            String pluginId = normalizePluginId(install.pluginId());
+            DeploymentMarketplaceInstallSummary existing = installs.get(pluginId);
+            if (existing == null || shouldReplaceCanonicalInstall(existing, install)) {
+                installs.put(pluginId, install);
+            }
         }
         return installs;
+    }
+
+    private boolean shouldReplaceCanonicalInstall(DeploymentMarketplaceInstallSummary existing,
+                                                  DeploymentMarketplaceInstallSummary candidate) {
+        boolean existingEnabled = "ENABLED".equalsIgnoreCase(existing.status());
+        boolean candidateEnabled = "ENABLED".equalsIgnoreCase(candidate.status());
+        if (existingEnabled != candidateEnabled) {
+            return candidateEnabled;
+        }
+        boolean existingCanonical = normalizePluginId(existing.pluginId()).equalsIgnoreCase(existing.pluginId());
+        boolean candidateCanonical = normalizePluginId(candidate.pluginId()).equalsIgnoreCase(candidate.pluginId());
+        return !existingCanonical && candidateCanonical;
     }
 
     private void ensureDeploymentRunnerSupport(DeploymentEntity deployment,

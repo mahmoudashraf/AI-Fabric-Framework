@@ -1,6 +1,7 @@
 package com.ai.infrastructure.intent.action.connector;
 
 import com.ai.infrastructure.intent.action.ActionAccessMode;
+import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
@@ -37,7 +38,7 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(action.provenance()).isNotNull();
         assertThat(action.provenance().getSourceType()).isEqualTo("ACTION_CATALOG");
         assertThat(action.provenance().getPublisher()).isEqualTo("internal-test");
-        assertThat(action.confirmationMessage()).contains("{{quantity}}").contains("{{sku}}");
+        assertThat(action.confirmationMessage()).contains("{{quantity|1}}").contains("{{sku}}");
         assertThat(action.params()).hasSize(2);
         assertThat(action.postPolicies()).hasSize(1);
         assertThat(action.postPolicies().getFirst().type()).isEqualTo("webhook");
@@ -201,8 +202,78 @@ class ConnectorActionCatalogLoaderTest {
         assertThat(action.adapterType()).isEqualTo("mcp-tool");
         assertThat(action.execution()).containsKey("mcp");
         assertThat(action.mcpServers()).containsKey("inventory-mcp");
+        ConnectorActionParamDefinition selectedItems = action.params().stream()
+            .filter(param -> "selected_items".equals(param.name()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(selectedItems.batchTargets()).isTrue();
+        assertThat(selectedItems.items()).isNotNull();
+        assertThat(selectedItems.items().properties()).containsKeys("product_variant_id", "quantity");
+        assertThat(selectedItems.items().properties().get("quantity").defaultValue()).isEqualTo(1);
+        assertThat(selectedItems.items().requiredProperties()).containsExactly("product_variant_id", "quantity");
+        AIActionMetaData metadata = ConnectorActionMetadataMapper.toMetadata(action);
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties())
+            .containsKeys("product_variant_id", "quantity");
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("product_variant_id").getEvidenceBound())
+            .isTrue();
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("product_variant_id").getEvidenceKeys())
+            .containsExactly("product_variant_id", "firstAvailableVariantId");
+        assertThat(metadata.getParameterSchemas().get("selected_items").getItems().getProperties().get("quantity").getDefaultValue())
+            .isEqualTo(1);
+        ConnectorActionParamDefinition shopperSession = action.params().stream()
+            .filter(param -> "shopperSessionId".equals(param.name()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(shopperSession.visibility()).isEqualTo("INTERNAL");
+        assertThat(shopperSession.askUser()).isFalse();
+        assertThat(shopperSession.resolveFrom())
+            .containsEntry("source", "RUNTIME_CONTEXT")
+            .containsEntry("field", "sessionId");
+        assertThat(metadata.getParameterSchemas().get("shopperSessionId").getVisibility()).isEqualTo("INTERNAL");
+        assertThat(metadata.getParameterSchemas().get("shopperSessionId").getAskUser()).isFalse();
+        assertThat(metadata.getParameterSchemas().get("shopperSessionId").getResolveFrom())
+            .containsEntry("source", "RUNTIME_CONTEXT")
+            .containsEntry("field", "sessionId");
         Map<String, Object> runtimeConfig = action.runtimeActionConfig();
         assertThat(runtimeConfig).containsEntry("adapterType", "mcp-tool");
-        assertThat(runtimeConfig).containsKeys("execution", "mcpServers");
+        assertThat(runtimeConfig).containsKeys("execution", "mcpServers", "params");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> runtimeParams = (List<Map<String, Object>>) runtimeConfig.get("params");
+        Map<String, Object> runtimeSelectedItems = runtimeParams.stream()
+            .filter(param -> "selected_items".equals(param.get("name")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(runtimeSelectedItems)
+            .containsEntry("type", "ARRAY")
+            .containsEntry("batchTargets", true);
+        Map<String, Object> runtimeShopperSession = runtimeParams.stream()
+            .filter(param -> "shopperSessionId".equals(param.get("name")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(runtimeShopperSession)
+            .containsEntry("visibility", "INTERNAL")
+            .containsEntry("askUser", false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeResolveFrom = (Map<String, Object>) runtimeShopperSession.get("resolveFrom");
+        assertThat(runtimeResolveFrom)
+            .containsEntry("source", "RUNTIME_CONTEXT")
+            .containsEntry("field", "sessionId");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeItems = (Map<String, Object>) runtimeSelectedItems.get("items");
+        assertThat(runtimeItems).containsEntry("type", "OBJECT");
+        assertThat(runtimeItems).containsEntry("requiredProperties", List.of("product_variant_id", "quantity"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeProperties = (Map<String, Object>) runtimeItems.get("properties");
+        assertThat(runtimeProperties).containsKeys("product_variant_id", "quantity");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeProductVariantId = (Map<String, Object>) runtimeProperties.get("product_variant_id");
+        assertThat(runtimeProductVariantId)
+            .containsEntry("evidenceBound", true)
+            .containsEntry("evidenceFallbackPolicy", "CLARIFY");
+        assertThat((List<String>) runtimeProductVariantId.get("evidenceKeys"))
+            .containsExactly("product_variant_id", "firstAvailableVariantId");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeQuantity = (Map<String, Object>) runtimeProperties.get("quantity");
+        assertThat(runtimeQuantity).containsEntry("defaultValue", 1);
     }
 }

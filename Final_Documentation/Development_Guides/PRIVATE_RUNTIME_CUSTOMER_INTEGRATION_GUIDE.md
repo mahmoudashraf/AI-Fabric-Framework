@@ -107,6 +107,7 @@ In this mode, the supported external surface is the runtime.
 Use runtime for:
 
 - chat query
+- one-time query
 - suggestions
 - conversation reads and deletes
 - runtime auth-context inspection for verified callers
@@ -182,6 +183,10 @@ Content-Type: application/json
   "query": "Where is my order?"
 }
 ```
+
+Use `POST /api/chat/me/query` for chat panels that keep a stable `conversationId` and may show history.
+
+Use `POST /api/chat/me/query-once` for page helpers, inline explanations, smoke checks, and other one-time answers that must not persist conversation turns. The request and response shape is the same as `/api/chat/me/query`, and it uses the same `chat:query` scope. Runtime treats `conversationId` as correlation only on this endpoint: it does not load persisted chat memory and does not record a chat turn. Do not send a `persistConversation` request flag; choose the endpoint by UX intent.
 
 Recommended behavior:
 

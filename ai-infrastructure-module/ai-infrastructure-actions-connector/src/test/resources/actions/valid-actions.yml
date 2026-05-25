@@ -21,7 +21,7 @@ actions:
       sourceLocation: classpath:actions/valid-actions.yml
       publisher: internal-test
       version: v1
-    confirmationMessage: "Create purchase order for {{quantity}} × {{sku}}?"
+    confirmationMessage: "Create purchase order for {{quantity|1}} × {{sku}}?"
     params:
       - name: sku
         type: STRING

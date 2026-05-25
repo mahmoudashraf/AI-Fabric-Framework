@@ -33,6 +33,11 @@ import java.util.regex.Pattern;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
+/**
+ * Bridges public consumer chat calls to a deployment runtime only after resolving a registered consumer binding.
+ * The caller is authorized by the public consumer id, shopper session header, and private-runtime assertion scopes;
+ * request context is normalized before forwarding so storefront clients cannot pass unsupported top-level fields.
+ */
 @Service
 public class PublicConsumerBridgeChatService {
 
@@ -48,6 +53,15 @@ public class PublicConsumerBridgeChatService {
     private static final Pattern SAFE_SESSION_ID = Pattern.compile("^[A-Za-z0-9._:-]{8,120}$");
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
     private static final int MAX_ATTACHMENT_METADATA_ENTRIES = 12;
+    private static final String SHOPIFY_STOREFRONT_CONTEXT_SOURCE = "shopify-storefront-context";
+    private static final java.util.Set<String> SHOPIFY_INTERNAL_CONTEXT_METADATA_KEYS = java.util.Set.of(
+        "shopifyShellModeProfile",
+        "shopifySurfaceEntry",
+        "shopifyPageModeGroup",
+        "shopifyEffectiveConversationMode",
+        "shopifyAllowedConversationModes",
+        "shopifyPageModeMappings"
+    );
 
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PublicProvisioningApiService publicProvisioningApiService;
@@ -321,12 +335,13 @@ public class PublicConsumerBridgeChatService {
     private ObjectNode normalizeQueryBody(JsonNode request) {
         ObjectNode body = objectMapper.createObjectNode();
         if (request != null && request.isObject()) {
+            rejectLegacyPublicChatFields(request);
             copyTextField(request, body, "query");
             copyTextField(request, body, "conversationId");
             copyTextField(request, body, "mode");
             copyTextField(request, body, "position");
+            copyObjectField(request, body, "context");
             copyAttachments(request, body);
-            appendStorefrontContextAttachment(request, body);
         }
         return body;
     }
@@ -334,14 +349,15 @@ public class PublicConsumerBridgeChatService {
     private ObjectNode normalizeSuggestionsBody(JsonNode request) {
         ObjectNode body = objectMapper.createObjectNode();
         if (request != null && request.isObject()) {
+            rejectLegacyPublicChatFields(request);
             copyTextField(request, body, "content");
             JsonNode maxSuggestions = request.get("maxSuggestions");
             if (maxSuggestions != null && maxSuggestions.canConvertToInt()) {
                 int value = Math.max(1, Math.min(maxSuggestions.asInt(), 6));
                 body.put("maxSuggestions", value);
             }
+            copyObjectField(request, body, "context");
             copyAttachments(request, body);
-            appendStorefrontContextAttachment(request, body);
         }
         if (!body.has("content")) {
             body.put("content", "");
@@ -352,10 +368,33 @@ public class PublicConsumerBridgeChatService {
         return body;
     }
 
+    private void rejectLegacyPublicChatFields(JsonNode request) {
+        List<String> rejected = new ArrayList<>();
+        for (String field : List.of("message", "sessionId", "storefrontContext", "userId", "ownerId")) {
+            if (request.has(field)) {
+                rejected.add(field);
+            }
+        }
+        if (!rejected.isEmpty()) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Unsupported chat request fields: " + String.join(", ", rejected)
+                    + ". Use query, conversationId, mode, position, context, and attachments."
+            );
+        }
+    }
+
     private void copyTextField(JsonNode source, ObjectNode target, String field) {
         String value = trimToNull(textOrNull(source, field));
         if (value != null) {
             target.put(field, value);
+        }
+    }
+
+    private void copyObjectField(JsonNode source, ObjectNode target, String field) {
+        JsonNode value = source == null ? null : source.get(field);
+        if (value != null && value.isObject()) {
+            target.set(field, value.deepCopy());
         }
     }
 
@@ -379,64 +418,6 @@ public class PublicConsumerBridgeChatService {
         }
     }
 
-    private void appendStorefrontContextAttachment(JsonNode source, ObjectNode target) {
-        ObjectNode attachment = storefrontContextAttachment(source);
-        if (attachment == null || attachment.isEmpty()) {
-            return;
-        }
-        ArrayNode attachments = objectMapper.createArrayNode();
-        JsonNode existing = target.get("attachments");
-        if (existing != null && existing.isArray()) {
-            attachments.addAll((ArrayNode) existing);
-        }
-        attachments.add(attachment);
-        target.set("attachments", attachments);
-    }
-
-    private ObjectNode storefrontContextAttachment(JsonNode source) {
-        if (source == null || !source.isObject()) {
-            return null;
-        }
-        JsonNode rawContext = source.get("storefrontContext");
-        if (rawContext == null || !rawContext.isObject()) {
-            return null;
-        }
-        ObjectNode metadata = objectMapper.createObjectNode();
-        copyLimitedTextField(rawContext, metadata, "pageType");
-        copyLimitedTextField(rawContext, metadata, "pageTitle");
-
-        JsonNode rawProduct = rawContext.get("product");
-        if (rawProduct != null && rawProduct.isObject()) {
-            copyLimitedTextField(rawProduct, metadata, "id", "productId");
-            copyLimitedTextField(rawProduct, metadata, "handle", "productHandle");
-            copyLimitedTextField(rawProduct, metadata, "title", "productTitle");
-            copyLimitedTextField(rawProduct, metadata, "vendor", "productVendor");
-            copyLimitedTextField(rawProduct, metadata, "type", "productType");
-            copyLimitedTextField(rawProduct, metadata, "priceCents", "productPriceCents");
-        }
-
-        JsonNode rawCollection = rawContext.get("collection");
-        if (rawCollection != null && rawCollection.isObject()) {
-            copyLimitedTextField(rawCollection, metadata, "id", "collectionId");
-            copyLimitedTextField(rawCollection, metadata, "handle", "collectionHandle");
-            copyLimitedTextField(rawCollection, metadata, "title", "collectionTitle");
-        }
-
-        String contentText = storefrontContextSummary(metadata);
-        if (!StringUtils.hasText(contentText) && metadata.isEmpty()) {
-            return null;
-        }
-        ObjectNode attachment = objectMapper.createObjectNode();
-        attachment.put("source", "shopify-storefront-context");
-        if (StringUtils.hasText(contentText)) {
-            attachment.put("contentText", contentText);
-        }
-        if (!metadata.isEmpty()) {
-            attachment.set("metadata", metadata);
-        }
-        return attachment;
-    }
-
     private void copyLimitedTextField(JsonNode source, ObjectNode target, String field) {
         copyLimitedTextField(source, target, field, field);
     }
@@ -457,16 +438,19 @@ public class PublicConsumerBridgeChatService {
             return null;
         }
         ObjectNode sanitized = objectMapper.createObjectNode();
+        boolean shopifyStorefrontContext = isShopifyStorefrontContext(rawAttachment);
         copyLimitedTextField(rawAttachment, sanitized, "id");
         copyLimitedTextField(rawAttachment, sanitized, "vectorSpace");
-        copyLimitedTextField(rawAttachment, sanitized, "contentText");
+        if (!shopifyStorefrontContext) {
+            copyLimitedTextField(rawAttachment, sanitized, "contentText");
+        }
         copyLimitedTextField(rawAttachment, sanitized, "source");
         copyLimitedTextField(rawAttachment, sanitized, "url");
         copyLimitedTextField(rawAttachment, sanitized, "imageUrl");
 
+        ObjectNode metadata = objectMapper.createObjectNode();
         JsonNode rawMetadata = rawAttachment.get("metadata");
         if (rawMetadata != null && rawMetadata.isObject()) {
-            ObjectNode metadata = objectMapper.createObjectNode();
             int count = 0;
             for (var entry : iterable(rawMetadata.fields())) {
                 if (count >= MAX_ATTACHMENT_METADATA_ENTRIES) {
@@ -475,6 +459,9 @@ public class PublicConsumerBridgeChatService {
                 String key = trimToNull(entry.getKey());
                 JsonNode valueNode = entry.getValue();
                 if (key == null || valueNode == null || valueNode.isNull() || !valueNode.isValueNode()) {
+                    continue;
+                }
+                if (shopifyStorefrontContext && isInternalShopifyContextMetadataKey(key)) {
                     continue;
                 }
                 String value = trimToNull(valueNode.asText(null));
@@ -487,12 +474,26 @@ public class PublicConsumerBridgeChatService {
                 metadata.put(key, value);
                 count++;
             }
-            if (!metadata.isEmpty()) {
-                sanitized.set("metadata", metadata);
+        }
+        if (shopifyStorefrontContext) {
+            String contentText = storefrontContextSummary(metadata);
+            if (StringUtils.hasText(contentText)) {
+                sanitized.put("contentText", contentText);
             }
+        }
+        if (!metadata.isEmpty()) {
+            sanitized.set("metadata", metadata);
         }
 
         return sanitized.isEmpty() ? null : sanitized;
+    }
+
+    private boolean isShopifyStorefrontContext(JsonNode rawAttachment) {
+        return SHOPIFY_STOREFRONT_CONTEXT_SOURCE.equals(trimToNull(textOrNull(rawAttachment, "source")));
+    }
+
+    private boolean isInternalShopifyContextMetadataKey(String key) {
+        return StringUtils.hasText(key) && SHOPIFY_INTERNAL_CONTEXT_METADATA_KEYS.contains(key.trim());
     }
 
     private String storefrontContextSummary(ObjectNode metadata) {
@@ -500,14 +501,14 @@ public class PublicConsumerBridgeChatService {
             return null;
         }
         List<String> parts = new ArrayList<>();
-        addSummaryPart(parts, metadata, "pageType", "Page type");
+        addSummaryPart(parts, metadata, "pageType", "Current page");
         addSummaryPart(parts, metadata, "pageTitle", "Page title");
-        addSummaryPart(parts, metadata, "productTitle", "Product");
+        addSummaryPart(parts, metadata, "productTitle", "Current product");
         addSummaryPart(parts, metadata, "productHandle", "Product handle");
         addSummaryPart(parts, metadata, "productVendor", "Product vendor");
         addSummaryPart(parts, metadata, "productType", "Product type");
         addSummaryPart(parts, metadata, "productPriceCents", "Product price cents");
-        addSummaryPart(parts, metadata, "collectionTitle", "Collection");
+        addSummaryPart(parts, metadata, "collectionTitle", "Current collection");
         addSummaryPart(parts, metadata, "collectionHandle", "Collection handle");
         if (parts.isEmpty()) {
             return null;

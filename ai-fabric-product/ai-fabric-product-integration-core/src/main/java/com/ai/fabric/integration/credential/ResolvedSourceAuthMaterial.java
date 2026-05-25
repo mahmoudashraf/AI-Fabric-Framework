@@ -24,4 +24,12 @@ public record ResolvedSourceAuthMaterial(
         String envValue = System.getenv(alias.trim());
         return StringUtils.hasText(envValue) ? envValue.trim() : null;
     }
+
+    @Override
+    public String toString() {
+        int resolvedCount = resolvedSecrets == null ? 0 : resolvedSecrets.size();
+        int aliasCount = localSecretAliases == null ? 0 : localSecretAliases.size();
+        return "ResolvedSourceAuthMaterial[resolvedSecrets=<masked:" + resolvedCount
+            + ">, localSecretAliases=<masked:" + aliasCount + ">]";
+    }
 }

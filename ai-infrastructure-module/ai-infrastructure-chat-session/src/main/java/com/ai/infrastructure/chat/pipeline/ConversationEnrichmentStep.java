@@ -6,6 +6,7 @@ import com.ai.infrastructure.chat.service.ChatSessionService;
 import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.intent.action.PendingActionStore;
 import com.ai.infrastructure.intent.actiondraft.ActionDraftStore;
+import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineContext;
 import com.ai.infrastructure.intent.orchestration.pipeline.PipelineStep;
@@ -36,6 +37,7 @@ public class ConversationEnrichmentStep implements PipelineStep {
 
     private static final String METADATA_KEY_CHAT = "chat";
     private static final String ERROR_CODE_ACCESS_DENIED = "ACCESS_DENIED";
+    private static final String QUERY_PERSISTENCE_MODE_NEVER_PERSIST = "NEVER_PERSIST";
 
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS = "lastResolvedTargets";
     private static final String SESSION_META_KEY_LAST_RESOLVED_TARGETS_TURN_INDEX = "lastResolvedTargetsTurnIndex";
@@ -58,6 +60,9 @@ public class ConversationEnrichmentStep implements PipelineStep {
     @Override
     public PipelineContext process(PipelineContext context) {
         if (context == null || context.isShouldTerminate()) {
+            return context;
+        }
+        if (isConversationPersistenceDisabled(context)) {
             return context;
         }
         if (context.getOrchestrationContext() == null || !context.getOrchestrationContext().hasConversation()) {
@@ -269,6 +274,19 @@ public class ConversationEnrichmentStep implements PipelineStep {
             return str;
         }
         return value != null ? value.toString() : null;
+    }
+
+    private boolean isConversationPersistenceDisabled(PipelineContext context) {
+        Object mode = null;
+        if (context != null && context.getOrchestrationContext() != null
+            && context.getOrchestrationContext().getMetadata() != null) {
+            mode = context.getOrchestrationContext().getMetadata()
+                .get(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE);
+        }
+        if (mode == null && context != null && context.getMetadata() != null) {
+            mode = context.getMetadata().get(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE);
+        }
+        return mode != null && QUERY_PERSISTENCE_MODE_NEVER_PERSIST.equalsIgnoreCase(mode.toString().trim());
     }
 
     private Map<String, Object> mergeMetadata(Map<String, Object> base, Map<String, Object> additions) {

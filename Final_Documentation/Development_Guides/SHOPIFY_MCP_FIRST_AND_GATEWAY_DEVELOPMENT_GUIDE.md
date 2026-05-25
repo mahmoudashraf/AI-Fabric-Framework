@@ -38,6 +38,8 @@ The MCP Execution Gateway is generic. It owns MCP transport, server binding, aut
 
 Runtime/connector can call the MCP Gateway directly for hostless generic MCP actions. Shopify actions still route through Shopify Bridge when store, billing, customer, checkout, or Shopify-specific posture is required.
 
+Shopify Companion indexing is source-backed, not document-push-first. The normal freshness path is Shopify Admin API through Bridge vectorization-source endpoints, Platform vectorization runner, and Runtime derived index. Do not add customer-facing Shopify action or answer-quality behavior that depends on Bridge or Platform maintaining a second durable copy of the full store catalog.
+
 ---
 
 ## 2. What Plan 009 Delivered
@@ -50,6 +52,7 @@ Key behavior:
 - Runtime `actionsConfig` preserves `execution.mcp.serverRef`, `toolName`, `argumentTemplate`, drift policy, and response mapping.
 - `shopify_search_catalog`, `shopify_search_policies`, and `shopify_get_product_details` use Shopify Storefront MCP tools.
 - Customer Account and Checkout MCP plugin bundles exist and are gated by external Shopify auth/readiness material.
+- The Shopify Companion Elite launch profile includes `guided-commerce` and `order-self-service` action packages. Order self-service is still governed by package entitlement, explicit confirmation, customer/checkout auth, audit, and real Marketplace/MCP action config.
 - Legacy Shopify customer-facing aliases are not preserved for greenfield action execution.
 
 Important migrations:
@@ -96,11 +99,11 @@ Supported gateway auth modes for config-only MCP servers:
 - `BEARER_TOKEN_SECRET_REF`
 - `API_KEY_HEADER_SECRET`
 - `OAUTH2_CLIENT_CREDENTIALS`
+- `CUSTOMER_OAUTH_PKCE` when the action/server config provides a reviewed `tokenBroker` and the product host owns the customer OAuth session
 
 Auth modes that still require product/host support:
 
 - `OAUTH2_AUTH_CODE_PKCE`
-- `CUSTOMER_OAUTH_PKCE`
 - provider-specific customer/session delegation
 
 ---
@@ -341,6 +344,7 @@ Verify Shopify execution:
 - Bridge readiness must show Shopify Storefront MCP ready
 - execute `shopify_search_catalog` through Bridge
 - confirm the response is normalized MCP evidence from the gateway path
+- Support readiness must be read-only. It may reconcile scopes/webhook posture, but it must not write billing/package state or enqueue provisioning; package changes must use the explicit billing/package operation so readiness checks cannot downgrade a staging/design-partner package.
 
 ---
 
@@ -354,6 +358,7 @@ Customer Account MCP requires:
 - customer token/session binding
 - protected customer data posture
 - allowed customer scopes
+- deployed Shopify app access scopes for Customer Account data: `customer_read_customers`, `customer_read_orders`, `customer_write_orders`, and `customer_read_store_credit_accounts`
 
 Checkout MCP requires:
 
@@ -370,10 +375,15 @@ Customer Account MCP is prepared as a fail-closed path:
 
 - Before OAuth/PKCE and protected customer data posture are configured, Bridge returns `CUSTOMER_ACCOUNT_MCP_NOT_CONFIGURED`.
 - After posture is configured, Bridge returns `CUSTOMER_ACCOUNT_AUTH_REQUIRED` until a customer OAuth access token is bound to the shopper session.
-- When a customer token is bound, MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by forwarding it as the MCP Authorization header.
+- Bridge owns Shopify Customer Account OAuth sessions and exposes the internal broker endpoint `POST /api/admin/customer-account/shops/{shopDomain}/token/resolve`. This endpoint is protected by the Bridge admin API key and must only be called by managed services.
+- Customer Account Marketplace actions must not expose `shopperSessionId` as an LLM/action parameter. The verified runtime shopper session travels in the action trace, and the MCP Gateway sends that session to the broker.
+- When the broker resolves a customer token, MCP Gateway supports `CUSTOMER_OAUTH_PKCE` by forwarding it as the MCP Authorization header.
+- Shopify app scope changes are not just Bridge env changes. Deploy the updated Shopify app config/version, then make the shopper complete a fresh Customer Account OAuth authorization. A token issued before the Customer Account app scopes were deployed can still fail MCP `tools/call` with Shopify HTTP `401`.
+- MCP Gateway staging/prod env must include `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`, `MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY`, and `MCP_GATEWAY_ENVIRONMENT_SECRET_RESOLUTION_ENABLED=true`. The gateway profile-ref allowlist includes `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_TOKEN_BROKER_BASE_URL`.
 - For stores that use a connected storefront/custom domain for Customer Account OAuth discovery, configure the per-store Platform setting `customerAccountMcp.storefrontDomain` through `PUT /api/shopify/stores/{shopDomain}/customer-account-config` or the Shopify Stores admin page. Bridge resolves this per-store value before using any global fallback.
 - `SHOPIFY_BRIDGE_CUSTOMER_ACCOUNT_MCP_STOREFRONT_DOMAIN` remains a staging/default fallback only. It must not be treated as product truth for multiple store installs.
 - Bridge still stores and resolves customer sessions by the canonical `*.myshopify.com` shop even when discovery and safe return URLs use a configured storefront domain.
+- Public launch requires a release-gate proof that Customer Account OAuth sessions survive Bridge redeploy/recreate with the same datasource and encryption/HMAC material. Until that proof is recorded, design-partner staging can require shoppers to reconnect after a redeploy.
 
 Checkout MCP is prepared as a managed-gateway path:
 
@@ -386,3 +396,96 @@ Checkout MCP is prepared as a managed-gateway path:
 - Terminal checkout actions require the separate `SHOPIFY_BRIDGE_CHECKOUT_MCP_TERMINAL_OPERATIONS_ENABLED=true` flag and must stay disabled for normal staging verification.
 - If Checkout MCP `tools/list` or `tools/call` fails with a redirect to `/password`, the Shopify online store password is still enabled. Unlock the staging storefront in Shopify Admin before claiming live Checkout MCP evidence.
 - A storefront password can unlock a local browser/curl session for direct diagnosis, but it is not a production server-to-server credential and must not be built into Bridge or MCP Gateway as a bypass.
+
+### Order Self-Service Policy
+
+Do not use shopper query text to allow or block refunds, cancellations, returns, or order edits.
+
+Bridge policy is structured:
+
+- Storefront chat lets runtime select an action, then checks the selected action ID and page context.
+- Unapproved stores deny structured order mutation action IDs with customer-safe support guidance.
+- Approved stores with `order-self-service` may pass configured order self-service action IDs to the Marketplace/MCP execution path.
+- Currently configured concrete order self-service action is `shopify_cancel_checkout` through Checkout MCP.
+- The live Customer Account MCP Marketplace bundle exposes the current Shopify Customer Account MCP `tools/list` observed actions: `shopify_get_most_recent_order_status`, `shopify_get_order_status`, `shopify_get_store_credit_balances`, and `shopify_request_return`. These actions use Bridge token-broker auth and do not take `shopperSessionId` as an action parameter.
+- Post-order refund/cancel/edit actions need a real discovered Shopify MCP tool plus a reviewed Marketplace action plugin before live execution; do not add direct GraphQL behavior in Bridge. `shopify_request_return` is the configured return-start path and remains governed by Customer Account auth, confirmation, package posture, and live tool behavior.
+- Bridge must not hard-block future post-order action IDs once runtime selected them from the compiled Marketplace catalog. Package entitlement, confirmation, audit, MCP session auth, and the action catalog remain the gates.
+
+### Canonical Runtime/Bridge Chat Contract
+
+Shopify Companion uses the platform canonical chat contract from Plan 010.5.
+
+Public shopper chat requests must use:
+
+```json
+{
+  "query": "Show me ski wax",
+  "conversationId": "chat-session-123",
+  "mode": "thinker_deep",
+  "position": "landing",
+  "context": {
+    "pageType": "index",
+    "shopifySurfaceEntry": "max-mode"
+  },
+  "attachments": []
+}
+```
+
+Rules:
+
+- Do not send top-level `storefrontContext`; Shopify-specific state belongs under `context`.
+- Do not send top-level `message`, `sessionId`, `userId`, or `ownerId` in public chat payloads.
+- Shopper-facing responses must read top-level `answer`, `safeSummary`, `sources`, `actions`, `suggestions`, `fallbackReason`, and `providerRequestId`.
+- Product UI code must not read `result.sanitizedPayload`; the runtime/bridge boundary flattens approved evidence before the response reaches Shopify surfaces.
+- Internal auth/session fields may still exist in headers, token claims, and server-side logs where they are security/session infrastructure rather than the public chat payload.
+
+### Owned Resource Param Resolution
+
+Owned shopper resource parameters must be configured in Marketplace action metadata, not inferred with text matching.
+
+Supported param fields:
+
+- `visibility`: use `INTERNAL`, `SECRET`, or `SYSTEM` for parameters that must not be shown to the shopper or prompt-visible action picker.
+- `askUser`: set to `false` when a missing value must fail closed or be resolved from trusted context instead of prompting the shopper.
+- `resolveFrom`: deterministic resolver declaration. Current sources are `RUNTIME_CONTEXT`, `ATTACHMENT_METADATA`, `OWNED_RESOURCE`, and policy-allowed `READ_ACTION`.
+
+Examples:
+
+```json
+{
+  "name": "cart_id",
+  "type": "STRING",
+  "required": true,
+  "visibility": "INTERNAL",
+  "askUser": false,
+  "resolveFrom": {
+    "source": "OWNED_RESOURCE",
+    "resourceType": "shopify.cart",
+    "scope": "current_session",
+    "metadataKeys": ["cart_id", "cartId"]
+  }
+}
+```
+
+```json
+{
+  "name": "order_number",
+  "type": "STRING",
+  "required": true,
+  "resolveFrom": {
+    "source": "READ_ACTION",
+    "actionName": "shopify_get_most_recent_order_status",
+    "resultPaths": ["order_number", "orderNumber", "order.number", "order.name"]
+  }
+}
+```
+
+Rules:
+
+- Do not ask shoppers for internal handles such as `cart_id`, `shopperSessionId`, customer tokens, or confirmation gate flags.
+- Do not add Bridge/runtime text matching for phrases like "my cart" or "last order". The LLM selects the action from catalog metadata; deterministic resolvers complete trusted params.
+- `OWNED_RESOURCE` values must originate from current request/session context inserted by the Shopify Bridge or from an allowlisted read-action result in the same governed orchestration. The runtime must not accept shopper-supplied `cart_id` values as owned-resource proof.
+- Shopify cart ownership is revalidated at the boundary by scoping the request to the current public consumer/shop, Bridge shopper session, and Shopify Storefront/MCP cart handle semantics. Missing or invalid handles fail closed with owned-resource guidance instead of a clarification prompt.
+- `READ_ACTION` param resolution is allowed only when the current orchestration policy allowlists the read action and the action is `groundingEligible` / `readActionResolutionEligible`.
+- Values produced by trusted resolvers satisfy provenance validation. LLM-supplied public values still need normal user/pinned evidence unless they are hidden/system params.
+- Durable cross-turn owned-resource continuity still requires the `owned_resource_refs` runtime table slice before claiming persistence across redeploy/recreate.

@@ -1,66 +1,94 @@
 import { useState, useRef, useEffect } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Compass, BrainCircuit, Microscope, ShoppingCart, Zap, ChevronUp } from "lucide-react";
+import { BrainCircuit, ChevronUp, LifeBuoy } from "lucide-react";
 import type { MaxModeMode } from "@/constants";
 
 const MODES = [
   {
     key: "navigator" as const,
-    label: "Navigator",
-    shortLabel: "Nav",
-    icon: Compass,
+    label: "Shopping Assistant",
+    shortLabel: "Shopping",
+    group: "shopping",
+    icon: BrainCircuit,
     color: "text-blue-600",
     bg: "bg-blue-500",
     bgLight: "bg-blue-50 dark:bg-blue-900/30",
     border: "border-blue-400",
-    description: "Browse & discover",
+    description: "Product and policy help",
   },
   {
     key: "thinker_deep" as const,
-    label: "Thinker",
-    shortLabel: "Think",
+    label: "Shopping Assistant",
+    shortLabel: "Shopping",
+    group: "shopping",
     icon: BrainCircuit,
     color: "text-cyan-600",
     bg: "bg-cyan-500",
     bgLight: "bg-cyan-50 dark:bg-cyan-900/30",
     border: "border-cyan-400",
-    description: "Evidence-first reasoning",
+    description: "Product and policy help",
   },
   {
     key: "navigator_deep" as const,
-    label: "Deep",
-    shortLabel: "Deep",
-    icon: Microscope,
+    label: "Shopping Assistant",
+    shortLabel: "Shopping",
+    group: "shopping",
+    icon: BrainCircuit,
     color: "text-purple-600",
     bg: "bg-purple-500",
     bgLight: "bg-purple-50 dark:bg-purple-900/30",
     border: "border-purple-400",
-    description: "In-depth reasoning",
+    description: "Product and policy help",
   },
   {
     key: "cart_assistant" as const,
-    label: "Assistant",
-    shortLabel: "Assist",
-    icon: ShoppingCart,
+    label: "Account & Order Assistant",
+    shortLabel: "Account",
+    group: "account",
+    icon: LifeBuoy,
     color: "text-emerald-600",
     bg: "bg-emerald-500",
     bgLight: "bg-emerald-50 dark:bg-emerald-900/30",
     border: "border-emerald-400",
-    description: "Guided support",
+    description: "Orders, returns, and support",
   },
   {
     key: "executor" as const,
-    label: "Resolver",
-    shortLabel: "Resolve",
-    icon: Zap,
+    label: "Account & Order Assistant",
+    shortLabel: "Account",
+    group: "account",
+    icon: LifeBuoy,
     color: "text-amber-600",
     bg: "bg-amber-500",
     bgLight: "bg-amber-50 dark:bg-amber-900/30",
     border: "border-amber-400",
-    description: "Resolve and act",
+    description: "Orders, returns, and support",
   },
 ] as const;
+
+function collapseModeChoices(availableModes: MaxModeMode[]) {
+  const available = MODES.filter((mode) => availableModes.includes(mode.key));
+  const byGroup = new Map<string, (typeof MODES)[number]>();
+  for (const mode of available) {
+    const current = byGroup.get(mode.group);
+    if (!current || preferredMode(mode.key, current.key) === mode.key) {
+      byGroup.set(mode.group, mode);
+    }
+  }
+  return Array.from(byGroup.values());
+}
+
+function preferredMode(candidate: MaxModeMode, current: MaxModeMode) {
+  const rank: Record<MaxModeMode, number> = {
+    thinker_deep: 5,
+    navigator_deep: 4,
+    navigator: 3,
+    executor: 5,
+    cart_assistant: 4,
+  };
+  return rank[candidate] > rank[current] ? candidate : current;
+}
 
 export function ModeSelector({
   currentMode,
@@ -74,12 +102,13 @@ export function ModeSelector({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectableModes = MODES.filter((mode) => availableModes.includes(mode.key));
+  const selectableModes = collapseModeChoices(availableModes);
   if (selectableModes.length <= 1) {
     return null;
   }
 
-  const active = selectableModes.find((m) => m.key === currentMode) || selectableModes[0];
+  const currentGroup = MODES.find((m) => m.key === currentMode)?.group;
+  const active = selectableModes.find((m) => m.group === currentGroup) || selectableModes[0];
   const ActiveIcon = active.icon;
 
   useEffect(() => {

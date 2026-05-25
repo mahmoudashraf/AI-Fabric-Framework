@@ -49,7 +49,7 @@ public class ShopifyBridgeBillingService {
         "order-lookup"
     );
     private static final List<String> NO_ACTION_PACKAGES = List.of();
-    private static final List<String> ELITE_ACTION_PACKAGES = List.of("guided-commerce");
+    private static final List<String> ELITE_ACTION_PACKAGES = List.of("guided-commerce", "order-self-service");
 
     private static final String ACTIVE_SUBSCRIPTIONS_QUERY = """
         query ShopifyBridgeActiveSubscriptions {
@@ -98,7 +98,7 @@ public class ShopifyBridgeBillingService {
 
     public ShopifyBridgeBillingSummary summarize() {
         BillingMode billingMode = billingMode();
-        TierEntitlements currentTier = entitlementsFor(CompanionTier.FREE);
+        TierEntitlements currentTier = entitlementsFor(defaultTier());
         return buildSummary(
             billingMode,
             currentTier,
@@ -106,15 +106,17 @@ public class ShopifyBridgeBillingService {
             false,
             false,
             availablePlans(currentTier.tier()),
-            billingMode == BillingMode.FREE
-                ? "Free tier is active. No Shopify billing approval is required in this bridge environment."
-                : "Free tier is active. Merchants can upgrade to paid Loom Companion plans when Shopify billing is configured."
+            currentTier.tier() == CompanionTier.ELITE
+                ? "Elite tier is active by default. Free is retained for legacy records but disabled for new launch posture."
+                : currentTier.tier() == CompanionTier.STARTER
+                    ? "Starter tier is active by default. Free is retained for legacy records but disabled for new launch posture."
+                    : "Free tier is active. No Shopify billing approval is required in this bridge environment."
         );
     }
 
     public ShopifyBridgeBillingSummary summarizeForShop(String shopDomain, String accessToken) {
         BillingMode billingMode = billingMode();
-        TierEntitlements fallbackTier = entitlementsFor(CompanionTier.FREE);
+        TierEntitlements fallbackTier = entitlementsFor(defaultTier());
         List<ShopifyBridgeBillingPlanSummary> plans = availablePlans(fallbackTier.tier());
         Optional<ShopifyBridgeBillingSummary> recordedBillingSummary = recordedBillingSummary(shopDomain, billingMode);
         if (billingMode == BillingMode.FREE) {
@@ -125,7 +127,9 @@ public class ShopifyBridgeBillingService {
                 false,
                 false,
                 plans,
-                "Free tier is active for this store."
+                fallbackTier.tier() == CompanionTier.FREE
+                    ? "Free tier is active for this store."
+                    : fallbackTier.planName() + " is active by default for this store. Free is disabled for new launch posture."
             ));
         }
         if (recordedBillingSummary.isPresent()) {
@@ -139,7 +143,7 @@ public class ShopifyBridgeBillingService {
                 false,
                 false,
                 plans,
-                "Free tier is active. Connect the store with persisted Shopify credentials before requesting a paid upgrade."
+                fallbackTier.planName() + " is active by default. Connect persisted Shopify credentials before requesting billing approval changes."
             );
         }
         try {
@@ -176,7 +180,7 @@ public class ShopifyBridgeBillingService {
                 false,
                 false,
                 plans,
-                "Free tier is active. Upgrade to Starter or Elite to unlock broader Loom Companion surfaces."
+                fallbackTier.planName() + " is active by default. Free is disabled for new launch posture."
             );
         } catch (ResponseStatusException ex) {
             return buildSummary(
@@ -186,7 +190,7 @@ public class ShopifyBridgeBillingService {
                 false,
                 false,
                 plans,
-                OptionalText.reasonOrFallback(ex.getReason(), "Shopify billing status could not be verified right now. Free tier remains active.")
+                OptionalText.reasonOrFallback(ex.getReason(), "Shopify billing status could not be verified right now. Default Loom Companion entitlements remain active.")
             );
         }
     }
@@ -194,7 +198,7 @@ public class ShopifyBridgeBillingService {
     public ShopifyBridgeStoreBillingState inspectStoreBillingState(String shopDomain, String accessToken) {
         BillingMode billingMode = billingMode();
         if (billingMode == BillingMode.FREE || !hasText(shopDomain) || !hasText(accessToken)) {
-            return new ShopifyBridgeStoreBillingState("FREE", "ACTIVE", List.of());
+            return new ShopifyBridgeStoreBillingState(defaultTier().externalKey(), "ACTIVE", List.of());
         }
         List<ShopifyBridgeSupportSubscriptionSummary> subscriptions = resolveActiveSubscriptions(shopDomain, accessToken);
         String status = subscriptions.stream()
@@ -302,11 +306,10 @@ public class ShopifyBridgeBillingService {
         if (requested.isEmpty()) {
             return allowed;
         }
-        List<String> filtered = requested.stream()
+        return requested.stream()
             .filter(allowed::contains)
             .distinct()
             .toList();
-        return filtered.isEmpty() ? allowed : filtered;
     }
 
     public Integer catalogProductCap(String shopDomain, String accessToken) {
@@ -390,17 +393,17 @@ public class ShopifyBridgeBillingService {
         if (!hasText(status) && !hasText(tierKey)) {
             return Optional.empty();
         }
-        CompanionTier tier = companionTierOrFree(tierKey);
+        CompanionTier tier = companionTierOrDefault(tierKey);
         if (!"ACTIVE".equalsIgnoreCase(status)) {
-            TierEntitlements freeTier = entitlementsFor(CompanionTier.FREE);
+            TierEntitlements fallbackTier = entitlementsFor(defaultTier());
             return Optional.of(buildSummary(
                 billingMode,
-                freeTier,
+                fallbackTier,
                 hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ACTIVE",
                 false,
                 false,
-                availablePlans(freeTier.tier()),
-                sourceLabel + " posture is " + (hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ACTIVE") + ". Free storefront entitlements remain active."
+                availablePlans(fallbackTier.tier()),
+                sourceLabel + " posture is " + (hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ACTIVE") + ". Default storefront entitlements remain active because Free is disabled."
             ));
         }
         TierEntitlements currentTier = entitlementsFor(tier);
@@ -430,7 +433,11 @@ public class ShopifyBridgeBillingService {
     private ShopifyBridgeBillingPlanSummary planSummary(CompanionTier tier, CompanionTier activeTier) {
         TierEntitlements entitlements = entitlementsFor(tier);
         BillingPlanDefinition plan = planDefinition(tier);
-        boolean active = tier == activeTier;
+        boolean freeEnabled = freeEnabled();
+        boolean active = tier == activeTier && (tier != CompanionTier.FREE || freeEnabled);
+        boolean commerciallyAvailable = tier == CompanionTier.FREE
+            ? freeEnabled
+            : plan != null && plan.commerciallyAvailable();
         return new ShopifyBridgeBillingPlanSummary(
             tier.externalKey(),
             entitlements.planName(),
@@ -438,8 +445,8 @@ public class ShopifyBridgeBillingService {
             plan == null ? null : plan.currencyCode(),
             plan == null ? null : plan.interval(),
             active,
-            tier == CompanionTier.FREE || (plan != null && plan.commerciallyAvailable()),
-            tier != CompanionTier.FREE && plan != null && plan.commerciallyAvailable(),
+            commerciallyAvailable,
+            tier != CompanionTier.FREE && commerciallyAvailable,
             entitlements.actionCapable(),
             entitlements.catalogProductCap(),
             entitlements.syncCadence(),
@@ -450,7 +457,9 @@ public class ShopifyBridgeBillingService {
             entitlements.actionPackages(),
             entitlements.allowedSurfaces(),
             tier == CompanionTier.FREE
-                ? "Free tier is always available."
+                ? freeEnabled
+                    ? "Free tier is available."
+                    : "Free package is retained for legacy records but disabled. New stores default to " + defaultTier().externalKey() + "."
                 : plan == null
                     ? "No Shopify billing plan is configured for this tier."
                     : plan.commerciallyAvailable()
@@ -464,6 +473,18 @@ public class ShopifyBridgeBillingService {
         return "SHOPIFY_APP_SUBSCRIPTION".equals(mode) ? BillingMode.SHOPIFY_APP_SUBSCRIPTION : BillingMode.FREE;
     }
 
+    private CompanionTier defaultTier() {
+        CompanionTier configured = companionTierOrFree(billingProperties.defaultTier());
+        if (configured == CompanionTier.FREE && !freeEnabled()) {
+            return CompanionTier.ELITE;
+        }
+        return configured;
+    }
+
+    private boolean freeEnabled() {
+        return billingProperties.freeEnabled();
+    }
+
     private String normalizeMode(String mode) {
         return hasText(mode) ? mode.trim().toUpperCase(Locale.ROOT) : "FREE";
     }
@@ -473,10 +494,27 @@ public class ShopifyBridgeBillingService {
             return CompanionTier.STARTER;
         }
         return switch (tierKey.trim().toUpperCase(Locale.ROOT)) {
-            case "FREE" -> CompanionTier.FREE;
+            case "FREE" -> {
+                if (!freeEnabled()) {
+                    throw new ResponseStatusException(CONFLICT, "Free package is disabled for this Loom Companion launch posture.");
+                }
+                yield CompanionTier.FREE;
+            }
             case "STARTER" -> CompanionTier.STARTER;
             case "ELITE" -> CompanionTier.ELITE;
             default -> throw new ResponseStatusException(CONFLICT, "Unsupported Shopify Companion tier: " + tierKey);
+        };
+    }
+
+    private CompanionTier companionTierOrDefault(String tierKey) {
+        if (!hasText(tierKey)) {
+            return defaultTier();
+        }
+        return switch (tierKey.trim().toUpperCase(Locale.ROOT)) {
+            case "FREE" -> freeEnabled() ? CompanionTier.FREE : defaultTier();
+            case "STARTER" -> CompanionTier.STARTER;
+            case "ELITE" -> CompanionTier.ELITE;
+            default -> defaultTier();
         };
     }
 
