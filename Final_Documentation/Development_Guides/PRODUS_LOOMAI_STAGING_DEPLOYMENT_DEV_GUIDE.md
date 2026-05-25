@@ -174,7 +174,7 @@ curl -fsS \
 Expected relevant runtime row:
 
 ```text
-m14c2kdq3qsc2hnofr84wge2  runtime-dep-7706fafb  http://dep-7706fafb.46.224.145.148.sslip.io  Platform-V9  running:healthy
+m14c2kdq3qsc2hnofr84wge2  runtime-dep-7706fafb  http://dep-7706fafb.46.224.145.148.sslip.io  Platform-V10  running:healthy
 ```
 
 ## 5. Runtime Env Configuration
