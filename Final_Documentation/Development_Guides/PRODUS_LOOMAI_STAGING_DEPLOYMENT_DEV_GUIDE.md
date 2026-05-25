@@ -1,6 +1,6 @@
 # ProdUS LoomAI Staging Deployment Dev Guide
 
-Status: current staging guide, last verified 2026-05-22.
+Status: current staging guide, last verified 2026-05-25.
 
 This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
 
@@ -17,8 +17,8 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Stable consumer/customer id | `produs-staging` |
 | Runtime base URL | `http://dep-7706fafb.46.224.145.148.sslip.io` |
 | Runtime template | `dev-openai-qdrant` |
-| Active version | `v7` / `ver-0b3324cd` |
-| Latest applied release | `rel-579d7fce` |
+| Active version | `ver-f9069ce5` |
+| Latest applied release | `rel-623c91a0` |
 | Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
 | Connector Coolify app | `rest-connector-dep-7706fafb` / `f8v02rd1luusupszsnbrny7i` |
 | Vectorization runner Coolify app | `vectorization-runner-dep-7706fafb` / `fm2pdlbk55tjx6gmh4xqo9t7` |
@@ -27,11 +27,23 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Target integration | `BACKEND_MEDIATED_PRIVATE_RUNTIME` |
 | Runtime auth mode | `PRIVATE_RUNTIME_ASSERTION` |
 
-Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on staging; unauthenticated `/mcp` calls fail closed and authenticated calls return the LoomAI productization tools. The read-only ProdUS MCP Marketplace action bundle is published, installed, applied, and visible in runtime actions overview.
+Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on staging; unauthenticated `/mcp` calls fail closed and authenticated calls return the LoomAI productization tools. The read-only ProdUS MCP Marketplace action bundle and the confirmed `produs.productization_project.create` action bundle are published, installed, applied, and visible in runtime actions overview.
 
 Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
 
 Runtime code deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` on 2026-05-22 for the implementation smoke. Follow-up deployment `kpx28b02ryukztitqvem2399` deployed commit `969f87dfb` after the status documentation update. Live smoke verified `/api/chat/me/query-once` returns a one-time answer without creating a conversation record, while `/api/chat/me/query` still creates the expected persisted conversation.
+
+Confirmed project creation action status on 2026-05-25:
+
+- Plugin: `mkp-action-produs-productization-project-create-mcp@0.1.1`.
+- Install id: `mpi-47247a04`.
+- Deployment version: `ver-f9069ce5`.
+- Applied release: `rel-623c91a0`, status `APPLIED_VERIFIED`, verification `PASSED`.
+- Runtime action: `produs_productization_project_create`.
+- MCP tool: `produs.productization_project.create`.
+- Schema hash: `sha256:6a64c636165a0e6c92e7fefd41fad8e53132f411f2aa7d107a992c6e517867c0`.
+- Negative live execution proof reached ProdUS MCP and failed closed with `Project creation intent not found`; schema drift was `OK`.
+- Positive creation proof still requires a real owner-approved ProdUS `runtimeActionPayload` from `POST /api/products/ai-assisted/analyze`.
 
 ## 2. Tools Used
 
@@ -489,7 +501,7 @@ curl -fsS \
   https://produs-api-staging.46.224.145.148.sslip.io/loomai/tool-allowlist | jq .
 ```
 
-Expected result: `200`, `ready=true`, and 17 tools.
+Expected result: `200`, `ready=true`, and 18 tools.
 
 Check unauthenticated MCP discovery:
 
@@ -661,7 +673,7 @@ Reset/reindex verification on 2026-05-21:
 
 Known hygiene follow-up: ProdUS staging Coolify currently has duplicate `LOOMAI_SAFE_KNOWLEDGE_EXPORT_TOKEN` env rows. LoomAI stored only one non-empty value in the managed Platform secret, but the duplicate rows should be cleaned on the ProdUS app to avoid operator confusion during future rotation.
 
-## 11. Verification Results From 2026-05-20 And 2026-05-21
+## 11. Verification Results From 2026-05-20 Through 2026-05-25
 
 Runtime/Coolify:
 
@@ -681,13 +693,13 @@ ProdUS service:
 
 - `GET /health`: `200`.
 - `GET /loomai/tool-allowlist` without API key: `401`, `PRODUS_MCP_AUTH_REQUIRED`.
-- `GET /loomai/tool-allowlist` with API key: `200`, `ready=true`, 17 tools.
+- `GET /loomai/tool-allowlist` with API key: `200`, `ready=true`, 18 tools.
 - `POST /mcp tools/list` without API key: `401`, `PRODUS_MCP_AUTH_REQUIRED`.
-- `POST /mcp tools/list` with API key: `200`, 17 tools.
+- `POST /mcp tools/list` with API key: `200`, 18 tools.
 
 Marketplace/read-action deployment:
 
-- Marketplace MCP discovery for `produs-staging`: `ready=true`, 17 tools.
+- Marketplace MCP discovery for `produs-staging`: `ready=true`, 18 tools.
 - Published plugin: `mkp-action-produs-productization-read-mcp@0.1.0`.
 - Installed on deployment `dep-7706fafb` as an enabled `ACTION` plugin with `READY` readiness and active entitlement.
 - Published deployment version: `v3`.
@@ -695,6 +707,19 @@ Marketplace/read-action deployment:
 - Runtime `/api/admin/actions/overview`: 8 ProdUS read actions loaded.
 - Runtime `POST /api/chat/me/query`: passed after apply with canonical response and `providerRequestId`.
 - Runtime `POST /api/chat/me/suggestions`: passed after apply with four suggestions.
+
+Marketplace/confirmed project creation action deployment:
+
+- Published plugin: `mkp-action-produs-productization-project-create-mcp@0.1.1`.
+- Installed on deployment `dep-7706fafb` as `mpi-47247a04`, status `ENABLED`, readiness `READY`, live state `LIVE`.
+- Published deployment version: `ver-f9069ce5`.
+- Applied release: `rel-623c91a0`, status `APPLIED_VERIFIED`, verification `PASSED`.
+- Runtime `/api/admin/actions/overview`: 9 ProdUS actions loaded, including `produs_productization_project_create`.
+- Runtime action is `WRITE_ONLY`, `sideEffectLevel=MUTATING`, `confirmationRequired=false`, `groundingEligible=false`, and `readActionResolutionEligible=false`.
+- Required params are `creationIntentId`, `consentToken`, `idempotencyKey`, `productName`, `summary`, and `businessStage`.
+- Hidden/backend-supplied params are `creationIntentId`, `consentToken`, `idempotencyKey`, and `analysisProviderRequestId`.
+- Negative MCP Gateway execution proof reached `produs.productization_project.create`, matched schema hash `sha256:6a64c636165a0e6c92e7fefd41fad8e53132f411f2aa7d107a992c6e517867c0`, returned schema drift `OK`, and failed closed with `Project creation intent not found`.
+- Positive creation proof remains pending until ProdUS supplies a real owner-approved `runtimeActionPayload`.
 
 Managed vectorization and retrieval:
 
@@ -719,7 +744,58 @@ produs_evidence_list
 produs_milestone_review_evidence
 ```
 
-Mutation MCP tools were not imported. They require a reviewed confirmed-action manifest because the generic MCP importer creates read-only action definitions.
+Only one confirmed mutation action is imported: `produs_productization_project_create`. Additional mutation MCP tools remain deferred and require separate reviewed confirmed-action manifests because the generic MCP importer creates read-only action definitions.
+
+Confirmed project-creation action import flow used:
+
+```bash
+PLATFORM_BASE_URL="https://loomai-platform-backend.46.224.145.148.sslip.io"
+PLATFORM_API_KEY="<platform-admin-api-key>"
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/marketplace/publishers/loom/submissions" \
+  --data @/tmp/produs-project-create-action-submission.json
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/marketplace/submissions/<plugin-version-id>/validate" \
+  --data '{"reviewNotes":"ProdUS confirmed project creation action manifest for staging."}'
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/marketplace/submissions/<plugin-version-id>/publish" \
+  --data '{"reviewNotes":"ProdUS confirmed project creation action manifest for staging."}'
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/marketplace-installs" \
+  --data '{"pluginId":"mkp-action-produs-productization-project-create-mcp","pluginVersion":"0.1.1","config":{},"secretRefs":{}}'
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/deployment-drafts/<draft-id>/publish" \
+  --data '{"notes":"Apply ProdUS confirmed project creation action."}'
+
+curl -fsS \
+  -H "X-PLATFORM-API-KEY: ${PLATFORM_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -X POST \
+  "${PLATFORM_BASE_URL}/api/deployments/dep-7706fafb/apply/<version-id>" \
+  --data '{"targetProfileId":"dtp-coolify-staging"}'
+```
+
+Negative execution-path proof used the MCP Gateway `/api/internal/mcp/actions/execute` endpoint with the compiled action config, existing `produs-staging` MCP server ref, and intentionally invalid `creationIntentId`/`consentToken`. Expected result is not project creation; expected result is a fail-closed ProdUS validation error after schema hash and MCP routing succeed.
 
 ## 12. ProdUS Safe Knowledge DATA Plugin
 

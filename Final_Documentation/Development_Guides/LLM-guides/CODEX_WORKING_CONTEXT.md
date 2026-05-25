@@ -1248,3 +1248,14 @@ Critical fixes that made the gate pass:
 - Final hosted full release gate passed: run `vsr-e9e4ea6f`, status `PASSED`, completed `2026-05-25T04:02:44.671947Z`. `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, expiring `2026-05-25T16:02:44.671947Z`.
 - Final hosted stage summaries: Marketplace hosted verification passed with 42 passes / 2 warnings, Ecommerce hosted verification passed with 43 passes / 2 warnings, Qdrant hosted verification passed with 25 passes / 2 warnings.
 - Release posture after this run: controlled staging/design-partner launch is green while the gate remains fresh; public self-service Shopify/App Store launch is still blocked by controlled production promotion, production rollback/deactivation, failed-promotion staging-isolation proof, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture, and complete public support/App Store packaging.
+
+## 2026-05-25 ProdUS Confirmed Project Creation Action
+
+- ProdUS exposed bounded MCP mutation `produs.productization_project.create` for the owner-approved AI-assisted productization project creation flow.
+- LoomAI published and installed Marketplace action plugin `mkp-action-produs-productization-project-create-mcp@0.1.1` on deployment `dep-7706fafb` as install `mpi-47247a04`.
+- The action reuses existing MCP server ref `produs-staging`; no duplicate MCP server contribution is installed. Runtime action name is `produs_productization_project_create`.
+- Deployment version `ver-f9069ce5` was applied through release `rel-623c91a0`; release status was `APPLIED_VERIFIED` with verification `PASSED`.
+- Runtime `/api/admin/actions/overview` now reports 9 ProdUS actions: 8 read actions plus `produs_productization_project_create`.
+- Confirmed action properties: `WRITE_ONLY`, `sideEffectLevel=MUTATING`, `confirmationRequired=false`, `groundingEligible=false`, `readActionResolutionEligible=false`, schema hash `sha256:6a64c636165a0e6c92e7fefd41fad8e53132f411f2aa7d107a992c6e517867c0`.
+- Negative live execution-path proof through MCP Gateway reached the ProdUS MCP tool, matched schema hash, returned schema drift `OK`, and failed closed with `Project creation intent not found` for an intentionally invalid creation intent. This proves LoomAI config/routing/guard behavior without creating data.
+- Positive creation proof still requires a real owner-approved ProdUS `runtimeActionPayload` from `POST /api/products/ai-assisted/analyze`; do not claim project creation success until that payload is executed live.
