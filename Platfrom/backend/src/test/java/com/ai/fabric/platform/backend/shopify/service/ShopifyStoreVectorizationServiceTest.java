@@ -522,8 +522,8 @@ class ShopifyStoreVectorizationServiceTest {
                 install("mpi-policies", ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID, "ENABLED")
             ));
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel(any())).thenReturn("1.0.0");
-        when(vectorizationService.upsertSourceConnection(eq("dep-123"), any())).thenReturn(connection);
-        when(vectorizationService.upsertPlan(eq("dep-123"), any())).thenReturn(plan);
+        when(vectorizationService.upsertSourceConnectionForTrustedCaller(eq(deployment), any())).thenReturn(connection);
+        when(vectorizationService.upsertPlanForTrustedCaller(eq(deployment), any())).thenReturn(plan);
         when(vectorizationService.getOverviewForTrustedCaller(deployment)).thenReturn(overview);
         stubSummaryCollaborators(policyService, fieldCatalogService, eventService, overview);
 
@@ -551,6 +551,10 @@ class ShopifyStoreVectorizationServiceTest {
         verify(installService).createInstallForTrustedCaller(eq(deployment), argThat((CreateDeploymentMarketplaceInstallRequest request) ->
             ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID.equals(request.pluginId())
         ));
+        verify(vectorizationService).upsertSourceConnectionForTrustedCaller(eq(deployment), any());
+        verify(vectorizationService).upsertPlanForTrustedCaller(eq(deployment), any());
+        verify(vectorizationService, never()).upsertSourceConnection(eq("dep-123"), any());
+        verify(vectorizationService, never()).upsertPlan(eq("dep-123"), any());
         verify(installService, never()).createInstall(eq("dep-123"), any());
         verify(deploymentService, never()).applyVersion(any(), any());
     }
@@ -679,6 +683,8 @@ class ShopifyStoreVectorizationServiceTest {
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel(any())).thenReturn("1.0.0");
         when(vectorizationService.upsertSourceConnection(eq("dep-123"), any())).thenReturn(connection);
         when(vectorizationService.upsertPlan(eq("dep-123"), any())).thenReturn(plan);
+        when(vectorizationService.upsertSourceConnectionForTrustedCaller(eq(deployment), any())).thenReturn(connection);
+        when(vectorizationService.upsertPlanForTrustedCaller(eq(deployment), any())).thenReturn(plan);
         when(vectorizationService.getOverviewForTrustedCaller(deployment))
             .thenReturn(overview)
             .thenReturn(overviewWithRun);
@@ -1073,6 +1079,8 @@ class ShopifyStoreVectorizationServiceTest {
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel(any())).thenReturn("1.0.0");
         when(vectorizationService.upsertSourceConnection(eq("dep-123"), any())).thenReturn(connection);
         when(vectorizationService.upsertPlan(eq("dep-123"), any())).thenReturn(plan);
+        when(vectorizationService.upsertSourceConnectionForTrustedCaller(eq(deployment), any())).thenReturn(connection);
+        when(vectorizationService.upsertPlanForTrustedCaller(eq(deployment), any())).thenReturn(plan);
         when(vectorizationService.getOverviewForTrustedCaller(deployment))
             .thenReturn(overview)
             .thenReturn(overviewWithRun);

@@ -167,7 +167,7 @@ public class ShopifyStoreVectorizationService {
             }
         }
 
-        VectorizationOverviewSummary overview = reconcileVectorizationOverview(store, deployment);
+        VectorizationOverviewSummary overview = reconcileVectorizationOverview(store, deployment, trustedCaller);
         ensureDeploymentRunnerSupport(deployment, overview, trustedCaller);
         platformAuditService.record(
             "SHOPIFY_STORE_VECTORIZATION_RECONCILED",
@@ -340,21 +340,27 @@ public class ShopifyStoreVectorizationService {
         return buildSummary(store);
     }
 
-    private VectorizationOverviewSummary reconcileVectorizationOverview(ShopifyStoreConnectionEntity store, DeploymentEntity deployment) {
+    private VectorizationOverviewSummary reconcileVectorizationOverview(ShopifyStoreConnectionEntity store,
+                                                                       DeploymentEntity deployment,
+                                                                       boolean trustedCaller) {
         PlatformManagedProductServiceEntity productService = requireProductService(store);
         UpsertVectorizationSourceConnectionRequest connectionRequest = buildConnectionRequest(store, productService);
-        var connection = vectorizationService.upsertSourceConnection(deployment.getId(), connectionRequest);
-        vectorizationService.upsertPlan(
-            deployment.getId(),
-            new UpsertVectorizationPlanRequest(
-                "Shopify store vectorization",
-                "PLATFORM_MANAGED_AUTO",
-                connection.id(),
-                buildEntityScope(store),
-                buildMappingConfig(store),
-                buildExecutionConfig(store)
-            )
+        var connection = trustedCaller
+            ? vectorizationService.upsertSourceConnectionForTrustedCaller(deployment, connectionRequest)
+            : vectorizationService.upsertSourceConnection(deployment.getId(), connectionRequest);
+        UpsertVectorizationPlanRequest planRequest = new UpsertVectorizationPlanRequest(
+            "Shopify store vectorization",
+            "PLATFORM_MANAGED_AUTO",
+            connection.id(),
+            buildEntityScope(store),
+            buildMappingConfig(store),
+            buildExecutionConfig(store)
         );
+        if (trustedCaller) {
+            vectorizationService.upsertPlanForTrustedCaller(deployment, planRequest);
+        } else {
+            vectorizationService.upsertPlan(deployment.getId(), planRequest);
+        }
         return vectorizationService.getOverviewForTrustedCaller(deployment);
     }
 
