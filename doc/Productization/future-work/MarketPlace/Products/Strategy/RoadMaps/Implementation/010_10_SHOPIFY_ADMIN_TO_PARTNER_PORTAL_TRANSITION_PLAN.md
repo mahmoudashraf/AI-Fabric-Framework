@@ -94,6 +94,8 @@ Staging rollout status:
   - Partner UI bundle contains the `Shopify operations` tab, source preflight, merchant-owned Shopify action guidance, and knowledge sync controls
   - Shopify embedded admin bundle contains the Partner Portal management banner and disabled duplicate-operation guard
 - `scripts/verify-partner-enablement-live.sh` passed in non-strict live mode against the active staging assignment. It verified Partner UI assets, partner store detail, product controls, Partner Max widget, support-profile write/restore, activity feed, verification/evidence bundles, launch readiness, templates, notes, members, and support escalation.
+- The live verifier was stabilized so approval proof comes from the active approved store detail, while the activity feed assertion checks workflow events produced by the current run. This avoids treating an old paginated approval audit event as a release blocker after later verification/support events push it out of the recent feed.
+- A final hosted non-strict run on the current staging deployment passed on 2026-05-26. Proof IDs from that run: verification run `pvr-a42711f6-5e8b-46bc-847d-40cc7a1732c8`, launch evidence bundle `peb-54e98feb-9126-4cdd-965a-62aea06361fc`.
 - Production promotion was intentionally not run in this transition slice. The controlled production-promotion proof remains part of the broader Shopify production release gate.
 
 `010_ADMIN_TO_PARTNER_TRANSITION_READY`: passed for staging. Public production readiness still depends on the separate production-promotion, rollback/deactivation, and public claim gates tracked in `010.8`.
