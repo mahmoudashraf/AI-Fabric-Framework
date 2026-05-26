@@ -1,6 +1,6 @@
 # 010.10 Shopify Admin To Partner Portal Transition Plan
 
-Status: implemented locally and pending staging rollout verification, created 2026-05-26
+Status: implemented, deployed, and staging live-verified, created 2026-05-26
 
 Parent plans:
 
@@ -75,8 +75,28 @@ Verification completed:
 
 Staging rollout status:
 
-- pending commit/push, Coolify redeploy, and live endpoint/UI verification.
-- Do not mark `010_ADMIN_TO_PARTNER_TRANSITION_READY` complete until live staging proves the new Partner Portal operations route and Shopify embedded admin duplication guard on the deployed branch.
+- Commit `9b7bbfbc9` was pushed to `origin/Platform-V10`.
+- Coolify staging deployments finished successfully:
+  - Platform backend: `jbbed0negxmjurd6f0tvoasb`
+  - Partner UI: `ieqhlnni9ek8i92eesiacs33`
+  - Shopify Bridge staging: `vx90tkepschlm0dvisjv74x4`
+- Live health checks passed:
+  - Platform backend `/actuator/health` returned `UP`
+  - Partner UI returned HTTP `200`
+  - Shopify Bridge staging `/actuator/health` returned `UP`
+- The staging merchant approval flow was re-approved for `shopping-companion-test.myshopify.com`, leaving partner assignment `psa-fbe3b4f7-5cda-4747-8773-82dd45bb0e93` active so Partner Portal is the active management surface.
+- Live Partner API proof passed:
+  - `GET /api/partners/stores/{storeId}/shopify-operations` returned HTTP `200`
+  - `POST /api/partners/stores/{storeId}/shopify-operations/source-preflight` returned HTTP `200`
+  - response included activation, billing, usage, provisioning, support readiness, webhook posture, vectorization posture, capabilities, and recent action summary fields
+  - response was checked for secret/provider terms and did not expose raw credentials or provider internals
+- Deployed UI bundle proof passed:
+  - Partner UI bundle contains the `Shopify operations` tab, source preflight, merchant-owned Shopify action guidance, and knowledge sync controls
+  - Shopify embedded admin bundle contains the Partner Portal management banner and disabled duplicate-operation guard
+- `scripts/verify-partner-enablement-live.sh` passed in non-strict live mode against the active staging assignment. It verified Partner UI assets, partner store detail, product controls, Partner Max widget, support-profile write/restore, activity feed, verification/evidence bundles, launch readiness, templates, notes, members, and support escalation.
+- Production promotion was intentionally not run in this transition slice. The controlled production-promotion proof remains part of the broader Shopify production release gate.
+
+`010_ADMIN_TO_PARTNER_TRANSITION_READY`: passed for staging. Public production readiness still depends on the separate production-promotion, rollback/deactivation, and public claim gates tracked in `010.8`.
 
 ## Purpose
 
