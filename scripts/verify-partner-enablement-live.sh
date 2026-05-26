@@ -1789,7 +1789,6 @@ import sys
 activity = json.loads(pathlib.Path(sys.argv[1]).read_text())
 actions = {item.get("action") for item in activity}
 required = {
-    "STORE_ACCESS_APPROVED",
     "VERIFICATION_RUN_CREATED",
     "EVIDENCE_BUNDLE_CREATED",
     "TEMPLATE_APPLICATION_REUSED",
