@@ -190,31 +190,72 @@ public class ShopifyStoreVectorizationService {
 
     @Transactional
     public ShopifyStoreVectorizationSummary indexAllEnabledData(String shopDomain) {
+        return indexAllEnabledData(shopDomain, false);
+    }
+
+    /**
+     * Queues Shopify indexing from a platform-authorized workflow that already resolved and authorized the store.
+     */
+    @Transactional
+    public ShopifyStoreVectorizationSummary indexAllEnabledDataForTrustedCaller(String shopDomain) {
+        return indexAllEnabledData(shopDomain, true);
+    }
+
+    private ShopifyStoreVectorizationSummary indexAllEnabledData(String shopDomain, boolean trustedCaller) {
         ShopifyStoreConnectionEntity store = requireStore(shopDomain);
         return runManualIndexAction(
             store,
             ShopifyCompanionPluginSelection.selectedEntityTypes(store),
             false,
             "SHOPIFY_ADMIN_INDEX_ALL",
-            "Shopify store admin requested indexing for all enabled data."
+            "Shopify store admin requested indexing for all enabled data.",
+            trustedCaller
         );
     }
 
     @Transactional
     public ShopifyStoreVectorizationSummary reindexAllEnabledData(String shopDomain) {
+        return reindexAllEnabledData(shopDomain, false);
+    }
+
+    /**
+     * Queues Shopify reindexing from a platform-authorized workflow that already resolved and authorized the store.
+     */
+    @Transactional
+    public ShopifyStoreVectorizationSummary reindexAllEnabledDataForTrustedCaller(String shopDomain) {
+        return reindexAllEnabledData(shopDomain, true);
+    }
+
+    private ShopifyStoreVectorizationSummary reindexAllEnabledData(String shopDomain, boolean trustedCaller) {
         ShopifyStoreConnectionEntity store = requireStore(shopDomain);
         return runManualIndexAction(
             store,
             ShopifyCompanionPluginSelection.selectedEntityTypes(store),
             true,
             "SHOPIFY_ADMIN_REINDEX_ALL",
-            "Shopify store admin requested reindex for all enabled data."
+            "Shopify store admin requested reindex for all enabled data.",
+            trustedCaller
         );
     }
 
     @Transactional
     public ShopifyStoreVectorizationSummary reindexSelectedEntityTypes(String shopDomain,
                                                                        ShopifyStoreVectorizationSelectedEntitiesRequest request) {
+        return reindexSelectedEntityTypes(shopDomain, request, false);
+    }
+
+    /**
+     * Queues selected Shopify reindexing from a platform-authorized workflow that already resolved and authorized the store.
+     */
+    @Transactional
+    public ShopifyStoreVectorizationSummary reindexSelectedEntityTypesForTrustedCaller(String shopDomain,
+                                                                                      ShopifyStoreVectorizationSelectedEntitiesRequest request) {
+        return reindexSelectedEntityTypes(shopDomain, request, true);
+    }
+
+    private ShopifyStoreVectorizationSummary reindexSelectedEntityTypes(String shopDomain,
+                                                                       ShopifyStoreVectorizationSelectedEntitiesRequest request,
+                                                                       boolean trustedCaller) {
         ShopifyStoreConnectionEntity store = requireStore(shopDomain);
         List<String> entityTypes = normalizeRequestedEntityTypes(
             request == null ? null : request.entityTypes(),
@@ -225,7 +266,8 @@ public class ShopifyStoreVectorizationService {
             entityTypes,
             true,
             "SHOPIFY_ADMIN_REINDEX_SELECTED",
-            "Shopify store admin requested reindex for selected entity families."
+            "Shopify store admin requested reindex for selected entity families.",
+            trustedCaller
         );
     }
 
@@ -595,9 +637,10 @@ public class ShopifyStoreVectorizationService {
                                                                  List<String> requestedEntityTypes,
                                                                  boolean reindex,
                                                                  String triggerMode,
-                                                                 String note) {
+                                                                 String note,
+                                                                 boolean trustedCaller) {
         DeploymentEntity deployment = requireDeployment(store);
-        ShopifyStoreVectorizationSummary reconciled = reconcile(store.getShopDomain());
+        ShopifyStoreVectorizationSummary reconciled = reconcile(store.getShopDomain(), trustedCaller);
         if (!reconciled.readyToRun()) {
             throw new ResponseStatusException(CONFLICT, String.join(" ", reconciled.blockingReasons()));
         }

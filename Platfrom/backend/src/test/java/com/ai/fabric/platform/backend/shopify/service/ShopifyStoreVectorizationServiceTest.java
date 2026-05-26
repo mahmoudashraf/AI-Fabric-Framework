@@ -736,6 +736,30 @@ class ShopifyStoreVectorizationServiceTest {
     }
 
     @Test
+    void reindexAllForTrustedCallerReconcilesInstallsWithTrustedDeploymentAccess() {
+        ManualVectorizationFixture fixture = manualVectorizationFixture(List.of("product", "support-policy"), true);
+
+        ShopifyStoreVectorizationSummary summary = fixture.service().reindexAllEnabledDataForTrustedCaller("alpha.myshopify.com");
+
+        assertThat(summary.lastRun()).isNotNull();
+        verify(fixture.installService()).createInstallForTrustedCaller(
+            any(DeploymentEntity.class),
+            argThat((CreateDeploymentMarketplaceInstallRequest request) ->
+                ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID.equals(request.pluginId())
+            )
+        );
+        verify(fixture.installService(), never()).createInstall(eq("dep-123"), any());
+        verify(fixture.vectorizationService()).createRunForTrustedCaller(
+            eq("dep-123"),
+            argThat((CreateVectorizationRunRequest request) ->
+                "REINDEX".equals(request.reason())
+                    && "SHOPIFY_ADMIN_REINDEX_ALL".equals(request.executionOverrides().path("triggerMode").asText())
+            ),
+            any()
+        );
+    }
+
+    @Test
     void reindexSelectedQueuesSourceBackedRunWithoutLegacyDocumentSync() {
         ManualVectorizationFixture fixture = manualVectorizationFixture(List.of("product"));
 
@@ -944,6 +968,11 @@ class ShopifyStoreVectorizationServiceTest {
     }
 
     private ManualVectorizationFixture manualVectorizationFixture(List<String> runEntityTypes) {
+        return manualVectorizationFixture(runEntityTypes, false);
+    }
+
+    private ManualVectorizationFixture manualVectorizationFixture(List<String> runEntityTypes,
+                                                                 boolean missingPolicyInstallOnFirstRead) {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
@@ -1023,12 +1052,24 @@ class ShopifyStoreVectorizationServiceTest {
         when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
         when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.empty());
         when(productServiceRepository.findById("psv-123")).thenReturn(Optional.of(productService()));
-        when(installService.listInstallsForTrustedCaller(deployment)).thenReturn(List.of(
+        List<DeploymentMarketplaceInstallSummary> fullInstalls = List.of(
             install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
             install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED"),
             install("mpi-catalog", ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID, "ENABLED"),
             install("mpi-policies", ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID, "ENABLED")
-        ));
+        );
+        if (missingPolicyInstallOnFirstRead) {
+            when(installService.listInstallsForTrustedCaller(deployment))
+                .thenReturn(List.of(
+                    install("mpi-action", ShopifyCompanionPluginSelection.ACTION_READ_PLUGIN_ID, "ENABLED"),
+                    install("mpi-embed", ShopifyCompanionPluginSelection.INFERENCE_SHARED_PLUGIN_ID, "ENABLED"),
+                    install("mpi-catalog", ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID, "ENABLED")
+                ))
+                .thenReturn(fullInstalls)
+                .thenReturn(fullInstalls);
+        } else {
+            when(installService.listInstallsForTrustedCaller(deployment)).thenReturn(fullInstalls);
+        }
         when(marketplaceCatalogService.resolveLatestPublishedVersionLabel(any())).thenReturn("1.0.0");
         when(vectorizationService.upsertSourceConnection(eq("dep-123"), any())).thenReturn(connection);
         when(vectorizationService.upsertPlan(eq("dep-123"), any())).thenReturn(plan);
@@ -1053,12 +1094,13 @@ class ShopifyStoreVectorizationServiceTest {
             eventService,
             auditService
         );
-        return new ManualVectorizationFixture(service, vectorizationService);
+        return new ManualVectorizationFixture(service, vectorizationService, installService);
     }
 
     private record ManualVectorizationFixture(
         ShopifyStoreVectorizationService service,
-        VectorizationService vectorizationService
+        VectorizationService vectorizationService,
+        DeploymentMarketplaceInstallService installService
     ) {
     }
 

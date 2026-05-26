@@ -631,7 +631,7 @@ public class PartnerEnablementService {
     public PartnerShopifyOperationsSummary reconcileShopifyKnowledge(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireKnowledgeSourceControl(context, storeId);
-        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.reconcile(assignment.getShopDomain());
+        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.reconcileForTrustedCaller(assignment.getShopDomain());
         audit(context, "KNOWLEDGE_VECTOR_RECONCILED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
             "shopDomain", assignment.getShopDomain(),
             "readyToRun", summary.readyToRun(),
@@ -645,7 +645,7 @@ public class PartnerEnablementService {
     public PartnerShopifyOperationsSummary indexAllShopifyKnowledge(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireKnowledgeSyncTrigger(context, storeId);
-        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.indexAllEnabledData(assignment.getShopDomain());
+        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.indexAllEnabledDataForTrustedCaller(assignment.getShopDomain());
         audit(context, "KNOWLEDGE_INDEX_ALL_REQUESTED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
             "shopDomain", assignment.getShopDomain(),
             "entityTypes", safeList(summary.selectedEntityTypes())
@@ -658,7 +658,7 @@ public class PartnerEnablementService {
     public PartnerShopifyOperationsSummary reindexAllShopifyKnowledge(String storeId) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireKnowledgeSyncTrigger(context, storeId);
-        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.reindexAllEnabledData(assignment.getShopDomain());
+        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.reindexAllEnabledDataForTrustedCaller(assignment.getShopDomain());
         audit(context, "KNOWLEDGE_REINDEX_ALL_REQUESTED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
             "shopDomain", assignment.getShopDomain(),
             "entityTypes", safeList(summary.selectedEntityTypes())
@@ -672,7 +672,7 @@ public class PartnerEnablementService {
                                                                            ShopifyStoreVectorizationSelectedEntitiesRequest request) {
         PartnerContext context = requireProvisionedContext();
         PartnerStoreAssignmentEntity assignment = requireKnowledgeSyncTrigger(context, storeId);
-        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.reindexSelectedEntityTypes(assignment.getShopDomain(), request);
+        ShopifyStoreVectorizationSummary summary = shopifyStoreVectorizationService.reindexSelectedEntityTypesForTrustedCaller(assignment.getShopDomain(), request);
         audit(context, "KNOWLEDGE_REINDEX_SELECTED_REQUESTED", "STORE_ASSIGNMENT", assignment.getId(), "SUCCESS", writeJson(Map.of(
             "shopDomain", assignment.getShopDomain(),
             "requestedEntityTypes", request == null ? List.of() : safeList(request.entityTypes())
