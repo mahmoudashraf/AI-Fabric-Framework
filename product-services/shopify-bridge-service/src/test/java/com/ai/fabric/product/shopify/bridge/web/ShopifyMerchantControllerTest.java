@@ -54,6 +54,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -171,57 +172,35 @@ class ShopifyMerchantControllerTest {
     }
 
     @Test
-    void bootstrapUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.bootstrap(any(), anyString())).thenReturn(new ShopifyBridgeStoreBootstrapResponse(
-            "alpha.myshopify.com",
-            "cust-1",
-            "dep-1",
-            "consumer-1",
-            true,
-            true,
-            true,
-            List.of("mkp-template-shopify-companion"),
-            store()
-        ));
-
+    void bootstrapIsManagedFromPartnerPortal() throws Exception {
         mockMvc.perform(post("/api/app/store/bootstrap").header("Authorization", "Bearer " + token()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.deploymentId").value("dep-1"));
+            .andExpect(status().isConflict());
 
-        verify(merchantStoreService).bootstrap(any(), anyString());
+        verify(merchantStoreService, never()).bootstrap(any(), anyString());
     }
 
     @Test
-    void sourcePreflightUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.runSourcePreflight(any(), anyString())).thenReturn(store());
-
+    void sourcePreflightIsManagedFromPartnerPortal() throws Exception {
         mockMvc.perform(post("/api/app/store/source-preflight").header("Authorization", "Bearer " + token()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+            .andExpect(status().isConflict());
 
-        verify(merchantStoreService).runSourcePreflight(any(), anyString());
+        verify(merchantStoreService, never()).runSourcePreflight(any(), anyString());
     }
 
     @Test
-    void goLiveUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.goLive(any(), anyString())).thenReturn(store());
-
+    void goLiveIsManagedFromPartnerPortal() throws Exception {
         mockMvc.perform(post("/api/app/store/go-live").header("Authorization", "Bearer " + token()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+            .andExpect(status().isConflict());
 
-        verify(merchantStoreService).goLive(any(), anyString());
+        verify(merchantStoreService, never()).goLive(any(), anyString());
     }
 
     @Test
-    void syncNowUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.syncNow(any(), anyString())).thenReturn(store());
-
+    void syncNowIsManagedFromPartnerPortal() throws Exception {
         mockMvc.perform(post("/api/app/store/sync-now").header("Authorization", "Bearer " + token()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+            .andExpect(status().isConflict());
 
-        verify(merchantStoreService).syncNow(any(), anyString());
+        verify(merchantStoreService, never()).syncNow(any(), anyString());
     }
 
     @Test
@@ -269,9 +248,7 @@ class ShopifyMerchantControllerTest {
     }
 
     @Test
-    void updateWidgetSettingsUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.updateWidgetSettings(any(), any())).thenReturn(store());
-
+    void updateWidgetSettingsIsManagedFromPartnerPortal() throws Exception {
         mockMvc.perform(post("/api/app/store/widget-settings")
                 .header("Authorization", "Bearer " + token())
                 .contentType("application/json")
@@ -281,10 +258,24 @@ class ShopifyMerchantControllerTest {
                       "welcomeMessage": "Ask me about products and policies."
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+            .andExpect(status().isConflict());
 
-        verify(merchantStoreService).updateWidgetSettings(any(), any());
+        verify(merchantStoreService, never()).updateWidgetSettings(any(), any());
+    }
+
+    @Test
+    void updateSupportProfileIsManagedFromPartnerPortal() throws Exception {
+        mockMvc.perform(post("/api/app/store/support-profile")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("""
+                    {
+                      "contactEmail": "support@example.com"
+                    }
+                    """))
+            .andExpect(status().isConflict());
+
+        verify(merchantStoreService, never()).updateSupportProfile(any(), any());
     }
 
     @Test
@@ -633,9 +624,7 @@ class ShopifyMerchantControllerTest {
     }
 
     @Test
-    void updateSourceSettingsUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.updateSourceSettings(any(), any())).thenReturn(store());
-
+    void updateSourceSettingsIsManagedFromPartnerPortal() throws Exception {
         mockMvc.perform(post("/api/app/store/source-settings")
                 .header("Authorization", "Bearer " + token())
                 .contentType("application/json")
@@ -647,10 +636,9 @@ class ShopifyMerchantControllerTest {
                       "policiesEnabled": false
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"));
+            .andExpect(status().isConflict());
 
-        verify(merchantStoreService).updateSourceSettings(any(), any());
+        verify(merchantStoreService, never()).updateSourceSettings(any(), any());
     }
 
     @Test
@@ -667,9 +655,7 @@ class ShopifyMerchantControllerTest {
     }
 
     @Test
-    void vectorizationPolicyUpdateUsesMerchantSessionContext() throws Exception {
-        when(merchantStoreService.updateVectorizationPolicy(any(), any())).thenReturn(vectorization());
-
+    void vectorizationPolicyUpdateIsManagedFromPartnerPortal() throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/app/store/vectorization/policy")
                 .header("Authorization", "Bearer " + token())
                 .contentType("application/json")
@@ -690,10 +676,38 @@ class ShopifyMerchantControllerTest {
                       ]
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.policy.policyVersion").value(1));
+            .andExpect(status().isConflict());
 
-        verify(merchantStoreService).updateVectorizationPolicy(any(), any());
+        verify(merchantStoreService, never()).updateVectorizationPolicy(any(), any());
+    }
+
+    @Test
+    void vectorizationMutationsAreManagedFromPartnerPortal() throws Exception {
+        mockMvc.perform(post("/api/app/store/vectorization/reconcile").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/app/store/vectorization/vectorize-now").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/app/store/vectorization/index-all").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/app/store/vectorization/reindex-all").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/app/store/vectorization/reindex-selected")
+                .header("Authorization", "Bearer " + token())
+                .contentType("application/json")
+                .content("{\"entityTypes\":[\"product\"]}"))
+            .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/app/store/vectorization/events/evt-1/replay").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/app/store/vectorization/retry-last-failed-auto-run").header("Authorization", "Bearer " + token()))
+            .andExpect(status().isConflict());
+
+        verify(merchantStoreService, never()).reconcileVectorization(any());
+        verify(merchantStoreService, never()).vectorizeNow(any());
+        verify(merchantStoreService, never()).indexAllEnabledData(any());
+        verify(merchantStoreService, never()).reindexAllEnabledData(any());
+        verify(merchantStoreService, never()).reindexSelectedEntityTypes(any(), any());
+        verify(merchantStoreService, never()).replayVectorizationEvent(any(), anyString());
+        verify(merchantStoreService, never()).retryLastFailedAutoRun(any());
     }
 
     private ShopifyBridgeStoreSummary store() {

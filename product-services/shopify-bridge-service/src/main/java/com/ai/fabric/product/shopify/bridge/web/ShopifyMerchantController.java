@@ -29,6 +29,7 @@ import com.ai.fabric.product.shopify.bridge.playground.service.ShopifyMerchantPl
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyBridgeMerchantStoreService;
 import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,6 +40,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/app")
@@ -71,25 +73,25 @@ public class ShopifyMerchantController {
     @PostMapping("/store/source-preflight")
     public ShopifyBridgeStoreSummary runSourcePreflight(Authentication authentication,
                                                         @RequestHeader("Authorization") String authorizationHeader) {
-        return merchantStoreService.runSourcePreflight(requireMerchant(authentication), authorizationHeader);
+        throw partnerPortalManagedOperation("Shopify source preflight");
     }
 
     @PostMapping("/store/bootstrap")
     public ShopifyBridgeStoreBootstrapResponse bootstrap(Authentication authentication,
                                                          @RequestHeader("Authorization") String authorizationHeader) {
-        return merchantStoreService.bootstrap(requireMerchant(authentication), authorizationHeader);
+        throw partnerPortalManagedOperation("Loom Companion deployment bootstrap");
     }
 
     @PostMapping("/store/go-live")
     public ShopifyBridgeStoreSummary goLive(Authentication authentication,
                                             @RequestHeader("Authorization") String authorizationHeader) {
-        return merchantStoreService.goLive(requireMerchant(authentication), authorizationHeader);
+        throw partnerPortalManagedOperation("Loom Companion go-live");
     }
 
     @PostMapping("/store/sync-now")
     public ShopifyBridgeStoreSummary syncNow(Authentication authentication,
                                              @RequestHeader("Authorization") String authorizationHeader) {
-        return merchantStoreService.syncNow(requireMerchant(authentication), authorizationHeader);
+        throw partnerPortalManagedOperation("Shopify knowledge sync");
     }
 
     @GetMapping("/store/vectorization")
@@ -104,40 +106,34 @@ public class ShopifyMerchantController {
 
     @PostMapping("/store/vectorization/reconcile")
     public ShopifyBridgeStoreVectorizationSummary reconcileVectorization(Authentication authentication) {
-        return merchantStoreService.reconcileVectorization(requireMerchant(authentication));
+        throw partnerPortalManagedOperation("Shopify knowledge indexing reconcile");
     }
 
     @PostMapping("/store/vectorization/vectorize-now")
     public ShopifyBridgeStoreVectorizationSummary vectorizeNow(Authentication authentication) {
-        return merchantStoreService.vectorizeNow(requireMerchant(authentication));
+        throw partnerPortalManagedOperation("Shopify knowledge refresh");
     }
 
     @PostMapping("/store/vectorization/index-all")
     public ShopifyBridgeStoreVectorizationSummary indexAllEnabledData(Authentication authentication) {
-        return merchantStoreService.indexAllEnabledData(requireMerchant(authentication));
+        throw partnerPortalManagedOperation("Shopify source indexing");
     }
 
     @PostMapping("/store/vectorization/reindex-all")
     public ShopifyBridgeStoreVectorizationSummary reindexAllEnabledData(Authentication authentication) {
-        return merchantStoreService.reindexAllEnabledData(requireMerchant(authentication));
+        throw partnerPortalManagedOperation("Shopify source reindex");
     }
 
     @PostMapping("/store/vectorization/reindex-selected")
     public ShopifyBridgeStoreVectorizationSummary reindexSelected(Authentication authentication,
                                                                   @RequestBody(required = false) ShopifyBridgeStoreVectorizationSelectedEntitiesRequest request) {
-        return merchantStoreService.reindexSelectedEntityTypes(
-            requireMerchant(authentication),
-            request == null ? new ShopifyBridgeStoreVectorizationSelectedEntitiesRequest(null) : request
-        );
+        throw partnerPortalManagedOperation("Shopify bounded source reindex");
     }
 
     @PutMapping("/store/vectorization/policy")
     public ShopifyBridgeStoreVectorizationSummary updateVectorizationPolicy(Authentication authentication,
                                                                             @RequestBody(required = false) ShopifyBridgeUpdateStoreVectorizationPolicyRequest request) {
-        return merchantStoreService.updateVectorizationPolicy(
-            requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateStoreVectorizationPolicyRequest(null, null) : request
-        );
+        throw partnerPortalManagedOperation("Shopify live update policy");
     }
 
     @GetMapping("/store/vectorization/events")
@@ -151,12 +147,12 @@ public class ShopifyMerchantController {
     @PostMapping("/store/vectorization/events/{eventId}/replay")
     public ShopifyBridgeStoreVectorizationSummary replayVectorizationEvent(Authentication authentication,
                                                                            @PathVariable String eventId) {
-        return merchantStoreService.replayVectorizationEvent(requireMerchant(authentication), eventId);
+        throw partnerPortalManagedOperation("Shopify live update event replay");
     }
 
     @PostMapping("/store/vectorization/retry-last-failed-auto-run")
     public ShopifyBridgeStoreVectorizationSummary retryLastFailedAutoRun(Authentication authentication) {
-        return merchantStoreService.retryLastFailedAutoRun(requireMerchant(authentication));
+        throw partnerPortalManagedOperation("Shopify failed live update retry");
     }
 
     @GetMapping("/store/storefront-preview")
@@ -223,10 +219,7 @@ public class ShopifyMerchantController {
     @PostMapping("/store/support-profile")
     public ShopifyBridgeSupportReadinessSummary updateSupportProfile(Authentication authentication,
                                                                     @RequestBody(required = false) ShopifyBridgeUpdateSupportProfileRequest request) {
-        return merchantStoreService.updateSupportProfile(
-            requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateSupportProfileRequest(null, null, null, null, null) : request
-        );
+        throw partnerPortalManagedOperation("Loom Companion support profile");
     }
 
     @GetMapping("/store/actions/recent")
@@ -252,19 +245,13 @@ public class ShopifyMerchantController {
     @PostMapping("/store/source-settings")
     public ShopifyBridgeStoreSummary updateSourceSettings(Authentication authentication,
                                                           @RequestBody(required = false) ShopifyBridgeUpdateSourceSettingsRequest request) {
-        return merchantStoreService.updateSourceSettings(
-            requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateSourceSettingsRequest(null, null, null, null, null, null) : request
-        );
+        throw partnerPortalManagedOperation("Shopify source settings");
     }
 
     @PostMapping("/store/widget-settings")
     public ShopifyBridgeStoreSummary updateWidgetSettings(Authentication authentication,
                                                           @RequestBody(required = false) ShopifyBridgeUpdateWidgetSettingsRequest request) {
-        return merchantStoreService.updateWidgetSettings(
-            requireMerchant(authentication),
-            request == null ? new ShopifyBridgeUpdateWidgetSettingsRequest(null, null, null, null, null, null, null, null, null, null) : request
-        );
+        throw partnerPortalManagedOperation("Loom Companion widget settings");
     }
 
     @PostMapping("/store/playground/query")
@@ -285,5 +272,12 @@ public class ShopifyMerchantController {
             return merchantSession;
         }
         throw new IllegalStateException("Missing Shopify merchant authentication.");
+    }
+
+    private ResponseStatusException partnerPortalManagedOperation(String operationName) {
+        return new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            operationName + " is managed from Partner Portal after merchant approval. Shopify Admin remains available for app install, scope consent, billing approval, theme activation, and partner access approval or revocation."
+        );
     }
 }
