@@ -220,6 +220,14 @@ class PartnerEnablementIntegrationTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isForbidden());
 
+        mockMvc.perform(get("/api/partners/stores/psa-missing/shopify-operations")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/partners/stores/psa-missing/shopify-operations/knowledge/reindex-all")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+
         mockMvc.perform(post("/api/partners/stores/psa-missing/product-controls/widget-settings")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -416,6 +424,20 @@ class PartnerEnablementIntegrationTest {
             .andExpect(jsonPath("$.enabledSurfaces", hasItem("product-faq")))
             .andExpect(jsonPath("$.capabilities", hasItem("STOREFRONT_SURFACE_CONTROL")))
             .andExpect(jsonPath("$.supportProfile.merchantHandoffConfigured", is(false)));
+
+        mockMvc.perform(get("/api/partners/stores/{storeId}/shopify-operations", assignmentId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain", is("approved-client.myshopify.com")))
+            .andExpect(jsonPath("$.activation.appEmbedHandle", is("companion-app-embed")))
+            .andExpect(jsonPath("$.activation.placements[?(@.surfaceId == 'ai-search')].blockHandle", hasItem("companion-ai-search")))
+            .andExpect(jsonPath("$.activation.merchantActions[?(@.actionKey == 'SHOPIFY_SCOPE_GRANT')].owner", hasItem("SHOPIFY_ADMIN")))
+            .andExpect(jsonPath("$.usage.status", is("UNAVAILABLE")))
+            .andExpect(jsonPath("$.provisioning.status", notNullValue()))
+            .andExpect(jsonPath("$.supportReadiness.status", is("UNAVAILABLE")))
+            .andExpect(jsonPath("$.webhooks.status", is("UNAVAILABLE")))
+            .andExpect(jsonPath("$.recentActions.length()", is(0)))
+            .andExpect(jsonPath("$.capabilities", hasItem("KNOWLEDGE_SOURCE_CONTROL")));
 
         mockMvc.perform(get("/api/partners/stores/{storeId}/launch-readiness", assignmentId)
                 .header("Authorization", "Bearer " + token))

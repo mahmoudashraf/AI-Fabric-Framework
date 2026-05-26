@@ -20,6 +20,7 @@ import com.ai.fabric.platform.backend.partner.model.PartnerProductControlSummary
 import com.ai.fabric.platform.backend.partner.model.PartnerProductionPromotionSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerProfileUpdateRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerSessionSummary;
+import com.ai.fabric.platform.backend.partner.model.PartnerShopifyOperationsSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerSignupCompleteRequest;
 import com.ai.fabric.platform.backend.partner.model.PartnerStoreAccessLinkSummary;
 import com.ai.fabric.platform.backend.partner.model.PartnerStoreNoteRequest;
@@ -39,6 +40,8 @@ import com.ai.fabric.platform.backend.partner.model.PartnerVerificationRunSummar
 import com.ai.fabric.platform.backend.partner.service.PartnerEnablementService;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSourceSettingsRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreSupportProfileRequest;
+import com.ai.fabric.platform.backend.shopify.model.ShopifyStoreVectorizationSelectedEntitiesRequest;
+import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreVectorizationPolicyRequest;
 import com.ai.fabric.platform.backend.shopify.model.UpdateShopifyStoreWidgetSettingsRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
@@ -52,6 +55,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -131,6 +135,67 @@ public class PartnerEnablementController {
     public PartnerProductControlSummary updateProductSupportProfile(@PathVariable String storeId,
                                                                     @RequestBody UpdateShopifyStoreSupportProfileRequest request) {
         return service.updateProductSupportProfile(storeId, request);
+    }
+
+    @GetMapping("/stores/{storeId}/shopify-operations")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER','PARTNER_SUPPORT')")
+    public PartnerShopifyOperationsSummary getShopifyOperations(@PathVariable String storeId) {
+        return service.getShopifyOperations(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/shopify-operations/source-preflight")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary runShopifySourcePreflight(@PathVariable String storeId) {
+        return service.runShopifySourcePreflight(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/shopify-operations/knowledge/reconcile")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary reconcileShopifyKnowledge(@PathVariable String storeId) {
+        return service.reconcileShopifyKnowledge(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/shopify-operations/knowledge/index-all")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary indexAllShopifyKnowledge(@PathVariable String storeId) {
+        return service.indexAllShopifyKnowledge(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/shopify-operations/knowledge/reindex-all")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary reindexAllShopifyKnowledge(@PathVariable String storeId) {
+        return service.reindexAllShopifyKnowledge(storeId);
+    }
+
+    @PostMapping("/stores/{storeId}/shopify-operations/knowledge/reindex-selected")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary reindexSelectedShopifyKnowledge(
+        @PathVariable String storeId,
+        @RequestBody ShopifyStoreVectorizationSelectedEntitiesRequest request
+    ) {
+        return service.reindexSelectedShopifyKnowledge(storeId, request);
+    }
+
+    @PutMapping("/stores/{storeId}/shopify-operations/knowledge/policy")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary updateShopifyKnowledgePolicy(
+        @PathVariable String storeId,
+        @RequestBody UpdateShopifyStoreVectorizationPolicyRequest request
+    ) {
+        return service.updateShopifyKnowledgePolicy(storeId, request);
+    }
+
+    @PostMapping("/stores/{storeId}/shopify-operations/knowledge/events/{eventId}/replay")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary replayShopifyKnowledgeEvent(@PathVariable String storeId,
+                                                                       @PathVariable String eventId) {
+        return service.replayShopifyKnowledgeEvent(storeId, eventId);
+    }
+
+    @PostMapping("/stores/{storeId}/shopify-operations/knowledge/retry-last-failed-auto-run")
+    @PreAuthorize("hasAnyRole('PARTNER_ADMIN','PARTNER_IMPLEMENTER','PARTNER_DEVELOPER')")
+    public PartnerShopifyOperationsSummary retryLastFailedShopifyKnowledgeRun(@PathVariable String storeId) {
+        return service.retryLastFailedShopifyKnowledgeRun(storeId);
     }
 
     @PostMapping("/stores/{storeId}/package-trials")

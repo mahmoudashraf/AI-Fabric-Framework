@@ -155,6 +155,292 @@ export const partnerProductControlSchema = z.object({
   updatedAt: z.string(),
 })
 
+export const partnerShopifyBillingSchema = z.object({
+  mode: nullableString,
+  tierKey: nullableString,
+  planName: nullableString,
+  status: nullableString,
+  subscriptionName: nullableString,
+  merchantApprovalRequired: z.boolean(),
+  launchBlocked: z.boolean(),
+  paidTier: z.boolean(),
+  actionCapable: z.boolean(),
+  allowedSurfaces: z.array(z.string()),
+  recordedAt: nullableDateString,
+  reason: nullableString,
+})
+
+export const partnerShopifyStorefrontPlacementSchema = z.object({
+  surfaceId: z.string(),
+  label: z.string(),
+  blockHandle: z.string(),
+  template: z.string(),
+  target: z.string(),
+  requiredTierKey: z.string(),
+  enabled: z.boolean(),
+  available: z.boolean(),
+  guidance: z.string(),
+})
+
+export const partnerShopifyMerchantActionSchema = z.object({
+  actionKey: z.string(),
+  label: z.string(),
+  owner: z.string(),
+  status: z.string(),
+  url: nullableString,
+  reason: z.string(),
+})
+
+export const partnerShopifyActivationSchema = z.object({
+  status: z.string(),
+  storefrontUrl: z.string(),
+  themeEditorUrl: z.string(),
+  appEmbedHandle: z.string(),
+  message: z.string(),
+  placements: z.array(partnerShopifyStorefrontPlacementSchema),
+  merchantActions: z.array(partnerShopifyMerchantActionSchema),
+})
+
+export const partnerShopifyUsageBreakdownSchema = z.object({
+  key: nullableString,
+  label: nullableString,
+  queryText: nullableString,
+  count: z.number(),
+  lastAskedAt: nullableDateString,
+  summary: nullableString,
+})
+
+export const partnerShopifyUsageSchema = z.object({
+  status: z.string(),
+  generatedAt: nullableDateString,
+  lastActivityAt: nullableDateString,
+  totalToday: z.number(),
+  totalLast7Days: z.number(),
+  todayBreakdown: z.array(partnerShopifyUsageBreakdownSchema),
+  last7DayBreakdown: z.array(partnerShopifyUsageBreakdownSchema),
+  surfaceUsage: z.array(partnerShopifyUsageBreakdownSchema),
+  topQuestions: z.array(partnerShopifyUsageBreakdownSchema),
+  surfaceJourneys: z.array(partnerShopifyUsageBreakdownSchema),
+  roiStatus: nullableString,
+  roiMessage: nullableString,
+  roiRecommendations: z.array(z.string()),
+  reason: nullableString,
+})
+
+export const partnerShopifyProvisioningJobSchema = z.object({
+  id: nullableString,
+  jobType: nullableString,
+  status: nullableString,
+  phase: nullableString,
+  requestedPackageKey: nullableString,
+  requestedTierKey: nullableString,
+  requestedPluginIds: z.array(z.string()),
+  vectorReindexRequired: z.boolean(),
+  attemptCount: z.number(),
+  maxAttempts: z.number(),
+  lastErrorCode: nullableString,
+  nextAction: nullableString,
+  summaryMessage: nullableString,
+  readyAt: nullableDateString,
+  failedAt: nullableDateString,
+  cancelledAt: nullableDateString,
+  createdAt: nullableDateString,
+  updatedAt: nullableDateString,
+})
+
+export const partnerShopifyProvisioningSchema = z.object({
+  status: nullableString,
+  phase: nullableString,
+  nextAction: nullableString,
+  summaryMessage: nullableString,
+  effectivePackageKey: nullableString,
+  effectiveTierKey: nullableString,
+  latestJob: partnerShopifyProvisioningJobSchema.nullable(),
+  recentJobs: z.array(partnerShopifyProvisioningJobSchema),
+})
+
+export const partnerShopifySupportReadinessSchema = z.object({
+  status: z.string(),
+  message: nullableString,
+  lifecycleStage: nullableString,
+  orderLookupSupported: z.boolean(),
+  orderLookupScopeGranted: z.boolean(),
+  allOrdersScopeGranted: z.boolean(),
+  appScopesUpdateWebhookReady: z.boolean(),
+  installRecoveryRequired: z.boolean(),
+  installRecoveryUrl: nullableString,
+  scopeGrantRequired: z.boolean(),
+  scopeGrantUrl: nullableString,
+  installStatus: nullableString,
+  billingTier: nullableString,
+  billingStatus: nullableString,
+  grantedScopes: z.array(z.string()),
+  missingScopes: z.array(z.string()),
+  merchantHandoffConfigured: z.boolean(),
+  merchantHandoffMessage: nullableString,
+  nextActions: z.array(z.string()),
+  verificationMethods: z.array(z.string()),
+  supportedCapabilities: z.array(z.string()),
+  blockedCapabilities: z.array(z.string()),
+})
+
+export const partnerShopifyWebhookTopicSchema = z.object({
+  topic: nullableString,
+  expectedName: nullableString,
+  status: nullableString,
+  message: nullableString,
+})
+
+export const partnerShopifyWebhookSchema = z.object({
+  status: z.string(),
+  message: nullableString,
+  expectedCount: z.number(),
+  readyCount: z.number(),
+  missingCount: z.number(),
+  driftedCount: z.number(),
+  checkedAt: nullableDateString,
+  topics: z.array(partnerShopifyWebhookTopicSchema),
+})
+
+export const partnerShopifyActionAuditSchema = z.object({
+  id: z.string(),
+  actionType: nullableString,
+  actionPackage: nullableString,
+  surfaceId: nullableString,
+  pageType: nullableString,
+  productHandle: nullableString,
+  productTitle: nullableString,
+  variantId: nullableString,
+  requestedQuantity: z.number().nullable().optional(),
+  resultingQuantity: z.number().nullable().optional(),
+  confirmationRequired: z.boolean(),
+  confirmationAccepted: z.boolean(),
+  status: nullableString,
+  message: nullableString,
+  createdAt: nullableDateString,
+  completedAt: nullableDateString,
+})
+
+export const partnerShopifyVectorizationRunSchema = z.object({
+  reason: nullableString,
+  status: nullableString,
+  requestedStatus: nullableString,
+  entityScope: z.array(z.string()),
+  createdAt: nullableDateString,
+  startedAt: nullableDateString,
+  completedAt: nullableDateString,
+  updatedAt: nullableDateString,
+})
+
+export const partnerShopifyVectorizationSourcePolicySchema = z.object({
+  sourceCategory: z.string(),
+  enabled: z.boolean(),
+  manualIndexAllowed: z.boolean(),
+  manualReindexAllowed: z.boolean(),
+  autoIndexingEnabled: z.boolean(),
+  createTriggerEnabled: z.boolean(),
+  deleteTriggerEnabled: z.boolean(),
+  updateTriggerMode: z.string(),
+  selectedIndexedFields: z.array(z.string()),
+  debounceWindowSeconds: z.number(),
+  minimumRunIntervalSeconds: z.number(),
+})
+
+export const partnerShopifyVectorizationPolicySchema = z.object({
+  policyVersion: z.number(),
+  autoIndexingDefault: z.boolean(),
+  sourcePolicies: z.array(partnerShopifyVectorizationSourcePolicySchema),
+  updatedBy: nullableString,
+  updatedAt: nullableDateString,
+})
+
+export const partnerShopifyVectorizationIndexedFieldSchema = z.object({
+  fieldKey: z.string(),
+  sourceCategory: z.string(),
+  entityType: z.string(),
+  sourceField: z.string(),
+  label: z.string(),
+  selectableForTriggerPolicy: z.boolean(),
+})
+
+export const partnerShopifyVectorizationAutomationSchema = z.object({
+  autoIndexingHealthy: z.boolean(),
+  queuedEvents: z.number(),
+  leasedEvents: z.number(),
+  dispatchedEvents: z.number(),
+  skippedEvents: z.number(),
+  failedEvents: z.number(),
+  deadLetteredEvents: z.number(),
+  lastAutoEventAt: nullableDateString,
+  lastSuccessfulAutoIndexAt: nullableDateString,
+  lastFailedAutoIndexAt: nullableDateString,
+  lastAutoRunId: nullableString,
+  degradedReasons: z.array(z.string()),
+})
+
+export const partnerShopifyVectorizationEventSchema = z.object({
+  id: z.string(),
+  sourceCategory: nullableString,
+  entityType: nullableString,
+  operation: nullableString,
+  status: nullableString,
+  triggerReason: nullableString,
+  failureCode: nullableString,
+  occurredAt: nullableDateString,
+  queuedAt: nullableDateString,
+  lastAttemptAt: nullableDateString,
+  completedAt: nullableDateString,
+  notes: nullableString,
+})
+
+export const partnerShopifyVectorizationOperationsSchema = z.object({
+  bootstrapped: z.boolean(),
+  selectedCategories: z.array(z.string()),
+  selectedEntityTypes: z.array(z.string()),
+  requiredPluginIds: z.array(z.string()),
+  installedPluginIds: z.array(z.string()),
+  missingPluginIds: z.array(z.string()),
+  disabledPluginIds: z.array(z.string()),
+  reconciliationRequired: z.boolean(),
+  connectionConfigured: z.boolean(),
+  sourceConnectionStatus: nullableString,
+  planConfigured: z.boolean(),
+  planStatus: nullableString,
+  runnerConfigured: z.boolean(),
+  runnerRegistrationStatus: nullableString,
+  deploymentApplyInProgress: z.boolean(),
+  deploymentApplyStatus: nullableString,
+  runnerMode: nullableString,
+  syncState: nullableString,
+  readyToRun: z.boolean(),
+  blockingReasons: z.array(z.string()),
+  lastRun: partnerShopifyVectorizationRunSchema.nullable(),
+  policy: partnerShopifyVectorizationPolicySchema.nullable(),
+  effectiveIndexedFields: z.array(partnerShopifyVectorizationIndexedFieldSchema),
+  automation: partnerShopifyVectorizationAutomationSchema.nullable(),
+  recentEvents: z.array(partnerShopifyVectorizationEventSchema),
+})
+
+export const partnerShopifyOperationsSchema = z.object({
+  storeId: z.string(),
+  shopDomain: z.string(),
+  merchantName: z.string(),
+  installStatus: z.string(),
+  widgetStatus: z.string(),
+  knowledgeSyncStatus: z.string(),
+  readinessStatus: z.string(),
+  billing: partnerShopifyBillingSchema,
+  activation: partnerShopifyActivationSchema,
+  usage: partnerShopifyUsageSchema,
+  provisioning: partnerShopifyProvisioningSchema,
+  supportReadiness: partnerShopifySupportReadinessSchema,
+  webhooks: partnerShopifyWebhookSchema,
+  recentActions: z.array(partnerShopifyActionAuditSchema),
+  vectorization: partnerShopifyVectorizationOperationsSchema.nullable(),
+  capabilities: z.array(z.string()),
+  checkedAt: z.string(),
+})
+
 export const partnerLaunchReadinessSchema = z.object({
   storeId: z.string(),
   shopDomain: z.string(),
@@ -604,6 +890,8 @@ export type PartnerSession = z.infer<typeof partnerSessionSchema>
 export type PartnerMember = z.infer<typeof partnerMemberSchema>
 export type PartnerStore = z.infer<typeof partnerStoreSchema>
 export type PartnerProductControl = z.infer<typeof partnerProductControlSchema>
+export type PartnerShopifyOperations = z.infer<typeof partnerShopifyOperationsSchema>
+export type PartnerShopifyVectorizationSourcePolicy = z.infer<typeof partnerShopifyVectorizationSourcePolicySchema>
 export type PartnerLaunchReadiness = z.infer<typeof partnerLaunchReadinessSchema>
 export type PartnerProductionPromotion = z.infer<typeof partnerProductionPromotionSchema>
 export type PartnerProductPackage = z.infer<typeof partnerProductPackageSchema>

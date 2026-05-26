@@ -991,6 +991,8 @@ export default function App() {
   const usageSummary = state.usageSummary
   const recentGovernedActions = state.recentGovernedActions
   const partnerAccessRequests = state.partnerAccessRequests
+  const partnerManagementActive = partnerAccessRequests.some((request) => request.status === 'APPROVED' || request.status === 'ACTIVE')
+  const embeddedOperationsMovedToPartnerPortal = partnerManagementActive
   const partnerAccessError = state.partnerAccessError
   const billingSummary = state.billingSummary
   const billingApprovalRequired = Boolean(
@@ -1149,6 +1151,7 @@ export default function App() {
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
+    !embeddedOperationsMovedToPartnerPortal &&
     !installRecoveryRequired &&
     !supportReadinessLaunchBlocked &&
     !billingLaunchBlocked &&
@@ -1157,10 +1160,12 @@ export default function App() {
   const canReconcileVectorization =
     Boolean(session) &&
     Boolean(store?.deploymentId) &&
+    !embeddedOperationsMovedToPartnerPortal &&
     !installRecoveryRequired
   const canVectorizeNow =
     Boolean(session) &&
     Boolean(vectorizationSummary?.readyToRun) &&
+    !embeddedOperationsMovedToPartnerPortal &&
     !installRecoveryRequired
   const vectorizationBusy =
     busyAction === 'vectorization-reconcile' ||
@@ -1470,6 +1475,11 @@ export default function App() {
           {actionError ? <Banner tone="critical">{actionError}</Banner> : null}
           {actionMessage ? <Banner tone="success">{actionMessage}</Banner> : null}
           {state.loading ? <Banner tone="info">Loading Shopify Bridge shell…</Banner> : null}
+          {embeddedOperationsMovedToPartnerPortal ? (
+            <Banner tone="info">
+              Partner Portal is now the management surface for Loom Companion configuration, knowledge indexing, launch actions, widget settings, and support handoff after merchant approval. Shopify Admin remains active for app install, scope consent, billing approval, theme activation, and partner access approval or revocation.
+            </Banner>
+          ) : null}
           <Tabs tabs={ADMIN_TABS} selected={selectedTab} onSelect={setSelectedTab} />
 
           {selectedSection === 'home' ? (
@@ -1606,37 +1616,43 @@ export default function App() {
                     label="Products"
                     checked={sourceSettings.productsEnabled}
                     onChange={(checked) => setSourceSettings((current) => ({ ...current, productsEnabled: checked }))}
+                    disabled={embeddedOperationsMovedToPartnerPortal}
                   />
                   <Checkbox
                     label="Collections"
                     checked={sourceSettings.collectionsEnabled}
                     onChange={(checked) => setSourceSettings((current) => ({ ...current, collectionsEnabled: checked }))}
+                    disabled={embeddedOperationsMovedToPartnerPortal}
                   />
                   <Checkbox
                     label="Pages"
                     checked={sourceSettings.pagesEnabled}
                     onChange={(checked) => setSourceSettings((current) => ({ ...current, pagesEnabled: checked }))}
+                    disabled={embeddedOperationsMovedToPartnerPortal}
                   />
                   <Checkbox
                     label="Policies"
                     checked={sourceSettings.policiesEnabled}
                     onChange={(checked) => setSourceSettings((current) => ({ ...current, policiesEnabled: checked }))}
+                    disabled={embeddedOperationsMovedToPartnerPortal}
                   />
                   <Checkbox
                     label="Articles"
                     checked={sourceSettings.articlesEnabled}
                     onChange={(checked) => setSourceSettings((current) => ({ ...current, articlesEnabled: checked }))}
+                    disabled={embeddedOperationsMovedToPartnerPortal}
                   />
                   <Checkbox
                     label="Metaobjects"
                     checked={sourceSettings.metaobjectsEnabled}
                     onChange={(checked) => setSourceSettings((current) => ({ ...current, metaobjectsEnabled: checked }))}
+                    disabled={embeddedOperationsMovedToPartnerPortal}
                   />
                   <InlineStack gap="200">
                     <Button
                       onClick={() => void handleSourceSettingsSave()}
                       loading={busyAction === 'source-settings'}
-                      disabled={!session || installRecoveryRequired || !sourceSettingsDirty}
+                      disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired || !sourceSettingsDirty}
                     >
                       Save source settings
                     </Button>
@@ -1891,7 +1907,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleWidgetSettingsSave()}
                       loading={busyWidgetSettings}
-                      disabled={!session || installRecoveryRequired || !widgetSettingsDirty}
+                      disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired || !widgetSettingsDirty}
                     >
                       Save advanced routing
                     </Button>
@@ -3429,7 +3445,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleWidgetSettingsSave()}
                       loading={busyWidgetSettings}
-                      disabled={!session || installRecoveryRequired || !widgetSettingsDirty}
+                      disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired || !widgetSettingsDirty}
                     >
                       Save widget settings
                     </Button>
@@ -3513,7 +3529,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleSupportProfileSave()}
                       loading={busySupportProfile}
-                      disabled={!session || installRecoveryRequired || !supportProfileDirty}
+                      disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired || !supportProfileDirty}
                     >
                       Save support profile
                     </Button>
@@ -3802,14 +3818,14 @@ export default function App() {
                 <Button
                   onClick={() => void handleSourcePreflight()}
                   loading={busyAction === 'preflight'}
-                  disabled={!session || installRecoveryRequired}
+                  disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired}
                 >
                   Run source preflight
                 </Button>
                 <Button
                   onClick={() => void handleBootstrap()}
                   loading={busyAction === 'bootstrap'}
-                  disabled={!session || installRecoveryRequired}
+                  disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired}
                 >
                   Bootstrap deployment
                 </Button>
