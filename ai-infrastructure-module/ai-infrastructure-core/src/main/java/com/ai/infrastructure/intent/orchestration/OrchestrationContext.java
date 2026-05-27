@@ -5,8 +5,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.intent.orchestration.attachment.NormalizedAttachment;
 import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -98,6 +100,16 @@ public class OrchestrationContext {
      */
     @Builder.Default
     private List<NormalizedAttachment> attachmentsNormalized = new ArrayList<>();
+
+    /**
+     * Provider-native transient inputs for the current request.
+     *
+     * <p>These values may contain short-lived URLs. They are intentionally excluded from JSON
+     * serialization and must not be copied into metadata, chat history, debug payloads, or logs.</p>
+     */
+    @JsonIgnore
+    @Builder.Default
+    private List<AIGenerationInputPart> transientInputParts = new ArrayList<>();
 
     /**
      * Server-resolved orchestration policy for this request.

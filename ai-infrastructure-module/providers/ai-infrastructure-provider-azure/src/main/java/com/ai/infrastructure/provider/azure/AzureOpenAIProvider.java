@@ -5,6 +5,7 @@ import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
 import com.ai.infrastructure.exception.AIServiceException;
@@ -13,6 +14,7 @@ import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
+import com.ai.infrastructure.provider.TransientInputSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -56,6 +58,7 @@ public class AzureOpenAIProvider implements AIProvider {
     private final AtomicReference<String> lastErrorMessage = new AtomicReference<>();
     private final AtomicReference<Double> averageResponseTime = new AtomicReference<>(0.0);
     private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final int MAX_TRANSIENT_PDF_BYTES = 20 * 1024 * 1024;
 
     public AzureOpenAIProvider(ProviderConfig config,
                                AIProviderConfig.AzureConfig azureConfig,
@@ -100,6 +103,9 @@ public class AzureOpenAIProvider implements AIProvider {
         totalRequests.incrementAndGet();
 
         try {
+            if (TransientInputSupport.hasFileUrlInputs(request)) {
+                return generateResponsesContent(request, startTime);
+            }
             ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
                 ProviderRequestOverrideSupport.read(request.getParameters());
             String endpoint = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : azureConfig.getEndpoint();
@@ -248,6 +254,191 @@ public class AzureOpenAIProvider implements AIProvider {
             lastErrorMessage.set(ex.getMessage());
             throw wrapException("Azure content generation failed", ex);
         }
+    }
+
+    private AIGenerationResponse generateResponsesContent(AIGenerationRequest request, long startTime) {
+        ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+            ProviderRequestOverrideSupport.read(request.getParameters());
+        String endpoint = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : azureConfig.getEndpoint();
+        String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+        String deploymentName = hasText(connectionOverride.deploymentName())
+            ? connectionOverride.deploymentName()
+            : azureConfig.getDeploymentName();
+        String apiVersion = hasText(connectionOverride.apiVersion())
+            ? connectionOverride.apiVersion()
+            : azureConfig.getApiVersion();
+        String url = buildResponsesUrl(endpoint, apiVersion);
+
+        List<AIGenerationInputPart> fileParts = TransientInputSupport.fileUrlInputParts(request);
+        List<Map<String, Object>> content;
+        try {
+            content = buildResponsesInputContent(request, fileParts);
+        } catch (UnsupportedTransientDocumentException ex) {
+            long responseTime = System.currentTimeMillis() - startTime;
+            updateMetrics(false, responseTime);
+            log.warn("Azure transient document input was not used: {}", ex.getMessage());
+            return TransientInputSupport.unsupportedFileUrlResponse(request, getProviderName(), ex.getMessage());
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HEADER_API_KEY, apiKey);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", firstNonBlank(request.getModel(), config.getDefaultModel(), deploymentName));
+        body.put("input", List.of(Map.of("role", "user", "content", content)));
+        if (hasText(request.getSystemPrompt())) {
+            body.put("instructions", request.getSystemPrompt());
+        }
+        putIfNotNull(body, "max_output_tokens", Optional.ofNullable(request.getMaxTokens()).orElse(config.getMaxTokens()));
+        putIfNotNull(body, "temperature", Optional.ofNullable(request.getTemperature()).orElse(config.getTemperature()));
+
+        if (log.isInfoEnabled()) {
+            log.info("=== AZURE OPENAI RESPONSES API REQUEST ===");
+            log.info(
+                "Azure OpenAI Responses request: url={}, model={}, temperature={}, maxOutputTokens={}, fileUrlInputs={}, promptLength={}",
+                url,
+                body.get("model"),
+                body.get("temperature"),
+                body.get("max_output_tokens"),
+                fileParts.size(),
+                request.getPrompt() != null ? request.getPrompt().length() : 0
+            );
+            log.info("Azure OpenAI Responses transientInputs={}", TransientInputSupport.redactedDescriptors(fileParts));
+            log.info("=== END AZURE OPENAI RESPONSES API REQUEST ===");
+        }
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "responses");
+
+        long responseTime = System.currentTimeMillis() - startTime;
+        updateMetrics(true, responseTime);
+
+        Map<String, Object> responseBody = response.getBody();
+        String contentText = extractResponsesText(responseBody);
+
+        if (log.isInfoEnabled()) {
+            int contentLength = contentText != null ? contentText.length() : 0;
+            log.info("=== AZURE OPENAI RESPONSES API RESPONSE ===");
+            log.info(
+                "Azure OpenAI Responses response: responseTimeMs={}, model={}, contentLength={}",
+                responseTime,
+                responseBody != null ? responseBody.get("model") : null,
+                contentLength
+            );
+            if (contentText != null) {
+                log.info(
+                    "Azure OpenAI Responses response contentSnippet={}",
+                    contentText.substring(0, Math.min(500, contentText.length()))
+                );
+            }
+            log.info("=== END AZURE OPENAI RESPONSES API RESPONSE ===");
+        }
+
+        return AIGenerationResponse.builder()
+            .content(contentText)
+            .model(responseBody != null && responseBody.get("model") instanceof String model ? model : String.valueOf(body.get("model")))
+            .processingTimeMs(responseTime)
+            .requestId(UUID.randomUUID().toString())
+            .usage(createUsageFromResponse(responseBody != null ? responseBody : Map.of()))
+            .metadata(Map.of(
+                "providerRoute", "azure.responses",
+                "transientInputs", TransientInputSupport.redactedDescriptors(fileParts)
+            ))
+            .build();
+    }
+
+    private List<Map<String, Object>> buildResponsesInputContent(AIGenerationRequest request,
+                                                                 List<AIGenerationInputPart> fileParts) {
+        List<Map<String, Object>> content = new ArrayList<>();
+        content.add(Map.of(
+            "type", "input_text",
+            "text", request.getPrompt() != null ? request.getPrompt() : ""
+        ));
+        for (AIGenerationInputPart part : fileParts) {
+            String contentType = TransientInputSupport.normalizeContentType(part.getContentType());
+            if (TransientInputSupport.isAzureResponsesImageUrlContentType(contentType)) {
+                validateTransientFileUrl(part);
+                Map<String, Object> imageInput = new HashMap<>();
+                imageInput.put("type", "input_image");
+                imageInput.put("image_url", part.getUrl());
+                content.add(imageInput);
+                continue;
+            }
+            if (!TransientInputSupport.isPdfContentType(contentType)) {
+                throw new UnsupportedTransientDocumentException(
+                    "Azure Responses transient file inputs support PDFs and images only; unsupported content type: " + contentType
+                );
+            }
+            TransientInputSupport.FetchedTransientFile fetchedFile =
+                fetchTransientFile(part);
+            if (!fetchedFile.isPdf()) {
+                throw new UnsupportedTransientDocumentException(
+                    "Azure Responses transient file fetch returned unsupported content type: " + fetchedFile.contentType()
+                );
+            }
+            Map<String, Object> fileInput = new HashMap<>();
+            fileInput.put("type", "input_file");
+            if (hasText(part.getFileName())) {
+                fileInput.put("filename", part.getFileName().trim());
+            }
+            fileInput.put("file_data", TransientInputSupport.dataUri("application/pdf", fetchedFile.bytes()));
+            content.add(fileInput);
+        }
+        return List.copyOf(content);
+    }
+
+    private void validateTransientFileUrl(AIGenerationInputPart part) {
+        try {
+            TransientInputSupport.validateFileUrlInput(part);
+        } catch (IllegalArgumentException ex) {
+            throw new UnsupportedTransientDocumentException(ex.getMessage());
+        }
+    }
+
+    private TransientInputSupport.FetchedTransientFile fetchTransientFile(AIGenerationInputPart part) {
+        try {
+            return TransientInputSupport.fetchTransientFile(httpClient, part, MAX_TRANSIENT_PDF_BYTES);
+        } catch (IllegalArgumentException ex) {
+            throw new UnsupportedTransientDocumentException(ex.getMessage());
+        }
+    }
+
+    private String extractResponsesText(Map<String, Object> responseBody) {
+        if (responseBody == null || responseBody.isEmpty()) {
+            return "";
+        }
+        Object outputText = responseBody.get("output_text");
+        if (outputText instanceof String text && !text.isBlank()) {
+            return text;
+        }
+        Object output = responseBody.get("output");
+        if (!(output instanceof List<?> items)) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Object item : items) {
+            if (!(item instanceof Map<?, ?> itemMap)) {
+                continue;
+            }
+            Object content = itemMap.get("content");
+            if (!(content instanceof List<?> contentItems)) {
+                continue;
+            }
+            for (Object contentItem : contentItems) {
+                if (!(contentItem instanceof Map<?, ?> contentMap)) {
+                    continue;
+                }
+                Object text = contentMap.get("text");
+                if (text == null) {
+                    text = contentMap.get("output_text");
+                }
+                if (text instanceof String s && !s.isBlank()) {
+                    sb.append(s);
+                }
+            }
+        }
+        return sb.toString();
     }
 
     @Override
@@ -446,6 +637,21 @@ public class AzureOpenAIProvider implements AIProvider {
             endpoint, deployment, apiVersion);
     }
 
+    private String buildResponsesUrl(String endpointRaw, String apiVersionOverride) {
+        String endpoint = normalizeEndpoint(endpointRaw);
+        String apiVersion = hasText(apiVersionOverride) ? apiVersionOverride : "2025-04-01-preview";
+        if (endpoint.contains("/responses")) {
+            return endpoint.contains("?") ? endpoint : endpoint + "?api-version=" + apiVersion;
+        }
+        if (endpoint.contains("/openai/v1")) {
+            return endpoint + "/responses";
+        }
+        if (endpoint.contains("/models")) {
+            return endpoint + "/responses?api-version=" + apiVersion;
+        }
+        return endpoint + "/openai/v1/responses";
+    }
+
     private String normalizeEndpoint(String endpoint) {
         if (endpoint == null) {
             return "";
@@ -534,10 +740,35 @@ public class AzureOpenAIProvider implements AIProvider {
         return value != null && !value.trim().isEmpty();
     }
 
+    private void putIfNotNull(Map<String, Object> target, String key, Object value) {
+        if (target != null && hasText(key) && value != null) {
+            target.put(key, value);
+        }
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
     private AIServiceException wrapException(String message, Exception ex) {
         return ex instanceof AIServiceException serviceException
             ? serviceException
             : new AIServiceException(message + ": " + ex.getMessage(), ex);
+    }
+
+    private static final class UnsupportedTransientDocumentException extends RuntimeException {
+
+        private UnsupportedTransientDocumentException(String message) {
+            super(message);
+        }
     }
 
     private <T> ResponseEntity<T> exchangeWithRetry(String url,

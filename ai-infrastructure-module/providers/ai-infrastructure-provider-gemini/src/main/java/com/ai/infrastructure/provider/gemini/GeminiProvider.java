@@ -2,6 +2,7 @@ package com.ai.infrastructure.provider.gemini;
 
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.dto.AIChatMessage;
@@ -10,6 +11,7 @@ import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
+import com.ai.infrastructure.provider.TransientInputSupport;
 import com.ai.infrastructure.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -58,6 +61,7 @@ public class GeminiProvider implements AIProvider {
     
     private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
     private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final int MAX_TRANSIENT_INLINE_BYTES = 20 * 1024 * 1024;
     
     @Override
     public String getProviderName() {
@@ -146,9 +150,55 @@ public class GeminiProvider implements AIProvider {
                     ));
                 }
             }
+            List<AIGenerationInputPart> fileParts = TransientInputSupport.fileUrlInputParts(request);
+            for (AIGenerationInputPart part : fileParts) {
+                String contentType = TransientInputSupport.normalizeContentType(part.getContentType());
+                if (!hasText(contentType) || "application/octet-stream".equals(contentType)) {
+                    return TransientInputSupport.unsupportedFileUrlResponse(
+                        request,
+                        getProviderName(),
+                        "Gemini file URL inputs require a contentType so the provider can process the file."
+                    );
+                }
+                if (!TransientInputSupport.isGeminiInlineContentType(contentType)) {
+                    return TransientInputSupport.unsupportedFileUrlResponse(
+                        request,
+                        getProviderName(),
+                        "Gemini transient inline inputs do not support content type: " + contentType
+                    );
+                }
+            }
+            List<Map<String, Object>> userParts = new ArrayList<>();
+            userParts.add(Map.of("text", request.getPrompt() != null ? request.getPrompt() : ""));
+            for (AIGenerationInputPart part : fileParts) {
+                TransientInputSupport.FetchedTransientFile fetchedFile;
+                try {
+                    fetchedFile = TransientInputSupport.fetchTransientFile(httpClient, part, MAX_TRANSIENT_INLINE_BYTES);
+                } catch (IllegalArgumentException ex) {
+                    return TransientInputSupport.unsupportedFileUrlResponse(
+                        request,
+                        getProviderName(),
+                        ex.getMessage()
+                    );
+                }
+                if (!TransientInputSupport.isGeminiInlineContentType(fetchedFile.contentType())) {
+                    return TransientInputSupport.unsupportedFileUrlResponse(
+                        request,
+                        getProviderName(),
+                        "Gemini transient fetch returned unsupported content type: " + fetchedFile.contentType()
+                    );
+                }
+                userParts.add(Map.of(
+                    "inlineData",
+                    Map.of(
+                        "mimeType", fetchedFile.contentType(),
+                        "data", Base64.getEncoder().encodeToString(fetchedFile.bytes())
+                    )
+                ));
+            }
             contents.add(Map.of(
                 "role", "user",
-                "parts", List.of(Map.of("text", request.getPrompt() != null ? request.getPrompt() : ""))
+                "parts", userParts
             ));
             requestBody.put("contents", contents);
             
@@ -196,6 +246,9 @@ public class GeminiProvider implements AIProvider {
                     requestBody.containsKey("systemInstruction"),
                     request.getPrompt() != null ? request.getPrompt().length() : 0
                 );
+                if (!fileParts.isEmpty()) {
+                    log.info("Gemini transientInputs={}", TransientInputSupport.redactedDescriptors(fileParts));
+                }
                 String prompt = request.getPrompt();
                 int len = prompt != null ? prompt.length() : 0;
                 String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
@@ -276,6 +329,12 @@ public class GeminiProvider implements AIProvider {
                 .usage(usage)
                 .processingTimeMs(responseTime)
                 .requestId(java.util.UUID.randomUUID().toString())
+                .metadata(fileParts.isEmpty()
+                    ? null
+                    : Map.of(
+                        "providerRoute", "gemini.generateContent.inlineData",
+                        "transientInputs", TransientInputSupport.redactedDescriptors(fileParts)
+                    ))
                 .build();
                 
         } catch (Exception e) {

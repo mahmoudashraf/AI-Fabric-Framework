@@ -1,6 +1,6 @@
 # ProdUS LoomAI Staging Deployment Dev Guide
 
-Status: current staging guide, last verified 2026-05-25.
+Status: current staging guide, last updated 2026-05-27.
 
 This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
 
@@ -32,6 +32,8 @@ Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on s
 Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
 
 Runtime code deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` on 2026-05-22 for the implementation smoke. Follow-up deployment `kpx28b02ryukztitqvem2399` deployed commit `969f87dfb` after the status documentation update. Live smoke verified `/api/chat/me/query-once` returns a one-time answer without creating a conversation record, while `/api/chat/me/query` still creates the expected persisted conversation.
+
+Transient provider file URL input support is implemented in LoomAI runtime/core/provider modules. ProdUS project creation should send owner-approved selected documents as `context.documents[].temporaryAccessUrl` to `/api/chat/me/query-once`; runtime redacts the URL, does not persist or index file content, and requires `documentUsage` evidence from the selected provider. See `Final_Documentation/Development_Guides/RUNTIME_TRANSIENT_PROVIDER_FILE_URL_INPUTS_GUIDE.md`.
 
 Confirmed project creation action status on 2026-05-25:
 
@@ -67,6 +69,7 @@ scripts/run-platform-deployment-verification.sh
 scripts/verify-vector-deployment.sh
 Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md
 Final_Documentation/Development_Guides/PRIVATE_RUNTIME_CUSTOMER_INTEGRATION_GUIDE.md
+Final_Documentation/Development_Guides/RUNTIME_TRANSIENT_PROVIDER_FILE_URL_INPUTS_GUIDE.md
 doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_5_LOOMAI_CANONICAL_RUNTIME_BRIDGE_CONTRACT_STANDARDIZATION_PLAN.md
 /Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/LOOMAI_STAGING_DEPLOYMENT_HANDOVER.md
 /Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/planning/Scanners-AI-integration/LOOMAI_STAGING_DIRECT_RUNTIME_REQUEST.md
@@ -193,7 +196,8 @@ printf '%s' "${env_json}" | jq -r '
   [.[] | select((.key=="AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"
     or .key=="AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"
     or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS"
-    or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES") and (.is_preview|not)) |
+    or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES"
+    or .key=="AI_FABRIC_RUNTIME_TRANSIENT_FILE_URL_ALLOWED_HOSTS") and (.is_preview|not)) |
     {
       key,
       length: ((.value // "")|length),
@@ -218,7 +222,8 @@ patch_json="$(printf '%s' "${env_json}" | jq -c '
     {key:"AI_FABRIC_RUNTIME_PRIVATE_AUTHORIZATION_HEADER", value:"X-AIFABRIC-RUNTIME-AUTHORIZATION", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_PRIVATE_TOKEN_SCHEME", value:"Bearer", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS; "produs-staging-backend"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
-    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES; "dep-7706fafb"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false}
+    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES; "dep-7706fafb"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_TRANSIENT_FILE_URL_ALLOWED_HOSTS", value:"produs-api-staging.46.224.145.148.sslip.io", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false}
   ]}
 ')"
 

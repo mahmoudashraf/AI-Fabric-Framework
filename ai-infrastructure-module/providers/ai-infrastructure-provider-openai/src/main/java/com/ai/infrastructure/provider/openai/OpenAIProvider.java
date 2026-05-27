@@ -2,12 +2,14 @@ package com.ai.infrastructure.provider.openai;
 
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
+import com.ai.infrastructure.provider.TransientInputSupport;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.http.HttpClient;
@@ -55,6 +57,7 @@ public class OpenAIProvider implements AIProvider {
     private final AtomicReference<Double> averageResponseTime = new AtomicReference<>(0.0);
     
     private static final String PATH_CHAT_COMPLETIONS = "/chat/completions";
+    private static final String PATH_RESPONSES = "/responses";
     private static final String PATH_EMBEDDINGS = "/embeddings";
     private static final int MAX_RETRY_ATTEMPTS = 3;
     
@@ -80,6 +83,9 @@ public class OpenAIProvider implements AIProvider {
         totalRequests.incrementAndGet();
         
         try {
+            if (TransientInputSupport.hasFileUrlInputs(request)) {
+                return generateResponsesContent(request, startTime);
+            }
             log.debug("Generating content with OpenAI: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
             ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
@@ -221,6 +227,161 @@ public class OpenAIProvider implements AIProvider {
             
             throw new RuntimeException("OpenAI content generation failed: " + e.getMessage(), e);
         }
+    }
+
+    private AIGenerationResponse generateResponsesContent(AIGenerationRequest request, long startTime) {
+        ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+            ProviderRequestOverrideSupport.read(request.getParameters());
+        String baseUrl = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : config.getBaseUrl();
+        String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+        String url = normalizeBaseUrl(baseUrl) + PATH_RESPONSES;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + apiKey);
+
+        List<AIGenerationInputPart> fileParts = TransientInputSupport.fileUrlInputParts(request);
+        List<Map<String, Object>> content = new ArrayList<>();
+        content.add(Map.of(
+            "type", "input_text",
+            "text", request.getPrompt() != null ? request.getPrompt() : ""
+        ));
+        for (AIGenerationInputPart part : fileParts) {
+            try {
+                TransientInputSupport.validateFileUrlInput(part);
+            } catch (IllegalArgumentException ex) {
+                long responseTime = System.currentTimeMillis() - startTime;
+                updateMetrics(false, responseTime);
+                return TransientInputSupport.unsupportedFileUrlResponse(
+                    request,
+                    getProviderName(),
+                    ex.getMessage()
+                );
+            }
+            String contentType = TransientInputSupport.normalizeContentType(part.getContentType());
+            if (TransientInputSupport.isOpenAiResponsesImageUrlContentType(contentType)) {
+                Map<String, Object> imageInput = new HashMap<>();
+                imageInput.put("type", "input_image");
+                imageInput.put("image_url", part.getUrl());
+                content.add(imageInput);
+                continue;
+            }
+            if (TransientInputSupport.isOpenAiResponsesFileUrlContentType(contentType)) {
+                Map<String, Object> fileInput = new HashMap<>();
+                fileInput.put("type", "input_file");
+                fileInput.put("file_url", part.getUrl());
+                content.add(fileInput);
+                continue;
+            }
+            long responseTime = System.currentTimeMillis() - startTime;
+            updateMetrics(false, responseTime);
+            return TransientInputSupport.unsupportedFileUrlResponse(
+                request,
+                getProviderName(),
+                "OpenAI Responses transient file inputs do not support content type: " + contentType
+            );
+        }
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
+        requestBody.put("input", List.of(Map.of("role", "user", "content", content)));
+        if (hasText(request.getSystemPrompt())) {
+            requestBody.put("instructions", request.getSystemPrompt());
+        }
+        putIfNotNull(requestBody, "max_output_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
+        putIfNotNull(requestBody, "temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
+
+        if (log.isInfoEnabled()) {
+            log.info("=== OPENAI RESPONSES API REQUEST ===");
+            log.info(
+                "OpenAI Responses request: url={}, model={}, temperature={}, maxOutputTokens={}, fileUrlInputs={}, promptLength={}",
+                url,
+                requestBody.get("model"),
+                requestBody.get("temperature"),
+                requestBody.get("max_output_tokens"),
+                fileParts.size(),
+                request.getPrompt() != null ? request.getPrompt().length() : 0
+            );
+            log.info("OpenAI Responses transientInputs={}", TransientInputSupport.redactedDescriptors(fileParts));
+            log.info("=== END OPENAI RESPONSES API REQUEST ===");
+        }
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "responses");
+
+        long responseTime = System.currentTimeMillis() - startTime;
+        updateMetrics(true, responseTime);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> responseBody = response.getBody();
+        String contentText = extractResponsesText(responseBody);
+
+        if (log.isInfoEnabled()) {
+            int contentLength = contentText != null ? contentText.length() : 0;
+            log.info("=== OPENAI RESPONSES API RESPONSE ===");
+            log.info(
+                "OpenAI Responses response: responseTimeMs={}, model={}, contentLength={}",
+                responseTime,
+                responseBody != null ? responseBody.get("model") : null,
+                contentLength
+            );
+            if (contentText != null) {
+                log.info(
+                    "OpenAI Responses response contentSnippet={}",
+                    contentText.substring(0, Math.min(500, contentText.length()))
+                );
+            }
+            log.info("=== END OPENAI RESPONSES API RESPONSE ===");
+        }
+
+        return AIGenerationResponse.builder()
+            .content(contentText)
+            .model(responseBody != null && responseBody.get("model") instanceof String model ? model : (String) requestBody.get("model"))
+            .usage(createUsageFromResponse(responseBody != null ? responseBody : Map.of()))
+            .processingTimeMs(responseTime)
+            .requestId(java.util.UUID.randomUUID().toString())
+            .metadata(Map.of(
+                "providerRoute", "openai.responses",
+                "transientInputs", TransientInputSupport.redactedDescriptors(fileParts)
+            ))
+            .build();
+    }
+
+    private String extractResponsesText(Map<String, Object> responseBody) {
+        if (responseBody == null || responseBody.isEmpty()) {
+            return "";
+        }
+        Object outputText = responseBody.get("output_text");
+        if (outputText instanceof String text && !text.isBlank()) {
+            return text;
+        }
+        Object output = responseBody.get("output");
+        if (!(output instanceof List<?> items)) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Object item : items) {
+            if (!(item instanceof Map<?, ?> itemMap)) {
+                continue;
+            }
+            Object content = itemMap.get("content");
+            if (!(content instanceof List<?> contentItems)) {
+                continue;
+            }
+            for (Object contentItem : contentItems) {
+                if (!(contentItem instanceof Map<?, ?> contentMap)) {
+                    continue;
+                }
+                Object text = contentMap.get("text");
+                if (text == null) {
+                    text = contentMap.get("output_text");
+                }
+                if (text instanceof String s && !s.isBlank()) {
+                    sb.append(s);
+                }
+            }
+        }
+        return sb.toString();
     }
     
     @Override
@@ -432,8 +593,16 @@ public class OpenAIProvider implements AIProvider {
         @SuppressWarnings("unchecked")
         Map<String, Object> usageData = (Map<String, Object>) responseBody.get("usage");
         if (usageData != null) {
-            usage.put("prompt_tokens", usageData.get("prompt_tokens"));
-            usage.put("completion_tokens", usageData.get("completion_tokens"));
+            Object promptTokens = usageData.get("prompt_tokens");
+            if (promptTokens == null) {
+                promptTokens = usageData.get("input_tokens");
+            }
+            Object completionTokens = usageData.get("completion_tokens");
+            if (completionTokens == null) {
+                completionTokens = usageData.get("output_tokens");
+            }
+            usage.put("prompt_tokens", promptTokens);
+            usage.put("completion_tokens", completionTokens);
             usage.put("total_tokens", usageData.get("total_tokens"));
         }
         

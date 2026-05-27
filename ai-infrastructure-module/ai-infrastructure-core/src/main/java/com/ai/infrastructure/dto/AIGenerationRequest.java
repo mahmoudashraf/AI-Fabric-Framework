@@ -45,6 +45,16 @@ public class AIGenerationRequest {
      * and MUST NOT pack them into the {@link #prompt} string.</p>
      */
     private List<AIChatMessage> messages;
+
+    /**
+     * Optional provider-native input parts that supplement the text prompt.
+     *
+     * <p>FILE_URL parts are transient by contract. Providers must not log or persist URL values,
+     * and unsupported providers must fail closed with explicit documentUsage evidence.</p>
+     */
+    private List<AIGenerationInputPart> inputParts;
+
+    private TransientInputPolicy transientInputPolicy;
     
     private String purpose;
     

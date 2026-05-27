@@ -2,15 +2,19 @@ package com.ai.infrastructure.provider.cohere;
 
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
+import com.ai.infrastructure.provider.TransientInputSupport;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.http.HttpClient;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
@@ -23,9 +27,11 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,6 +61,8 @@ public class CohereProvider implements AIProvider {
     
     private static final String COHERE_BASE_URL = "https://api.cohere.ai/v1";
     private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final int MAX_TRANSIENT_DOCUMENT_BYTES = 5 * 1024 * 1024;
+    private static final int MAX_TRANSIENT_DOCUMENT_CHARS = 12_000;
     
     @Override
     public String getProviderName() {
@@ -78,6 +86,7 @@ public class CohereProvider implements AIProvider {
         totalRequests.incrementAndGet();
         
         try {
+            List<Map<String, String>> transientDocuments = buildTransientDocuments(request);
             log.debug("Generating content with Cohere: model={}, prompt={}", 
                      request.getModel(), request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())));
             
@@ -131,6 +140,10 @@ public class CohereProvider implements AIProvider {
             }
 
             requestBody.put("message", request.getPrompt());
+            if (!transientDocuments.isEmpty()) {
+                requestBody.put("documents", transientDocuments);
+                requestBody.put("prompt_truncation", "AUTO_PRESERVE_ORDER");
+            }
             
             requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
             requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
@@ -138,14 +151,21 @@ public class CohereProvider implements AIProvider {
             if (log.isInfoEnabled()) {
                 log.info("=== COHERE API REQUEST ===");
                 log.info(
-                    "Cohere API request: url={}, model={}, temperature={}, maxTokens={}, hasPreamble={}, promptLength={}",
+                    "Cohere API request: url={}, model={}, temperature={}, maxTokens={}, hasPreamble={}, promptLength={}, transientDocuments={}",
                     url,
                     requestBody.get("model"),
                     requestBody.get("temperature"),
                     requestBody.get("max_tokens"),
                     requestBody.containsKey("preamble"),
-                    request.getPrompt() != null ? request.getPrompt().length() : 0
+                    request.getPrompt() != null ? request.getPrompt().length() : 0,
+                    transientDocuments.size()
                 );
+                if (TransientInputSupport.hasFileUrlInputs(request)) {
+                    log.info(
+                        "Cohere API transientInputs={}",
+                        TransientInputSupport.redactedDescriptors(TransientInputSupport.fileUrlInputParts(request))
+                    );
+                }
                 String prompt = request.getPrompt();
                 int len = prompt != null ? prompt.length() : 0;
                 String snippet = prompt == null ? "" : prompt.substring(0, Math.min(500, len));
@@ -196,8 +216,20 @@ public class CohereProvider implements AIProvider {
                 .usage(createUsageFromResponse(responseBody))
                 .processingTimeMs(responseTime)
                 .requestId(java.util.UUID.randomUUID().toString())
+                .metadata(transientDocuments.isEmpty()
+                    ? null
+                    : Map.of(
+                        "providerRoute", "cohere.chat.documents",
+                        "transientInputs",
+                        TransientInputSupport.redactedDescriptors(TransientInputSupport.fileUrlInputParts(request))
+                    ))
                 .build();
                 
+        } catch (UnsupportedTransientDocumentException e) {
+            long responseTime = System.currentTimeMillis() - startTime;
+            updateMetrics(false, responseTime);
+            log.warn("Cohere transient document input was not used: {}", e.getMessage());
+            return TransientInputSupport.unsupportedFileUrlResponse(request, getProviderName(), e.getMessage());
         } catch (Exception e) {
             long responseTime = System.currentTimeMillis() - startTime;
             updateMetrics(false, responseTime);
@@ -207,6 +239,72 @@ public class CohereProvider implements AIProvider {
             lastErrorMessage.set(e.getMessage());
             
             throw new RuntimeException("Cohere content generation failed: " + e.getMessage(), e);
+        }
+    }
+
+    private List<Map<String, String>> buildTransientDocuments(AIGenerationRequest request) {
+        List<AIGenerationInputPart> fileParts = TransientInputSupport.fileUrlInputParts(request);
+        if (fileParts.isEmpty()) {
+            return List.of();
+        }
+
+        List<Map<String, String>> documents = new ArrayList<>();
+        for (AIGenerationInputPart part : fileParts) {
+            String contentType = TransientInputSupport.normalizeContentType(part.getContentType());
+            if (!TransientInputSupport.isTextLikeContentType(contentType)
+                && !TransientInputSupport.isPdfContentType(contentType)) {
+                throw new UnsupportedTransientDocumentException(
+                    "Cohere transient document adapter supports text-like and PDF content only; unsupported content type: " + contentType
+                );
+            }
+            TransientInputSupport.FetchedTransientFile fetchedFile;
+            try {
+                fetchedFile = TransientInputSupport.fetchTransientFile(httpClient, part, MAX_TRANSIENT_DOCUMENT_BYTES);
+            } catch (IllegalArgumentException ex) {
+                throw new UnsupportedTransientDocumentException(ex.getMessage());
+            }
+            if (!TransientInputSupport.isTextLikeContentType(fetchedFile.contentType())
+                && !fetchedFile.isPdf()) {
+                throw new UnsupportedTransientDocumentException(
+                    "Cohere transient document adapter received unsupported response content type: " + fetchedFile.contentType()
+                );
+            }
+            String text = fetchedFile.isPdf()
+                ? extractPdfText(fetchedFile)
+                : TransientInputSupport.decodeUtf8Text(fetchedFile, MAX_TRANSIENT_DOCUMENT_CHARS);
+            if (!hasText(text)) {
+                throw new UnsupportedTransientDocumentException(
+                    "Cohere transient document adapter could not extract readable text"
+                );
+            }
+
+            Map<String, String> document = new HashMap<>();
+            document.put("text", text);
+            if (hasText(part.getDocumentId())) {
+                document.put("id", part.getDocumentId().trim());
+            }
+            if (hasText(part.getFileName())) {
+                document.put("title", part.getFileName().trim());
+            }
+            document.put("contentType", fetchedFile.contentType());
+            documents.add(Map.copyOf(document));
+        }
+        return List.copyOf(documents);
+    }
+
+    private String extractPdfText(TransientInputSupport.FetchedTransientFile fetchedFile) {
+        try (PDDocument document = PDDocument.load(fetchedFile.bytes())) {
+            String text = new PDFTextStripper().getText(document);
+            if (!hasText(text)) {
+                return "";
+            }
+            text = text.replace('\u0000', ' ').trim();
+            if (text.length() > MAX_TRANSIENT_DOCUMENT_CHARS) {
+                return text.substring(0, MAX_TRANSIENT_DOCUMENT_CHARS);
+            }
+            return text;
+        } catch (IOException ex) {
+            throw new UnsupportedTransientDocumentException("Cohere transient document adapter could not read PDF text");
         }
     }
     
@@ -490,5 +588,12 @@ public class CohereProvider implements AIProvider {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private static final class UnsupportedTransientDocumentException extends RuntimeException {
+
+        private UnsupportedTransientDocumentException(String message) {
+            super(message);
+        }
     }
 }

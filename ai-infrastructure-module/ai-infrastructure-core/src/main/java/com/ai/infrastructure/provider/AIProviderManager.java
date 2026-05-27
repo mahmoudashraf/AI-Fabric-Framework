@@ -85,6 +85,15 @@ public class AIProviderManager {
         try {
             log.debug("Using provider: {} for content generation", selectedProvider.getProviderName());
             AIGenerationResponse response = selectedProvider.generateContent(request);
+            if (TransientInputSupport.requiresDocumentUsage(request)
+                && !TransientInputSupport.hasDocumentUsage(response)) {
+                updateProviderStatus(selectedProvider.getProviderName(), false);
+                return TransientInputSupport.unsupportedFileUrlResponse(
+                    request,
+                    selectedProvider.getProviderName(),
+                    "Provider response did not include required documentUsage evidence for transient file inputs."
+                );
+            }
             
             // Update provider status
             updateProviderStatus(selectedProvider.getProviderName(), true);
@@ -96,7 +105,7 @@ public class AIProviderManager {
             updateProviderStatus(selectedProvider.getProviderName(), false);
             
             // Try fallback providers
-            if (!isFallbackEnabled()) {
+            if (!isFallbackEnabled() || TransientInputSupport.hasFileUrlInputs(request)) {
                 throw e;
             }
             return tryFallbackProviders(request, availableProviders, selectedProvider);

@@ -2,12 +2,14 @@ package com.ai.infrastructure.provider.anthropic;
 
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.AIChatRole;
 import com.ai.infrastructure.provider.AIProvider;
 import com.ai.infrastructure.provider.ProviderConfig;
 import com.ai.infrastructure.provider.ProviderRequestOverrideSupport;
 import com.ai.infrastructure.provider.ProviderStatus;
+import com.ai.infrastructure.provider.TransientInputSupport;
 import com.ai.infrastructure.dto.AIEmbeddingRequest;
 import com.ai.infrastructure.dto.AIEmbeddingResponse;
 import com.ai.infrastructure.http.HttpClient;
@@ -78,6 +80,9 @@ public class AnthropicProvider implements AIProvider {
         totalRequests.incrementAndGet();
         
         try {
+            if (TransientInputSupport.hasFileUrlInputs(request)) {
+                return generateContentWithDocumentUrls(request, startTime);
+            }
             log.debug("Generating content with Anthropic: model={}, generationType={}, prompt={}", 
                      request.getModel(), request.getGenerationType(), 
                      request.getPrompt() != null ? request.getPrompt().substring(0, Math.min(100, request.getPrompt().length())) : "null");
@@ -206,6 +211,128 @@ public class AnthropicProvider implements AIProvider {
             
             throw new RuntimeException("Anthropic content generation failed: " + e.getMessage(), e);
         }
+    }
+
+    private AIGenerationResponse generateContentWithDocumentUrls(AIGenerationRequest request, long startTime) {
+        List<AIGenerationInputPart> fileParts = TransientInputSupport.fileUrlInputParts(request);
+        for (AIGenerationInputPart part : fileParts) {
+            try {
+                TransientInputSupport.validateFileUrlInput(part);
+            } catch (IllegalArgumentException ex) {
+                return TransientInputSupport.unsupportedFileUrlResponse(request, getProviderName(), ex.getMessage());
+            }
+            if (!isAnthropicDocumentUrlSupported(part)) {
+                return TransientInputSupport.unsupportedFileUrlResponse(
+                    request,
+                    getProviderName(),
+                    "Anthropic document URL inputs are enabled only for supported document MIME types."
+                );
+            }
+        }
+
+        ProviderRequestOverrideSupport.LlmConnectionOverride connectionOverride =
+            ProviderRequestOverrideSupport.read(request.getParameters());
+        String baseUrl = hasText(connectionOverride.baseUrl()) ? connectionOverride.baseUrl() : config.getBaseUrl();
+        String apiKey = hasText(connectionOverride.apiKey()) ? connectionOverride.apiKey() : config.getApiKey();
+        String url = normalizeBaseUrl(baseUrl != null ? baseUrl : ANTHROPIC_BASE_URL) + "/messages";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-api-key", apiKey);
+        headers.set("anthropic-version", "2023-06-01");
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", request.getModel() != null ? request.getModel() : config.getDefaultModel());
+        requestBody.put("max_tokens", request.getMaxTokens() != null ? request.getMaxTokens() : config.getMaxTokens());
+        requestBody.put("temperature", request.getTemperature() != null ? request.getTemperature() : config.getTemperature());
+        if (hasText(request.getSystemPrompt())) {
+            requestBody.put("system", request.getSystemPrompt());
+        }
+
+        List<Map<String, Object>> messages = new java.util.ArrayList<>();
+        if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+            for (AIChatMessage msg : request.getMessages()) {
+                if (msg == null || msg.getRole() == null || msg.getContent() == null || msg.getContent().isBlank()) {
+                    continue;
+                }
+                if (AIChatRole.SYSTEM.equals(msg.getRole())) {
+                    continue;
+                }
+                messages.add(Map.of("role", msg.getRole().getApiValue(), "content", msg.getContent()));
+            }
+        }
+
+        List<Map<String, Object>> contentBlocks = new java.util.ArrayList<>();
+        for (AIGenerationInputPart part : fileParts) {
+            String contentType = TransientInputSupport.normalizeContentType(part.getContentType());
+            if (TransientInputSupport.isPdfContentType(contentType)) {
+                contentBlocks.add(Map.of(
+                    "type", "document",
+                    "source", Map.of(
+                        "type", "url",
+                        "url", part.getUrl()
+                    )
+                ));
+                continue;
+            }
+            if (TransientInputSupport.isProviderVisionImageContentType(contentType)) {
+                contentBlocks.add(Map.of(
+                    "type", "image",
+                    "source", Map.of(
+                        "type", "url",
+                        "url", part.getUrl()
+                    )
+                ));
+            }
+        }
+        contentBlocks.add(Map.of("type", "text", "text", request.getPrompt() != null ? request.getPrompt() : ""));
+        messages.add(Map.of("role", "user", "content", contentBlocks));
+        requestBody.put("messages", messages);
+
+        if (log.isInfoEnabled()) {
+            log.info("=== ANTHROPIC DOCUMENT URL REQUEST ===");
+            log.info(
+                "Anthropic document URL request: url={}, model={}, maxTokens={}, fileUrlInputs={}, promptLength={}",
+                url,
+                requestBody.get("model"),
+                requestBody.get("max_tokens"),
+                fileParts.size(),
+                request.getPrompt() != null ? request.getPrompt().length() : 0
+            );
+            log.info("Anthropic transientInputs={}", TransientInputSupport.redactedDescriptors(fileParts));
+            log.info("=== END ANTHROPIC DOCUMENT URL REQUEST ===");
+        }
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<Map> response = exchangeWithRetry(url, HttpMethod.POST, entity, Map.class, "messages.document-url");
+
+        long responseTime = System.currentTimeMillis() - startTime;
+        updateMetrics(true, responseTime);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> responseBody = response.getBody();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> content = responseBody != null ? (List<Map<String, Object>>) responseBody.get("content") : List.of();
+        String generatedText = content != null && !content.isEmpty() ? (String) content.get(0).get("text") : "";
+
+        return AIGenerationResponse.builder()
+            .content(generatedText)
+            .model(responseBody != null && responseBody.get("model") instanceof String model ? model : (String) requestBody.get("model"))
+            .usage(createUsageFromResponse(responseBody != null ? responseBody : Map.of()))
+            .processingTimeMs(responseTime)
+            .requestId(java.util.UUID.randomUUID().toString())
+            .metadata(Map.of(
+                "providerRoute", "anthropic.messages.transient-url",
+                "transientInputs", TransientInputSupport.redactedDescriptors(fileParts)
+            ))
+            .build();
+    }
+
+    private boolean isAnthropicDocumentUrlSupported(AIGenerationInputPart part) {
+        if (part == null || !part.isFileUrl()) {
+            return false;
+        }
+        return TransientInputSupport.isAnthropicUrlContentType(part.getContentType());
     }
 
     private <T> ResponseEntity<T> exchangeWithRetry(String url,

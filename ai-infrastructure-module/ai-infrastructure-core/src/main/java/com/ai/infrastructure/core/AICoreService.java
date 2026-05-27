@@ -342,6 +342,8 @@ public class AICoreService {
             .context(request.getContext())
             .systemPrompt(request.getSystemPrompt())
             .messages(request.getMessages())
+            .inputParts(request.getInputParts())
+            .transientInputPolicy(request.getTransientInputPolicy())
             .purpose(request.getPurpose())
             .parameters(applyPurposeConnectionOverrides(request.getParameters(), purpose))
             .authContext(request.getAuthContext())

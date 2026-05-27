@@ -14,6 +14,7 @@ import com.ai.fabric.runtime.web.ChatRuntimeController;
 import com.ai.fabric.runtime.web.dto.ChatQueryRequest;
 import com.ai.fabric.runtime.web.dto.ChatQueryResponse;
 import com.ai.infrastructure.core.AICoreService;
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.intent.action.ActionResult;
 import com.ai.infrastructure.intent.action.AIActionRegistry;
@@ -27,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Constructor;
@@ -309,6 +311,96 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(contextCaptor.getValue().getMetadata())
             .containsEntry(OrchestrationContextMetadataKeys.REQUESTED_SCOPES, java.util.List.of("chat:query"))
             .containsEntry(OrchestrationContextMetadataKeys.QUERY_PERSISTENCE_MODE, "NEVER_PERSIST");
+    }
+
+    @Test
+    void queryOnceExtractsTransientDocumentUrlsWithoutPersistingThemInMetadata() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Analyze this document"), org.mockito.ArgumentMatchers.<OrchestrationContext>any())).thenReturn(
+            OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Document analyzed.")
+                .build()
+        );
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ReflectionTestUtils.setField(controller, "transientFileUrlAllowedHosts", "*.sslip.io");
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Analyze this document");
+        request.setConversationId("produs-doc-1");
+        request.setContext(Map.of(
+            "pageType", "project_creation",
+            "documents", List.of(Map.of(
+                "documentId", "doc-1",
+                "fileName", "brief.pdf",
+                "contentType", "application/pdf",
+                "temporaryAccessUrl", "https://produs-api-staging.46.224.145.148.sslip.io/files/tmp/brief.pdf?sig=abc"
+            ))
+        ));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        controller.queryOnce(request, servletRequest);
+
+        ArgumentCaptor<OrchestrationContext> contextCaptor = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Analyze this document"), contextCaptor.capture());
+        OrchestrationContext context = contextCaptor.getValue();
+
+        assertThat(context.getTransientInputParts()).hasSize(1);
+        AIGenerationInputPart part = context.getTransientInputParts().get(0);
+        assertThat(part.getDocumentId()).isEqualTo("doc-1");
+        assertThat(part.getFileName()).isEqualTo("brief.pdf");
+        assertThat(part.getContentType()).isEqualTo("application/pdf");
+        assertThat(part.getUrl()).contains("https://produs-api-staging.46.224.145.148.sslip.io");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> requestContext = (Map<String, Object>) context.getMetadata().get("requestContext");
+        assertThat(requestContext.toString()).doesNotContain("produs-api-staging");
+        assertThat(requestContext.toString()).contains("[REDACTED_TRANSIENT_FILE_URL]");
+    }
+
+    @Test
+    void queryRejectsTransientDocumentUrlHostOutsideConfiguredAllowlist() {
+        ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictAuthResolver());
+        ReflectionTestUtils.setField(controller, "transientFileUrlAllowedHosts", "files.produs.example.com,*.produs.example.com");
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Analyze this document");
+        request.setContext(Map.of(
+            "documents", List.of(Map.of(
+                "documentId", "doc-1",
+                "temporaryAccessUrl", "https://produs-api-staging.46.224.145.148.sslip.io/files/tmp/brief.pdf?sig=abc"
+            ))
+        ));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        assertThatThrownBy(() -> controller.query(request, servletRequest))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("temporaryAccessUrl host is not in the allowed host list");
+    }
+
+    @Test
+    void queryRejectsNonHttpsTransientDocumentUrls() {
+        ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Analyze this document");
+        request.setContext(Map.of(
+            "documents", List.of(Map.of(
+                "documentId", "doc-1",
+                "temporaryAccessUrl", "http://localhost/private.pdf"
+            ))
+        ));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        assertThatThrownBy(() -> controller.query(request, servletRequest))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("temporaryAccessUrl must use HTTPS");
     }
 
     @Test

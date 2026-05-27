@@ -8,6 +8,7 @@ import com.ai.infrastructure.dto.AdvancedRAGRequest;
 import com.ai.infrastructure.dto.AdvancedRAGResponse;
 import com.ai.infrastructure.dto.AIGenerationRequest;
 import com.ai.infrastructure.dto.AIGenerationResponse;
+import com.ai.infrastructure.dto.AIGenerationInputPart;
 import com.ai.infrastructure.dto.AIChatMessage;
 import com.ai.infrastructure.dto.Intent;
 import com.ai.infrastructure.dto.MultiIntentResponse;
@@ -15,6 +16,7 @@ import com.ai.infrastructure.dto.NextStepRecommendation;
 import com.ai.infrastructure.dto.RAGRequest;
 import com.ai.infrastructure.dto.RAGResponse;
 import com.ai.infrastructure.dto.ResponseGenerationProfile;
+import com.ai.infrastructure.dto.TransientInputPolicy;
 import com.ai.infrastructure.intent.action.AIActionMetaData;
 import com.ai.infrastructure.intent.action.AIActionParamSchema;
 import com.ai.infrastructure.intent.action.AIActionHandler;
@@ -4042,7 +4044,9 @@ public class IntentHandlingStep implements PipelineStep {
                     "adhoc",
                     "generation_only",
                     LlmPurpose.GENERATION,
-                    "GENERATION_ONLY"
+                    "GENERATION_ONLY",
+                    null,
+                    pipelineContext
                 );
                 answer = generationTrace != null ? generationTrace.content() : null;
             }
@@ -5069,7 +5073,8 @@ public class IntentHandlingStep implements PipelineStep {
                         "no_context",
                         LlmPurpose.GENERATION,
                         responseGenerationPath(responseProfile, true),
-                        maxTokens
+                        maxTokens,
+                        pipelineContext
                     );
                     if (response != null && StringUtils.hasText(response.content())) {
                         return response;
@@ -5095,7 +5100,8 @@ public class IntentHandlingStep implements PipelineStep {
             "answer",
             LlmPurpose.GENERATION,
             responseGenerationPath(responseProfile, false),
-            maxTokens
+            maxTokens,
+            pipelineContext
         );
     }
 
@@ -5153,9 +5159,20 @@ public class IntentHandlingStep implements PipelineStep {
                                                            LlmPurpose purpose,
                                                            String path,
                                                            Integer maxTokens) {
+        return generatePromptResponse(prompt, entityType, generationType, purpose, path, maxTokens, null);
+    }
+
+    private ResponseGenerationTrace generatePromptResponse(String prompt,
+                                                           String entityType,
+                                                           String generationType,
+                                                           LlmPurpose purpose,
+                                                           String path,
+                                                           Integer maxTokens,
+                                                           PipelineContext pipelineContext) {
         long startNanos = System.nanoTime();
         AIGenerationResponse response;
-        if (maxTokens != null && maxTokens > 0) {
+        List<AIGenerationInputPart> transientInputParts = transientInputParts(pipelineContext);
+        if ((maxTokens != null && maxTokens > 0) || !transientInputParts.isEmpty()) {
             response = aiCoreService.generateContent(
                 AIGenerationRequest.builder()
                     .entityId("adhoc-" + UUID.randomUUID())
@@ -5163,6 +5180,13 @@ public class IntentHandlingStep implements PipelineStep {
                     .generationType(StringUtils.hasText(generationType) ? generationType : "text")
                     .prompt(prompt)
                     .maxTokens(maxTokens)
+                    .inputParts(transientInputParts)
+                    .transientInputPolicy(transientInputParts.isEmpty()
+                        ? null
+                        : TransientInputPolicy.providerFileUrlDefaults())
+                    .authContext(pipelineContext != null && pipelineContext.getOrchestrationContext() != null
+                        ? OrchestrationAuthContextResolver.from(pipelineContext.getOrchestrationContext())
+                        : null)
                     .build(),
                 purpose
             );
@@ -5180,6 +5204,15 @@ public class IntentHandlingStep implements PipelineStep {
             response != null ? response.getModel() : null,
             path
         );
+    }
+
+    private List<AIGenerationInputPart> transientInputParts(PipelineContext pipelineContext) {
+        if (pipelineContext == null || pipelineContext.getOrchestrationContext() == null
+            || pipelineContext.getOrchestrationContext().getTransientInputParts() == null
+            || pipelineContext.getOrchestrationContext().getTransientInputParts().isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(pipelineContext.getOrchestrationContext().getTransientInputParts());
     }
 
     private Map<String, Object> responseGenerationMetadata(ResponseGenerationTrace generationTrace) {
