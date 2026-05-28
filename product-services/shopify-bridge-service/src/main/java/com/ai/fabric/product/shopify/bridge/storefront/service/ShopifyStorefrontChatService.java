@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -26,6 +28,8 @@ import java.util.UUID;
 
 @Service
 public class ShopifyStorefrontChatService {
+
+    private static final Logger log = LoggerFactory.getLogger(ShopifyStorefrontChatService.class);
 
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
     private static final int MAX_CONTEXT_ATTACHMENT_TEXT_LENGTH = 1_200;
@@ -722,10 +726,19 @@ public class ShopifyStorefrontChatService {
     }
 
     private String storefrontAccessToken(String shopDomain) {
-        return installCredentialService.resolvePersistedMaterial(shopDomain)
-            .map(ShopifyBridgeCredentialAcquisition::tokenExchangeMaterial)
-            .map(material -> trimToNull(material.accessToken()))
-            .orElse(null);
+        try {
+            return installCredentialService.resolvePersistedMaterial(shopDomain)
+                .map(ShopifyBridgeCredentialAcquisition::tokenExchangeMaterial)
+                .map(material -> trimToNull(material.accessToken()))
+                .orElse(null);
+        } catch (RuntimeException exception) {
+            log.warn(
+                "Shopify storefront chat continuing without refreshed credential material for shop={}. Token-backed subscription refresh remains gated until the app is reconnected. cause={}",
+                shopDomain,
+                exception.toString()
+            );
+            return null;
+        }
     }
 
     private String normalizeSurfaceEntry(String value) {

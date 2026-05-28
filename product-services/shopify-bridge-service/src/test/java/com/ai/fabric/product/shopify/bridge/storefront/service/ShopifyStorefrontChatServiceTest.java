@@ -252,6 +252,41 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryContinuesWhenPersistedCredentialRefreshFails() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
+            .thenThrow(new RuntimeException("stale persisted credential"));
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Here is the policy."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What is your shipping policy?",
+                  "mode":"thinker_deep",
+                  "context":{
+                    "pageType":"index",
+                    "shopifySurfaceEntry":"launcher",
+                    "shopifyPageModeGroup":"landing"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        verify(billingService).summarizeForShop("alpha.myshopify.com", null);
+        verify(platformClient).queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString());
+    }
+
+    @Test
     void querySanitizesCustomerAccountAuthRequiredErrorsForShoppers() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
