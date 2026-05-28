@@ -298,7 +298,10 @@ Resolved during 2026-05-28 gate execution:
   - REST connector default Dockerfile path now points to `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/Dockerfile`.
   - Vectorization runner, embedding worker, and shared Ollama service now have provider-neutral container Dockerfiles under `deploy/container`.
   - Flyway migration `V118__provider_neutral_coolify_runtime_defaults.sql` updates existing Coolify staging/production target profile runtime defaults away from `deploy/railway/Dockerfile`.
-  - This fix is branch-local until Platform backend is redeployed and the migration is applied to the live Platform database.
+  - Commit `a46b0b36c` was pushed to `Platform-V10`.
+  - Staging Platform backend redeploy `h7fs17pdlc2q4jbene72bbcy` finished successfully.
+  - Live Platform target profile readback now shows both `dtp-coolify-staging` and `dtp-coolify-production` contain the provider-neutral runtime Dockerfile and do not contain `deploy/railway` in managed runtime defaults.
+  - Production target preflight still passes after V118.
 
 Read-only evidence captured during 2026-05-28 gate execution:
 
@@ -329,16 +332,13 @@ Observed blockers before release:
 - Production apps are still configured on source branch `Platform-V8`, not the current release branch `Platform-V10`.
 - Production public endpoints still use `sslip.io`; this is acceptable for controlled proof only, not public launch positioning.
 - Some Coolify app records report `running:unknown` even though their HTTP health endpoints are `UP`; configure or document Coolify health checks before final release.
-- Live Platform target profile resource defaults still need the release migration applied before production promotion.
 
 Next required infrastructure actions:
 
 1. Move production app source branches to the release branch.
-2. Deploy Platform backend so `V118__provider_neutral_coolify_runtime_defaults.sql` applies to live staging/production target profile defaults.
-3. Re-run `dtp-coolify-production` preflight and inspect the target profile snapshot to confirm no managed runtime default references `deploy/railway`.
-4. Move production app records to provider-neutral Dockerfile paths where the app itself is still configured with Railway-specific paths.
-5. Decide production DNS/TLS posture: real production domains for launch, `sslip.io` only for proof.
-6. Rerun Platform target profile preflight and record the evidence before any production promotion.
+2. Move production app records to provider-neutral Dockerfile paths where the app itself is still configured with Railway-specific paths.
+3. Decide production DNS/TLS posture: real production domains for launch, `sslip.io` only for proof.
+4. Rerun Platform target profile preflight and record the evidence before any production promotion.
 
 Verification run for the provider-neutral default fix:
 
@@ -346,6 +346,15 @@ Verification run for the provider-neutral default fix:
 - `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentTargetProfileMigrationTest test`
 - `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformManagedInferenceProvisioningServiceTest,RailwayProvisioningPlanServiceTest,CoolifyDeploymentProviderTest test`
 - `mvn -f ai-fabric-product/pom.xml -q -pl ai-fabric-vectorization-runner,ai-fabric-embedding-worker -am -DskipTests package`
+
+Live evidence after applying V118:
+
+- Staging Platform backend redeploy trigger: `/tmp/loomai-production-readiness-20260528T091943Z/staging-platform-backend-redeploy-trigger.json`
+- Staging Platform backend deployment readback: `/tmp/loomai-production-readiness-20260528T091943Z/staging-platform-backend-deployment-h7fs17pdlc2q4jbene72bbcy.json`
+- Staging Platform backend health after V118: `/tmp/loomai-production-readiness-20260528T091943Z/staging-platform-backend-health-after-v118.json`
+- Target profile readback after V118: `/tmp/loomai-production-readiness-20260528T091943Z/target-profiles-after-v118.json`
+- Production preflight after V118: `/tmp/loomai-production-readiness-20260528T091943Z/dtp-coolify-production-preflight-after-v118.json`
+- Staging core service health after V118: `/tmp/loomai-production-readiness-20260528T091943Z/staging-core-health-after-v118.txt`
 
 ## Gate 4: Production Secret And Config Readiness
 
