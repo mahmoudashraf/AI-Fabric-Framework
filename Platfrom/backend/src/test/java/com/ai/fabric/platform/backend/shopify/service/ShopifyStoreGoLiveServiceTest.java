@@ -52,7 +52,7 @@ class ShopifyStoreGoLiveServiceTest {
         when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
         when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "alpha.myshopify.com"))
             .thenReturn(supportReadiness("READY", true, true));
-        when(deploymentService.getActiveDraftForDeployment("dep-1")).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.getActiveDraftForDeploymentForTrustedCaller("dep-1")).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -69,7 +69,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:00:00Z")
         ));
-        when(deploymentService.updateDraft(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.updateDraftForTrustedCaller(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -86,7 +86,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:01:00Z")
         ));
-        when(deploymentService.publishDraft("drf-1")).thenReturn(new DeploymentVersionSummary(
+        when(deploymentService.publishDraftForTrustedCaller("drf-1")).thenReturn(new DeploymentVersionSummary(
             "ver-1",
             "dep-1",
             "drf-1",
@@ -96,7 +96,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersionForTrustedCaller("dep-1", "ver-1", "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -136,13 +136,13 @@ class ShopifyStoreGoLiveServiceTest {
 
         assertThat(result.onboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
         assertThat(store.getOnboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
-        verify(deploymentService).updateDraft(eq("drf-1"), argThat(request ->
+        verify(deploymentService).updateDraftForTrustedCaller(eq("drf-1"), argThat(request ->
             matchesShopifyCompanionSecurityDefaults(request)
         ));
-        verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
-        verify(draftCompilerService).syncDeploymentDraft("dep-1");
-        verify(deploymentService).publishDraft("drf-1");
-        verify(deploymentService).applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null);
+        verify(deploymentService).updateDraftForTrustedCaller(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
+        verify(draftCompilerService).syncDeploymentDraftForTrustedCaller("dep-1");
+        verify(deploymentService).publishDraftForTrustedCaller("drf-1");
+        verify(deploymentService).applyVersionForTrustedCaller("dep-1", "ver-1", "dtp-coolify-production", null);
     }
 
     @Test
@@ -164,7 +164,7 @@ class ShopifyStoreGoLiveServiceTest {
 
         ObjectNode securityConfig = JsonNodeFactory.instance.objectNode();
         securityConfig.put("authzMode", "ALLOW_VERIFIED");
-        when(deploymentService.getActiveDraftForDeployment("dep-1")).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.getActiveDraftForDeploymentForTrustedCaller("dep-1")).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -181,7 +181,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:00:00Z")
         ));
-        when(deploymentService.updateDraft(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.updateDraftForTrustedCaller(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -198,7 +198,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:01:00Z")
         ));
-        when(deploymentService.publishDraft("drf-1")).thenReturn(new DeploymentVersionSummary(
+        when(deploymentService.publishDraftForTrustedCaller("drf-1")).thenReturn(new DeploymentVersionSummary(
             "ver-1",
             "dep-1",
             "drf-1",
@@ -208,7 +208,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersionForTrustedCaller("dep-1", "ver-1", "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -246,7 +246,7 @@ class ShopifyStoreGoLiveServiceTest {
 
         service.goLive("alpha.myshopify.com");
 
-        verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyCompanionSecurityDefaults));
+        verify(deploymentService).updateDraftForTrustedCaller(eq("drf-1"), argThat(this::matchesShopifyCompanionSecurityDefaults));
     }
 
     @Test

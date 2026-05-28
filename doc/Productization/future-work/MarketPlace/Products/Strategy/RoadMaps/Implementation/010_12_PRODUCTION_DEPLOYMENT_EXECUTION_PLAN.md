@@ -302,6 +302,16 @@ Resolved during 2026-05-28 gate execution:
   - Staging Platform backend redeploy `h7fs17pdlc2q4jbene72bbcy` finished successfully.
   - Live Platform target profile readback now shows both `dtp-coolify-staging` and `dtp-coolify-production` contain the provider-neutral runtime Dockerfile and do not contain `deploy/railway` in managed runtime defaults.
   - Production target preflight still passes after V118.
+- Production core app source records were moved from `Platform-V8` to `Platform-V10` and provider-neutral Dockerfile paths where applicable.
+- Production core app redeploys were triggered through Coolify API and finished successfully:
+  - `loomai-platform-backend`: deployment `kw5k9p2s9umbkis9w9jjsqfn`
+  - `loomai-platform-ui`: deployment `vgblizcy0c27dda7lt8535af`
+  - `loomai-partner-ui`: deployment `j67mfpmyk14soqpml7rcs1em`
+  - `loomai-runtime`: deployment `qsc8e27ktjrqimgf5kh8ekit`
+  - `loomai-shopify-bridge-prod`: deployment `lxj6cj4nbkbmm2q883mggamq`
+  - `loomai-ecommerce-store`: deployment `skudb39rx880pe8bd2pzbd6k`
+- Production endpoint health after the `Platform-V10` redeploy returned HTTP `200`/`UP` for Platform backend, Platform UI, Partner UI, Runtime, Shopify Bridge production, and Ecommerce Store.
+- Production target preflight still passes after the `Platform-V10` production redeploy.
 
 Read-only evidence captured during 2026-05-28 gate execution:
 
@@ -319,6 +329,10 @@ Read-only evidence captured during 2026-05-28 gate execution:
 - Fresh backup/restore rehearsal: `/tmp/loomai-production-readiness-20260528T091943Z/prod-coolify-backup-restore-rehearsal.txt`
 - Redacted Platform secret metadata: `/tmp/loomai-production-readiness-20260528T091943Z/platform-secret-summary.json`
 - Redacted Platform secret counts: `/tmp/loomai-production-readiness-20260528T091943Z/platform-secret-summary-redacted-counts.json`
+- Sanitized production Coolify app readback after source update: `/tmp/loomai-production-readiness-20260528T091943Z/prod-apps-readback-after-v10-redeploy-sanitized.json`
+- Production deployment status evidence: `/tmp/loomai-production-readiness-20260528T091943Z/prod-deployment-*.json`
+- Production health after `Platform-V10` redeploy: `/tmp/loomai-production-readiness-20260528T091943Z/prod-health-after-platform-v10-redeploy.txt`
+- Production preflight after `Platform-V10` redeploy: `/tmp/loomai-production-readiness-20260528T091943Z/dtp-coolify-production-preflight-after-prod-v10-redeploy.json`
 
 Secret/config metadata check:
 
@@ -329,16 +343,17 @@ Secret/config metadata check:
 
 Observed blockers before release:
 
-- Production apps are still configured on source branch `Platform-V8`, not the current release branch `Platform-V10`.
 - Production public endpoints still use `sslip.io`; this is acceptable for controlled proof only, not public launch positioning.
 - Some Coolify app records report `running:unknown` even though their HTTP health endpoints are `UP`; configure or document Coolify health checks before final release.
+- The controlled production promotion proof has not run yet. Current production app redeploy evidence proves production infrastructure can deploy `Platform-V10`; it does not prove the Platform `Go production` merchant/product-service mutation, rollback/deactivation, or failed-promotion staging isolation.
 
 Next required infrastructure actions:
 
-1. Move production app source branches to the release branch.
-2. Move production app records to provider-neutral Dockerfile paths where the app itself is still configured with Railway-specific paths.
-3. Decide production DNS/TLS posture: real production domains for launch, `sslip.io` only for proof.
-4. Rerun Platform target profile preflight and record the evidence before any production promotion.
+1. Decide production DNS/TLS posture: real production domains for launch, `sslip.io` only for proof.
+2. Configure or explicitly document Coolify health checks for apps that report `running:unknown` despite healthy HTTP endpoints.
+3. Run Gate 6 controlled production promotion proof, then Gate 9 rollback/deactivation and failed-promotion isolation proof.
+4. Decide production DNS/TLS posture for public launch.
+5. Configure or explicitly document Coolify health checks for apps that report `running:unknown` despite healthy HTTP endpoints.
 
 Verification run for the provider-neutral default fix:
 
@@ -355,6 +370,26 @@ Live evidence after applying V118:
 - Target profile readback after V118: `/tmp/loomai-production-readiness-20260528T091943Z/target-profiles-after-v118.json`
 - Production preflight after V118: `/tmp/loomai-production-readiness-20260528T091943Z/dtp-coolify-production-preflight-after-v118.json`
 - Staging core service health after V118: `/tmp/loomai-production-readiness-20260528T091943Z/staging-core-health-after-v118.txt`
+
+Live evidence after moving production apps to `Platform-V10`:
+
+- Sanitized source readback confirms all six production apps use `Platform-V10`.
+- Production app source paths are provider-neutral for Platform backend, Platform UI, Partner UI, Runtime, and Shopify Bridge production.
+- Deployment ids:
+  - `loomai-platform-backend`: `kw5k9p2s9umbkis9w9jjsqfn`
+  - `loomai-platform-ui`: `vgblizcy0c27dda7lt8535af`
+  - `loomai-partner-ui`: `j67mfpmyk14soqpml7rcs1em`
+  - `loomai-runtime`: `qsc8e27ktjrqimgf5kh8ekit`
+  - `loomai-shopify-bridge-prod`: `lxj6cj4nbkbmm2q883mggamq`
+  - `loomai-ecommerce-store`: `skudb39rx880pe8bd2pzbd6k`
+- Health endpoints after redeploy:
+  - `https://loomai-platform-backend.46.225.162.106.sslip.io/actuator/health` -> `UP`
+  - `https://loomai-platform-ui.46.225.162.106.sslip.io/health` -> `UP`
+  - `https://loomai-partner-ui.46.225.162.106.sslip.io/health` -> `UP`
+  - `https://loomai-runtime.46.225.162.106.sslip.io/actuator/health` -> `UP`
+  - `https://loomai-shopify-bridge-prod.46.225.162.106.sslip.io/actuator/health` -> `UP`
+  - `https://loomai-ecommerce-store.46.225.162.106.sslip.io/actuator/health` -> `UP`
+- Platform preflight for `dtp-coolify-production` after redeploy: `PASSED`.
 
 ## Gate 4: Production Secret And Config Readiness
 
@@ -382,6 +417,39 @@ Rules:
 - Duplicate stale Coolify env rows must be cleaned or proven preview-only.
 - Production envs must not reference staging-only domains such as `shop-staging.loomai.pro` unless the proof explicitly uses a staging-equivalent production target.
 
+### Current Gate 4 Execution - 2026-05-28
+
+Gate 4 was executed against the existing production Coolify applications and Platform secret catalog.
+
+Results:
+
+- Platform secret catalog check returned 41 secret definitions, 36 present, and no required Platform secrets missing.
+- Production Coolify env audit initially found stale/drifted values:
+  - `loomai-platform-backend` normal/preview env had `PLATFORM_DEPLOY_BRANCH=Platform-V8`.
+  - `loomai-ecommerce-store` normal/preview env had `CONNECTOR_INDEXING_ENABLED=true`.
+  - `loomai-ecommerce-store` normal/preview env had `CONNECTOR_INDEXING_RUNTIME_BASE_URL` pointing at the old Railway runtime URL.
+- Cleanup was applied through Coolify API:
+  - backend normal/preview `PLATFORM_DEPLOY_BRANCH=Platform-V10`;
+  - ecommerce normal/preview `CONNECTOR_INDEXING_ENABLED=false`;
+  - ecommerce normal/preview `CONNECTOR_INDEXING_RUNTIME_BASE_URL=` blank.
+- Backend and ecommerce production apps were redeployed after env cleanup:
+  - backend deployment `x12bvu1lmorp1prodvc0gil9`;
+  - ecommerce deployment `lkb7h8z1m3rjs4v1g95jvxzp`.
+- Post-cleanup production env audit found zero suspicious staging/Railway/V8 references across the six production apps inspected.
+- Production health after env cleanup returned HTTP `200`/`UP` for Platform backend, Platform UI, Partner UI, Runtime, Shopify Bridge production, and Ecommerce Store.
+
+Evidence:
+
+- Redacted secret catalog: `/tmp/loomai-production-readiness-20260528T091943Z/platform-secret-summary.json`
+- Redacted secret counts: `/tmp/loomai-production-readiness-20260528T091943Z/platform-secret-summary-redacted-counts.json`
+- Sanitized env audit after cleanup: `/tmp/loomai-production-readiness-20260528T091943Z/prod-coolify-env-key-audit-after-cleanup-sanitized.json`
+- Health after cleanup redeploy: `/tmp/loomai-production-readiness-20260528T091943Z/prod-health-after-env-cleanup-redeploy.txt`
+
+Gate 4 conclusion:
+
+- `PASS` for controlled proof readiness.
+- Public launch still requires final production DNS/TLS and App Store/support packaging decisions.
+
 ## Gate 5: Production Data And Migration Readiness
 
 Before mutating production:
@@ -401,6 +469,41 @@ mvn -f ai-infrastructure-module/pom.xml -q -pl ai-infrastructure-core,ai-fabric-
 ```
 
 Use broader test commands when the release touches providers, Bridge, Marketplace, or deployment code.
+
+### Current Gate 5 Execution - 2026-05-28
+
+Gate 5 was executed for the current production Platform database and release branch.
+
+Results:
+
+- Production Coolify PostgreSQL database exists and is healthy:
+  - name `loomai-platform-postgres-production`;
+  - uuid `nkti6x5r7ovw1xx8q0ykhweq`;
+  - status `running:healthy`.
+- Fresh production Platform database backup was created on the production host:
+  - `/var/backups/loom-platform-db/platform-production-20260528T135304Z.sql.gz`;
+  - file mode `600`;
+  - approximate size `2.5M`.
+- Production Flyway history tail was recorded. The latest applied migration is:
+  - version `118`;
+  - description `provider neutral coolify runtime defaults`;
+  - success `true`;
+  - checksum `121501073`.
+- Full Platform backend regression suite passed:
+  - `mvn -f Platfrom/backend/pom.xml -q test`
+- Runtime/core regression suite passed:
+  - `mvn -f ai-infrastructure-module/pom.xml -q -pl ai-infrastructure-core,ai-fabric-runtime -am test`
+
+Evidence:
+
+- Production DB backup proof: `/tmp/loomai-production-readiness-20260528T091943Z/platform-production-db-backup-20260528.txt`
+- Production Flyway history tail: `/tmp/loomai-production-readiness-20260528T091943Z/platform-production-flyway-history-tail.tsv`
+
+Gate 5 conclusion:
+
+- `PASS` for controlled proof readiness.
+- No irreversible production data mutation was performed by Gate 5.
+- Production vector/RAG proof remains part of Gate 8 after a controlled production promotion target exists.
 
 ## Gate 6: Controlled Production Promotion Proof
 

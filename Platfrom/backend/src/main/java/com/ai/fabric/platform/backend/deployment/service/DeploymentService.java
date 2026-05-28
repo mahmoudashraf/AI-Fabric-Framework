@@ -1174,6 +1174,15 @@ public class DeploymentService {
         return publishDraftInternal(draftId, true);
     }
 
+    /**
+     * Publishes a draft after an upstream platform workflow has already resolved and authorized the target
+     * deployment. Do not call this from controller or public API paths that have not performed their own
+     * deployment ownership check.
+     */
+    public DeploymentVersionSummary publishDraftForTrustedCaller(String draftId) {
+        return publishDraftInternal(draftId, true);
+    }
+
     @Transactional
     DeploymentVersionSummary publishDraftInternal(String draftId, boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
@@ -1393,6 +1402,19 @@ public class DeploymentService {
     @Transactional
     public DeploymentReleaseSummary applyVersionForTrustedCaller(String deploymentId, String versionId) {
         return applyVersionInternal(deploymentId, versionId, null, true, null, null);
+    }
+
+    /**
+     * Applies a version to a specific target profile after an upstream platform workflow has already resolved
+     * and authorized the deployment. This is intended for product-owned promotion flows that enforce their
+     * own store/customer authorization before crossing into deployment release orchestration.
+     */
+    @Transactional
+    public DeploymentReleaseSummary applyVersionForTrustedCaller(String deploymentId,
+                                                                 String versionId,
+                                                                 String targetProfileId,
+                                                                 String sourceArtifactId) {
+        return applyVersionInternal(deploymentId, versionId, null, true, targetProfileId, sourceArtifactId);
     }
 
     /**

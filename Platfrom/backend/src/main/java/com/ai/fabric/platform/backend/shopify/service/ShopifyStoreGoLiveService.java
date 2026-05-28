@@ -79,20 +79,19 @@ public class ShopifyStoreGoLiveService {
         validateReadyForGoLive(summary);
         validateSupportReadyForGoLive(store);
 
-        deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(store.getDeploymentId());
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraftForTrustedCaller(store.getDeploymentId());
         DeploymentDraftResponse draft = ensureShopifyCompanionSecurityDefaults(store.getDeploymentId());
         draft = ensureShopifyCompanionConnectorDefaults(store, draft);
-        DeploymentVersionSummary version = deploymentService.publishDraft(draft.id());
+        DeploymentVersionSummary version = deploymentService.publishDraftForTrustedCaller(draft.id());
         ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = resolveEffectiveProfile(store);
         String productionTemplatePluginId = profile == null ? null : profile.productionTemplatePluginId();
         String targetProfileId = firstText(
             profile == null ? null : profile.productionTargetProfileId(),
             bootstrapProperties == null ? null : bootstrapProperties.goLiveTargetProfileId()
         );
-        DeploymentReleaseSummary release = deploymentService.applyVersion(
+        DeploymentReleaseSummary release = deploymentService.applyVersionForTrustedCaller(
             store.getDeploymentId(),
             version.id(),
-            null,
             targetProfileId,
             null
         );
@@ -160,13 +159,13 @@ public class ShopifyStoreGoLiveService {
     }
 
     private DeploymentDraftResponse ensureShopifyCompanionSecurityDefaults(String deploymentId) {
-        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId);
         ObjectNode securityConfig = ensureObject(draft.securityConfig());
         boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId);
         if (!changed) {
             return draft;
         }
-        return deploymentService.updateDraft(
+        return deploymentService.updateDraftForTrustedCaller(
             draft.id(),
             new UpdateDeploymentDraftRequest(
                 null,
@@ -191,7 +190,7 @@ public class ShopifyStoreGoLiveService {
         String productServiceBaseUrl = productService == null ? null : blankToNull(productService.getBaseUrl());
         if (!hasText(productServiceBaseUrl)) {
             if (actionsConfigChanged) {
-                return deploymentService.updateDraft(
+                return deploymentService.updateDraftForTrustedCaller(
                     draft.id(),
                     new UpdateDeploymentDraftRequest(
                         actionsConfig,
@@ -232,7 +231,7 @@ public class ShopifyStoreGoLiveService {
             return draft;
         }
 
-        return deploymentService.updateDraft(
+        return deploymentService.updateDraftForTrustedCaller(
             draft.id(),
             new UpdateDeploymentDraftRequest(
                 actionsConfigChanged ? actionsConfig : null,
