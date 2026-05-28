@@ -24,6 +24,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidget
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreWidgetSummary;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.Instant;
 import java.util.List;
@@ -108,6 +110,57 @@ class ShopifyStorefrontBootstrapServiceTest {
         assertThat(response.bridgeEventUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/events");
         assertThat(response.preferredIntegrationMode()).isEqualTo("PRIVATE_RUNTIME_BACKEND_MEDIATED");
         verify(platformClient).getConsumerCredentials("consumer-alpha");
+    }
+
+    @Test
+    void bootstrapContinuesWhenPersistedShopifyCredentialRefreshFails() {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontBootstrapService service = new ShopifyStorefrontBootstrapService(
+            platformClient,
+            installCredentialService,
+            mock(ShopifyInstallRecordService.class),
+            billingService,
+            mock(ShopifyStorefrontGovernedActionService.class),
+            properties("https://bridge.example.com")
+        );
+        ShopifyBridgeStoreSummary store = store("INSTALLED", "READY", "NOT_ENABLED", "consumer-alpha", "dep-1");
+        ShopifyBridgeStoreSummary updated = store("INSTALLED", "READY", "ENABLED", "consumer-alpha", "dep-1");
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store);
+        when(platformClient.getConsumerCredentials("consumer-alpha")).thenReturn(new PlatformPublicConsumerDeploymentCredentialsResponse(
+            "consumer-alpha",
+            "dep-1",
+            "https://runtime.example.com",
+            new PlatformPublicDeploymentIntegrationSummary(
+                "PRIVATE_RUNTIME_BACKEND_MEDIATED",
+                new PlatformPublicRuntimePostureSummary("SIGNED_PRIVATE_RUNTIME", true, true, false),
+                new PlatformPublicRuntimeEndpointsSummary(
+                    "https://runtime.example.com/api/chat/me",
+                    "https://runtime.example.com/api/chat/me/query",
+                    "https://runtime.example.com/api/chat/me/suggestions",
+                    "https://runtime.example.com/api/chat/me/conversations",
+                    "https://runtime.example.com/api/chat/me/auth-context"
+                ),
+                "Route storefront traffic through the Shopify Bridge backend."
+            )
+        ));
+        when(platformClient.recordWidgetStatus(eq("alpha.myshopify.com"), eq(new ShopifyBridgeRecordWidgetStatusRequest(
+            "ENABLED",
+            "THEME_APP_EXTENSION",
+            "Theme app extension resolved storefront bootstrap."
+        )))).thenReturn(updated);
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
+            .thenThrow(new HttpClientErrorException(HttpStatus.UNAUTHORIZED));
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(billingService.effectiveAllowedSurfaces("alpha.myshopify.com", null, List.of("ai-search", "comparison")))
+            .thenReturn(List.of("ai-search", "comparison"));
+
+        ShopifyStorefrontBootstrapResponse response = service.bootstrap("alpha.myshopify.com", "landing");
+
+        assertThat(response.available()).isTrue();
+        assertThat(response.billingTier()).isEqualTo("ELITE");
+        assertThat(response.bridgeQueryUrl()).isEqualTo("https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/chat/query");
     }
 
     @Test
