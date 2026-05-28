@@ -126,6 +126,7 @@ coverage/
 Platfrom/backend/scripts/run-prod-local.local.sh
 Platfrom/backend/scripts/prod-local.env
 Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md
+Final_Documentation/Development_Guides/LLM-guides/PRODUCTION_HETZNER_COOLIFY_HANDOFF_PRIVATE.md
 
 # Shopify CLI local app workspace artifacts
 product-services/shopify-bridge-service/shopify.app.toml
