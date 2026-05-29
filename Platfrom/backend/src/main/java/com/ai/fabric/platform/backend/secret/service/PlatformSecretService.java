@@ -267,6 +267,9 @@ public class PlatformSecretService {
         if (name.startsWith("MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_")) {
             return "VECTORIZATION_RUNNER_REGISTRATION_TOKEN";
         }
+        if (name.startsWith("MANAGED_RUNTIME_POSTGRES_PASSWORD_DEP_")) {
+            return "RUNTIME_POSTGRES_PASSWORD";
+        }
         return name;
     }
 

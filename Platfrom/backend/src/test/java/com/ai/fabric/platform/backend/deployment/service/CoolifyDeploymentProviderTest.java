@@ -222,6 +222,144 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
+    void provisionsProductionRuntimeWithManagedPostgresDatasource() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setId("dtp-coolify-production");
+        profile.setEnvironmentName("production");
+        profile.setResourceDefaultsJson("""
+            {
+              "runtimeDatabaseMode": "COOLIFY_POSTGRES",
+              "runtimeDatabaseNamePrefix": "ai-fabric-runtime-postgres",
+              "runtimeDatabaseName": "runtime_chat",
+              "runtimeDatabaseUsername": "runtime_user",
+              "runtimeDatabaseImage": "postgres:16-alpine",
+              "runtimeDatabasePort": "5432",
+              "runtimeDatabasePublic": false
+            }
+            """);
+        DeploymentSourceArtifactEntity artifact = artifact();
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "production",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary application = new CoolifyApplicationSummary(
+            "app-uuid",
+            "ai-fabric-runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running",
+            "ghcr.io/example/runtime",
+            "sha",
+            objectMapper.readTree("{\"uuid\":\"app-uuid\",\"status\":\"running\"}")
+        );
+        CoolifyDatabaseSummary database = new CoolifyDatabaseSummary(
+            "db-uuid",
+            "ai-fabric-runtime-postgres-dep-123",
+            "running",
+            "postgresql",
+            "runtime_user",
+            "runtime_chat",
+            objectMapper.readTree("{\"uuid\":\"db-uuid\",\"name\":\"ai-fabric-runtime-postgres-dep-123\",\"status\":\"running\"}")
+        );
+
+        when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
+        when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-production"),
+            eq("APPLICATION")
+        )).thenReturn(Optional.empty());
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-production"),
+            eq("RUNTIME_POSTGRES_DATABASE")
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createDockerImageApplication(eq(connection), any())).thenReturn("app-uuid");
+        when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.of(application));
+        when(platformSecretService.resolveSecret("MANAGED_RUNTIME_POSTGRES_PASSWORD_DEP_DEP_123_PROFILE_DTP_COOLIFY_PRODUCTION"))
+            .thenReturn("pg-password");
+        when(coolifyApiClient.listDatabases(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createPostgresDatabase(eq(connection), any())).thenReturn("db-uuid");
+        when(coolifyApiClient.getDatabase(connection, "db-uuid")).thenReturn(Optional.of(database));
+        when(coolifyApiClient.startDatabase(connection, "db-uuid"))
+            .thenReturn(new CoolifyActionResponse("Database start queued.", "db-deploy-uuid", objectMapper.createObjectNode()));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(14);
+        when(coolifyApiClient.start(connection, "app-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
+            objectMapper
+        );
+        DeploymentReleaseEntity release = release();
+        release.setTargetProfileId("dtp-coolify-production");
+
+        ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
+
+        assertThat(result.detailsJson()).contains(
+            "runtimeDatabaseProviderResourceHandleId",
+            "db-uuid",
+            "COOLIFY_POSTGRES"
+        );
+        ArgumentCaptor<CoolifyCreatePostgresDatabaseRequest> databaseRequest =
+            ArgumentCaptor.forClass(CoolifyCreatePostgresDatabaseRequest.class);
+        verify(coolifyApiClient).createPostgresDatabase(eq(connection), databaseRequest.capture());
+        assertThat(databaseRequest.getValue().name()).isEqualTo("ai-fabric-runtime-postgres-dep-123");
+        assertThat(databaseRequest.getValue().postgresUser()).isEqualTo("runtime_user");
+        assertThat(databaseRequest.getValue().postgresDatabase()).isEqualTo("runtime_chat");
+        assertThat(databaseRequest.getValue().isPublic()).isFalse();
+
+        ArgumentCaptor<List<CoolifyEnvVar>> envCaptor = ArgumentCaptor.forClass(List.class);
+        verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), envCaptor.capture());
+        Map<String, String> env = envCaptor.getValue().stream()
+            .filter(envVar -> !envVar.preview())
+            .filter(envVar -> envVar.key() != null && envVar.value() != null)
+            .collect(Collectors.toMap(CoolifyEnvVar::key, CoolifyEnvVar::value));
+        assertThat(env).containsEntry("SPRING_DATASOURCE_URL", "jdbc:postgresql://db-uuid:5432/runtime_chat");
+        assertThat(env).containsEntry("SPRING_DATASOURCE_DRIVER_CLASS_NAME", "org.postgresql.Driver");
+        assertThat(env).containsEntry("SPRING_DATASOURCE_USERNAME", "runtime_user");
+        assertThat(env).containsEntry("SPRING_DATASOURCE_PASSWORD", "pg-password");
+        assertThat(env).containsEntry("PLATFORM_RUNTIME_DATABASE_MODE", "COOLIFY_POSTGRES");
+        assertThat(env).containsEntry("PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", "db-uuid");
+    }
+
+    @Test
     void provisionsPublicGitApplicationWithResolvedManagedVectorProviderConfig() throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);

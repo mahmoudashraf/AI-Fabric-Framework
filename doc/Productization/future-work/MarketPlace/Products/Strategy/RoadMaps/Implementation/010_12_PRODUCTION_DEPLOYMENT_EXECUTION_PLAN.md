@@ -40,6 +40,32 @@ Out of scope for the first production proof:
 - Moving unrelated staging stores/customers to production.
 - Manual Coolify-only deployment paths that bypass Platform state.
 
+## Shopify App Environment Boundary
+
+Staging and production must be treated as separate Shopify app environments.
+
+Controlled technical proof may temporarily use the existing development/test Shopify app when the goal is to prove Platform/Coolify production deployment mechanics. Real merchant production installs must use a dedicated production Shopify Partner app.
+
+Production Shopify app requirements:
+
+- App URL points only at the production Bridge domain, for example `https://shopify-bridge.loomai.pro`.
+- OAuth redirect URLs point only at production callback URLs.
+- App proxy URLs, webhook URLs, Customer Account redirect URLs, and Checkout redirect URLs point only at production domains.
+- Production Shopify app client id, client secret, webhook secret, Customer Account credentials, and Checkout credentials live only in production Platform/Coolify secrets.
+- Staging app credentials remain isolated from production and must not be reused for real merchant production.
+- Protected customer data, public listing review, Customer Account access, and Checkout access are requested and documented against the production app claim set.
+
+Reasoning:
+
+- Shopify app URLs and redirect URLs are app-level configuration. Reusing one app for staging and production creates a direct risk that staging callback changes break production installs.
+- Separate apps keep OAuth sessions, webhook registrations, Customer Account redirect posture, protected-data review, and App Store/private listing state auditable per environment.
+- The production app boundary also keeps production secrets out of staging deploys and staging secrets out of production deploys.
+
+Gate impact:
+
+- Existing development/test Shopify app usage is acceptable for the controlled production proof already recorded in Gate 6/Gate 9.
+- Public/private real merchant production launch is blocked until the production Shopify app exists, is configured with production domains, and its production secrets are installed in the production environment.
+
 ## Gate 0: Freeze Release Candidate
 
 1. Select the exact Git branch and commit to promote.
@@ -398,7 +424,7 @@ Production service configuration must be complete before promotion.
 Check these categories:
 
 - Platform internal service keys.
-- Shopify app client id/secret and webhook secret for production app URLs.
+- Dedicated production Shopify app client id/secret and webhook secret for production app URLs.
 - Shopify Admin tokens only where the app/service legitimately requires them.
 - Customer Account MCP credentials and redirect URI registrations, if claimed.
 - Checkout MCP credentials and redirect URI registrations, if claimed.
@@ -416,6 +442,7 @@ Rules:
 - Any secret update must have an operator-safe audit entry.
 - Duplicate stale Coolify env rows must be cleaned or proven preview-only.
 - Production envs must not reference staging-only domains such as `shop-staging.loomai.pro` unless the proof explicitly uses a staging-equivalent production target.
+- Real merchant production envs must not reference the staging Shopify app credentials.
 
 ### Current Gate 4 Execution - 2026-05-28
 
@@ -448,7 +475,7 @@ Evidence:
 Gate 4 conclusion:
 
 - `PASS` for controlled proof readiness.
-- Public launch still requires final production DNS/TLS and App Store/support packaging decisions.
+- Public launch still requires final production DNS/TLS, dedicated production Shopify app credentials/URLs, and App Store/support packaging decisions.
 
 ## Gate 5: Production Data And Migration Readiness
 
@@ -504,6 +531,35 @@ Gate 5 conclusion:
 - `PASS` for controlled proof readiness.
 - No irreversible production data mutation was performed by Gate 5.
 - Production vector/RAG proof remains part of Gate 8 after a controlled production promotion target exists.
+
+### Runtime Chat Database Profile Update - 2026-05-29
+
+Production runtime chat/session storage is now profile-driven:
+
+- `dtp-coolify-staging` keeps the runtime Docker default H2 file database for cheap, disposable staging previews.
+- `dtp-coolify-production` adds `runtimeDatabaseMode=COOLIFY_POSTGRES` through migration `V119__coolify_production_runtime_postgres.sql`.
+- The Coolify provider creates or reuses one managed PostgreSQL database per deployment/profile, stores the generated DB password in Platform secrets, injects Spring datasource env vars into the runtime app, and persists a `RUNTIME_POSTGRES_DATABASE` provider resource handle for lifecycle actions.
+- Runtime DB create uses `instant_deploy=false`; Platform explicitly starts the database so promotion evidence can show the DB lifecycle step.
+- The runtime JDBC host is derived from Coolify's returned internal database URL when present. Live staging smoke showed Coolify uses the database UUID as the internal hostname, not the display name.
+
+Staging proof executed on the staging Coolify server before touching the production server:
+
+- Staging Coolify project has both internal `staging` and `production` environments.
+- A disposable PostgreSQL database was created in the staging server's internal `production` environment with `is_public=false`.
+- The database reached `running:healthy`.
+- The returned internal DB host matched the Coolify database UUID.
+- The smoke database was deleted after verification; read-after-delete returned `404`.
+- Sanitized evidence: `/tmp/loomai-coolify-postgres-smoke-sanitized-summary.json`.
+
+Local verification:
+
+```bash
+mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyDeploymentProviderTest,CoolifyApiClientTest,DeploymentTargetProfileMigrationTest test
+```
+
+Important operational note:
+
+- The live staging Platform record for `dtp-coolify-production` points at the real production Coolify server (`46.225.162.106`). Use the staging Coolify server's internal `production` environment for dry-run database smoke tests; do not use `dtp-coolify-production` for staging-only destructive tests unless the target profile is explicitly redirected to a staging-safe production-equivalent environment.
 
 ## Gate 6: Controlled Production Promotion Proof
 
@@ -635,6 +691,7 @@ Shopify-specific checks:
 - cart add flow is governed and confirms before write
 - Customer Account/Checkout claims are hidden unless live-proven
 - Shopify app redirect URLs and webhooks use production domains
+- real merchant production installs use the dedicated production Shopify app, not the staging/development app
 
 ProdUS/external-customer checks, if included:
 
@@ -785,6 +842,7 @@ Blocked launch posture until additional evidence exists:
 - broad customer-account/order/return/refund automation claims
 - terminal checkout automation claims
 - unsupported provider document-analysis claims
+- real merchant production installs using staging/development Shopify app credentials or URLs
 
 Release notes must include:
 

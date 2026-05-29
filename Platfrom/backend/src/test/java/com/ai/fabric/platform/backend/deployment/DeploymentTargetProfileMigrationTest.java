@@ -51,6 +51,7 @@ class DeploymentTargetProfileMigrationTest {
                 assertThat(profile.getResourceDefaultsJson()).doesNotContain("deploy/railway");
                 assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectGroupingEnabled\":true");
                 assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectNamePrefix\":\"customer\"");
+                assertThat(profile.getResourceDefaultsJson()).doesNotContain("\"runtimeDatabaseMode\"");
             });
         assertThat(targetProfileRepository.findById("dtp-coolify-production"))
             .hasValueSatisfying(profile -> {
@@ -67,6 +68,8 @@ class DeploymentTargetProfileMigrationTest {
                 assertThat(profile.getResourceDefaultsJson()).doesNotContain("deploy/railway");
                 assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectGroupingEnabled\":true");
                 assertThat(profile.getResourceDefaultsJson()).contains("\"customerProjectNamePrefix\":\"customer\"");
+                assertThat(profile.getResourceDefaultsJson()).contains("\"runtimeDatabaseMode\":\"COOLIFY_POSTGRES\"");
+                assertThat(profile.getResourceDefaultsJson()).contains("\"runtimeDatabaseName\":\"runtime_chat\"");
             });
         assertThat(providerCredentialRepository.findById("dpc-coolify-staging"))
             .hasValueSatisfying(credential -> {
