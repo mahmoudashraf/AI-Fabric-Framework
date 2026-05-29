@@ -43,6 +43,7 @@ Current non-claim posture:
 - Do not claim Customer Account MCP order, return, refund, or store-credit features beyond tools that have fresh live proof.
 - Do not claim Checkout MCP automation as live until checkout-specific credentials, storefront access, and managed tools/call proof are recorded.
 - Do not sell MCP, Coolify, Hetzner, or AI Fabric internals to merchants.
+- Do not install real merchant production stores through the staging/development Shopify app; use a dedicated production Shopify app with production-only URLs and secrets.
 
 ## Consolidated Next Urgent Steps From Latest Readiness Review
 
@@ -279,6 +280,7 @@ Release boundary after this proof:
 - Controlled production beta for a named design-partner store is now technically viable after release-owner review of remaining business/support posture.
 - Public self-service Shopify/App Store launch remains blocked by:
   - production DNS/TLS migration off `sslip.io`;
+  - dedicated production Shopify Partner app setup with production App URL, OAuth redirects, webhooks, Customer Account redirects, Checkout redirects, and production-only secrets;
   - provider-level failed-deployment rehearsal with a safe failure harness;
   - public Customer Account/Checkout claim proof;
   - durable Customer Account OAuth / owned-resource posture, if those claims are included;
@@ -590,6 +592,7 @@ Pass only when all design-partner gates pass plus:
 - production promotion proof is complete
 - rollback/deactivation proof is complete
 - failed promotion isolation proof is complete, including a provider-level failed-deployment rehearsal rather than only validation-failure isolation
+- dedicated production Shopify app is configured and secrets are installed only in production
 - Customer Account MCP public claims are proven feature-by-feature
 - Checkout MCP public claims are proven feature-by-feature
 - durable owned-resource refs are implemented or customer-owned flows remain explicitly gated
@@ -603,6 +606,6 @@ Release posture should be:
 
 1. Ship a controlled design-partner/private Shopify Companion launch after the fresh staging release gate and answer-quality repeat gate pass.
 2. Treat the 2026-05-28/29 production proof as enough for named controlled production beta review, not public launch.
-3. Keep public App Store/self-service production launch blocked until provider-level failed-promotion rehearsal, final production DNS/TLS, support packaging, and customer-owned capability proof are complete.
+3. Keep public App Store/self-service production launch blocked until provider-level failed-promotion rehearsal, final production DNS/TLS, dedicated production Shopify app setup, support packaging, and customer-owned capability proof are complete.
 4. Treat Customer Account MCP and Checkout MCP as gated beta capabilities, not headline launch promises.
 5. Use the debug/RAG inspector and answer-quality repeat gate as mandatory evidence for every Shopify deploy that affects storefront chat, indexing, actions, prompts, Bridge response shape, or widget behavior.
