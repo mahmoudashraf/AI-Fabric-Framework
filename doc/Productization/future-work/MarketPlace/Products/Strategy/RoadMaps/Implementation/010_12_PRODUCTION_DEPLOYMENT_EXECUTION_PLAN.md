@@ -897,6 +897,34 @@ Store these under the production run directory:
 - failed-promotion staging-isolation proof
 - final release decision note
 
+## Execution Status - 2026-05-29 Runtime Promotion Proof
+
+Customer/runtime production promotion was executed against `dtp-coolify-production` for deployment `dep-8c3e7259`.
+
+Evidence:
+
+- Branch: `Platform-V10`
+- Runtime fix commit: `5c9c0add8` (`Add PostgreSQL driver to runtime image`)
+- Production release: `rel-9a8cc932`
+- Production release status: `APPLIED_VERIFIED`
+- Production verification status: `PASSED`
+- Runtime app: `hygnmeoto42ip5lepsow86ek`, `running:healthy`
+- Connector app: `sr6yva7wn46j8gvya9npjouh`, `running:healthy`
+- Vectorization runner app: `aown07njyl1ev0yrwunwnzmb`, `running:healthy`
+- Runtime Postgres DB: `f3eprropxb0gi9d89ytc3qiq`, private, `running:healthy`
+- Public health checks passed for runtime, connector, and vectorization runner.
+
+Important note:
+
+- Initial production attempt `rel-64e7eec4` failed because the runtime image did not include `org.postgresql.Driver`.
+- The failed attempt left an orphan runtime Postgres database. It was removed from Coolify after the successful retry.
+- The current active production state has a single private runtime Postgres database for `dep-8c3e7259`.
+
+Still outside this proof:
+
+- Full public Shopify launch remains blocked until the broader release gates pass.
+- Rollback/deactivation proof and failed-promotion staging-isolation proof still need explicit execution before a public/self-service launch decision.
+
 ## Completion Criteria
 
 This production deployment plan is complete only when:
