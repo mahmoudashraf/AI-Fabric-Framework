@@ -806,9 +806,27 @@ Failed-promotion validation proof:
 - The latest production release remained `rel-9bfd761f` on `ver-1b77bfba`, status `APPLIED_VERIFIED`.
 - Staging bootstrap fields stayed unchanged before/after the failed apply attempt.
 
+Additional runtime deactivation/restore proof after managed runtime PostgreSQL promotion:
+
+- Active production release before proof: `rel-9a8cc932`, status `APPLIED_VERIFIED`, verification `PASSED`.
+- Production runtime app handle: `dprh-463090c2`, Coolify app `hygnmeoto42ip5lepsow86ek`.
+- Production runtime app was stopped through the Platform provider resource operation API only. Connector, vectorization runner, and runtime PostgreSQL were not stopped.
+- Runtime health changed from HTTP `200` to HTTP `404` during the controlled stop.
+- Staging Platform and staging Shopify Bridge health remained `UP` during the production runtime stop.
+- Production runtime app was started again through the Platform provider resource operation API.
+- Runtime health returned to HTTP `200`; runtime, connector, vectorization runner, and runtime PostgreSQL resource statuses all returned `RUNNING_HEALTHY`.
+
+Additional failed-promotion staging-isolation proof after managed runtime PostgreSQL promotion:
+
+- A negative production apply was submitted with `targetProfileId=dtp-coolify-production` and non-existent version id `ver-nonexistent-provider-failure-proof`.
+- The request failed with HTTP `404`.
+- The latest production release stayed unchanged: `rel-9a8cc932` before and after the rejected apply.
+- Runtime, connector, vectorization runner, and runtime PostgreSQL stayed `RUNNING_HEALTHY` after the rejected apply.
+- Staging Platform and staging Shopify Bridge health stayed `UP` after the rejected apply.
+
 Scope note:
 
-- This proves rollback-by-reapply, forward restore, and validation-failure staging isolation.
+- This proves rollback-by-reapply, forward restore, runtime deactivation/restore, and validation-failure staging isolation.
 - A provider-level failed deployment rehearsal still needs a first-class non-destructive failure harness before it should be claimed as fully live-proven. Do not create broken production app config just to force a provider failure.
 
 Evidence:
@@ -821,10 +839,12 @@ Evidence:
 - Negative failed-promotion response/status: `prod-failed-promotion-invalid-version-response.json`, `prod-failed-promotion-invalid-version-http-status.txt`
 - Staging bootstrap before/after negative apply: `staging-bootstrap-before-failed-promotion-validation-proof.json`, `staging-bootstrap-after-failed-promotion-validation-proof.json`
 - Production release list after negative apply: `prod-releases-after-failed-promotion-validation-proof.json`
+- Managed runtime PostgreSQL runtime deactivation/restore proof: `/tmp/loomai-production-gate-20260529T190109Z/prod-runtime-stop-summary.txt`, `/tmp/loomai-production-gate-20260529T190109Z/prod-runtime-start-summary.txt`
+- Managed runtime PostgreSQL failed-promotion isolation proof: `/tmp/loomai-production-gate-20260529T190109Z/prod-invalid-apply-summary.txt`, `/tmp/loomai-production-gate-20260529T190109Z/prod-releases-after-invalid-apply.json`
 
 Gate 9 conclusion:
 
-- `PASS` for rollback-by-reapply, forward restore, and validation-failure staging isolation.
+- `PASS` for rollback-by-reapply, forward restore, runtime deactivation/restore, and validation-failure staging isolation.
 - `PARTIAL` for provider-level failed-promotion proof until a safe provider failure harness exists.
 
 ## Gate 10: Release Decision
@@ -923,7 +943,8 @@ Important note:
 Still outside this proof:
 
 - Full public Shopify launch remains blocked until the broader release gates pass.
-- Rollback/deactivation proof and failed-promotion staging-isolation proof still need explicit execution before a public/self-service launch decision.
+- Runtime deactivation/restore and validation-failure staging-isolation proof have now been executed against the current managed runtime PostgreSQL production release.
+- Provider-level failed-deployment rehearsal remains intentionally unclaimed until a first-class non-destructive failure harness exists.
 
 ## Completion Criteria
 
