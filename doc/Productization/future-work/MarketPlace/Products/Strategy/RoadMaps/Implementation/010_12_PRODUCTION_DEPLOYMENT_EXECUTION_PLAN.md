@@ -341,17 +341,17 @@ Secret/config metadata check:
 - No required Platform secret is currently missing.
 - Secret values were not printed or exported as part of this evidence bundle.
 
-Observed blockers before release:
+Observed blockers before controlled production promotion:
 
 - Production public endpoints still use `sslip.io`; this is acceptable for controlled proof only, not public launch positioning.
 - Some Coolify app records report `running:unknown` even though their HTTP health endpoints are `UP`; configure or document Coolify health checks before final release.
-- The controlled production promotion proof has not run yet. Current production app redeploy evidence proves production infrastructure can deploy `Platform-V10`; it does not prove the Platform `Go production` merchant/product-service mutation, rollback/deactivation, or failed-promotion staging isolation.
+- The controlled production promotion proof had not run at this point in the gate sequence. It was executed later in Gate 6 and Gate 9 below.
 
 Next required infrastructure actions:
 
 1. Decide production DNS/TLS posture: real production domains for launch, `sslip.io` only for proof.
 2. Configure or explicitly document Coolify health checks for apps that report `running:unknown` despite healthy HTTP endpoints.
-3. Run Gate 6 controlled production promotion proof, then Gate 9 rollback/deactivation and failed-promotion isolation proof.
+3. Keep Gate 6 and Gate 9 evidence fresh for the intended production release target.
 4. Decide production DNS/TLS posture for public launch.
 5. Configure or explicitly document Coolify health checks for apps that report `running:unknown` despite healthy HTTP endpoints.
 
@@ -536,6 +536,58 @@ This proof must demonstrate:
 - production verification passed
 - staging deployment records and live staging services were unchanged
 
+### Current Gate 6 Execution - 2026-05-28/29
+
+Gate 6 was executed against Shopify Companion deployment `dep-8c3e7259` using production target profile `dtp-coolify-production`.
+
+Precondition fix:
+
+- The production target profile initially pointed Platform at the public Coolify API URL from inside the Platform container, which timed out through host hairpin networking.
+- The production target profile provider config was corrected to use the internal production Docker network URL `http://coolify:8080` while keeping the external operator dashboard/API at `http://46.225.162.106:8000`.
+- After this correction, target profile preflight returned `PASSED`.
+
+Production promotion proof:
+
+- Published version applied: `ver-1b77bfba` (`v10`).
+- Production release: `rel-ec590e44`.
+- Target profile: `dtp-coolify-production`.
+- Final release state: `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Platform consumer credentials now resolve the production runtime base URL `http://dep-8c3e7259.46.225.162.106.sslip.io` for `shopify-shopping-companion-test`.
+- Production runtime health returned `UP`.
+- Production Shopify Bridge bootstrap returned `available=true`, `deploymentId=dep-8c3e7259`, `consumerId=shopify-shopping-companion-test`, and `runtimeAuthMode=PRIVATE_RUNTIME_SIGNED_ASSERTION`.
+
+Bridge resilience fix required during proof:
+
+- Production Bridge surfaced stale/expired persisted Shopify credential refresh failures during bootstrap/action capability/chat paths.
+- Commits `4c3e86b86`, `61ab231c0`, and `9421f96f4` made bootstrap, governed-action capability, and chat paths resilient to stale persisted credential refresh failures without printing secrets or bypassing valid credentials.
+- Production Bridge redeploy `i2h4tqzs4xmx5q68twhnvjc7` finished successfully after the final chat resilience commit.
+- Production Bridge health and bootstrap remained healthy after the redeploy.
+- Production chat smoke returned HTTP `200` with canonical response fields.
+
+Product service source-of-truth fix:
+
+- Production Platform product service `shopify-bridge-prod` had stale staging metadata in the production database.
+- The production record was corrected to `environment_scope=production`, production Bridge base URL `https://loomai-shopify-bridge-prod.46.225.162.106.sslip.io`, and production Coolify app UUID `wurlsp7d3bdsedy1lmn33sdc`.
+- Production product-service API and health readback returned active/ready after correction.
+
+Evidence:
+
+- Evidence directory: `/tmp/loomai-production-readiness-20260528T174005Z`
+- Target preflight after internal URL fix: `prod-target-profile-preflight-after-internal-url.json`
+- Production apply response: `prod-deployment-apply-production-profile-response.json`
+- Production release readback: `prod-deployment-releases-after-production-apply.json`
+- Production consumer credentials readback: `prod-platform-shopify-consumer-credentials-after-production-apply.json`
+- Production runtime health: `prod-runtime-health-after-production-apply.json`
+- Production Bridge bootstrap: `prod-bridge-bootstrap-after-production-apply.json`
+- Bridge resilience redeploy: `bridge-chat-resilience-deployment-i2h4tqzs4xmx5q68twhnvjc7.json`
+- Post-resilience Bridge health/bootstrap: `prod-bridge-health-after-chat-resilience.json`, `prod-bridge-bootstrap-after-chat-resilience.json`
+- Production chat smoke: `prod-bridge-chat-shipping-policy-after-chat-resilience-response.json`
+
+Gate 6 conclusion:
+
+- `PASS` for controlled production-promotion proof.
+- This is a controlled production proof on temporary `sslip.io` hostnames. It does not by itself approve public App Store/self-service launch.
+
 ## Gate 7: Production Service Deployment Order
 
 Use this order unless a release-specific dependency graph says otherwise:
@@ -592,6 +644,56 @@ ProdUS/external-customer checks, if included:
 - `documentUsage` is returned for temporary file inputs
 - unsupported provider/file combinations return `NOT_USED`
 
+### Current Gate 8 Execution - 2026-05-29
+
+Gate 8 was executed after Gate 6 production promotion and after the Bridge resilience redeploy.
+
+Production vectorization/RAG source-of-truth fix:
+
+- Before reindex, the production deployment vectorization connection still referenced the old Railway Bridge URL.
+- The production vectorization connection was updated through Platform API to use production Bridge base URL `https://loomai-shopify-bridge-prod.46.225.162.106.sslip.io`, admin header `X-BRIDGE-API-KEY`, and secret ref `MANAGED_PRODUCT_SHOPIFY_BRIDGE_PROD_API_KEY`.
+- The active vectorization plan was refreshed to revision `9`, preserving Shopify product/policy vector spaces and product metadata fields including image URL, image alt text, price, availability, variant, vendor, and product URL fields.
+
+Production Shopify source credential fix:
+
+- Production Bridge vectorization-source initially failed with Shopify token refresh `401` because the persisted expiring offline credential had stale refresh material.
+- The production store source credential was changed to use the dedicated non-expiring Admin API source token for `shopping-companion-test.myshopify.com`; the token value remains in private handoff/local secret storage only.
+- Direct production Bridge vectorization-source proof returned HTTP `200`, product `totalCount=77`, and real product records with image URLs.
+
+Managed production reindex proof:
+
+- Managed reindex run `vrn-2d5921b5` completed successfully.
+- Final status: `COMPLETED`, requested status `COMPLETED`.
+- Processed records: `81`.
+- Succeeded records: `81`.
+- Failed records: `0`.
+- Failure buckets: none.
+- Vectorization preview/source counts after reindex: `product=77`, `support-policy=4`.
+- Deployment vectorization overview reported current active runner and plan.
+
+Production RAG smoke:
+
+- Query: `summarize high performance laptops for gaming`.
+- Production Bridge chat returned HTTP `200`.
+- Response contained canonical `ragResponse.documents`, `sources`, and `providerRequestId`.
+- Initial production RAG smoke returned `10` documents/sources.
+- Post-rollback-forward RAG smoke returned `5` documents/sources and production bootstrap remained available.
+
+Evidence:
+
+- Production vectorization connection request/response: `prod-vectorization-connection-upsert-request.json`, `prod-vectorization-connection-upsert-response.json`
+- Production vectorization plan request/response: `prod-vectorization-plan-upsert-request.json`, `prod-vectorization-plan-upsert-response.json`
+- Direct production Bridge vectorization source proof: `prod-bridge-vectorization-source-product-direct-status-after-source-token-upsert.txt`, `prod-bridge-vectorization-source-product-direct-response-after-source-token-upsert.json`
+- Managed reindex final proof: `prod-vectorization-reindex-run-vrn-2d5921b5-final.json`
+- Production vectorization overview/preview after reindex: `prod-deployment-vectorization-overview-after-successful-reindex.json`, `prod-deployment-vectorization-preview-after-successful-reindex.json`
+- Production RAG smoke after reindex: `prod-bridge-chat-rag-gaming-laptops-response.json`
+- Production RAG smoke after rollback-forward: `prod-rag-smoke-after-forward-v10-response.json`
+
+Gate 8 conclusion:
+
+- `PASS` for controlled production runtime/Bridge/vectorization/RAG verification.
+- Public claims for Customer Account, Checkout, refunds, returns, and terminal checkout automation remain blocked until their separate gates pass.
+
 ## Gate 9: Rollback And Deactivation Proof
 
 A production release is not complete until rollback is proven.
@@ -613,6 +715,60 @@ Also run a failed-promotion proof:
 - verify production fails safely,
 - verify staging remains unchanged,
 - verify the user receives actionable merchant-safe guidance.
+
+### Current Gate 9 Execution - 2026-05-29
+
+Rollback-forward proof was executed through Platform release apply operations against `dtp-coolify-production`.
+
+Rollback proof:
+
+- Previous published version applied: `ver-1d4b7a13` (`v9`).
+- Rollback release: `rel-baf3d84e`.
+- Final release state: `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Production Bridge bootstrap remained available after the rollback.
+
+Forward restore proof:
+
+- Current published version re-applied: `ver-1b77bfba` (`v10`).
+- Forward release: `rel-9bfd761f`.
+- Final release state: `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Production Bridge bootstrap returned `available=true` after forward restore.
+- Production runtime and Bridge health returned `UP`.
+- Production RAG smoke returned canonical documents/sources after forward restore.
+
+Staging isolation proof:
+
+- Staging Bridge bootstrap was captured before rollback and after the rollback-forward sequence.
+- The following staging bootstrap fields stayed unchanged: `deploymentId`, `consumerId`, `runtimeBaseUrl`, `runtimeAuthMode`, `billingTier`, and `billingStatus`.
+- This proves the production rollback-forward operation did not mutate the live staging storefront bootstrap state.
+
+Failed-promotion validation proof:
+
+- A negative production apply was submitted with `targetProfileId=dtp-coolify-production` and a non-existent version id.
+- The request failed with HTTP `404`.
+- The latest production release remained `rel-9bfd761f` on `ver-1b77bfba`, status `APPLIED_VERIFIED`.
+- Staging bootstrap fields stayed unchanged before/after the failed apply attempt.
+
+Scope note:
+
+- This proves rollback-by-reapply, forward restore, and validation-failure staging isolation.
+- A provider-level failed deployment rehearsal still needs a first-class non-destructive failure harness before it should be claimed as fully live-proven. Do not create broken production app config just to force a provider failure.
+
+Evidence:
+
+- Rollback release final proof: `prod-rollback-v9-release-final.json`
+- Forward restore release final proof: `prod-forward-v10-release-final.json`
+- Production bootstrap after rollback: `prod-bootstrap-after-v9-rollback-proof.json`
+- Production bootstrap after forward restore: `prod-bootstrap-after-v10-forward-proof.json`
+- Staging bootstrap before/after rollback-forward: `staging-bootstrap-before-production-rollback-proof.json`, `staging-bootstrap-after-production-rollback-proof.json`
+- Negative failed-promotion response/status: `prod-failed-promotion-invalid-version-response.json`, `prod-failed-promotion-invalid-version-http-status.txt`
+- Staging bootstrap before/after negative apply: `staging-bootstrap-before-failed-promotion-validation-proof.json`, `staging-bootstrap-after-failed-promotion-validation-proof.json`
+- Production release list after negative apply: `prod-releases-after-failed-promotion-validation-proof.json`
+
+Gate 9 conclusion:
+
+- `PASS` for rollback-by-reapply, forward restore, and validation-failure staging isolation.
+- `PARTIAL` for provider-level failed-promotion proof until a safe provider failure harness exists.
 
 ## Gate 10: Release Decision
 
