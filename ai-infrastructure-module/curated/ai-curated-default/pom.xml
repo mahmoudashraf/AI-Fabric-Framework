@@ -16,5 +16,12 @@
 
     <name>AI Curated Prompts - Default Bundle</name>
     <description>Default (complete) prompt template bundle used by AI Fabric core. Curated packs and provider bundles override these templates via overlay versions.</description>
-</project>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

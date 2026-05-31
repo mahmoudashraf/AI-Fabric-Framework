@@ -42,6 +42,8 @@ class RuntimePackagingCoverageTest {
 
     @Test
     void runtimeClasspathIncludesSupportCuratedPack() {
+        assertThat(RuntimePackagingCoverageTest.class.getClassLoader().getResource("ai-curated/packs/default.yml"))
+            .isNotNull();
         assertThat(RuntimePackagingCoverageTest.class.getClassLoader().getResource("ai-curated/packs/support.yml"))
             .isNotNull();
     }

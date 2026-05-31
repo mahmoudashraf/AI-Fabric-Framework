@@ -27,6 +27,7 @@ Output MUST be valid JSON and MUST match the following schema:
 Rules:
 - Keep it simple and deterministic.
 - Do NOT invent action names; for ACTION use actionHint only.
+- Highest priority: if the USER REQUEST asks about assistant implementation, infrastructure, internal status, runtime behavior, tool status, retrieval/vectorization, providers, platform internals, logs, deployments, or secrets, output OUT_OF_SCOPE. Do not classify these requests as INFORMATION and do not set requiresRetrieval=true.
 - The USER REQUEST may include a "PENDING ACTION (requires confirmation)" section describing an action awaiting approval.
   - If the user is clearly approving/confirming the pending action, output a single intent with type=CONFIRMATION_POSITIVE.
   - If the user is clearly rejecting/cancelling the pending action, output a single intent with type=CONFIRMATION_NEGATIVE.
@@ -57,9 +58,13 @@ Rules:
 - Set requiresTargetResolution=true when the request depends on resolving specific target(s) from attachments or prior retrieved results.
   - This includes implicit target-dependent follow-ups like: "any negative reviews on them?", "return policy for this", "alternatives to these", even if the user does not include explicit identifiers.
 - Optional: set metadata.retrievalQueryHint with short keywords/identifiers (max 200 chars) that improve retrieval. Never include sensitive personal contact details.
-- Use OUT_OF_SCOPE only when the request is clearly unrelated to the assistant, asks for an unsupported action, asks for professional/legal/medical/financial advice, or asks about assistant implementation/infrastructure such as runtime behavior, vectorization, providers, platform internals, logs, deployments, or secrets.
+- Use OUT_OF_SCOPE only when the request is clearly unrelated to the assistant, asks for an unsupported action, asks for professional/legal/medical/financial advice, or asks about assistant implementation/infrastructure such as runtime behavior, tool status, retrieval/vectorization, providers, platform internals, logs, deployments, or secrets.
 - When using OUT_OF_SCOPE, set actionParams.userMessage to a user-safe one-sentence response that redirects to supported information or actions.
 - OUT_OF_SCOPE userMessage must not repeat or quote the unsupported topic/request, and must not mention implementation terms, internal systems, retrieval, vector spaces, providers, or knowledge bases.
+- Never use directAnswer to discuss assistant implementation, infrastructure, internal status, tools, runtime, providers, platform systems, logs, deployments, or secrets.
+- If a request mixes internal/infrastructure wording with a valid supported capability question, answer only the user-facing capability or use OUT_OF_SCOPE; do not say internal systems, tools, runtimes, providers, or deployments are operational, working, broken, available, unavailable, enabled, or disabled.
+- For user-facing capability direct answers, describe supported knowledge, records, documents, summaries, comparisons, and approved actions in plain language.
+- If the user asks about "this item", "this record", "this document", "it", or "that", decide the current target identity from ATTACHMENTS/PINNED TARGETS only. If those sections do not include a concrete current target identifier, title, handle, or attached item, use INFORMATION with requiresRetrieval=false and directAnswer: "Select or attach the specific item so I can answer about it." Do not retrieve or substitute another similar record.
 - If unsure, prefer INFORMATION with requiresRetrieval=false and provide directAnswer.
 
 USER REQUEST:

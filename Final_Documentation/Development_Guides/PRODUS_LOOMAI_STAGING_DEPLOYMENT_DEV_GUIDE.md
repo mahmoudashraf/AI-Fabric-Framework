@@ -17,6 +17,8 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Stable consumer/customer id | `produs-staging` |
 | Runtime base URL | `http://dep-7706fafb.46.224.145.148.sslip.io` |
 | Runtime template | `dev-openai-qdrant` |
+| Runtime curated module | `default` |
+| Runtime supported modes | `thinker` for analysis/read-only help, `executor` for governed actions |
 | Active version | `ver-f9069ce5` |
 | Latest applied release | `rel-623c91a0` |
 | Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
@@ -102,7 +104,7 @@ curl -fsS \
     "name": "ProdUS AI Enablement Staging",
     "environment": "staging",
     "templateId": "dev-openai-qdrant",
-    "curatedModuleId": null,
+    "curatedModuleId": "default",
     "vectorProvisioningMode": "MANAGED_CLOUD_CLUSTER",
     "customerId": "produs-staging"
   }'
@@ -371,7 +373,7 @@ curl -fsS \
   --data '{
     "query": "What can you help me with for productization?",
     "conversationId": "produs-direct-runtime-smoke",
-    "mode": "support_assistant",
+    "mode": "thinker",
     "position": "productization",
     "context": {
       "pageType": "owner-product-workspace",
@@ -396,7 +398,7 @@ curl -fsS \
   --data '{
     "query": "Which package template is appropriate for launch readiness?",
     "conversationId": "produs-direct-runtime-query-once-smoke",
-    "mode": "support_assistant",
+    "mode": "thinker",
     "position": "productization",
     "context": {
       "pageType": "owner-product-workspace",
@@ -437,7 +439,9 @@ Expected: `401`.
 
 Chat query:
 
-- `mode=support_assistant` is accepted and echoed back.
+- `mode=thinker` is the default read-only/analysis path and should be echoed back after the deployment is applied with the `default` curated module.
+- `mode=executor` is available for governed action execution. Use it only when the UX is intentionally action-capable.
+- Do not use `support_assistant`, `support_deep`, or `support_operator` for ProdUS. Those modes belong to the support curated pack and are not the default-pack contract.
 - `position=productization` is accepted and echoed back; it is useful as a routing/context signal.
 - Use `/api/chat/me/query` for chat panels with stable conversation history.
 - Use `/api/chat/me/query-once` for one-time answers. Runtime treats `conversationId` as correlation only on this endpoint, skips persisted chat-memory loading, and skips conversation turn recording. Do not send a `persistConversation` flag; choose the endpoint by UX intent.
