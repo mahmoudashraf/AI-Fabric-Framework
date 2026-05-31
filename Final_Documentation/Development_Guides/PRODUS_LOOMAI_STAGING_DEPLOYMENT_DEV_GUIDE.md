@@ -1,6 +1,6 @@
 # ProdUS LoomAI Staging Deployment Dev Guide
 
-Status: current staging guide, last updated 2026-05-27.
+Status: current staging guide, last updated 2026-05-31.
 
 This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
 
@@ -19,8 +19,8 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Runtime template | `dev-openai-qdrant` |
 | Runtime curated module | `default` |
 | Runtime supported modes | `thinker` for analysis/read-only help, `executor` for governed actions |
-| Active version | `ver-f9069ce5` |
-| Latest applied release | `rel-623c91a0` |
+| Active version | `ver-b0c54807` |
+| Latest applied release | `rel-37d07c7c` |
 | Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
 | Connector Coolify app | `rest-connector-dep-7706fafb` / `f8v02rd1luusupszsnbrny7i` |
 | Vectorization runner Coolify app | `vectorization-runner-dep-7706fafb` / `fm2pdlbk55tjx6gmh4xqo9t7` |
@@ -32,6 +32,13 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on staging; unauthenticated `/mcp` calls fail closed and authenticated calls return the LoomAI productization tools. The read-only ProdUS MCP Marketplace action bundle and the confirmed `produs.productization_project.create` action bundle are published, installed, applied, and visible in runtime actions overview.
 
 Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
+
+Default curated runtime pack status on 2026-05-31:
+
+- Deployment version `ver-b0c54807` was published and applied through release `rel-37d07c7c`.
+- Release `rel-37d07c7c` finished `APPLIED_VERIFIED` with verification `PASSED` on target profile `dtp-coolify-staging`.
+- Live smoke confirmed `/api/chat/me/query` and `/api/chat/me/query-once` both accept `mode=thinker` and echo `mode=thinker`.
+- Live smoke confirmed `/api/chat/me/query` still runs retrieval and returned a `rag-*` provider request id.
 
 Runtime code deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` on 2026-05-22 for the implementation smoke. Follow-up deployment `kpx28b02ryukztitqvem2399` deployed commit `969f87dfb` after the status documentation update. Live smoke verified `/api/chat/me/query-once` returns a one-time answer without creating a conversation record, while `/api/chat/me/query` still creates the expected persisted conversation.
 
