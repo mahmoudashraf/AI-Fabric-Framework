@@ -35,10 +35,19 @@ import {
   fetchDeploymentTargetProfiles,
   fetchDeploymentVersions,
   fetchDeploymentProvisioningPlan,
+  createDeploymentBundleExport,
+  createDeploymentBundleImport,
+  previewDeploymentBundleExport,
+  previewDeploymentBundleImport,
   publishDeploymentDraft,
   reconcileDeploymentRelease,
   updatePlatformUserPreferences,
   updateDeploymentSource,
+  type DeploymentBundleExportMode,
+  type DeploymentBundleExportPreviewSummary,
+  type DeploymentBundleImportExecutionSummary,
+  type DeploymentBundleImportMode,
+  type DeploymentBundleImportPreviewSummary,
   type DeploymentConfigDiffCenterSummary,
   type DeploymentDraftResponse,
   type DeploymentReleaseSummary,
@@ -434,6 +443,18 @@ function referenceChipColor(reference: DeploymentConfigDiffCenterSummary['draft'
   return reference.stage === 'DRAFT' ? 'primary' : 'success'
 }
 
+function downloadJsonFile(filename: string, value: unknown) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
 function targetProfileLabel(profile: DeploymentTargetProfileSummary): string {
   return `${profile.name} · ${profile.providerType} · ${profile.environmentName}`
 }
@@ -451,6 +472,17 @@ export function RevisionsPage() {
   const [releaseStatusFilter, setReleaseStatusFilter] = useState('ALL')
   const [reindexFilter, setReindexFilter] = useState('ALL')
   const [applyTargetProfileId, setApplyTargetProfileId] = useState('')
+  const [bundleExportMode, setBundleExportMode] = useState<DeploymentBundleExportMode>('CONFIG_ONLY')
+  const [bundleExportReason, setBundleExportReason] = useState('')
+  const [bundleExportPublicKey, setBundleExportPublicKey] = useState('')
+  const [bundleImportJson, setBundleImportJson] = useState('')
+  const [bundleImportMode, setBundleImportMode] = useState<DeploymentBundleImportMode>('CONFIG_ONLY_CLONE')
+  const [bundleImportName, setBundleImportName] = useState('')
+  const [bundleImportEnvironment, setBundleImportEnvironment] = useState('')
+  const [bundleImportPrivateKey, setBundleImportPrivateKey] = useState('')
+  const [bundleExportPreview, setBundleExportPreview] = useState<DeploymentBundleExportPreviewSummary | null>(null)
+  const [bundleImportPreview, setBundleImportPreview] = useState<DeploymentBundleImportPreviewSummary | null>(null)
+  const [bundleImportResult, setBundleImportResult] = useState<DeploymentBundleImportExecutionSummary | null>(null)
   const viewInitializedRef = useRef(false)
   const viewHydrationRef = useRef(false)
 
@@ -734,6 +766,88 @@ export function RevisionsPage() {
     },
   })
 
+  const exportPreviewMutation = useMutation({
+    mutationFn: () => previewDeploymentBundleExport(selectedDeploymentId, {
+      exportMode: bundleExportMode,
+      includeReleaseEvidence: true,
+    }),
+    onSuccess: setBundleExportPreview,
+  })
+
+  const exportMutation = useMutation({
+    mutationFn: () => createDeploymentBundleExport(selectedDeploymentId, {
+      exportMode: bundleExportMode,
+      reason: bundleExportReason,
+      recipient: bundleExportMode === 'SEALED_BACKUP'
+        ? {
+          type: 'OPERATOR_PUBLIC_KEY',
+          publicKeyPem: bundleExportPublicKey,
+        }
+        : undefined,
+      includeReleaseEvidence: true,
+      includeProviderMappings: true,
+    }),
+    onSuccess: (summary) => {
+      setBundleExportPreview({
+        deploymentId: selectedDeploymentId,
+        exportMode: summary.exportMode,
+        includedSections: [],
+        secretSummary: summary.secretSummary,
+        externalIntegrationImpact: {
+          requiresCustomerEnvChange: false,
+          changedValues: [],
+          reason: 'Export does not mutate deployment state.',
+        },
+        warnings: [],
+      })
+      downloadJsonFile(
+        `${selectedDeploymentId}-${summary.exportMode.toLowerCase()}-${summary.bundleId}.json`,
+        summary.bundle,
+      )
+    },
+  })
+
+  const parsedImportBundle = () => {
+    if (bundleImportJson.trim().length === 0) {
+      throw new Error('Paste or upload a deployment bundle JSON file first.')
+    }
+    return JSON.parse(bundleImportJson)
+  }
+
+  const importPreviewMutation = useMutation({
+    mutationFn: () => previewDeploymentBundleImport({
+      bundle: parsedImportBundle(),
+      importMode: bundleImportMode,
+      targetDeploymentId: bundleImportMode === 'RESTORE_IN_PLACE' ? selectedDeploymentId : undefined,
+      newDeploymentName: bundleImportName,
+      targetEnvironment: bundleImportEnvironment,
+      privateKeyPem: bundleImportPrivateKey,
+      reason: 'operator preview',
+    }),
+    onSuccess: setBundleImportPreview,
+  })
+
+  const importMutation = useMutation({
+    mutationFn: () => createDeploymentBundleImport({
+      bundle: parsedImportBundle(),
+      importMode: bundleImportMode,
+      targetDeploymentId: bundleImportMode === 'RESTORE_IN_PLACE' ? selectedDeploymentId : undefined,
+      newDeploymentName: bundleImportName,
+      targetEnvironment: bundleImportEnvironment,
+      privateKeyPem: bundleImportPrivateKey,
+      reason: 'operator import from deployment bundle',
+    }),
+    onSuccess: async (summary) => {
+      setBundleImportResult(summary)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployments'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-overviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-draft', selectedDeploymentId] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-workspace', selectedDeploymentId] }),
+      ])
+    },
+  })
+
   const draftSummary = summarizeDraft(draftQuery.data)
   const isPlatformAdmin = auth.session?.role === 'PLATFORM_ADMIN'
   const canEdit = workspace?.access.canEdit ?? false
@@ -858,6 +972,298 @@ export function RevisionsPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      {canAdmin && selectedDeployment ? (
+        <Card sx={{ border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+          <CardContent>
+            <Stack spacing={3}>
+              <Box>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Typography variant="h6">Deployment backup and restore</Typography>
+                  <Chip size="small" label="Deployment admin" color="warning" variant="outlined" />
+                  <Chip size="small" label="No plaintext secrets" color="success" variant="outlined" />
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 960 }}>
+                  Export a config-only bundle for migration review, or seal deployment-scoped secrets to an operator
+                  public key for disaster recovery. Imports always create a draft and still require publish/apply gates.
+                </Typography>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} lg={6}>
+                  <Stack spacing={2}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Export</Typography>
+                    <TextField
+                      select
+                      label="Export mode"
+                      value={bundleExportMode}
+                      onChange={(event) => {
+                        setBundleExportMode(event.target.value as DeploymentBundleExportMode)
+                        setBundleExportPreview(null)
+                      }}
+                      size="small"
+                    >
+                      <MenuItem value="CONFIG_ONLY">Config only</MenuItem>
+                      <MenuItem value="SEALED_BACKUP">Sealed backup</MenuItem>
+                    </TextField>
+                    {bundleExportMode === 'SEALED_BACKUP' ? (
+                      <>
+                        <TextField
+                          label="Reason"
+                          value={bundleExportReason}
+                          onChange={(event) => setBundleExportReason(event.target.value)}
+                          size="small"
+                          multiline
+                          minRows={2}
+                          helperText="Required for sealed secret export and stored in audit without secret values."
+                        />
+                        <TextField
+                          label="Recipient public key PEM"
+                          value={bundleExportPublicKey}
+                          onChange={(event) => setBundleExportPublicKey(event.target.value)}
+                          size="small"
+                          multiline
+                          minRows={5}
+                          helperText="RSA public key used to seal the secret envelope. The matching private key is never uploaded during export."
+                        />
+                      </>
+                    ) : null}
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button
+                        variant="outlined"
+                        onClick={() => exportPreviewMutation.mutate()}
+                        disabled={exportPreviewMutation.isPending}
+                      >
+                        {exportPreviewMutation.isPending ? 'Previewing...' : 'Preview export'}
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={() => exportMutation.mutate()}
+                        disabled={
+                          exportMutation.isPending
+                          || (bundleExportMode === 'SEALED_BACKUP'
+                            && (bundleExportReason.trim().length === 0 || bundleExportPublicKey.trim().length === 0))
+                        }
+                      >
+                        {exportMutation.isPending ? 'Exporting...' : 'Download bundle'}
+                      </Button>
+                    </Stack>
+                    {exportPreviewMutation.isError ? (
+                      <Alert severity="error">
+                        {exportPreviewMutation.error instanceof Error
+                          ? exportPreviewMutation.error.message
+                          : 'Failed to preview deployment export.'}
+                      </Alert>
+                    ) : null}
+                    {exportMutation.isError ? (
+                      <Alert severity="error">
+                        {exportMutation.error instanceof Error
+                          ? exportMutation.error.message
+                          : 'Failed to create deployment export.'}
+                      </Alert>
+                    ) : null}
+                    {bundleExportPreview ? (
+                      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                        <Stack spacing={1}>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip size="small" label={`${bundleExportPreview.secretSummary.items.length} secret refs`} />
+                            <Chip
+                              size="small"
+                              label={`${bundleExportPreview.secretSummary.includedValues} sealed values`}
+                              color={bundleExportPreview.secretSummary.includedValues > 0 ? 'warning' : 'default'}
+                              variant="outlined"
+                            />
+                            <Chip
+                              size="small"
+                              label={`${bundleExportPreview.secretSummary.environmentBound} environment-bound`}
+                              variant="outlined"
+                            />
+                            <Chip
+                              size="small"
+                              label={`${bundleExportPreview.secretSummary.forbidden} forbidden`}
+                              color={bundleExportPreview.secretSummary.forbidden > 0 ? 'error' : 'default'}
+                              variant="outlined"
+                            />
+                          </Stack>
+                          {bundleExportPreview.warnings.map((warning) => (
+                            <Alert key={warning} severity="warning">{warning}</Alert>
+                          ))}
+                          <Typography variant="caption" color="text.secondary">
+                            Secret inventory shows references and policies only. Values are never displayed in the browser.
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    ) : null}
+                  </Stack>
+                </Grid>
+
+                <Grid item xs={12} lg={6}>
+                  <Stack spacing={2}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Import or restore</Typography>
+                    <TextField
+                      select
+                      label="Import mode"
+                      value={bundleImportMode}
+                      onChange={(event) => {
+                        setBundleImportMode(event.target.value as DeploymentBundleImportMode)
+                        setBundleImportPreview(null)
+                        setBundleImportResult(null)
+                      }}
+                      size="small"
+                    >
+                      <MenuItem value="CONFIG_ONLY_CLONE">Config-only clone</MenuItem>
+                      <MenuItem value="SEALED_CLONE">Sealed clone</MenuItem>
+                      <MenuItem value="RESTORE_IN_PLACE">Restore in place</MenuItem>
+                    </TextField>
+                    <Button variant="outlined" component="label">
+                      Upload bundle JSON
+                      <input
+                        hidden
+                        type="file"
+                        accept="application/json,.json"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (!file) {
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => {
+                            setBundleImportJson(String(reader.result ?? ''))
+                            setBundleImportPreview(null)
+                            setBundleImportResult(null)
+                          }
+                          reader.readAsText(file)
+                          event.target.value = ''
+                        }}
+                      />
+                    </Button>
+                    <TextField
+                      label="Bundle JSON"
+                      value={bundleImportJson}
+                      onChange={(event) => {
+                        setBundleImportJson(event.target.value)
+                        setBundleImportPreview(null)
+                        setBundleImportResult(null)
+                      }}
+                      size="small"
+                      multiline
+                      minRows={5}
+                      helperText="Paste a config-only or sealed bundle. Decrypted secrets are never rendered."
+                    />
+                    {bundleImportMode !== 'RESTORE_IN_PLACE' ? (
+                      <Grid container spacing={1}>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            label="New deployment name"
+                            value={bundleImportName}
+                            onChange={(event) => setBundleImportName(event.target.value)}
+                            size="small"
+                            fullWidth
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            label="Target environment"
+                            value={bundleImportEnvironment}
+                            onChange={(event) => setBundleImportEnvironment(event.target.value)}
+                            size="small"
+                            fullWidth
+                          />
+                        </Grid>
+                      </Grid>
+                    ) : (
+                      <Alert severity="info">
+                        Restore-in-place targets the selected deployment: <strong>{selectedDeployment.id}</strong>.
+                        Runtime URL and assertion audience remain unchanged.
+                      </Alert>
+                    )}
+                    {bundleImportMode !== 'CONFIG_ONLY_CLONE' ? (
+                      <TextField
+                        label="Recipient private key PEM"
+                        value={bundleImportPrivateKey}
+                        onChange={(event) => setBundleImportPrivateKey(event.target.value)}
+                        size="small"
+                        multiline
+                        minRows={5}
+                        helperText="Only needed when importing sealed secrets. It is sent once to the Platform API."
+                      />
+                    ) : null}
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button
+                        variant="outlined"
+                        onClick={() => importPreviewMutation.mutate()}
+                        disabled={importPreviewMutation.isPending || bundleImportJson.trim().length === 0}
+                      >
+                        {importPreviewMutation.isPending ? 'Previewing...' : 'Preview import'}
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={() => importMutation.mutate()}
+                        disabled={
+                          importMutation.isPending
+                          || bundleImportJson.trim().length === 0
+                          || (bundleImportMode !== 'CONFIG_ONLY_CLONE' && bundleImportPrivateKey.trim().length === 0)
+                        }
+                      >
+                        {importMutation.isPending ? 'Creating draft...' : 'Create import draft'}
+                      </Button>
+                    </Stack>
+                    {importPreviewMutation.isError ? (
+                      <Alert severity="error">
+                        {importPreviewMutation.error instanceof Error
+                          ? importPreviewMutation.error.message
+                          : 'Failed to preview deployment import.'}
+                      </Alert>
+                    ) : null}
+                    {importMutation.isError ? (
+                      <Alert severity="error">
+                        {importMutation.error instanceof Error
+                          ? importMutation.error.message
+                          : 'Failed to import deployment bundle.'}
+                      </Alert>
+                    ) : null}
+                    {bundleImportPreview ? (
+                      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                        <Stack spacing={1}>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip size="small" label={bundleImportPreview.schemaValid ? 'Schema valid' : 'Schema blocked'} color={bundleImportPreview.schemaValid ? 'success' : 'error'} />
+                            <Chip size="small" label={bundleImportPreview.integrityValid ? 'Integrity valid' : 'Integrity blocked'} color={bundleImportPreview.integrityValid ? 'success' : 'error'} />
+                            <Chip size="small" label={bundleImportPreview.secretsReadable ? 'Secrets decryptable' : 'No decrypted secrets'} variant="outlined" />
+                            <Chip
+                              size="small"
+                              label={bundleImportPreview.externalIntegrationImpact.requiresCustomerEnvChange ? 'Customer env changes' : 'External contract preserved'}
+                              color={bundleImportPreview.externalIntegrationImpact.requiresCustomerEnvChange ? 'warning' : 'success'}
+                              variant="outlined"
+                            />
+                          </Stack>
+                          {bundleImportPreview.blockingIssues.map((issue) => (
+                            <Alert key={issue} severity="error">{issue}</Alert>
+                          ))}
+                          {bundleImportPreview.requiredSecretActions.length > 0 ? (
+                            <Typography variant="caption" color="text.secondary">
+                              Required secret actions: {bundleImportPreview.requiredSecretActions.slice(0, 4).join(', ')}
+                              {bundleImportPreview.requiredSecretActions.length > 4 ? '…' : ''}
+                            </Typography>
+                          ) : null}
+                          <Typography variant="caption" color="text.secondary">
+                            {bundleImportPreview.externalIntegrationImpact.reason}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    ) : null}
+                    {bundleImportResult ? (
+                      <Alert severity="success">
+                        Import draft created for {bundleImportResult.deploymentId}; draft {bundleImportResult.draftId}.
+                        Next: {bundleImportResult.nextSteps.join(' → ')}.
+                      </Alert>
+                    ) : null}
+                  </Stack>
+                </Grid>
+              </Grid>
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {selectedDeployment ? (
         <>

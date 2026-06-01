@@ -62,6 +62,111 @@ export type DeploymentSummary = {
   createdAt: string
 }
 
+export type DeploymentBundleExportMode = 'CONFIG_ONLY' | 'SEALED_BACKUP'
+export type DeploymentBundleImportMode = 'CONFIG_ONLY_CLONE' | 'SEALED_CLONE' | 'RESTORE_IN_PLACE'
+export type DeploymentBundleSecretClassification =
+  | 'SEALED_EXPORTABLE'
+  | 'REGENERATE_RECOMMENDED'
+  | 'FORBIDDEN'
+  | 'ENVIRONMENT_BOUND'
+  | 'MISSING_REFERENCE'
+
+export type DeploymentBundleSecretInventoryItem = {
+  secretName: string
+  classification: DeploymentBundleSecretClassification
+  valuePresent: boolean
+  valueIncluded: boolean
+  restorePolicy: string
+  sources: string[]
+}
+
+export type DeploymentBundleSecretSummary = {
+  includedValues: number
+  sealedEligible: number
+  regenerateRecommended: number
+  forbidden: number
+  environmentBound: number
+  missingReference: number
+  items: DeploymentBundleSecretInventoryItem[]
+}
+
+export type DeploymentBundleExternalIntegrationImpact = {
+  requiresCustomerEnvChange: boolean
+  changedValues: string[]
+  reason: string
+}
+
+export type DeploymentBundleExportPreviewSummary = {
+  deploymentId: string
+  exportMode: DeploymentBundleExportMode
+  includedSections: string[]
+  secretSummary: DeploymentBundleSecretSummary
+  externalIntegrationImpact: DeploymentBundleExternalIntegrationImpact
+  warnings: string[]
+}
+
+export type DeploymentBundleExportSummary = {
+  exportId: string
+  bundleId: string
+  exportMode: DeploymentBundleExportMode
+  status: string
+  bundleHash: string
+  manifestHash: string
+  secretEnvelopeHash: string | null
+  secretSummary: DeploymentBundleSecretSummary
+  bundle: unknown
+  createdAt: string
+}
+
+export type DeploymentBundleImportPreviewSummary = {
+  schemaValid: boolean
+  integrityValid: boolean
+  secretsReadable: boolean
+  importMode: DeploymentBundleImportMode
+  sourceDeploymentId: string
+  targetDeploymentId: string | null
+  newDeploymentName: string
+  externalIntegrationImpact: DeploymentBundleExternalIntegrationImpact
+  blockingIssues: string[]
+  warnings: string[]
+  requiredSecretActions: string[]
+}
+
+export type DeploymentBundleImportExecutionSummary = {
+  importId: string
+  status: string
+  importMode: DeploymentBundleImportMode
+  deploymentId: string
+  draftId: string
+  externalIntegrationImpact: DeploymentBundleExternalIntegrationImpact
+  requiredSecretActions: string[]
+  nextSteps: string[]
+  createdAt: string
+}
+
+export type DeploymentBundleExportRequest = {
+  exportMode: DeploymentBundleExportMode
+  reason?: string
+  recipient?: {
+    type: 'OPERATOR_PUBLIC_KEY'
+    publicKeyPem: string
+  }
+  includeReleaseEvidence?: boolean
+  includeProviderMappings?: boolean
+}
+
+export type DeploymentBundleImportRequest = {
+  bundle: unknown
+  importMode: DeploymentBundleImportMode
+  targetDeploymentId?: string
+  newDeploymentName?: string
+  targetEnvironment?: string
+  targetCustomerId?: string
+  targetTenantId?: string
+  privateKeyPem?: string
+  reason?: string
+}
+
 export type DeleteDeploymentRequest = {
   hardDelete?: boolean
   approvalId?: string
@@ -4612,6 +4717,40 @@ export function bulkDeploymentAction(payload: {
   deploymentIds: string[]
 }) {
   return request<BulkDeploymentActionResponse>('/api/deployments/bulk/actions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function previewDeploymentBundleExport(
+  deploymentId: string,
+  payload: {
+    exportMode: DeploymentBundleExportMode
+    includeReleaseEvidence?: boolean
+  },
+) {
+  return request<DeploymentBundleExportPreviewSummary>(`/api/deployments/${deploymentId}/export/preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createDeploymentBundleExport(deploymentId: string, payload: DeploymentBundleExportRequest) {
+  return request<DeploymentBundleExportSummary>(`/api/deployments/${deploymentId}/exports`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function previewDeploymentBundleImport(payload: DeploymentBundleImportRequest) {
+  return request<DeploymentBundleImportPreviewSummary>('/api/deployment-imports/preview', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createDeploymentBundleImport(payload: DeploymentBundleImportRequest) {
+  return request<DeploymentBundleImportExecutionSummary>('/api/deployment-imports', {
     method: 'POST',
     body: JSON.stringify(payload),
   })

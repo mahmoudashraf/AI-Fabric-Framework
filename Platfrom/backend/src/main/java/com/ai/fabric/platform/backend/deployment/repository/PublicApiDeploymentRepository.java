@@ -14,5 +14,7 @@ public interface PublicApiDeploymentRepository extends JpaRepository<PublicApiDe
 
     List<PublicApiDeploymentEntity> findByClientId(String clientId);
 
+    List<PublicApiDeploymentEntity> findByDeploymentId(String deploymentId);
+
     long deleteByDeploymentId(String deploymentId);
 }

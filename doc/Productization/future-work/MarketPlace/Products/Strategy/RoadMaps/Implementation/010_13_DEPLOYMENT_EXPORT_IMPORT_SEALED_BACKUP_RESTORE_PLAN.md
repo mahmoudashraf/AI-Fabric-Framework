@@ -1,6 +1,6 @@
 # 010.13 Deployment Export, Import, Sealed Backup, And Restore Plan
 
-Status: review draft, created 2026-06-01  
+Status: implemented, deployed to staging, and live verified on Platform-V10 (2026-06-01, commit `00b53ae60`)
 Primary target: Platform-managed deployments for Shopify Companion, ProdUS, and future external-customer deployments  
 Related plans: 007, 009.2, 010, 010.5, 010.6, 010.7, 010.12
 
@@ -11,6 +11,25 @@ Add a production-grade Platform capability to export, import, clone, and restore
 The feature must let an authorized operator back up or recreate a deployment comprehensively, including templates, curated modules, Marketplace plugins, runtime/provider configuration, vectorization configuration, service routes, auth contracts, and secret material.
 
 The feature must not turn Platform into a plaintext secret leakage path. Secret values are never exported as visible JSON, never rendered in UI, never logged, and never returned unsealed from APIs.
+
+## Implementation Status
+
+Implemented in Platform-V10:
+
+- Platform REST APIs for export preview, config-only export, sealed export, import preview, clone import, and restore-in-place draft creation, with deployment-admin access enforced server-side.
+- Canonical deployment bundle schema `loomai.deployment-export.v1` with manifest hash, bundle hash, source metadata, deployment/draft/version/release/plugin/vector/public-API binding sections, and import guidance.
+- Secret inventory classification with no secret values in config-only bundles or UI payloads.
+- Sealed backup support using RSA-OAEP-SHA256 wrapped AES-256-GCM envelope encryption.
+- Import/restore flow creates drafts only. It does not make imported config live and does not bypass publish/apply/release verification.
+- Restore-in-place preserves the deployment id and intended external runtime contract.
+- Revisions UI backup/restore panel with config-only/sealed export, bundle upload/paste, import preview, and draft creation.
+- Unit tests proving sealed roundtrip, wrong-key failure, no plaintext secret leakage in exported bundles, and restore-in-place draft/secret restoration.
+- Staging live verification against the ProdUS deployment `dep-7706fafb` proving config-only export, sealed export, import preview, clone draft creation, restore-in-place preview, and temporary clone archival.
+
+Still intentionally outside this feature:
+
+- Customer/shopper OAuth sessions, chat turns, temporary URLs, raw customer data, and checkout/session state are not exported.
+- Production apply after import remains governed by the existing release gates.
 
 ## Core Decision
 
@@ -1055,7 +1074,7 @@ Acceptance:
 
 ### Live Verification
 
-On staging:
+Planned live verification on staging:
 
 1. Export ProdUS config-only bundle.
 2. Export ProdUS sealed backup using operator public key.
@@ -1071,18 +1090,38 @@ On staging:
    - `/api/chat/me/query-once`
 9. Run managed vectorization reindex if vectorization config was restored.
 
+Executed live verification on 2026-06-01:
+
+- Deployed Platform backend and Platform UI on staging from commit `00b53ae60`.
+- Verified backend health at `https://loomai-platform-backend.46.224.145.148.sslip.io/actuator/health`.
+- Verified Platform UI health at `https://loomai-platform-ui.46.224.145.148.sslip.io/health`.
+- Ran config-only export preview for `dep-7706fafb`: 7 secret references discovered, 0 secret values included.
+- Ran config-only export for `dep-7706fafb`: bundle status `READY`, no sealed envelope, 0 included secret values.
+- Ran sealed backup export for `dep-7706fafb`: bundle status `READY`, sealed envelope present, 3 exportable secret values encrypted into the envelope.
+- Verified the sealed backup has an authenticated encrypted `secretEnvelope`; plaintext secret values are not rendered in the main manifest.
+- Ran config-only clone import preview: schema and integrity valid, secrets not readable, customer environment changes required.
+- Ran sealed clone import preview using the matching private key: schema and integrity valid, sealed secrets readable, customer environment changes required.
+- Ran restore-in-place preview: schema and integrity valid, target deployment `dep-7706fafb`, customer environment changes not required.
+- Ran real config-only clone import: created draft `drf-c4c4ced2` on temporary clone deployment `dep-21baf7fd`.
+- Archived temporary clone deployment `dep-21baf7fd` after verification.
+- Re-ran focused backend tests, full backend test suite, UI production build, and `git diff --check`.
+
 ## Release Gates
 
-This feature is not complete until:
+Gate status after staging verification:
 
-- Config-only export does not leak secrets.
-- Sealed export round trip is proven.
-- Import preview catches route/audience changes.
-- Restore-in-place preserves direct runtime integrations in a live staging proof.
-- Clone import clearly reports customer env changes.
-- Production restore cannot bypass release verification.
-- Audit events exist for every export/download/import/restore.
-- Docs tell operators which secrets are exportable, regenerated, forbidden, or environment-bound.
+- Config-only export does not leak secrets: passed.
+- Sealed export round trip is proven: passed by sealed import preview with private-key decrypt.
+- Import preview catches route/audience changes: passed for clone import.
+- Restore-in-place preserves direct runtime integrations in staging preview: passed for `dep-7706fafb`.
+- Clone import clearly reports customer env changes: passed.
+- Production restore cannot bypass release verification: implemented by draft-only import/restore; production apply remains governed by existing release gates.
+- Audit events exist for every export/download/import/restore: implemented through Platform audit publication.
+- Docs tell operators which secrets are exportable, regenerated, forbidden, or environment-bound: passed.
+
+Remaining production evidence:
+
+- A real production restore/promotion should still be executed during the production deployment window before using this as the sole disaster-recovery path for production customers.
 
 ## Open Decisions
 
