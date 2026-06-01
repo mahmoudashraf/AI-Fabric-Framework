@@ -19,8 +19,8 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Runtime template | `dev-openai-qdrant` |
 | Runtime curated module | `default` |
 | Runtime supported modes | `thinker` for analysis/read-only help, `executor` for governed actions |
-| Active version | `ver-37ca6cc2` |
-| Latest applied release | `rel-68c38e15` |
+| Active version | `ver-e55296b1` |
+| Latest applied release | `rel-2d0807c7` |
 | Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
 | Connector Coolify app | `rest-connector-dep-7706fafb` / `f8v02rd1luusupszsnbrny7i` |
 | Vectorization runner Coolify app | `vectorization-runner-dep-7706fafb` / `fm2pdlbk55tjx6gmh4xqo9t7` |
@@ -41,12 +41,21 @@ Catalog export update on 2026-06-01:
 - Runtime action catalog now has 10 ProdUS actions and includes `produs_catalog_export`.
 - Explicit runtime smoke through `/api/chat/me/query-once` with `mode=thinker` executed `produs_catalog_export` and returned a grounded answer.
 
+Stable private-runtime audience update on 2026-06-01:
+
+- Deployment version `ver-e55296b1` / label `v11` was published and applied through release `rel-2d0807c7`.
+- Release `rel-2d0807c7` finished `APPLIED_VERIFIED`; latest verification `vrf-7b9ffb3d` passed.
+- Runtime assignment discovery now returns `privateRuntimeIssuer=produs-staging-backend`, `privateRuntimeAudience=produs-staging`, `privateRuntimeAudienceMode=CONSUMER_ID`, and `externalIntegrationReady=true`.
+- ProdUS should sign private runtime assertions with `aud=produs-staging`. Keep `deploymentId=dep-7706fafb` in the assertion payload as audit/debug metadata.
+- Runtime still accepts `dep-7706fafb` as a transition audience so existing staging clients are not broken during rollout, but new ProdUS integration code should not depend on the deployment id for `aud`.
+- Live smoke verified `GET /api/chat/me/auth-context` and `POST /api/chat/me/query-once` using issuer `produs-staging-backend` and audience `produs-staging`.
+
 Active runtime assignment discovery:
 
 - ProdUS backend can discover the currently assigned runtime with `GET /api/public/consumers/produs-staging/runtime-assignment`.
 - Use returned `endpoints.chatQueryUrl`, `endpoints.queryOnceUrl`, `endpoints.suggestionsUrl`, `endpoints.authContextUrl`, and `cacheTtlSeconds` instead of hardcoding the runtime URL in application code.
 - Treat `deploymentId` as audit metadata, not as the route source of truth.
-- Current assignment returns `privateRuntimeAudience=produs-staging` and `externalIntegrationReady=false`; keep signing `aud=dep-7706fafb` until LoomAI migrates the accepted audience and reports `externalIntegrationReady=true`.
+- Current assignment returns `privateRuntimeAudience=produs-staging` and `externalIntegrationReady=true`; sign direct private runtime assertions with `aud=produs-staging`.
 
 Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
 
@@ -229,26 +238,29 @@ printf '%s' "${env_json}" | jq -r '
       length: ((.value // "")|length),
       valuePresent: ((.value // "")|length > 0),
       hasProdusIssuer: ((.value // "")|contains("produs-staging-backend")),
-      hasProdusAudience: ((.value // "")|contains("dep-7706fafb"))
+      hasStableProdusAudience: ((.value // "")|contains("produs-staging")),
+      hasTransitionDeploymentAudience: ((.value // "")|contains("dep-7706fafb"))
     }
   ]'
 ```
 
-Patch non-secret runtime env rows while preserving existing issuer/audience values:
+Patch non-secret runtime env rows. For the ProdUS deployment, keep `produs-staging-backend` as the external integration issuer and avoid reintroducing `platform-consumer-bridge` as an accepted issuer, because assignment discovery chooses the preferred issuer from this runtime configuration.
 
 ```bash
 patch_json="$(printf '%s' "${env_json}" | jq -c '
   def envmap: map({(.key): (.value // "")}) | add;
   def csv_add($raw; $item):
     (($raw // "") | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)) + [$item] | unique | join(","));
+  def csv_remove($raw; $item):
+    (($raw // "") | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0 and . != $item)) | unique | join(","));
   envmap as $e |
   {data: [
     {key:"AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", value:"VERIFIED_CONTEXT_REQUIRED", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER", value:"X-AIFABRIC-RUNTIME-API-KEY", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_PRIVATE_AUTHORIZATION_HEADER", value:"X-AIFABRIC-RUNTIME-AUTHORIZATION", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_PRIVATE_TOKEN_SCHEME", value:"Bearer", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
-    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS; "produs-staging-backend"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
-    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES; "dep-7706fafb"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS", value:csv_add(csv_remove($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS; "platform-consumer-bridge"); "produs-staging-backend"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", value:csv_add(csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES; "produs-staging"); "dep-7706fafb"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_TRANSIENT_FILE_URL_ALLOWED_HOSTS", value:"produs-api-staging.46.224.145.148.sslip.io", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false}
   ]}
 ')"
@@ -352,7 +364,7 @@ payload = {
     "customerId": "produs-staging",
     "tenantId": "produs-smoke-tenant",
     "iss": "produs-staging-backend",
-    "aud": "dep-7706fafb",
+    "aud": "produs-staging",
     "exp": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat().replace("+00:00", "Z"),
     "scopes": ["chat:query", "chat:suggestions", "chat:conversations"],
 }
