@@ -539,7 +539,6 @@ public class ShopifyStoreConnectionService {
         List<String> storefrontBlockers = new java.util.ArrayList<>(base.storefrontBlockingReasons());
         for (String blocker : supportBlockers) {
             appendIfMissing(goLiveBlockers, blocker);
-            appendIfMissing(storefrontBlockers, blocker);
         }
         List<String> nextActions = new java.util.ArrayList<>(base.nextActions());
         if (supportReadiness.nextActions() != null) {
@@ -549,7 +548,7 @@ public class ShopifyStoreConnectionService {
         }
 
         boolean goLiveEligible = base.goLiveEligible() && supportGateReady;
-        boolean storefrontReady = base.storefrontReady() && supportGateReady;
+        boolean storefrontReady = base.storefrontReady();
         String overallStatus;
         if (storefrontReady) {
             overallStatus = "STOREFRONT_READY";

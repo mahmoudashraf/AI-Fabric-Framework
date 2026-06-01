@@ -1096,7 +1096,7 @@ class ShopifyStoreConnectionServiceTest {
     }
 
     @Test
-    void getConnectionMarksReadinessBlockedWhenGovernedSupportIsNotReady() {
+    void getConnectionMarksGoLiveBlockedWhenGovernedSupportIsNotReady() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
@@ -1149,9 +1149,19 @@ class ShopifyStoreConnectionServiceTest {
         release.setAppliedAt(Instant.parse("2026-04-18T12:01:00Z"));
         release.setUpdatedAt(Instant.parse("2026-04-18T12:02:00Z"));
 
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Shopify Companion");
+        deployment.setStatus("ACTIVE");
+        deployment.setCustomerId("cus-123");
+
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
         when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
-        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of());
+        when(deploymentReleaseRepository.findByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of(release));
         when(storeSupportReadinessClient.getStoreSupportReadiness("shopify-bridge-prod", "demo.myshopify.com"))
             .thenReturn(new PlatformManagedProductServiceStoreSupportReadinessSummary(
                 "demo.myshopify.com",
@@ -1210,7 +1220,8 @@ class ShopifyStoreConnectionServiceTest {
 
         assertThat(summary.readiness()).isNotNull();
         assertThat(summary.readiness().goLiveEligible()).isFalse();
-        assertThat(summary.readiness().storefrontReady()).isFalse();
+        assertThat(summary.readiness().storefrontReady()).isTrue();
+        assertThat(summary.readiness().storefrontBlockingReasons()).isEmpty();
         assertThat(summary.readiness().goLiveBlockingReasons())
             .contains("Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.");
         assertThat(summary.readiness().goLiveBlockingReasons())
