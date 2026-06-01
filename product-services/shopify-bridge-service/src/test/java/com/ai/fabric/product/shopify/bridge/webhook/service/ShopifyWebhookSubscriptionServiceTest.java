@@ -154,7 +154,11 @@ class ShopifyWebhookSubscriptionServiceTest {
             "",
             "",
             "",
-            ""
+            "",
+            "",
+            "",
+            "",
+            300
         );
     }
 

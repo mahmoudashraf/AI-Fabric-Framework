@@ -530,7 +530,8 @@ class ShopifyStoreGoLiveServiceTest {
         return "ALLOW_VERIFIED".equals(security.path("authzMode").asText())
             && issuers.contains("platform-consumer-bridge")
             && issuers.contains("platform-poc:SESSION")
-            && audiences.contains("dep-1");
+            && audiences.contains("dep-1")
+            && audiences.contains("consumer-alpha");
     }
 
     private PlatformManagedProductServiceEntity productService(String id) {

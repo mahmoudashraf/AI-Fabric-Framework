@@ -683,7 +683,8 @@ class ShopifyStoreBootstrapServiceTest {
         return "ALLOW_VERIFIED".equals(security.path("authzMode").asText())
             && issuers.contains("platform-consumer-bridge")
             && issuers.contains("platform-poc:SESSION")
-            && audiences.contains("dep-");
+            && audiences.contains("dep-")
+            && audiences.contains("shopify-demo");
     }
 
     private boolean matchesShopifyBridgeRoutingDefaults(UpdateDeploymentDraftRequest request) {

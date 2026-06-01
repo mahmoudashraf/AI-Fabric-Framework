@@ -111,6 +111,7 @@ public class ShopifyStorefrontBootstrapService {
 
         PlatformPublicConsumerDeploymentCredentialsResponse credentials =
             platformShopifyStoreClient.getConsumerCredentials(store.consumerId());
+        platformShopifyStoreClient.warmConsumerRuntimeAssignment(store.consumerId());
         ShopifyBridgeStoreSummary updated = platformShopifyStoreClient.recordWidgetStatus(
             store.shopDomain(),
             new ShopifyBridgeRecordWidgetStatusRequest(

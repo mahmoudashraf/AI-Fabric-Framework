@@ -66,10 +66,16 @@ class ShopifyStorefrontBootstrapServiceTest {
                 new PlatformPublicRuntimePostureSummary("SIGNED_PRIVATE_RUNTIME", true, true, false),
                 new PlatformPublicRuntimeEndpointsSummary(
                     "https://runtime.example.com/api/chat/me",
+                    null,
                     "https://runtime.example.com/api/chat/me/query",
+                    "https://runtime.example.com/api/chat/me/query-once",
                     "https://runtime.example.com/api/chat/me/suggestions",
                     "https://runtime.example.com/api/chat/me/conversations",
-                    "https://runtime.example.com/api/chat/me/auth-context"
+                    "https://runtime.example.com/api/chat/me/conversations/{conversationId}",
+                    "https://runtime.example.com",
+                    "https://runtime.example.com/actuator/health",
+                    "https://runtime.example.com/api/chat/me/auth-context",
+                    "https://runtime.example.com/api/admin/auth/overview"
                 ),
                 "Route storefront traffic through the Shopify Bridge backend."
             )
@@ -137,10 +143,16 @@ class ShopifyStorefrontBootstrapServiceTest {
                 new PlatformPublicRuntimePostureSummary("SIGNED_PRIVATE_RUNTIME", true, true, false),
                 new PlatformPublicRuntimeEndpointsSummary(
                     "https://runtime.example.com/api/chat/me",
+                    null,
                     "https://runtime.example.com/api/chat/me/query",
+                    "https://runtime.example.com/api/chat/me/query-once",
                     "https://runtime.example.com/api/chat/me/suggestions",
                     "https://runtime.example.com/api/chat/me/conversations",
-                    "https://runtime.example.com/api/chat/me/auth-context"
+                    "https://runtime.example.com/api/chat/me/conversations/{conversationId}",
+                    "https://runtime.example.com",
+                    "https://runtime.example.com/actuator/health",
+                    "https://runtime.example.com/api/chat/me/auth-context",
+                    "https://runtime.example.com/api/admin/auth/overview"
                 ),
                 "Route storefront traffic through the Shopify Bridge backend."
             )
@@ -219,10 +231,16 @@ class ShopifyStorefrontBootstrapServiceTest {
                 new PlatformPublicRuntimePostureSummary("SIGNED_PRIVATE_RUNTIME", true, true, false),
                 new PlatformPublicRuntimeEndpointsSummary(
                     "https://runtime.example.com/api/chat/me",
+                    null,
                     "https://runtime.example.com/api/chat/me/query",
+                    "https://runtime.example.com/api/chat/me/query-once",
                     "https://runtime.example.com/api/chat/me/suggestions",
                     "https://runtime.example.com/api/chat/me/conversations",
-                    "https://runtime.example.com/api/chat/me/auth-context"
+                    "https://runtime.example.com/api/chat/me/conversations/{conversationId}",
+                    "https://runtime.example.com",
+                    "https://runtime.example.com/actuator/health",
+                    "https://runtime.example.com/api/chat/me/auth-context",
+                    "https://runtime.example.com/api/admin/auth/overview"
                 ),
                 "Route storefront traffic through the Shopify Bridge backend."
             )
@@ -271,10 +289,16 @@ class ShopifyStorefrontBootstrapServiceTest {
                 new PlatformPublicRuntimePostureSummary("SIGNED_PRIVATE_RUNTIME", true, true, false),
                 new PlatformPublicRuntimeEndpointsSummary(
                     "https://runtime.example.com/api/chat/me",
+                    null,
                     "https://runtime.example.com/api/chat/me/query",
+                    "https://runtime.example.com/api/chat/me/query-once",
                     "https://runtime.example.com/api/chat/me/suggestions",
                     "https://runtime.example.com/api/chat/me/conversations",
-                    "https://runtime.example.com/api/chat/me/auth-context"
+                    "https://runtime.example.com/api/chat/me/conversations/{conversationId}",
+                    "https://runtime.example.com",
+                    "https://runtime.example.com/actuator/health",
+                    "https://runtime.example.com/api/chat/me/auth-context",
+                    "https://runtime.example.com/api/admin/auth/overview"
                 ),
                 "Route storefront traffic through the Shopify Bridge backend."
             )
@@ -381,7 +405,11 @@ class ShopifyStorefrontBootstrapServiceTest {
             "X-PLATFORM-API-KEY",
             "webhook-secret",
             "bridge-admin-key",
-            "X-BRIDGE-API-KEY"
+            "X-BRIDGE-API-KEY",
+        "runtime-api-key",
+        "runtime-signing-key",
+        "platform-consumer-bridge",
+        300
         );
     }
 

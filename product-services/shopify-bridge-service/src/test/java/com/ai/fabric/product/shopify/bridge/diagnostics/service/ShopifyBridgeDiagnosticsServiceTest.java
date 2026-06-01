@@ -176,7 +176,11 @@ class ShopifyBridgeDiagnosticsServiceTest {
             "X-PLATFORM-API-KEY",
             "webhook-shared-secret",
             "bridge-admin-key",
-            "X-BRIDGE-API-KEY"
+            "X-BRIDGE-API-KEY",
+        "runtime-api-key",
+        "runtime-signing-key",
+        "platform-consumer-bridge",
+        300
         );
     }
 

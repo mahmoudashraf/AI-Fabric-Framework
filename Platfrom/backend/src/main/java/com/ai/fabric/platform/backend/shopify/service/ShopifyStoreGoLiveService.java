@@ -80,7 +80,7 @@ public class ShopifyStoreGoLiveService {
         validateSupportReadyForGoLive(store);
 
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraftForTrustedCaller(store.getDeploymentId());
-        DeploymentDraftResponse draft = ensureShopifyCompanionSecurityDefaults(store.getDeploymentId());
+        DeploymentDraftResponse draft = ensureShopifyCompanionSecurityDefaults(store.getDeploymentId(), store.getConsumerId());
         draft = ensureShopifyCompanionConnectorDefaults(store, draft);
         DeploymentVersionSummary version = deploymentService.publishDraftForTrustedCaller(draft.id());
         ShopifyCompanionPackageProfileCatalogService.ResolvedPackageProfile profile = resolveEffectiveProfile(store);
@@ -158,10 +158,10 @@ public class ShopifyStoreGoLiveService {
         }
     }
 
-    private DeploymentDraftResponse ensureShopifyCompanionSecurityDefaults(String deploymentId) {
+    private DeploymentDraftResponse ensureShopifyCompanionSecurityDefaults(String deploymentId, String consumerId) {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId);
         ObjectNode securityConfig = ensureObject(draft.securityConfig());
-        boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId);
+        boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId, consumerId);
         if (!changed) {
             return draft;
         }

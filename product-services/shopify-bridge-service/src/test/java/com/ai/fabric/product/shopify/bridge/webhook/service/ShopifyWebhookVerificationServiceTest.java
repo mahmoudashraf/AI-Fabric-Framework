@@ -34,7 +34,11 @@ class ShopifyWebhookVerificationServiceTest {
             "X-PLATFORM-API-KEY",
             webhookSecret,
             "bridge-admin-key",
-            "X-BRIDGE-API-KEY"
+            "X-BRIDGE-API-KEY",
+        "runtime-api-key",
+        "runtime-signing-key",
+        "platform-consumer-bridge",
+        300
         );
     }
 }
