@@ -703,7 +703,7 @@ ProdUS:
 
 ## Execution Status
 
-Implemented locally:
+Implemented and pushed on `Platform-V10`:
 
 - Platform `runtime-assignment` endpoint.
 - Runtime endpoint summary now includes `queryOnceUrl` and `healthUrl`.
@@ -711,14 +711,38 @@ Implemented locally:
 - Shopify Bridge resolves assignment through Platform, caches it, signs private runtime assertions locally, and calls runtime query/suggestions directly.
 - Shopify bootstrap warms assignment cache after resolving the store consumer.
 - Shopify runtime security defaults include the store `consumerId` in accepted private runtime audiences.
-- Legacy constructor shims were removed; tests use the canonical contract.
+- Legacy Platform chat proxy usage is removed from the Shopify storefront chat path. In greenfield mode, the Bridge uses Platform as assignment/control plane only.
 
-Pending before marking complete:
+Local verification passed:
 
-- full local regression suite,
-- staging deployment,
-- live Shopify storefront query proof that Platform `/bridge/chat/*` is not in the hot path,
-- status update with deployment ids and gate evidence.
+- `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -DskipTests compile`
+- `mvn -f Platfrom/backend/pom.xml -q -Dtest=PublicProvisioningApiServiceTest,PublicConsumerBridgeChatServiceTest,ShopifyStoreBootstrapServiceTest,ShopifyStoreGoLiveServiceTest test`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=PlatformShopifyStoreClientTest,ShopifyStorefrontChatServiceTest test`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyWebhookSubscriptionServiceTest test`
+- `mvn -f Platfrom/backend/pom.xml -q -DskipITs test`
+- `mvn -f product-services/shopify-bridge-service/pom.xml -q test`
+- `git diff --check`
+
+Live environment verification on June 1, 2026:
+
+- Staging Platform assignment for `shopify-shopping-companion-test` resolves to `dep-8c3e7259`, with `audienceMode=CONSUMER_ID`, `issuer=platform-consumer-bridge`, and `audience=shopify-shopping-companion-test`.
+- Production runtime `dep-8c3e7259` accepts both `dep-8c3e7259` and `shopify-shopping-companion-test` as private assertion audiences, with auth overview showing zero errors and zero warnings.
+- Runtime connector proxy is enabled and points to the production connector for `dep-8c3e7259`.
+- Production connector is loaded from the current v38 routing artifact and uses Shopify Bridge staging as the upstream for this staging store proof.
+- Runtime MCP gateway configuration is present, and live MCP-backed storefront actions no longer fail with missing `mcp-gateway.base-url`.
+- Live Shopify Bridge storefront chat queries returned HTTP 200 through the direct runtime path:
+  - `What is your shipping policy?` returned shipping-country policy data.
+  - `Search products for wax` returned available wax products.
+  - `What should I buy for travel?` returned a grounded product recommendation.
+
+Operational note:
+
+- The current staging-shop proof intentionally uses staging Platform artifacts with the production runtime URL assigned to `dep-8c3e7259`. Before broader production rollout, publish/apply the same artifact version through the production Platform control plane or standardize artifact hosting per environment so runtime artifact source and runtime host are environment-aligned.
+
+Remaining outside 010.14:
+
+- Shopify public/App Store readiness is still gated by app-scopes webhook support posture, final protected customer-data/Customer Account proof, Checkout MCP proof, and merchant launch packaging.
 
 ## Recommendation
 
