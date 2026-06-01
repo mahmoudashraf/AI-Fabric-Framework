@@ -133,7 +133,7 @@ class DeploymentReleaseVerificationServiceTest {
                 "http://127.0.0.1:" + connectorServer.getAddress().getPort()
             );
             DeploymentVersionEntity version = version();
-            DeploymentReleaseEntity release = releaseWithVectorizationRunner();
+            DeploymentReleaseEntity release = releaseWithCoolifyVectorizationRunner();
 
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
@@ -3024,6 +3024,26 @@ class DeploymentReleaseVerificationServiceTest {
                     "serviceId":"svc-vectorization",
                     "serviceName":"vectorization-runner-dep-123",
                     "deploymentId":"railway-dep-vectorization",
+                    "deploymentStatus":"SUCCESS"
+                  }
+                }
+              }
+            }
+            """);
+        return release;
+    }
+
+    private DeploymentReleaseEntity releaseWithCoolifyVectorizationRunner() {
+        DeploymentReleaseEntity release = release();
+        release.setProvisioningDetailsJson("""
+            {
+              "projectId":"project-123",
+              "coolify":{
+                "services":{
+                  "vectorizationRunner":{
+                    "serviceId":"runner-app",
+                    "serviceName":"vectorization-runner-dep-123",
+                    "deploymentId":"coolify-dep-vectorization",
                     "deploymentStatus":"SUCCESS"
                   }
                 }
