@@ -735,6 +735,12 @@ Live environment verification on June 1, 2026:
   - `What is your shipping policy?` returned shipping-country policy data.
   - `Search products for wax` returned available wax products.
   - `What should I buy for travel?` returned a grounded product recommendation.
+- Focused MCP gateway release verifier passed:
+  - `bash scripts/verify-shopify-mcp-gateway.sh`
+  - Covered gateway health, admin auth, Marketplace MCP discovery, tools/list, action execution, Bridge MCP readiness, and Bridge delegated MCP action execution.
+- Broader Shopify Companion verifier passed with the current Elite surface set:
+  - `bash scripts/verify-shopify-companion.sh`
+  - Covered Platform product-service state, store binding, billing/support/webhook/vectorization/governed-action posture, Bridge shell and embedded app, storefront bootstrap, suggestions, query, Max Mode query, comparison flows, events, and order lookup.
 
 Operational note:
 
