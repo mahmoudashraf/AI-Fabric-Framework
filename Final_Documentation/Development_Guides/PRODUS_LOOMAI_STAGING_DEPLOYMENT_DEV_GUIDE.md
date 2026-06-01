@@ -1,6 +1,6 @@
 # ProdUS LoomAI Staging Deployment Dev Guide
 
-Status: current staging guide, last updated 2026-05-31.
+Status: current staging guide, last updated 2026-06-01.
 
 This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
 
@@ -19,8 +19,8 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Runtime template | `dev-openai-qdrant` |
 | Runtime curated module | `default` |
 | Runtime supported modes | `thinker` for analysis/read-only help, `executor` for governed actions |
-| Active version | `ver-b0c54807` |
-| Latest applied release | `rel-37d07c7c` |
+| Active version | `ver-37ca6cc2` |
+| Latest applied release | `rel-68c38e15` |
 | Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
 | Connector Coolify app | `rest-connector-dep-7706fafb` / `f8v02rd1luusupszsnbrny7i` |
 | Vectorization runner Coolify app | `vectorization-runner-dep-7706fafb` / `fm2pdlbk55tjx6gmh4xqo9t7` |
@@ -30,6 +30,23 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Runtime auth mode | `PRIVATE_RUNTIME_ASSERTION` |
 
 Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on staging; unauthenticated `/mcp` calls fail closed and authenticated calls return the LoomAI productization tools. The read-only ProdUS MCP Marketplace action bundle and the confirmed `produs.productization_project.create` action bundle are published, installed, applied, and visible in runtime actions overview.
+
+Catalog export update on 2026-06-01:
+
+- ProdUS MCP discovery for `produs-staging` returned `ready=true` with 19 tools after ProdUS added `produs.catalog.export`.
+- LoomAI imported and published `mkp-action-produs-productization-read-mcp@0.1.1`.
+- Deployment install `mpi-6a4605e4` was updated from `0.1.0` to `0.1.1`.
+- Deployment version `ver-37ca6cc2` / label `v10` was published and applied through release `rel-68c38e15`.
+- Verification `vrf-55a0bfc1` passed with `28 passed, 0 failed, 1 skipped`.
+- Runtime action catalog now has 10 ProdUS actions and includes `produs_catalog_export`.
+- Explicit runtime smoke through `/api/chat/me/query-once` with `mode=thinker` executed `produs_catalog_export` and returned a grounded answer.
+
+Active runtime assignment discovery:
+
+- ProdUS backend can discover the currently assigned runtime with `GET /api/public/consumers/produs-staging/runtime-assignment`.
+- Use returned `endpoints.chatQueryUrl`, `endpoints.queryOnceUrl`, `endpoints.suggestionsUrl`, `endpoints.authContextUrl`, and `cacheTtlSeconds` instead of hardcoding the runtime URL in application code.
+- Treat `deploymentId` as audit metadata, not as the route source of truth.
+- Current assignment returns `privateRuntimeAudience=produs-staging` and `externalIntegrationReady=false`; keep signing `aud=dep-7706fafb` until LoomAI migrates the accepted audience and reports `externalIntegrationReady=true`.
 
 Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
 
@@ -715,12 +732,12 @@ ProdUS service:
 
 Marketplace/read-action deployment:
 
-- Marketplace MCP discovery for `produs-staging`: `ready=true`, 18 tools.
-- Published plugin: `mkp-action-produs-productization-read-mcp@0.1.0`.
+- Marketplace MCP discovery for `produs-staging`: `ready=true`, 19 tools.
+- Published plugin: `mkp-action-produs-productization-read-mcp@0.1.1`.
 - Installed on deployment `dep-7706fafb` as an enabled `ACTION` plugin with `READY` readiness and active entitlement.
-- Published deployment version: `v3`.
-- Applied release: `rel-dcd6fd36`, status `APPLIED_VERIFIED`.
-- Runtime `/api/admin/actions/overview`: 8 ProdUS read actions loaded.
+- Published deployment version: `ver-37ca6cc2` / `v10`.
+- Applied release: `rel-68c38e15`, status `APPLIED_VERIFIED`.
+- Runtime `/api/admin/actions/overview`: 9 ProdUS read actions loaded, including `produs_catalog_export`.
 - Runtime `POST /api/chat/me/query`: passed after apply with canonical response and `providerRequestId`.
 - Runtime `POST /api/chat/me/suggestions`: passed after apply with four suggestions.
 
