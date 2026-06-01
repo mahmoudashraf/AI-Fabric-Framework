@@ -424,7 +424,7 @@ public class ShopifyStoreConnectionService {
 
     private ShopifyStoreConnectionSummary toSummary(ShopifyStoreConnectionEntity entity) {
         ResolvedStoreContext context = resolveStoreContext(entity);
-        reconcileApplyTimeShopifySync(entity, context.latestRelease());
+        reconcileApplyTimeShopifySync(entity, context.storefrontServingRelease());
         var credentials = sourcePreflightSupport.summarizeCredentials(entity.getDetailsJson());
         var sourcePreflight = sourcePreflightSupport.summarize(entity.getDetailsJson());
         var syncDetail = sourcePreflightSupport.summarizeSync(entity.getDetailsJson());
@@ -432,6 +432,7 @@ public class ShopifyStoreConnectionService {
         var widgetDetail = sourcePreflightSupport.summarizeWidget(entity.getDetailsJson());
         var capabilities = summarizeCapabilities(context.latestVersion());
         var latestReleaseSummary = toReleaseSummary(context.latestRelease());
+        var storefrontServingReleaseSummary = toReleaseSummary(context.storefrontServingRelease());
         var readiness = applySupportReadiness(
             readinessEvaluator.evaluate(
                 entity,
@@ -439,7 +440,7 @@ public class ShopifyStoreConnectionService {
                 sourcePreflight,
                 syncDetail,
                 widgetDetail,
-                latestReleaseSummary,
+                storefrontServingReleaseSummary,
                 context.deployment() != null && context.deployment().getArchivedAt() != null
             ),
             context.productService().getServiceRef(),
@@ -732,11 +733,48 @@ public class ShopifyStoreConnectionService {
         DeploymentVersionEntity latestVersion = deployment == null
             ? null
             : deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deployment.getId()).stream().findFirst().orElse(null);
-        DeploymentReleaseEntity latestRelease = deployment == null
-            ? null
-            : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()).orElse(null);
+        List<DeploymentReleaseEntity> releases = deployment == null
+            ? List.of()
+            : deploymentReleaseRepository.findByDeploymentIdOrderByCreatedAtDesc(deployment.getId());
+        if (releases == null || releases.isEmpty()) {
+            releases = deployment == null
+                ? List.of()
+                : deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())
+                    .map(List::of)
+                    .orElseGet(List::of);
+        }
+        DeploymentReleaseEntity latestRelease = releases.stream().findFirst().orElse(null);
+        DeploymentReleaseEntity storefrontServingRelease = storefrontServingRelease(releases, latestRelease);
         PlatformConsumerEntity consumer = entity.getConsumerId() == null ? null : consumerRepository.findByConsumerIdIgnoreCase(entity.getConsumerId()).orElse(null);
-        return new ResolvedStoreContext(productService, customer, deployment, latestVersion, latestRelease, consumer);
+        return new ResolvedStoreContext(productService, customer, deployment, latestVersion, latestRelease, storefrontServingRelease, consumer);
+    }
+
+    private DeploymentReleaseEntity storefrontServingRelease(List<DeploymentReleaseEntity> releases,
+                                                            DeploymentReleaseEntity latestRelease) {
+        if (latestRelease == null || isReleaseInProgress(latestRelease) || isVerifiedRelease(latestRelease)) {
+            return latestRelease;
+        }
+        return releases.stream()
+            .filter(this::isVerifiedRelease)
+            .findFirst()
+            .orElse(latestRelease);
+    }
+
+    private boolean isReleaseInProgress(DeploymentReleaseEntity release) {
+        if (release == null) {
+            return false;
+        }
+        String status = release.getStatus();
+        return "APPLY_REQUESTED".equalsIgnoreCase(status)
+            || "PRE_APPLY_VERIFYING".equalsIgnoreCase(status)
+            || "PROVISIONING".equalsIgnoreCase(status)
+            || "VERIFYING".equalsIgnoreCase(status);
+    }
+
+    private boolean isVerifiedRelease(DeploymentReleaseEntity release) {
+        return release != null
+            && "APPLIED_VERIFIED".equalsIgnoreCase(release.getStatus())
+            && "PASSED".equalsIgnoreCase(release.getVerificationStatus());
     }
 
     private ShopifyStoreCapabilitySummary summarizeCapabilities(DeploymentVersionEntity version) {
@@ -1040,6 +1078,7 @@ public class ShopifyStoreConnectionService {
         DeploymentEntity deployment,
         DeploymentVersionEntity latestVersion,
         DeploymentReleaseEntity latestRelease,
+        DeploymentReleaseEntity storefrontServingRelease,
         PlatformConsumerEntity consumer
     ) {
     }
