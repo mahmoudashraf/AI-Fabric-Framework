@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
@@ -35,6 +36,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRep
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.entity.DeploymentProviderSecretBindingEntity;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretCleanupPolicy;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity;
@@ -66,6 +69,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -118,6 +122,8 @@ public class DeploymentBundleExportImportService {
     private final VectorizationPlanRepository vectorizationPlanRepository;
     private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository;
     private final VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository;
+    private final PlatformManagedProductServiceRepository managedProductServiceRepository;
+    private final PlatformProductProvisioningProperties productProvisioningProperties;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentService deploymentService;
     private final PlatformAuditService platformAuditService;
@@ -138,6 +144,8 @@ public class DeploymentBundleExportImportService {
                                                VectorizationPlanRepository vectorizationPlanRepository,
                                                VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
                                                VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
+                                               PlatformManagedProductServiceRepository managedProductServiceRepository,
+                                               PlatformProductProvisioningProperties productProvisioningProperties,
                                                DeploymentAccessService deploymentAccessService,
                                                DeploymentService deploymentService,
                                                PlatformAuditService platformAuditService,
@@ -157,6 +165,8 @@ public class DeploymentBundleExportImportService {
         this.vectorizationPlanRepository = vectorizationPlanRepository;
         this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
         this.vectorizationPlanRevisionRepository = vectorizationPlanRevisionRepository;
+        this.managedProductServiceRepository = managedProductServiceRepository;
+        this.productProvisioningProperties = productProvisioningProperties;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentService = deploymentService;
         this.platformAuditService = platformAuditService;
@@ -381,6 +391,7 @@ public class DeploymentBundleExportImportService {
         manifest.set("vectorizationControlPlane", vectorizationControlPlaneNode(deployment.getId()));
         manifest.set("providerSecretBindings", secretBindingsNode(deployment.getId()));
         manifest.set("publicApiBindings", publicApiBindingsNode(deployment.getId()));
+        manifest.set("managedProductServiceDependencies", managedProductServiceDependenciesNode(draft));
 
         SecretInventory secretInventory = collectSecretInventory(deployment, manifest);
         return new BundleState(manifest, sealingService.sha256(manifest), secretInventory);
@@ -716,6 +727,97 @@ public class DeploymentBundleExportImportService {
         return items;
     }
 
+    private ArrayNode managedProductServiceDependenciesNode(DeploymentDraftEntity draft) {
+        ArrayNode items = objectMapper.createArrayNode();
+        JsonNode actionsConfig = readJson(draft.getActionsConfigJson());
+        Set<String> serviceRefs = new LinkedHashSet<>();
+        if (hasMcpToolActions(actionsConfig)) {
+            serviceRefs.add(productProvisioningProperties.mcpExecutionGatewayServiceRef());
+        }
+        serviceRefs.stream()
+            .map(serviceRef -> managedProductServiceRepository.findByServiceRefIgnoreCase(serviceRef))
+            .flatMap(Optional::stream)
+            .map(this::managedProductServiceDependencyNode)
+            .forEach(items::add);
+        return items;
+    }
+
+    private ObjectNode managedProductServiceDependencyNode(PlatformManagedProductServiceEntity service) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("id", service.getId());
+        node.put("serviceRef", service.getServiceRef());
+        node.put("displayName", service.getDisplayName());
+        node.put("productFamily", service.getProductFamily());
+        node.put("serviceKind", service.getServiceKind());
+        node.put("deploymentMode", service.getDeploymentMode());
+        node.put("tenantMode", service.getTenantMode());
+        node.put("environmentScope", service.getEnvironmentScope());
+        node.put("deploymentId", service.getDeploymentId());
+        node.put("desiredReplicas", service.getDesiredReplicas());
+        node.put("minReplicas", service.getMinReplicas());
+        node.put("maxReplicas", service.getMaxReplicas());
+        node.put("healthPath", service.getHealthPath());
+        node.put("serviceRoot", service.getServiceRoot());
+        node.put("dockerfilePath", service.getDockerfilePath());
+        node.put("secretName", service.getSecretName());
+        node.put("status", service.getStatus());
+        node.put("sourceBindingPresent", StringUtils.hasText(service.getBaseUrl()) || StringUtils.hasText(service.getPrivateNetworkUrl()));
+        node.put("restorePolicy", "RECREATE_IN_TARGET_ENVIRONMENT");
+        node.set("portableDetails", portableManagedProductServiceDetails(service.getDetailsJson()));
+        node.put("createdAt", stringTime(service.getCreatedAt()));
+        node.put("updatedAt", stringTime(service.getUpdatedAt()));
+        return node;
+    }
+
+    private ObjectNode portableManagedProductServiceDetails(String detailsJson) {
+        JsonNode source = readJson(detailsJson);
+        ObjectNode portable = objectMapper.createObjectNode();
+        if (!source.isObject()) {
+            return portable;
+        }
+        source.fields().forEachRemaining(entry -> {
+            String field = entry.getKey();
+            if (field == null) {
+                return;
+            }
+            String normalized = field.toLowerCase(Locale.ROOT);
+            boolean providerBinding = normalized.startsWith("coolify")
+                || normalized.startsWith("railway")
+                || normalized.equals("targetprofileid")
+                || normalized.equals("providertype")
+                || normalized.startsWith("lastreconcile")
+                || normalized.startsWith("lastdeployment")
+                || normalized.startsWith("lastprobe")
+                || normalized.startsWith("lastverified")
+                || normalized.startsWith("drift");
+            if (!providerBinding) {
+                portable.set(field, entry.getValue());
+            }
+        });
+        return portable;
+    }
+
+    private boolean hasMcpToolActions(JsonNode actionsConfig) {
+        JsonNode actions = actionsConfig == null ? null : actionsConfig.path("actions");
+        if (actions == null || !actions.isArray()) {
+            return false;
+        }
+        for (JsonNode action : actions) {
+            String adapterType = text(action, "adapterType");
+            if ("mcp-tool".equalsIgnoreCase(adapterType)) {
+                return true;
+            }
+            JsonNode execution = action.path("execution");
+            if (execution.isObject()) {
+                String executionAdapterType = text(execution, "adapterType");
+                if ("mcp-tool".equalsIgnoreCase(executionAdapterType) || execution.path("mcp").isObject()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private SecretInventory collectSecretInventory(DeploymentEntity deployment, ObjectNode manifest) {
         Map<String, Set<String>> sources = new LinkedHashMap<>();
         platformSecretRepository.findByScopeTypeAndDeploymentIdOrderByUpdatedAtDesc(
@@ -742,6 +844,11 @@ public class DeploymentBundleExportImportService {
                 sources,
                 "vectorization-source-connection:" + connection.getName()
             ));
+        collectSecretRefsFromJson(
+            manifest.path("managedProductServiceDependencies"),
+            sources,
+            "managed-product-service-dependency"
+        );
         collectDraftSecretRefsFromJson(manifest.path("activeDraft").path("configs"), sources, "active-draft-config");
 
         List<SecretInventoryItem> items = sources.entrySet().stream()
@@ -785,6 +892,7 @@ public class DeploymentBundleExportImportService {
             || source.startsWith("marketplace-plugin")
             || source.startsWith("active-draft-config")
             || source.startsWith("managed-vector-resource")
+            || source.startsWith("managed-product-service")
             || source.startsWith("vectorization-source-connection"));
         if (deploymentScoped || explicitlyBound && !SHARED_PROVIDER_SECRETS.contains(normalized)) {
             return SecretClassification.SEALED_EXPORTABLE;
@@ -926,6 +1034,7 @@ public class DeploymentBundleExportImportService {
         if (restoreSecrets && decryptedSecrets != null) {
             restoreSecrets(createdDeployment.getId(), decryptedSecrets);
         }
+        restoreManagedProductServiceDependencies(createdDeployment, bundle, request == null ? null : request.targetProfileId());
         restoreVectorizationControlPlane(createdDeployment, bundle);
         return new RestoreResult(createdDeployment.getId(), draft.getId());
     }
@@ -955,6 +1064,7 @@ public class DeploymentBundleExportImportService {
         if (decryptedSecrets != null) {
             restoreSecrets(deployment.getId(), decryptedSecrets);
         }
+        restoreManagedProductServiceDependencies(deployment, bundle, request == null ? null : request.targetProfileId());
         restoreVectorizationControlPlane(deployment, bundle);
         return new RestoreResult(deployment.getId(), restoredDraft.getId());
     }
@@ -1007,13 +1117,139 @@ public class DeploymentBundleExportImportService {
             entity.setName(name);
             entity.setSecretValue(value.trim());
             entity.setUpdatedAt(Instant.now());
-            entity.setScopeType(PlatformSecretScopeType.DEPLOYMENT_MANAGED);
-            entity.setDeploymentId(deploymentId);
-            entity.setSecretPurpose(firstNonBlank(secret.path("metadata").path("secretPurpose").asText(null), name));
-            entity.setOwnerType(PlatformSecretOwnerType.PLATFORM_MANAGED);
+            boolean managedProductServiceSecret = secretSources(secret).stream()
+                .anyMatch(source -> source.startsWith("managed-product-service"));
+            entity.setScopeType(scopeType(secret, PlatformSecretScopeType.DEPLOYMENT_MANAGED));
+            entity.setDeploymentId(managedProductServiceSecret ? null : deploymentId);
+            entity.setSecretPurpose(firstNonBlank(
+                secret.path("metadata").path("secretPurpose").asText(null),
+                managedProductServiceSecret ? "PRODUCT_SERVICE_SECRET" : name
+            ));
+            entity.setOwnerType(ownerType(secret, PlatformSecretOwnerType.PLATFORM_MANAGED));
             entity.setManagedByPlatform(true);
-            entity.setCleanupPolicy(PlatformSecretCleanupPolicy.DELETE_ON_HARD_DELETE);
+            entity.setCleanupPolicy(cleanupPolicy(secret, PlatformSecretCleanupPolicy.DELETE_ON_HARD_DELETE));
             platformSecretRepository.save(entity);
+        }
+    }
+
+    private void restoreManagedProductServiceDependencies(DeploymentEntity deployment, JsonNode bundle, String targetProfileId) {
+        JsonNode services = bundle.path("manifest").path("managedProductServiceDependencies");
+        if (!services.isArray()) {
+            return;
+        }
+        Instant now = Instant.now();
+        for (JsonNode serviceNode : services) {
+            if (!serviceNode.isObject()) {
+                continue;
+            }
+            String serviceRef = serviceNode.path("serviceRef").asText(null);
+            if (!StringUtils.hasText(serviceRef)) {
+                continue;
+            }
+            PlatformManagedProductServiceEntity service = managedProductServiceRepository
+                .findByServiceRefIgnoreCase(serviceRef)
+                .orElseGet(PlatformManagedProductServiceEntity::new);
+            boolean existing = StringUtils.hasText(service.getId());
+            service.setId(existing ? service.getId() : generateId("psv"));
+            service.setServiceRef(serviceRef.trim());
+            service.setDisplayName(firstNonBlank(serviceNode.path("displayName").asText(null), serviceRef));
+            service.setProductFamily(firstNonBlank(serviceNode.path("productFamily").asText(null), "PLATFORM"));
+            service.setServiceKind(firstNonBlank(serviceNode.path("serviceKind").asText(null), "MCP_EXECUTION_GATEWAY_SERVICE"));
+            service.setDeploymentMode(firstNonBlank(serviceNode.path("deploymentMode").asText(null), "SHARED"));
+            service.setTenantMode(firstNonBlank(serviceNode.path("tenantMode").asText(null), "MULTI_TENANT"));
+            service.setEnvironmentScope(firstNonBlank(deployment.getEnvironmentName(), serviceNode.path("environmentScope").asText(null)));
+            service.setDeploymentId(null);
+            service.setDesiredReplicas(intOrNull(serviceNode, "desiredReplicas", existing ? service.getDesiredReplicas() : 1));
+            service.setMinReplicas(intOrNull(serviceNode, "minReplicas", existing ? service.getMinReplicas() : 1));
+            service.setMaxReplicas(intOrNull(serviceNode, "maxReplicas", existing ? service.getMaxReplicas() : 3));
+            service.setHealthPath(firstNonBlank(serviceNode.path("healthPath").asText(null), "/actuator/health"));
+            service.setServiceRoot(serviceNode.path("serviceRoot").asText(null));
+            service.setDockerfilePath(serviceNode.path("dockerfilePath").asText(null));
+            service.setSecretName(serviceNode.path("secretName").asText(null));
+
+            boolean existingActiveBinding = existing && StringUtils.hasText(service.getBaseUrl());
+            if (!existingActiveBinding) {
+                service.setBaseUrl(null);
+                service.setPrivateNetworkUrl(null);
+                service.setRailwayProjectId(null);
+                service.setRailwayEnvironmentId(null);
+                service.setRailwayServiceId(null);
+                service.setActualReplicas(0);
+                service.setStatus("CREATED");
+            }
+            service.setDetailsJson(importedManagedProductServiceDetails(serviceNode, targetProfileId).toPrettyString());
+            if (service.getCreatedAt() == null) {
+                service.setCreatedAt(now);
+            }
+            service.setUpdatedAt(now);
+            managedProductServiceRepository.save(service);
+        }
+    }
+
+    private ObjectNode importedManagedProductServiceDetails(JsonNode serviceNode, String targetProfileId) {
+        ObjectNode details = objectMapper.createObjectNode();
+        JsonNode portable = serviceNode.path("portableDetails");
+        if (portable.isObject()) {
+            portable.fields().forEachRemaining(entry -> details.set(entry.getKey(), entry.getValue()));
+        }
+        details.put("providerType", "COOLIFY");
+        String normalizedTargetProfile = firstNonBlank(targetProfileId, null);
+        if (normalizedTargetProfile != null) {
+            details.put("targetProfileId", normalizedTargetProfile);
+        }
+        details.put("importedManagedProductDependency", true);
+        details.put("importedAt", Instant.now().toString());
+        details.put("restorePolicy", serviceNode.path("restorePolicy").asText("RECREATE_IN_TARGET_ENVIRONMENT"));
+        return details;
+    }
+
+    private List<String> secretSources(JsonNode secret) {
+        JsonNode sources = secret.path("sources");
+        if (!sources.isArray()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        sources.forEach(source -> {
+            if (source.isTextual() && StringUtils.hasText(source.asText())) {
+                result.add(source.asText());
+            }
+        });
+        return result;
+    }
+
+    private PlatformSecretScopeType scopeType(JsonNode secret, PlatformSecretScopeType fallback) {
+        String value = secret.path("metadata").path("scopeType").asText(null);
+        if (!StringUtils.hasText(value)) {
+            return fallback;
+        }
+        try {
+            return PlatformSecretScopeType.valueOf(value);
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
+    }
+
+    private PlatformSecretOwnerType ownerType(JsonNode secret, PlatformSecretOwnerType fallback) {
+        String value = secret.path("metadata").path("ownerType").asText(null);
+        if (!StringUtils.hasText(value)) {
+            return fallback;
+        }
+        try {
+            return PlatformSecretOwnerType.valueOf(value);
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
+    }
+
+    private PlatformSecretCleanupPolicy cleanupPolicy(JsonNode secret, PlatformSecretCleanupPolicy fallback) {
+        String value = secret.path("metadata").path("cleanupPolicy").asText(null);
+        if (!StringUtils.hasText(value)) {
+            return fallback;
+        }
+        try {
+            return PlatformSecretCleanupPolicy.valueOf(value);
+        } catch (IllegalArgumentException ex) {
+            return fallback;
         }
     }
 
@@ -1486,6 +1722,26 @@ public class DeploymentBundleExportImportService {
             return primary.trim();
         }
         return StringUtils.hasText(fallback) ? fallback.trim() : null;
+    }
+
+    private Integer intOrNull(JsonNode node, String fieldName, Integer fallback) {
+        JsonNode value = node == null ? null : node.path(fieldName);
+        if (value == null || value.isMissingNode() || value.isNull()) {
+            return fallback;
+        }
+        return value.isInt() || value.isLong() ? value.asInt() : fallback;
+    }
+
+    private String text(JsonNode node, String fieldName) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        JsonNode value = node.path(fieldName);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        String text = value.asText(null);
+        return StringUtils.hasText(text) ? text.trim() : null;
     }
 
     private String generateId(String prefix) {

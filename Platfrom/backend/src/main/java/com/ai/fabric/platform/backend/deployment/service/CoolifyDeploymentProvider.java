@@ -76,6 +76,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final PlatformCustomerRepository platformCustomerRepository;
     private final ObjectMapper objectMapper;
     private VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
+    private PlatformManagedProductProvisioningService platformManagedProductProvisioningService;
 
     @Autowired
     public CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -105,6 +106,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Autowired(required = false)
     void setVectorizationRunnerProvisioningService(VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService) {
         this.vectorizationRunnerProvisioningService = vectorizationRunnerProvisioningService;
+    }
+
+    @Autowired(required = false)
+    void setPlatformManagedProductProvisioningService(PlatformManagedProductProvisioningService platformManagedProductProvisioningService) {
+        this.platformManagedProductProvisioningService = platformManagedProductProvisioningService;
     }
 
     CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -209,6 +215,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             release,
             progressTracker
         );
+        ensureManagedProductDependencies(profile, version, progressTracker);
         CoolifyProvisioningSource source = tracked(
             progressTracker,
             "resolve_coolify_source",
@@ -1447,6 +1454,50 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             deploymentManagedVectorResourceService.syncProvisionedResources(deployment, version, release, result);
         }
         return result;
+    }
+
+    private void ensureManagedProductDependencies(DeploymentTargetProfileEntity profile,
+                                                  DeploymentVersionEntity version,
+                                                  ProvisioningProgressTracker progressTracker) {
+        if (!hasMcpToolActions(readJson(version.getActionsConfigJson()))) {
+            return;
+        }
+        if (platformManagedProductProvisioningService == null) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "MCP tool actions require managed product dependency reconciliation support."
+            );
+        }
+        tracked(
+            progressTracker,
+            "ensure_managed_product_dependencies",
+            "Reconcile managed product service dependencies required by runtime actions.",
+            () -> {
+                platformManagedProductProvisioningService.reconcile("mcp-execution-gateway", profile.getId());
+                return true;
+            }
+        );
+    }
+
+    private boolean hasMcpToolActions(JsonNode actionsConfig) {
+        JsonNode actions = actionsConfig == null ? null : actionsConfig.path("actions");
+        if (actions == null || !actions.isArray()) {
+            return false;
+        }
+        for (JsonNode action : actions) {
+            String adapterType = text(action, "adapterType", null);
+            if ("mcp-tool".equalsIgnoreCase(adapterType)) {
+                return true;
+            }
+            JsonNode execution = action.path("execution");
+            if (execution.isObject()) {
+                String executionAdapterType = text(execution, "adapterType", null);
+                if ("mcp-tool".equalsIgnoreCase(executionAdapterType) || execution.path("mcp").isObject()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private CoolifyProvisioningSource resolveProvisioningSource(DeploymentTargetProfileEntity profile,

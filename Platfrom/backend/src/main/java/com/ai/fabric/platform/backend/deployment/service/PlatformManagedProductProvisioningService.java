@@ -175,6 +175,21 @@ public class PlatformManagedProductProvisioningService {
     }
 
     @Transactional
+    public PlatformManagedProductServiceSummary reconcile(String serviceRef, String targetProfileId) {
+        PlatformManagedProductServiceEntity service = serviceService.requireService(serviceRef);
+        String normalizedTargetProfileId = trimToNull(targetProfileId);
+        if (hasText(normalizedTargetProfileId)) {
+            ObjectNode details = mutableDetails(service);
+            details.put("providerType", "COOLIFY");
+            details.put("targetProfileId", normalizedTargetProfileId);
+            service.setDetailsJson(details.toPrettyString());
+            service.setUpdatedAt(Instant.now());
+            serviceRepository.save(service);
+        }
+        return reconcile(serviceRef);
+    }
+
+    @Transactional
     public PlatformManagedProductServiceSummary scale(String serviceRef, Integer desiredReplicas) {
         serviceService.updateDesiredReplicas(serviceRef, desiredReplicas);
         return reconcile(serviceRef);

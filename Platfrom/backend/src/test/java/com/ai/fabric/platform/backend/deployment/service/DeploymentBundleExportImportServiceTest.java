@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
@@ -19,6 +20,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
+import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretCleanupPolicy;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretEntity;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretOwnerType;
@@ -69,6 +72,10 @@ class DeploymentBundleExportImportServiceTest {
     private final VectorizationPlanRepository vectorizationPlanRepository = mock(VectorizationPlanRepository.class);
     private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
     private final VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository = mock(VectorizationPlanRevisionRepository.class);
+    private final PlatformManagedProductServiceRepository managedProductServiceRepository = mock(PlatformManagedProductServiceRepository.class);
+    private final PlatformProductProvisioningProperties productProvisioningProperties = new PlatformProductProvisioningProperties(
+        null, null, null, null, null, null, null, null, null, null, null
+    );
     private final DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
     private final DeploymentService deploymentService = mock(DeploymentService.class);
     private final PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -201,6 +208,7 @@ class DeploymentBundleExportImportServiceTest {
             null,
             null,
             null,
+            null,
             privateKeyPem(keyPair),
             "restore in place smoke"
         ));
@@ -265,6 +273,7 @@ class DeploymentBundleExportImportServiceTest {
             null,
             "Imported Deployment",
             "staging-import",
+            null,
             null,
             null,
             null,
@@ -366,6 +375,7 @@ class DeploymentBundleExportImportServiceTest {
             null,
             "Imported Deployment",
             "production-staging",
+            "dtp-coolify-production",
             importedDeployment.getCustomerId(),
             importedDeployment.getTenantId(),
             privateKeyPem(keyPair),
@@ -399,6 +409,125 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(finalSavedPlan.getSyncState()).isEqualTo("BOOTSTRAP_REQUIRED");
     }
 
+    @Test
+    void sealedCloneRestoresManagedProductServiceDependenciesWithoutSourceBinding() throws Exception {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity sourceDeployment = deployment();
+        DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
+        sourceDraft.setActionsConfigJson("""
+            {
+              "actions": [
+                {
+                  "id": "produs_catalog_export",
+                  "adapterType": "mcp-tool",
+                  "execution": {
+                    "adapterType": "mcp-tool",
+                    "mcp": {"serverRef": "produs-staging", "toolName": "produs.catalog.export"}
+                  }
+                }
+              ]
+            }
+            """);
+        PlatformManagedProductServiceEntity gateway = mcpGatewayService();
+        PlatformSecretEntity gatewaySecret = deploymentSecret(
+            gateway.getSecretName(),
+            "gateway-secret-value",
+            null
+        );
+        stubExportState(sourceDeployment, sourceDraft, gatewaySecret);
+        when(managedProductServiceRepository.findByServiceRefIgnoreCase("mcp-execution-gateway"))
+            .thenReturn(Optional.of(gateway));
+        KeyPair keyPair = rsaKeyPair();
+
+        var export = service.exportDeployment(
+            sourceDeployment.getId(),
+            new DeploymentExportRequest(
+                ExportMode.SEALED_BACKUP,
+                "managed service lift shift",
+                new ExportRecipient(OPERATOR_PUBLIC_KEY, publicKeyPem(keyPair)),
+                true,
+                true
+            )
+        );
+
+        assertThat(export.bundle().path("manifest").path("managedProductServiceDependencies")).hasSize(1);
+        assertThat(export.bundle().path("manifest").path("managedProductServiceDependencies").get(0).path("serviceRef").asText())
+            .isEqualTo("mcp-execution-gateway");
+        assertThat(export.bundle().toString())
+            .doesNotContain("https://mcp-execution-gateway.46.224.145.148.sslip.io")
+            .doesNotContain("http://mcp-execution-gateway.internal");
+        assertThat(export.secretSummary().items())
+            .anySatisfy(item -> {
+                assertThat(item.secretName()).isEqualTo(gateway.getSecretName());
+                assertThat(item.valueIncluded()).isTrue();
+                assertThat(item.sources()).anyMatch(source -> source.startsWith("managed-product-service"));
+            });
+
+        DeploymentEntity importedDeployment = deployment();
+        importedDeployment.setId("dep-imported");
+        importedDeployment.setName("Imported Deployment");
+        importedDeployment.setEnvironmentName("production-staging");
+        importedDeployment.setCustomerId("cust-imported");
+        importedDeployment.setTenantId("ten-imported");
+        importedDeployment.setActiveDraftId("drf-imported");
+        DeploymentDraftEntity importedDraft = draft(importedDeployment.getId());
+        importedDraft.setId("drf-imported");
+        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenReturn(new DeploymentSummary(
+            importedDeployment.getId(),
+            importedDeployment.getName(),
+            importedDeployment.getEnvironmentName(),
+            importedDeployment.getTemplateId(),
+            null,
+            null,
+            importedDeployment.getStatus(),
+            null,
+            importedDeployment.getRuntimeBaseUrl(),
+            false,
+            false,
+            false,
+            importedDeployment.getCreatedAt()
+        ));
+        when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
+        when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
+        when(draftRepository.save(any(DeploymentDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(platformSecretRepository.save(any(PlatformSecretEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(managedProductServiceRepository.findByServiceRefIgnoreCase("mcp-execution-gateway"))
+            .thenReturn(Optional.empty());
+        when(managedProductServiceRepository.save(any(PlatformManagedProductServiceEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.importDeployment(new DeploymentImportRequest(
+            export.bundle(),
+            ImportMode.SEALED_CLONE,
+            null,
+            "Imported Deployment",
+            "production-staging",
+            "dtp-coolify-production",
+            importedDeployment.getCustomerId(),
+            importedDeployment.getTenantId(),
+            privateKeyPem(keyPair),
+            "sealed clone managed service"
+        ));
+
+        ArgumentCaptor<PlatformManagedProductServiceEntity> serviceCaptor =
+            ArgumentCaptor.forClass(PlatformManagedProductServiceEntity.class);
+        verify(managedProductServiceRepository).save(serviceCaptor.capture());
+        PlatformManagedProductServiceEntity importedService = serviceCaptor.getValue();
+        assertThat(importedService.getServiceRef()).isEqualTo("mcp-execution-gateway");
+        assertThat(importedService.getBaseUrl()).isNull();
+        assertThat(importedService.getPrivateNetworkUrl()).isNull();
+        assertThat(importedService.getStatus()).isEqualTo("CREATED");
+        assertThat(importedService.getEnvironmentScope()).isEqualTo("production-staging");
+        assertThat(importedService.getDetailsJson()).contains("dtp-coolify-production");
+
+        ArgumentCaptor<PlatformSecretEntity> secretCaptor = ArgumentCaptor.forClass(PlatformSecretEntity.class);
+        verify(platformSecretRepository).save(secretCaptor.capture());
+        assertThat(secretCaptor.getValue().getName()).isEqualTo(gateway.getSecretName());
+        assertThat(secretCaptor.getValue().getDeploymentId()).isNull();
+        assertThat(secretCaptor.getValue().getSecretValue()).isEqualTo("gateway-secret-value");
+    }
+
     private DeploymentBundleExportImportService service() {
         return new DeploymentBundleExportImportService(
             objectMapper,
@@ -416,6 +545,8 @@ class DeploymentBundleExportImportServiceTest {
             vectorizationPlanRepository,
             vectorizationSourceConnectionRepository,
             vectorizationPlanRevisionRepository,
+            managedProductServiceRepository,
+            productProvisioningProperties,
             deploymentAccessService,
             deploymentService,
             platformAuditService,
@@ -497,6 +628,41 @@ class DeploymentBundleExportImportServiceTest {
         secret.setSecretPurpose("runtime");
         secret.setUpdatedAt(Instant.now());
         return secret;
+    }
+
+    private static PlatformManagedProductServiceEntity mcpGatewayService() {
+        Instant now = Instant.now();
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("psv-mcp-gateway");
+        service.setServiceRef("mcp-execution-gateway");
+        service.setDisplayName("MCP Execution Gateway");
+        service.setProductFamily("MCP");
+        service.setServiceKind("MCP_EXECUTION_GATEWAY_SERVICE");
+        service.setDeploymentMode("SHARED");
+        service.setTenantMode("MULTI_TENANT");
+        service.setEnvironmentScope("staging");
+        service.setDesiredReplicas(1);
+        service.setActualReplicas(1);
+        service.setMinReplicas(1);
+        service.setMaxReplicas(3);
+        service.setBaseUrl("https://mcp-execution-gateway.46.224.145.148.sslip.io");
+        service.setPrivateNetworkUrl("http://mcp-execution-gateway.internal");
+        service.setHealthPath("/actuator/health");
+        service.setServiceRoot("product-services/mcp-execution-gateway-service");
+        service.setDockerfilePath("product-services/mcp-execution-gateway-service/deploy/container/Dockerfile");
+        service.setSecretName("MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY");
+        service.setStatus("ACTIVE");
+        service.setDetailsJson("""
+            {
+              "providerType": "COOLIFY",
+              "targetProfileId": "dtp-coolify-staging",
+              "coolifyApplicationUuid": "staging-app",
+              "lastReconcileStatus": "SUCCESS"
+            }
+            """);
+        service.setCreatedAt(now);
+        service.setUpdatedAt(now);
+        return service;
     }
 
     private static VectorizationSourceConnectionEntity vectorizationSourceConnection(String deploymentId, String secretName) {
