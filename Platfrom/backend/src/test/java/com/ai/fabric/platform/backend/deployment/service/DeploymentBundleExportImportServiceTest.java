@@ -38,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +47,7 @@ import static com.ai.fabric.platform.backend.deployment.model.DeploymentBundleMo
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -343,7 +345,12 @@ class DeploymentBundleExportImportServiceTest {
         when(platformSecretRepository.save(any(PlatformSecretEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(vectorizationSourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(vectorizationPlanRevisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(vectorizationPlanRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        List<String> savedPlanActiveRevisionIds = new ArrayList<>();
+        when(vectorizationPlanRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> {
+            VectorizationPlanEntity savedPlan = invocation.getArgument(0);
+            savedPlanActiveRevisionIds.add(savedPlan.getActiveRevisionId());
+            return savedPlan;
+        });
 
         var result = service.importDeployment(new DeploymentImportRequest(
             export.bundle(),
@@ -371,11 +378,15 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(revisionCaptor.getValue().getMappingConfigJson()).contains("produs-safe-knowledge");
 
         ArgumentCaptor<VectorizationPlanEntity> planCaptor = ArgumentCaptor.forClass(VectorizationPlanEntity.class);
-        verify(vectorizationPlanRepository).save(planCaptor.capture());
-        assertThat(planCaptor.getValue().getDeploymentId()).isEqualTo(importedDeployment.getId());
-        assertThat(planCaptor.getValue().getSourceConnectionId()).isEqualTo(sourceCaptor.getValue().getId());
-        assertThat(planCaptor.getValue().getActiveRevisionId()).isEqualTo(revisionCaptor.getValue().getId());
-        assertThat(planCaptor.getValue().getSyncState()).isEqualTo("BOOTSTRAP_REQUIRED");
+        verify(vectorizationPlanRepository, times(2)).save(planCaptor.capture());
+        VectorizationPlanEntity finalSavedPlan = planCaptor.getAllValues().get(1);
+        assertThat(savedPlanActiveRevisionIds).hasSize(2);
+        assertThat(savedPlanActiveRevisionIds.get(0)).isNull();
+        assertThat(savedPlanActiveRevisionIds.get(1)).isEqualTo(revisionCaptor.getValue().getId());
+        assertThat(finalSavedPlan.getDeploymentId()).isEqualTo(importedDeployment.getId());
+        assertThat(finalSavedPlan.getSourceConnectionId()).isEqualTo(sourceCaptor.getValue().getId());
+        assertThat(finalSavedPlan.getActiveRevisionId()).isEqualTo(revisionCaptor.getValue().getId());
+        assertThat(finalSavedPlan.getSyncState()).isEqualTo("BOOTSTRAP_REQUIRED");
     }
 
     private DeploymentBundleExportImportService service() {

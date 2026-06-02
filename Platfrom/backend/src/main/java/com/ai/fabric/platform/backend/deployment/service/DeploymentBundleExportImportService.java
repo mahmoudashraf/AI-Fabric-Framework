@@ -1065,6 +1065,40 @@ public class DeploymentBundleExportImportService {
         String oldActiveRevisionId = planNode.path("activeRevisionId").asText(null);
         String newPlanId = generateId("vpl");
         String newActiveRevisionId = null;
+        String lastImportedRevisionId = null;
+
+        VectorizationPlanEntity plan = new VectorizationPlanEntity();
+        plan.setId(newPlanId);
+        plan.setDeploymentId(deploymentId);
+        plan.setCustomerId(importedOwnerValue(deployment.getCustomerId(), planNode.path("customerId").asText(null), "customer"));
+        plan.setTenantId(importedOwnerValue(deployment.getTenantId(), planNode.path("tenantId").asText(null), "tenant"));
+        plan.setName(planNode.path("name").asText("Imported vectorization plan"));
+        plan.setStatus(planNode.path("status").asText("ACTIVE"));
+        plan.setRunnerMode(planNode.path("runnerMode").asText("PLATFORM_MANAGED_AUTO"));
+        plan.setSyncState("BOOTSTRAP_REQUIRED");
+        plan.setSyncReasonCodesJson("[\"IMPORTED_REINDEX_REQUIRED\"]");
+        ObjectNode reasonDetails = objectMapper.createObjectNode();
+        reasonDetails.put("sourceDeploymentId", sourceDeploymentId(bundle));
+        reasonDetails.put("sourcePlanId", oldPlanId);
+        reasonDetails.put("importedAt", now.toString());
+        reasonDetails.put("reason", "Vectorization control plane restored from deployment bundle; target environment must run its own indexing job.");
+        plan.setSyncReasonDetailsJson(writeJson(reasonDetails));
+        plan.setSourceConnectionId(remapId(planNode.path("sourceConnectionId").asText(null), oldSourceConnectionId, newSourceConnectionId));
+        plan.setActiveRevisionId(null);
+        plan.setActiveIndexedOutputHash(null);
+        plan.setLastSuccessfulIndexedOutputHash(null);
+        plan.setLastRunId(null);
+        plan.setLastSuccessfulRunId(null);
+        plan.setManualConfirmationNote(planNode.path("manualConfirmationNote").asText(null));
+        plan.setManualConfirmationActorId(null);
+        plan.setManualConfirmationHash(null);
+        plan.setManuallyConfirmedAt(null);
+        plan.setDeferredReindexAt(null);
+        plan.setDeferredReindexNote(null);
+        plan.setDeferredReindexHash(null);
+        plan.setCreatedAt(now);
+        plan.setUpdatedAt(now);
+        vectorizationPlanRepository.save(plan);
 
         JsonNode revisions = vectorization.path("revisions");
         if (revisions.isArray()) {
@@ -1077,6 +1111,7 @@ public class DeploymentBundleExportImportService {
                     && oldActiveRevisionId.equals(revisionNode.path("id").asText(null))) {
                     newActiveRevisionId = newRevisionId;
                 }
+                lastImportedRevisionId = newRevisionId;
                 VectorizationPlanRevisionEntity revision = new VectorizationPlanRevisionEntity();
                 revision.setId(newRevisionId);
                 revision.setPlanId(newPlanId);
@@ -1096,41 +1131,10 @@ public class DeploymentBundleExportImportService {
         }
 
         if (!StringUtils.hasText(newActiveRevisionId)) {
-            newActiveRevisionId = vectorizationPlanRevisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(newPlanId)
-                .map(VectorizationPlanRevisionEntity::getId)
-                .orElse(null);
+            newActiveRevisionId = lastImportedRevisionId;
         }
 
-        VectorizationPlanEntity plan = new VectorizationPlanEntity();
-        plan.setId(newPlanId);
-        plan.setDeploymentId(deploymentId);
-        plan.setCustomerId(importedOwnerValue(deployment.getCustomerId(), planNode.path("customerId").asText(null), "customer"));
-        plan.setTenantId(importedOwnerValue(deployment.getTenantId(), planNode.path("tenantId").asText(null), "tenant"));
-        plan.setName(planNode.path("name").asText("Imported vectorization plan"));
-        plan.setStatus(planNode.path("status").asText("ACTIVE"));
-        plan.setRunnerMode(planNode.path("runnerMode").asText("PLATFORM_MANAGED_AUTO"));
-        plan.setSyncState("BOOTSTRAP_REQUIRED");
-        plan.setSyncReasonCodesJson("[\"IMPORTED_REINDEX_REQUIRED\"]");
-        ObjectNode reasonDetails = objectMapper.createObjectNode();
-        reasonDetails.put("sourceDeploymentId", sourceDeploymentId(bundle));
-        reasonDetails.put("sourcePlanId", oldPlanId);
-        reasonDetails.put("importedAt", now.toString());
-        reasonDetails.put("reason", "Vectorization control plane restored from deployment bundle; target environment must run its own indexing job.");
-        plan.setSyncReasonDetailsJson(writeJson(reasonDetails));
-        plan.setSourceConnectionId(remapId(planNode.path("sourceConnectionId").asText(null), oldSourceConnectionId, newSourceConnectionId));
         plan.setActiveRevisionId(newActiveRevisionId);
-        plan.setActiveIndexedOutputHash(null);
-        plan.setLastSuccessfulIndexedOutputHash(null);
-        plan.setLastRunId(null);
-        plan.setLastSuccessfulRunId(null);
-        plan.setManualConfirmationNote(planNode.path("manualConfirmationNote").asText(null));
-        plan.setManualConfirmationActorId(null);
-        plan.setManualConfirmationHash(null);
-        plan.setManuallyConfirmedAt(null);
-        plan.setDeferredReindexAt(null);
-        plan.setDeferredReindexNote(null);
-        plan.setDeferredReindexHash(null);
-        plan.setCreatedAt(now);
         plan.setUpdatedAt(now);
         vectorizationPlanRepository.save(plan);
     }
