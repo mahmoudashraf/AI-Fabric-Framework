@@ -35,9 +35,11 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginDatasetEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginDatasetRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
@@ -123,6 +125,7 @@ public class DeploymentBundleExportImportService {
     private final DeploymentMarketplacePluginInstallRepository marketplacePluginInstallRepository;
     private final MarketplacePluginRepository marketplacePluginRepository;
     private final MarketplacePluginVersionRepository marketplacePluginVersionRepository;
+    private final MarketplacePluginDatasetRepository marketplacePluginDatasetRepository;
     private final DeploymentProviderSecretBindingRepository secretBindingRepository;
     private final PlatformSecretRepository platformSecretRepository;
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
@@ -147,6 +150,7 @@ public class DeploymentBundleExportImportService {
                                                DeploymentMarketplacePluginInstallRepository marketplacePluginInstallRepository,
                                                MarketplacePluginRepository marketplacePluginRepository,
                                                MarketplacePluginVersionRepository marketplacePluginVersionRepository,
+                                               MarketplacePluginDatasetRepository marketplacePluginDatasetRepository,
                                                DeploymentProviderSecretBindingRepository secretBindingRepository,
                                                PlatformSecretRepository platformSecretRepository,
                                                PublicApiDeploymentRepository publicApiDeploymentRepository,
@@ -170,6 +174,7 @@ public class DeploymentBundleExportImportService {
         this.marketplacePluginInstallRepository = marketplacePluginInstallRepository;
         this.marketplacePluginRepository = marketplacePluginRepository;
         this.marketplacePluginVersionRepository = marketplacePluginVersionRepository;
+        this.marketplacePluginDatasetRepository = marketplacePluginDatasetRepository;
         this.secretBindingRepository = secretBindingRepository;
         this.platformSecretRepository = platformSecretRepository;
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
@@ -574,6 +579,7 @@ public class DeploymentBundleExportImportService {
         ObjectNode catalog = objectMapper.createObjectNode();
         ArrayNode plugins = catalog.putArray("plugins");
         ArrayNode versions = catalog.putArray("versions");
+        ArrayNode datasets = catalog.putArray("datasets");
         if (!marketplaceInstalls.isArray()) {
             return catalog;
         }
@@ -601,7 +607,17 @@ public class DeploymentBundleExportImportService {
             .flatMap(Optional::stream)
             .map(this::marketplacePluginVersionNode)
             .forEach(versions::add);
+        versionIds.stream()
+            .flatMap(versionId -> marketplacePluginDatasetsForVersion(versionId).stream())
+            .map(this::marketplacePluginDatasetNode)
+            .forEach(datasets::add);
         return catalog;
+    }
+
+    private List<MarketplacePluginDatasetEntity> marketplacePluginDatasetsForVersion(String versionId) {
+        List<MarketplacePluginDatasetEntity> datasets =
+            marketplacePluginDatasetRepository.findByPluginVersionIdOrderByDatasetIdAsc(versionId);
+        return datasets == null ? List.of() : datasets;
     }
 
     private ObjectNode marketplacePluginNode(MarketplacePluginEntity plugin) {
@@ -635,6 +651,28 @@ public class DeploymentBundleExportImportService {
         node.put("bundleSha256", version.getBundleSha256());
         node.put("createdAt", stringTime(version.getCreatedAt()));
         node.put("publishedAt", stringTime(version.getPublishedAt()));
+        return node;
+    }
+
+    private ObjectNode marketplacePluginDatasetNode(MarketplacePluginDatasetEntity dataset) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("id", dataset.getId());
+        node.put("pluginId", dataset.getPluginId());
+        node.put("pluginVersionId", dataset.getPluginVersionId());
+        node.put("datasetId", dataset.getDatasetId());
+        node.put("entityType", dataset.getEntityType());
+        node.put("storageScope", dataset.getStorageScope());
+        node.put("sharingScope", dataset.getSharingScope());
+        node.put("ingestionMode", dataset.getIngestionMode());
+        node.put("updateStrategy", dataset.getUpdateStrategy());
+        node.put("vectorizationProfile", dataset.getVectorizationProfile());
+        node.put("handleTemplate", dataset.getHandleTemplate());
+        node.put("seedDatasetRef", dataset.getSeedDatasetRef());
+        node.put("connectorType", dataset.getConnectorType());
+        node.set("connectorConfig", readJson(dataset.getConnectorConfigJson()));
+        node.put("datasetHash", dataset.getDatasetHash());
+        node.put("createdAt", stringTime(dataset.getCreatedAt()));
+        node.put("updatedAt", stringTime(dataset.getUpdatedAt()));
         return node;
     }
 
@@ -1102,6 +1140,10 @@ public class DeploymentBundleExportImportService {
         Set<String> bundledVersionIds = catalog.path("versions").isArray()
             ? idsIn(catalog.path("versions"))
             : Set.of();
+        Set<String> bundledDatasetKeys = catalog.path("datasets").isArray()
+            ? marketplaceDatasetKeysIn(catalog.path("datasets"))
+            : Set.of();
+        Map<String, String> installVersions = marketplaceInstallVersionIds(installs);
 
         for (JsonNode install : installs) {
             String pluginId = install.path("pluginId").asText(null);
@@ -1117,9 +1159,56 @@ public class DeploymentBundleExportImportService {
                 blocking.add("MARKETPLACE_PLUGIN_VERSION_MISSING: " + versionId);
             }
         }
+        JsonNode configuredDatasets = manifest.path("activeDraft").path("configs").path("marketplaceDataset").path("datasets");
+        if (configuredDatasets.isArray()) {
+            for (JsonNode dataset : configuredDatasets) {
+                if (!dataset.path("marketplaceManaged").asBoolean(false)) {
+                    continue;
+                }
+                String installId = dataset.path("marketplaceInstallId").asText(null);
+                String datasetId = dataset.path("datasetId").asText(null);
+                String versionId = StringUtils.hasText(installId) ? installVersions.get(installId) : null;
+                if (!StringUtils.hasText(versionId) || !StringUtils.hasText(datasetId)) {
+                    continue;
+                }
+                String datasetKey = versionId + "/" + datasetId;
+                if (!bundledDatasetKeys.contains(datasetKey)
+                    && marketplacePluginDatasetRepository.findByPluginVersionIdAndDatasetId(versionId, datasetId).isEmpty()) {
+                    blocking.add("MARKETPLACE_PLUGIN_DATASET_MISSING: " + datasetKey);
+                }
+            }
+        }
         if (catalog.isMissingNode() || !catalog.isObject()) {
             warnings.add("Bundle does not include portable Marketplace catalog rows; target must already have referenced plugins.");
         }
+    }
+
+    private Map<String, String> marketplaceInstallVersionIds(JsonNode installs) {
+        Map<String, String> versionIds = new LinkedHashMap<>();
+        if (installs != null && installs.isArray()) {
+            installs.forEach(install -> {
+                String installId = install.path("id").asText(null);
+                String versionId = install.path("pluginVersionId").asText(null);
+                if (StringUtils.hasText(installId) && StringUtils.hasText(versionId)) {
+                    versionIds.put(installId.trim(), versionId.trim());
+                }
+            });
+        }
+        return versionIds;
+    }
+
+    private Set<String> marketplaceDatasetKeysIn(JsonNode array) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (array != null && array.isArray()) {
+            array.forEach(item -> {
+                String versionId = item.path("pluginVersionId").asText(null);
+                String datasetId = item.path("datasetId").asText(null);
+                if (StringUtils.hasText(versionId) && StringUtils.hasText(datasetId)) {
+                    keys.add(versionId.trim() + "/" + datasetId.trim());
+                }
+            });
+        }
+        return keys;
     }
 
     private Set<String> idsIn(JsonNode array) {
@@ -1310,7 +1399,58 @@ public class DeploymentBundleExportImportService {
                 versionIdRemap.put(sourceVersionId, version.getId());
             }
         }
+        restoreMarketplacePluginDatasets(catalog.path("datasets"), pluginIdRemap, versionIdRemap);
         return new MarketplaceCatalogRestore(pluginIdRemap, versionIdRemap);
+    }
+
+    private void restoreMarketplacePluginDatasets(JsonNode datasets,
+                                                  Map<String, String> pluginIdRemap,
+                                                  Map<String, String> versionIdRemap) {
+        if (!datasets.isArray()) {
+            return;
+        }
+        Instant now = Instant.now();
+        for (JsonNode datasetNode : datasets) {
+            if (!datasetNode.isObject()) {
+                continue;
+            }
+            String sourcePluginId = text(datasetNode, "pluginId");
+            String sourceVersionId = text(datasetNode, "pluginVersionId");
+            String datasetId = text(datasetNode, "datasetId");
+            if (!StringUtils.hasText(sourcePluginId)
+                || !StringUtils.hasText(sourceVersionId)
+                || !StringUtils.hasText(datasetId)) {
+                continue;
+            }
+            String targetPluginId = pluginIdRemap.getOrDefault(sourcePluginId, sourcePluginId);
+            String targetVersionId = versionIdRemap.getOrDefault(sourceVersionId, sourceVersionId);
+            MarketplacePluginDatasetEntity dataset = marketplacePluginDatasetRepository
+                .findByPluginVersionIdAndDatasetId(targetVersionId, datasetId)
+                .orElseGet(MarketplacePluginDatasetEntity::new);
+            boolean existing = StringUtils.hasText(dataset.getId());
+            dataset.setId(existing ? dataset.getId() : firstNonBlank(text(datasetNode, "id"), generateId("mpd")));
+            dataset.setPluginId(targetPluginId);
+            dataset.setPluginVersionId(targetVersionId);
+            dataset.setDatasetId(datasetId);
+            dataset.setEntityType(firstNonBlank(datasetNode.path("entityType").asText(null), datasetId));
+            dataset.setStorageScope(firstNonBlank(datasetNode.path("storageScope").asText(null), "PLUGIN_SCOPED"));
+            dataset.setSharingScope(firstNonBlank(datasetNode.path("sharingScope").asText(null), "TENANT_SHARED"));
+            dataset.setIngestionMode(firstNonBlank(datasetNode.path("ingestionMode").asText(null), "EXTERNAL_SYNC_FOLDER"));
+            dataset.setUpdateStrategy(firstNonBlank(datasetNode.path("updateStrategy").asText(null), "UPSERT_BY_ID"));
+            dataset.setVectorizationProfile(datasetNode.path("vectorizationProfile").asText(null));
+            dataset.setHandleTemplate(datasetNode.path("handleTemplate").asText(null));
+            dataset.setSeedDatasetRef(datasetNode.path("seedDatasetRef").asText(null));
+            dataset.setConnectorType(datasetNode.path("connectorType").asText(null));
+            dataset.setConnectorConfigJson(writeJson(
+                datasetNode.path("connectorConfig").isMissingNode() ? objectMapper.createObjectNode() : datasetNode.path("connectorConfig")
+            ));
+            dataset.setDatasetHash(firstNonBlank(datasetNode.path("datasetHash").asText(null), "imported-" + datasetId));
+            if (dataset.getCreatedAt() == null) {
+                dataset.setCreatedAt(timeOrNow(datasetNode.path("createdAt").asText(null)));
+            }
+            dataset.setUpdatedAt(now);
+            marketplacePluginDatasetRepository.save(dataset);
+        }
     }
 
     private ImportConfigRewrite restoreMarketplacePluginInstalls(DeploymentEntity deployment,

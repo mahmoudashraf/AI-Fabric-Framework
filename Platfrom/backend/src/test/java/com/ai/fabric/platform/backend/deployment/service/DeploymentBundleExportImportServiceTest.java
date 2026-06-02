@@ -21,9 +21,11 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginDatasetEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginDatasetRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
@@ -74,6 +76,7 @@ class DeploymentBundleExportImportServiceTest {
     private final DeploymentMarketplacePluginInstallRepository marketplacePluginInstallRepository = mock(DeploymentMarketplacePluginInstallRepository.class);
     private final MarketplacePluginRepository marketplacePluginRepository = mock(MarketplacePluginRepository.class);
     private final MarketplacePluginVersionRepository marketplacePluginVersionRepository = mock(MarketplacePluginVersionRepository.class);
+    private final MarketplacePluginDatasetRepository marketplacePluginDatasetRepository = mock(MarketplacePluginDatasetRepository.class);
     private final DeploymentProviderSecretBindingRepository secretBindingRepository = mock(DeploymentProviderSecretBindingRepository.class);
     private final PlatformSecretRepository platformSecretRepository = mock(PlatformSecretRepository.class);
     private final PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
@@ -614,6 +617,13 @@ class DeploymentBundleExportImportServiceTest {
             dataPlugin.getId(),
             "1.0.0"
         );
+        MarketplacePluginDatasetEntity dataDataset = marketplaceDataset(
+            "mpd-safe-service-category",
+            dataPlugin.getId(),
+            dataVersion.getId(),
+            "produs-safe-service-category",
+            "service-category"
+        );
         MarketplacePluginEntity actionPlugin = marketplacePlugin(
             "mkp-action-produs-productization-read-mcp",
             "produs-productization-read-mcp",
@@ -631,6 +641,10 @@ class DeploymentBundleExportImportServiceTest {
         when(marketplacePluginRepository.findById(actionPlugin.getId())).thenReturn(Optional.of(actionPlugin));
         when(marketplacePluginVersionRepository.findById(dataVersion.getId())).thenReturn(Optional.of(dataVersion));
         when(marketplacePluginVersionRepository.findById(actionVersion.getId())).thenReturn(Optional.of(actionVersion));
+        when(marketplacePluginDatasetRepository.findByPluginVersionIdOrderByDatasetIdAsc(dataVersion.getId()))
+            .thenReturn(List.of(dataDataset));
+        when(marketplacePluginDatasetRepository.findByPluginVersionIdOrderByDatasetIdAsc(actionVersion.getId()))
+            .thenReturn(List.of());
 
         var export = service.exportDeployment(
             sourceDeployment.getId(),
@@ -642,6 +656,9 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(export.bundle().path("manifest").path("marketplaceCatalog").path("versions"))
             .extracting(node -> node.path("id").asText())
             .containsExactlyInAnyOrder(dataVersion.getId(), actionVersion.getId());
+        assertThat(export.bundle().path("manifest").path("marketplaceCatalog").path("datasets"))
+            .extracting(node -> node.path("datasetId").asText())
+            .containsExactly("produs-safe-service-category");
 
         DeploymentEntity importedDeployment = deployment();
         importedDeployment.setId("dep-imported");
@@ -674,6 +691,12 @@ class DeploymentBundleExportImportServiceTest {
         when(marketplacePluginRepository.save(any(MarketplacePluginEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(marketplacePluginVersionRepository.save(any(MarketplacePluginVersionEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(marketplacePluginDatasetRepository.findByPluginVersionIdAndDatasetId(
+            "mkv-safe-knowledge-v1",
+            "produs-safe-service-category"
+        )).thenReturn(Optional.empty());
+        when(marketplacePluginDatasetRepository.save(any(MarketplacePluginDatasetEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(marketplacePluginInstallRepository.findByDeploymentIdAndPluginIdAndPluginVersionId(
             importedDeployment.getId(),
@@ -725,6 +748,15 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(importedDataInstallId).isNotEqualTo("mpi-source-data");
         assertThat(importedActionInstallId).isNotEqualTo("mpi-source-action");
 
+        ArgumentCaptor<MarketplacePluginDatasetEntity> datasetCaptor =
+            ArgumentCaptor.forClass(MarketplacePluginDatasetEntity.class);
+        verify(marketplacePluginDatasetRepository).save(datasetCaptor.capture());
+        MarketplacePluginDatasetEntity savedDataset = datasetCaptor.getValue();
+        assertThat(savedDataset.getPluginId()).isEqualTo("mkp-data-produs-safe-knowledge");
+        assertThat(savedDataset.getPluginVersionId()).isEqualTo("mkv-safe-knowledge-v1");
+        assertThat(savedDataset.getDatasetId()).isEqualTo("produs-safe-service-category");
+        assertThat(savedDataset.getEntityType()).isEqualTo("service-category");
+
         ArgumentCaptor<DeploymentDraftEntity> draftCaptor = ArgumentCaptor.forClass(DeploymentDraftEntity.class);
         verify(draftRepository).save(draftCaptor.capture());
         DeploymentDraftEntity savedDraft = draftCaptor.getValue();
@@ -743,6 +775,18 @@ class DeploymentBundleExportImportServiceTest {
         DeploymentBundleExportImportService service = service();
         DeploymentEntity sourceDeployment = deployment();
         DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
+        sourceDraft.setMarketplaceDatasetConfigJson("""
+            {
+              "contractVersion": "MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets": [
+                {
+                  "datasetId": "produs-safe-service-category",
+                  "marketplaceManaged": true,
+                  "marketplaceInstallId": "mpi-source-data"
+                }
+              ]
+            }
+            """);
         DeploymentMarketplacePluginInstallEntity dataInstall = marketplaceInstall(
             "mpi-source-data",
             sourceDeployment.getId(),
@@ -781,7 +825,8 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(preview.blockingIssues())
             .contains(
                 "MARKETPLACE_PLUGIN_MISSING: mkp-data-produs-safe-knowledge",
-                "MARKETPLACE_PLUGIN_VERSION_MISSING: mkv-safe-knowledge-v1"
+                "MARKETPLACE_PLUGIN_VERSION_MISSING: mkv-safe-knowledge-v1",
+                "MARKETPLACE_PLUGIN_DATASET_MISSING: mkv-safe-knowledge-v1/produs-safe-service-category"
             )
             .doesNotContain("BUNDLE_INTEGRITY_FAILED");
         assertThat(preview.warnings())
@@ -801,6 +846,7 @@ class DeploymentBundleExportImportServiceTest {
             marketplacePluginInstallRepository,
             marketplacePluginRepository,
             marketplacePluginVersionRepository,
+            marketplacePluginDatasetRepository,
             secretBindingRepository,
             platformSecretRepository,
             publicApiDeploymentRepository,
@@ -974,6 +1020,32 @@ class DeploymentBundleExportImportServiceTest {
         version.setCreatedAt(now);
         version.setPublishedAt(now);
         return version;
+    }
+
+    private static MarketplacePluginDatasetEntity marketplaceDataset(String id,
+                                                                     String pluginId,
+                                                                     String pluginVersionId,
+                                                                     String datasetId,
+                                                                     String entityType) {
+        Instant now = Instant.now();
+        MarketplacePluginDatasetEntity dataset = new MarketplacePluginDatasetEntity();
+        dataset.setId(id);
+        dataset.setPluginId(pluginId);
+        dataset.setPluginVersionId(pluginVersionId);
+        dataset.setDatasetId(datasetId);
+        dataset.setEntityType(entityType);
+        dataset.setStorageScope("PLUGIN_SCOPED");
+        dataset.setSharingScope("TENANT_SHARED");
+        dataset.setIngestionMode("EXTERNAL_SYNC_FOLDER");
+        dataset.setUpdateStrategy("UPSERT_BY_ID");
+        dataset.setVectorizationProfile("default");
+        dataset.setHandleTemplate("plugin/${pluginId}/tenant/${tenantId}/${datasetId}/${datasetHash}/${entityType}");
+        dataset.setConnectorType("FILE_FOLDER");
+        dataset.setConnectorConfigJson("{\"folderRef\":\"classpath:marketplace/produs-safe/*.jsonl\"}");
+        dataset.setDatasetHash("f1c82e1ca554");
+        dataset.setCreatedAt(now);
+        dataset.setUpdatedAt(now);
+        return dataset;
     }
 
     private static VectorizationSourceConnectionEntity vectorizationSourceConnection(String deploymentId, String secretName) {
