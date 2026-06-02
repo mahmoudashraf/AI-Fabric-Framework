@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import com.ai.infrastructure.intent.action.ActionAccessMode;
 import com.ai.infrastructure.util.UlidGenerator;
@@ -62,6 +63,7 @@ public class ActionConnectorExecutor {
         ERROR_SERVICE_UNAVAILABLE,
         ERROR_RATE_LIMITED
     );
+    private static final Pattern MCP_SECRET_REF = Pattern.compile("^MCP_SECRET_[A-Z0-9_]+$");
 
     private final AIActionConnectorProperties properties;
     private final OutboundHttpExecutor outboundHttpExecutor;
@@ -208,6 +210,10 @@ public class ActionConnectorExecutor {
         Map<String, Object> trace = new LinkedHashMap<>();
         if (actionConfig != null && !actionConfig.isEmpty()) {
             trace.put("actionConfig", new LinkedHashMap<>(actionConfig));
+            Map<String, String> secretValues = resolveMcpSecretValues(actionConfig);
+            if (!secretValues.isEmpty()) {
+                trace.put("mcpSecretValues", secretValues);
+            }
         }
         if (context == null) {
             return trace;
@@ -222,6 +228,54 @@ public class ActionConnectorExecutor {
         }
         putIfText(trace, "shopDomain", resolveShopDomainTraceValue(context));
         return trace;
+    }
+
+    private Map<String, String> resolveMcpSecretValues(Map<String, Object> actionConfig) {
+        Set<String> refs = collectMcpSecretRefs(actionConfig);
+        if (refs.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        for (String ref : refs) {
+            String value = firstNonBlank(System.getenv(ref), System.getProperty(ref));
+            if (StringUtils.hasText(value)) {
+                values.put(ref, value.trim());
+            }
+        }
+        return values.isEmpty() ? Map.of() : Map.copyOf(values);
+    }
+
+    private Set<String> collectMcpSecretRefs(Object value) {
+        Set<String> refs = new java.util.LinkedHashSet<>();
+        collectMcpSecretRefs(value, refs);
+        return refs;
+    }
+
+    private void collectMcpSecretRefs(Object value, Set<String> refs) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof CharSequence text) {
+            String candidate = text.toString().trim();
+            if (MCP_SECRET_REF.matcher(candidate).matches()) {
+                refs.add(candidate);
+            }
+            return;
+        }
+        if (value instanceof Map<?, ?> map) {
+            map.values().forEach(item -> collectMcpSecretRefs(item, refs));
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            iterable.forEach(item -> collectMcpSecretRefs(item, refs));
+        }
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (StringUtils.hasText(first)) {
+            return first;
+        }
+        return StringUtils.hasText(second) ? second : null;
     }
 
     private Map<String, Object> buildAuthContextTrace(AIAccessSubjectContext authContext) {

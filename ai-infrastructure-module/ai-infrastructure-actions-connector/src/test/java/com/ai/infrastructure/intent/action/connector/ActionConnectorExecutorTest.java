@@ -169,6 +169,59 @@ class ActionConnectorExecutorTest {
     }
 
     @Test
+    void execute_shouldForwardReferencedMcpSecretValuesFromRuntimeEnvironment() {
+        String secretRef = "MCP_SECRET_VENDOR_TOKEN";
+        String oldValue = System.getProperty(secretRef);
+        System.setProperty(secretRef, "vendor-secret-value");
+        try {
+            StubHttpClient stub = new StubHttpClient(List.of(
+                new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{}}", Map.of())
+            ));
+            AIActionConnectorProperties props = connectorProps("https://example", 1, Duration.ZERO);
+            props.getMcpGateway().setBaseUrl("https://mcp-gateway.internal");
+            props.getMcpGateway().setApiKey("gateway-secret");
+            ActionConnectorExecutor executor = new ActionConnectorExecutor(
+                props,
+                stub,
+                null,
+                fixedClock()
+            );
+
+            executor.execute(
+                "inventory_search",
+                ActionAccessMode.READ,
+                Map.of("query", "bag"),
+                testContext(),
+                Map.of(
+                    "adapterType", "mcp-tool",
+                    "execution", Map.of("mcp", Map.of(
+                        "serverRef", "inventory-mcp",
+                        "toolName", "inventory.search",
+                        "auth", Map.of("mode", "API_KEY_HEADER_SECRET", "secretRef", secretRef)
+                    )),
+                    "mcpServers", Map.of("inventory-mcp", Map.of(
+                        "endpointUrl", "https://inventory.example/mcp",
+                        "auth", Map.of("mode", "API_KEY_HEADER_SECRET", "secretRef", secretRef)
+                    ))
+                )
+            );
+
+            Map<String, Object> request = readRequest(stub.lastRequestBody());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> trace = (Map<String, Object>) request.get(ActionConnectorProtocol.KEY_TRACE);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> secretValues = (Map<String, Object>) trace.get("mcpSecretValues");
+            assertThat(secretValues).containsEntry(secretRef, "vendor-secret-value");
+        } finally {
+            if (oldValue == null) {
+                System.clearProperty(secretRef);
+            } else {
+                System.setProperty(secretRef, oldValue);
+            }
+        }
+    }
+
+    @Test
     void execute_shouldPromoteStorefrontShopDomainAttachmentIntoMcpTrace() {
         StubHttpClient stub = new StubHttpClient(List.of(
             new OutboundHttpExecutionResponse(200, "{\"success\":true,\"message\":\"ok\",\"data\":{}}", Map.of())

@@ -33,6 +33,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Service
 public class RailwayProvisioningPlanService {
@@ -42,6 +43,7 @@ public class RailwayProvisioningPlanService {
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
     private static final String CONNECTOR_ADMIN_SECRET = "APP_ADMIN_API_KEY";
     private static final String SHOPIFY_BRIDGE_SHARED_SECRET_ENV = "SHOPIFY_BRIDGE_SHARED_SECRET";
+    private static final Pattern MCP_SECRET_REF_PATTERN = Pattern.compile("^MCP_SECRET_[A-Z0-9_]+$");
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
@@ -1004,6 +1006,9 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY", "${secret:" + secretName + "}"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute"));
+        for (String secretRef : collectMcpSecretRefs(actionsConfig)) {
+            runtimeEnv.add(new RailwayEnvVarSummary(secretRef, "${secret:" + secretRef + "}"));
+        }
     }
 
     private boolean hasMcpToolActions(JsonNode actionsConfig) {
@@ -1025,6 +1030,32 @@ public class RailwayProvisioningPlanService {
             }
         }
         return false;
+    }
+
+    private Set<String> collectMcpSecretRefs(JsonNode node) {
+        Set<String> secretRefs = new LinkedHashSet<>();
+        collectMcpSecretRefs(node, secretRefs);
+        return secretRefs;
+    }
+
+    private void collectMcpSecretRefs(JsonNode node, Set<String> secretRefs) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return;
+        }
+        if (node.isTextual()) {
+            String value = trimToNull(node.asText());
+            if (value != null && MCP_SECRET_REF_PATTERN.matcher(value).matches()) {
+                secretRefs.add(value);
+            }
+            return;
+        }
+        if (node.isObject()) {
+            node.elements().forEachRemaining(child -> collectMcpSecretRefs(child, secretRefs));
+            return;
+        }
+        if (node.isArray()) {
+            node.elements().forEachRemaining(child -> collectMcpSecretRefs(child, secretRefs));
+        }
     }
 
     private void addRuntimeWebhookTargetEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode actionsConfig) {

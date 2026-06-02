@@ -1497,7 +1497,14 @@ class RailwayProvisioningPlanServiceTest {
                   "adapterType": "mcp-tool",
                   "execution": {
                     "adapterType": "mcp-tool",
-                    "mcp": {"serverRef": "shopify-storefront", "toolName": "search_catalog"}
+                    "mcp": {
+                      "serverRef": "shopify-storefront",
+                      "toolName": "search_catalog",
+                      "auth": {
+                        "mode": "API_KEY_HEADER_SECRET",
+                        "secretRef": "MCP_SECRET_PRODUS_STAGING_MCP_API_KEY"
+                      }
+                    }
                   }
                 }
               ]
@@ -1510,7 +1517,8 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_BASE_URL", "https://mcp-gateway.example")
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY", "${secret:MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY}")
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY")
-            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute");
+            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute")
+            .containsEntry("MCP_SECRET_PRODUS_STAGING_MCP_API_KEY", "${secret:MCP_SECRET_PRODUS_STAGING_MCP_API_KEY}");
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
