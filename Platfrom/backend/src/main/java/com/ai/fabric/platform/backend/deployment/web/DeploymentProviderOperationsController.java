@@ -87,8 +87,9 @@ public class DeploymentProviderOperationsController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public List<DeploymentProviderResourceHandleSummary> listResources(@RequestParam(required = false) DeploymentProviderType providerType,
                                                                        @RequestParam(required = false) String deploymentId,
-                                                                       @RequestParam(required = false) String targetProfileId) {
-        return providerResourceActionService.listResources(providerType, deploymentId, targetProfileId);
+                                                                       @RequestParam(required = false) String targetProfileId,
+                                                                       @RequestParam(defaultValue = "false") boolean refresh) {
+        return providerResourceActionService.listResources(providerType, deploymentId, targetProfileId, refresh);
     }
 
     @GetMapping("/resources/{handleId}/status")

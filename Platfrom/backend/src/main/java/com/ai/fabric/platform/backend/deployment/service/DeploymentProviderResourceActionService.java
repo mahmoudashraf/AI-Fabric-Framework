@@ -14,6 +14,8 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderRe
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,8 @@ import java.util.Map;
 
 @Service
 public class DeploymentProviderResourceActionService {
+
+    private static final Logger log = LoggerFactory.getLogger(DeploymentProviderResourceActionService.class);
 
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
     private final DeploymentTargetProfileRepository targetProfileRepository;
@@ -51,6 +55,14 @@ public class DeploymentProviderResourceActionService {
     public List<DeploymentProviderResourceHandleSummary> listResources(DeploymentProviderType providerType,
                                                                        String deploymentId,
                                                                        String targetProfileId) {
+        return listResources(providerType, deploymentId, targetProfileId, false);
+    }
+
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public List<DeploymentProviderResourceHandleSummary> listResources(DeploymentProviderType providerType,
+                                                                       String deploymentId,
+                                                                       String targetProfileId,
+                                                                       boolean refresh) {
         List<DeploymentProviderResourceHandleEntity> handles;
         if (StringUtils.hasText(deploymentId)) {
             handles = resourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId.trim());
@@ -62,6 +74,9 @@ public class DeploymentProviderResourceActionService {
             handles = resourceHandleRepository.findAll().stream()
                 .sorted(Comparator.comparing(DeploymentProviderResourceHandleEntity::getUpdatedAt).reversed())
                 .toList();
+        }
+        if (refresh) {
+            handles.forEach(this::refreshHandleSafely);
         }
         return handles.stream().map(this::toSummary).toList();
     }
@@ -192,6 +207,27 @@ public class DeploymentProviderResourceActionService {
             return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read provider resource handle metadata.", ex);
+        }
+    }
+
+    private void refreshHandleSafely(DeploymentProviderResourceHandleEntity handle) {
+        try {
+            DeploymentProviderResourceStatusSummary status = providerRegistry.require(handle.getProviderType()).status(handle);
+            handle.setStatus(status.status());
+            handle.setLastObservedStatus(status.observedStatus());
+            handle.setLastObservedAt(status.observedAt());
+            handle.setFqdn(status.fqdn());
+            handle.setUpdatedAt(Instant.now());
+            resourceHandleRepository.save(handle);
+        } catch (RuntimeException ex) {
+            log.warn(
+                "Failed to refresh provider resource handle during list: deploymentId={}, handleId={}, providerType={}, resourceKind={}, message={}",
+                handle.getDeploymentId(),
+                handle.getId(),
+                handle.getProviderType(),
+                handle.getResourceKind(),
+                ex.getMessage()
+            );
         }
     }
 

@@ -4,6 +4,10 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProductProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorResourceEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentExportRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentImportPreviewRequest;
@@ -11,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.Ex
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ExportRecipient;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ImportMode;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentImportRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentManagedVectorResourceRepository;
@@ -114,6 +119,46 @@ class DeploymentBundleExportImportServiceTest {
     }
 
     @Test
+    void configOnlyExportDoesNotCarryOperationalStateSnapshots() {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity deployment = deployment();
+        deployment.setStatus("ACTIVE");
+        deployment.setRuntimeBaseUrl("https://old-runtime.example.test");
+        deployment.setConnectorBaseUrl("https://old-connector.example.test");
+        DeploymentDraftEntity draft = draft(deployment.getId());
+        stubExportState(deployment, draft);
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.of(release(deployment.getId(), "APPLIED_VERIFIED")));
+        when(verificationRunRepository.findByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(List.of(verificationRun(deployment.getId(), "PASSED")));
+        when(resourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
+            .thenReturn(List.of(providerHandle(deployment.getId(), "exited:unhealthy")));
+        when(managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
+            .thenReturn(List.of(managedVectorResource(deployment.getId(), "UNHEALTHY")));
+
+        var summary = service.exportDeployment(
+            deployment.getId(),
+            new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "clean config export", null, true, true)
+        );
+
+        var manifest = summary.bundle().path("manifest");
+        assertThat(manifest.path("bundlePurpose").asText()).isEqualTo("DEPLOYABLE_CONFIGURATION");
+        assertThat(manifest.has("sourceOperationalSnapshot")).isFalse();
+        assertThat(manifest.has("latestRelease")).isFalse();
+        assertThat(manifest.has("latestVerification")).isFalse();
+        assertThat(manifest.has("providerResourceHandles")).isFalse();
+        assertThat(manifest.has("managedVectorResources")).isFalse();
+        assertThat(manifest.has("versions")).isFalse();
+        assertThat(manifest.path("deployment").has("status")).isFalse();
+        assertThat(manifest.path("deployment").has("runtimeBaseUrl")).isFalse();
+        assertThat(manifest.path("deployment").has("connectorBaseUrl")).isFalse();
+        assertThat(summary.bundle().toString())
+            .doesNotContain("exited:unhealthy")
+            .doesNotContain("old-runtime.example.test")
+            .doesNotContain("old-connector.example.test");
+    }
+
+    @Test
     void sealedExportEncryptsDeploymentSecretValues() throws Exception {
         DeploymentBundleExportImportService service = service();
         DeploymentEntity deployment = deployment();
@@ -143,6 +188,48 @@ class DeploymentBundleExportImportServiceTest {
             .get(0)
             .path("value")
             .asText()).isEqualTo("super-secret-value");
+    }
+
+    @Test
+    void sealedExportKeepsOperationalStateAsNonAuthoritativeSnapshotOnly() throws Exception {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity deployment = deployment();
+        DeploymentDraftEntity draft = draft(deployment.getId());
+        stubExportState(deployment, draft);
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.of(release(deployment.getId(), "APPLIED_VERIFIED")));
+        when(verificationRunRepository.findByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(List.of(verificationRun(deployment.getId(), "PASSED")));
+        when(resourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
+            .thenReturn(List.of(providerHandle(deployment.getId(), "exited:unhealthy")));
+        when(managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId()))
+            .thenReturn(List.of(managedVectorResource(deployment.getId(), "UNHEALTHY")));
+        KeyPair keyPair = rsaKeyPair();
+
+        var summary = service.exportDeployment(
+            deployment.getId(),
+            new DeploymentExportRequest(
+                ExportMode.SEALED_BACKUP,
+                "dr evidence snapshot",
+                new ExportRecipient(OPERATOR_PUBLIC_KEY, publicKeyPem(keyPair)),
+                true,
+                true
+            )
+        );
+
+        var manifest = summary.bundle().path("manifest");
+        assertThat(manifest.path("bundlePurpose").asText())
+            .isEqualTo("SEALED_BACKUP_CONFIGURATION_WITH_SOURCE_OPERATIONAL_SNAPSHOT");
+        assertThat(manifest.has("providerResourceHandles")).isFalse();
+        assertThat(manifest.has("managedVectorResources")).isFalse();
+
+        var snapshot = manifest.path("sourceOperationalSnapshot");
+        assertThat(snapshot.path("authoritativeForTargetImport").asBoolean()).isFalse();
+        assertThat(snapshot.path("purpose").asText()).contains("Historical source-environment evidence only");
+        assertThat(snapshot.path("latestRelease").path("status").asText()).isEqualTo("APPLIED_VERIFIED");
+        assertThat(snapshot.path("providerResourceHandles")).hasSize(1);
+        assertThat(snapshot.path("providerResourceHandles").get(0).path("status").asText()).isEqualTo("exited:unhealthy");
+        assertThat(snapshot.path("managedVectorResources")).hasSize(1);
     }
 
     @Test
@@ -922,6 +1009,87 @@ class DeploymentBundleExportImportServiceTest {
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
+    }
+
+    private static DeploymentReleaseEntity release(String deploymentId, String status) {
+        Instant now = Instant.now();
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-source");
+        release.setDeploymentId(deploymentId);
+        release.setDeploymentVersionId("ver-source");
+        release.setStatus(status);
+        release.setVerificationStatus("PASSED");
+        release.setProvisioningStatus("ACTIVE");
+        release.setProvisioningTarget("COOLIFY");
+        release.setTargetProfileId("dtp-source");
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setProviderResourceHandleId("dpr-source");
+        release.setVerificationRunId("vrf-source");
+        release.setProvisioningDetailsJson("{\"providerResourceHandleId\":\"dpr-source\"}");
+        release.setCreatedAt(now);
+        release.setAppliedAt(now);
+        release.setUpdatedAt(now);
+        return release;
+    }
+
+    private static DeploymentVerificationRunEntity verificationRun(String deploymentId, String status) {
+        Instant now = Instant.now();
+        DeploymentVerificationRunEntity run = new DeploymentVerificationRunEntity();
+        run.setId("vrf-source");
+        run.setDeploymentId(deploymentId);
+        run.setReleaseId("rel-source");
+        run.setDeploymentVersionId("ver-source");
+        run.setVerificationType("POST_APPLY");
+        run.setStatus(status);
+        run.setSummaryMessage("verification passed");
+        run.setChecksJson("[]");
+        run.setCreatedAt(now);
+        run.setCompletedAt(now);
+        return run;
+    }
+
+    private static DeploymentProviderResourceHandleEntity providerHandle(String deploymentId, String status) {
+        Instant now = Instant.now();
+        DeploymentProviderResourceHandleEntity handle = new DeploymentProviderResourceHandleEntity();
+        handle.setId("dpr-source");
+        handle.setDeploymentId(deploymentId);
+        handle.setReleaseId("rel-source");
+        handle.setTargetProfileId("dtp-source");
+        handle.setProviderType(DeploymentProviderType.COOLIFY);
+        handle.setResourceKind("DATABASE");
+        handle.setProviderResourceUuid("source-db-uuid");
+        handle.setFqdn("source-runtime.example.test");
+        handle.setStatus(status);
+        handle.setLastObservedStatus(status);
+        handle.setLastObservedAt(now);
+        handle.setMetadataJson("{\"source\":\"coolify\"}");
+        handle.setCreatedAt(now);
+        handle.setUpdatedAt(now);
+        return handle;
+    }
+
+    private static DeploymentManagedVectorResourceEntity managedVectorResource(String deploymentId, String status) {
+        Instant now = Instant.now();
+        DeploymentManagedVectorResourceEntity resource = new DeploymentManagedVectorResourceEntity();
+        resource.setId("mvr-source");
+        resource.setDeploymentId(deploymentId);
+        resource.setDeploymentVersionId("ver-source");
+        resource.setDeploymentReleaseId("rel-source");
+        resource.setVendor("QDRANT");
+        resource.setVectorStrategy("qdrant");
+        resource.setVectorProvisioningMode("MANAGED");
+        resource.setManagedMode("PLATFORM_MANAGED");
+        resource.setResourceType("COLLECTION");
+        resource.setResourceName("source-collection");
+        resource.setResourceReference("source-collection");
+        resource.setEndpoint("https://source-vector.example.test");
+        resource.setResourceStatus(status);
+        resource.setProvisioningState(status);
+        resource.setSecretReferenceNamesJson("[]");
+        resource.setDetailsJson("{}");
+        resource.setCreatedAt(now);
+        resource.setUpdatedAt(now);
+        return resource;
     }
 
     private static PlatformSecretEntity deploymentSecret(String name, String value, String deploymentId) {

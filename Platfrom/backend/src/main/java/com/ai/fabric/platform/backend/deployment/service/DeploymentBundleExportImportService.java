@@ -192,7 +192,7 @@ public class DeploymentBundleExportImportService {
     public DeploymentBundleExportPreviewSummary previewExport(String deploymentId, DeploymentExportPreviewRequest request) {
         ExportMode exportMode = request == null ? ExportMode.CONFIG_ONLY : request.normalizedExportMode();
         DeploymentEntity deployment = requireDeploymentAdmin(deploymentId);
-        BundleState state = buildBundleState(deployment);
+        BundleState state = buildBundleState(deployment, exportMode);
         DeploymentBundleSecretSummary secretSummary = secretSummary(state.secretInventory(), exportMode == ExportMode.SEALED_BACKUP);
         platformAuditService.record(
             "DEPLOYMENT_EXPORT_PREVIEWED",
@@ -221,7 +221,7 @@ public class DeploymentBundleExportImportService {
             throw new ResponseStatusException(BAD_REQUEST, "Sealed backup export requires a reason.");
         }
 
-        BundleState state = buildBundleState(deployment);
+        BundleState state = buildBundleState(deployment, exportMode);
         String bundleId = generateId("dxb");
         Instant now = Instant.now();
         ObjectNode bundle = objectMapper.createObjectNode();
@@ -393,23 +393,28 @@ public class DeploymentBundleExportImportService {
         return deploymentAccessService.requireDeploymentAdminAccess(deployment);
     }
 
-    private BundleState buildBundleState(DeploymentEntity deployment) {
+    private BundleState buildBundleState(DeploymentEntity deployment, ExportMode exportMode) {
         DeploymentDraftEntity draft = activeDraft(deployment);
         ObjectNode manifest = objectMapper.createObjectNode();
+        manifest.put(
+            "bundlePurpose",
+            exportMode == ExportMode.SEALED_BACKUP
+                ? "SEALED_BACKUP_CONFIGURATION_WITH_SOURCE_OPERATIONAL_SNAPSHOT"
+                : "DEPLOYABLE_CONFIGURATION"
+        );
         manifest.set("deployment", deploymentNode(deployment));
         manifest.set("activeDraft", draftNode(draft));
-        manifest.set("versions", versionsNode(deployment.getId()));
-        manifest.set("latestRelease", latestReleaseNode(deployment.getId()));
-        manifest.set("latestVerification", latestVerificationNode(deployment.getId()));
+        manifest.set("activeVersion", activeVersionNode(deployment.getActiveVersionId()));
         ArrayNode marketplaceInstalls = marketplaceInstallsNode(deployment.getId());
         manifest.set("marketplaceCatalog", marketplaceCatalogNode(marketplaceInstalls));
         manifest.set("marketplaceInstalls", marketplaceInstalls);
-        manifest.set("providerResourceHandles", providerResourceHandlesNode(deployment.getId()));
-        manifest.set("managedVectorResources", managedVectorResourcesNode(deployment.getId()));
         manifest.set("vectorizationControlPlane", vectorizationControlPlaneNode(deployment.getId()));
         manifest.set("providerSecretBindings", secretBindingsNode(deployment.getId()));
         manifest.set("publicApiBindings", publicApiBindingsNode(deployment.getId()));
         manifest.set("managedProductServiceDependencies", managedProductServiceDependenciesNode(draft));
+        if (exportMode == ExportMode.SEALED_BACKUP) {
+            manifest.set("sourceOperationalSnapshot", sourceOperationalSnapshotNode(deployment.getId()));
+        }
 
         SecretInventory secretInventory = collectSecretInventory(deployment, manifest);
         return new BundleState(manifest, sealingService.sha256(manifest), secretInventory);
@@ -434,13 +439,8 @@ public class DeploymentBundleExportImportService {
         node.put("name", deployment.getName());
         node.put("environmentName", deployment.getEnvironmentName());
         node.put("templateId", deployment.getTemplateId());
-        node.put("status", deployment.getStatus());
         node.put("customerId", deployment.getCustomerId());
         node.put("tenantId", deployment.getTenantId());
-        node.put("activeDraftId", deployment.getActiveDraftId());
-        node.put("activeVersionId", deployment.getActiveVersionId());
-        node.put("runtimeBaseUrl", deployment.getRuntimeBaseUrl());
-        node.put("connectorBaseUrl", deployment.getConnectorBaseUrl());
         node.put("sourceRepositoryOverride", deployment.getSourceRepositoryOverride());
         node.put("sourceBranchOverride", deployment.getSourceBranchOverride());
         node.put("approvalRequiredForApply", deployment.isApprovalRequiredForApply());
@@ -471,13 +471,13 @@ public class DeploymentBundleExportImportService {
         return node;
     }
 
-    private ArrayNode versionsNode(String deploymentId) {
-        ArrayNode versions = objectMapper.createArrayNode();
-        versionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
-            .limit(10)
+    private JsonNode activeVersionNode(String activeVersionId) {
+        if (!StringUtils.hasText(activeVersionId)) {
+            return objectMapper.createObjectNode();
+        }
+        return versionRepository.findById(activeVersionId.trim())
             .map(this::versionNode)
-            .forEach(versions::add);
-        return versions;
+            .orElseGet(objectMapper::createObjectNode);
     }
 
     private ObjectNode versionNode(DeploymentVersionEntity version) {
@@ -573,6 +573,18 @@ public class DeploymentBundleExportImportService {
                 items.add(node);
             });
         return items;
+    }
+
+    private ObjectNode sourceOperationalSnapshotNode(String deploymentId) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("authoritativeForTargetImport", false);
+        node.put("purpose", "Historical source-environment evidence only. Import must provision and observe fresh target resources.");
+        node.put("capturedAt", Instant.now().toString());
+        node.set("latestRelease", latestReleaseNode(deploymentId));
+        node.set("latestVerification", latestVerificationNode(deploymentId));
+        node.set("providerResourceHandles", providerResourceHandlesNode(deploymentId));
+        node.set("managedVectorResources", managedVectorResourcesNode(deploymentId));
+        return node;
     }
 
     private ObjectNode marketplaceCatalogNode(JsonNode marketplaceInstalls) {
@@ -2017,7 +2029,6 @@ public class DeploymentBundleExportImportService {
         node.put("restoreInPlacePreservesExternalContract", true);
         node.put("cloneRequiresExternalEnvChange", true);
         node.put("sourceDeploymentId", deployment.getId());
-        node.put("sourceRuntimeBaseUrl", deployment.getRuntimeBaseUrl());
         node.put("sourceAssertionAudience", deployment.getId());
         return node;
     }
