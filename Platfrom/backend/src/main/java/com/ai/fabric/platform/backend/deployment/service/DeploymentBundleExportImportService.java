@@ -35,7 +35,11 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.entity.DeploymentProviderSecretBindingEntity;
@@ -117,6 +121,8 @@ public class DeploymentBundleExportImportService {
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
     private final DeploymentManagedVectorResourceRepository managedVectorResourceRepository;
     private final DeploymentMarketplacePluginInstallRepository marketplacePluginInstallRepository;
+    private final MarketplacePluginRepository marketplacePluginRepository;
+    private final MarketplacePluginVersionRepository marketplacePluginVersionRepository;
     private final DeploymentProviderSecretBindingRepository secretBindingRepository;
     private final PlatformSecretRepository platformSecretRepository;
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
@@ -139,6 +145,8 @@ public class DeploymentBundleExportImportService {
                                                DeploymentProviderResourceHandleRepository resourceHandleRepository,
                                                DeploymentManagedVectorResourceRepository managedVectorResourceRepository,
                                                DeploymentMarketplacePluginInstallRepository marketplacePluginInstallRepository,
+                                               MarketplacePluginRepository marketplacePluginRepository,
+                                               MarketplacePluginVersionRepository marketplacePluginVersionRepository,
                                                DeploymentProviderSecretBindingRepository secretBindingRepository,
                                                PlatformSecretRepository platformSecretRepository,
                                                PublicApiDeploymentRepository publicApiDeploymentRepository,
@@ -160,6 +168,8 @@ public class DeploymentBundleExportImportService {
         this.resourceHandleRepository = resourceHandleRepository;
         this.managedVectorResourceRepository = managedVectorResourceRepository;
         this.marketplacePluginInstallRepository = marketplacePluginInstallRepository;
+        this.marketplacePluginRepository = marketplacePluginRepository;
+        this.marketplacePluginVersionRepository = marketplacePluginVersionRepository;
         this.secretBindingRepository = secretBindingRepository;
         this.platformSecretRepository = platformSecretRepository;
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
@@ -386,7 +396,9 @@ public class DeploymentBundleExportImportService {
         manifest.set("versions", versionsNode(deployment.getId()));
         manifest.set("latestRelease", latestReleaseNode(deployment.getId()));
         manifest.set("latestVerification", latestVerificationNode(deployment.getId()));
-        manifest.set("marketplaceInstalls", marketplaceInstallsNode(deployment.getId()));
+        ArrayNode marketplaceInstalls = marketplaceInstallsNode(deployment.getId());
+        manifest.set("marketplaceCatalog", marketplaceCatalogNode(marketplaceInstalls));
+        manifest.set("marketplaceInstalls", marketplaceInstalls);
         manifest.set("providerResourceHandles", providerResourceHandlesNode(deployment.getId()));
         manifest.set("managedVectorResources", managedVectorResourcesNode(deployment.getId()));
         manifest.set("vectorizationControlPlane", vectorizationControlPlaneNode(deployment.getId()));
@@ -556,6 +568,74 @@ public class DeploymentBundleExportImportService {
                 items.add(node);
             });
         return items;
+    }
+
+    private ObjectNode marketplaceCatalogNode(JsonNode marketplaceInstalls) {
+        ObjectNode catalog = objectMapper.createObjectNode();
+        ArrayNode plugins = catalog.putArray("plugins");
+        ArrayNode versions = catalog.putArray("versions");
+        if (!marketplaceInstalls.isArray()) {
+            return catalog;
+        }
+
+        Set<String> pluginIds = new LinkedHashSet<>();
+        Set<String> versionIds = new LinkedHashSet<>();
+        marketplaceInstalls.forEach(install -> {
+            String pluginId = install.path("pluginId").asText(null);
+            String pluginVersionId = install.path("pluginVersionId").asText(null);
+            if (StringUtils.hasText(pluginId)) {
+                pluginIds.add(pluginId.trim());
+            }
+            if (StringUtils.hasText(pluginVersionId)) {
+                versionIds.add(pluginVersionId.trim());
+            }
+        });
+
+        pluginIds.stream()
+            .map(marketplacePluginRepository::findById)
+            .flatMap(Optional::stream)
+            .map(this::marketplacePluginNode)
+            .forEach(plugins::add);
+        versionIds.stream()
+            .map(marketplacePluginVersionRepository::findById)
+            .flatMap(Optional::stream)
+            .map(this::marketplacePluginVersionNode)
+            .forEach(versions::add);
+        return catalog;
+    }
+
+    private ObjectNode marketplacePluginNode(MarketplacePluginEntity plugin) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("id", plugin.getId());
+        node.put("slug", plugin.getSlug());
+        node.put("displayName", plugin.getDisplayName());
+        node.put("pluginType", plugin.getPluginType());
+        node.put("publisherSlug", plugin.getPublisherSlug());
+        node.put("publisherDisplayName", plugin.getPublisherDisplayName());
+        node.put("shortDescription", plugin.getShortDescription());
+        node.put("status", plugin.getStatus());
+        node.put("createdAt", stringTime(plugin.getCreatedAt()));
+        node.put("updatedAt", stringTime(plugin.getUpdatedAt()));
+        return node;
+    }
+
+    private ObjectNode marketplacePluginVersionNode(MarketplacePluginVersionEntity version) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("id", version.getId());
+        node.put("pluginId", version.getPluginId());
+        node.put("version", version.getVersion());
+        node.put("releaseChannel", version.getReleaseChannel());
+        node.put("status", version.getStatus());
+        node.set("manifest", readJson(version.getManifestJson()));
+        node.put("submittedByPublisherId", version.getSubmittedByPublisherId());
+        node.put("submittedByActorId", version.getSubmittedByActorId());
+        node.put("reviewedByActorId", version.getReviewedByActorId());
+        node.put("reviewedAt", stringTime(version.getReviewedAt()));
+        node.put("reviewNotes", version.getReviewNotes());
+        node.put("bundleSha256", version.getBundleSha256());
+        node.put("createdAt", stringTime(version.getCreatedAt()));
+        node.put("publishedAt", stringTime(version.getPublishedAt()));
+        return node;
     }
 
     private ArrayNode providerResourceHandlesNode(String deploymentId) {
@@ -1004,13 +1084,62 @@ public class DeploymentBundleExportImportService {
         if (manifest.path("activeDraft").path("configs").isMissingNode()) {
             blocking.add("BUNDLE_ACTIVE_DRAFT_CONFIG_MISSING");
         }
+        validateMarketplaceCatalogAvailability(manifest, blocking, warnings);
         return new ImportValidation(schemaValid, integrityValid, blocking, warnings);
+    }
+
+    private void validateMarketplaceCatalogAvailability(JsonNode manifest,
+                                                        List<String> blocking,
+                                                        List<String> warnings) {
+        JsonNode installs = manifest.path("marketplaceInstalls");
+        if (!installs.isArray() || installs.isEmpty()) {
+            return;
+        }
+        JsonNode catalog = manifest.path("marketplaceCatalog");
+        Set<String> bundledPluginIds = catalog.path("plugins").isArray()
+            ? idsIn(catalog.path("plugins"))
+            : Set.of();
+        Set<String> bundledVersionIds = catalog.path("versions").isArray()
+            ? idsIn(catalog.path("versions"))
+            : Set.of();
+
+        for (JsonNode install : installs) {
+            String pluginId = install.path("pluginId").asText(null);
+            if (StringUtils.hasText(pluginId)
+                && !bundledPluginIds.contains(pluginId)
+                && marketplacePluginRepository.findById(pluginId).isEmpty()) {
+                blocking.add("MARKETPLACE_PLUGIN_MISSING: " + pluginId);
+            }
+            String versionId = install.path("pluginVersionId").asText(null);
+            if (StringUtils.hasText(versionId)
+                && !bundledVersionIds.contains(versionId)
+                && marketplacePluginVersionRepository.findById(versionId).isEmpty()) {
+                blocking.add("MARKETPLACE_PLUGIN_VERSION_MISSING: " + versionId);
+            }
+        }
+        if (catalog.isMissingNode() || !catalog.isObject()) {
+            warnings.add("Bundle does not include portable Marketplace catalog rows; target must already have referenced plugins.");
+        }
+    }
+
+    private Set<String> idsIn(JsonNode array) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (array != null && array.isArray()) {
+            array.forEach(item -> {
+                String id = item.path("id").asText(null);
+                if (StringUtils.hasText(id)) {
+                    ids.add(id.trim());
+                }
+            });
+        }
+        return ids;
     }
 
     private RestoreResult cloneAsNew(JsonNode bundle,
                                      DeploymentImportRequest request,
                                      JsonNode decryptedSecrets,
                                      boolean restoreSecrets) {
+        MarketplaceCatalogRestore marketplaceCatalogRestore = restoreMarketplaceCatalog(bundle);
         JsonNode deployment = bundle.path("manifest").path("deployment");
         String name = resolvedNewName(request, bundle);
         String environment = firstNonBlank(
@@ -1031,7 +1160,7 @@ public class DeploymentBundleExportImportService {
         DeploymentEntity createdDeployment = deploymentRepository.findById(created.id())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Imported deployment was not created."));
         DeploymentDraftEntity draft = activeDraft(createdDeployment);
-        ImportConfigRewrite rewrite = restoreMarketplacePluginInstalls(createdDeployment, bundle);
+        ImportConfigRewrite rewrite = restoreMarketplacePluginInstalls(createdDeployment, bundle, marketplaceCatalogRestore);
         overwriteDraftFromBundle(draft, bundle, "IMPORTED", rewrite);
         if (restoreSecrets && decryptedSecrets != null) {
             restoreSecrets(createdDeployment.getId(), decryptedSecrets);
@@ -1044,6 +1173,7 @@ public class DeploymentBundleExportImportService {
     private RestoreResult restoreInPlace(JsonNode bundle,
                                          DeploymentImportRequest request,
                                          JsonNode decryptedSecrets) {
+        MarketplaceCatalogRestore marketplaceCatalogRestore = restoreMarketplaceCatalog(bundle);
         String targetDeploymentId = request == null ? null : request.targetDeploymentId();
         DeploymentEntity deployment = requireDeploymentAdmin(targetDeploymentId);
         DeploymentDraftEntity latestDraft = latestDraft(deployment.getId());
@@ -1053,7 +1183,7 @@ public class DeploymentBundleExportImportService {
         restoredDraft.setDeploymentId(deployment.getId());
         restoredDraft.setRevisionNumber(latestDraft.getRevisionNumber() + 1);
         restoredDraft.setStatus("IMPORTED_RESTORE_DRAFT");
-        ImportConfigRewrite rewrite = restoreMarketplacePluginInstalls(deployment, bundle);
+        ImportConfigRewrite rewrite = restoreMarketplacePluginInstalls(deployment, bundle, marketplaceCatalogRestore);
         copyConfigsFromBundle(restoredDraft, bundle, rewrite);
         restoredDraft.setCreatedAt(now);
         restoredDraft.setUpdatedAt(now);
@@ -1097,11 +1227,99 @@ public class DeploymentBundleExportImportService {
         draft.setMarketplaceDatasetConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "marketplaceDataset"), rewrite)));
     }
 
-    private ImportConfigRewrite restoreMarketplacePluginInstalls(DeploymentEntity deployment, JsonNode bundle) {
+    private MarketplaceCatalogRestore restoreMarketplaceCatalog(JsonNode bundle) {
+        JsonNode catalog = bundle.path("manifest").path("marketplaceCatalog");
+        if (!catalog.isObject()) {
+            return MarketplaceCatalogRestore.empty();
+        }
+        Map<String, String> pluginIdRemap = new LinkedHashMap<>();
+        Map<String, String> versionIdRemap = new LinkedHashMap<>();
+        JsonNode plugins = catalog.path("plugins");
+        if (plugins.isArray()) {
+            for (JsonNode pluginNode : plugins) {
+                if (!pluginNode.isObject()) {
+                    continue;
+                }
+                String sourcePluginId = text(pluginNode, "id");
+                String slug = text(pluginNode, "slug");
+                if (!StringUtils.hasText(sourcePluginId) || !StringUtils.hasText(slug)) {
+                    continue;
+                }
+                MarketplacePluginEntity plugin = marketplacePluginRepository.findById(sourcePluginId)
+                    .filter(existing -> slug.equalsIgnoreCase(existing.getSlug()))
+                    .or(() -> marketplacePluginRepository.findBySlugIgnoreCase(slug))
+                    .orElseGet(MarketplacePluginEntity::new);
+                boolean existing = StringUtils.hasText(plugin.getId());
+                plugin.setId(existing ? plugin.getId() : sourcePluginId);
+                plugin.setSlug(slug);
+                plugin.setDisplayName(firstNonBlank(pluginNode.path("displayName").asText(null), slug));
+                plugin.setPluginType(firstNonBlank(pluginNode.path("pluginType").asText(null), "ACTION"));
+                plugin.setPublisherSlug(firstNonBlank(pluginNode.path("publisherSlug").asText(null), "imported"));
+                plugin.setPublisherDisplayName(firstNonBlank(pluginNode.path("publisherDisplayName").asText(null), "Imported"));
+                plugin.setShortDescription(firstNonBlank(pluginNode.path("shortDescription").asText(null), "Imported Marketplace plugin."));
+                plugin.setStatus(firstNonBlank(pluginNode.path("status").asText(null), "PUBLISHED"));
+                if (plugin.getCreatedAt() == null) {
+                    plugin.setCreatedAt(timeOrNow(pluginNode.path("createdAt").asText(null)));
+                }
+                plugin.setUpdatedAt(Instant.now());
+                marketplacePluginRepository.save(plugin);
+                pluginIdRemap.put(sourcePluginId, plugin.getId());
+            }
+        }
+
+        JsonNode versions = catalog.path("versions");
+        if (versions.isArray()) {
+            for (JsonNode versionNode : versions) {
+                if (!versionNode.isObject()) {
+                    continue;
+                }
+                String sourceVersionId = text(versionNode, "id");
+                String sourcePluginId = text(versionNode, "pluginId");
+                String versionLabel = text(versionNode, "version");
+                if (!StringUtils.hasText(sourceVersionId)
+                    || !StringUtils.hasText(sourcePluginId)
+                    || !StringUtils.hasText(versionLabel)) {
+                    continue;
+                }
+                String targetPluginId = pluginIdRemap.getOrDefault(sourcePluginId, sourcePluginId);
+                MarketplacePluginVersionEntity version = marketplacePluginVersionRepository.findById(sourceVersionId)
+                    .filter(existing -> targetPluginId.equals(existing.getPluginId())
+                        && versionLabel.equalsIgnoreCase(existing.getVersion()))
+                    .or(() -> marketplacePluginVersionRepository.findByPluginIdAndVersion(targetPluginId, versionLabel))
+                    .orElseGet(MarketplacePluginVersionEntity::new);
+                boolean existing = StringUtils.hasText(version.getId());
+                version.setId(existing ? version.getId() : sourceVersionId);
+                version.setPluginId(targetPluginId);
+                version.setVersion(versionLabel);
+                version.setReleaseChannel(firstNonBlank(versionNode.path("releaseChannel").asText(null), "stable"));
+                version.setStatus(firstNonBlank(versionNode.path("status").asText(null), "PUBLISHED"));
+                version.setManifestJson(writeJson(versionNode.path("manifest")));
+                version.setSubmittedByPublisherId(versionNode.path("submittedByPublisherId").asText(null));
+                version.setSubmittedByActorId(versionNode.path("submittedByActorId").asText(null));
+                version.setReviewedByActorId(versionNode.path("reviewedByActorId").asText(null));
+                version.setReviewedAt(timeOrNull(versionNode.path("reviewedAt").asText(null)));
+                version.setReviewNotes(versionNode.path("reviewNotes").asText(null));
+                version.setBundleSha256(versionNode.path("bundleSha256").asText(null));
+                if (version.getCreatedAt() == null) {
+                    version.setCreatedAt(timeOrNow(versionNode.path("createdAt").asText(null)));
+                }
+                if (version.getPublishedAt() == null) {
+                    version.setPublishedAt(timeOrNow(versionNode.path("publishedAt").asText(null)));
+                }
+                marketplacePluginVersionRepository.save(version);
+                versionIdRemap.put(sourceVersionId, version.getId());
+            }
+        }
+        return new MarketplaceCatalogRestore(pluginIdRemap, versionIdRemap);
+    }
+
+    private ImportConfigRewrite restoreMarketplacePluginInstalls(DeploymentEntity deployment,
+                                                                 JsonNode bundle,
+                                                                 MarketplaceCatalogRestore marketplaceCatalogRestore) {
         JsonNode installs = bundle.path("manifest").path("marketplaceInstalls");
         Map<String, String> installIdRemap = new LinkedHashMap<>();
         if (!installs.isArray()) {
-            return ImportConfigRewrite.from(deployment, bundle, installIdRemap);
+            return ImportConfigRewrite.from(deployment, bundle, installIdRemap, marketplaceCatalogRestore);
         }
         Instant now = Instant.now();
         List<PendingMarketplaceInstallRestore> pendingInstalls = new ArrayList<>();
@@ -1117,16 +1335,18 @@ public class DeploymentBundleExportImportService {
                 || !StringUtils.hasText(pluginVersionId)) {
                 continue;
             }
+            String targetPluginId = marketplaceCatalogRestore.pluginId(pluginId);
+            String targetPluginVersionId = marketplaceCatalogRestore.versionId(pluginVersionId);
             DeploymentMarketplacePluginInstallEntity install = marketplacePluginInstallRepository
-                .findByDeploymentIdAndPluginIdAndPluginVersionId(deployment.getId(), pluginId, pluginVersionId)
-                .or(() -> marketplacePluginInstallRepository.findByDeploymentIdAndPluginId(deployment.getId(), pluginId))
+                .findByDeploymentIdAndPluginIdAndPluginVersionId(deployment.getId(), targetPluginId, targetPluginVersionId)
+                .or(() -> marketplacePluginInstallRepository.findByDeploymentIdAndPluginId(deployment.getId(), targetPluginId))
                 .orElseGet(DeploymentMarketplacePluginInstallEntity::new);
             boolean existing = StringUtils.hasText(install.getId());
             install.setId(existing ? install.getId() : generateId("mpi"));
             installIdRemap.put(sourceInstallId, install.getId());
             install.setDeploymentId(deployment.getId());
-            install.setPluginId(pluginId);
-            install.setPluginVersionId(pluginVersionId);
+            install.setPluginId(targetPluginId);
+            install.setPluginVersionId(targetPluginVersionId);
             install.setStatus(firstNonBlank(installNode.path("status").asText(null), "ENABLED"));
             if (install.getCreatedAt() == null) {
                 install.setCreatedAt(now);
@@ -1138,7 +1358,7 @@ public class DeploymentBundleExportImportService {
                 installNode.path("secretRefs").isMissingNode() ? objectMapper.createObjectNode() : installNode.path("secretRefs")
             ));
         }
-        ImportConfigRewrite rewrite = ImportConfigRewrite.from(deployment, bundle, installIdRemap);
+        ImportConfigRewrite rewrite = ImportConfigRewrite.from(deployment, bundle, installIdRemap, marketplaceCatalogRestore);
         for (PendingMarketplaceInstallRestore pendingInstall : pendingInstalls) {
             DeploymentMarketplacePluginInstallEntity install = pendingInstall.install();
             install.setConfigJson(writeJson(rewrittenConfig(pendingInstall.config(), rewrite)));
@@ -1187,6 +1407,14 @@ public class DeploymentBundleExportImportService {
         String remappedInstallId = rewrite.installIdRemap().get(value);
         if (StringUtils.hasText(remappedInstallId)) {
             return remappedInstallId;
+        }
+        String remappedPluginId = rewrite.pluginIdRemap().get(value);
+        if (StringUtils.hasText(remappedPluginId)) {
+            return remappedPluginId;
+        }
+        String remappedVersionId = rewrite.versionIdRemap().get(value);
+        if (StringUtils.hasText(remappedVersionId)) {
+            return remappedVersionId;
         }
         String rewritten = value;
         if (StringUtils.hasText(rewrite.sourceTenantId()) && StringUtils.hasText(rewrite.targetTenantId())) {
@@ -1821,6 +2049,22 @@ public class DeploymentBundleExportImportService {
         return instant == null ? null : instant.toString();
     }
 
+    private Instant timeOrNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Instant.parse(value.trim());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Instant timeOrNow(String value) {
+        Instant parsed = timeOrNull(value);
+        return parsed == null ? Instant.now() : parsed;
+    }
+
     private String firstNonBlank(String primary, String fallback) {
         if (StringUtils.hasText(primary)) {
             return primary.trim();
@@ -1879,7 +2123,25 @@ public class DeploymentBundleExportImportService {
                                                     JsonNode secretRefs) {
     }
 
+    private record MarketplaceCatalogRestore(Map<String, String> pluginIdRemap,
+                                             Map<String, String> versionIdRemap) {
+
+        private static MarketplaceCatalogRestore empty() {
+            return new MarketplaceCatalogRestore(Map.of(), Map.of());
+        }
+
+        private String pluginId(String sourcePluginId) {
+            return pluginIdRemap.getOrDefault(sourcePluginId, sourcePluginId);
+        }
+
+        private String versionId(String sourceVersionId) {
+            return versionIdRemap.getOrDefault(sourceVersionId, sourceVersionId);
+        }
+    }
+
     private record ImportConfigRewrite(Map<String, String> installIdRemap,
+                                       Map<String, String> pluginIdRemap,
+                                       Map<String, String> versionIdRemap,
                                        String sourceTenantId,
                                        String targetTenantId,
                                        String sourceCustomerId,
@@ -1887,10 +2149,13 @@ public class DeploymentBundleExportImportService {
 
         private static ImportConfigRewrite from(DeploymentEntity deployment,
                                                 JsonNode bundle,
-                                                Map<String, String> installIdRemap) {
+                                                Map<String, String> installIdRemap,
+                                                MarketplaceCatalogRestore marketplaceCatalogRestore) {
             JsonNode sourceDeployment = bundle.path("manifest").path("deployment");
             return new ImportConfigRewrite(
                 installIdRemap == null ? Map.of() : Map.copyOf(installIdRemap),
+                marketplaceCatalogRestore == null ? Map.of() : Map.copyOf(marketplaceCatalogRestore.pluginIdRemap()),
+                marketplaceCatalogRestore == null ? Map.of() : Map.copyOf(marketplaceCatalogRestore.versionIdRemap()),
                 sourceDeployment.path("tenantId").asText(null),
                 deployment == null ? null : deployment.getTenantId(),
                 sourceDeployment.path("customerId").asText(null),
@@ -1900,6 +2165,8 @@ public class DeploymentBundleExportImportService {
 
         private boolean isEmpty() {
             return installIdRemap.isEmpty()
+                && pluginIdRemap.isEmpty()
+                && versionIdRemap.isEmpty()
                 && (!StringUtils.hasText(sourceTenantId) || !StringUtils.hasText(targetTenantId) || sourceTenantId.equals(targetTenantId))
                 && (!StringUtils.hasText(sourceCustomerId) || !StringUtils.hasText(targetCustomerId) || sourceCustomerId.equals(targetCustomerId));
         }

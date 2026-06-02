@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentExportRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentImportPreviewRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ExportMode;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ExportRecipient;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ImportMode;
@@ -20,7 +21,11 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificati
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
+import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
+import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretCleanupPolicy;
@@ -67,6 +72,8 @@ class DeploymentBundleExportImportServiceTest {
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
     private final DeploymentManagedVectorResourceRepository managedVectorResourceRepository = mock(DeploymentManagedVectorResourceRepository.class);
     private final DeploymentMarketplacePluginInstallRepository marketplacePluginInstallRepository = mock(DeploymentMarketplacePluginInstallRepository.class);
+    private final MarketplacePluginRepository marketplacePluginRepository = mock(MarketplacePluginRepository.class);
+    private final MarketplacePluginVersionRepository marketplacePluginVersionRepository = mock(MarketplacePluginVersionRepository.class);
     private final DeploymentProviderSecretBindingRepository secretBindingRepository = mock(DeploymentProviderSecretBindingRepository.class);
     private final PlatformSecretRepository platformSecretRepository = mock(PlatformSecretRepository.class);
     private final PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
@@ -597,14 +604,44 @@ class DeploymentBundleExportImportServiceTest {
             "mkv-action-read-v1",
             "ENABLED"
         );
+        MarketplacePluginEntity dataPlugin = marketplacePlugin(
+            "mkp-data-produs-safe-knowledge",
+            "produs-safe-knowledge",
+            "DATA"
+        );
+        MarketplacePluginVersionEntity dataVersion = marketplaceVersion(
+            "mkv-safe-knowledge-v1",
+            dataPlugin.getId(),
+            "1.0.0"
+        );
+        MarketplacePluginEntity actionPlugin = marketplacePlugin(
+            "mkp-action-produs-productization-read-mcp",
+            "produs-productization-read-mcp",
+            "ACTION"
+        );
+        MarketplacePluginVersionEntity actionVersion = marketplaceVersion(
+            "mkv-action-read-v1",
+            actionPlugin.getId(),
+            "1.0.0"
+        );
         stubExportState(sourceDeployment, sourceDraft);
         when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(sourceDeployment.getId()))
             .thenReturn(List.of(dataInstall, actionInstall));
+        when(marketplacePluginRepository.findById(dataPlugin.getId())).thenReturn(Optional.of(dataPlugin));
+        when(marketplacePluginRepository.findById(actionPlugin.getId())).thenReturn(Optional.of(actionPlugin));
+        when(marketplacePluginVersionRepository.findById(dataVersion.getId())).thenReturn(Optional.of(dataVersion));
+        when(marketplacePluginVersionRepository.findById(actionVersion.getId())).thenReturn(Optional.of(actionVersion));
 
         var export = service.exportDeployment(
             sourceDeployment.getId(),
             new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "marketplace lift shift", null, true, true)
         );
+        assertThat(export.bundle().path("manifest").path("marketplaceCatalog").path("plugins"))
+            .extracting(node -> node.path("id").asText())
+            .containsExactlyInAnyOrder(dataPlugin.getId(), actionPlugin.getId());
+        assertThat(export.bundle().path("manifest").path("marketplaceCatalog").path("versions"))
+            .extracting(node -> node.path("id").asText())
+            .containsExactlyInAnyOrder(dataVersion.getId(), actionVersion.getId());
 
         DeploymentEntity importedDeployment = deployment();
         importedDeployment.setId("dep-imported");
@@ -634,6 +671,10 @@ class DeploymentBundleExportImportServiceTest {
         when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
         when(draftRepository.save(any(DeploymentDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(marketplacePluginRepository.save(any(MarketplacePluginEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(marketplacePluginVersionRepository.save(any(MarketplacePluginVersionEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
         when(marketplacePluginInstallRepository.findByDeploymentIdAndPluginIdAndPluginVersionId(
             importedDeployment.getId(),
             "mkp-data-produs-safe-knowledge",
@@ -697,6 +738,56 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(savedDraft.getActionsConfigJson()).doesNotContain("mpi-source-action");
     }
 
+    @Test
+    void importPreviewBlocksMarketplaceBundleWhenTargetMissingUnbundledCatalogRows() {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity sourceDeployment = deployment();
+        DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
+        DeploymentMarketplacePluginInstallEntity dataInstall = marketplaceInstall(
+            "mpi-source-data",
+            sourceDeployment.getId(),
+            "mkp-data-produs-safe-knowledge",
+            "mkv-safe-knowledge-v1",
+            "ENABLED"
+        );
+        stubExportState(sourceDeployment, sourceDraft);
+        when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(sourceDeployment.getId()))
+            .thenReturn(List.of(dataInstall));
+        when(marketplacePluginRepository.findById("mkp-data-produs-safe-knowledge")).thenReturn(Optional.empty());
+        when(marketplacePluginVersionRepository.findById("mkv-safe-knowledge-v1")).thenReturn(Optional.empty());
+
+        var export = service.exportDeployment(
+            sourceDeployment.getId(),
+            new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "old bundle compatibility", null, true, true)
+        );
+        var oldStyleBundle = export.bundle().deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) oldStyleBundle.path("manifest")).remove("marketplaceCatalog");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) oldStyleBundle.path("integrity"))
+            .put("manifestHash", sealingService.sha256(oldStyleBundle.path("manifest")));
+
+        var preview = service.previewImport(new DeploymentImportPreviewRequest(
+            oldStyleBundle,
+            ImportMode.CONFIG_ONLY_CLONE,
+            null,
+            "Imported Deployment",
+            "production-staging",
+            "dtp-coolify-production",
+            "cust-imported",
+            "ten-imported",
+            null,
+            "preview old bundle"
+        ));
+
+        assertThat(preview.blockingIssues())
+            .contains(
+                "MARKETPLACE_PLUGIN_MISSING: mkp-data-produs-safe-knowledge",
+                "MARKETPLACE_PLUGIN_VERSION_MISSING: mkv-safe-knowledge-v1"
+            )
+            .doesNotContain("BUNDLE_INTEGRITY_FAILED");
+        assertThat(preview.warnings())
+            .contains("Bundle does not include portable Marketplace catalog rows; target must already have referenced plugins.");
+    }
+
     private DeploymentBundleExportImportService service() {
         return new DeploymentBundleExportImportService(
             objectMapper,
@@ -708,6 +799,8 @@ class DeploymentBundleExportImportServiceTest {
             resourceHandleRepository,
             managedVectorResourceRepository,
             marketplacePluginInstallRepository,
+            marketplacePluginRepository,
+            marketplacePluginVersionRepository,
             secretBindingRepository,
             platformSecretRepository,
             publicApiDeploymentRepository,
@@ -851,6 +944,36 @@ class DeploymentBundleExportImportServiceTest {
         install.setCreatedAt(now);
         install.setUpdatedAt(now);
         return install;
+    }
+
+    private static MarketplacePluginEntity marketplacePlugin(String id, String slug, String pluginType) {
+        Instant now = Instant.now();
+        MarketplacePluginEntity plugin = new MarketplacePluginEntity();
+        plugin.setId(id);
+        plugin.setSlug(slug);
+        plugin.setDisplayName(slug);
+        plugin.setPluginType(pluginType);
+        plugin.setPublisherSlug("produs");
+        plugin.setPublisherDisplayName("ProdUS");
+        plugin.setShortDescription("ProdUS Marketplace plugin.");
+        plugin.setStatus("PUBLISHED");
+        plugin.setCreatedAt(now);
+        plugin.setUpdatedAt(now);
+        return plugin;
+    }
+
+    private static MarketplacePluginVersionEntity marketplaceVersion(String id, String pluginId, String versionLabel) {
+        Instant now = Instant.now();
+        MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
+        version.setId(id);
+        version.setPluginId(pluginId);
+        version.setVersion(versionLabel);
+        version.setReleaseChannel("stable");
+        version.setStatus("PUBLISHED");
+        version.setManifestJson("{}");
+        version.setCreatedAt(now);
+        version.setPublishedAt(now);
+        return version;
     }
 
     private static VectorizationSourceConnectionEntity vectorizationSourceConnection(String deploymentId, String secretName) {
