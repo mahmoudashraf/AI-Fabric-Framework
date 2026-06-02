@@ -742,7 +742,7 @@ public class DeploymentBundleExportImportService {
                 sources,
                 "vectorization-source-connection:" + connection.getName()
             ));
-        collectSecretRefsFromJson(manifest.path("activeDraft").path("configs"), sources, "active-draft-config");
+        collectDraftSecretRefsFromJson(manifest.path("activeDraft").path("configs"), sources, "active-draft-config");
 
         List<SecretInventoryItem> items = sources.entrySet().stream()
             .filter(entry -> StringUtils.hasText(entry.getKey()))
@@ -783,6 +783,7 @@ public class DeploymentBundleExportImportService {
             || (entity.getScopeType() == PlatformSecretScopeType.DEPLOYMENT_MANAGED && deployment.getId().equals(entity.getDeploymentId()));
         boolean explicitlyBound = sources.stream().anyMatch(source -> source.startsWith("provider-secret-binding")
             || source.startsWith("marketplace-plugin")
+            || source.startsWith("active-draft-config")
             || source.startsWith("managed-vector-resource")
             || source.startsWith("vectorization-source-connection"));
         if (deploymentScoped || explicitlyBound && !SHARED_PROVIDER_SECRETS.contains(normalized)) {
@@ -1351,7 +1352,48 @@ public class DeploymentBundleExportImportService {
         }
     }
 
+    private void collectDraftSecretRefsFromJson(JsonNode node, Map<String, Set<String>> sources, String source) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        if (node.isTextual()) {
+            collectEnvRefsFromText(node.asText(), sources, source);
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(child -> collectDraftSecretRefsFromJson(child, sources, source));
+            return;
+        }
+        if (node.isObject()) {
+            node.fields().forEachRemaining(entry -> {
+                String fieldName = entry.getKey();
+                JsonNode value = entry.getValue();
+                if (value.isTextual()) {
+                    collectEnvRefsFromText(value.asText(), sources, source);
+                    if (isExplicitSecretReferenceField(fieldName)) {
+                        addSource(sources, value.asText(), source + ":" + fieldName);
+                    }
+                } else {
+                    collectDraftSecretRefsFromJson(value, sources, source);
+                }
+            });
+        }
+    }
+
     private void collectSecretRefsFromText(String text, Map<String, Set<String>> sources, String source) {
+        if (!StringUtils.hasText(text)) {
+            return;
+        }
+        collectEnvRefsFromText(text, sources, source);
+        String normalized = text.trim();
+        if (normalized.startsWith("secret://")) {
+            addSource(sources, normalized, source);
+        } else if (looksLikeSecretName(normalized)) {
+            addSource(sources, normalized, source);
+        }
+    }
+
+    private void collectEnvRefsFromText(String text, Map<String, Set<String>> sources, String source) {
         if (!StringUtils.hasText(text)) {
             return;
         }
@@ -1359,12 +1401,22 @@ public class DeploymentBundleExportImportService {
         while (matcher.find()) {
             addSource(sources, matcher.group(1), source);
         }
-        String normalized = text.trim();
-        if (normalized.startsWith("secret://")) {
-            addSource(sources, normalized, source);
-        } else if (looksLikeSecretName(normalized)) {
-            addSource(sources, normalized, source);
-        }
+    }
+
+    private boolean isExplicitSecretReferenceField(String fieldName) {
+        String normalized = fieldName == null ? "" : fieldName.toLowerCase(Locale.ROOT)
+            .replace("-", "")
+            .replace("_", "");
+        return normalized.equals("secretref")
+            || normalized.equals("secretrefs")
+            || normalized.equals("secretreference")
+            || normalized.equals("secretreferences")
+            || normalized.equals("secretname")
+            || normalized.equals("secretrefname")
+            || normalized.equals("apikeysecretname")
+            || normalized.equals("tokensecretname")
+            || normalized.equals("passwordsecretname")
+            || normalized.equals("signingsecretname");
     }
 
     private boolean looksLikeSecretField(String fieldName) {

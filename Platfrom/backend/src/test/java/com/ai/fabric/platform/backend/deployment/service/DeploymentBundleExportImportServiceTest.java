@@ -125,6 +125,49 @@ class DeploymentBundleExportImportServiceTest {
     }
 
     @Test
+    void sealedExportScopesDraftSecretInventoryToExplicitRefsAndEnvRefs() throws Exception {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity deployment = deployment();
+        DeploymentDraftEntity draft = draft(deployment.getId());
+        draft.setProviderConfigJson("""
+            {
+              "runtimeApiKey": "${CONNECTOR_API_KEY}",
+              "authorization": {
+                "tokenHeaderName": "consentToken",
+                "apiKeyHeaderName": "API_KEY_HEADER_SECRET",
+                "secretRef": "MCP_SECRET_PRODUS_STAGING_MCP_API_KEY"
+              },
+              "curatedModuleId": "default"
+            }
+            """);
+        PlatformSecretEntity runtimeSecret = deploymentSecret("CONNECTOR_API_KEY", "connector-runtime-key", deployment.getId());
+        PlatformSecretEntity mcpSecret = deploymentSecret("MCP_SECRET_PRODUS_STAGING_MCP_API_KEY", "produs-mcp-key", deployment.getId());
+        stubExportState(deployment, draft, runtimeSecret, mcpSecret);
+        KeyPair keyPair = rsaKeyPair();
+
+        var summary = service.exportDeployment(
+            deployment.getId(),
+            new DeploymentExportRequest(
+                ExportMode.SEALED_BACKUP,
+                "produs lift shift",
+                new ExportRecipient(OPERATOR_PUBLIC_KEY, publicKeyPem(keyPair)),
+                true,
+                true
+            )
+        );
+
+        assertThat(summary.secretSummary().missingReference()).isZero();
+        assertThat(summary.secretSummary().includedValues()).isEqualTo(2);
+        assertThat(summary.secretSummary().items().stream().map(item -> item.secretName()).toList())
+            .containsExactlyInAnyOrder("CONNECTOR_API_KEY", "MCP_SECRET_PRODUS_STAGING_MCP_API_KEY")
+            .doesNotContain("consentToken", "API_KEY_HEADER_SECRET");
+        assertThat(sealingService.unseal(summary.bundle().path("secretEnvelope"), privateKeyPem(keyPair))
+            .path("secrets")
+            .findValuesAsText("secretName"))
+            .containsExactlyInAnyOrder("CONNECTOR_API_KEY", "MCP_SECRET_PRODUS_STAGING_MCP_API_KEY");
+    }
+
+    @Test
     void restoreInPlaceCreatesNewDraftAndRestoresSealedSecretsWithoutChangingDeploymentId() throws Exception {
         DeploymentBundleExportImportService service = service();
         DeploymentEntity deployment = deployment();
@@ -359,7 +402,7 @@ class DeploymentBundleExportImportServiceTest {
         );
     }
 
-    private void stubExportState(DeploymentEntity deployment, DeploymentDraftEntity draft, PlatformSecretEntity secret) {
+    private void stubExportState(DeploymentEntity deployment, DeploymentDraftEntity draft, PlatformSecretEntity... secrets) {
         when(deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
         when(deploymentAccessService.requireDeploymentAdminAccess(deployment)).thenReturn(deployment);
         when(draftRepository.findById(draft.getId())).thenReturn(Optional.of(draft));
@@ -376,8 +419,10 @@ class DeploymentBundleExportImportServiceTest {
         when(platformSecretRepository.findByScopeTypeAndDeploymentIdOrderByUpdatedAtDesc(
             PlatformSecretScopeType.DEPLOYMENT_MANAGED,
             deployment.getId()
-        )).thenReturn(List.of(secret));
-        when(platformSecretRepository.findById(secret.getName())).thenReturn(Optional.of(secret));
+        )).thenReturn(List.of(secrets));
+        for (PlatformSecretEntity secret : secrets) {
+            when(platformSecretRepository.findById(secret.getName())).thenReturn(Optional.of(secret));
+        }
     }
 
     private static DeploymentEntity deployment() {
