@@ -380,6 +380,14 @@ public class PlatformSecretService {
             )
         );
         secrets.put(
+            "LOOMAI_ASSIGNMENT_API_KEY",
+            new SecretDefinition(
+                "LoomAI Consumer Runtime Assignment API Key",
+                "Scoped machine credential used only by approved consumers to read their current runtime assignment.",
+                false
+            )
+        );
+        secrets.put(
             "PLATFORM_OPERATOR_API_KEY",
             new SecretDefinition(
                 "Platform Operator API Key",
