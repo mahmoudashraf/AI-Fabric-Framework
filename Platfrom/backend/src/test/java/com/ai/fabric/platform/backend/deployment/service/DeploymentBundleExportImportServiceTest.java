@@ -25,6 +25,12 @@ import com.ai.fabric.platform.backend.secret.entity.PlatformSecretOwnerType;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType;
 import com.ai.fabric.platform.backend.secret.repository.DeploymentProviderSecretBindingRepository;
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -57,6 +63,9 @@ class DeploymentBundleExportImportServiceTest {
     private final DeploymentProviderSecretBindingRepository secretBindingRepository = mock(DeploymentProviderSecretBindingRepository.class);
     private final PlatformSecretRepository platformSecretRepository = mock(PlatformSecretRepository.class);
     private final PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
+    private final VectorizationPlanRepository vectorizationPlanRepository = mock(VectorizationPlanRepository.class);
+    private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository = mock(VectorizationSourceConnectionRepository.class);
+    private final VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository = mock(VectorizationPlanRevisionRepository.class);
     private final DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
     private final DeploymentService deploymentService = mock(DeploymentService.class);
     private final PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
@@ -223,6 +232,109 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(requestCaptor.getValue().tenantId()).isNull();
     }
 
+    @Test
+    void sealedCloneRestoresVectorizationControlPlaneFromBundle() throws Exception {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity sourceDeployment = deployment();
+        DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
+        PlatformSecretEntity sourceToken = deploymentSecret("MANAGED_PRODUS_EXPORT_TOKEN", "safe-export-token", sourceDeployment.getId());
+        stubExportState(sourceDeployment, sourceDraft, sourceToken);
+        VectorizationSourceConnectionEntity sourceConnection = vectorizationSourceConnection(sourceDeployment.getId(), sourceToken.getName());
+        VectorizationPlanEntity sourcePlan = vectorizationPlan(sourceDeployment.getId(), sourceConnection.getId());
+        VectorizationPlanRevisionEntity sourceRevision = vectorizationRevision(sourceDeployment.getId(), sourcePlan.getId(), sourceConnection.getId());
+        sourcePlan.setActiveRevisionId(sourceRevision.getId());
+        when(vectorizationSourceConnectionRepository.findByDeploymentId(sourceDeployment.getId())).thenReturn(Optional.of(sourceConnection));
+        when(vectorizationPlanRepository.findByDeploymentId(sourceDeployment.getId())).thenReturn(Optional.of(sourcePlan));
+        when(vectorizationPlanRevisionRepository.findByPlanIdOrderByRevisionNumberDesc(sourcePlan.getId())).thenReturn(List.of(sourceRevision));
+        when(platformSecretRepository.findById(sourceToken.getName())).thenReturn(Optional.of(sourceToken));
+        KeyPair keyPair = rsaKeyPair();
+
+        var export = service.exportDeployment(
+            sourceDeployment.getId(),
+            new DeploymentExportRequest(
+                ExportMode.SEALED_BACKUP,
+                "vectorization lift shift",
+                new ExportRecipient(OPERATOR_PUBLIC_KEY, publicKeyPem(keyPair)),
+                true,
+                true
+            )
+        );
+
+        assertThat(export.bundle().path("manifest").path("vectorizationControlPlane").path("sourceConnection").path("id").asText())
+            .isEqualTo(sourceConnection.getId());
+        assertThat(export.secretSummary().items())
+            .anySatisfy(item -> {
+                assertThat(item.secretName()).isEqualTo(sourceToken.getName());
+                assertThat(item.valueIncluded()).isTrue();
+                assertThat(item.sources()).anyMatch(source -> source.startsWith("vectorization-source-connection"));
+            });
+
+        DeploymentEntity importedDeployment = deployment();
+        importedDeployment.setId("dep-imported");
+        importedDeployment.setName("Imported Deployment");
+        importedDeployment.setEnvironmentName("production-staging");
+        importedDeployment.setCustomerId("cust-imported");
+        importedDeployment.setTenantId("ten-imported");
+        importedDeployment.setActiveDraftId("drf-imported");
+        DeploymentDraftEntity importedDraft = draft(importedDeployment.getId());
+        importedDraft.setId("drf-imported");
+        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenReturn(new DeploymentSummary(
+            importedDeployment.getId(),
+            importedDeployment.getName(),
+            importedDeployment.getEnvironmentName(),
+            importedDeployment.getTemplateId(),
+            null,
+            null,
+            importedDeployment.getStatus(),
+            null,
+            importedDeployment.getRuntimeBaseUrl(),
+            false,
+            false,
+            false,
+            importedDeployment.getCreatedAt()
+        ));
+        when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
+        when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
+        when(draftRepository.save(any(DeploymentDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(platformSecretRepository.save(any(PlatformSecretEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(vectorizationSourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(vectorizationPlanRevisionRepository.save(any(VectorizationPlanRevisionEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(vectorizationPlanRepository.save(any(VectorizationPlanEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.importDeployment(new DeploymentImportRequest(
+            export.bundle(),
+            ImportMode.SEALED_CLONE,
+            null,
+            "Imported Deployment",
+            "production-staging",
+            importedDeployment.getCustomerId(),
+            importedDeployment.getTenantId(),
+            privateKeyPem(keyPair),
+            "sealed clone vectorization"
+        ));
+
+        assertThat(result.deploymentId()).isEqualTo(importedDeployment.getId());
+        ArgumentCaptor<VectorizationSourceConnectionEntity> sourceCaptor = ArgumentCaptor.forClass(VectorizationSourceConnectionEntity.class);
+        verify(vectorizationSourceConnectionRepository).save(sourceCaptor.capture());
+        assertThat(sourceCaptor.getValue().getDeploymentId()).isEqualTo(importedDeployment.getId());
+        assertThat(sourceCaptor.getValue().getCustomerId()).isEqualTo(importedDeployment.getCustomerId());
+        assertThat(sourceCaptor.getValue().getSecretReferencesJson()).contains(sourceToken.getName());
+
+        ArgumentCaptor<VectorizationPlanRevisionEntity> revisionCaptor = ArgumentCaptor.forClass(VectorizationPlanRevisionEntity.class);
+        verify(vectorizationPlanRevisionRepository).save(revisionCaptor.capture());
+        assertThat(revisionCaptor.getValue().getDeploymentId()).isEqualTo(importedDeployment.getId());
+        assertThat(revisionCaptor.getValue().getSourceConnectionId()).isEqualTo(sourceCaptor.getValue().getId());
+        assertThat(revisionCaptor.getValue().getMappingConfigJson()).contains("produs-safe-knowledge");
+
+        ArgumentCaptor<VectorizationPlanEntity> planCaptor = ArgumentCaptor.forClass(VectorizationPlanEntity.class);
+        verify(vectorizationPlanRepository).save(planCaptor.capture());
+        assertThat(planCaptor.getValue().getDeploymentId()).isEqualTo(importedDeployment.getId());
+        assertThat(planCaptor.getValue().getSourceConnectionId()).isEqualTo(sourceCaptor.getValue().getId());
+        assertThat(planCaptor.getValue().getActiveRevisionId()).isEqualTo(revisionCaptor.getValue().getId());
+        assertThat(planCaptor.getValue().getSyncState()).isEqualTo("BOOTSTRAP_REQUIRED");
+    }
+
     private DeploymentBundleExportImportService service() {
         return new DeploymentBundleExportImportService(
             objectMapper,
@@ -237,6 +349,9 @@ class DeploymentBundleExportImportServiceTest {
             secretBindingRepository,
             platformSecretRepository,
             publicApiDeploymentRepository,
+            vectorizationPlanRepository,
+            vectorizationSourceConnectionRepository,
+            vectorizationPlanRevisionRepository,
             deploymentAccessService,
             deploymentService,
             platformAuditService,
@@ -254,6 +369,8 @@ class DeploymentBundleExportImportServiceTest {
         when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).thenReturn(List.of());
         when(resourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).thenReturn(List.of());
         when(managedVectorResourceRepository.findByDeploymentIdOrderByUpdatedAtDesc(deployment.getId())).thenReturn(List.of());
+        when(vectorizationPlanRepository.findByDeploymentId(deployment.getId())).thenReturn(Optional.empty());
+        when(vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId())).thenReturn(Optional.empty());
         when(secretBindingRepository.findByDeploymentIdOrderBySecretPurposeAsc(deployment.getId())).thenReturn(List.of());
         when(publicApiDeploymentRepository.findByDeploymentId(deployment.getId())).thenReturn(List.of());
         when(platformSecretRepository.findByScopeTypeAndDeploymentIdOrderByUpdatedAtDesc(
@@ -314,6 +431,63 @@ class DeploymentBundleExportImportServiceTest {
         secret.setSecretPurpose("runtime");
         secret.setUpdatedAt(Instant.now());
         return secret;
+    }
+
+    private static VectorizationSourceConnectionEntity vectorizationSourceConnection(String deploymentId, String secretName) {
+        Instant now = Instant.now();
+        VectorizationSourceConnectionEntity connection = new VectorizationSourceConnectionEntity();
+        connection.setId("vcn-source");
+        connection.setDeploymentId(deploymentId);
+        connection.setCustomerId("cust-test");
+        connection.setTenantId("ten-test");
+        connection.setName("ProdUS safe knowledge export");
+        connection.setAdapterType("REST_API");
+        connection.setAuthMode("BEARER");
+        connection.setStatus("ACTIVE");
+        connection.setConnectionConfigJson("{\"baseUrl\":\"https://produs-api.example.test\",\"path\":\"/api/ai/loomai/knowledge-export\"}");
+        connection.setSecretReferencesJson("{\"platformSecretRefs\":{\"token\":\"" + secretName + "\"}}");
+        connection.setDiscoverySummaryJson("{\"recordCount\":157}");
+        connection.setCreatedAt(now);
+        connection.setUpdatedAt(now);
+        return connection;
+    }
+
+    private static VectorizationPlanEntity vectorizationPlan(String deploymentId, String sourceConnectionId) {
+        Instant now = Instant.now();
+        VectorizationPlanEntity plan = new VectorizationPlanEntity();
+        plan.setId("vpl-source");
+        plan.setDeploymentId(deploymentId);
+        plan.setCustomerId("cust-test");
+        plan.setTenantId("ten-test");
+        plan.setName("ProdUS vectorization");
+        plan.setStatus("ACTIVE");
+        plan.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        plan.setSyncState("READY");
+        plan.setSyncReasonCodesJson("[]");
+        plan.setSyncReasonDetailsJson("{}");
+        plan.setSourceConnectionId(sourceConnectionId);
+        plan.setCreatedAt(now);
+        plan.setUpdatedAt(now);
+        return plan;
+    }
+
+    private static VectorizationPlanRevisionEntity vectorizationRevision(String deploymentId, String planId, String sourceConnectionId) {
+        Instant now = Instant.now();
+        VectorizationPlanRevisionEntity revision = new VectorizationPlanRevisionEntity();
+        revision.setId("vpr-source");
+        revision.setPlanId(planId);
+        revision.setDeploymentId(deploymentId);
+        revision.setRevisionNumber(3);
+        revision.setStatus("ACTIVE");
+        revision.setSourceConnectionId(sourceConnectionId);
+        revision.setEntityScopeJson("[\"produs-safe-knowledge\"]");
+        revision.setMappingConfigJson("{\"entityMappings\":{\"produs-safe-knowledge\":{\"targetEntityTypeField\":\"vectorSpace\"}}}");
+        revision.setExecutionConfigJson("{\"pageSize\":100,\"batchSize\":100}");
+        revision.setIndexedOutputHash("source-index-hash");
+        revision.setCreatedByActorId("operator-test");
+        revision.setCreatedAt(now);
+        revision.setUpdatedAt(now);
+        return revision;
     }
 
     private static KeyPair rsaKeyPair() throws Exception {

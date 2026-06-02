@@ -43,6 +43,12 @@ import com.ai.fabric.platform.backend.secret.entity.PlatformSecretScopeType;
 import com.ai.fabric.platform.backend.secret.repository.DeploymentProviderSecretBindingRepository;
 import com.ai.fabric.platform.backend.secret.repository.PlatformSecretRepository;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlanRevisionRepository;
+import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -109,6 +115,9 @@ public class DeploymentBundleExportImportService {
     private final DeploymentProviderSecretBindingRepository secretBindingRepository;
     private final PlatformSecretRepository platformSecretRepository;
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
+    private final VectorizationPlanRepository vectorizationPlanRepository;
+    private final VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository;
+    private final VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository;
     private final DeploymentAccessService deploymentAccessService;
     private final DeploymentService deploymentService;
     private final PlatformAuditService platformAuditService;
@@ -126,6 +135,9 @@ public class DeploymentBundleExportImportService {
                                                DeploymentProviderSecretBindingRepository secretBindingRepository,
                                                PlatformSecretRepository platformSecretRepository,
                                                PublicApiDeploymentRepository publicApiDeploymentRepository,
+                                               VectorizationPlanRepository vectorizationPlanRepository,
+                                               VectorizationSourceConnectionRepository vectorizationSourceConnectionRepository,
+                                               VectorizationPlanRevisionRepository vectorizationPlanRevisionRepository,
                                                DeploymentAccessService deploymentAccessService,
                                                DeploymentService deploymentService,
                                                PlatformAuditService platformAuditService,
@@ -142,6 +154,9 @@ public class DeploymentBundleExportImportService {
         this.secretBindingRepository = secretBindingRepository;
         this.platformSecretRepository = platformSecretRepository;
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
+        this.vectorizationPlanRepository = vectorizationPlanRepository;
+        this.vectorizationSourceConnectionRepository = vectorizationSourceConnectionRepository;
+        this.vectorizationPlanRevisionRepository = vectorizationPlanRevisionRepository;
         this.deploymentAccessService = deploymentAccessService;
         this.deploymentService = deploymentService;
         this.platformAuditService = platformAuditService;
@@ -363,6 +378,7 @@ public class DeploymentBundleExportImportService {
         manifest.set("marketplaceInstalls", marketplaceInstallsNode(deployment.getId()));
         manifest.set("providerResourceHandles", providerResourceHandlesNode(deployment.getId()));
         manifest.set("managedVectorResources", managedVectorResourcesNode(deployment.getId()));
+        manifest.set("vectorizationControlPlane", vectorizationControlPlaneNode(deployment.getId()));
         manifest.set("providerSecretBindings", secretBindingsNode(deployment.getId()));
         manifest.set("publicApiBindings", publicApiBindingsNode(deployment.getId()));
 
@@ -585,6 +601,86 @@ public class DeploymentBundleExportImportService {
         return items;
     }
 
+    private ObjectNode vectorizationControlPlaneNode(String deploymentId) {
+        ObjectNode node = objectMapper.createObjectNode();
+        vectorizationPlanRepository.findByDeploymentId(deploymentId)
+            .ifPresent(plan -> node.set("plan", vectorizationPlanNode(plan)));
+        vectorizationSourceConnectionRepository.findByDeploymentId(deploymentId)
+            .ifPresent(connection -> node.set("sourceConnection", vectorizationSourceConnectionNode(connection)));
+        String planId = node.path("plan").path("id").asText(null);
+        ArrayNode revisions = node.putArray("revisions");
+        if (StringUtils.hasText(planId)) {
+            vectorizationPlanRevisionRepository.findByPlanIdOrderByRevisionNumberDesc(planId).stream()
+                .map(this::vectorizationPlanRevisionNode)
+                .forEach(revisions::add);
+        }
+        return node;
+    }
+
+    private ObjectNode vectorizationPlanNode(VectorizationPlanEntity plan) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("id", plan.getId());
+        node.put("deploymentId", plan.getDeploymentId());
+        node.put("customerId", plan.getCustomerId());
+        node.put("tenantId", plan.getTenantId());
+        node.put("name", plan.getName());
+        node.put("status", plan.getStatus());
+        node.put("runnerMode", plan.getRunnerMode());
+        node.put("syncState", plan.getSyncState());
+        node.set("syncReasonCodes", readJson(plan.getSyncReasonCodesJson()));
+        node.set("syncReasonDetails", readJson(plan.getSyncReasonDetailsJson()));
+        node.put("sourceConnectionId", plan.getSourceConnectionId());
+        node.put("activeRevisionId", plan.getActiveRevisionId());
+        node.put("activeIndexedOutputHash", plan.getActiveIndexedOutputHash());
+        node.put("lastSuccessfulIndexedOutputHash", plan.getLastSuccessfulIndexedOutputHash());
+        node.put("manualConfirmationNote", plan.getManualConfirmationNote());
+        node.put("manualConfirmationActorId", plan.getManualConfirmationActorId());
+        node.put("manualConfirmationHash", plan.getManualConfirmationHash());
+        node.put("manuallyConfirmedAt", stringTime(plan.getManuallyConfirmedAt()));
+        node.put("deferredReindexAt", stringTime(plan.getDeferredReindexAt()));
+        node.put("deferredReindexNote", plan.getDeferredReindexNote());
+        node.put("deferredReindexHash", plan.getDeferredReindexHash());
+        node.put("createdAt", stringTime(plan.getCreatedAt()));
+        node.put("updatedAt", stringTime(plan.getUpdatedAt()));
+        return node;
+    }
+
+    private ObjectNode vectorizationSourceConnectionNode(VectorizationSourceConnectionEntity connection) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("id", connection.getId());
+        node.put("deploymentId", connection.getDeploymentId());
+        node.put("customerId", connection.getCustomerId());
+        node.put("tenantId", connection.getTenantId());
+        node.put("name", connection.getName());
+        node.put("adapterType", connection.getAdapterType());
+        node.put("authMode", connection.getAuthMode());
+        node.put("status", connection.getStatus());
+        node.set("connectionConfig", readJson(connection.getConnectionConfigJson()));
+        node.set("secretReferences", readJson(connection.getSecretReferencesJson()));
+        node.set("discoverySummary", readJson(connection.getDiscoverySummaryJson()));
+        node.put("createdAt", stringTime(connection.getCreatedAt()));
+        node.put("updatedAt", stringTime(connection.getUpdatedAt()));
+        return node;
+    }
+
+    private ObjectNode vectorizationPlanRevisionNode(VectorizationPlanRevisionEntity revision) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("id", revision.getId());
+        node.put("planId", revision.getPlanId());
+        node.put("deploymentId", revision.getDeploymentId());
+        node.put("revisionNumber", revision.getRevisionNumber());
+        node.put("status", revision.getStatus());
+        node.put("sourceConnectionId", revision.getSourceConnectionId());
+        node.set("entityScope", readJson(revision.getEntityScopeJson()));
+        node.set("mappingConfig", readJson(revision.getMappingConfigJson()));
+        node.set("executionConfig", readJson(revision.getExecutionConfigJson()));
+        node.put("indexedOutputHash", revision.getIndexedOutputHash());
+        node.put("createdByActorId", revision.getCreatedByActorId());
+        node.put("createdAt", stringTime(revision.getCreatedAt()));
+        node.put("updatedAt", stringTime(revision.getUpdatedAt()));
+        return node;
+    }
+
     private ArrayNode secretBindingsNode(String deploymentId) {
         ArrayNode items = objectMapper.createArrayNode();
         secretBindingRepository.findByDeploymentIdOrderBySecretPurposeAsc(deploymentId)
@@ -640,6 +736,12 @@ public class DeploymentBundleExportImportService {
                 sources,
                 "managed-vector-resource:" + resource.getResourceName()
             ));
+        vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId())
+            .ifPresent(connection -> collectSecretRefsFromJson(
+                readJson(connection.getSecretReferencesJson()),
+                sources,
+                "vectorization-source-connection:" + connection.getName()
+            ));
         collectSecretRefsFromJson(manifest.path("activeDraft").path("configs"), sources, "active-draft-config");
 
         List<SecretInventoryItem> items = sources.entrySet().stream()
@@ -681,7 +783,8 @@ public class DeploymentBundleExportImportService {
             || (entity.getScopeType() == PlatformSecretScopeType.DEPLOYMENT_MANAGED && deployment.getId().equals(entity.getDeploymentId()));
         boolean explicitlyBound = sources.stream().anyMatch(source -> source.startsWith("provider-secret-binding")
             || source.startsWith("marketplace-plugin")
-            || source.startsWith("managed-vector-resource"));
+            || source.startsWith("managed-vector-resource")
+            || source.startsWith("vectorization-source-connection"));
         if (deploymentScoped || explicitlyBound && !SHARED_PROVIDER_SECRETS.contains(normalized)) {
             return SecretClassification.SEALED_EXPORTABLE;
         }
@@ -822,6 +925,7 @@ public class DeploymentBundleExportImportService {
         if (restoreSecrets && decryptedSecrets != null) {
             restoreSecrets(createdDeployment.getId(), decryptedSecrets);
         }
+        restoreVectorizationControlPlane(createdDeployment, bundle);
         return new RestoreResult(createdDeployment.getId(), draft.getId());
     }
 
@@ -850,6 +954,7 @@ public class DeploymentBundleExportImportService {
         if (decryptedSecrets != null) {
             restoreSecrets(deployment.getId(), decryptedSecrets);
         }
+        restoreVectorizationControlPlane(deployment, bundle);
         return new RestoreResult(deployment.getId(), restoredDraft.getId());
     }
 
@@ -909,6 +1014,142 @@ public class DeploymentBundleExportImportService {
             entity.setCleanupPolicy(PlatformSecretCleanupPolicy.DELETE_ON_HARD_DELETE);
             platformSecretRepository.save(entity);
         }
+    }
+
+    private void restoreVectorizationControlPlane(DeploymentEntity deployment, JsonNode bundle) {
+        JsonNode vectorization = bundle.path("manifest").path("vectorizationControlPlane");
+        if (!vectorization.isObject()) {
+            return;
+        }
+        boolean hasControlPlane = vectorization.path("plan").isObject()
+            || vectorization.path("sourceConnection").isObject()
+            || vectorization.path("revisions").isArray() && vectorization.path("revisions").size() > 0;
+        if (!hasControlPlane) {
+            return;
+        }
+
+        String deploymentId = deployment.getId();
+        vectorizationPlanRevisionRepository.deleteByDeploymentId(deploymentId);
+        vectorizationPlanRepository.deleteByDeploymentId(deploymentId);
+        vectorizationSourceConnectionRepository.deleteByDeploymentId(deploymentId);
+
+        Instant now = Instant.now();
+        String oldSourceConnectionId = vectorization.path("sourceConnection").path("id").asText(null);
+        String newSourceConnectionId = null;
+        if (vectorization.path("sourceConnection").isObject()) {
+            newSourceConnectionId = generateId("vcn");
+            VectorizationSourceConnectionEntity connection = new VectorizationSourceConnectionEntity();
+            JsonNode source = vectorization.path("sourceConnection");
+            connection.setId(newSourceConnectionId);
+            connection.setDeploymentId(deploymentId);
+            connection.setCustomerId(importedOwnerValue(deployment.getCustomerId(), source.path("customerId").asText(null), "customer"));
+            connection.setTenantId(importedOwnerValue(deployment.getTenantId(), source.path("tenantId").asText(null), "tenant"));
+            connection.setName(source.path("name").asText("Imported vectorization source"));
+            connection.setAdapterType(source.path("adapterType").asText("REST_API"));
+            connection.setAuthMode(source.path("authMode").asText("NONE"));
+            connection.setStatus(source.path("status").asText("ACTIVE"));
+            connection.setConnectionConfigJson(writeJson(source.path("connectionConfig")));
+            connection.setSecretReferencesJson(writeJson(source.path("secretReferences")));
+            connection.setDiscoverySummaryJson(writeJson(source.path("discoverySummary")));
+            connection.setCreatedAt(now);
+            connection.setUpdatedAt(now);
+            vectorizationSourceConnectionRepository.save(connection);
+        }
+
+        JsonNode planNode = vectorization.path("plan");
+        if (!planNode.isObject()) {
+            return;
+        }
+        String oldPlanId = planNode.path("id").asText(null);
+        String oldActiveRevisionId = planNode.path("activeRevisionId").asText(null);
+        String newPlanId = generateId("vpl");
+        String newActiveRevisionId = null;
+
+        JsonNode revisions = vectorization.path("revisions");
+        if (revisions.isArray()) {
+            for (JsonNode revisionNode : revisions) {
+                if (!revisionNode.isObject()) {
+                    continue;
+                }
+                String newRevisionId = generateId("vpr");
+                if (StringUtils.hasText(oldActiveRevisionId)
+                    && oldActiveRevisionId.equals(revisionNode.path("id").asText(null))) {
+                    newActiveRevisionId = newRevisionId;
+                }
+                VectorizationPlanRevisionEntity revision = new VectorizationPlanRevisionEntity();
+                revision.setId(newRevisionId);
+                revision.setPlanId(newPlanId);
+                revision.setDeploymentId(deploymentId);
+                revision.setRevisionNumber(revisionNode.path("revisionNumber").asInt(1));
+                revision.setStatus(revisionNode.path("status").asText("ACTIVE"));
+                revision.setSourceConnectionId(remapId(revisionNode.path("sourceConnectionId").asText(null), oldSourceConnectionId, newSourceConnectionId));
+                revision.setEntityScopeJson(writeJson(revisionNode.path("entityScope")));
+                revision.setMappingConfigJson(writeJson(revisionNode.path("mappingConfig")));
+                revision.setExecutionConfigJson(writeJson(revisionNode.path("executionConfig")));
+                revision.setIndexedOutputHash(null);
+                revision.setCreatedByActorId(PlatformSecurityContext.actorIdOrSystem());
+                revision.setCreatedAt(now);
+                revision.setUpdatedAt(now);
+                vectorizationPlanRevisionRepository.save(revision);
+            }
+        }
+
+        if (!StringUtils.hasText(newActiveRevisionId)) {
+            newActiveRevisionId = vectorizationPlanRevisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(newPlanId)
+                .map(VectorizationPlanRevisionEntity::getId)
+                .orElse(null);
+        }
+
+        VectorizationPlanEntity plan = new VectorizationPlanEntity();
+        plan.setId(newPlanId);
+        plan.setDeploymentId(deploymentId);
+        plan.setCustomerId(importedOwnerValue(deployment.getCustomerId(), planNode.path("customerId").asText(null), "customer"));
+        plan.setTenantId(importedOwnerValue(deployment.getTenantId(), planNode.path("tenantId").asText(null), "tenant"));
+        plan.setName(planNode.path("name").asText("Imported vectorization plan"));
+        plan.setStatus(planNode.path("status").asText("ACTIVE"));
+        plan.setRunnerMode(planNode.path("runnerMode").asText("PLATFORM_MANAGED_AUTO"));
+        plan.setSyncState("BOOTSTRAP_REQUIRED");
+        plan.setSyncReasonCodesJson("[\"IMPORTED_REINDEX_REQUIRED\"]");
+        ObjectNode reasonDetails = objectMapper.createObjectNode();
+        reasonDetails.put("sourceDeploymentId", sourceDeploymentId(bundle));
+        reasonDetails.put("sourcePlanId", oldPlanId);
+        reasonDetails.put("importedAt", now.toString());
+        reasonDetails.put("reason", "Vectorization control plane restored from deployment bundle; target environment must run its own indexing job.");
+        plan.setSyncReasonDetailsJson(writeJson(reasonDetails));
+        plan.setSourceConnectionId(remapId(planNode.path("sourceConnectionId").asText(null), oldSourceConnectionId, newSourceConnectionId));
+        plan.setActiveRevisionId(newActiveRevisionId);
+        plan.setActiveIndexedOutputHash(null);
+        plan.setLastSuccessfulIndexedOutputHash(null);
+        plan.setLastRunId(null);
+        plan.setLastSuccessfulRunId(null);
+        plan.setManualConfirmationNote(planNode.path("manualConfirmationNote").asText(null));
+        plan.setManualConfirmationActorId(null);
+        plan.setManualConfirmationHash(null);
+        plan.setManuallyConfirmedAt(null);
+        plan.setDeferredReindexAt(null);
+        plan.setDeferredReindexNote(null);
+        plan.setDeferredReindexHash(null);
+        plan.setCreatedAt(now);
+        plan.setUpdatedAt(now);
+        vectorizationPlanRepository.save(plan);
+    }
+
+    private String remapId(String candidate, String oldId, String newId) {
+        if (!StringUtils.hasText(candidate)) {
+            return null;
+        }
+        if (StringUtils.hasText(oldId) && candidate.equals(oldId)) {
+            return newId;
+        }
+        return candidate;
+    }
+
+    private String importedOwnerValue(String deploymentValue, String bundleValue, String kind) {
+        String value = firstNonBlank(deploymentValue, bundleValue);
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        return "imported-" + kind;
     }
 
     private List<String> requiredSecretActions(JsonNode bundle, ImportMode importMode, boolean secretsReadable) {
