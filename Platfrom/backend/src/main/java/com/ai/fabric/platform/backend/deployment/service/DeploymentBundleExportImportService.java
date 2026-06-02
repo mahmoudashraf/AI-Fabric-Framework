@@ -1031,7 +1031,6 @@ public class DeploymentBundleExportImportService {
 
         String deploymentId = deployment.getId();
         vectorizationPlanRevisionRepository.deleteByDeploymentId(deploymentId);
-        vectorizationPlanRepository.deleteByDeploymentId(deploymentId);
         vectorizationSourceConnectionRepository.deleteByDeploymentId(deploymentId);
 
         Instant now = Instant.now();
@@ -1063,11 +1062,12 @@ public class DeploymentBundleExportImportService {
         }
         String oldPlanId = planNode.path("id").asText(null);
         String oldActiveRevisionId = planNode.path("activeRevisionId").asText(null);
-        String newPlanId = generateId("vpl");
+        VectorizationPlanEntity plan = vectorizationPlanRepository.findByDeploymentId(deploymentId)
+            .orElseGet(VectorizationPlanEntity::new);
+        String newPlanId = StringUtils.hasText(plan.getId()) ? plan.getId() : generateId("vpl");
         String newActiveRevisionId = null;
         String lastImportedRevisionId = null;
 
-        VectorizationPlanEntity plan = new VectorizationPlanEntity();
         plan.setId(newPlanId);
         plan.setDeploymentId(deploymentId);
         plan.setCustomerId(importedOwnerValue(deployment.getCustomerId(), planNode.path("customerId").asText(null), "customer"));
@@ -1096,7 +1096,9 @@ public class DeploymentBundleExportImportService {
         plan.setDeferredReindexAt(null);
         plan.setDeferredReindexNote(null);
         plan.setDeferredReindexHash(null);
-        plan.setCreatedAt(now);
+        if (plan.getCreatedAt() == null) {
+            plan.setCreatedAt(now);
+        }
         plan.setUpdatedAt(now);
         vectorizationPlanRepository.save(plan);
 

@@ -47,6 +47,7 @@ import static com.ai.fabric.platform.backend.deployment.model.DeploymentBundleMo
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -323,6 +324,12 @@ class DeploymentBundleExportImportServiceTest {
         importedDeployment.setActiveDraftId("drf-imported");
         DeploymentDraftEntity importedDraft = draft(importedDeployment.getId());
         importedDraft.setId("drf-imported");
+        VectorizationPlanEntity importedBootstrapPlan = vectorizationPlan(importedDeployment.getId(), null);
+        importedBootstrapPlan.setId("vpl-imported-bootstrap");
+        importedBootstrapPlan.setCustomerId(importedDeployment.getCustomerId());
+        importedBootstrapPlan.setTenantId(importedDeployment.getTenantId());
+        importedBootstrapPlan.setName(importedDeployment.getName() + " vectorization");
+        importedBootstrapPlan.setSyncState("BOOTSTRAP_REQUIRED");
         when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenReturn(new DeploymentSummary(
             importedDeployment.getId(),
             importedDeployment.getName(),
@@ -340,6 +347,7 @@ class DeploymentBundleExportImportServiceTest {
         ));
         when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
         when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
+        when(vectorizationPlanRepository.findByDeploymentId(importedDeployment.getId())).thenReturn(Optional.of(importedBootstrapPlan));
         when(draftRepository.save(any(DeploymentDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(platformSecretRepository.save(any(PlatformSecretEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -371,6 +379,7 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(sourceCaptor.getValue().getCustomerId()).isEqualTo(importedDeployment.getCustomerId());
         assertThat(sourceCaptor.getValue().getSecretReferencesJson()).contains(sourceToken.getName());
 
+        verify(vectorizationPlanRepository, never()).deleteByDeploymentId(importedDeployment.getId());
         ArgumentCaptor<VectorizationPlanRevisionEntity> revisionCaptor = ArgumentCaptor.forClass(VectorizationPlanRevisionEntity.class);
         verify(vectorizationPlanRevisionRepository).save(revisionCaptor.capture());
         assertThat(revisionCaptor.getValue().getDeploymentId()).isEqualTo(importedDeployment.getId());
@@ -383,6 +392,7 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(savedPlanActiveRevisionIds).hasSize(2);
         assertThat(savedPlanActiveRevisionIds.get(0)).isNull();
         assertThat(savedPlanActiveRevisionIds.get(1)).isEqualTo(revisionCaptor.getValue().getId());
+        assertThat(finalSavedPlan.getId()).isEqualTo(importedBootstrapPlan.getId());
         assertThat(finalSavedPlan.getDeploymentId()).isEqualTo(importedDeployment.getId());
         assertThat(finalSavedPlan.getSourceConnectionId()).isEqualTo(sourceCaptor.getValue().getId());
         assertThat(finalSavedPlan.getActiveRevisionId()).isEqualTo(revisionCaptor.getValue().getId());
