@@ -357,7 +357,7 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String effectivePrivateRuntimeAcceptedAudiences(JsonNode securityConfig, String deploymentId) {
         String configured = privateRuntimeAcceptedAudiences(securityConfig);
-        return configured.isBlank() ? blankToEmpty(deploymentId) : configured;
+        return csvWithRequiredValue(configured, deploymentId);
     }
 
     public static boolean privateRuntimeUsesPlatformDefaultIssuerPolicy(JsonNode securityConfig) {
@@ -1295,6 +1295,26 @@ public final class ManagedDeploymentProfileCatalog {
 
     private static String blankToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static String csvWithRequiredValue(String configured, String requiredValue) {
+        String normalizedRequired = blankToEmpty(requiredValue);
+        if (configured == null || configured.isBlank()) {
+            return normalizedRequired;
+        }
+        String trimmedConfigured = configured.trim();
+        if (normalizedRequired.isBlank()) {
+            return trimmedConfigured;
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String value : trimmedConfigured.split(",")) {
+            String trimmed = value.trim();
+            if (!trimmed.isBlank()) {
+                values.add(trimmed);
+            }
+        }
+        values.add(normalizedRequired);
+        return String.join(",", values);
     }
 
     private static void addIfPresent(Set<String> target, String value) {

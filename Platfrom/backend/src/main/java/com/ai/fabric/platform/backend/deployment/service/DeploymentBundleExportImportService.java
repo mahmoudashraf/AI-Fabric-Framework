@@ -1575,7 +1575,37 @@ public class DeploymentBundleExportImportService {
         if (StringUtils.hasText(rewrite.sourceCustomerId()) && StringUtils.hasText(rewrite.targetCustomerId())) {
             rewritten = rewritten.replace("/customer/" + rewrite.sourceCustomerId() + "/", "/customer/" + rewrite.targetCustomerId() + "/");
         }
+        if (StringUtils.hasText(rewrite.sourceDeploymentId()) && StringUtils.hasText(rewrite.targetDeploymentId())) {
+            rewritten = rewriteDelimitedCsvValue(rewritten, rewrite.sourceDeploymentId(), rewrite.targetDeploymentId());
+        }
         return rewritten;
+    }
+
+    private String rewriteDelimitedCsvValue(String value, String sourceValue, String targetValue) {
+        if (!StringUtils.hasText(value) || !StringUtils.hasText(sourceValue) || !StringUtils.hasText(targetValue)) {
+            return value;
+        }
+        String trimmed = value.trim();
+        if (trimmed.equals(sourceValue)) {
+            return targetValue;
+        }
+        String[] parts = trimmed.split(",");
+        boolean changed = false;
+        List<String> rewrittenParts = new ArrayList<>();
+        for (String part : parts) {
+            String candidate = part.trim();
+            if (!StringUtils.hasText(candidate)) {
+                continue;
+            }
+            if (candidate.equals(sourceValue)) {
+                candidate = targetValue;
+                changed = true;
+            }
+            if (!rewrittenParts.contains(candidate)) {
+                rewrittenParts.add(candidate);
+            }
+        }
+        return changed ? String.join(",", rewrittenParts) : value;
     }
 
     private JsonNode requiredConfig(JsonNode configs, String name) {
@@ -2293,6 +2323,8 @@ public class DeploymentBundleExportImportService {
     private record ImportConfigRewrite(Map<String, String> installIdRemap,
                                        Map<String, String> pluginIdRemap,
                                        Map<String, String> versionIdRemap,
+                                       String sourceDeploymentId,
+                                       String targetDeploymentId,
                                        String sourceTenantId,
                                        String targetTenantId,
                                        String sourceCustomerId,
@@ -2307,6 +2339,8 @@ public class DeploymentBundleExportImportService {
                 installIdRemap == null ? Map.of() : Map.copyOf(installIdRemap),
                 marketplaceCatalogRestore == null ? Map.of() : Map.copyOf(marketplaceCatalogRestore.pluginIdRemap()),
                 marketplaceCatalogRestore == null ? Map.of() : Map.copyOf(marketplaceCatalogRestore.versionIdRemap()),
+                sourceDeployment.path("id").asText(null),
+                deployment == null ? null : deployment.getId(),
                 sourceDeployment.path("tenantId").asText(null),
                 deployment == null ? null : deployment.getTenantId(),
                 sourceDeployment.path("customerId").asText(null),
@@ -2318,6 +2352,7 @@ public class DeploymentBundleExportImportService {
             return installIdRemap.isEmpty()
                 && pluginIdRemap.isEmpty()
                 && versionIdRemap.isEmpty()
+                && (!StringUtils.hasText(sourceDeploymentId) || !StringUtils.hasText(targetDeploymentId) || sourceDeploymentId.equals(targetDeploymentId))
                 && (!StringUtils.hasText(sourceTenantId) || !StringUtils.hasText(targetTenantId) || sourceTenantId.equals(targetTenantId))
                 && (!StringUtils.hasText(sourceCustomerId) || !StringUtils.hasText(targetCustomerId) || sourceCustomerId.equals(targetCustomerId));
         }

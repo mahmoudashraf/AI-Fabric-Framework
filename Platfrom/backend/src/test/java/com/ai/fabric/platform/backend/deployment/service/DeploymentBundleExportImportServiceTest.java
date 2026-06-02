@@ -680,6 +680,11 @@ class DeploymentBundleExportImportServiceTest {
               ]
             }
             """);
+        sourceDraft.setSecurityConfigJson("""
+            {
+              "privateRuntimeAcceptedAudiences": "dep-test,produs-staging"
+            }
+            """);
         DeploymentMarketplacePluginInstallEntity dataInstall = marketplaceInstall(
             "mpi-source-data",
             sourceDeployment.getId(),
@@ -855,6 +860,8 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(savedDraft.getKnowledgeSourceConfigJson()).contains("tenant/ten-imported");
         assertThat(savedDraft.getActionsConfigJson()).contains(importedActionInstallId);
         assertThat(savedDraft.getActionsConfigJson()).doesNotContain("mpi-source-action");
+        assertThat(savedDraft.getSecurityConfigJson()).contains("dep-imported,produs-staging");
+        assertThat(savedDraft.getSecurityConfigJson()).doesNotContain("dep-test");
     }
 
     @Test
