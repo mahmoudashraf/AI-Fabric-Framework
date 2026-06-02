@@ -19,6 +19,7 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.PublicApiDeploymentRepository;
+import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
@@ -528,6 +529,174 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(secretCaptor.getValue().getSecretValue()).isEqualTo("gateway-secret-value");
     }
 
+    @Test
+    void cloneImportRestoresMarketplaceInstallsAndRewritesDraftConfigReferences() throws Exception {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity sourceDeployment = deployment();
+        sourceDeployment.setCustomerId("cust-source");
+        sourceDeployment.setTenantId("ten-source");
+        DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
+        sourceDraft.setMarketplaceDatasetConfigJson("""
+            {
+              "contractVersion": "MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets": [
+                {
+                  "datasetId": "produs-safe-service-category",
+                  "marketplaceInstallId": "mpi-source-data",
+                  "marketplacePluginId": "mkp-data-produs-safe-knowledge",
+                  "marketplacePluginVersionId": "mkv-safe-knowledge-v1",
+                  "entityType": "service-category",
+                  "storageScope": "PLUGIN_SCOPED",
+                  "sharingScope": "TENANT_SHARED",
+                  "ingestionMode": "EXTERNAL_SYNC_FOLDER",
+                  "updateStrategy": "REPLACE",
+                  "handleRef": "plugin/mkp-data-produs-safe-knowledge/tenant/ten-source/produs-safe-service-category/f1c82e1ca554/service-category",
+                  "datasetHash": "f1c82e1ca554",
+                  "syncConnector": {"folderRef": "classpath:marketplace/produs-safe/*.jsonl"}
+                }
+              ]
+            }
+            """);
+        sourceDraft.setKnowledgeSourceConfigJson("""
+            {
+              "sources": [
+                {
+                  "id": "produs-safe-service-category",
+                  "adapterType": "shared-index",
+                  "marketplaceInstallId": "mpi-source-data",
+                  "handleRef": "plugin/mkp-data-produs-safe-knowledge/tenant/ten-source/produs-safe-service-category/f1c82e1ca554/service-category",
+                  "filters": {
+                    "knowledgeSourceHandleRef": "plugin/mkp-data-produs-safe-knowledge/tenant/ten-source/produs-safe-service-category/f1c82e1ca554/service-category"
+                  }
+                }
+              ]
+            }
+            """);
+        sourceDraft.setActionsConfigJson("""
+            {
+              "actions": [
+                {
+                  "id": "produs_catalog_export",
+                  "marketplaceInstallId": "mpi-source-action",
+                  "adapterType": "mcp-tool"
+                }
+              ]
+            }
+            """);
+        DeploymentMarketplacePluginInstallEntity dataInstall = marketplaceInstall(
+            "mpi-source-data",
+            sourceDeployment.getId(),
+            "mkp-data-produs-safe-knowledge",
+            "mkv-safe-knowledge-v1",
+            "ENABLED"
+        );
+        DeploymentMarketplacePluginInstallEntity actionInstall = marketplaceInstall(
+            "mpi-source-action",
+            sourceDeployment.getId(),
+            "mkp-action-produs-productization-read-mcp",
+            "mkv-action-read-v1",
+            "ENABLED"
+        );
+        stubExportState(sourceDeployment, sourceDraft);
+        when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(sourceDeployment.getId()))
+            .thenReturn(List.of(dataInstall, actionInstall));
+
+        var export = service.exportDeployment(
+            sourceDeployment.getId(),
+            new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "marketplace lift shift", null, true, true)
+        );
+
+        DeploymentEntity importedDeployment = deployment();
+        importedDeployment.setId("dep-imported");
+        importedDeployment.setName("Imported Deployment");
+        importedDeployment.setEnvironmentName("production-staging");
+        importedDeployment.setCustomerId("cust-imported");
+        importedDeployment.setTenantId("ten-imported");
+        importedDeployment.setActiveDraftId("drf-imported");
+        DeploymentDraftEntity importedDraft = draft(importedDeployment.getId());
+        importedDraft.setId("drf-imported");
+        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenReturn(new DeploymentSummary(
+            importedDeployment.getId(),
+            importedDeployment.getName(),
+            importedDeployment.getEnvironmentName(),
+            importedDeployment.getTemplateId(),
+            null,
+            null,
+            importedDeployment.getStatus(),
+            null,
+            importedDeployment.getRuntimeBaseUrl(),
+            false,
+            false,
+            false,
+            importedDeployment.getCreatedAt()
+        ));
+        when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
+        when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
+        when(draftRepository.save(any(DeploymentDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(marketplacePluginInstallRepository.findByDeploymentIdAndPluginIdAndPluginVersionId(
+            importedDeployment.getId(),
+            "mkp-data-produs-safe-knowledge",
+            "mkv-safe-knowledge-v1"
+        )).thenReturn(Optional.empty());
+        when(marketplacePluginInstallRepository.findByDeploymentIdAndPluginIdAndPluginVersionId(
+            importedDeployment.getId(),
+            "mkp-action-produs-productization-read-mcp",
+            "mkv-action-read-v1"
+        )).thenReturn(Optional.empty());
+        when(marketplacePluginInstallRepository.findByDeploymentIdAndPluginId(
+            importedDeployment.getId(),
+            "mkp-data-produs-safe-knowledge"
+        )).thenReturn(Optional.empty());
+        when(marketplacePluginInstallRepository.findByDeploymentIdAndPluginId(
+            importedDeployment.getId(),
+            "mkp-action-produs-productization-read-mcp"
+        )).thenReturn(Optional.empty());
+        when(marketplacePluginInstallRepository.save(any(DeploymentMarketplacePluginInstallEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.importDeployment(new DeploymentImportRequest(
+            export.bundle(),
+            ImportMode.CONFIG_ONLY_CLONE,
+            null,
+            "Imported Deployment",
+            "production-staging",
+            "dtp-coolify-production",
+            importedDeployment.getCustomerId(),
+            importedDeployment.getTenantId(),
+            null,
+            "marketplace import"
+        ));
+
+        ArgumentCaptor<DeploymentMarketplacePluginInstallEntity> installCaptor =
+            ArgumentCaptor.forClass(DeploymentMarketplacePluginInstallEntity.class);
+        verify(marketplacePluginInstallRepository, times(2)).save(installCaptor.capture());
+        String importedDataInstallId = installCaptor.getAllValues().stream()
+            .filter(install -> "mkp-data-produs-safe-knowledge".equals(install.getPluginId()))
+            .findFirst()
+            .orElseThrow()
+            .getId();
+        String importedActionInstallId = installCaptor.getAllValues().stream()
+            .filter(install -> "mkp-action-produs-productization-read-mcp".equals(install.getPluginId()))
+            .findFirst()
+            .orElseThrow()
+            .getId();
+        assertThat(importedDataInstallId).isNotEqualTo("mpi-source-data");
+        assertThat(importedActionInstallId).isNotEqualTo("mpi-source-action");
+
+        ArgumentCaptor<DeploymentDraftEntity> draftCaptor = ArgumentCaptor.forClass(DeploymentDraftEntity.class);
+        verify(draftRepository).save(draftCaptor.capture());
+        DeploymentDraftEntity savedDraft = draftCaptor.getValue();
+        assertThat(savedDraft.getMarketplaceDatasetConfigJson()).contains(importedDataInstallId);
+        assertThat(savedDraft.getMarketplaceDatasetConfigJson()).doesNotContain("mpi-source-data", "ten-source");
+        assertThat(savedDraft.getMarketplaceDatasetConfigJson()).contains("tenant/ten-imported");
+        assertThat(savedDraft.getKnowledgeSourceConfigJson()).contains(importedDataInstallId);
+        assertThat(savedDraft.getKnowledgeSourceConfigJson()).doesNotContain("mpi-source-data", "ten-source");
+        assertThat(savedDraft.getKnowledgeSourceConfigJson()).contains("tenant/ten-imported");
+        assertThat(savedDraft.getActionsConfigJson()).contains(importedActionInstallId);
+        assertThat(savedDraft.getActionsConfigJson()).doesNotContain("mpi-source-action");
+    }
+
     private DeploymentBundleExportImportService service() {
         return new DeploymentBundleExportImportService(
             objectMapper,
@@ -663,6 +832,25 @@ class DeploymentBundleExportImportServiceTest {
         service.setCreatedAt(now);
         service.setUpdatedAt(now);
         return service;
+    }
+
+    private static DeploymentMarketplacePluginInstallEntity marketplaceInstall(String id,
+                                                                               String deploymentId,
+                                                                               String pluginId,
+                                                                               String pluginVersionId,
+                                                                               String status) {
+        Instant now = Instant.now();
+        DeploymentMarketplacePluginInstallEntity install = new DeploymentMarketplacePluginInstallEntity();
+        install.setId(id);
+        install.setDeploymentId(deploymentId);
+        install.setPluginId(pluginId);
+        install.setPluginVersionId(pluginVersionId);
+        install.setStatus(status);
+        install.setConfigJson("{}");
+        install.setSecretRefsJson("{}");
+        install.setCreatedAt(now);
+        install.setUpdatedAt(now);
+        return install;
     }
 
     private static VectorizationSourceConnectionEntity vectorizationSourceConnection(String deploymentId, String secretName) {

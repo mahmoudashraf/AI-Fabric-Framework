@@ -56,6 +56,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -1030,7 +1031,8 @@ public class DeploymentBundleExportImportService {
         DeploymentEntity createdDeployment = deploymentRepository.findById(created.id())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Imported deployment was not created."));
         DeploymentDraftEntity draft = activeDraft(createdDeployment);
-        overwriteDraftFromBundle(draft, bundle, "IMPORTED");
+        ImportConfigRewrite rewrite = restoreMarketplacePluginInstalls(createdDeployment, bundle);
+        overwriteDraftFromBundle(draft, bundle, "IMPORTED", rewrite);
         if (restoreSecrets && decryptedSecrets != null) {
             restoreSecrets(createdDeployment.getId(), decryptedSecrets);
         }
@@ -1051,7 +1053,8 @@ public class DeploymentBundleExportImportService {
         restoredDraft.setDeploymentId(deployment.getId());
         restoredDraft.setRevisionNumber(latestDraft.getRevisionNumber() + 1);
         restoredDraft.setStatus("IMPORTED_RESTORE_DRAFT");
-        copyConfigsFromBundle(restoredDraft, bundle);
+        ImportConfigRewrite rewrite = restoreMarketplacePluginInstalls(deployment, bundle);
+        copyConfigsFromBundle(restoredDraft, bundle, rewrite);
         restoredDraft.setCreatedAt(now);
         restoredDraft.setUpdatedAt(now);
         draftRepository.save(restoredDraft);
@@ -1069,8 +1072,8 @@ public class DeploymentBundleExportImportService {
         return new RestoreResult(deployment.getId(), restoredDraft.getId());
     }
 
-    private void overwriteDraftFromBundle(DeploymentDraftEntity draft, JsonNode bundle, String status) {
-        copyConfigsFromBundle(draft, bundle);
+    private void overwriteDraftFromBundle(DeploymentDraftEntity draft, JsonNode bundle, String status, ImportConfigRewrite rewrite) {
+        copyConfigsFromBundle(draft, bundle, rewrite);
         draft.setStatus(status);
         draft.setUpdatedAt(Instant.now());
         draftRepository.save(draft);
@@ -1081,17 +1084,118 @@ public class DeploymentBundleExportImportService {
         deploymentRepository.save(deployment);
     }
 
-    private void copyConfigsFromBundle(DeploymentDraftEntity draft, JsonNode bundle) {
+    private void copyConfigsFromBundle(DeploymentDraftEntity draft, JsonNode bundle, ImportConfigRewrite rewrite) {
         JsonNode configs = bundle.path("manifest").path("activeDraft").path("configs");
-        draft.setActionsConfigJson(writeJson(requiredConfig(configs, "actions")));
-        draft.setEntityConfigJson(writeJson(requiredConfig(configs, "entities")));
-        draft.setRoutingConfigJson(writeJson(requiredConfig(configs, "routing")));
-        draft.setProviderConfigJson(writeJson(requiredConfig(configs, "provider")));
-        draft.setSecurityConfigJson(writeJson(requiredConfig(configs, "security")));
-        draft.setPromptConfigJson(writeJson(requiredConfig(configs, "prompt")));
-        draft.setKnowledgeSourceConfigJson(writeJson(requiredConfig(configs, "knowledgeSource")));
-        draft.setShellConfigJson(writeJson(requiredConfig(configs, "shell")));
-        draft.setMarketplaceDatasetConfigJson(writeJson(requiredConfig(configs, "marketplaceDataset")));
+        draft.setActionsConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "actions"), rewrite)));
+        draft.setEntityConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "entities"), rewrite)));
+        draft.setRoutingConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "routing"), rewrite)));
+        draft.setProviderConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "provider"), rewrite)));
+        draft.setSecurityConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "security"), rewrite)));
+        draft.setPromptConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "prompt"), rewrite)));
+        draft.setKnowledgeSourceConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "knowledgeSource"), rewrite)));
+        draft.setShellConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "shell"), rewrite)));
+        draft.setMarketplaceDatasetConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "marketplaceDataset"), rewrite)));
+    }
+
+    private ImportConfigRewrite restoreMarketplacePluginInstalls(DeploymentEntity deployment, JsonNode bundle) {
+        JsonNode installs = bundle.path("manifest").path("marketplaceInstalls");
+        Map<String, String> installIdRemap = new LinkedHashMap<>();
+        if (!installs.isArray()) {
+            return ImportConfigRewrite.from(deployment, bundle, installIdRemap);
+        }
+        Instant now = Instant.now();
+        List<PendingMarketplaceInstallRestore> pendingInstalls = new ArrayList<>();
+        for (JsonNode installNode : installs) {
+            if (!installNode.isObject()) {
+                continue;
+            }
+            String sourceInstallId = text(installNode, "id");
+            String pluginId = text(installNode, "pluginId");
+            String pluginVersionId = text(installNode, "pluginVersionId");
+            if (!StringUtils.hasText(sourceInstallId)
+                || !StringUtils.hasText(pluginId)
+                || !StringUtils.hasText(pluginVersionId)) {
+                continue;
+            }
+            DeploymentMarketplacePluginInstallEntity install = marketplacePluginInstallRepository
+                .findByDeploymentIdAndPluginIdAndPluginVersionId(deployment.getId(), pluginId, pluginVersionId)
+                .or(() -> marketplacePluginInstallRepository.findByDeploymentIdAndPluginId(deployment.getId(), pluginId))
+                .orElseGet(DeploymentMarketplacePluginInstallEntity::new);
+            boolean existing = StringUtils.hasText(install.getId());
+            install.setId(existing ? install.getId() : generateId("mpi"));
+            installIdRemap.put(sourceInstallId, install.getId());
+            install.setDeploymentId(deployment.getId());
+            install.setPluginId(pluginId);
+            install.setPluginVersionId(pluginVersionId);
+            install.setStatus(firstNonBlank(installNode.path("status").asText(null), "ENABLED"));
+            if (install.getCreatedAt() == null) {
+                install.setCreatedAt(now);
+            }
+            install.setUpdatedAt(now);
+            pendingInstalls.add(new PendingMarketplaceInstallRestore(
+                install,
+                installNode.path("config").isMissingNode() ? objectMapper.createObjectNode() : installNode.path("config"),
+                installNode.path("secretRefs").isMissingNode() ? objectMapper.createObjectNode() : installNode.path("secretRefs")
+            ));
+        }
+        ImportConfigRewrite rewrite = ImportConfigRewrite.from(deployment, bundle, installIdRemap);
+        for (PendingMarketplaceInstallRestore pendingInstall : pendingInstalls) {
+            DeploymentMarketplacePluginInstallEntity install = pendingInstall.install();
+            install.setConfigJson(writeJson(rewrittenConfig(pendingInstall.config(), rewrite)));
+            install.setSecretRefsJson(writeJson(rewrittenConfig(pendingInstall.secretRefs(), rewrite)));
+            marketplacePluginInstallRepository.save(install);
+        }
+        return rewrite;
+    }
+
+    private JsonNode rewrittenConfig(JsonNode source, ImportConfigRewrite rewrite) {
+        JsonNode copy = source == null ? objectMapper.createObjectNode() : source.deepCopy();
+        if (rewrite == null || rewrite.isEmpty()) {
+            return copy;
+        }
+        return rewriteConfigNode(copy, rewrite);
+    }
+
+    private JsonNode rewriteConfigNode(JsonNode node, ImportConfigRewrite rewrite) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return node;
+        }
+        if (node.isTextual()) {
+            String rewritten = rewriteConfigText(node.asText(), rewrite);
+            return rewritten.equals(node.asText()) ? node : TextNode.valueOf(rewritten);
+        }
+        if (node instanceof ObjectNode objectNode) {
+            List<String> fieldNames = new ArrayList<>();
+            objectNode.fieldNames().forEachRemaining(fieldNames::add);
+            for (String fieldName : fieldNames) {
+                objectNode.set(fieldName, rewriteConfigNode(objectNode.path(fieldName), rewrite));
+            }
+            return objectNode;
+        }
+        if (node instanceof ArrayNode arrayNode) {
+            for (int index = 0; index < arrayNode.size(); index += 1) {
+                arrayNode.set(index, rewriteConfigNode(arrayNode.get(index), rewrite));
+            }
+        }
+        return node;
+    }
+
+    private String rewriteConfigText(String value, ImportConfigRewrite rewrite) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String remappedInstallId = rewrite.installIdRemap().get(value);
+        if (StringUtils.hasText(remappedInstallId)) {
+            return remappedInstallId;
+        }
+        String rewritten = value;
+        if (StringUtils.hasText(rewrite.sourceTenantId()) && StringUtils.hasText(rewrite.targetTenantId())) {
+            rewritten = rewritten.replace("/tenant/" + rewrite.sourceTenantId() + "/", "/tenant/" + rewrite.targetTenantId() + "/");
+        }
+        if (StringUtils.hasText(rewrite.sourceCustomerId()) && StringUtils.hasText(rewrite.targetCustomerId())) {
+            rewritten = rewritten.replace("/customer/" + rewrite.sourceCustomerId() + "/", "/customer/" + rewrite.targetCustomerId() + "/");
+        }
+        return rewritten;
     }
 
     private JsonNode requiredConfig(JsonNode configs, String name) {
@@ -1768,5 +1872,36 @@ public class DeploymentBundleExportImportService {
     }
 
     private record RestoreResult(String deploymentId, String draftId) {
+    }
+
+    private record PendingMarketplaceInstallRestore(DeploymentMarketplacePluginInstallEntity install,
+                                                    JsonNode config,
+                                                    JsonNode secretRefs) {
+    }
+
+    private record ImportConfigRewrite(Map<String, String> installIdRemap,
+                                       String sourceTenantId,
+                                       String targetTenantId,
+                                       String sourceCustomerId,
+                                       String targetCustomerId) {
+
+        private static ImportConfigRewrite from(DeploymentEntity deployment,
+                                                JsonNode bundle,
+                                                Map<String, String> installIdRemap) {
+            JsonNode sourceDeployment = bundle.path("manifest").path("deployment");
+            return new ImportConfigRewrite(
+                installIdRemap == null ? Map.of() : Map.copyOf(installIdRemap),
+                sourceDeployment.path("tenantId").asText(null),
+                deployment == null ? null : deployment.getTenantId(),
+                sourceDeployment.path("customerId").asText(null),
+                deployment == null ? null : deployment.getCustomerId()
+            );
+        }
+
+        private boolean isEmpty() {
+            return installIdRemap.isEmpty()
+                && (!StringUtils.hasText(sourceTenantId) || !StringUtils.hasText(targetTenantId) || sourceTenantId.equals(targetTenantId))
+                && (!StringUtils.hasText(sourceCustomerId) || !StringUtils.hasText(targetCustomerId) || sourceCustomerId.equals(targetCustomerId));
+        }
     }
 }
