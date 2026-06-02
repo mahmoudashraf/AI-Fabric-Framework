@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.security;
 
 import com.ai.fabric.platform.backend.config.PlatformAuthProperties;
+import com.ai.fabric.platform.backend.config.PlatformConsumerRuntimeAssignmentApiProperties;
 import com.ai.fabric.platform.backend.config.PlatformPublicApiProperties;
 import com.ai.fabric.platform.backend.partner.config.PartnerSupabaseAuthProperties;
 import com.ai.fabric.platform.backend.partner.repository.PartnerMemberRepository;
@@ -35,6 +36,7 @@ public class PlatformSecurityConfiguration {
 
     private final PlatformAuthProperties properties;
     private final PlatformPublicApiProperties publicApiProperties;
+    private final PlatformConsumerRuntimeAssignmentApiProperties consumerRuntimeAssignmentApiProperties;
     private final ObjectMapper objectMapper;
     private final PlatformIdentityService platformIdentityService;
     private final PlatformSecretService platformSecretService;
@@ -45,6 +47,7 @@ public class PlatformSecurityConfiguration {
 
     public PlatformSecurityConfiguration(PlatformAuthProperties properties,
                                          PlatformPublicApiProperties publicApiProperties,
+                                         PlatformConsumerRuntimeAssignmentApiProperties consumerRuntimeAssignmentApiProperties,
                                          ObjectMapper objectMapper,
                                          PlatformIdentityService platformIdentityService,
                                          PlatformSecretService platformSecretService,
@@ -54,6 +57,7 @@ public class PlatformSecurityConfiguration {
                                          PartnerMemberRepository partnerMemberRepository) {
         this.properties = properties;
         this.publicApiProperties = publicApiProperties;
+        this.consumerRuntimeAssignmentApiProperties = consumerRuntimeAssignmentApiProperties;
         this.objectMapper = objectMapper;
         this.platformIdentityService = platformIdentityService;
         this.platformSecretService = platformSecretService;
@@ -88,6 +92,13 @@ public class PlatformSecurityConfiguration {
         );
         http.addFilterBefore(
             new PlatformPublicApiAuthenticationFilter(publicApiProperties),
+            AnonymousAuthenticationFilter.class
+        );
+        http.addFilterBefore(
+            new PlatformConsumerRuntimeAssignmentAuthenticationFilter(
+                consumerRuntimeAssignmentApiProperties,
+                platformSecretService
+            ),
             AnonymousAuthenticationFilter.class
         );
         http.addFilterBefore(

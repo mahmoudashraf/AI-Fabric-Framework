@@ -72,6 +72,12 @@ platform:
     client-id-header-name: ${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:X-PLATFORM-CLIENT-ID}
     api-key-header-name: ${PLATFORM_PUBLIC_API_KEY_HEADER:X-PLATFORM-PUBLIC-API-KEY}
     clients: {}
+    consumer-runtime-assignment:
+      enabled: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_ENABLED:false}
+      consumer-id: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_CONSUMER_ID:produs-staging}
+      api-key-header-name: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY_HEADER:X-LOOMAI-ASSIGNMENT-API-KEY}
+      api-key: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY:}
+      api-key-secret-name: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY_SECRET_NAME:LOOMAI_ASSIGNMENT_API_KEY}
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
     signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}

@@ -40,7 +40,7 @@ public class PublicConsumerProvisioningController {
     }
 
     @GetMapping("/{consumerId}/runtime-assignment")
-    @PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
+    @PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR') or @consumerRuntimeAssignmentAccessEvaluator.canAccess(authentication, #consumerId) or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
     public PublicConsumerRuntimeAssignmentResponse getConsumerRuntimeAssignment(@PathVariable String consumerId) {
         return publicProvisioningApiService.getConsumerRuntimeAssignment(consumerId);
     }

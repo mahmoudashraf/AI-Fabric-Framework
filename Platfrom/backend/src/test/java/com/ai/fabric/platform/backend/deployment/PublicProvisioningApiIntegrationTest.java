@@ -51,6 +51,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "platform.public-api.client-id-header-name=X-PLATFORM-CLIENT-ID",
     "platform.public-api.api-key-header-name=X-PLATFORM-PUBLIC-API-KEY",
     "platform.public-api.clients.shopify-dev=shopify-secret",
+    "platform.public-api.consumer-runtime-assignment.enabled=true",
+    "platform.public-api.consumer-runtime-assignment.consumer-id=produs-staging",
+    "platform.public-api.consumer-runtime-assignment.api-key-header-name=X-LOOMAI-ASSIGNMENT-API-KEY",
+    "platform.public-api.consumer-runtime-assignment.api-key=produs-assignment-secret",
     "platform.bootstrap.sample-enabled=false",
     "platform.provisioning.mode=COOLIFY",
     "platform.verification.live-pre-apply-gate-enabled=false",
@@ -412,6 +416,67 @@ class PublicProvisioningApiIntegrationTest {
             .andExpect(jsonPath("$.consumerId", is("storefront-main")))
             .andExpect(jsonPath("$.deploymentId", is(secondDeployment)))
             .andExpect(jsonPath("$.status", notNullValue()));
+    }
+
+    @Test
+    void scopedRuntimeAssignmentKeyOnlyResolvesConfiguredConsumerAssignment() throws Exception {
+        var customer = platformCustomerTenantService.createCustomer(
+            new CreatePlatformCustomerRequest("ProdUS Assignment Contract", "Customer for scoped assignment key")
+        );
+        String produsDeployment = createDeploymentForCustomer(customer.id(), "ProdUS Staging Runtime");
+        String otherDeployment = createDeploymentForCustomer(customer.id(), "Other Runtime");
+        platformCustomerConsumerService.createConsumer(
+            customer.id(),
+            new CreatePlatformConsumerRequest(
+                "produs-staging",
+                "ProdUS staging",
+                "Stable ProdUS staging consumer",
+                produsDeployment,
+                "Bound for scoped runtime assignment."
+            )
+        );
+        platformCustomerConsumerService.createConsumer(
+            customer.id(),
+            new CreatePlatformConsumerRequest(
+                "other-storefront",
+                "Other storefront",
+                "Different consumer",
+                otherDeployment,
+                "Control consumer for assignment scope."
+            )
+        );
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/runtime-assignment", "produs-staging"))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/runtime-assignment", "produs-staging")
+                .header("X-LOOMAI-ASSIGNMENT-API-KEY", "wrong-secret"))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/runtime-assignment", "produs-staging")
+                .header("X-LOOMAI-ASSIGNMENT-API-KEY", "produs-assignment-secret"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.consumerId", is("produs-staging")))
+            .andExpect(jsonPath("$.deploymentId", is(produsDeployment)))
+            .andExpect(jsonPath("$.privateRuntimeAudience", is("produs-staging")))
+            .andExpect(jsonPath("$.privateRuntimeAudienceMode", is("CONSUMER_ID")))
+            .andExpect(jsonPath("$.assignmentRevision", notNullValue()))
+            .andExpect(jsonPath("$.cacheTtlSeconds", is(300)));
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/runtime-assignment", "other-storefront")
+                .header("X-LOOMAI-ASSIGNMENT-API-KEY", "produs-assignment-secret"))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/credentials", "produs-staging")
+                .header("X-LOOMAI-ASSIGNMENT-API-KEY", "produs-assignment-secret"))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/public/consumers/{consumerId}/runtime-assignment", "produs-staging")
+                .header("X-PLATFORM-CLIENT-ID", "shopify-dev")
+                .header("X-PLATFORM-PUBLIC-API-KEY", "shopify-secret"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.consumerId", is("produs-staging")))
+            .andExpect(jsonPath("$.deploymentId", is(produsDeployment)));
     }
 
     private String createDeploymentForCustomer(String customerId, String name) {
