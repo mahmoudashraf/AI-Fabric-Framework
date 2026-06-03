@@ -590,7 +590,7 @@ Execution caveats discovered and corrected:
 
 - production Platform reaches production Coolify internally through `http://coolify:8080`; customer-staging must use that same internal base URL from the production profile, not the external public IP;
 - `runtime-staging.loomai.pro` DNS is not delegated/resolving yet, so customer-staging currently uses temporary `46.225.162.106.sslip.io` domains until DNS is ready;
-- live Coolify is `4.1.1` while the target profile pin remains `4.0.0`, so Platform preflight currently returns `WARNING` instead of `PASSED` even though credentials/network are usable.
+- live Coolify is `4.1.1`; follow-up migration `V124__coolify_production_profiles_pin_4_1_1.sql` advances the production and customer-staging profile pins from `4.0.0` to `4.1.1`, and live preflight now returns `PASSED` for both profiles.
 
 ## Open Questions
 

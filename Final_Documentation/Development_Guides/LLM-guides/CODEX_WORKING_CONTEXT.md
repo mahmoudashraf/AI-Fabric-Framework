@@ -1382,3 +1382,10 @@ Critical fixes that made the gate pass:
 - Because the proof deployment was disposable, production handles `dprh-15a804d9`, `dprh-196b6d8e`, and `dprh-621a36fa` were also deleted and lifecycle-marked `DELETED`; the temporary consumer was unbound/deleted.
 - Hard-delete cleanup operation `del-2beb29fd` completed with `SUCCEEDED`; `GET /api/deployments?includeArchived=true` no longer contains `dep-0f3d99cc`.
 - Verification for follow-up migrations passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyTargetProfileResolverTest,DeploymentPracticalPromotionServiceTest test`; `git diff --check`.
+
+## 2026-06-03 Coolify Production Profile Pin Follow-Up
+
+- Fixed the remaining Coolify preflight warning by adding `V124__coolify_production_profiles_pin_4_1_1.sql`, which updates `apiVersionPinned` from `4.0.0` to verified live Coolify `4.1.1` for `dtp-coolify-production` and `dtp-coolify-prod-staging`.
+- Commit `99a3a07cf` was pushed to `origin/Platform-V10` and production Platform backend was redeployed through Coolify app `adkvp3aqatl1yyrmd58v2yv6`.
+- Live preflight now returns `PASSED` for both `dtp-coolify-prod-staging` and `dtp-coolify-production`, each with version `4.1.1`.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyTargetProfileResolverTest,DeploymentPracticalPromotionServiceTest test`; `git diff --check`.
