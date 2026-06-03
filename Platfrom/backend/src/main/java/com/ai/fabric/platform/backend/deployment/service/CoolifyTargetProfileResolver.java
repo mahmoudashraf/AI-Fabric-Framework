@@ -64,12 +64,14 @@ public class CoolifyTargetProfileResolver {
 
     public CoolifyTargetProfileConfig readConfig(DeploymentTargetProfileEntity profile) {
         JsonNode config = readJson(profile.getProviderConfigJson());
+        JsonNode resourceDefaults = readJson(profile.getResourceDefaultsJson());
+        boolean customerProjectGroupingEnabled = booleanValue(resourceDefaults, "customerProjectGroupingEnabled", false);
         String baseUrl = requireText(config, "baseUrl", profile);
         return new CoolifyTargetProfileConfig(
             stripTrailingSlash(baseUrl),
             requireText(config, "projectUuid", profile),
             requireText(config, "environmentName", profile),
-            requireText(config, "environmentUuid", profile),
+            customerProjectGroupingEnabled ? text(config, "environmentUuid") : requireText(config, "environmentUuid", profile),
             requireText(config, "serverUuid", profile),
             requireText(config, "destinationUuid", profile),
             text(config, "defaultPublicDomainSuffix"),

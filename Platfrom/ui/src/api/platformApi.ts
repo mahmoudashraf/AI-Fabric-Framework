@@ -2133,6 +2133,67 @@ export type DeploymentProviderResourceLogsSummary = {
   fetchedAt: string
 }
 
+export type DeploymentProviderResourceLifecycleSummary = {
+  handleId: string
+  deploymentId: string
+  releaseId: string | null
+  targetProfileId: string
+  providerType: DeploymentProviderType
+  resourceKind: string
+  fqdn: string | null
+  previousStatus: string | null
+  status: string
+  proposedAction: string | null
+  reason: string | null
+  metadata: unknown
+  updatedAt: string
+}
+
+export type DeploymentProviderResourceOrphanScanSummary = {
+  deploymentId: string
+  marked: boolean
+  candidateCount: number
+  candidates: DeploymentProviderResourceLifecycleSummary[]
+  message: string
+}
+
+export type DeploymentPracticalPromotionRequest = {
+  versionId?: string
+  stagingTargetProfileId?: string
+  productionTargetProfileId?: string
+  sourceArtifactId?: string
+}
+
+export type DeploymentPracticalPromotionActivationRequest = {
+  productionReleaseId: string
+  consumerId: string
+  markStagingSuperseded?: boolean
+  reason?: string
+}
+
+export type DeploymentPracticalPromotionRollbackRequest = {
+  consumerId: string
+  rollbackDeploymentId: string
+  rollbackReleaseId: string
+  rollbackTargetProfileId?: string
+  reason?: string
+}
+
+export type DeploymentPracticalPromotionSummary = {
+  status: string
+  message: string
+  deploymentId: string
+  versionId: string
+  stagingTargetProfileId: string
+  productionTargetProfileId: string
+  stagingReleaseId: string | null
+  stagingReleaseStatus: string | null
+  productionReleaseId: string | null
+  productionReleaseStatus: string | null
+  consumer: PlatformConsumerSummary | null
+  resources: DeploymentProviderResourceLifecycleSummary[]
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -3430,6 +3491,9 @@ export type PlatformConsumerSummary = {
   boundDeploymentName: string | null
   boundDeploymentEnvironment: string | null
   boundDeploymentStatus: string | null
+  boundReleaseId: string | null
+  boundReleaseStatus: string | null
+  boundTargetProfileId: string | null
   lastBoundAt: string | null
   createdAt: string
   updatedAt: string
@@ -4585,6 +4649,77 @@ export function fetchDeploymentProviderResourceLogs(handleId: string, lines = 20
   )
 }
 
+export function markDeploymentProviderResourceLifecycleStatus(
+  handleId: string,
+  payload: { status: string; reason?: string },
+) {
+  return request<DeploymentProviderResourceLifecycleSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/lifecycle-status`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function planDeploymentPracticalPromotion(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionRequest = {},
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/plan`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function requestDeploymentPracticalProductionApply(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionRequest = {},
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/production-apply`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function activateDeploymentPracticalProductionConsumer(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionActivationRequest,
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/activate-production-consumer`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function rollbackDeploymentPracticalProductionConsumer(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionRollbackRequest,
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/rollback-production-consumer`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function scanDeploymentPracticalPromotionOrphanResources(deploymentId: string, mark = false) {
+  return request<DeploymentProviderResourceOrphanScanSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/orphan-resources?mark=${encodeURIComponent(String(mark))}`,
+  )
+}
+
 function deploymentProviderResourceAction(
   handleId: string,
   action: 'start' | 'stop' | 'restart',
@@ -5027,6 +5162,8 @@ export function updatePlatformConsumer(customerId: string, consumerId: string, p
 
 export function updatePlatformConsumerBinding(customerId: string, consumerId: string, payload: {
   deploymentId?: string
+  releaseId?: string
+  targetProfileId?: string
   reason?: string
 }) {
   return request<PlatformConsumerSummary>(

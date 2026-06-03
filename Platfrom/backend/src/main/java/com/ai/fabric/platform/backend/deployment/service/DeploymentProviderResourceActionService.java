@@ -7,6 +7,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderPreflig
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceActionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceActionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceHandleSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLifecycleRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLifecycleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLogsSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
@@ -26,12 +28,23 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class DeploymentProviderResourceActionService {
 
     private static final Logger log = LoggerFactory.getLogger(DeploymentProviderResourceActionService.class);
+    private static final Set<String> RESOURCE_LIFECYCLE_STATUSES = Set.of(
+        "ACTIVE",
+        "SUPERSEDED",
+        "ROLLBACK_RESERVED",
+        "FAILED_DIAGNOSTIC_HOLD",
+        "ORPHANED",
+        "RETIRED",
+        "DELETED"
+    );
 
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
     private final DeploymentTargetProfileRepository targetProfileRepository;
@@ -146,6 +159,45 @@ public class DeploymentProviderResourceActionService {
         return logs;
     }
 
+    @Transactional
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentProviderResourceLifecycleSummary markLifecycleStatus(String handleId,
+                                                                          DeploymentProviderResourceLifecycleRequest request) {
+        DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
+        String previousStatus = handle.getStatus();
+        String status = normalizeLifecycleStatus(request == null ? null : request.status());
+        String reason = reason(request == null ? null : new DeploymentProviderResourceActionRequest(request.reason()));
+        handle.setStatus(status);
+        handle.setUpdatedAt(Instant.now());
+        resourceHandleRepository.save(handle);
+        platformAuditService.record(
+            "DEPLOYMENT_PROVIDER_RESOURCE_LIFECYCLE_STATUS_UPDATED",
+            "DEPLOYMENT_PROVIDER_RESOURCE_HANDLE",
+            handle.getId(),
+            Map.of(
+                "deploymentId", handle.getDeploymentId(),
+                "previousStatus", previousStatus == null ? "" : previousStatus,
+                "status", status,
+                "reason", reason
+            )
+        );
+        return new DeploymentProviderResourceLifecycleSummary(
+            handle.getId(),
+            handle.getDeploymentId(),
+            handle.getReleaseId(),
+            handle.getTargetProfileId(),
+            handle.getProviderType(),
+            handle.getResourceKind(),
+            handle.getFqdn(),
+            previousStatus,
+            status,
+            "LIFECYCLE_STATUS_UPDATED",
+            reason,
+            readJson(handle.getMetadataJson()),
+            handle.getUpdatedAt()
+        );
+    }
+
     public DeploymentProviderResourceHandleSummary toSummary(DeploymentProviderResourceHandleEntity handle) {
         return new DeploymentProviderResourceHandleSummary(
             handle.getId(),
@@ -233,6 +285,17 @@ public class DeploymentProviderResourceActionService {
 
     private String reason(DeploymentProviderResourceActionRequest request) {
         return request == null || !StringUtils.hasText(request.reason()) ? "operator_request" : request.reason().trim();
+    }
+
+    private String normalizeLifecycleStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lifecycle status is required.");
+        }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        if (!RESOURCE_LIFECYCLE_STATUSES.contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported lifecycle status: " + status.trim());
+        }
+        return normalized;
     }
 
     @FunctionalInterface

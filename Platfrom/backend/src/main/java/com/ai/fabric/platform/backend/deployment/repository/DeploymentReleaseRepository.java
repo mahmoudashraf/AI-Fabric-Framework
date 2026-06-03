@@ -26,5 +26,16 @@ public interface DeploymentReleaseRepository extends JpaRepository<DeploymentRel
         String deploymentVersionId
     );
 
+    java.util.Optional<DeploymentReleaseEntity> findTopByDeploymentIdAndDeploymentVersionIdAndTargetProfileIdOrderByCreatedAtDesc(
+        String deploymentId,
+        String deploymentVersionId,
+        String targetProfileId
+    );
+
+    List<DeploymentReleaseEntity> findByDeploymentIdAndTargetProfileIdOrderByCreatedAtDesc(
+        String deploymentId,
+        String targetProfileId
+    );
+
     long deleteByDeploymentId(String deploymentId);
 }

@@ -1,9 +1,11 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PublicApiDeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
@@ -32,6 +34,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -253,25 +256,25 @@ public class PublicProvisioningApiService {
 
     public PublicConsumerDeploymentSummary getConsumerDeployment(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
         return toPublicConsumerSummary(resolved.consumer().getConsumerId(), overview);
     }
 
     public PublicConsumerDeploymentStatusResponse getConsumerDeploymentStatus(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
         return toPublicConsumerStatusResponse(resolved.consumer().getConsumerId(), overview);
     }
 
     public PublicConsumerDeploymentCredentialsResponse getConsumerDeploymentCredentials(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
         return toPublicConsumerCredentialsResponse(resolved.consumer().getConsumerId(), overview);
     }
 
     public PublicConsumerRuntimeAssignmentResponse getConsumerRuntimeAssignment(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
         com.fasterxml.jackson.databind.JsonNode securityConfig = latestPublishedSecurityConfig(overview.id());
         PublicDeploymentAccessSummary access = accessSummary(overview, securityConfig);
         PublicDeploymentIntegrationSummary integration = integrationSummary(access);
@@ -308,6 +311,77 @@ public class PublicProvisioningApiService {
             access.runtime(),
             integration.guidance()
         );
+    }
+
+    private DeploymentOverviewSummary overviewForResolvedConsumer(PlatformCustomerConsumerService.ResolvedPublicConsumer resolved) {
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        if (resolved.release() == null) {
+            return overview;
+        }
+        String releaseRuntimeBaseUrl = releaseRuntimeBaseUrl(resolved.release());
+        if (releaseRuntimeBaseUrl == null || releaseRuntimeBaseUrl.isBlank()) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Consumer release binding does not include a runtime URL."
+            );
+        }
+        return new DeploymentOverviewSummary(
+            overview.id(),
+            overview.name(),
+            overview.environment(),
+            overview.templateId(),
+            overview.binding(),
+            overview.source(),
+            overview.access(),
+            overview.status(),
+            overview.activeVersion(),
+            overview.healthStatus(),
+            overview.healthSummary(),
+            releaseRuntimeBaseUrl,
+            releaseConnectorProvisioned(resolved.release()),
+            overview.approvalRequiredForApply(),
+            overview.approvalRequiredForDelete(),
+            releaseLifecycleSnapshot(resolved.release()),
+            overview.latestVerification(),
+            overview.deletion(),
+            overview.archivedAt(),
+            overview.createdAt(),
+            overview.updatedAt()
+        );
+    }
+
+    private DeploymentLifecycleSnapshotSummary releaseLifecycleSnapshot(DeploymentReleaseEntity release) {
+        return new DeploymentLifecycleSnapshotSummary(
+            release.getId(),
+            release.getDeploymentVersionId(),
+            release.getStatus(),
+            release.getProvisioningStatus(),
+            release.getVerificationStatus(),
+            release.getCurrentStepKey(),
+            release.getCurrentStepDescription(),
+            release.getUpdatedAt()
+        );
+    }
+
+    private String releaseRuntimeBaseUrl(DeploymentReleaseEntity release) {
+        JsonNode details = readJson(release.getProvisioningDetailsJson());
+        return normalizeRuntimeBaseUrl(firstNonBlank(
+            details.path("runtimeBaseUrl").asText(null),
+            details.path("runtime").path("baseUrl").asText(null),
+            details.path("railway").path("services").path("runtime").path("baseUrl").asText(null),
+            details.path("runtimeFqdn").asText(null),
+            details.path("fqdn").asText(null)
+        ));
+    }
+
+    private boolean releaseConnectorProvisioned(DeploymentReleaseEntity release) {
+        JsonNode details = readJson(release.getProvisioningDetailsJson());
+        return firstNonBlank(
+            details.path("connectorBaseUrl").asText(null),
+            details.path("restConnector").path("baseUrl").asText(null),
+            details.path("railway").path("services").path("restConnector").path("baseUrl").asText(null),
+            details.path("connectorFqdn").asText(null)
+        ) != null;
     }
 
     public DeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
@@ -920,7 +994,31 @@ public class PublicProvisioningApiService {
     }
 
     private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String normalized = blankToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeRuntimeBaseUrl(String value) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            return normalized;
+        }
+        return "https://" + normalized;
     }
 
     private String preferredPrivateRuntimeIssuer(com.fasterxml.jackson.databind.JsonNode securityConfig) {

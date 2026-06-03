@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PublicApiDeploymentEntity;
@@ -683,5 +684,83 @@ class PublicProvisioningApiServiceTest {
         assertThat(response.endpoints().queryOnceUrl()).isEqualTo("https://runtime-alpha.example/api/chat/me/query-once");
         assertThat(response.endpoints().suggestionsUrl()).isEqualTo("https://runtime-alpha.example/api/chat/me/suggestions");
         assertThat(response.endpoints().healthUrl()).isEqualTo("https://runtime-alpha.example/actuator/health");
+    }
+
+    @Test
+    void consumerRuntimeAssignmentUsesBoundReleaseRuntimeUrl() {
+        PublicApiDeploymentRepository repository = mock(PublicApiDeploymentRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
+
+        PlatformConsumerEntity consumer = new PlatformConsumerEntity();
+        consumer.setConsumerId("consumer-alpha");
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-alpha");
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-alpha");
+        release.setDeploymentId("dep-alpha");
+        release.setDeploymentVersionId("ver-alpha");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setVerificationStatus("PASSED");
+        release.setProvisioningStatus("ACTIVE");
+        release.setProvisioningDetailsJson("{\"runtimeFqdn\":\"release-runtime.example\"}");
+        release.setUpdatedAt(Instant.parse("2026-04-06T12:00:00Z"));
+
+        when(platformCustomerConsumerService.resolvePublicConsumer("consumer-alpha"))
+            .thenReturn(new PlatformCustomerConsumerService.ResolvedPublicConsumer(consumer, deployment, release));
+        when(deploymentService.getDeploymentOverviewForExternalResolution("dep-alpha")).thenReturn(new DeploymentOverviewSummary(
+            "dep-alpha",
+            "Alpha Deployment",
+            "staging",
+            "shopify-companion",
+            null,
+            null,
+            null,
+            "ACTIVE",
+            "v1",
+            "HEALTHY",
+            "ok",
+            "https://latest-runtime.example",
+            true,
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
+            Instant.parse("2026-04-06T12:00:00Z"),
+            Instant.parse("2026-04-06T12:00:00Z")
+        ));
+        DeploymentVersionEntity latestVersion = new DeploymentVersionEntity();
+        latestVersion.setId("ver-alpha");
+        latestVersion.setDeploymentId("dep-alpha");
+        latestVersion.setSecurityConfigJson("""
+            {
+              "privateRuntimeAcceptedIssuers": "platform-consumer-bridge",
+              "privateRuntimeAcceptedAudiences": "consumer-alpha,dep-alpha"
+            }
+            """);
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-alpha"))
+            .thenReturn(List.of(latestVersion));
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+
+        PublicProvisioningApiService service = new PublicProvisioningApiService(
+            repository,
+            deploymentService,
+            deploymentVersionRepository,
+            mock(PlatformAuditService.class),
+            platformSecretService,
+            platformCustomerConsumerService,
+            new ObjectMapper()
+        );
+
+        PublicConsumerRuntimeAssignmentResponse response = service.getConsumerRuntimeAssignment("consumer-alpha");
+
+        assertThat(response.runtimeBaseUrl()).isEqualTo("https://release-runtime.example");
+        assertThat(response.endpoints().chatQueryUrl()).isEqualTo("https://release-runtime.example/api/chat/me/query");
+        assertThat(response.assignmentRevision()).isNotBlank();
     }
 }

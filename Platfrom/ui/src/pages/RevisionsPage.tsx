@@ -456,7 +456,14 @@ function downloadJsonFile(filename: string, value: unknown) {
 }
 
 function targetProfileLabel(profile: DeploymentTargetProfileSummary): string {
-  return `${profile.name} · ${profile.providerType} · ${profile.environmentName}`
+  const intent = profile.id === 'dtp-coolify-production'
+    ? 'Production'
+    : profile.id === 'dtp-coolify-prod-staging'
+      ? 'Customer staging'
+      : profile.id === 'dtp-coolify-staging' || profile.id === 'dtp-coolify-dev-demo'
+        ? 'Dev/demo'
+        : profile.environmentName
+  return `${intent} · ${profile.name} · ${profile.providerType} · ${profile.environmentName}`
 }
 
 export function RevisionsPage() {

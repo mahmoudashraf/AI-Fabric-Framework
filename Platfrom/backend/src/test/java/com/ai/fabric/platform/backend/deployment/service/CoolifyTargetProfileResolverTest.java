@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +47,45 @@ class CoolifyTargetProfileResolverTest {
         assertThat(summary.version()).isEqualTo("4.0.0");
         assertThat(summary.message()).doesNotContain("mock-token");
         assertThat(summary.checks()).contains("credential_resolved", "health_endpoint_ok", "version_endpoint_ok");
+    }
+
+    @Test
+    void customerGroupedProfileCanResolveConfigWithoutDefaultEnvironmentUuid() {
+        CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
+            mock(DeploymentProviderCredentialRepository.class),
+            mock(PlatformSecretService.class),
+            mock(CoolifyApiClient.class),
+            objectMapper
+        );
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setProviderConfigJson("""
+            {"baseUrl":"http://coolify.example","projectUuid":"project","environmentName":"staging","serverUuid":"server","destinationUuid":"destination","apiVersionPinned":"4.0.0"}
+            """);
+        profile.setResourceDefaultsJson("""
+            {"customerProjectGroupingEnabled":true,"customerProjectEnvironmentName":"staging"}
+            """);
+
+        CoolifyTargetProfileConfig config = resolver.readConfig(profile);
+
+        assertThat(config.environmentName()).isEqualTo("staging");
+        assertThat(config.environmentUuid()).isNull();
+    }
+
+    @Test
+    void nonGroupedProfileStillRequiresEnvironmentUuid() {
+        CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
+            mock(DeploymentProviderCredentialRepository.class),
+            mock(PlatformSecretService.class),
+            mock(CoolifyApiClient.class),
+            objectMapper
+        );
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setProviderConfigJson("""
+            {"baseUrl":"http://coolify.example","projectUuid":"project","environmentName":"staging","serverUuid":"server","destinationUuid":"destination","apiVersionPinned":"4.0.0"}
+            """);
+
+        assertThatThrownBy(() -> resolver.readConfig(profile))
+            .hasMessageContaining("environmentUuid");
     }
 
     private DeploymentProviderCredentialEntity credential() {

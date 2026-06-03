@@ -30,8 +30,14 @@ public class PlatformConsumerEntity {
     @Column(nullable = false, length = 64)
     private String status;
 
-    @Column(length = 64, unique = true)
+    @Column(length = 64)
     private String boundDeploymentId;
+
+    @Column(length = 64)
+    private String boundReleaseId;
+
+    @Column(length = 64)
+    private String boundTargetProfileId;
 
     private Instant lastBoundAt;
 
@@ -95,6 +101,22 @@ public class PlatformConsumerEntity {
 
     public void setBoundDeploymentId(String boundDeploymentId) {
         this.boundDeploymentId = boundDeploymentId;
+    }
+
+    public String getBoundReleaseId() {
+        return boundReleaseId;
+    }
+
+    public void setBoundReleaseId(String boundReleaseId) {
+        this.boundReleaseId = boundReleaseId;
+    }
+
+    public String getBoundTargetProfileId() {
+        return boundTargetProfileId;
+    }
+
+    public void setBoundTargetProfileId(String boundTargetProfileId) {
+        this.boundTargetProfileId = boundTargetProfileId;
     }
 
     public Instant getLastBoundAt() {

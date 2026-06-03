@@ -13,6 +13,13 @@ public interface DeploymentProviderResourceHandleRepository extends JpaRepositor
 
     List<DeploymentProviderResourceHandleEntity> findByDeploymentIdOrderByUpdatedAtDesc(String deploymentId);
 
+    List<DeploymentProviderResourceHandleEntity> findByReleaseIdOrderByUpdatedAtDesc(String releaseId);
+
+    List<DeploymentProviderResourceHandleEntity> findByDeploymentIdAndTargetProfileIdOrderByUpdatedAtDesc(
+        String deploymentId,
+        String targetProfileId
+    );
+
     List<DeploymentProviderResourceHandleEntity> findByTargetProfileIdOrderByUpdatedAtDesc(String targetProfileId);
 
     List<DeploymentProviderResourceHandleEntity> findByProviderTypeOrderByUpdatedAtDesc(DeploymentProviderType providerType);

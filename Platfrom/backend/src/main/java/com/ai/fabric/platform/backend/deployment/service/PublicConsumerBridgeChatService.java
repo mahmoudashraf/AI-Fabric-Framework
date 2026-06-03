@@ -138,15 +138,15 @@ public class PublicConsumerBridgeChatService {
     private ResolvedConsumerRuntime resolveConsumerRuntime(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
         DeploymentEntity deployment = resolved.deployment();
-        if (!StringUtils.hasText(deployment.getRuntimeBaseUrl())) {
+        PublicConsumerDeploymentCredentialsResponse credentials =
+            publicProvisioningApiService.getConsumerDeploymentCredentials(resolved.consumer().getConsumerId());
+        if (!StringUtils.hasText(credentials.runtimeBaseUrl())) {
             throw new ResponseStatusException(
                 BAD_REQUEST,
                 "Deployment runtime URL is not available for consumer '" + resolved.consumer().getConsumerId()
                     + "'. Apply the deployment before enabling storefront chat."
             );
         }
-        PublicConsumerDeploymentCredentialsResponse credentials =
-            publicProvisioningApiService.getConsumerDeploymentCredentials(resolved.consumer().getConsumerId());
         return new ResolvedConsumerRuntime(resolved.consumer().getConsumerId(), deployment, credentials);
     }
 
@@ -165,7 +165,7 @@ public class PublicConsumerBridgeChatService {
                 );
             }
             HttpResponse<String> response = sendRequest(
-                runtimeUri(resolved.deployment().getRuntimeBaseUrl(), path),
+                runtimeUri(resolved.credentials().runtimeBaseUrl(), path),
                 method,
                 body,
                 runtimeHeaders
