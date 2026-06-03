@@ -562,6 +562,36 @@ Use this practical model as the preferred direction:
 - export/import: backup, restore, clone, migration, disaster recovery.
 - no indefinite ghost deployments: staging, previous production, and failed resources must have explicit retention, stop, delete, or orphan status.
 
+## 2026-06-03 Live Proof Status
+
+This model was implemented and proved live on production Platform/Coolify with a disposable deployment.
+
+Implemented control-plane support:
+
+- release-bound consumer assignment with `bound_release_id` and `bound_target_profile_id`;
+- `dtp-coolify-prod-staging` customer-staging target profile;
+- practical promotion endpoints for plan, production apply, production consumer activation, rollback, and orphan scan;
+- provider resource lifecycle marking endpoint;
+- public consumer/runtime assignment resolution by verified bound release.
+
+Live proof evidence:
+
+- disposable deployment: `dep-0f3d99cc`;
+- published version: `ver-4d6e7b92`;
+- customer-staging release: `rel-54d2b3de`, final `APPLIED_VERIFIED` / `PASSED`;
+- production release: `rel-6696c852`, final `APPLIED_VERIFIED` / `PASSED`;
+- temporary consumer: `codex-practical-e2e-20260603003939`;
+- production assignment runtime: `http://dep-0f3d99cc.46.225.162.106.sslip.io`;
+- staging resources were deleted through provider resource DELETE and lifecycle-marked `DELETED`;
+- disposable production resources were also deleted after proof;
+- hard-delete cleanup operation `del-2beb29fd` completed `SUCCEEDED`.
+
+Execution caveats discovered and corrected:
+
+- production Platform reaches production Coolify internally through `http://coolify:8080`; customer-staging must use that same internal base URL from the production profile, not the external public IP;
+- `runtime-staging.loomai.pro` DNS is not delegated/resolving yet, so customer-staging currently uses temporary `46.225.162.106.sslip.io` domains until DNS is ready;
+- live Coolify is `4.1.1` while the target profile pin remains `4.0.0`, so Platform preflight currently returns `WARNING` instead of `PASSED` even though credentials/network are usable.
+
 ## Open Questions
 
 1. Should customer staging on the production Coolify server use H2 or Postgres by default?

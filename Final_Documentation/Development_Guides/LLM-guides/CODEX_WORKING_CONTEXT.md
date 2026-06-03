@@ -1369,3 +1369,16 @@ Critical fixes that made the gate pass:
 - UI/API updates: Platform API types/functions for practical promotion/lifecycle, Revisions target-profile labels now show Dev/demo / Customer staging / Production intent, and Customers page shows bound release/profile details.
 - `010_15_CLONE_BASED_PRODUCTION_PROMOTION_AND_ASSIGNMENT_PLAN.md` is now documented as alternate clone/backup/DR/migration flow, not the normal day-to-day production promotion path.
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentPracticalPromotionServiceTest,PublicProvisioningApiServiceTest test`; `mvn -f Platfrom/backend/pom.xml -DskipTests compile`; `npm --prefix Platfrom/ui run build`; `git diff --check`.
+
+## 2026-06-03 Practical Promotion Live E2E Proof
+
+- Production Platform backend was redeployed on Coolify from `Platform-V10` to include practical-promotion commits through `2fd83540c`.
+- Added and pushed follow-up migrations: `V121__prod_staging_coolify_internal_connection.sql` fixes `dtp-coolify-prod-staging` to reuse the production in-container Coolify base URL `http://coolify:8080`; `V122__prod_staging_temporary_sslip_domain.sql` and `V123__prod_staging_sslip_domain_jsonb_match.sql` switch the customer-staging generated runtime suffix to temporary `46.225.162.106.sslip.io` until `runtime-staging.loomai.pro` DNS exists.
+- Live preflight for both `dtp-coolify-prod-staging` and `dtp-coolify-production` reached Coolify and returned `WARNING` only because live Coolify is `4.1.1` while the profile pin remains `4.0.0`; no credential/network failure remained.
+- Disposable live proof succeeded on production Platform/Coolify: deployment `dep-0f3d99cc`, version `ver-4d6e7b92`, customer-staging release `rel-54d2b3de`, production release `rel-6696c852`.
+- Customer-staging apply reached `APPLIED_VERIFIED` with verification `PASSED`; practical promotion plan returned `READY`; production apply reached `APPLIED_VERIFIED` with verification `PASSED`.
+- Temporary consumer `codex-practical-e2e-20260603003939` was activated through `/practical-promotion/activate-production-consumer` with `markStagingSuperseded=true`; runtime assignment resolved `http://dep-0f3d99cc.46.225.162.106.sslip.io`.
+- Supported decommission/delete flow was exercised: staging handles `dprh-924eacfe` (Postgres), `dprh-627972a4` (runtime app), and `dprh-7edea993` (connector app) were deleted through provider resource DELETE; provider absence checks returned `404`; lifecycle was marked `DELETED`.
+- Because the proof deployment was disposable, production handles `dprh-15a804d9`, `dprh-196b6d8e`, and `dprh-621a36fa` were also deleted and lifecycle-marked `DELETED`; the temporary consumer was unbound/deleted.
+- Hard-delete cleanup operation `del-2beb29fd` completed with `SUCCEEDED`; `GET /api/deployments?includeArchived=true` no longer contains `dep-0f3d99cc`.
+- Verification for follow-up migrations passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyTargetProfileResolverTest,DeploymentPracticalPromotionServiceTest test`; `git diff --check`.
