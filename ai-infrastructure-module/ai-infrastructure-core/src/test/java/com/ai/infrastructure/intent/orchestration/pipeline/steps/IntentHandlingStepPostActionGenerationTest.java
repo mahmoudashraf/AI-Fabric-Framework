@@ -307,6 +307,7 @@ class IntentHandlingStepPostActionGenerationTest {
 
         PipelineContext context = PipelineContext.from("Compare Liquid and Oxygen", OrchestrationContext.forUser("user-1"))
             .toBuilder()
+            .orchestrationPolicy(forceGroundingEligibleReadActionPostGenerationPolicy())
             .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
             .build();
 
@@ -321,6 +322,117 @@ class IntentHandlingStepPostActionGenerationTest {
 
         verify(handler).executeAction(any(), any());
         verify(aiCoreService).generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION));
+    }
+
+    @Test
+    void shouldUseDeterministicFallbackForForcedGroundingEligibleReadActionWhenGenerationFails() {
+        AIActionRegistry registry = mock(AIActionRegistry.class);
+        AIActionHandler handler = mock(AIActionHandler.class);
+        AIActionMetaData metadata = AIActionMetaData.builder()
+            .name("produs_catalog_search")
+            .accessMode(ActionAccessMode.READ)
+            .groundingEligible(true)
+            .anonymousAllowed(true)
+            .build();
+        when(registry.findHandler("produs_catalog_search")).thenReturn(Optional.of(handler));
+        when(registry.findMetadata("produs_catalog_search")).thenReturn(Optional.of(metadata));
+        when(handler.validateActionAllowed(any())).thenReturn(true);
+
+        ActionResult actionResult = ActionResult.builder()
+            .success(true)
+            .message("Action executed.")
+            .data(ActionResultContracts.object(Map.of(
+                "adapterType", "mcp-tool",
+                "mcpToolName", "produs.catalog.search",
+                "toolResult", Map.of(
+                    "content", List.of(Map.of(
+                        "type", "text",
+                        "text", """
+                            {
+                              "status": "OK",
+                              "tool": "produs.catalog.search",
+                              "categories": [
+                                {"name": "Validation"},
+                                {"name": "Launch Readiness"}
+                              ],
+                              "packageTemplates": [
+                                {"name": "SaaS Launch Readiness"}
+                              ]
+                            }
+                            """
+                    )),
+                    "isError", false
+                )
+            )))
+            .build();
+        when(handler.executeAction(any(), any())).thenReturn(actionResult);
+        when(handler.buildPostActionLlmFacts(eq(actionResult), any())).thenReturn(Optional.of(Map.of(
+            "success", true,
+            "message", "Action executed."
+        )));
+
+        AICoreService aiCoreService = mock(AICoreService.class);
+        when(aiCoreService.generateContent(any(AIGenerationRequest.class), eq(LlmPurpose.GENERATION)))
+            .thenThrow(new RuntimeException("provider down"));
+
+        IntentHandlingStep step = new IntentHandlingStep(
+            registry,
+            providerOf((RAGProvider) null),
+            aiCoreService,
+            mock(AIServiceConfig.class),
+            providerOf((AdvancedRAGProvider) null),
+            new VectorSpaceRoutingProperties(),
+            new RankBasedMerger(),
+            new RelationshipQueryPostActionGenerationProperties(),
+            new PostActionGenerationProperties(),
+            providerOf(new ObjectMapper()),
+            new OrchestrationProperties(),
+            providerOf((KnowledgeBaseOverviewService) null),
+            null,
+            new InMemoryPendingActionStore(),
+            new InMemoryActionDraftStore(),
+            promptTemplateResolver(),
+            new PromptRenderer()
+        );
+
+        Intent intent = Intent.builder()
+            .type(IntentType.ACTION)
+            .action("produs_catalog_search")
+            .requiresGeneration(false)
+            .actionParams(Map.of())
+            .build();
+
+        PipelineContext context = PipelineContext.from("Give me services in details", OrchestrationContext.forUser("user-1"))
+            .toBuilder()
+            .orchestrationPolicy(forceGroundingEligibleReadActionPostGenerationPolicy())
+            .intentResponse(MultiIntentResponse.builder().intents(List.of(intent)).build())
+            .build();
+
+        PipelineContext updated = step.process(context);
+        OrchestrationResult result = updated.getIntentResult();
+
+        assertThat(result.getType()).isEqualTo(OrchestrationResultType.ACTION_EXECUTED);
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage())
+            .contains("grounded evidence")
+            .doesNotContain("Action executed");
+        assertThat(result.getData())
+            .containsEntry("summary", result.getMessage())
+            .containsEntry("answer", result.getMessage());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> generationMetadata = (Map<String, Object>) result.getData().get("postActionGeneration");
+        assertThat(generationMetadata)
+            .containsEntry("used", false)
+            .containsEntry("skippedReason", "generation_failed")
+            .containsEntry("deterministicFallbackUsed", true);
+
+        verify(handler).executeAction(any(), any());
+        ArgumentCaptor<AIGenerationRequest> generationRequest = ArgumentCaptor.forClass(AIGenerationRequest.class);
+        verify(aiCoreService).generateContent(generationRequest.capture(), eq(LlmPurpose.GENERATION));
+        assertThat(generationRequest.getValue().getPrompt())
+            .contains("actionResultData")
+            .contains("produs.catalog.search")
+            .contains("SaaS Launch Readiness");
     }
 
     @Test
@@ -582,6 +694,31 @@ class IntentHandlingStepPostActionGenerationTest {
         return new PromptTemplateResolver(
             new ClasspathPromptTemplateStore(new DefaultResourceLoader()),
             new PromptBundleProperties()
+        );
+    }
+
+    private OrchestrationPolicy forceGroundingEligibleReadActionPostGenerationPolicy() {
+        return new OrchestrationPolicy(
+            OrchestrationProfile.PRODUCTION_CHAT,
+            "thinker",
+            null,
+            OrchestrationProperties.InformationMode.LLM_DRIVEN,
+            new OrchestrationPolicy.OrchestrationCapabilities(
+                false,
+                true,
+                true,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                true,
+                true,
+                false,
+                true
+            ),
+            OrchestrationPolicy.RagBudgets.defaults()
         );
     }
 }

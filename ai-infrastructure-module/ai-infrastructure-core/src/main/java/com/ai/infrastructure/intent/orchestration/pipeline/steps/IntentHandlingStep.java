@@ -386,7 +386,7 @@ public class IntentHandlingStep implements PipelineStep {
         if (policy != null
             && policy.capabilities() != null
             && !policy.capabilities().actionsEnabled()
-            && !isReadActionExecutionAllowedByReadResolutionPolicy(actionName, meta, policy)) {
+            && !isReadActionAllowedWhenActionsDisabled(actionName, meta, policy)) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("reason", "ACTIONS_DISABLED_BY_POLICY");
             return OrchestrationResult.builder()
@@ -676,6 +676,7 @@ public class IntentHandlingStep implements PipelineStep {
                 enriched.put("postActionGeneration", postActionGeneration.metadata());
                 if (postActionGeneration.summary() != null) {
                     enriched.put("summary", postActionGeneration.summary());
+                    enriched.put(DATA_KEY_ANSWER, postActionGeneration.summary());
                 }
                 resultData = Collections.unmodifiableMap(enriched);
             }
@@ -3075,25 +3076,34 @@ public class IntentHandlingStep implements PipelineStep {
         try {
             generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.GENERATION);
         } catch (Exception ex) {
-            Map<String, Object> metadata = Map.of(
-                "used", false,
-                "skippedReason", "generation_failed",
-                "error", ex.getMessage(),
-                "includedItems", facts.includedItems(),
-                "truncated", facts.truncated()
+            Map<String, Object> metadata = postActionGenerationSkippedMetadata(
+                "generation_failed",
+                ex.getMessage(),
+                facts
             );
+            if (request != null && request.forced()) {
+                String fallback = deterministicPostActionSummary(actionName, actionResult, relationshipData);
+                if (StringUtils.hasText(fallback) && hasAnswerablePostActionFacts(relationshipData)) {
+                    return new PostActionGenerationOutcome(fallback, fallback, withDeterministicFallbackMetadata(metadata));
+                }
+            }
             String message = StringUtils.hasText(actionResult.getMessage()) ? actionResult.getMessage() : null;
             return new PostActionGenerationOutcome(null, message, metadata);
         }
 
         String summary = generationResponse != null ? generationResponse.getContent() : null;
         if (!StringUtils.hasText(summary)) {
-            Map<String, Object> metadata = Map.of(
-                "used", false,
-                "skippedReason", "empty_generation_response",
-                "includedItems", facts.includedItems(),
-                "truncated", facts.truncated()
+            Map<String, Object> metadata = postActionGenerationSkippedMetadata(
+                "empty_generation_response",
+                null,
+                facts
             );
+            if (request != null && request.forced()) {
+                String fallback = deterministicPostActionSummary(actionName, actionResult, relationshipData);
+                if (StringUtils.hasText(fallback) && hasAnswerablePostActionFacts(relationshipData)) {
+                    return new PostActionGenerationOutcome(fallback, fallback, withDeterministicFallbackMetadata(metadata));
+                }
+            }
             return new PostActionGenerationOutcome(null, StringUtils.hasText(actionResult.getMessage()) ? actionResult.getMessage() : null, metadata);
         }
 
@@ -3172,7 +3182,22 @@ public class IntentHandlingStep implements PipelineStep {
                                                               AIActionMetaData metadata,
                                                               OrchestrationPolicy policy) {
         return isReadActionExecutionAllowedByReadResolutionPolicy(actionName, metadata, policy)
-            || isGroundingEligibleReadAction(metadata);
+            || shouldForceGroundingEligibleReadActionPostGeneration(metadata, policy);
+    }
+
+    private boolean isReadActionAllowedWhenActionsDisabled(String actionName,
+                                                           AIActionMetaData metadata,
+                                                           OrchestrationPolicy policy) {
+        return isReadActionExecutionAllowedByReadResolutionPolicy(actionName, metadata, policy)
+            || shouldForceGroundingEligibleReadActionPostGeneration(metadata, policy);
+    }
+
+    private boolean shouldForceGroundingEligibleReadActionPostGeneration(AIActionMetaData metadata,
+                                                                         OrchestrationPolicy policy) {
+        return isGroundingEligibleReadAction(metadata)
+            && policy != null
+            && policy.capabilities() != null
+            && policy.capabilities().forceGroundingEligibleReadActionPostGeneration();
     }
 
     private boolean isGroundingEligibleReadAction(AIActionMetaData metadata) {
@@ -3201,8 +3226,14 @@ public class IntentHandlingStep implements PipelineStep {
                 handler.getClass().getName(), actionName, ex.getMessage());
             factsOpt = Optional.empty();
         }
+        if (factsOpt == null) {
+            factsOpt = Optional.empty();
+        }
 
-        Map<String, Object> factsMap = factsOpt.orElse(null);
+        Map<String, Object> factsMap = factsOpt.orElse(Map.of());
+        if (forced) {
+            factsMap = includeActionResultDataForForcedReadGeneration(factsMap, actionResult);
+        }
         if (factsMap == null || factsMap.isEmpty()) {
             Map<String, Object> metadata = Map.of(
                 "used", false,
@@ -3210,6 +3241,7 @@ public class IntentHandlingStep implements PipelineStep {
             );
             return new PostActionGenerationOutcome(null, actionResult.getMessage(), metadata);
         }
+        boolean hasAnswerableFacts = hasAnswerablePostActionFacts(factsMap);
 
         FactsPayload facts = buildFactsPayload(factsMap, postActionGenerationProperties.getMaxChars());
 
@@ -3250,24 +3282,33 @@ public class IntentHandlingStep implements PipelineStep {
         try {
             generationResponse = aiCoreService.generateContent(generationRequest, LlmPurpose.GENERATION);
         } catch (Exception ex) {
-            Map<String, Object> metadata = Map.of(
-                "used", false,
-                "skippedReason", "generation_failed",
-                "error", ex.getMessage(),
-                "includedItems", facts.includedItems(),
-                "truncated", facts.truncated()
+            Map<String, Object> metadata = postActionGenerationSkippedMetadata(
+                "generation_failed",
+                ex.getMessage(),
+                facts
             );
+            if (forced && hasAnswerableFacts) {
+                String fallback = deterministicPostActionSummary(actionName, actionResult, factsMap);
+                if (StringUtils.hasText(fallback)) {
+                    return new PostActionGenerationOutcome(fallback, fallback, withDeterministicFallbackMetadata(metadata));
+                }
+            }
             return new PostActionGenerationOutcome(null, actionResult.getMessage(), metadata);
         }
 
         String summary = generationResponse != null ? generationResponse.getContent() : null;
         if (!StringUtils.hasText(summary)) {
-            Map<String, Object> metadata = Map.of(
-                "used", false,
-                "skippedReason", "empty_generation_response",
-                "includedItems", facts.includedItems(),
-                "truncated", facts.truncated()
+            Map<String, Object> metadata = postActionGenerationSkippedMetadata(
+                "empty_generation_response",
+                null,
+                facts
             );
+            if (forced && hasAnswerableFacts) {
+                String fallback = deterministicPostActionSummary(actionName, actionResult, factsMap);
+                if (StringUtils.hasText(fallback)) {
+                    return new PostActionGenerationOutcome(fallback, fallback, withDeterministicFallbackMetadata(metadata));
+                }
+            }
             return new PostActionGenerationOutcome(null, actionResult.getMessage(), metadata);
         }
 
@@ -3283,6 +3324,240 @@ public class IntentHandlingStep implements PipelineStep {
 
         String message = summary.trim();
         return new PostActionGenerationOutcome(message, message, Collections.unmodifiableMap(metadata));
+    }
+
+    private Map<String, Object> includeActionResultDataForForcedReadGeneration(Map<String, Object> factsMap,
+                                                                               ActionResult actionResult) {
+        Map<String, Object> actionResultData = actionResult != null ? coerceToMap(actionResult.getData()) : null;
+        if (actionResultData == null || actionResultData.isEmpty()) {
+            return factsMap;
+        }
+        Map<String, Object> merged = new LinkedHashMap<>(factsMap != null ? factsMap : Map.of());
+        merged.put("actionResultData", Collections.unmodifiableMap(new LinkedHashMap<>(actionResultData)));
+        return Collections.unmodifiableMap(merged);
+    }
+
+    private Map<String, Object> postActionGenerationSkippedMetadata(String skippedReason,
+                                                                    String error,
+                                                                    FactsPayload facts) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("used", false);
+        metadata.put("skippedReason", StringUtils.hasText(skippedReason) ? skippedReason : "unknown");
+        if (StringUtils.hasText(error)) {
+            metadata.put("error", error);
+        }
+        if (facts != null) {
+            metadata.put("includedItems", facts.includedItems());
+            metadata.put("truncated", facts.truncated());
+        }
+        return Collections.unmodifiableMap(metadata);
+    }
+
+    private Map<String, Object> withDeterministicFallbackMetadata(Map<String, Object> metadata) {
+        Map<String, Object> updated = new LinkedHashMap<>(metadata != null ? metadata : Map.of());
+        updated.put("deterministicFallbackUsed", true);
+        updated.put("deterministicFallbackSource", "post_action_facts");
+        return Collections.unmodifiableMap(updated);
+    }
+
+    private boolean hasAnswerablePostActionFacts(Map<String, Object> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return false;
+        }
+        for (Map.Entry<String, Object> entry : facts.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            String key = entry.getKey().trim();
+            if (isBasePostActionFactKey(key)) {
+                continue;
+            }
+            if (hasMeaningfulPostActionFactValue(entry.getValue())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBasePostActionFactKey(String key) {
+        if (!StringUtils.hasText(key)) {
+            return true;
+        }
+        String normalized = key.trim().toLowerCase(Locale.ROOT);
+        return "action".equals(normalized)
+            || "category".equals(normalized)
+            || "success".equals(normalized)
+            || "message".equals(normalized)
+            || "errorcode".equals(normalized);
+    }
+
+    private boolean hasMeaningfulPostActionFactValue(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof CharSequence text) {
+            return StringUtils.hasText(text.toString());
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.values().stream().anyMatch(this::hasMeaningfulPostActionFactValue);
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (hasMeaningfulPostActionFactValue(item)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private String deterministicPostActionSummary(String actionName,
+                                                  ActionResult actionResult,
+                                                  Map<String, Object> facts) {
+        if (!hasAnswerablePostActionFacts(facts)) {
+            return null;
+        }
+
+        List<String> countFacts = collectPostActionCountFacts(facts);
+        List<String> scalarFacts = collectPostActionScalarFacts(facts);
+
+        StringBuilder summary = new StringBuilder();
+        String safeActionName = StringUtils.hasText(actionName) ? actionName.trim() : "the read action";
+        summary.append("The read action ").append(safeActionName).append(" returned ");
+        if (!countFacts.isEmpty()) {
+            summary.append(joinHumanList(countFacts)).append(".");
+        } else if (!scalarFacts.isEmpty()) {
+            summary.append(joinHumanList(scalarFacts)).append(".");
+        } else {
+            summary.append("grounded evidence.");
+        }
+
+        if (!scalarFacts.isEmpty() && !countFacts.isEmpty()) {
+            summary.append(" Key facts: ").append(joinHumanList(scalarFacts)).append(".");
+        } else if (StringUtils.hasText(actionResult != null ? actionResult.getMessage() : null)
+            && !isGenericActionResultMessage(actionResult.getMessage())) {
+            summary.append(" ").append(actionResult.getMessage().trim());
+        }
+
+        return truncatePostActionSummary(summary.toString());
+    }
+
+    private List<String> collectPostActionCountFacts(Map<String, Object> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return List.of();
+        }
+        List<String> counts = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : facts.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || counts.size() >= 5) {
+                continue;
+            }
+            String key = entry.getKey().trim();
+            if (isBasePostActionFactKey(key)) {
+                continue;
+            }
+            if (key.endsWith("Count") && entry.getValue() instanceof Number number) {
+                counts.add(formatCountFact(key.substring(0, key.length() - "Count".length()), number));
+            } else if ("count".equalsIgnoreCase(key) && entry.getValue() instanceof Number number) {
+                counts.add(formatCountFact("result", number));
+            }
+        }
+        return counts.isEmpty() ? List.of() : List.copyOf(counts);
+    }
+
+    private String formatCountFact(String key, Number number) {
+        String label = humanizePostActionKey(key);
+        long value = number.longValue();
+        return value + " " + pluralizePostActionLabel(label, value);
+    }
+
+    private List<String> collectPostActionScalarFacts(Map<String, Object> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return List.of();
+        }
+        List<String> scalars = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : facts.entrySet()) {
+            if (entry == null || !StringUtils.hasText(entry.getKey()) || scalars.size() >= 4) {
+                continue;
+            }
+            String key = entry.getKey().trim();
+            if (isBasePostActionFactKey(key) || key.endsWith("Count")) {
+                continue;
+            }
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> || value instanceof Iterable<?>) {
+                continue;
+            }
+            if (value != null && StringUtils.hasText(value.toString())) {
+                scalars.add(humanizePostActionKey(key) + "=" + truncatePostActionValue(value.toString()));
+            }
+        }
+        return scalars.isEmpty() ? List.of() : List.copyOf(scalars);
+    }
+
+    private String humanizePostActionKey(String key) {
+        if (!StringUtils.hasText(key)) {
+            return "results";
+        }
+        String spaced = key.trim()
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .replaceAll("(?<=[a-z0-9])(?=[A-Z])", " ")
+            .replaceAll("\\s+", " ")
+            .trim()
+            .toLowerCase(Locale.ROOT);
+        return StringUtils.hasText(spaced) ? spaced : "results";
+    }
+
+    private String pluralizePostActionLabel(String label, long count) {
+        if (!StringUtils.hasText(label)) {
+            return count == 1 ? "result" : "results";
+        }
+        if (count == 1 || label.endsWith("s")) {
+            return label;
+        }
+        return label + "s";
+    }
+
+    private String joinHumanList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "";
+        }
+        if (values.size() == 1) {
+            return values.getFirst();
+        }
+        if (values.size() == 2) {
+            return values.get(0) + " and " + values.get(1);
+        }
+        return String.join(", ", values.subList(0, values.size() - 1)) + ", and " + values.getLast();
+    }
+
+    private boolean isGenericActionResultMessage(String message) {
+        if (!StringUtils.hasText(message)) {
+            return true;
+        }
+        String normalized = message.trim().toLowerCase(Locale.ROOT);
+        return "ok".equals(normalized)
+            || "success".equals(normalized)
+            || "action executed".equals(normalized)
+            || "action executed.".equals(normalized)
+            || "mcp tool result".equals(normalized);
+    }
+
+    private String truncatePostActionValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String normalized = value.trim().replaceAll("\\s+", " ");
+        return normalized.length() > 80 ? normalized.substring(0, 77) + "..." : normalized;
+    }
+
+    private String truncatePostActionSummary(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String normalized = value.trim().replaceAll("\\s+", " ");
+        return normalized.length() > 600 ? normalized.substring(0, 597) + "..." : normalized;
     }
 
     private Map<String, Object> coerceToMap(Object value) {

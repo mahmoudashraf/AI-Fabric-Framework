@@ -11,6 +11,7 @@ ai:
         deep-retrieval-enabled: true
         force-retrieval-when-targets-present: true
         force-retrieval-consider-stored-targets: true
+        force-grounding-eligible-read-action-post-generation: true
         minimize-rag-when-pinned-targets-cover-request: false
         rag-target-hint-enabled: true
         rag:

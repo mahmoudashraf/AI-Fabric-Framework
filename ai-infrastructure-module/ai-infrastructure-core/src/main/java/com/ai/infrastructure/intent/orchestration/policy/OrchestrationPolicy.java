@@ -89,10 +89,40 @@ public record OrchestrationPolicy(
         boolean vectorSpaceSelectionRequired,
         boolean minimizeRagWhenPinnedTargetsCoverRequest,
         boolean forceRetrievalWhenTargetsPresent,
-        boolean forceRetrievalConsiderStoredTargets
+        boolean forceRetrievalConsiderStoredTargets,
+        boolean forceGroundingEligibleReadActionPostGeneration
     ) {
+        public OrchestrationCapabilities(boolean actionsEnabled,
+                                         boolean retrievalEnabled,
+                                         boolean deepRetrievalEnabled,
+                                         boolean suggestionsEnabled,
+                                         boolean exposeReadProbeFallbackAttempt,
+                                         boolean actionsPreferred,
+                                         boolean knowledgeBaseOverviewEnabled,
+                                         boolean retrievalAllowlistRequired,
+                                         boolean vectorSpaceSelectionRequired,
+                                         boolean minimizeRagWhenPinnedTargetsCoverRequest,
+                                         boolean forceRetrievalWhenTargetsPresent,
+                                         boolean forceRetrievalConsiderStoredTargets) {
+            this(
+                actionsEnabled,
+                retrievalEnabled,
+                deepRetrievalEnabled,
+                suggestionsEnabled,
+                exposeReadProbeFallbackAttempt,
+                actionsPreferred,
+                knowledgeBaseOverviewEnabled,
+                retrievalAllowlistRequired,
+                vectorSpaceSelectionRequired,
+                minimizeRagWhenPinnedTargetsCoverRequest,
+                forceRetrievalWhenTargetsPresent,
+                forceRetrievalConsiderStoredTargets,
+                false
+            );
+        }
+
         public static OrchestrationCapabilities defaults() {
-            return new OrchestrationCapabilities(true, true, false, true, false, false, true, false, false, true, false, false);
+            return new OrchestrationCapabilities(true, true, false, true, false, false, true, false, false, true, false, false, false);
         }
     }
 

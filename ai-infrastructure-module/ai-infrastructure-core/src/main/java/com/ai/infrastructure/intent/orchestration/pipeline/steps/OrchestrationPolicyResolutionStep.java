@@ -170,6 +170,9 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
             exposeReadProbeFallbackAttempt = effectiveModeOverrides.getExposeReadProbeFallbackAttempt();
         }
 
+        boolean forceGroundingEligibleReadActionPostGeneration = effectiveModeOverrides != null
+            && Boolean.TRUE.equals(effectiveModeOverrides.getForceGroundingEligibleReadActionPostGeneration());
+
         OrchestrationPolicy.RagBudgets ragBudgets = null;
         if (effectiveModeOverrides != null && effectiveModeOverrides.getRag() != null) {
             OrchestrationProperties.RagModeOverrides rag = effectiveModeOverrides.getRag();
@@ -260,7 +263,8 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
                 vectorSpaceSelectionRequired,
                 minimizeRagWhenPinnedTargetsCoverRequest,
                 forceRetrievalWhenTargetsPresent,
-                forceRetrievalConsiderStoredTargets
+                forceRetrievalConsiderStoredTargets,
+                forceGroundingEligibleReadActionPostGeneration
             ),
             readActionResolutionPolicy,
             ragBudgets,
@@ -296,6 +300,7 @@ public class OrchestrationPolicyResolutionStep implements PipelineStep {
         debug.put("deepRetrievalEnabled", policy.capabilities().deepRetrievalEnabled());
         debug.put("forceRetrievalWhenTargetsPresent", policy.capabilities().forceRetrievalWhenTargetsPresent());
         debug.put("forceRetrievalConsiderStoredTargets", policy.capabilities().forceRetrievalConsiderStoredTargets());
+        debug.put("forceGroundingEligibleReadActionPostGeneration", policy.capabilities().forceGroundingEligibleReadActionPostGeneration());
         debug.put("minimizeRagWhenPinnedTargetsCoverRequest", policy.capabilities().minimizeRagWhenPinnedTargetsCoverRequest());
         debug.put("suggestionsEnabled", policy.capabilities().suggestionsEnabled());
         debug.put("suggestionsEnabledSource", suggestionsEnabledSource);

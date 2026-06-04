@@ -19,6 +19,7 @@ class DefaultCuratedPackTest {
             .contains("thinker:")
             .contains("planning-mode: ITERATIVE")
             .contains("rag-cooperation-mode: PARALLEL_ACTIONS_AND_RAG")
+            .contains("force-grounding-eligible-read-action-post-generation: true")
             .contains("executor:")
             .contains("actions-enabled: true")
             .contains("planning-mode: SINGLE_PASS");

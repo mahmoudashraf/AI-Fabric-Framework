@@ -230,6 +230,16 @@ public class OrchestrationProperties {
         private Boolean exposeReadProbeFallbackAttempt;
 
         /**
+         * When true, a direct ACTION intent that executes a READ action marked {@code groundingEligible=true}
+         * will force a post-action generation pass from the action result facts even when the extracted intent did
+         * not explicitly request generation.
+         *
+         * <p>When unset (null), the capability defaults to false. Deep/thinker modes can enable this so live
+         * read-action results are converted into user-facing answers instead of returning raw action payloads.</p>
+         */
+        private Boolean forceGroundingEligibleReadActionPostGeneration;
+
+        /**
          * Optional mode override for RAG budgeting and scoping.
          */
         private RagModeOverrides rag;

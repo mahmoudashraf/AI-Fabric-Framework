@@ -122,6 +122,29 @@ class OrchestrationPolicyResolutionStepTest {
             assertThat(policy.profile()).isEqualTo(OrchestrationProfile.PRODUCTION_NAVIGATOR);
             assertThat(policy.mode()).isNull();
             assertThat(policy.informationMode()).isEqualTo(OrchestrationProperties.InformationMode.DETERMINISTIC_RAG_GENERATE);
+            assertThat(policy.capabilities().forceGroundingEligibleReadActionPostGeneration()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should resolve forced grounding-eligible read-action post-generation mode capability")
+        void shouldResolveForcedGroundingEligibleReadActionPostGenerationModeCapability() {
+            OrchestrationProperties orchestrationProperties = new OrchestrationProperties();
+            orchestrationProperties.setProfile(OrchestrationProfile.PRODUCTION_CHAT);
+
+            OrchestrationProperties.ModeOverrides thinker = new OrchestrationProperties.ModeOverrides();
+            thinker.setForceGroundingEligibleReadActionPostGeneration(true);
+            orchestrationProperties.getModes().put("thinker", thinker);
+            orchestrationProperties.setDefaultMode("thinker");
+
+            OrchestrationPolicyResolutionStep step = new OrchestrationPolicyResolutionStep(orchestrationProperties);
+
+            PipelineContext output = step.process(PipelineContext.from("hello", OrchestrationContext.forUser("user-123")));
+
+            assertThat(output.getOrchestrationPolicy().capabilities().forceGroundingEligibleReadActionPostGeneration()).isTrue();
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> policyMeta = (Map<String, Object>) output.getMetadataView().get("orchestrationPolicy");
+            assertThat(policyMeta).containsEntry("forceGroundingEligibleReadActionPostGeneration", true);
         }
 
         @Test

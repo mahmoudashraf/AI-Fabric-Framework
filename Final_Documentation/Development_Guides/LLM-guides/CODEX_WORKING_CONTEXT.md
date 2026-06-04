@@ -1389,3 +1389,28 @@ Critical fixes that made the gate pass:
 - Commit `99a3a07cf` was pushed to `origin/Platform-V10` and production Platform backend was redeployed through Coolify app `adkvp3aqatl1yyrmd58v2yv6`.
 - Live preflight now returns `PASSED` for both `dtp-coolify-prod-staging` and `dtp-coolify-production`, each with version `4.1.1`.
 - Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyTargetProfileResolverTest,DeploymentPracticalPromotionServiceTest test`; `git diff --check`.
+
+## 2026-06-03 ProdUS Assignment Key Private Handoff Completion
+
+- Resolved the ProdUS blocker where the public/private handoff still exposed `LOOMAI_ASSIGNMENT_API_KEY=<provided-through-secure-channel>` as a placeholder.
+- The real backend-only assignment key was copied only into private/ignored local files: `/Users/mahmoudashraf/Downloads/Projects/ProdUS/.env.private.local` and `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`; both were set to mode `600`. Do not print or commit the key.
+- Live verification from the ProdUS private env file passed: wrong assignment key returned `401`; the configured key returned `200` for `produs-staging/runtime-assignment`.
+- Verified assignment response: `consumerId=produs-staging`, `deploymentId=dep-53f9ca56`, `runtimeBaseUrl=http://dep-53f9ca56.46.225.162.106.sslip.io`, `privateRuntimeIssuer=produs-staging-backend`, `privateRuntimeAudience=produs-staging`, `externalIntegrationReady=true`.
+- Next ProdUS action is operational only: load the values from `.env.private.local` into the ProdUS backend Coolify env, redeploy the backend, then run assignment discovery plus AI analysis/chat smoke against the production-hosted LoomAI runtime.
+
+## 2026-06-03 Grounded Read-Action Post-Generation Fallback
+
+- Kept the development UI/widget rendering behavior unchanged; the fix is runtime-side.
+- `IntentHandlingStep` now mirrors post-action generated text into `data.answer` as well as `summary`, so canonical clients that prefer `answer`/`safeSummary` can show the generated response while retaining raw action evidence under action metadata.
+- Forced grounding-eligible READ actions now include the action result payload itself as `actionResultData` in post-action generation facts. This is the current simple contract: generate from the action result, not from connector-side business-key inference.
+- If post-action LLM generation fails or returns empty content and the facts contain answerable action-result evidence, the runtime returns a short deterministic fallback summary instead of falling back to generic `Action executed`/raw action-result presentation.
+- Removed the connector-side generic MCP JSON object list projection that walked arbitrary JSON fields and exposed named lists like `categories`/`packageTemplates`; future production shaping should use explicit marketplace `llmFacts` instead.
+- Added roadmap plan `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_17_GROUNDING_ELIGIBLE_READ_ACTION_POST_ACTION_GENERATION_AND_LLM_FACTS_PLAN.md`.
+- Verification passed: `mvn -pl ai-infrastructure-core,ai-infrastructure-actions-connector -am -Dtest=IntentHandlingStepPostActionGenerationTest,ConnectorAIActionHandlerTest -Dsurefire.failIfNoSpecifiedTests=false test`; `mvn -pl ai-infrastructure-core -Dtest=IntentHandlingStepReadActionPolicyToleranceTest test`; `git diff --check`.
+
+## 2026-06-04 Thinker-Gated Grounding-Eligible Read Action Generation
+
+- Changed the forced grounding-eligible READ action post-generation behavior from unconditional to mode-configurable.
+- Added `ai.orchestration.modes.<mode>.force-grounding-eligible-read-action-post-generation`; the default curated `thinker` mode enables it, while ordinary/default policy remains disabled.
+- Runtime condition is now: read-action-resolution policy explicitly allows the action, or the action is `READ + groundingEligible` and the active mode capability enables forced post-action generation.
+- Updated `010_17_GROUNDING_ELIGIBLE_READ_ACTION_POST_ACTION_GENERATION_AND_LLM_FACTS_PLAN.md` and the orchestration optimization guide with the mode capability.

@@ -33,6 +33,18 @@ Example modes (app-defined):
 - `cart_assistant`
 - `support_resolver`
 
+Mode capabilities can also control action-answering behavior. For example, thinker-style modes can enable:
+
+```yaml
+ai:
+  orchestration:
+    modes:
+      thinker:
+        force-grounding-eligible-read-action-post-generation: true
+```
+
+When enabled, direct READ actions marked `groundingEligible=true` are converted into a generated, user-facing answer from the action result instead of returning action output as the primary message. Leave this disabled for modes that should preserve action-first/raw-result behavior.
+
 ### Position routing (`ai.orchestration.position-routing`) (advisory)
 Maps a UI/system “position” to a mode:
 - `landing → navigator`
