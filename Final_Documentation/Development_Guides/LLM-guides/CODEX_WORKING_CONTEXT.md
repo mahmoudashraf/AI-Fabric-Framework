@@ -1414,3 +1414,64 @@ Critical fixes that made the gate pass:
 - Added `ai.orchestration.modes.<mode>.force-grounding-eligible-read-action-post-generation`; the default curated `thinker` mode enables it, while ordinary/default policy remains disabled.
 - Runtime condition is now: read-action-resolution policy explicitly allows the action, or the action is `READ + groundingEligible` and the active mode capability enables forced post-action generation.
 - Updated `010_17_GROUNDING_ELIGIBLE_READ_ACTION_POST_ACTION_GENERATION_AND_LLM_FACTS_PLAN.md` and the orchestration optimization guide with the mode capability.
+
+## 2026-06-05 LoomAI Production Custom Domains
+
+- User created Namecheap DNS records for `api.loomai.pro`, `console.loomai.pro`, `partners.loomai.pro`, and `shopify-bridge.loomai.pro`, all pointing to production Coolify host `46.225.162.106`.
+- Recreated local Coolify production token files from the private handoff without printing token values: `/tmp/coolify_production_api_token.secret` and `/tmp/coolify_api_tokens.env`, both mode `600`.
+- Added Coolify production custom domains while preserving existing `sslip.io` domains:
+  - `loomai-platform-backend` / `adkvp3aqatl1yyrmd58v2yv6`: `https://api.loomai.pro`.
+  - `loomai-platform-ui` / `kl2c28ku13y7qr8n3doe4mlb`: `https://console.loomai.pro`.
+  - `loomai-partner-ui` / `o2ljhx3ynme1t5igepshn97m`: `https://partners.loomai.pro`.
+  - `loomai-shopify-bridge-prod` / `wurlsp7d3bdsedy1lmn33sdc`: `https://shopify-bridge.loomai.pro`.
+- Triggered Coolify refresh/deploy for the four apps so Traefik picked up the new routes; deployment UUIDs observed: backend `hnsf9gthmnn5d7dtazcvfi85`, platform UI `h2e6klr4ruh676ro366c5f04`, partner UI `mlodwcm8n3wk3fuy6kjrbxls`, bridge `vb8oupe2pt4zdslxlbglwczj`.
+- Live HTTPS verification passed with trusted certs: `https://api.loomai.pro/actuator/health`, `https://console.loomai.pro/health` (verified with explicit DNS resolve due local resolver cache), `https://partners.loomai.pro/health`, and `https://shopify-bridge.loomai.pro/actuator/health` all returned `200`; original `sslip.io` URLs still returned `200`.
+
+## 2026-06-05 Console Domain CORS/API Base Fix
+
+- Browser CORS failure from `https://console.loomai.pro` happened because the Platform UI still used old backend base URL `https://loomai-platform-backend.46.225.162.106.sslip.io`, while backend CORS allowed origins did not include the new console/partner domains.
+- Updated Coolify production envs without printing secrets: backend `PLATFORM_CORS_ALLOWED_ORIGINS` now includes `https://console.loomai.pro`, `https://partners.loomai.pro`, and `https://api.loomai.pro`; backend `PLATFORM_PUBLIC_BASE_URL` is `https://api.loomai.pro`; backend `PLATFORM_PARTNER_APP_URL` is `https://partners.loomai.pro`.
+- Updated frontend runtime envs: `loomai-platform-ui` `PLATFORM_UI_API_BASE_URL=https://api.loomai.pro`; `loomai-partner-ui` `PARTNER_UI_PLATFORM_API_BASE_URL=https://api.loomai.pro`.
+- Redeployed/refreshed backend, Platform UI, and Partner UI through Coolify; observed deployment UUIDs: backend `fbdjwxacrd4arnk6tqi9mwq9`, Platform UI `afkel8p80jdv7sq1isol5888`, Partner UI `icq8zo137i46ewfg2cwkjlvt`.
+- Verification passed: `GET https://api.loomai.pro/api/platform/auth/session` with origin `https://console.loomai.pro` returned `200` plus `Access-Control-Allow-Origin: https://console.loomai.pro` and `Access-Control-Allow-Credentials: true`; console runtime config now returns `apiBaseUrl: "https://api.loomai.pro"`.
+
+## 2026-06-05 Shopify Production Domain Switch
+
+- Updated Coolify production Bridge envs for `loomai-shopify-bridge-prod` / `wurlsp7d3bdsedy1lmn33sdc`: `SHOPIFY_BRIDGE_PUBLIC_BASE_URL=https://shopify-bridge.loomai.pro` and `SHOPIFY_BRIDGE_PLATFORM_BASE_URL=https://api.loomai.pro` in both normal and preview rows.
+- Redeployed the production Bridge through Coolify; deployment UUID observed: `l1onmzbtaso6c9ph1fu9u1ly`.
+- Recreated `/tmp/shopify_cli_partners_token.secret` from the private handoff without printing the token, then verified Shopify CLI app context non-interactively with the full Loom Companion scope set and production Bridge URL overrides.
+- Updated tracked Shopify app configs and all Companion theme-extension `bridge_base_url` defaults from the old staging `sslip.io` Bridge URL to `https://shopify-bridge.loomai.pro`.
+- Updated the ignored local Shopify CLI env file `product-services/shopify-bridge-service/deploy/shopify/.env.shopify` public URL fields to the production Bridge domain so future local renders do not reintroduce the old callback.
+- Deployed the Shopify app config/theme extension through Shopify CLI; new version released to users: `loom-companion-55` (`https://dev.shopify.com/dashboard/214691471/apps/349401186305/versions/998732464129`).
+- Shopify theme check still prints the known `AssetSizeAppBlockJavaScript` warnings for `companion-app-embed.js` exceeding the configured `10000 B` threshold, but Shopify CLI released the version successfully.
+- Verification passed: `https://shopify-bridge.loomai.pro/actuator/health` and `/` returned `200`; install flow for `shopping-companion-test.myshopify.com` now redirects with `redirect_uri=https://shopify-bridge.loomai.pro/auth/shopify/callback`; no old Bridge production/staging/Railway host remains in `product-services/shopify-bridge-service`.
+
+## 2026-06-05 Shopify Companion Production Release Readiness Plan
+
+- Created `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md` for controlled/private Loom Companion release readiness versus public Shopify App Store readiness.
+- Safe live checks passed for production Bridge health/root, Platform API health, console CORS, Shopify OAuth production callback, old-host scan, and known runtime `dep-8c3e7259` health.
+- Storefront bootstrap for `shopping-companion-test.myshopify.com` is still blocked: Bridge returns `503` with `Runtime assignment is not ready for external backend-mediated traffic.`
+- Production Coolify temp token `/tmp/coolify_production_api_token.secret` works and read back non-secret Bridge env rows; the private handoff Coolify token copy is stale and returned `401`.
+- Production Bridge env readback confirms production domains, `SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY` configured, `SHOPIFY_BRIDGE_BILLING_MODE=SHOPIFY_APP_SUBSCRIPTION`, and `SHOPIFY_BRIDGE_BILLING_TEST=true`; no visible `SHOPIFY_BRIDGE_RUNTIME_TRUSTED_BACKEND_API_KEY` or `SHOPIFY_BRIDGE_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY` rows were found.
+- Platform store mapping for `shopping-companion-test.myshopify.com` is live on `consumerId=shopify-shopping-companion-test`, `deploymentId=dep-8c3e7259`, `storefrontReady=true`, but `goLiveEligible=false` due `APP_SCOPES_UPDATE` webhook and Shopify MCP readiness blockers.
+- Assignment diagnosis: `/api/public/consumers/shopify-shopping-companion-test/credentials` with admin auth shows trusted-backend access configured, but runtime assignment reports `externalIntegrationReady=false` because `PublicProvisioningApiService` requires the latest published security config to explicitly include issuer `platform-consumer-bridge` and consumer audience `shopify-shopping-companion-test`; draft defaults alone are not enough.
+- Do not weaken assignment readiness. Supported remediation is to refresh Shopify runtime security defaults, publish/apply the corrected version, confirm Bridge runtime private-auth secrets, then rerun storefront bootstrap/chat/suggestions and full Shopify Companion live verification.
+- Added secret-safe Bridge diagnostics for runtime private auth material: `ShopifyBridgeOverviewResponse` now includes `runtimeTrustedBackendApiKeyConfigured` and `runtimePrivateAssertionSigningKeyConfigured`; `ShopifyBridgeDiagnosticsService` advertises `runtime-private-auth-readiness`.
+- Verification passed: `mvn -f product-services/shopify-bridge-service/pom.xml -Dtest=ShopifyBridgeDiagnosticsServiceTest,ShopifyBridgeAdminControllerTest test`; `git diff --check` on changed plan/diagnostics files passed.
+
+## 2026-06-05 Shopify Companion Controlled Production Release Unblocked
+
+- Cleared the controlled-production storefront blockers for `shopping-companion-test.myshopify.com` on production domains.
+- Commit `00cf72c98` (`Normalize Shopify storefront runtime chat requests`) fixed Bridge storefront request-shape issues: query now maps legacy/widget `message` to runtime `query`, maps `conversationMode` to runtime `mode`, strips unsupported fields, and suggestions maps query/message to runtime `content`.
+- Bridge production deploy after `00cf72c98`: Coolify deployment `wglbp9vr48rvor6okhhfk32f`; live smoke moved from runtime HTTP 500 to action execution.
+- Commit `d6f47fda3` (`Prune unsupported Shopify companion legacy actions`) removed unsupported legacy connector aliases from Shopify Companion runtime artifacts when they are not real MCP-tool actions.
+- Platform backend production deploy after `d6f47fda3`: Coolify deployment `zosvv1hbwmlfdy4psr09ul1w`; supported go-live release `rel-70270f95`, version `ver-623292c1`, verification run `vrf-d9b16146`, reached `APPLIED_VERIFIED` / `PASSED`.
+- Artifact proof after action pruning showed no standalone legacy actions/routes for `list_products`, `search_products`, `get_product_details`, `check_availability`, `get_policy`, `view_cart`, `add_product_to_cart`, `add_to_cart`, or `update_cart_quantity`; supported MCP actions remained: `shopify_search_catalog`, `shopify_search_policies`, `shopify_get_product_details`.
+- The live query then successfully reached `shopify_search_catalog` but returned raw MCP catalog JSON as the answer, exposing a commerce-mode post-action generation config gap.
+- Commit `3bc8dbfcd` (`Force commerce read action answer generation`) enabled `force-grounding-eligible-read-action-post-generation: true` across commerce storefront modes and removed stale legacy read-action aliases from commerce mode allowlists.
+- Verification passed for the commerce generation fix: `mvn -f ai-infrastructure-module/ai-infrastructure-core/pom.xml -Dtest=IntentHandlingStepPostActionGenerationTest,OrchestrationPolicyResolutionStepTest test`; `mvn -f ai-infrastructure-module/pom.xml -pl curated/ai-curated-commerce -am -Dtest=CommerceCuratedPackTest -Dsurefire.failIfNoSpecifiedTests=false test`; `git diff --check`.
+- Supported go-live after `3bc8dbfcd`: release `rel-4286bee2`, version `ver-d6dd23c3`, verification run `vrf-143e2e82`; final state `APPLIED_VERIFIED`, verification `PASSED`, provisioning `ACTIVE`.
+- Final production store status: `deploymentStatus=ACTIVE`, `sourceReadinessStatus=READY`, `syncStatus=SYNCED`, `widgetStatus=ENABLED`, `goLiveEligible=true`, `storefrontReady=true`, no go-live or storefront blockers.
+- Final production smoke against `https://shopify-bridge.loomai.pro` passed: health `200 UP`; bootstrap `200 available=true consumer=shopify-shopping-companion-test deployment=dep-8c3e7259 billing=ACTIVE`; suggestions `200 success=true count=5`; query `200 success=true type=ACTION_EXECUTED` with generated shopper-facing snowboard answer and `answerStartsWithJson=false`.
+- Evidence directories: `/tmp/shopify_companion_golive_after_commerce_generation_20260605T170536Z`, `/tmp/shopify_companion_artifact_check_after_commerce_generation_20260605T171641Z`, `/tmp/shopify_companion_live_after_commerce_generation_20260605T171656Z`.
+- Updated `010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md`. Controlled/private production release is technically viable after owner review; public Shopify App Store/self-service launch remains blocked by production billing test mode, reviewer/listing package, protected-data/order-scope posture, and final support/onboarding claims.
