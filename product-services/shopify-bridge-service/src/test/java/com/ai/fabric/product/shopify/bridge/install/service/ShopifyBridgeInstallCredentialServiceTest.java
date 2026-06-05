@@ -6,11 +6,14 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMa
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreCredentialSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -127,6 +130,61 @@ class ShopifyBridgeInstallCredentialServiceTest {
 
         assertThat(acquisition.tokenExchangeMaterial().accessToken()).isEqualTo("shpat_access");
         verify(webhookSubscriptionService).reconcileContentSubscriptions("alpha.myshopify.com", "shpat_access");
+    }
+
+    @Test
+    void reconcileWebhookSubscriptionsUsesPersistedCredentialAndRefreshesAppScopesReadiness() {
+        ShopifyBridgeStoreSummary store = store();
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store);
+        when(platformClient.resolveCredentialMaterial("alpha.myshopify.com")).thenReturn(
+            new ShopifyBridgeResolvedStoreCredentials(
+                "shpat_access",
+                null,
+                Instant.parse("2099-04-18T01:00:00Z"),
+                null,
+                "read_products,read_content,read_legal_policies",
+                false
+            )
+        );
+        when(webhookSubscriptionService.inspectContentSubscriptions("alpha.myshopify.com", "shpat_access")).thenReturn(
+            new ShopifyWebhookSubscriptionStatusSummary(
+                "alpha.myshopify.com",
+                "READY",
+                "All required Shopify webhook subscriptions are present.",
+                "https://bridge.example.com/api/webhooks/shopify",
+                1,
+                1,
+                0,
+                0,
+                Instant.parse("2026-04-18T10:00:00Z"),
+                List.of(new ShopifyWebhookSubscriptionTopicStatusSummary(
+                    "APP_SCOPES_UPDATE",
+                    "loom-app-scopes-update",
+                    "READY",
+                    "gid://shopify/WebhookSubscription/1",
+                    "loom-app-scopes-update",
+                    "https://bridge.example.com/api/webhooks/shopify",
+                    "Ready."
+                ))
+            )
+        );
+        when(webhookSubscriptionService.inspectTopicStatus("alpha.myshopify.com", "shpat_access", "APP_SCOPES_UPDATE")).thenReturn(
+            new ShopifyWebhookSubscriptionTopicStatusSummary(
+                "APP_SCOPES_UPDATE",
+                "loom-app-scopes-update",
+                "READY",
+                "gid://shopify/WebhookSubscription/1",
+                "loom-app-scopes-update",
+                "https://bridge.example.com/api/webhooks/shopify",
+                "Ready."
+            )
+        );
+
+        ShopifyWebhookSubscriptionStatusSummary summary = service.reconcileWebhookSubscriptions("alpha.myshopify.com");
+
+        assertThat(summary.status()).isEqualTo("READY");
+        verify(webhookSubscriptionService).reconcileContentSubscriptions("alpha.myshopify.com", "shpat_access");
+        verify(installRecordService).recordAppScopesUpdateWebhookReady("alpha.myshopify.com", true);
     }
 
     private com.ai.fabric.product.shopify.bridge.auth.ShopifyMerchantSession session() {

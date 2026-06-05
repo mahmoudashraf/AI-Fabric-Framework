@@ -113,6 +113,11 @@ public class ShopifyBridgeAdminController {
         return webhookSubscriptionDiagnosticsService.forShop(shopDomain);
     }
 
+    @PostMapping("/stores/{shopDomain}/webhook-subscriptions/repair")
+    public ShopifyWebhookSubscriptionStatusSummary repairWebhookSubscriptions(@PathVariable String shopDomain) {
+        return storeAdminService.repairWebhookSubscriptions(shopDomain);
+    }
+
     @PostMapping("/stores/{shopDomain}/bootstrap")
     public ShopifyBridgeStoreBootstrapResponse bootstrap(@PathVariable String shopDomain) {
         return storeAdminService.bootstrap(shopDomain);

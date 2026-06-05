@@ -21,6 +21,7 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeProvisionin
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportReadinessSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeSupportSubscriptionSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeVectorizationSourcePageResponse;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -127,6 +128,10 @@ public class ShopifyBridgeStoreAdminService {
 
     public ShopifyBridgeSupportReadinessSummary supportReadiness(String shopDomain) {
         return supportReadinessService.summarizeForShop(shopDomain);
+    }
+
+    public ShopifyWebhookSubscriptionStatusSummary repairWebhookSubscriptions(String shopDomain) {
+        return installCredentialService.reconcileWebhookSubscriptions(shopDomain);
     }
 
     public List<ShopifyBridgeGovernedActionAuditSummary> recentGovernedActions(String shopDomain, int limit) {

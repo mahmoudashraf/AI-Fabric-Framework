@@ -104,6 +104,8 @@ class ShopifyBridgeAdminControllerTest {
             "https://platform.example.com",
             "https://bridge.example.com",
             true,
+            true,
+            true,
             "READY",
             Instant.parse("2026-04-18T10:00:00Z"),
             new ShopifyBridgeInstallOverview(10, 8, 2, 7, Instant.parse("2026-04-18T10:10:00Z"), Instant.parse("2026-04-18T09:00:00Z")),
@@ -138,6 +140,8 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.serviceRef").value("shopify-bridge-test"))
             .andExpect(jsonPath("$.platformBaseUrl").value("https://platform.example.com"))
             .andExpect(jsonPath("$.adminApiKeyConfigured").value(true))
+            .andExpect(jsonPath("$.runtimeTrustedBackendApiKeyConfigured").value(true))
+            .andExpect(jsonPath("$.runtimePrivateAssertionSigningKeyConfigured").value(true))
             .andExpect(jsonPath("$.status").value("READY"))
             .andExpect(jsonPath("$.installs.totalCount").value(10))
             .andExpect(jsonPath("$.stores.readyForGoLiveCount").value(3))
@@ -174,6 +178,38 @@ class ShopifyBridgeAdminControllerTest {
             .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
             .andExpect(jsonPath("$.status").value("DEGRADED"))
             .andExpect(jsonPath("$.topics[0].topic").value("PRODUCTS_UPDATE"));
+    }
+
+    @Test
+    void adminWebhookSubscriptionsCanBeRepairedWhenApiKeyMatches() throws Exception {
+        when(storeAdminService.repairWebhookSubscriptions("alpha.myshopify.com")).thenReturn(new ShopifyWebhookSubscriptionStatusSummary(
+            "alpha.myshopify.com",
+            "READY",
+            "All required Shopify webhook subscriptions are present.",
+            "https://bridge.example.com/api/webhooks/shopify",
+            9,
+            9,
+            0,
+            0,
+            Instant.parse("2026-04-18T10:25:00Z"),
+            List.of(new ShopifyWebhookSubscriptionTopicStatusSummary(
+                "APP_SCOPES_UPDATE",
+                "loom-app-scopes-update",
+                "READY",
+                "gid://shopify/WebhookSubscription/1",
+                "loom-app-scopes-update",
+                "https://bridge.example.com/api/webhooks/shopify",
+                "Ready."
+            ))
+        ));
+
+        mockMvc.perform(post("/api/admin/stores/alpha.myshopify.com/webhook-subscriptions/repair").header("X-BRIDGE-API-KEY", "test-admin-key"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shopDomain").value("alpha.myshopify.com"))
+            .andExpect(jsonPath("$.status").value("READY"))
+            .andExpect(jsonPath("$.topics[0].topic").value("APP_SCOPES_UPDATE"));
+
+        verify(storeAdminService).repairWebhookSubscriptions("alpha.myshopify.com");
     }
 
     @Test

@@ -1,7 +1,7 @@
 client_id = "939df746e3bbbb0a8ab2f31cf94bd11b"
 name = "Loom Companion"
 handle = "loom-companion"
-application_url = "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io"
+application_url = "https://shopify-bridge.loomai.pro"
 embedded = true
 extension_directories = ["extensions/*"]
 web_directories = [".", "ui"]
@@ -11,15 +11,15 @@ scopes = "read_products,read_content,read_legal_policies,read_metaobjects,read_m
 
 [auth]
 redirect_urls = [
-  "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io/auth/shopify/callback"
+  "https://shopify-bridge.loomai.pro/auth/shopify/callback"
 ]
 
 [customer_authentication]
 redirect_uris = [
-  "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io/api/customer-auth/callback"
+  "https://shopify-bridge.loomai.pro/api/customer-auth/callback"
 ]
 javascript_origins = [
-  "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io"
+  "https://shopify-bridge.loomai.pro"
 ]
 
 [build]
@@ -39,6 +39,6 @@ compliance_topics = [
 uri = "/api/webhooks/shopify"
 
 [app_proxy]
-url = "https://loomai-shopify-bridge-staging.46.224.145.148.sslip.io"
+url = "https://shopify-bridge.loomai.pro"
 subpath = "loom-companion"
 prefix = "apps"

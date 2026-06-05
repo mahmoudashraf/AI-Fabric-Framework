@@ -91,6 +91,8 @@ class ShopifyBridgeDiagnosticsServiceTest {
         assertThat(overview.stores().blockedCount()).isEqualTo(1);
         assertThat(overview.webhookSubscriptions().status()).isEqualTo("READY");
         assertThat(overview.webhookSubscriptions().expectedCount()).isEqualTo(9);
+        assertThat(overview.runtimeTrustedBackendApiKeyConfigured()).isTrue();
+        assertThat(overview.runtimePrivateAssertionSigningKeyConfigured()).isTrue();
         assertThat(overview.billing().mode()).isEqualTo("FREE");
         assertThat(overview.usage().activeShopsLast7Days()).isEqualTo(2);
         assertThat(overview.usage().totalToday()).isEqualTo(5);
@@ -160,6 +162,65 @@ class ShopifyBridgeDiagnosticsServiceTest {
         assertThat(overview.webhookSubscriptions().status()).isEqualTo("BLOCKED");
     }
 
+    @Test
+    void overviewShowsMissingRuntimePrivateAuthMaterialWithoutExposingSecrets() {
+        ShopifyInstallRecordRepository installRecordRepository = mock(ShopifyInstallRecordRepository.class);
+        PlatformShopifyStoreClient platformShopifyStoreClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeUsageService usageService = mock(ShopifyBridgeUsageService.class);
+        ShopifyWebhookSubscriptionService webhookSubscriptionService = mock(ShopifyWebhookSubscriptionService.class);
+        when(installRecordRepository.findAll()).thenReturn(List.of());
+        when(platformShopifyStoreClient.listStores()).thenReturn(List.of());
+        when(billingService.summarize()).thenReturn(new ShopifyBridgeBillingSummary(
+            "FREE",
+            "FREE",
+            "Companion Free",
+            "ACTIVE",
+            false,
+            false,
+            false,
+            false,
+            50,
+            "DAILY",
+            true,
+            false,
+            false,
+            false,
+            List.of(),
+            List.of("ai-search"),
+            List.of(),
+            "Free mode."
+        ));
+        when(usageService.summarizeAllShops()).thenReturn(new ShopifyBridgeUsageOverview(
+            Instant.parse("2026-04-18T10:20:00Z"),
+            null,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of()
+        ));
+        when(webhookSubscriptionService.expectedWebhookUri()).thenReturn("https://bridge.example.com/api/webhooks/shopify");
+        when(webhookSubscriptionService.expectedSubscriptionCount()).thenReturn(9);
+        when(webhookSubscriptionService.expectedTopics()).thenReturn(List.of("APP_UNINSTALLED"));
+
+        ShopifyBridgeDiagnosticsService service = new ShopifyBridgeDiagnosticsService(
+            propertiesWithoutRuntimePrivateAuth(),
+            installRecordRepository,
+            platformShopifyStoreClient,
+            billingService,
+            usageService,
+            webhookSubscriptionService
+        );
+
+        var overview = service.overview();
+
+        assertThat(overview.runtimeTrustedBackendApiKeyConfigured()).isFalse();
+        assertThat(overview.runtimePrivateAssertionSigningKeyConfigured()).isFalse();
+        assertThat(overview.capabilities()).contains("runtime-private-auth-readiness");
+    }
+
     private ShopifyBridgeProperties properties() {
         return new ShopifyBridgeProperties(
             "Shopify Bridge Service",
@@ -177,10 +238,34 @@ class ShopifyBridgeDiagnosticsServiceTest {
             "webhook-shared-secret",
             "bridge-admin-key",
             "X-BRIDGE-API-KEY",
-        "runtime-api-key",
-        "runtime-signing-key",
-        "platform-consumer-bridge",
-        300
+            "runtime-api-key",
+            "runtime-signing-key",
+            "platform-consumer-bridge",
+            300
+        );
+    }
+
+    private ShopifyBridgeProperties propertiesWithoutRuntimePrivateAuth() {
+        return new ShopifyBridgeProperties(
+            "Shopify Bridge Service",
+            "shopify-bridge-prod",
+            "SHOPIFY",
+            "SHOPIFY_BRIDGE_SERVICE",
+            "prod",
+            "https://bridge.example.com",
+            "2026-04",
+            "shopify-api-key",
+            "shopify-api-secret",
+            "https://platform.example.com",
+            "platform-admin-key",
+            "X-PLATFORM-API-KEY",
+            "webhook-shared-secret",
+            "bridge-admin-key",
+            "X-BRIDGE-API-KEY",
+            "",
+            "",
+            "platform-consumer-bridge",
+            300
         );
     }
 
