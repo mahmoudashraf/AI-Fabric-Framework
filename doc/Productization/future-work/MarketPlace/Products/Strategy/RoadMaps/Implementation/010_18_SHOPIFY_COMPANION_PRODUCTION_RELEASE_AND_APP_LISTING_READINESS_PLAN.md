@@ -110,6 +110,197 @@ Implications for Loom Companion:
 - Public apps using customer/order data must request the required protected customer data access in Partner Dashboard and provide data-minimization/security evidence. The current `read_orders` scope should be treated as a review-sensitive claim boundary until the public V1 scope story is finalized.
 - New public app Admin API usage should be reviewed against Shopify's GraphQL Admin API requirement; avoid adding new REST Admin API dependencies for public V1 unless already justified by compatibility.
 
+## Step-By-Step Blocker Playbook
+
+This section is the practical operator checklist for the remaining blockers. It separates what the owner/operator should provide from what Codex can safely execute afterward.
+
+### Blocker 1: Durable Production Operator Access
+
+Status: partially blocked.
+
+Why it matters:
+
+- Controlled proof used the local temp production Coolify token successfully.
+- The Coolify token copied in the private handoff is stale and returned `401`.
+- Future production fixes should not depend on a temp token that only exists in one shell.
+
+What you should do:
+
+1. Refresh the production Coolify API token from the production Coolify UI.
+2. Put it only in the private handoff or a local secret file, for example `/tmp/coolify_production_api_token.secret`, with mode `600`.
+3. Do not paste the token in chat or commit it.
+4. Tell Codex only that the token has been refreshed and where the private file is.
+
+What Codex will do after you provide it:
+
+1. Verify `GET /api/v1/version` against production Coolify.
+2. Verify sanitized app readback for Platform backend, Platform UI, Partner UI, and Shopify Bridge.
+3. Update the private handoff status without exposing the token.
+
+Expected evidence:
+
+- production Coolify returns version `4.1.1`;
+- production app status readbacks are sanitized and do not print env values;
+- private handoff no longer says the Coolify token is stale.
+
+### Blocker 2: Public Billing Mode
+
+Status: blocks public paid App Store launch.
+
+Why it matters:
+
+- Production Bridge currently has `SHOPIFY_BRIDGE_BILLING_MODE=SHOPIFY_APP_SUBSCRIPTION`.
+- Production Bridge currently has `SHOPIFY_BRIDGE_BILLING_TEST=true`.
+- Shopify public paid apps must bill through Shopify App Pricing or Shopify Billing API; production paid launch cannot stay in test-charge mode.
+
+What you should do:
+
+1. Decide whether the first public listing is free-only, paid, or private/design-partner only.
+2. If paid, create or confirm the production pricing plan in Shopify Partner Dashboard.
+3. Confirm the public plan names, prices, trial period, and whether Starter is the first paid tier.
+4. Approve switching production billing from test mode to production mode.
+
+What Codex will do after you decide:
+
+1. Update production Bridge env from test billing to production billing only after your approval.
+2. Redeploy the Bridge.
+3. Run install/reinstall billing approval checks.
+4. Verify plan upgrade/downgrade behavior if the public listing includes multiple paid plans.
+5. Update the release plan and support/reviewer instructions.
+
+Expected evidence:
+
+- Bridge env readback shows billing test mode disabled, without printing secrets;
+- install/reinstall flow creates real Shopify billing approval flow when paid;
+- public listing copy matches the actual billing posture.
+
+### Blocker 3: Protected Customer Data And `read_orders`
+
+Status: blocks public listing decision until scope posture is finalized.
+
+Why it matters:
+
+- Current released OAuth scope set includes `read_orders`.
+- Public apps that use customer/order data may need protected customer data review and evidence in the Shopify Partner Dashboard.
+- The controlled V1 proof is read-first and does not need broad public claims around order/customer automation.
+
+What you should do:
+
+1. Decide whether public V1 truly needs `read_orders`.
+2. If public V1 does not need order lookup, approve removing `read_orders` from the public Shopify app scope set for launch.
+3. If public V1 does need order lookup, request protected customer/order data access in the Shopify Partner Dashboard and prepare data-minimization/security evidence.
+4. Decide the public claim boundary: product search, product FAQ, policy answers, comparison guidance, and grounded store intelligence are safe; order lookup/customer account claims should remain gated unless approved.
+
+What Codex will do after you decide:
+
+1. If removing `read_orders`, update Shopify app config, redeploy the Shopify app/theme extension, and verify OAuth install scopes.
+2. If keeping `read_orders`, prepare the evidence text and technical proof package for protected-data review.
+3. Update launch copy so it does not claim unsupported order/customer flows.
+
+Expected evidence:
+
+- Shopify OAuth scope list matches the approved public V1 claim set;
+- Partner Dashboard protected-data state is documented if order/customer data stays in scope;
+- public docs and listing copy avoid unsupported protected-data claims.
+
+### Blocker 4: Public App Listing And Reviewer Package
+
+Status: blocks App Store submission.
+
+Why it matters:
+
+- The controlled runtime proof is green, but Shopify review also checks install flow, UI reliability, listing truth, support material, screenshots, testing instructions, and reviewer access.
+
+What you should do:
+
+1. Confirm the final public app name and positioning.
+2. Provide or approve:
+   - support email and support URL;
+   - privacy policy URL;
+   - terms URL;
+   - public pricing text;
+   - reviewer test-store instructions;
+   - any reviewer credentials or collaborator access path;
+   - screenshot/screencast preference.
+3. Confirm the allowed claim set for screenshots and listing copy.
+
+What Codex will do after you provide it:
+
+1. Draft the App Store listing copy from the approved claim set.
+2. Prepare reviewer instructions.
+3. Capture or guide screenshots/screencast proof from the live production app.
+4. Run install/reinstall and storefront smoke checks against production URLs.
+5. Update 010.18 with the final package status.
+
+Expected evidence:
+
+- listing copy only claims read-first Loom Companion V1 capabilities;
+- reviewer instructions are complete and reproducible;
+- screenshots/screencast match the deployed production app;
+- no old `sslip.io`/Railway/staging URLs appear in public-facing material.
+
+### Blocker 5: Full Public Release Verification
+
+Status: targeted controlled-production smoke is green; full public package verifier still pending.
+
+Why it matters:
+
+- Final smoke proved health, bootstrap, suggestions, and one query path.
+- Public launch should include the fuller verifier, browser proof, support-readiness parity, install/reinstall, and cleanup/rollback evidence.
+
+What you should do:
+
+1. Give explicit approval to run full public-package verification against production.
+2. Confirm whether Codex may create and clean up disposable proof records if needed.
+3. Confirm whether browser screenshots/screencast should be generated for the listing package.
+
+What Codex will do after you approve:
+
+1. Run `scripts/verify-shopify-companion.sh` against `https://shopify-bridge.loomai.pro`.
+2. Run browser proof for production storefront widget surfaces on desktop and mobile.
+3. Verify support-readiness flags agree with bootstrap and billing posture.
+4. Verify uninstall/reinstall or disposable cleanup flow if approved.
+5. Record evidence directories and final pass/fail status in this plan and `CODEX_WORKING_CONTEXT.md`.
+
+Expected evidence:
+
+- full verifier passes or produces a concrete blocker list;
+- desktop/mobile browser proof screenshots exist;
+- support-readiness, bootstrap, billing, and public claims agree;
+- rollback/deactivation or cleanup evidence is current.
+
+### Blocker 6: Controlled Release Owner Approval
+
+Status: product/operator decision pending.
+
+Why it matters:
+
+- The technical controlled-production proof is green.
+- A controlled release still needs owner approval for who can use it, what claims are allowed, and who handles support.
+
+What you should do:
+
+1. Decide the controlled-release audience: internal only, one design partner, or a small cohort.
+2. Confirm the support owner and escalation path.
+3. Confirm the release claim set:
+   - allowed: AI search, product insights, product FAQ, policy answers, comparison guidance, grounded store answers, embedded storefront intelligence;
+   - not allowed: autonomous checkout, broad order/customer writes, Customer Account MCP, Checkout MCP, refunds, returns, or full support-desk replacement.
+4. Confirm whether Codex should prepare a short release note and design-partner onboarding checklist.
+
+What Codex will do after you decide:
+
+1. Prepare the controlled-release note.
+2. Prepare merchant/design-partner onboarding steps.
+3. Prepare rollback/deactivation instructions.
+4. Update this plan from `controlled production smoke green` to the owner-approved controlled-release state if approved.
+
+Expected evidence:
+
+- owner-approved release note;
+- support and escalation owner documented;
+- onboarding checklist ready;
+- claims match the actual production proof.
+
 ## P0 Controlled Release Gates
 
 ### P0.1 Restore Production Admin Access

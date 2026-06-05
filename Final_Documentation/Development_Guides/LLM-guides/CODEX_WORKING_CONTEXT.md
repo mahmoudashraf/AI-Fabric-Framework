@@ -1475,3 +1475,10 @@ Critical fixes that made the gate pass:
 - Final production smoke against `https://shopify-bridge.loomai.pro` passed: health `200 UP`; bootstrap `200 available=true consumer=shopify-shopping-companion-test deployment=dep-8c3e7259 billing=ACTIVE`; suggestions `200 success=true count=5`; query `200 success=true type=ACTION_EXECUTED` with generated shopper-facing snowboard answer and `answerStartsWithJson=false`.
 - Evidence directories: `/tmp/shopify_companion_golive_after_commerce_generation_20260605T170536Z`, `/tmp/shopify_companion_artifact_check_after_commerce_generation_20260605T171641Z`, `/tmp/shopify_companion_live_after_commerce_generation_20260605T171656Z`.
 - Updated `010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md`. Controlled/private production release is technically viable after owner review; public Shopify App Store/self-service launch remains blocked by production billing test mode, reviewer/listing package, protected-data/order-scope posture, and final support/onboarding claims.
+
+## 2026-06-05 Shopify Companion Blocker Operator Playbook
+
+- Added a step-by-step blocker playbook to `010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md`.
+- The playbook separates what the owner/operator should provide from what Codex can safely execute afterward.
+- Covered blockers: durable production Coolify operator token, public billing/test-mode decision, protected customer data and `read_orders` scope posture, public App Store listing/reviewer package, full public release verification, and controlled-release owner approval.
+- Official Shopify launch docs were rechecked on 2026-06-05 before writing the steps; public launch remains gated by Shopify billing, scope/protected-data posture, app reliability/reviewer package, and support/onboarding evidence.
