@@ -379,7 +379,6 @@ public class ShopifyWebhookSubscriptionService {
                                     String webhookUri) {
         Map<String, Object> webhookSubscription = new LinkedHashMap<>();
         webhookSubscription.put("uri", webhookUri);
-        webhookSubscription.put("name", desired.name());
         if (desired.filter() != null) {
             webhookSubscription.put("filter", desired.filter());
         }

@@ -109,7 +109,7 @@ class ShopifyWebhookSubscriptionServiceTest {
                 Map<String, Object> webhookSubscription = (Map<String, Object>) variables.get("webhookSubscription");
                 assertThat(webhookSubscription)
                     .containsEntry("filter", "type:lookbook")
-                    .containsEntry("name", "loom-metaobjects-create-lookbook");
+                    .doesNotContainKey("name");
             });
     }
 
