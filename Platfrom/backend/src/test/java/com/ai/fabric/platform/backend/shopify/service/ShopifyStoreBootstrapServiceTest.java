@@ -778,6 +778,14 @@ class ShopifyStoreBootstrapServiceTest {
     }
 
     private DeploymentDraftResponse draftResponseWithProvider(String deploymentId, ObjectNode provider) {
+        ObjectNode actionsConfig = JsonNodeFactory.instance.objectNode();
+        var draftActions = actionsConfig.putArray("actions");
+        draftActions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+        draftActions.addObject()
+            .put("name", "shopify_update_cart")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID);
         ObjectNode routing = JsonNodeFactory.instance.objectNode();
         ObjectNode actions = routing.putObject("actions");
         managedShopifyBridgeRoute(actions.putObject("find_similar_products"), "demo.myshopify.com");
@@ -790,7 +798,7 @@ class ShopifyStoreBootstrapServiceTest {
             deploymentId,
             1,
             "ACTIVE",
-            JsonNodeFactory.instance.objectNode(),
+            actionsConfig,
             JsonNodeFactory.instance.objectNode(),
             routing,
             provider,

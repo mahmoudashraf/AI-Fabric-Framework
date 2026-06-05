@@ -83,4 +83,19 @@ class ShopifyCompanionActionCatalogTest {
         assertThat(routeActionIds)
             .contains("shopify_get_customer_context_summary", "shopify_create_checkout");
     }
+
+    @Test
+    void routeActionIdsDoesNotInventMissingDefaultActions() {
+        ObjectNode actionsConfig = JsonNodeFactory.instance.objectNode();
+        var actions = actionsConfig.putArray("actions");
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+
+        Set<String> routeActionIds = ShopifyCompanionActionCatalog.routeActionIds(actionsConfig);
+
+        assertThat(routeActionIds)
+            .containsExactly("shopify_search_catalog")
+            .doesNotContain("shopify_get_cart", "shopify_update_cart");
+    }
 }

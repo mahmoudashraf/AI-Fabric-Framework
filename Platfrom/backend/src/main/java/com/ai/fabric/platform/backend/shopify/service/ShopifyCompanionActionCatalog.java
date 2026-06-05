@@ -115,7 +115,6 @@ final class ShopifyCompanionActionCatalog {
                 }
             }
         }
-        actionIds.addAll(DEFAULT_ACTION_IDS);
         return actionIds;
     }
 

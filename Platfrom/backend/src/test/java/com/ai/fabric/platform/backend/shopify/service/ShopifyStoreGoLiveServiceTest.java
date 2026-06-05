@@ -489,6 +489,12 @@ class ShopifyStoreGoLiveServiceTest {
     private ObjectNode currentActionsConfig() {
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         var actions = root.putArray("actions");
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+        actions.addObject()
+            .put("name", "shopify_update_cart")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID);
         actions.addObject().put("name", "list_products");
         actions.addObject().put("name", "search_products");
         actions.addObject().put("name", "get_product_details");
