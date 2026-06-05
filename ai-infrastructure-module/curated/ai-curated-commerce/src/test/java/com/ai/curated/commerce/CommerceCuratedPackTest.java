@@ -36,11 +36,14 @@ class CommerceCuratedPackTest {
         assertThat(props.isAlwaysGenerateInformation()).isTrue();
         assertThat(props.getModes()).containsKey("navigator");
         assertThat(props.getModes()).containsKey("navigator_deep");
+        assertThat(props.getModes().get("navigator").getForceGroundingEligibleReadActionPostGeneration())
+            .isTrue();
         assertThat(props.getModes().get("navigator_deep").getUseAdvancedRag()).isEqualTo(true);
+        assertThat(props.getModes().get("navigator_deep").getForceGroundingEligibleReadActionPostGeneration())
+            .isTrue();
         assertThat(props.getModes().get("navigator_deep").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getEnabled()).isTrue();
         assertThat(props.getModes().get("navigator_deep").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
             .contains(
                 "shopify_search_catalog",
                 "shopify_get_product_details",
@@ -51,8 +54,20 @@ class CommerceCuratedPackTest {
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"
             )
-            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
+            .doesNotContain(
+                "list_products",
+                "search_products",
+                "get_product_details",
+                "check_availability",
+                "get_policy",
+                "view_cart",
+                "relationship_query",
+                "find_similar_products",
+                "compare_products"
+            );
         assertThat(props.getModes().get("executor").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("executor").getForceGroundingEligibleReadActionPostGeneration())
+            .isTrue();
         assertThat(props.getModes().get("executor").getReadActionResolution().getAllowedReadActions())
             .contains(
                 "shopify_get_cart",
@@ -62,6 +77,8 @@ class CommerceCuratedPackTest {
                 "shopify_get_store_credit_balances"
             );
         assertThat(props.getModes().get("cart_assistant").getReadActionResolution()).isNotNull();
+        assertThat(props.getModes().get("cart_assistant").getForceGroundingEligibleReadActionPostGeneration())
+            .isTrue();
         assertThat(props.getModes().get("cart_assistant").getReadActionResolution().getAllowedReadActions())
             .contains(
                 "shopify_get_cart",
@@ -73,10 +90,11 @@ class CommerceCuratedPackTest {
         assertThat(props.getModes()).containsKey("cart_assistant");
         assertThat(props.getModes()).containsKey("resolver_assistant");
         assertThat(props.getModes()).containsKey("thinker");
+        assertThat(props.getModes().get("resolver_assistant").getForceGroundingEligibleReadActionPostGeneration())
+            .isTrue();
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getEnabled()).isTrue();
         assertThat(props.getModes().get("resolver_assistant").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
             .contains(
                 "shopify_search_catalog",
                 "shopify_get_product_details",
@@ -87,12 +105,23 @@ class CommerceCuratedPackTest {
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"
             )
-            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
+            .doesNotContain(
+                "list_products",
+                "search_products",
+                "get_product_details",
+                "check_availability",
+                "get_policy",
+                "view_cart",
+                "relationship_query",
+                "find_similar_products",
+                "compare_products"
+            );
+        assertThat(props.getModes().get("thinker").getForceGroundingEligibleReadActionPostGeneration())
+            .isTrue();
         assertThat(props.getModes().get("thinker").getReadActionResolution()).isNotNull();
         assertThat(props.getModes().get("thinker").getReadActionResolution().getPlanningMode())
             .isEqualTo(OrchestrationProperties.ReadActionResolutionPlanningMode.ITERATIVE);
         assertThat(props.getModes().get("thinker").getReadActionResolution().getAllowedReadActions())
-            .contains("list_products", "search_products", "get_product_details", "check_availability", "get_policy", "view_cart")
             .contains(
                 "shopify_search_catalog",
                 "shopify_get_product_details",
@@ -103,7 +132,17 @@ class CommerceCuratedPackTest {
                 "shopify_get_order_status",
                 "shopify_get_store_credit_balances"
             )
-            .doesNotContain("relationship_query", "find_similar_products", "compare_products");
+            .doesNotContain(
+                "list_products",
+                "search_products",
+                "get_product_details",
+                "check_availability",
+                "get_policy",
+                "view_cart",
+                "relationship_query",
+                "find_similar_products",
+                "compare_products"
+            );
 
         assertThat(environment.getProperty("ai.prompts.bundle.overlays[0]")).isEqualTo("v1-commerce");
         PromptBundleProperties promptBundle = Binder.get(environment)

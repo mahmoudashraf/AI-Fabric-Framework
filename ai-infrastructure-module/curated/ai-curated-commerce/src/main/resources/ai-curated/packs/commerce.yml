@@ -11,6 +11,7 @@ ai:
       navigator:
         information-mode: DETERMINISTIC_RAG_GENERATE
         actions-preferred: true
+        force-grounding-eligible-read-action-post-generation: true
       navigator_deep:
         information-mode: DETERMINISTIC_RAG_GENERATE
         use-advanced-rag: true
@@ -25,6 +26,7 @@ ai:
         # Enable bounded pinned-target evidence expansion for embedding queries in deep mode.
         # See: Final_Documentation/Development_Guides/RAG_EMBEDDING_QUERY_COMPOSITION_GUIDE.md
         rag-target-hint-enabled: true
+        force-grounding-eligible-read-action-post-generation: true
         rag:
           fanout-enabled: true
           max-spaces: 6
@@ -37,12 +39,6 @@ ai:
           planning-mode: SINGLE_PASS
           require-allowlist: true
           allowed-read-actions:
-            - list_products
-            - search_products
-            - get_product_details
-            - check_availability
-            - get_policy
-            - view_cart
             - shopify_search_catalog
             - shopify_get_product_details
             - shopify_search_policies
@@ -63,6 +59,7 @@ ai:
         deep-retrieval-enabled: false
         suggestions-enabled: false
         actions-preferred: true
+        force-grounding-eligible-read-action-post-generation: true
         knowledge-base-overview-enabled: false
         retrieval-allowlist-required: true
         rag:
@@ -91,6 +88,7 @@ ai:
         information-mode: LLM_DRIVEN
         # In cart flows, prefer ACTION intents (e.g., list_orders) over generic RAG answers.
         actions-preferred: true
+        force-grounding-eligible-read-action-post-generation: true
         read-action-resolution:
           enabled: true
           planning-mode: SINGLE_PASS
@@ -113,18 +111,13 @@ ai:
         retrieval-enabled: true
         suggestions-enabled: false
         actions-preferred: false
+        force-grounding-eligible-read-action-post-generation: true
         knowledge-base-overview-enabled: true
         read-action-resolution:
           enabled: true
           planning-mode: SINGLE_PASS
           require-allowlist: true
           allowed-read-actions:
-            - list_products
-            - search_products
-            - get_product_details
-            - check_availability
-            - get_policy
-            - view_cart
             - shopify_search_catalog
             - shopify_get_product_details
             - shopify_search_policies
@@ -147,17 +140,12 @@ ai:
         force-retrieval-consider-stored-targets: true
         minimize-rag-when-pinned-targets-cover-request: false
         rag-target-hint-enabled: true
+        force-grounding-eligible-read-action-post-generation: true
         read-action-resolution:
           enabled: true
           planning-mode: ITERATIVE
           require-allowlist: true
           allowed-read-actions:
-            - list_products
-            - search_products
-            - get_product_details
-            - check_availability
-            - get_policy
-            - view_cart
             - shopify_search_catalog
             - shopify_get_product_details
             - shopify_search_policies
