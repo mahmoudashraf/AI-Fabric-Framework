@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ShopifyCompanionActionCatalogTest {
 
     @Test
-    void ensureLlmFactsDefaultsAddsShopifyProjectionOnlyForReadCompanionActions() {
+    void ensureLlmFactsDefaultsPrunesUnsupportedLegacyConnectorAliases() {
         ObjectNode config = JsonNodeFactory.instance.objectNode();
         var actions = config.putArray("actions");
         actions.addObject()
@@ -19,43 +19,40 @@ class ShopifyCompanionActionCatalogTest {
             .put("category", "shopify-companion")
             .put("accessMode", "READ");
         actions.addObject()
-            .put("name", "search_products")
+            .put("name", "list_products")
             .put("category", "shopify-companion")
+            .put("adapterType", "connector-http")
             .put("accessMode", "READ");
         actions.addObject()
             .put("name", "add_product_to_cart")
             .put("category", "shopify-companion")
+            .put("adapterType", "connector-http")
             .put("accessMode", "WRITE_ONLY");
         actions.addObject()
             .put("name", "custom_record_lookup")
             .put("category", "general")
             .put("accessMode", "READ");
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("category", "shopify-companion")
+            .put("adapterType", "mcp-tool")
+            .put("accessMode", "READ");
 
         boolean changed = ShopifyCompanionActionCatalog.ensureLlmFactsDefaults(config);
 
         assertThat(changed).isTrue();
-        assertThat(config.path("actions").findValuesAsText("name")).doesNotContain("relationship_query");
-        ObjectNode searchProducts = (ObjectNode) config.path("actions").get(0);
-        assertThat(searchProducts.path("llmFacts").path("rootPath").asText()).isEqualTo("data");
-        assertThat(searchProducts.path("llmFacts").path("lists").size()).isEqualTo(1);
-        assertThat(searchProducts.path("llmFacts").path("lists").get(0).path("target").asText()).isEqualTo("products");
-        assertThat(searchProducts.path("llmFacts").path("lists").get(0).path("constraints").path("target").asText())
-            .isEqualTo("productConstraintMatches");
-        assertThat(searchProducts.path("llmFacts").path("lists").get(0).toString())
-            .contains("\"field\":\"price\"", "\"field\":\"available\"");
-        assertThat(searchProducts.path("params").findValuesAsText("name")).contains("maxPrice", "availableOnly");
-        assertThat(searchProducts.toString()).contains("PARAM_NUMERIC_UPPER_BOUND").contains("PARAM_BOOLEAN_TRUE");
-        assertThat(searchProducts.toString()).doesNotContain("QUERY_").doesNotContain("queryPatterns").doesNotContain("queryTerms");
-        assertThat(config.path("actions").get(1).has("llmFacts")).isFalse();
-        assertThat(config.path("actions").get(2).has("llmFacts")).isFalse();
+        assertThat(config.path("actions").findValuesAsText("name"))
+            .containsExactly("custom_record_lookup", "shopify_search_catalog")
+            .doesNotContain("relationship_query", "list_products", "add_product_to_cart");
     }
 
     @Test
-    void ensureLlmFactsDefaultsPreservesOperatorConfiguredProjection() {
+    void ensureLlmFactsDefaultsPreservesOperatorConfiguredProjectionForRealMcpAction() {
         ObjectNode config = JsonNodeFactory.instance.objectNode();
         ObjectNode action = config.putArray("actions").addObject()
-            .put("name", "search_products")
+            .put("name", "list_products")
             .put("category", "shopify-companion")
+            .put("adapterType", "mcp-tool")
             .put("accessMode", "READ");
         ObjectNode existing = action.putObject("llmFacts");
         existing.putArray("copyFields").add("customField");
@@ -91,11 +88,19 @@ class ShopifyCompanionActionCatalogTest {
         actions.addObject()
             .put("name", "shopify_search_catalog")
             .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+        actions.addObject()
+            .put("name", "list_products")
+            .put("category", "shopify-companion")
+            .put("adapterType", "connector-http");
+        actions.addObject()
+            .put("name", "search_products")
+            .put("category", "shopify-companion")
+            .put("adapterType", "connector-http");
 
         Set<String> routeActionIds = ShopifyCompanionActionCatalog.routeActionIds(actionsConfig);
 
         assertThat(routeActionIds)
             .containsExactly("shopify_search_catalog")
-            .doesNotContain("shopify_get_cart", "shopify_update_cart");
+            .doesNotContain("shopify_get_cart", "shopify_update_cart", "list_products", "search_products");
     }
 }

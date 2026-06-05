@@ -16,6 +16,17 @@ final class ShopifyCompanionActionCatalog {
     private static final Set<String> DISABLED_ACTION_IDS = Set.of(
         "relationship_query"
     );
+    private static final Set<String> UNSUPPORTED_LEGACY_SHOPIFY_COMPANION_ACTION_IDS = Set.of(
+        "list_products",
+        "search_products",
+        "get_product_details",
+        "check_availability",
+        "get_policy",
+        "view_cart",
+        "add_product_to_cart",
+        "add_to_cart",
+        "update_cart_quantity"
+    );
 
     private static final List<String> DEFAULT_ACTION_IDS = List.of(
         "shopify_search_catalog",
@@ -70,7 +81,7 @@ final class ShopifyCompanionActionCatalog {
                 action.path("actionId").asText(null),
                 action.path("id").asText(null)
             );
-            if (isDisabledAction(actionId)) {
+            if (isDisabledAction(actionId) || isUnsupportedLegacyShopifyCompanionAction(action, actionId)) {
                 actions.remove(i);
                 changed = true;
             }
@@ -110,12 +121,27 @@ final class ShopifyCompanionActionCatalog {
                     action.path("actionId").asText(null),
                     action.path("id").asText(null)
                 );
-                if (actionId != null && !isDisabledAction(actionId) && isShopifyCompanionAction(action, actionId)) {
+                if (actionId != null
+                    && !isDisabledAction(actionId)
+                    && !isUnsupportedLegacyShopifyCompanionAction(action, actionId)
+                    && isShopifyCompanionAction(action, actionId)) {
                     actionIds.add(actionId);
                 }
             }
         }
         return actionIds;
+    }
+
+    private static boolean isUnsupportedLegacyShopifyCompanionAction(JsonNode action, String actionId) {
+        if (actionId == null || !UNSUPPORTED_LEGACY_SHOPIFY_COMPANION_ACTION_IDS.contains(normalize(actionId))) {
+            return false;
+        }
+        if (action == null || !action.isObject()) {
+            return true;
+        }
+        String adapterType = blankToNull(action.path("adapterType").asText(null));
+        String executionAdapterType = blankToNull(action.path("execution").path("adapterType").asText(null));
+        return !"mcp-tool".equalsIgnoreCase(adapterType) && !"mcp-tool".equalsIgnoreCase(executionAdapterType);
     }
 
     private static boolean isReadAction(JsonNode action) {

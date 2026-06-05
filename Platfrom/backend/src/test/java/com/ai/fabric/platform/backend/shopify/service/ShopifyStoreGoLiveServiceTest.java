@@ -463,6 +463,7 @@ class ShopifyStoreGoLiveServiceTest {
         ObjectNode upstream = (ObjectNode) routing.path("connector").path("upstream");
         ObjectNode auth = (ObjectNode) upstream.path("auth");
         ObjectNode actions = (ObjectNode) routing.path("actions");
+        ObjectNode actionsConfig = request.actionsConfig() instanceof ObjectNode object ? object : null;
         ObjectNode searchCatalog = (ObjectNode) routing.path("actions").path("shopify_search_catalog");
         ObjectNode updateCart = (ObjectNode) routing.path("actions").path("shopify_update_cart");
         ObjectNode requestBody = (ObjectNode) searchCatalog.path("request").path("body");
@@ -473,7 +474,12 @@ class ShopifyStoreGoLiveServiceTest {
             && "${SHOPIFY_BRIDGE_SHARED_SECRET}".equals(auth.path("value").asText())
             && !actions.has("find_similar_products")
             && !actions.has("compare_products")
+            && !actions.has("list_products")
+            && !actions.has("search_products")
             && actions.has("custom_unrelated_action")
+            && actionsConfig != null
+            && !actionsConfig.path("actions").findValuesAsText("name").contains("list_products")
+            && !actionsConfig.path("actions").findValuesAsText("name").contains("search_products")
             && "POST".equals(searchCatalog.path("method").asText())
             && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(searchCatalog.path("path").asText())
             && "POST".equals(updateCart.path("method").asText())
@@ -511,6 +517,8 @@ class ShopifyStoreGoLiveServiceTest {
         ObjectNode actions = routing.putObject("actions");
         managedShopifyBridgeRoute(actions.putObject("find_similar_products"));
         managedShopifyBridgeRoute(actions.putObject("compare_products"));
+        managedShopifyBridgeRoute(actions.putObject("list_products"));
+        managedShopifyBridgeRoute(actions.putObject("search_products"));
         ObjectNode unrelated = actions.putObject("custom_unrelated_action");
         unrelated.put("method", "POST");
         unrelated.put("path", "/api/custom/actions");
