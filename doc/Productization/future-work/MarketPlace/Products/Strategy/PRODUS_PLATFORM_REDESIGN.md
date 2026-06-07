@@ -704,51 +704,697 @@ typography: {
 
 ---
 
+## Screen Flow Architecture
+
+### Core Navigation Model: Product-Scoped Workspace
+
+The platform uses a **product-scoped workspace** pattern. When an owner clicks a product, the entire navigation context switches to that product's workspace. The sidebar, breadcrumbs, and available actions all scope to the selected product.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ProdUS                                                              │
+│  ─────────                                                           │
+│                                                                      │
+│  GLOBAL                      PRODUCT WORKSPACE                       │
+│  ┌──────────────┐            ┌──────────────────────────────────┐   │
+│  │              │            │                                  │   │
+│  │  Dashboard   │──click──→ │  Product: Auth Refactor          │   │
+│  │  Products    │  product   │  ─────────────────────           │   │
+│  │  Catalog     │            │                                  │   │
+│  │  Settings    │            │  ◉ Overview    (product state)   │   │
+│  │              │            │  ◎ Diagnosis   (scanner + AI)    │   │
+│  │              │   ←back    │  □ Services    (selected)        │   │
+│  │              │──to home── │  ◇ Package     (built)           │   │
+│  │              │            │  ◎ Team        (matched)         │   │
+│  │              │            │  ▣ Workspace   (delivery)        │   │
+│  │              │            │  ↗ Share       (public links)    │   │
+│  │              │            │                                  │   │
+│  └──────────────┘            └──────────────────────────────────┘   │
+│                                                                      │
+│  "Go back to master/home page to change to new product"             │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Navigation behavior:**
+- **Global level:** Dashboard shows all products, "Create Product" CTA, recent activity
+- **Product level:** Clicking a product enters its workspace with product-scoped left menu
+- **Back button:** Returns to global dashboard / product list (switch products)
+- **Left menu in workspace:** Shows product's current state and next steps — each menu item reflects what's been done and what's pending
+- **Menu items enable progressively:** Diagnosis unlocks after creation, Services after diagnosis, Package after service selection, Team after package, Workspace after team acceptance
+
+### Product States & Next Steps
+
+The product workspace menu shows the owner exactly where they are in the productization journey:
+
+```
+┌──────────────────────────────────────┐
+│  ← All Products                      │
+│                                      │
+│  Auth Refactor                       │
+│  Stage: Built, not production-ready  │
+│                                      │
+│  ─────────────────────               │
+│                                      │
+│  ✓ Overview            Created       │
+│  ✓ Diagnosis           Complete      │
+│  ✓ Services            3 selected    │
+│  ◷ Package             In review     │  ← current step
+│  ○ Team                Not started   │
+│  ○ Workspace           —             │
+│  ○ Share               —             │
+│                                      │
+│  ─────────────────────               │
+│  NEXT STEP:                          │
+│  Review your package and             │
+│  confirm to start team matching.     │
+│  [Review Package →]                  │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+| State Icon | Meaning |
+|---|---|
+| ✓ | Complete — step done, can revisit |
+| ◷ | In progress — current active step |
+| ○ | Not started — locked or waiting on previous step |
+| ⚠ | Needs attention — action required from owner |
+
+---
+
+### Three Entry Points Into Product Creation
+
+Owners can start a product from three different places. All three converge into the same product workspace.
+
+```
+ENTRY POINT A                ENTRY POINT B              ENTRY POINT C
+Dashboard / Products List    Services Catalog            AI-Assisted
+"+ Create Product"           Browse → Select → Convert   "Let AI decide"
+         │                           │                          │
+         ▼                           ▼                          ▼
+┌────────────────┐          ┌────────────────┐         ┌────────────────┐
+│ Step 1: Input  │          │ Catalog Page   │         │ Step 1: Input  │
+│ Name, URL,     │          │ Select services│         │ Name, URL,     │
+│ repo, docs     │          │ and templates  │         │ repo, docs     │
+└───────┬────────┘          └───────┬────────┘         └───────┬────────┘
+        │                           │                          │
+        ▼                           ▼                          ▼
+┌────────────────┐          ┌────────────────┐         ┌────────────────┐
+│ Step 2: Choose │          │ "Create Product│         │ AI analyzes    │
+│ Template OR    │          │  with these    │         │ inputs, repo,  │
+│ manual services│          │  services"     │         │ docs           │
+│ OR let AI      │          │ → pre-fills    │         │ → recommends   │
+│ recommend      │          │   new product  │         │   services     │
+└───────┬────────┘          │   page with    │         │ → owner edits  │
+        │                   │   selections   │         └───────┬────────┘
+        │                   └───────┬────────┘                 │
+        │                           │                          │
+        └───────────────┬───────────┘──────────────────────────┘
+                        │
+                        ▼
+               ┌────────────────┐
+               │ Product Created│
+               │ → Workspace    │
+               │   with scoped  │
+               │   navigation   │
+               └────────────────┘
+```
+
+**Path A: Manual (Dashboard → Create)** — Owner knows what they want
+- Step 1: Describe product (name, URL, repo, documents)
+- Step 2: Choose services manually from catalog OR select a template
+- Step 3: Review and create
+- Product workspace opens with selected services
+
+**Path B: Catalog-First** — Owner explores services before committing
+- Browse the Services Catalog page independently
+- Select services/templates that look relevant
+- Click "Create Product with These Services"
+- Redirects to new product page pre-filled with selections
+- Owner adds product inputs (name, URL, repo) for analysis
+- Product workspace opens with pre-selected services
+
+**Path C: AI-Assisted (Primary/Recommended)** — AI drives the decisions
+- Step 1: Describe product (name, URL, repo, documents)
+- Step 2: Choose "Let AI analyze and recommend"
+- AI runs diagnosis on inputs, repo, documents
+- AI returns recommended services, owner reviews and edits
+- Product workspace opens with AI-recommended services
+
+---
+
+### Screen: Dashboard Home (`/dashboard`) — Revised
+
+**Purpose:** Global launchpad. Shows all products and their states. Primary action: create new product or enter a product workspace.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Welcome back, Mahmoud                               [+ New Product] │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
+│  │ Products │  │ Active   │  │ Pending  │  │ Credits  │            │
+│  │    3     │  │ Packages │  │ Reviews  │  │   1,200  │            │
+│  │          │  │    2     │  │    1     │  │  balance  │            │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘            │
+│                                                                      │
+│  YOUR PRODUCTS                                                       │
+│  ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────┐ │
+│  │ Auth Refactor        │ │ Mobile App           │ │ API Gateway  │ │
+│  │ ████████░░ 68%       │ │ ███░░░░░░ 30%        │ │ ○ Not started│ │
+│  │                      │ │                      │ │              │ │
+│  │ Next: Review M2      │ │ Next: Find team      │ │ Next: Run    │ │
+│  │ submission           │ │                      │ │ diagnosis    │ │
+│  │                      │ │                      │ │              │ │
+│  │ [Open Workspace →]   │ │ [Open Workspace →]   │ │ [Start →]    │ │
+│  └──────────────────────┘ └──────────────────────┘ └──────────────┘ │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │ NEEDS ATTENTION                                               │   │
+│  │                                                               │   │
+│  │  ⚠ Milestone 2 submitted for "Auth Refactor" — Review now   │   │
+│  │  ● Team match ready for "Mobile App" — View teams            │   │
+│  │  ✓ Diagnosis complete for "API Gateway" — See results        │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │ RECENT ACTIVITY                                               │   │
+│  │                                                               │   │
+│  │  2h ago   Team DevCraft submitted milestone 2                │   │
+│  │  1d ago   Package "Security Hardening" approved              │   │
+│  │  2d ago   New product "API Gateway" created                  │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Key change from original:** Products are shown as cards directly on the dashboard with their current state and **next step**. Each card tells the owner exactly what to do next. Clicking opens the product workspace.
+
+---
+
+### Screen: New Product Creation (`/products/new`) — Revised
+
+**Purpose:** Guided creation with three paths: manual, template, or AI-assisted.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ← Back to Products              Create New Product                  │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  ① Describe  →  ② Services  →  ③ Review  →  Created          │  │
+│  │  ●━━━━━━━━━━━━━○━━━━━━━━━━━━━○━━━━━━━━━━━○                   │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                                                                │  │
+│  │  Step 1: Describe your product                                 │  │
+│  │                                                                │  │
+│  │  Product name *                                                │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │ My SaaS Platform                                        │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  Describe what your product does (natural language)            │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │ A customer support platform with ticketing, knowledge   │  │  │
+│  │  │ base, and live chat for SaaS companies...               │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  Product URL (optional)                                        │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │ https://myapp.com                                       │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  Repository URL (optional)                                     │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │ https://github.com/myorg/myapp                          │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  Upload documents (optional)                                   │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  📎 Drop files here or click to upload                  │  │  │
+│  │  │     PRD, architecture docs, requirements — AI will use  │  │  │
+│  │  │     selected files to analyze your product.             │  │  │
+│  │  │                                                         │  │  │
+│  │  │  ✓ architecture.pdf (340KB)                [✕]         │  │  │
+│  │  │  ✓ requirements.md (28KB)                  [✕]         │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  What stage is your product in?                                │  │
+│  │  ○ Idea / Pre-build                                           │  │
+│  │  ● Built but not production-ready                             │  │
+│  │  ○ Running in production                                      │  │
+│  │  ○ Production but needs improvement                           │  │
+│  │                                                                │  │
+│  │                                         [Continue →]           │  │
+│  │                                                                │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Step 2: Choose your service path**
+
+```
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                                                                │  │
+│  │  Step 2: How do you want to select services?                   │  │
+│  │                                                                │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  🤖 LET AI ANALYZE & RECOMMEND                (Primary) │  │  │
+│  │  │                                                          │  │  │
+│  │  │  AI will analyze your description, repo, and documents   │  │  │
+│  │  │  to recommend the right services for your product.       │  │  │
+│  │  │  You can review and edit everything before creating.     │  │  │
+│  │  │                                                          │  │  │
+│  │  │  [Choose This Path →]                                    │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  📋 START FROM A TEMPLATE                                │  │  │
+│  │  │                                                          │  │  │
+│  │  │  Pick a pre-configured service package:                  │  │  │
+│  │  │                                                          │  │  │
+│  │  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐     │  │  │
+│  │  │  │ Full         │ │ Security     │ │ MVP Launch   │     │  │  │
+│  │  │  │ Production   │ │ Focus        │ │              │     │  │  │
+│  │  │  │ 8 services   │ │ 3 services   │ │ 5 services   │     │  │  │
+│  │  │  │ [Select]     │ │ [Select]     │ │ [Select]     │     │  │  │
+│  │  │  └──────────────┘ └──────────────┘ └──────────────┘     │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  🔧 CHOOSE SERVICES MANUALLY                             │  │  │
+│  │  │                                                          │  │  │
+│  │  │  Browse the full service catalog and pick exactly        │  │  │
+│  │  │  what you need.                                          │  │  │
+│  │  │                                                          │  │  │
+│  │  │  [Open Catalog →]                                        │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │                                   [← Back]                     │  │
+│  │                                                                │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+```
+
+**Step 2 (AI path): AI analysis results**
+
+```
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                                                                │  │
+│  │  Step 2: AI Recommendations                                    │  │
+│  │                                                                │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  🤖 Based on your inputs, repo, and documents, here's   │  │  │
+│  │  │  what your product needs for production readiness:       │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │                                                                │  │
+│  │  RECOMMENDED (from analysis):                                  │  │
+│  │                                                                │  │
+│  │  ☑ Security Hardening                        ★ Recommended    │  │
+│  │    3 critical findings in repo scan                            │  │
+│  │                                                                │  │
+│  │  ☑ CI/CD Pipeline Setup                      ★ Recommended    │  │
+│  │    No CI configuration detected                                │  │
+│  │                                                                │  │
+│  │  ☑ Database Readiness                        ★ Recommended    │  │
+│  │    No migration strategy found                                 │  │
+│  │                                                                │  │
+│  │  OPTIONAL (may benefit):                                       │  │
+│  │                                                                │  │
+│  │  ☐ Monitoring & Alerting                                      │  │
+│  │    No APM or error tracking detected                           │  │
+│  │                                                                │  │
+│  │  ☐ AI Integration                                             │  │
+│  │    Score: 78/100 — strong fit for support assistant             │  │
+│  │                                                                │  │
+│  │  ──────────────────────────────────────────────────────────    │  │
+│  │                                                                │  │
+│  │  ☐ Add more from catalog                    [Browse Catalog]   │  │
+│  │                                                                │  │
+│  │  3 services selected                  [← Back]  [Continue →]   │  │
+│  │                                                                │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+```
+
+**AI recommendations show WHY each service is recommended** — linked to real evidence from the repo scan, not generic suggestions. Owner can check/uncheck any service, and add more from the catalog.
+
+---
+
+### Screen: Services Catalog (`/catalog`) — New Page
+
+**Purpose:** Standalone browsable catalog. Entry point B — users can explore services independently, then convert selections into a product.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Service Catalog                                        [Search...] │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  [All] [Security] [CI/CD] [Cloud] [Database] [Testing]              │
+│  [Performance] [Operations] [AI Integration] [Launch]               │
+│                                                                      │
+│  ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────┐ │
+│  │ 🔒 Security          │ │ ⚙ CI/CD Pipeline     │ │ ☁ Cloud      │ │
+│  │    Hardening          │ │   Setup              │ │   Deployment │ │
+│  │                      │ │                      │ │              │ │
+│  │ Dependency audit,    │ │ Build, test, deploy  │ │ Infrastructure│ │
+│  │ auth review, secrets │ │ automation with      │ │ setup, Docker,│ │
+│  │ management, pentest  │ │ quality gates        │ │ Kubernetes   │ │
+│  │                      │ │                      │ │              │ │
+│  │ Includes:            │ │ Includes:            │ │ Includes:    │ │
+│  │ • Vulnerability scan │ │ • Pipeline config    │ │ • IaC setup  │ │
+│  │ • Auth hardening     │ │ • Automated tests    │ │ • Container  │ │
+│  │ • Secrets vault      │ │ • Deploy stages      │ │ • Monitoring │ │
+│  │                      │ │                      │ │              │ │
+│  │ [☐ Select]           │ │ [☑ Selected]         │ │ [☐ Select]   │ │
+│  └──────────────────────┘ └──────────────────────┘ └──────────────┘ │
+│                                                                      │
+│  ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────┐ │
+│  │ 🗄 Database           │ │ 🧪 Testing &         │ │ 🤖 AI        │ │
+│  │   Readiness           │ │   Quality            │ │   Integration│ │
+│  │   ...                 │ │   ...                │ │   ...        │ │
+│  │ [☐ Select]           │ │ [☐ Select]           │ │ [☐ Select]   │ │
+│  └──────────────────────┘ └──────────────────────┘ └──────────────┘ │
+│                                                                      │
+│  ──────────────────────────────────────────────────────────────────  │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  1 service selected: CI/CD Pipeline Setup                      │  │
+│  │                                                                │  │
+│  │  [Create New Product with Selected Services →]                 │  │
+│  │                                                                │  │
+│  │  Already have a product? [Add to Existing Product ▼]           │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Catalog behavior:**
+- Category filter tabs at top
+- Each service is a card with description, included items, and select checkbox
+- Sticky bottom bar shows selection count and two actions:
+  - "Create New Product with Selected Services" → redirects to `/products/new` with services pre-selected (skips Step 2 path selection)
+  - "Add to Existing Product" → dropdown of owner's products, adds services to that product's workspace
+- Templates are shown as a separate section: "Quick Start Templates" with pre-configured service bundles
+
+---
+
+### Screen: Product Workspace Overview (`/products/[id]`) — Revised
+
+**Purpose:** Product-scoped home page. Shows current state, next steps, and all related data for one product. This is where the owner spends most of their time.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ← All Products          Auth Refactor              [Settings] [⋮]  │
+├────────────────────┬─────────────────────────────────────────────────┤
+│                    │                                                 │
+│  AUTH REFACTOR     │  PRODUCT OVERVIEW                              │
+│                    │                                                 │
+│  ─────────────     │  ┌──────────────────┐ ┌──────────────────────┐ │
+│                    │  │ Health Score      │ │ Quick Info           │ │
+│  ✓ Overview        │  │                  │ │                      │ │
+│  ✓ Diagnosis       │  │  ████████░░ 72   │ │ Stack: Node, React   │ │
+│  ✓ Services (3)    │  │                  │ │ Stage: Built         │ │
+│  ◷ Package         │  │ ✓ CI/CD          │ │ Created: 12 Mar 2026 │ │
+│  ○ Team            │  │ ✓ Monitoring     │ │ Team: —              │ │
+│  ○ Workspace       │  │ ✗ Load testing   │ │ Package: Draft       │ │
+│  ○ Share           │  │ ✗ Docs           │ │                      │ │
+│                    │  └──────────────────┘ └──────────────────────┘ │
+│  ─────────────     │                                                 │
+│                    │  ┌────────────────────────────────────────────┐ │
+│  NEXT STEP:        │  │ AI OPPORTUNITIES                    78/100│ │
+│  Review package    │  │                                            │ │
+│  and confirm to    │  │ 💬 Customer Support Assistant   Fit: 92   │ │
+│  start matching.   │  │ 📊 Internal Data Analyst       Fit: 71   │ │
+│  [Review →]        │  │                                            │ │
+│                    │  │ [View AI Opportunity Report →]             │ │
+│  ─────────────     │  └────────────────────────────────────────────┘ │
+│                    │                                                 │
+│  🔍 Diagnosis      │  ┌────────────────────────────────────────────┐ │
+│  📦 Package        │  │ SELECTED SERVICES                          │ │
+│  👥 Team           │  │                                            │ │
+│  📊 Evidence       │  │ ☑ Security Hardening       ★ Recommended  │ │
+│  📋 Activity       │  │ ☑ CI/CD Pipeline Setup     ★ Recommended  │ │
+│                    │  │ ☑ Database Readiness       ★ Recommended  │ │
+│                    │  │                                            │ │
+│                    │  │ [Edit Services] [Build Package →]          │ │
+│                    │  └────────────────────────────────────────────┘ │
+│                    │                                                 │
+│                    │  ┌────────────────────────────────────────────┐ │
+│                    │  │ RECENT ACTIVITY                            │ │
+│                    │  │                                            │ │
+│                    │  │ 2h ago   Diagnosis completed               │ │
+│                    │  │ 1d ago   3 services selected               │ │
+│                    │  │ 2d ago   Product created                   │ │
+│                    │  └────────────────────────────────────────────┘ │
+│                    │                                                 │
+├────────────────────┴─────────────────────────────────────────────────┤
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+- Left sidebar shows product-scoped navigation with state indicators (✓ ◷ ○)
+- "Next Step" card in the sidebar tells the owner exactly what to do — never guessing
+- AI Opportunities section appears after diagnosis (if score > threshold)
+- Selected services shown with "Edit" and "Build Package" actions
+- The workspace overview IS the product detail page — not a separate concept
+
+---
+
+### Screen: Public Shared Product Page (`/share/[linkId]`) — New Page
+
+**Purpose:** Granular shareable view of a product. Owner controls what each link exposes. Used for team matching, investor updates, and expert recruitment.
+
+**Share link management (owner view in workspace):**
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Share: Auth Refactor                                  [+ New Link]  │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  🔗 "For Team Matching"                                        │  │
+│  │  Created: 2 days ago · Expires: Never · Views: 12              │  │
+│  │                                                                │  │
+│  │  SHARES:                                                       │  │
+│  │  ✓ General description    ✓ Selected services                 │  │
+│  │  ✓ Product status         ✗ Scanner findings                  │  │
+│  │  ✗ Milestones             ✗ Team info                         │  │
+│  │                                                                │  │
+│  │  ACCESS LEVELS:                                                │  │
+│  │  • Anyone with link: sees description + services              │  │
+│  │  • Logged-in users: sees description + services + can apply   │  │
+│  │  • Marketplace experts: sees catalog match, redirect to login │  │
+│  │                                                                │  │
+│  │  [Copy Link]  [Edit Permissions]  [View Analytics]  [Disable]  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  🔗 "For Investor Update"                                      │  │
+│  │  Created: 5 days ago · Expires: 7 days · Views: 4             │  │
+│  │                                                                │  │
+│  │  SHARES:                                                       │  │
+│  │  ✓ General description    ✓ Selected services                 │  │
+│  │  ✓ Product status         ✓ Milestone progress                │  │
+│  │  ✗ Scanner findings       ✗ Team info                         │  │
+│  │                                                                │  │
+│  │  [Copy Link]  [Edit Permissions]  [View Analytics]  [Disable]  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Public shared page (what external viewers see):**
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ProdUS                                            [Sign In] [Join] │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                                                                │  │
+│  │  Auth Refactor                                                 │  │
+│  │  by Product Owner                                              │  │
+│  │                                                                │  │
+│  │  A customer support platform with ticketing, knowledge         │  │
+│  │  base, and live chat for SaaS companies. Built with            │  │
+│  │  Node.js and React. Currently pre-production.                  │  │
+│  │                                                                │  │
+│  │  Stage: Built, not production-ready                            │  │
+│  │  Stack: [Node.js] [React] [PostgreSQL] [AWS]                  │  │
+│  │                                                                │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  SERVICES NEEDED                                               │  │
+│  │                                                                │  │
+│  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐  │  │
+│  │  │ 🔒 Security     │ │ ⚙ CI/CD         │ │ 🗄 Database     │  │  │
+│  │  │    Hardening     │ │   Pipeline      │ │   Readiness     │  │  │
+│  │  │                 │ │                 │ │                 │  │  │
+│  │  │ Audit, auth,    │ │ Build, test,    │ │ Migrations,     │  │  │
+│  │  │ secrets         │ │ deploy          │ │ indexing         │  │  │
+│  │  └─────────────────┘ └─────────────────┘ └─────────────────┘  │  │
+│  │                                                                │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  🔒 Scanner findings are private                               │  │
+│  │  Sign in to see detailed findings (if shared by owner).        │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  Are you an expert or team that can deliver these services?    │  │
+│  │                                                                │  │
+│  │  [Sign In to Apply]              [Learn About ProdUS →]        │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  📋 Marketplace users: Browse our full service catalog         │  │
+│  │  [View Service Catalog →]                                      │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Three-tier access on shared page:**
+
+| Viewer | What They See | What They Can Do |
+|---|---|---|
+| **Anonymous** (no login) | Product description, stack, stage, selected services (names only) | View only. CTA: "Sign In to Apply" |
+| **Logged-in user** (registered) | Everything above + scanner findings (if owner shared them) + detailed service descriptions | Apply to project, message owner, view full details |
+| **Marketplace expert** (from Network) | Everything above + service catalog cross-reference | See how their skills match, apply through Network profile |
+
+---
+
+### Updated Route Structure
+
+```
+app/(dashboard)/
+├── dashboard/page.tsx              → Home: product cards, activity, quick actions
+├── products/
+│   ├── page.tsx                    → Product list (grid/table of all products)
+│   ├── new/page.tsx                → Create product (3-step: describe → services → review)
+│   └── [id]/
+│       ├── page.tsx                → Product workspace overview (scoped navigation)
+│       ├── diagnosis/page.tsx      → AI diagnosis + scanner results + AI opportunities
+│       ├── services/page.tsx       → Selected services (edit, add, remove)
+│       ├── package/page.tsx        → Package builder (milestones, budget, review)
+│       ├── team/page.tsx           → Team matching and selection
+│       ├── workspace/page.tsx      → Active delivery (milestones, evidence, messages)
+│       ├── share/page.tsx          → Share link management
+│       └── settings/page.tsx       → Product settings
+├── catalog/page.tsx                → Service catalog (standalone, browsable)     ← NEW
+├── share/[linkId]/page.tsx         → Public shared product page (external)       ← NEW
+├── teams/
+│   ├── page.tsx                    → Team discovery (global browse)
+│   └── [id]/page.tsx              → Team profile
+├── billing/page.tsx                → Credits, payment history
+└── settings/page.tsx               → Account settings
+```
+
+**Key changes from original:**
+- Added `/catalog` as standalone catalog entry point
+- Added `/share/[linkId]` for public shareable product pages
+- Products now contain nested workspace routes (`/products/[id]/workspace/`) instead of separate `/workspaces/` top-level route — everything is product-scoped
+- Added `/products/[id]/services/` for service management within workspace
+- Added `/products/[id]/share/` for share link management
+
+---
+
 ## Key User Flows
 
-### Flow 1: New Owner Onboarding
+### Flow 1: New Owner — AI-Assisted Path (Primary)
 
 ```
-Dashboard (empty state) 
-  → "Add Your First Product" CTA
-  → /products/new (wizard step 1: connect)
-  → Step 2: describe
-  → Step 3: review + "Run AI Diagnosis"
-  → /products/[id]/diagnosis (results load)
-  → "Build Package" CTA on diagnosis page
-  → /packages/new (pre-filled with recommendations)
-  → Package created → "Find Team" CTA
-  → /teams (filtered for this package)
-  → Request team → Workspace created
-  → /workspaces/[id] (active project begins)
+Dashboard (empty state)
+  → "Create Your First Product" CTA
+  → /products/new Step 1: Describe (name, URL, repo, docs, stage)
+  → Step 2: Choose "Let AI Analyze & Recommend"
+  → AI processes inputs, repo, docs
+  → Step 2 shows AI-recommended services (owner edits)
+  → Step 3: Review summary
+  → Product created → redirected to /products/[id]
+  → Product workspace opens with scoped navigation
+  → Left nav shows: ✓ Overview, ✓ Services, ◷ Diagnosis (running)
+  → Diagnosis completes → ✓ Diagnosis, AI Opportunities shown
+  → Owner clicks "Build Package →"
+  → /products/[id]/package (pre-filled from services + diagnosis)
+  → Package built → "Find Team" CTA
+  → /products/[id]/team (matched teams shown)
+  → Owner requests team → Workspace activates
+  → /products/[id]/workspace (milestones, evidence, delivery)
 ```
 
-### Flow 2: Review Submitted Milestone
+### Flow 2: Catalog-First Entry (Alternative)
+
+```
+Owner browses /catalog
+  → Explores service categories, reads descriptions
+  → Selects 2 services (CI/CD + Security)
+  → Clicks "Create New Product with Selected Services"
+  → /products/new Step 1: Describe (name, URL, repo, docs)
+  → Step 2: Pre-filled with selected services + "Add more" option
+  → Step 3: Review
+  → Product created with pre-selected services
+  → Workspace opens → owner runs diagnosis for evidence
+```
+
+### Flow 3: Existing Owner — Add Services to Product
+
+```
+Owner browses /catalog
+  → Selects "AI Integration" service
+  → Clicks "Add to Existing Product ▼"
+  → Dropdown shows owner's products
+  → Selects "Auth Refactor"
+  → Service added to /products/[auth-refactor-id]/services
+  → Owner navigates to product workspace
+  → Left nav shows updated service count
+```
+
+### Flow 4: Share Product for Team Matching
+
+```
+Owner in /products/[id]/share
+  → Clicks "+ New Link"
+  → Configures: share services + status, hide findings + milestones
+  → Names link "For Team Matching"
+  → Copies link
+  → Posts link on Network or sends to expert
+  → Expert opens /share/[linkId]
+  → Sees product description + services needed
+  → Clicks "Sign In to Apply"
+  → Logged in → sees full details (if shared)
+  → Applies through Network profile
+  → Owner sees application in /products/[id]/team
+```
+
+### Flow 5: Review Submitted Milestone
 
 ```
 Dashboard "Needs Attention" card
   → Click notification
-  → /workspaces/[id] (overview shows milestone pending)
+  → /products/[id]/workspace (milestone pending)
   → Click "Review Submission"
-  → /workspaces/[id]/milestones (review view)
-  → See acceptance criteria status + AI verification
+  → Review view: acceptance criteria + evidence + AI verification
   → Make decision (accept/revise)
   → Confirmation → payment released (if accepted)
-  → Return to workspace overview (updated progress)
+  → Workspace progress updates
 ```
 
-### Flow 3: Handoff and Project Closure
+### Flow 6: Handoff and Project Closure
 
 ```
 Workspace shows "All milestones complete"
   → "Begin Handoff" CTA appears
-  → /workspaces/[id]/handoff
-  → Checklist shows what's verified, what's missing
-  → Team completes remaining items
-  → All items verified → "Approve Handoff" enabled
+  → Handoff checklist within workspace
+  → Items verified → "Approve Handoff" enabled
   → Owner approves → project marked complete
-  → Optional: "Request Support Package" for ongoing needs
-  → /products/[id] (product now shows "Independent" status)
+  → Optional: "Request Support Package"
+  → Product shows "Production Ready" status
 ```
 
 ---
