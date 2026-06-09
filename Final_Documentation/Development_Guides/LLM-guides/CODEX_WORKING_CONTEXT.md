@@ -1482,3 +1482,13 @@ Critical fixes that made the gate pass:
 - The playbook separates what the owner/operator should provide from what Codex can safely execute afterward.
 - Covered blockers: durable production Coolify operator token, public billing/test-mode decision, protected customer data and `read_orders` scope posture, public App Store listing/reviewer package, full public release verification, and controlled-release owner approval.
 - Official Shopify launch docs were rechecked on 2026-06-05 before writing the steps; public launch remains gated by Shopify billing, scope/protected-data posture, app reliability/reviewer package, and support/onboarding evidence.
+
+## 2026-06-08 AI Fabric Framework GitHub Packages Release Path
+
+- Selected the first framework-only release route: GitHub Packages for Maven artifacts plus a GitHub Release source asset.
+- Added GitHub Packages `distributionManagement` and SCM metadata to `ai-infrastructure-module/pom.xml`.
+- Fixed stale dependency-management artifact names before release: provider/vector modules and relationship-query now match their actual module artifact IDs.
+- Added `.github/workflows/ai-fabric-framework-github-packages-release.yml`; it publishes the framework Maven reactor, excludes `integration-Testing/*`, validates `ai-fabric-framework-v<version>` tag/version alignment, and uploads `ai-fabric-framework-source-<version>.tar.gz` plus checksum as a framework-only source release asset.
+- Added `ai-infrastructure-module/docs/GITHUB_PACKAGES_RELEASE_GUIDE.md` with versioning, verification, tagging, GitHub Release, consumer Maven, and boundary instructions.
+- This release path is for the reusable framework only. It does not release Platform, Shopify Bridge, Partner UI, Coolify deployments, ProdUS, or production runtime services.
+- Added `doc/Productization/future-work/AI_FABRIC_FRAMEWORK_PUBLIC_REPO_SEPARATION_AND_RELEASE_PLAN.md` as the detailed execution plan for creating a separate public framework repo, cleaning license/docs, running exposure scans, releasing `0.1.0-preview`, and keeping private products near through Maven/sibling-repo development.
