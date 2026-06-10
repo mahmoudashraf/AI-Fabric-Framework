@@ -20,11 +20,27 @@ We are building two related but different things:
 
 ### Framework
 
-The framework lives primarily under:
+The framework now lives in the public sibling repository:
 
-- `ai-infrastructure-module`
+- `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework`
+- `https://github.com/Loom-AI-Labs/ai-fabric-framework`
+
+The framework source is no longer kept inside this private product repository. The old private-repo paths were removed:
+
+- `Real_Apps`
+- reusable framework library modules formerly under `ai-infrastructure-module`
+
+Framework responsibilities still include:
+
 - provider modules
-- orchestration, retrieval, auth, connector, and runtime primitives
+- orchestration, retrieval, action connector libraries, auth primitives, vector modules, curated packs, and provider integrations
+
+Deployable runtime and generic REST connector services are not public framework deliverables. They are private LoomAI product services and live in this private repo at:
+
+- `ai-infrastructure-module/ai-fabric-runtime`
+- `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
+
+Private products consume the framework through Maven artifacts. For active local development, install the sibling framework repo into the local Maven repository first, then build this repo.
 
 Framework responsibilities:
 

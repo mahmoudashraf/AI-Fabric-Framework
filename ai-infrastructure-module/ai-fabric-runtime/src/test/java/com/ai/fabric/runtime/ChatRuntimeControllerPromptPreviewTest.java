@@ -324,18 +324,18 @@ class ChatRuntimeControllerPromptPreviewTest {
                 .build()
         );
         ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
-        ReflectionTestUtils.setField(controller, "transientFileUrlAllowedHosts", "*.sslip.io");
+        ReflectionTestUtils.setField(controller, "transientFileUrlAllowedHosts", "*.example.com");
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Analyze this document");
-        request.setConversationId("produs-doc-1");
+        request.setConversationId("example-doc-1");
         request.setContext(Map.of(
             "pageType", "project_creation",
             "documents", List.of(Map.of(
                 "documentId", "doc-1",
                 "fileName", "brief.pdf",
                 "contentType", "application/pdf",
-                "temporaryAccessUrl", "https://produs-api-staging.46.224.145.148.sslip.io/files/tmp/brief.pdf?sig=abc"
+                "temporaryAccessUrl", "https://files.example.com/tmp/brief.pdf?sig=abc"
             ))
         ));
 
@@ -353,25 +353,25 @@ class ChatRuntimeControllerPromptPreviewTest {
         assertThat(part.getDocumentId()).isEqualTo("doc-1");
         assertThat(part.getFileName()).isEqualTo("brief.pdf");
         assertThat(part.getContentType()).isEqualTo("application/pdf");
-        assertThat(part.getUrl()).contains("https://produs-api-staging.46.224.145.148.sslip.io");
+        assertThat(part.getUrl()).contains("https://files.example.com");
 
         @SuppressWarnings("unchecked")
         Map<String, Object> requestContext = (Map<String, Object>) context.getMetadata().get("requestContext");
-        assertThat(requestContext.toString()).doesNotContain("produs-api-staging");
+        assertThat(requestContext.toString()).doesNotContain("files.example.com");
         assertThat(requestContext.toString()).contains("[REDACTED_TRANSIENT_FILE_URL]");
     }
 
     @Test
     void queryRejectsTransientDocumentUrlHostOutsideConfiguredAllowlist() {
         ChatRuntimeController controller = controllerFor(mock(RAGOrchestrator.class), null, strictAuthResolver());
-        ReflectionTestUtils.setField(controller, "transientFileUrlAllowedHosts", "files.produs.example.com,*.produs.example.com");
+        ReflectionTestUtils.setField(controller, "transientFileUrlAllowedHosts", "allowed.example.com,*.allowed.example.com");
 
         ChatQueryRequest request = new ChatQueryRequest();
         request.setQuery("Analyze this document");
         request.setContext(Map.of(
             "documents", List.of(Map.of(
                 "documentId", "doc-1",
-                "temporaryAccessUrl", "https://produs-api-staging.46.224.145.148.sslip.io/files/tmp/brief.pdf?sig=abc"
+                "temporaryAccessUrl", "https://files.example.com/tmp/brief.pdf?sig=abc"
             ))
         ));
 
@@ -443,6 +443,37 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void queryMapsVectorSpaceHintsFromRequestContextIntoOrchestrationMetadata() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        when(orchestrator.orchestrate(eq("Find the onboarding checklist"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Ready")
+                .build());
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Find the onboarding checklist");
+        request.setContext(Map.of(
+            "vectorSpace", "primary-docs",
+            "entityType", "primary-docs",
+            "preferredVectorSpaces", List.of("primary-docs", "reference-docs")
+        ));
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        controller.queryOnce(request, servletRequest);
+
+        ArgumentCaptor<OrchestrationContext> context = ArgumentCaptor.forClass(OrchestrationContext.class);
+        verify(orchestrator).orchestrate(eq("Find the onboarding checklist"), context.capture());
+        assertThat(context.getValue().getMetadata())
+            .containsEntry(OrchestrationContextMetadataKeys.RAG_VECTOR_SPACE_HINT, "primary-docs")
+            .containsEntry(OrchestrationContextMetadataKeys.RAG_PREFERRED_VECTOR_SPACES, List.of("primary-docs", "reference-docs"));
+    }
+
+    @Test
     void meQueryPreservesActionErrorCodeInCanonicalActionEvidence() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         when(orchestrator.orchestrate(eq("I want to return my last order"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
@@ -451,7 +482,7 @@ class ChatRuntimeControllerPromptPreviewTest {
                 .success(false)
                 .message("Customer Account MCP requires a bound customer OAuth/PKCE access token.")
                 .data(Map.of(
-                    "action", "shopify_get_most_recent_order_status",
+                    "action", "commerce_get_most_recent_order_status",
                     "actionResult", ActionResult.builder()
                         .success(false)
                         .message("Customer Account MCP requires a bound customer OAuth/PKCE access token.")
@@ -461,7 +492,7 @@ class ChatRuntimeControllerPromptPreviewTest {
                 .sanitizedPayload(Map.of(
                     "safeSummary", "Customer Account MCP requires a bound customer OAuth/PKCE access token.",
                     "data", Map.of(
-                        "action", "shopify_get_most_recent_order_status",
+                        "action", "commerce_get_most_recent_order_status",
                         "actionResult", Map.of(
                             "success", false,
                             "message", "Customer Account MCP requires a bound customer OAuth/PKCE access token."
@@ -486,7 +517,7 @@ class ChatRuntimeControllerPromptPreviewTest {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> action = (Map<String, Object>) response.getActions().get(0);
-        assertThat(action).containsEntry("action", "shopify_get_most_recent_order_status");
+        assertThat(action).containsEntry("action", "commerce_get_most_recent_order_status");
         assertThat(action).containsEntry("errorCode", "CUSTOMER_ACCOUNT_AUTH_REQUIRED");
 
         @SuppressWarnings("unchecked")
@@ -791,7 +822,7 @@ class ChatRuntimeControllerPromptPreviewTest {
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getPublicTokens().setSigningKey("public-secret");
         properties.getPublicTokens().setIssuer("runtime-public-test");
-        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
+        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "commerce-app"));
         properties.getPublicTokens().setAcceptedAudiences(List.of("storefront-chat"));
         properties.getPublicTokens().setDefaultAudience("storefront-chat");
         RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
@@ -804,7 +835,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             "cus-public",
             "ten-public",
             List.of("chat:query", "chat:conversations"),
-            "shopify-app",
+            "commerce-app",
             List.of("storefront-chat")
         ).token();
 
@@ -835,7 +866,7 @@ class ChatRuntimeControllerPromptPreviewTest {
             .containsEntry("subjectId", "customer-123")
             .containsEntry("authMode", RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED.name())
             .containsEntry("subjectType", RuntimeAuthSubjectType.END_USER.name())
-            .containsEntry("authIssuer", "shopify-app")
+            .containsEntry("authIssuer", "commerce-app")
             .containsEntry("requestedScopes", java.util.List.of("chat:query"));
     }
 

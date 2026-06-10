@@ -265,7 +265,7 @@ class PublicRuntimeSessionControllerRateLimitTest {
     "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS=platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM",
     "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES=dep-public",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY=public-secret",
-    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS=shopify-app",
+    "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_ISSUERS=commerce-app",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_ACCEPTED_AUDIENCES=storefront-chat",
     "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_DEFAULT_AUDIENCE=storefront-chat",
     "AI_FABRIC_RUNTIME_DEPLOYMENT_ID=dep-public",
@@ -291,7 +291,7 @@ class PublicRuntimeAuthenticatedChatTest {
             "cus-public",
             "ten-public",
             java.util.List.of("chat:suggestions", "chat:conversations"),
-            "shopify-app",
+            "commerce-app",
             java.util.List.of("storefront-chat")
         ).token();
 
@@ -330,7 +330,7 @@ class PublicRuntimeAuthenticatedChatTest {
             "cus-public",
             "ten-public",
             java.util.List.of("chat:query"),
-            "shopify-app",
+            "commerce-app",
             java.util.List.of("storefront-chat")
         ).token();
 
@@ -353,7 +353,7 @@ class PublicRuntimeAuthenticatedChatTest {
             "cus-public",
             "ten-public",
             java.util.List.of("chat:suggestions"),
-            "shopify-app",
+            "commerce-app",
             java.util.List.of("storefront-chat")
         ).token();
 
@@ -376,7 +376,7 @@ class PublicRuntimeAuthenticatedChatTest {
             "cus-public",
             "ten-public",
             java.util.List.of("chat:query"),
-            "shopify-app",
+            "commerce-app",
             java.util.List.of("storefront-chat")
         ).token();
 

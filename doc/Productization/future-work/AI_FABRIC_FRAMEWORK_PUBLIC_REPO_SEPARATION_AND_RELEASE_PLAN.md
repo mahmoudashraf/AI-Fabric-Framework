@@ -1,6 +1,6 @@
 # AI Fabric Framework Public Repo Separation and Release Plan
 
-Status: active planning document
+Status: execution in progress; runtime/connector boundary corrected on 2026-06-10
 
 Created: 2026-06-08
 
@@ -15,13 +15,13 @@ This plan is deliberately practical. It defines the cleanup, extraction, verific
 Create a public framework repo:
 
 ```text
-mahmoudashraf/ai-fabric-framework
+Loom-AI-Labs/ai-fabric-framework
 ```
 
 Keep the private product repo:
 
 ```text
-mahmoudashraf/AI-Fabric-Framework
+TheBaseRepo
 ```
 
 Recommended local layout:
@@ -38,7 +38,6 @@ Public framework repo contains:
 - provider modules
 - vector modules
 - curated generic packs
-- framework runtime primitives
 - public examples
 - public docs
 - public CI
@@ -50,6 +49,8 @@ Private product repo contains:
 - Partner UI
 - Shopify Bridge and Shopify Companion product code
 - Coolify/Hetzner/platform deployment operations
+- deployable runtime service
+- deployable generic REST connector service
 - private handoff/context files
 - commercial product strategy and roadmap
 - customer-specific configuration
@@ -122,8 +123,6 @@ Framework modules intended for first release:
 - `ai-infrastructure-retrieval-connector`
 - `ai-infrastructure-data-sync`
 - `ai-infrastructure-relay`
-- `ai-infrastructure-generic-rest-connector`
-- `ai-fabric-runtime`
 - `ai-infrastructure-indexing`
 - `ai-infrastructure-pii`
 - `ai-infrastructure-governance`
@@ -143,6 +142,8 @@ Framework modules intended for first release:
 
 Exclude from public source release unless deliberately rewritten:
 
+- `ai-fabric-runtime` deployable service
+- `ai-infrastructure-generic-rest-connector` deployable service
 - `integration-Testing/*` if it depends on private environment, live credentials, or noisy internal assumptions
 - private product docs
 - private rollout docs
@@ -306,13 +307,12 @@ Steps:
 cd /Users/mahmoudashraf/Downloads/Projects
 git clone git@github.com:mahmoudashraf/ai-fabric-framework.git ai-fabric-framework
 cd ai-fabric-framework
-
-rsync -a \
-  --exclude target \
-  --exclude .git \
-  /Users/mahmoudashraf/Downloads/Projects/TheBaseRepo/ai-infrastructure-module/ \
-  ./ai-infrastructure-module/
 ```
+
+Copy only reusable framework modules into `ai-infrastructure-module/`. Do not copy private deployable product services:
+
+- `ai-fabric-runtime`
+- `ai-infrastructure-generic-rest-connector`
 
 Copy only cleaned public root files:
 
@@ -490,8 +490,8 @@ Goal: keep product repo close but clean.
 
 Tasks:
 
-- [ ] Decide whether `ai-infrastructure-module` remains in private repo temporarily as a source mirror.
-- [ ] If kept temporarily, mark it as source mirror and avoid editing both repos independently.
+- [x] Keep `ai-infrastructure-module` in the private repo only as the product-services container for deployable runtime/connector services.
+- [x] Do not keep reusable framework library source in the private repo as a source mirror.
 - [ ] Add a private process: framework changes are authored in public repo, then consumed by private repo through Maven.
 - [ ] Keep private product integration tests in private repo.
 - [ ] Keep private deployment docs out of public framework.
@@ -636,20 +636,31 @@ Only after API boundaries, docs, license, CI, examples, and private product inte
 
 ## 10) Current Status
 
-Already prepared in the private repo:
+Completed:
 
-- GitHub Packages `distributionManagement` exists in `ai-infrastructure-module/pom.xml`.
-- Framework GitHub Packages release workflow exists in `.github/workflows/ai-fabric-framework-github-packages-release.yml`.
-- GitHub Packages release guide exists in `ai-infrastructure-module/docs/GITHUB_PACKAGES_RELEASE_GUIDE.md`.
-- Publishable framework module set validates and compiles locally.
-- Stale dependency-management artifact names were corrected.
+- Public framework repo exists at `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework` and `https://github.com/Loom-AI-Labs/ai-fabric-framework`.
+- Framework source and example apps were moved to the public repo and pushed.
+- Public framework artifacts were installed locally as `0.1.0-preview`.
+- Private repo no longer keeps reusable framework library source or `Real_Apps`.
+- Private repo keeps deployable product services under `ai-infrastructure-module/ai-fabric-runtime` and `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`.
+- Private repo root README now documents the product/framework boundary.
+- Private `ai-fabric-product` consumes framework artifacts with `ai-fabric.version=0.1.0-preview`.
+- Private CI and embedding-worker Dockerfiles install the public framework repo into local Maven before private product builds.
+- Framework-only private workflows/actions/scripts were removed from the private repo.
+- Local private compile checks passed for `ai-fabric-product`, Platform backend, Shopify Bridge, and MCP execution gateway.
+- Public framework repo no longer contains or publishes the deployable runtime/generic REST connector service modules.
 
 Still required before public release:
 
-- create a separate public repo
-- clean and copy only public framework source/docs
 - fix license conflicts
 - rewrite public README/docs
 - run exposure/secret scans on the new public repo
-- set preview version
 - publish release from the public repo, not from the private product repo
+- decide whether preview distribution uses GitHub Packages only or also Maven Central later
+
+Still required before deployment-source cleanup is complete:
+
+- add a clean per-service source strategy or published-image/package strategy for generated deployments.
+- deployable runtime/connector source belongs to this private repo.
+- private product workers still belong to this private repo.
+- do not reintroduce copied framework source into the private product repo to work around source wiring.

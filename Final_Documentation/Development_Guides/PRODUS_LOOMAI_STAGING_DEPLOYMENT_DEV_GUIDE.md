@@ -958,6 +958,47 @@ ProdUS safe knowledge sync must use canonical `trace + operations`; do not send 
 
 Known operational follow-up: Platform apply can overwrite manually added accepted private assertion issuers. After this apply, Coolify runtime env was patched back to include `produs-staging-backend` and `platform-produs-data-plugin-smoke`, then the runtime was redeployed and health returned `UP`. This should be hardened in Platform env rendering so future applies preserve registered private runtime issuers.
 
+## 12.5 2026-06-10 `dep-53f9ca56` Vector Store Recovery
+
+ProdUS staging is now routed to `dep-53f9ca56`; older references to `dep-7706fafb` are historical and should not be used for current staging verification.
+
+Incident root cause: `dep-53f9ca56` pointed at a stale Qdrant endpoint that returned `404 page not found` for collection APIs. The runtime app was healthy, but vector upserts failed because the configured vector backend was no longer usable.
+
+Recovery performed:
+
+- Moved `dep-53f9ca56` to the healthy Qdrant cluster with collection prefix `cus_3b201f0d__ten_c134590e__`.
+- Applied Platform version `ver-908e3888`; latest successful recovery release was `rel-962bcdea`.
+- Verified direct ProdUS-style `rpa1` private runtime auth against runtime auth/admin endpoints.
+- Verified the ProdUS safe DATA plugin sources and all expected vector spaces are installed and READY.
+- Ran managed vectorization bootstrap `vrn-8c8e870d` and reindex `vrn-35109ab3`; both processed 190 records with 190 successes and 0 failures.
+- Added missing Qdrant keyword payload indexes on ProdUS prefixed collections for common source/filter fields.
+
+Current runtime vector counts:
+
+```text
+totalVectors=195
+service-module=90
+service-category=10
+service-dependency=23
+package-template=15
+milestone-template=15
+case-pattern=15
+scanner-tool-description=10
+ai-capability-contract=7
+evidence-template=2
+acceptance-criteria-template=1
+team-profile=1
+solo-expert-profile=1
+faq-article=3
+support-policy=2
+```
+
+Direct Qdrant proof: service-module vector search returns `service-module:api-security-review`, `service-module:security-fix-sprint`, `service-module:security-readiness-review`, `service-module:security-patching`, and `service-module:dependency-security-review`.
+
+Remaining caveat: `/api/chat/me/query` retrieval still does not surface the expected ProdUS `service-module` sources for the smoke query `API security review`. Live runtime retrieval returned either the seeded help-center FAQ or zero sources even though direct Qdrant search returns the correct service modules. Treat this as a framework/runtime shared-index retrieval or orchestration follow-up, not an active vector-store outage.
+
+Secondary caveat: Platform vectorization overview still reports `OUT_OF_DATE` / `INDEXED_OUTPUT_DRIFT` after successful runs because the active config hash and last successful indexed-output hash differ. Live vector counts and Qdrant records are correct.
+
 ## 13. Rollback
 
 If direct runtime auth breaks after enabling ProdUS:

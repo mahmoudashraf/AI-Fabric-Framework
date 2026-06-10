@@ -1,7 +1,0 @@
-apiVersion: v2
-name: ai-fabric-relay
-description: AI Fabric Relay (Customer Connector API) - optional customer-side component
-type: application
-version: 0.1.0
-appVersion: "1.0.0"
-

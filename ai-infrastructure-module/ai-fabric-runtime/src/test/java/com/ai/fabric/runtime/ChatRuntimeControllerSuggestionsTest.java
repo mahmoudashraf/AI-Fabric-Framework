@@ -250,7 +250,7 @@ class ChatRuntimeControllerSuggestionsTest {
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
         properties.getPublicTokens().setSigningKey("public-secret");
         properties.getPublicTokens().setIssuer("runtime-public-test");
-        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
+        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "commerce-app"));
         properties.getPublicTokens().setAcceptedAudiences(List.of("storefront-chat"));
         properties.getPublicTokens().setDefaultAudience("storefront-chat");
         RuntimePublicTokenService tokenService = new RuntimePublicTokenService(properties);
@@ -263,7 +263,7 @@ class ChatRuntimeControllerSuggestionsTest {
             "cus-public",
             "ten-public",
             List.of("chat:query"),
-            "shopify-app",
+            "commerce-app",
             List.of("storefront-chat")
         ).token();
 

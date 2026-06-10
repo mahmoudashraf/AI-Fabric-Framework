@@ -15,11 +15,6 @@ on:
         required: false
         type: boolean
         default: true
-      infrastructure_tests:
-        description: Run targeted ai-infrastructure modules used by the platform product path.
-        required: false
-        type: boolean
-        default: true
       ui_build:
         description: Run platform UI install and build.
         required: false
@@ -39,11 +34,6 @@ on:
         default: true
       product_tests:
         description: Run ai-fabric-product tests.
-        required: false
-        type: boolean
-        default: true
-      infrastructure_tests:
-        description: Run targeted ai-infrastructure modules used by the platform product path.
         required: false
         type: boolean
         default: true
@@ -69,7 +59,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        if: ${{ inputs.backend_tests || inputs.product_tests || inputs.infrastructure_tests }}
+        if: ${{ inputs.backend_tests || inputs.product_tests }}
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -92,7 +82,8 @@ jobs:
       - name: Install AI Fabric framework artifacts for product tests
         if: ${{ inputs.product_tests }}
         run: |
-          mvn -f ai-infrastructure-module/pom.xml -B -V -DskipTests install \
+          git clone --depth 1 https://github.com/Loom-AI-Labs/ai-fabric-framework.git /tmp/ai-fabric-framework
+          mvn -f /tmp/ai-fabric-framework/ai-infrastructure-module/pom.xml -B -V -DskipTests install \
             -pl '!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
             -am
         env:
@@ -102,13 +93,6 @@ jobs:
         if: ${{ inputs.product_tests }}
         run: |
           mvn -f ai-fabric-product/pom.xml test
-
-      - name: Run targeted platform infrastructure tests
-        if: ${{ inputs.infrastructure_tests }}
-        run: |
-          mvn -f ai-infrastructure-module/pom.xml \
-            -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
-            -am test -DskipITs
 
       - name: Run platform UI build
         if: ${{ inputs.ui_build }}

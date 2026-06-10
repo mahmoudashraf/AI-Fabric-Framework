@@ -73,7 +73,7 @@ class RuntimeAdminOverviewControllerTest {
         authProperties.getIngress().setAcceptedAudiences(List.of("dep-auth"));
         authProperties.getPublicTokens().setSigningKey("public-signing-secret");
         authProperties.getPublicTokens().setIssuer("runtime-public-bootstrap");
-        authProperties.getPublicTokens().getAcceptedIssuers().add("shopify-app");
+        authProperties.getPublicTokens().getAcceptedIssuers().add("commerce-app");
         authProperties.getPublicTokens().getAcceptedAudiences().add("storefront-chat");
         authProperties.getPublicTokens().setDefaultAudience("storefront-chat");
         authProperties.getPublicTokens().getBootstrap().setEnabled(true);
@@ -235,7 +235,7 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(auth).containsEntry("publicDefaultAudience", "storefront-chat");
         assertThat(auth.get("privateAssertionAcceptedIssuers")).isEqualTo(List.of("platform-poc:SESSION"));
         assertThat(auth.get("privateAssertionAcceptedAudiences")).isEqualTo(List.of("dep-auth"));
-        assertThat(auth.get("publicAcceptedIssuers")).isEqualTo(List.of("shopify-app"));
+        assertThat(auth.get("publicAcceptedIssuers")).isEqualTo(List.of("commerce-app"));
         assertThat(auth.get("publicAcceptedAudiences")).isEqualTo(List.of("storefront-chat"));
         assertThat(auth.get("publicAnonymousGrantedScopes"))
             .isEqualTo(List.of("chat:query", "chat:suggestions", "chat:conversations"));

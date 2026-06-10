@@ -1,6 +1,0 @@
-ai:
-  infrastructure:
-    relationship:
-      schema:
-        auto-discover: false
-

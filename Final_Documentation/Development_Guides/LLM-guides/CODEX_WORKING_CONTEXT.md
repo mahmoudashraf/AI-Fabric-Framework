@@ -1496,14 +1496,14 @@ Critical fixes that made the gate pass:
 ## 2026-06-09 Private Repo Framework Source Removal
 
 - Public framework repo is now the sibling repo `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework` and GitHub repo `Loom-AI-Labs/ai-fabric-framework`.
-- Removed framework and framework example source from this private repo: `ai-infrastructure-module` and `Real_Apps`.
+- Removed reusable framework library source and framework example apps from this private repo. `Real_Apps` remains removed; `ai-infrastructure-module` was later restored only as the private product-services container for deployable runtime/connector services.
 - Removed framework-only private CI/release helpers: framework GitHub Packages release workflow, parent framework verify workflow, provider/integration workflows, Coolify framework image workflow, framework path gate workflow, provider-registry scripts, and `.github/actions/configure-providers`.
 - Private product Maven consumer `ai-fabric-product/ai-fabric-embedding-worker` now depends on framework artifacts through `ai-fabric.version=0.1.0-preview`; local development expects the sibling public framework repo to be installed into `~/.m2`.
 - Private CI and embedding-worker Dockerfiles install the public framework repo into the local Maven repository before building private product code, instead of copying private framework source.
 - Platform backend Dockerfiles no longer copy `ai-infrastructure-module` into the backend image.
 - Root README was replaced with a private-repo boundary README pointing framework work to the public repo.
 - Verification passed locally: `mvn -f ai-fabric-product/pom.xml -DskipTests compile`, `mvn -f Platfrom/backend/pom.xml -DskipTests compile`, `mvn -f product-services/shopify-bridge-service/pom.xml -DskipTests compile`, and `mvn -f product-services/mcp-execution-gateway-service/pom.xml -DskipTests compile`.
-- Remaining follow-up: deployment-source planning still needs a clean per-service source strategy or published framework image/package strategy. Runtime/connector source now belongs in the public framework repo; private product workers remain in this repo.
+- Remaining follow-up: deployment-source planning still needs a clean per-service source strategy or published framework image/package strategy. Deployable runtime/connector source belongs in this private repo; reusable framework source belongs in the public sibling repo.
 
 ## 2026-06-10 ProdUS Staging Vector Store Recovery
 
@@ -1517,7 +1517,7 @@ Critical fixes that made the gate pass:
 - Runtime indexing overview now reports `totalVectors=195`: ProdUS counts match the failed sync report (`service-module=90`, `service-category=10`, `service-dependency=23`, `package-template=15`, `milestone-template=15`, `case-pattern=15`, `scanner-tool-description=10`, `ai-capability-contract=7`, `evidence-template=2`, `acceptance-criteria-template=1`, `team-profile=1`, `solo-expert-profile=1`) plus default `faq-article=3` and `support-policy=2`.
 - Added Qdrant keyword payload indexes across ProdUS prefixed collections for `knowledgeSourceId`, `entityType`, `vectorSpace`, `id`, `datasetId`, `_dataSyncSourceRecordId`, and `knowledgeSourceDatasetRef`; `knowledgeSourceHandleRef` was already indexed. Direct Qdrant filter probes now return service-module records.
 - Direct Qdrant vector search against the service-module collection returns expected security modules, including `service-module:api-security-review`, proving the storage, embeddings, filters, and vectors are present.
-- Remaining caveat: runtime chat retrieval still does not surface ProdUS service-module sources for the smoke query. `API security review` still returns a seeded help-center FAQ (`rag-ace938a1-612b-4c93-84ab-3d37cd34b1d5`), and the framed service-module query returns zero sources (`rag-7fd05c32-8122-4459-854e-c1fa85eb0048`) even though direct Qdrant search returns the expected modules. Follow up in the public framework repo around shared-index retrieval/orchestration/ranking.
+- Remaining caveat: runtime chat retrieval still does not surface ProdUS service-module sources for the smoke query. `API security review` still returns a seeded help-center FAQ (`rag-ace938a1-612b-4c93-84ab-3d37cd34b1d5`), and the framed service-module query returns zero sources (`rag-7fd05c32-8122-4459-854e-c1fa85eb0048`) even though direct Qdrant search returns the expected modules. Follow-up may span the public framework retrieval core and the private runtime service orchestration wrapper.
 - Secondary caveat: Platform vectorization overview still reports `OUT_OF_DATE` / `INDEXED_OUTPUT_DRIFT` because `activeIndexedOutputHash` and `lastSuccessfulIndexedOutputHash` disagree after successful runs, while live counts and Qdrant records are correct. Treat this as control-plane bookkeeping until fixed.
 
 ## 2026-06-10 ProdUS Staging Retrieval Orchestration Diagnosis
@@ -1531,3 +1531,12 @@ Critical fixes that made the gate pass:
 - Verification passed: public framework targeted tests `VectorSpaceResolutionStepTest` and `ChatRuntimeControllerPromptPreviewTest`; private Platform `RailwayProvisioningPlanServiceTest`, `DeploymentCuratedModuleCatalogServiceTest`, `mvn -f Platfrom/backend/pom.xml -DskipTests compile`, and `git diff --check` in both repos.
 - Integration test caveat: `DeploymentCuratedModuleIntegrationTest` is currently blocked by unrelated H2/Flyway migration incompatibility in `V121__prod_staging_coolify_internal_connection.sql` (`jsonb_build_object` missing in H2). Do not interpret that as a failure of the curated-pack fix.
 - Live deployment caveat: dep-53 will still behave the old way until the Platform backend change is deployed and dep-53 is reapplied/redeployed with `AI_CURATED_PACK=default`, and until the runtime build path consumes the updated public framework code for vector-space hint handling.
+
+## 2026-06-10 Runtime/Connector Code Residency Correction
+
+- Corrected the framework separation boundary: deployable `ai-fabric-runtime` and `ai-infrastructure-generic-rest-connector` are private LoomAI product services, not public framework deliverables.
+- Restored those services to the private repo at the existing deployment paths `ai-infrastructure-module/ai-fabric-runtime` and `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`, because Platform provisioning defaults and target profiles still point there.
+- Added a private `ai-fabric-product-services-parent` Maven parent for only those two services. The parent intentionally has different coordinates from the public `ai-fabric-bom` so local installs do not overwrite the public framework BOM in `~/.m2`.
+- Removed the two deployable service modules from the public framework repo reactor and GitHub Packages workflow; reusable framework libraries remain public and are consumed by the private services through Maven artifacts/local snapshot.
+- Keep `ai-infrastructure-actions-connector` public: despite the name, it is a reusable framework library. The private deployable connector service is `ai-infrastructure-generic-rest-connector`.
+- Do not delete private `ai-infrastructure-module` wholesale. It is now the private product-services container for runtime and generic REST connector only.
