@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -256,7 +257,7 @@ public class RailwayProvisioningPlanService {
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
         addRuntimeMcpGatewayEnv(runtimeEnv, actionsConfig);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
-        addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", text(providerConfig, "curatedPackId"));
+        addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
         addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -481,6 +482,22 @@ public class RailwayProvisioningPlanService {
         addPurposeSpecificLlmEnv(runtimeEnv, providerConfig);
         addOnnxEnv(runtimeEnv, providerConfig, embeddingProvider);
         addVectorBackendEnv(runtimeEnv, deployment, providerConfig, vectorStrategy, vectorDimensions);
+    }
+
+    private String resolveRuntimeCuratedPack(JsonNode providerConfig) {
+        String explicit = text(providerConfig, "curatedPackId");
+        if (StringUtils.hasText(explicit)) {
+            return explicit;
+        }
+        String curatedModuleId = text(providerConfig, "curatedModuleId");
+        if (!StringUtils.hasText(curatedModuleId)) {
+            return null;
+        }
+        String normalized = curatedModuleId.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "default", "commerce", "support" -> normalized;
+            default -> null;
+        };
     }
 
     private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider, String vectorStrategy) {

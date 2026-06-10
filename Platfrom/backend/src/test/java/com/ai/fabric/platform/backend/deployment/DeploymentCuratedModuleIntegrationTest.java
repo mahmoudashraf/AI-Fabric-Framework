@@ -117,6 +117,8 @@ class DeploymentCuratedModuleIntegrationTest {
 
         assertThat(providerConfig.path("llmProvider").asText()).isEqualTo("openai");
         assertThat(providerConfig.path("embeddingProvider").asText()).isEqualTo("openai");
+        assertThat(providerConfig.path("curatedModuleId").asText()).isEqualTo("default");
+        assertThat(providerConfig.path("curatedPackId").asText()).isEqualTo("default");
         assertThat(providerConfig.path("vectorStrategy").asText()).isEqualTo("lucene");
         assertThat(providerConfig.path("vectorProvisioningMode").asText()).isEqualTo("LOCAL_MANAGED");
         assertThat(providerConfig.path("runtimeProfile").asText()).isEqualTo("runtime-managed");

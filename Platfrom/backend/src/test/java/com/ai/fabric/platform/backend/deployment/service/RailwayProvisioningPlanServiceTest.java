@@ -727,7 +727,7 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
-    void buildPlanAddsCuratedPackEnvWhenProviderConfigSpecifiesPack() {
+    void buildPlanAddsCuratedPackEnvFromCuratedModuleFallback() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
             new DeploymentArtifactBundleSummary(
@@ -757,8 +757,7 @@ class RailwayProvisioningPlanServiceTest {
             {
               "llmProvider": "openai",
               "embeddingProvider": "openai",
-              "curatedModuleId": "commerce",
-              "curatedPackId": "commerce"
+              "curatedModuleId": "commerce"
             }
             """);
 
