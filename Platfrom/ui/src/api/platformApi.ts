@@ -3244,6 +3244,36 @@ export type PlatformDiagnosticsSummary = {
   recentHostedVerificationRuns: DeploymentHostedVerificationRunSummary[]
 }
 
+export type PlatformCoreServiceSummary = {
+  serviceRef: string
+  displayName: string
+  serviceKind: string | null
+  managementMode: string
+  targetProfileId: string | null
+  providerResourceUuid: string | null
+  publicBaseUrl: string | null
+  healthPath: string | null
+  healthUrl: string | null
+  status: string
+  observedStatus: string | null
+  message: string
+  observedAt: string
+  details: Record<string, unknown>
+}
+
+export type PlatformCoreServiceActionSummary = {
+  serviceRef: string
+  displayName: string
+  action: string
+  status: string
+  message: string
+  deploymentUuid: string | null
+  targetProfileId: string | null
+  providerResourceUuid: string | null
+  requestedAt: string
+  details: Record<string, unknown>
+}
+
 export type DraftValidationIssue = {
   severity: string
   section: string
@@ -4913,6 +4943,28 @@ export function fetchRailwayPreflight() {
 
 export function fetchPlatformDiagnostics() {
   return request<PlatformDiagnosticsSummary>('/api/platform/diagnostics')
+}
+
+export function fetchPlatformCoreServices() {
+  return request<PlatformCoreServiceSummary[]>('/api/platform/core-services')
+}
+
+export function deployPlatformCoreService(serviceRef: string) {
+  return request<PlatformCoreServiceActionSummary>(
+    `/api/platform/core-services/${encodeURIComponent(serviceRef)}/deploy`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function restartPlatformCoreService(serviceRef: string) {
+  return request<PlatformCoreServiceActionSummary>(
+    `/api/platform/core-services/${encodeURIComponent(serviceRef)}/restart`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function fetchPlatformDiagnosticsLogs(options?: {

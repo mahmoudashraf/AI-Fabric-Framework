@@ -1546,3 +1546,12 @@ Critical fixes that made the gate pass:
 - Updated private runtime and generic REST connector Dockerfiles, including Railway variants, to clone `https://github.com/Loom-AI-Labs/ai-fabric-framework.git` at `AI_FABRIC_FRAMEWORK_REF=main` by default.
 - Docker build stages now install the public framework into the build container local Maven repository before packaging the private service module.
 - This mirrors the local development flow while avoiding copied reusable framework source in the private repo. Later preview/stable releases can override `AI_FABRIC_FRAMEWORK_REF` with a tag when the framework preview is frozen.
+
+## 2026-06-11 Platform Core Service Operations Control
+
+- Added a Platform-admin core service operations surface so production operators can inspect and request deploy/restart for the production Coolify-managed Platform backend, Platform Console, and Partner Portal from inside the Platform UI.
+- Backend endpoint: `/api/platform/core-services` with `GET`, `GET /{serviceRef}`, `POST /{serviceRef}/deploy`, and `POST /{serviceRef}/restart`; access is restricted to `PLATFORM_ADMIN`.
+- The backend uses the configured Coolify target profile, defaulting to `dtp-coolify-production`, and resolves Coolify credentials through the existing secret-backed `CoolifyTargetProfileResolver`. No Coolify token or application env values are exposed in responses.
+- Default core-service mappings are `loomai-platform-backend` (`adkvp3aqatl1yyrmd58v2yv6`, `https://api.loomai.pro/actuator/health`), `loomai-platform-ui` (`kl2c28ku13y7qr8n3doe4mlb`, `https://console.loomai.pro/health`), and `loomai-partner-ui` (`o2ljhx3ynme1t5igepshn97m`, `https://partners.loomai.pro/health`).
+- Shopify Bridge is intentionally not duplicated as a raw Platform core service because it is already a managed Product Service. Platform Diagnostics now surfaces the Bridge row through the existing product-services lifecycle (`reconcile`/`restart`) and discovers the live service by `loomai-shopify-bridge-prod`, production Bridge URL, or `SHOPIFY_BRIDGE_SERVICE`.
+- Local verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=PlatformCoreServiceOperationsServiceTest test`, `mvn -f Platfrom/backend/pom.xml -DskipTests compile`, and `npm --prefix Platfrom/ui run build`.

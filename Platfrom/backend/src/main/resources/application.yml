@@ -82,6 +82,28 @@ platform:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
     signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
     artifact-url-ttl: ${PLATFORM_ARTIFACT_URL_TTL:3650d}
+  core-services:
+    enabled: ${PLATFORM_CORE_SERVICES_ENABLED:true}
+    target-profile-id: ${PLATFORM_CORE_SERVICES_TARGET_PROFILE_ID:dtp-coolify-production}
+    services:
+      - service-ref: loomai-platform-backend
+        display-name: Platform Backend
+        service-kind: PLATFORM_BACKEND
+        provider-resource-uuid: ${PLATFORM_CORE_SERVICE_BACKEND_UUID:adkvp3aqatl1yyrmd58v2yv6}
+        public-base-url: ${PLATFORM_CORE_SERVICE_BACKEND_URL:https://api.loomai.pro}
+        health-path: ${PLATFORM_CORE_SERVICE_BACKEND_HEALTH_PATH:/actuator/health}
+      - service-ref: loomai-platform-ui
+        display-name: Platform Console
+        service-kind: PLATFORM_CONSOLE
+        provider-resource-uuid: ${PLATFORM_CORE_SERVICE_UI_UUID:kl2c28ku13y7qr8n3doe4mlb}
+        public-base-url: ${PLATFORM_CORE_SERVICE_UI_URL:https://console.loomai.pro}
+        health-path: ${PLATFORM_CORE_SERVICE_UI_HEALTH_PATH:/health}
+      - service-ref: loomai-partner-ui
+        display-name: Partner Portal
+        service-kind: PARTNER_PORTAL
+        provider-resource-uuid: ${PLATFORM_CORE_SERVICE_PARTNER_UI_UUID:o2ljhx3ynme1t5igepshn97m}
+        public-base-url: ${PLATFORM_CORE_SERVICE_PARTNER_UI_URL:https://partners.loomai.pro}
+        health-path: ${PLATFORM_CORE_SERVICE_PARTNER_UI_HEALTH_PATH:/health}
   provisioning:
     mode: ${PLATFORM_PROVISIONING_MODE:RAILWAY_STUB}
     railway-api-endpoint: ${RAILWAY_API_ENDPOINT:https://backboard.railway.com/graphql/v2}
