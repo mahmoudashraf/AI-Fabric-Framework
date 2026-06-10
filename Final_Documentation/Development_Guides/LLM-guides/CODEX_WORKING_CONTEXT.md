@@ -1540,3 +1540,9 @@ Critical fixes that made the gate pass:
 - Removed the two deployable service modules from the public framework repo reactor and GitHub Packages workflow; reusable framework libraries remain public and are consumed by the private services through Maven artifacts/local snapshot.
 - Keep `ai-infrastructure-actions-connector` public: despite the name, it is a reusable framework library. The private deployable connector service is `ai-infrastructure-generic-rest-connector`.
 - Do not delete private `ai-infrastructure-module` wholesale. It is now the private product-services container for runtime and generic REST connector only.
+
+## 2026-06-10 Runtime/Connector Docker Framework Bootstrap
+
+- Updated private runtime and generic REST connector Dockerfiles, including Railway variants, to clone `https://github.com/Loom-AI-Labs/ai-fabric-framework.git` at `AI_FABRIC_FRAMEWORK_REF=main` by default.
+- Docker build stages now install the public framework into the build container local Maven repository before packaging the private service module.
+- This mirrors the local development flow while avoiding copied reusable framework source in the private repo. Later preview/stable releases can override `AI_FABRIC_FRAMEWORK_REF` with a tag when the framework preview is frozen.
