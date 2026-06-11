@@ -1555,3 +1555,14 @@ Critical fixes that made the gate pass:
 - Default core-service mappings are `loomai-platform-backend` (`adkvp3aqatl1yyrmd58v2yv6`, `https://api.loomai.pro/actuator/health`), `loomai-platform-ui` (`kl2c28ku13y7qr8n3doe4mlb`, `https://console.loomai.pro/health`), and `loomai-partner-ui` (`o2ljhx3ynme1t5igepshn97m`, `https://partners.loomai.pro/health`).
 - Shopify Bridge is intentionally not duplicated as a raw Platform core service because it is already a managed Product Service. Platform Diagnostics now surfaces the Bridge row through the existing product-services lifecycle (`reconcile`/`restart`) and discovers the live service by `loomai-shopify-bridge-prod`, production Bridge URL, or `SHOPIFY_BRIDGE_SERVICE`.
 - Local verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=PlatformCoreServiceOperationsServiceTest test`, `mvn -f Platfrom/backend/pom.xml -DskipTests compile`, and `npm --prefix Platfrom/ui run build`.
+
+## 2026-06-11 ProdUS Shared-Index Retrieval Repair
+
+- Resolved the remaining ProdUS `dep-53f9ca56` retrieval issue after the vector store recovery. The runtime and Qdrant were healthy, but the active vectorization revision still wrote stale imported `knowledgeSourceHandleRef` tenant metadata from the source deployment (`ten-fc38b890`) while the live runtime artifact filtered on the current target tenant handles (`ten-c134590e`).
+- Live repair created active vectorization revision `vpr-369439cd` / revision `3` for plan `vpl-ba1524c9`, then reindexed run `vrn-230bdde3` with no failure buckets.
+- Post-repair runtime indexing overview reported `totalVectors=195`, including `service-module=90` and `package-template=15`.
+- Live smoke through `dep-53f9ca56` POC widget query with explicit `service-module` hints returned a grounded `API Security Review` answer with `sourcesCount=9`; provider request id `rag-4c85daf3-05f6-46e7-bbfc-29ed88f4d891`; top source id `service-module:api-security-review`.
+- Permanent Platform backend fix: `DeploymentBundleExportImportService` now rewrites vectorization `metadataStaticValuesByTargetEntityType` from the target draft's current knowledge-source config during import/restore. It updates `knowledgeSourceHandleRef`, `knowledgeSourceId`, and `knowledgeSourceDatasetRef` by target entity type with source-id fallback, preserving strict shared-index filtering instead of loosening runtime isolation.
+- Regression coverage added in `DeploymentBundleExportImportServiceTest` proves imported vectorization mappings replace source tenant handles with target tenant handles.
+- Focused verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentBundleExportImportServiceTest clean test`.
+- The older caveat that direct Qdrant search worked while runtime chat returned zero sources is now superseded for service-module retrieval on `dep-53f9ca56`.

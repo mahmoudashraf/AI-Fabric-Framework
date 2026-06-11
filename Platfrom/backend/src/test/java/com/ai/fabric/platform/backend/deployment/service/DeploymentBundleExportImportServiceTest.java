@@ -737,6 +737,41 @@ class DeploymentBundleExportImportServiceTest {
             .thenReturn(List.of(dataDataset));
         when(marketplacePluginDatasetRepository.findByPluginVersionIdOrderByDatasetIdAsc(actionVersion.getId()))
             .thenReturn(List.of());
+        VectorizationSourceConnectionEntity sourceConnection = vectorizationSourceConnection(
+            sourceDeployment.getId(),
+            "PRODUS_SAFE_KNOWLEDGE_EXPORT_TOKEN"
+        );
+        VectorizationPlanEntity sourcePlan = vectorizationPlan(sourceDeployment.getId(), sourceConnection.getId());
+        sourcePlan.setActiveRevisionId("vpr-source");
+        VectorizationPlanRevisionEntity sourceRevision = vectorizationRevision(
+            sourceDeployment.getId(),
+            sourcePlan.getId(),
+            sourceConnection.getId()
+        );
+        sourceRevision.setMappingConfigJson("""
+            {
+              "entityMappings": {
+                "produs-safe-knowledge": {
+                  "recordIdField": "id",
+                  "targetEntityTypeField": "vectorSpace",
+                  "metadataStaticValuesByTargetEntityType": {
+                    "service-category": {
+                      "knowledgeSourceHandleRef": "plugin/mkp-data-produs-safe-knowledge/tenant/ten-source/produs-safe-service-category/f1c82e1ca554/service-category",
+                      "knowledgeSourceId": "produs-safe-service-category",
+                      "knowledgeSourceDatasetRef": "produs-safe-service-category"
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        when(vectorizationSourceConnectionRepository.findByDeploymentId(sourceDeployment.getId()))
+            .thenReturn(Optional.of(sourceConnection));
+        when(vectorizationPlanRepository.findByDeploymentId(sourceDeployment.getId()))
+            .thenReturn(Optional.of(sourcePlan));
+        when(vectorizationPlanRevisionRepository.findByPlanIdOrderByRevisionNumberDesc(sourcePlan.getId()))
+            .thenReturn(List.of(sourceRevision));
+        when(vectorizationPlanRepository.findByDeploymentId("dep-imported")).thenReturn(Optional.empty());
 
         var export = service.exportDeployment(
             sourceDeployment.getId(),
@@ -862,6 +897,14 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(savedDraft.getActionsConfigJson()).doesNotContain("mpi-source-action");
         assertThat(savedDraft.getSecurityConfigJson()).contains("dep-imported,produs-staging");
         assertThat(savedDraft.getSecurityConfigJson()).doesNotContain("dep-test");
+
+        ArgumentCaptor<VectorizationPlanRevisionEntity> revisionCaptor =
+            ArgumentCaptor.forClass(VectorizationPlanRevisionEntity.class);
+        verify(vectorizationPlanRevisionRepository).save(revisionCaptor.capture());
+        String importedMapping = revisionCaptor.getValue().getMappingConfigJson();
+        assertThat(importedMapping).contains("tenant/ten-imported");
+        assertThat(importedMapping).doesNotContain("tenant/ten-source");
+        assertThat(importedMapping).contains("knowledgeSourceHandleRef");
     }
 
     @Test

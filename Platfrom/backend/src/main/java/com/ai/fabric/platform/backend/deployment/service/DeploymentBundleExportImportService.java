@@ -1267,7 +1267,7 @@ public class DeploymentBundleExportImportService {
             restoreSecrets(createdDeployment.getId(), decryptedSecrets);
         }
         restoreManagedProductServiceDependencies(createdDeployment, bundle, request == null ? null : request.targetProfileId());
-        restoreVectorizationControlPlane(createdDeployment, bundle);
+        restoreVectorizationControlPlane(createdDeployment, bundle, draft);
         return new RestoreResult(createdDeployment.getId(), draft.getId());
     }
 
@@ -1299,7 +1299,7 @@ public class DeploymentBundleExportImportService {
             restoreSecrets(deployment.getId(), decryptedSecrets);
         }
         restoreManagedProductServiceDependencies(deployment, bundle, request == null ? null : request.targetProfileId());
-        restoreVectorizationControlPlane(deployment, bundle);
+        restoreVectorizationControlPlane(deployment, bundle, restoredDraft);
         return new RestoreResult(deployment.getId(), restoredDraft.getId());
     }
 
@@ -1767,7 +1767,7 @@ public class DeploymentBundleExportImportService {
         }
     }
 
-    private void restoreVectorizationControlPlane(DeploymentEntity deployment, JsonNode bundle) {
+    private void restoreVectorizationControlPlane(DeploymentEntity deployment, JsonNode bundle, DeploymentDraftEntity targetDraft) {
         JsonNode vectorization = bundle.path("manifest").path("vectorizationControlPlane");
         if (!vectorization.isObject()) {
             return;
@@ -1780,6 +1780,9 @@ public class DeploymentBundleExportImportService {
         }
 
         String deploymentId = deployment.getId();
+        JsonNode targetKnowledgeSourceConfig = targetDraft == null
+            ? objectMapper.createObjectNode()
+            : readJson(targetDraft.getKnowledgeSourceConfigJson());
         vectorizationPlanRevisionRepository.deleteByDeploymentId(deploymentId);
         vectorizationSourceConnectionRepository.deleteByDeploymentId(deploymentId);
 
@@ -1872,7 +1875,10 @@ public class DeploymentBundleExportImportService {
                 revision.setStatus(revisionNode.path("status").asText("ACTIVE"));
                 revision.setSourceConnectionId(remapId(revisionNode.path("sourceConnectionId").asText(null), oldSourceConnectionId, newSourceConnectionId));
                 revision.setEntityScopeJson(writeJson(revisionNode.path("entityScope")));
-                revision.setMappingConfigJson(writeJson(revisionNode.path("mappingConfig")));
+                revision.setMappingConfigJson(writeJson(rewriteVectorizationMappingConfig(
+                    revisionNode.path("mappingConfig"),
+                    targetKnowledgeSourceConfig
+                )));
                 revision.setExecutionConfigJson(writeJson(revisionNode.path("executionConfig")));
                 revision.setIndexedOutputHash(null);
                 revision.setCreatedByActorId(PlatformSecurityContext.actorIdOrSystem());
@@ -1889,6 +1895,89 @@ public class DeploymentBundleExportImportService {
         plan.setActiveRevisionId(newActiveRevisionId);
         plan.setUpdatedAt(now);
         vectorizationPlanRepository.save(plan);
+    }
+
+    private JsonNode rewriteVectorizationMappingConfig(JsonNode mappingConfig, JsonNode targetKnowledgeSourceConfig) {
+        TargetKnowledgeSourceMetadata targetMetadata = targetKnowledgeSourceMetadata(targetKnowledgeSourceConfig);
+        if (targetMetadata.isEmpty()) {
+            return mappingConfig == null || mappingConfig.isMissingNode()
+                ? objectMapper.createObjectNode()
+                : mappingConfig.deepCopy();
+        }
+
+        JsonNode copy = mappingConfig == null || mappingConfig.isMissingNode()
+            ? objectMapper.createObjectNode()
+            : mappingConfig.deepCopy();
+        JsonNode entityMappings = copy.path("entityMappings");
+        if (!entityMappings.isObject()) {
+            return copy;
+        }
+
+        entityMappings.fields().forEachRemaining(mappingEntry -> {
+            JsonNode mapping = mappingEntry.getValue();
+            if (!mapping.isObject()) {
+                return;
+            }
+            JsonNode byTargetEntityType = mapping.path("metadataStaticValuesByTargetEntityType");
+            if (!byTargetEntityType.isObject()) {
+                return;
+            }
+            byTargetEntityType.fields().forEachRemaining(targetEntry -> {
+                if (!(targetEntry.getValue() instanceof ObjectNode metadata)) {
+                    return;
+                }
+                ObjectNode replacement = targetMetadata.byEntityType().get(targetEntry.getKey());
+                if (replacement == null) {
+                    replacement = targetMetadata.bySourceId().get(text(metadata, "knowledgeSourceId"));
+                }
+                if (replacement == null) {
+                    return;
+                }
+                ObjectNode finalReplacement = replacement;
+                finalReplacement.fields().forEachRemaining(field ->
+                    metadata.set(field.getKey(), field.getValue().deepCopy())
+                );
+            });
+        });
+        return copy;
+    }
+
+    private TargetKnowledgeSourceMetadata targetKnowledgeSourceMetadata(JsonNode targetKnowledgeSourceConfig) {
+        Map<String, ObjectNode> byEntityType = new LinkedHashMap<>();
+        Map<String, ObjectNode> bySourceId = new LinkedHashMap<>();
+        JsonNode sources = targetKnowledgeSourceConfig == null ? null : targetKnowledgeSourceConfig.path("sources");
+        if (!sources.isArray()) {
+            return new TargetKnowledgeSourceMetadata(Map.of(), Map.of());
+        }
+
+        for (JsonNode source : sources) {
+            if (!source.isObject()) {
+                continue;
+            }
+            String handleRef = text(source, "handleRef");
+            if (!StringUtils.hasText(handleRef)) {
+                continue;
+            }
+            ObjectNode metadata = objectMapper.createObjectNode();
+            metadata.put("knowledgeSourceHandleRef", handleRef);
+            String sourceId = text(source, "id");
+            if (StringUtils.hasText(sourceId)) {
+                metadata.put("knowledgeSourceId", sourceId);
+            }
+            String datasetRef = text(source, "datasetRef");
+            if (StringUtils.hasText(datasetRef)) {
+                metadata.put("knowledgeSourceDatasetRef", datasetRef);
+            }
+
+            String entityType = text(source, "entityType");
+            if (StringUtils.hasText(entityType)) {
+                byEntityType.put(entityType, metadata);
+            }
+            if (StringUtils.hasText(sourceId)) {
+                bySourceId.put(sourceId, metadata);
+            }
+        }
+        return new TargetKnowledgeSourceMetadata(Map.copyOf(byEntityType), Map.copyOf(bySourceId));
     }
 
     private String remapId(String candidate, String oldId, String newId) {
@@ -2302,6 +2391,13 @@ public class DeploymentBundleExportImportService {
     private record PendingMarketplaceInstallRestore(DeploymentMarketplacePluginInstallEntity install,
                                                     JsonNode config,
                                                     JsonNode secretRefs) {
+    }
+
+    private record TargetKnowledgeSourceMetadata(Map<String, ObjectNode> byEntityType,
+                                                 Map<String, ObjectNode> bySourceId) {
+        boolean isEmpty() {
+            return byEntityType.isEmpty() && bySourceId.isEmpty();
+        }
     }
 
     private record MarketplaceCatalogRestore(Map<String, String> pluginIdRemap,
