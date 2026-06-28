@@ -42,4 +42,7 @@ EXPOSE 8097
 
 ENV JAVA_OPTS=""
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=12 \
+    CMD curl -fsS http://127.0.0.1:8097/actuator/health || exit 1
+
 ENTRYPOINT ["/app/entrypoint.sh"]
