@@ -6,20 +6,20 @@ import com.ai.fabric.runtime.auth.RuntimeAuthMode;
 import com.ai.fabric.runtime.auth.RuntimeAuthSubjectType;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.AIActionRegistry;
-import com.ai.infrastructure.intent.action.AIContributionProvenance;
-import com.ai.infrastructure.intent.action.ActionAccessMode;
-import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
-import com.ai.infrastructure.intent.action.ActionSideEffectLevel;
-import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
-import com.ai.infrastructure.intent.action.connector.ConnectorWebhookTargetDefinition;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
+import ai.fabric.intent.action.AIActionMetaData;
+import ai.fabric.intent.action.AIActionRegistry;
+import ai.fabric.intent.action.AIContributionProvenance;
+import ai.fabric.intent.action.ActionAccessMode;
+import ai.fabric.intent.action.ActionResultPresentationHint;
+import ai.fabric.intent.action.ActionSideEffectLevel;
+import ai.fabric.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import ai.fabric.intent.action.connector.ConnectorWebhookTargetDefinition;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorDecision;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorDecisionType;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorRule;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorTrigger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -84,7 +84,7 @@ class ActionCatalogAdminControllerTest {
         when(confirmationProvider.getRules()).thenReturn(List.of(
             new ConfirmationInterceptorRule(
                 "cancel_to_retention_offer",
-                new ConfirmationInterceptorTrigger(List.of("cancel_purchase_order"), com.ai.infrastructure.dto.IntentType.CONFIRMATION_POSITIVE, "_offered"),
+                new ConfirmationInterceptorTrigger(List.of("cancel_purchase_order"), ai.fabric.dto.IntentType.CONFIRMATION_POSITIVE, "_offered"),
                 new ConfirmationInterceptorDecision(ConfirmationInterceptorDecisionType.PROMPT_ACTION, "offer_order_discount", Map.of(), null),
                 new ConfirmationInterceptorStackPolicy(false, List.of())
             )

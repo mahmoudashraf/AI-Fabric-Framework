@@ -1,10 +1,10 @@
 package com.ai.fabric.runtime.web.admin;
 
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.AIActionRegistry;
-import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import ai.fabric.intent.action.AIActionMetaData;
+import ai.fabric.intent.action.AIActionRegistry;
+import ai.fabric.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,7 +56,7 @@ public class ActionCatalogAdminController {
         body.put("readActionResolutionEligibleCount", actions.stream().filter(AIActionMetaData::isReadActionResolutionEligible).count());
         body.put("withPresentationHintsCount", actions.stream()
             .filter(action -> action.getResultPresentationHint() != null
-                && action.getResultPresentationHint() != com.ai.infrastructure.intent.action.ActionResultPresentationHint.DEFAULT)
+                && action.getResultPresentationHint() != ai.fabric.intent.action.ActionResultPresentationHint.DEFAULT)
             .count());
         body.put("withBuiltInModuleMappingsCount", actions.stream().filter(action -> StringUtils.hasText(action.getBuiltInModuleId())).count());
         body.put("withBuiltInCardMappingsCount", actions.stream().filter(action -> StringUtils.hasText(action.getBuiltInCardId())).count());

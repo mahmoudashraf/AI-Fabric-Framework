@@ -1,8 +1,8 @@
 package com.ai.fabric.runtime.search;
 
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.rag.source.ResolvedKnowledgeSource;
+import ai.fabric.dto.AISearchRequest;
+import ai.fabric.dto.AISearchResponse;
+import ai.fabric.rag.source.ResolvedKnowledgeSource;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

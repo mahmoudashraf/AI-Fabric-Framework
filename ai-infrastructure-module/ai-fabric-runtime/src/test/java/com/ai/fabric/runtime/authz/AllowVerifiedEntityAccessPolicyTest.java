@@ -1,6 +1,6 @@
 package com.ai.fabric.runtime.authz;
 
-import com.ai.infrastructure.dto.AIAccessSubjectContext;
+import ai.fabric.dto.AIAccessSubjectContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

@@ -24,7 +24,8 @@
         <maven.compiler.proc>full</maven.compiler.proc>
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-boot.version>3.2.0</spring-boot.version>
+        <ai-fabric.framework.version>0.3.1</ai-fabric.framework.version>
+        <spring-boot.version>4.1.0</spring-boot.version>
         <openai.version>0.18.2</openai.version>
         <lucene.version>9.10.0</lucene.version>
         <lombok.version>1.18.38</lombok.version>
@@ -50,6 +51,13 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
+                <groupId>io.github.loom-ai-labs</groupId>
+                <artifactId>ai-fabric-bom</artifactId>
+                <version>${ai-fabric.framework.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-bom</artifactId>
                 <version>${grpc.version}</version>
@@ -62,192 +70,6 @@
                 <artifactId>protobuf-java</artifactId>
                 <version>${protobuf.version}</version>
             </dependency>
-            
-	            <!-- AI Infrastructure Core Module -->
-	            <dependency>
-	                <groupId>com.ai.fabric</groupId>
-	                <artifactId>ai-fabric-core</artifactId>
-	                <version>${project.version}</version>
-	            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-runtime</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-	            <!-- Optional: connector-backed actions module -->
-	            <dependency>
-	                <groupId>com.ai.fabric</groupId>
-	                <artifactId>ai-infrastructure-actions-connector</artifactId>
-	                <version>${project.version}</version>
-	            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-actions-registry</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-actions-registry-liquibase</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-		            <!-- Optional: documents-only retrieval connector module -->
-		            <dependency>
-		                <groupId>com.ai.fabric</groupId>
-		                <artifactId>ai-infrastructure-retrieval-connector</artifactId>
-		                <version>${project.version}</version>
-		            </dependency>
-		            <!-- Optional: push-based data sync (ingestion) API for managed vector DB -->
-		            <dependency>
-		                <groupId>com.ai.fabric</groupId>
-		                <artifactId>ai-infrastructure-data-sync</artifactId>
-		                <version>${project.version}</version>
-		            </dependency>
-		            <dependency>
-		                <groupId>com.ai.fabric</groupId>
-		                <artifactId>ai-fabric-provider-starter</artifactId>
-		                <version>${project.version}</version>
-		            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-generic-rest-connector</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-relay</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-relationship-query</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-migration-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-rag</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-pii</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-governance</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-indexing</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-chat-session</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-behavior</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <!-- Curated Packs (optional) -->
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-curated-default</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-curated-commerce</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-curated-support</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            
-            <!-- Provider Modules -->
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-fabric-provider-openai</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-provider-azure</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-provider-cohere</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-provider-anthropic</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-provider-gemini</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-onnx-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!-- Vector Modules -->
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-vector-lucene</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-vector-pinecone</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-vector-memory</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-vector-weaviate</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-vector-qdrant</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.ai.fabric</groupId>
-                <artifactId>ai-infrastructure-vector-milvus</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
             <!-- Lucene Dependencies -->
             <dependency>
                 <groupId>org.apache.lucene</groupId>

@@ -6,7 +6,7 @@ import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapRequest;
 import com.ai.fabric.runtime.web.dto.PublicRuntimeSessionBootstrapResponse;
 import com.ai.fabric.runtime.web.dto.RuntimeShellConfigResponse;
 import com.ai.fabric.runtime.web.dto.RuntimeShellStarterPromptResponse;
-import com.ai.infrastructure.shell.BuiltInShellCatalog;
+import ai.fabric.shell.BuiltInShellCatalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;

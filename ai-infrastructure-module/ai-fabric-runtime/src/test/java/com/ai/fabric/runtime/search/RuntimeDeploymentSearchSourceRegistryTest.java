@@ -1,11 +1,11 @@
 package com.ai.fabric.runtime.search;
 
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
-import com.ai.infrastructure.core.AISearchService;
-import com.ai.infrastructure.dto.AIAccessSubjectContext;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.source.ResolvedKnowledgeSource;
+import ai.fabric.core.AISearchService;
+import ai.fabric.dto.AIAccessSubjectContext;
+import ai.fabric.dto.RAGRequest;
+import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

@@ -1,10 +1,10 @@
 package com.ai.fabric.runtime.web.admin;
 
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.dto.VectorScanPage;
-import com.ai.infrastructure.dto.VectorScanRequest;
-import com.ai.infrastructure.rag.VectorDatabaseService;
+import ai.fabric.config.AIEntityConfigurationLoader;
+import ai.fabric.dto.VectorScanPage;
+import ai.fabric.dto.VectorScanRequest;
+import ai.fabric.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

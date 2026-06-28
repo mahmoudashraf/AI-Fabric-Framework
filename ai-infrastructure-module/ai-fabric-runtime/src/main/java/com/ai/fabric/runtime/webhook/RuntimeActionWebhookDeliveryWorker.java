@@ -1,8 +1,8 @@
 package com.ai.fabric.runtime.webhook;
 
-import com.ai.infrastructure.http.OutboundHttpExecutionRequest;
-import com.ai.infrastructure.http.OutboundHttpExecutionResponse;
-import com.ai.infrastructure.http.OutboundHttpExecutor;
+import ai.fabric.http.OutboundHttpExecutionRequest;
+import ai.fabric.http.OutboundHttpExecutionResponse;
+import ai.fabric.http.OutboundHttpExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
 import org.springframework.scheduling.annotation.Scheduled;

@@ -1,12 +1,12 @@
 package com.ai.fabric.runtime.search;
 
-import com.ai.infrastructure.core.AISearchService;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.source.ResolvedKnowledgeSource;
-import com.ai.infrastructure.rag.source.SearchSource;
+import ai.fabric.core.AISearchService;
+import ai.fabric.dto.AISearchRequest;
+import ai.fabric.dto.AISearchResponse;
+import ai.fabric.dto.RAGRequest;
+import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.rag.source.ResolvedKnowledgeSource;
+import ai.fabric.rag.source.SearchSource;
 
 import java.util.List;
 

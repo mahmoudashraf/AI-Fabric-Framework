@@ -1,6 +1,6 @@
 package com.ai.fabric.runtime.web.dto;
 
-import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
+import ai.fabric.intent.orchestration.attachment.OrchestrationAttachment;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;

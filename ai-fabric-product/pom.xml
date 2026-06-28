@@ -25,8 +25,8 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <ai-fabric.version>0.1.0-preview</ai-fabric.version>
-        <spring-boot.version>3.2.0</spring-boot.version>
+        <ai-fabric.version>0.3.1</ai-fabric.version>
+        <spring-boot.version>4.1.0</spring-boot.version>
         <commons-csv.version>1.10.0</commons-csv.version>
     </properties>
 
@@ -36,6 +36,13 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.github.loom-ai-labs</groupId>
+                <artifactId>ai-fabric-bom</artifactId>
+                <version>${ai-fabric.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

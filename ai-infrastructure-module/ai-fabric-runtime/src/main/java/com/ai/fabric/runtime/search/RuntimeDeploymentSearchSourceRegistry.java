@@ -1,13 +1,13 @@
 package com.ai.fabric.runtime.search;
 
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
-import com.ai.infrastructure.core.AISearchService;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.source.KnowledgeSourceAdapterType;
-import com.ai.infrastructure.rag.source.ResolvedKnowledgeSource;
-import com.ai.infrastructure.rag.source.SearchSource;
-import com.ai.infrastructure.rag.source.SearchSourceRegistry;
+import ai.fabric.core.AISearchService;
+import ai.fabric.dto.RAGRequest;
+import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.rag.source.KnowledgeSourceAdapterType;
+import ai.fabric.rag.source.ResolvedKnowledgeSource;
+import ai.fabric.rag.source.SearchSource;
+import ai.fabric.rag.source.SearchSourceRegistry;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

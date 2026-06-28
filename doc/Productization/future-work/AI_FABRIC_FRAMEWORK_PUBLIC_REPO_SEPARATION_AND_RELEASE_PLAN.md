@@ -636,6 +636,14 @@ Only after API boundaries, docs, license, CI, examples, and private product inte
 
 ## 10) Current Status
 
+2026-06-28 update:
+
+- Public framework release `0.3.1` exists at tag `ai-fabric-framework-v0.3.1` and GitHub release `https://github.com/Loom-AI-Labs/ai-fabric-framework/releases/tag/ai-fabric-framework-v0.3.1`.
+- Private product services now consume the released framework through `io.github.loom-ai-labs:ai-fabric-bom:0.3.1`.
+- Private Dockerfiles and Platform regression workflow pin public framework tag `ai-fabric-framework-v0.3.1` for reproducible builds.
+- Product integration verification against `0.3.1` passed locally for private runtime/generic connector and product vectorization/embedding workers.
+- Boot 4/Jackson transition note: private product services still using Jackson 2 `com.fasterxml.jackson.databind.ObjectMapper` must explicitly declare Jackson 2 where used and provide a compatibility mapper bean until those services are intentionally migrated to Boot 4's Jackson 3 mapper APIs.
+
 Completed:
 
 - Public framework repo exists at `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework` and `https://github.com/Loom-AI-Labs/ai-fabric-framework`.

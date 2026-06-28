@@ -1,12 +1,12 @@
 package com.ai.fabric.runtime.webhook;
 
-import com.ai.infrastructure.intent.action.ActionContext;
-import com.ai.infrastructure.intent.action.ActionResult;
-import com.ai.infrastructure.intent.action.ActionTargetRef;
-import com.ai.infrastructure.intent.action.connector.ConnectorActionPostPolicyDefinition;
-import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
-import com.ai.infrastructure.intent.action.connector.ConnectorWebhookTargetDefinition;
-import com.ai.infrastructure.intent.action.policy.ActionPostPolicyEngine;
+import ai.fabric.intent.action.ActionContext;
+import ai.fabric.intent.action.ActionResult;
+import ai.fabric.intent.action.ActionTargetRef;
+import ai.fabric.intent.action.connector.ConnectorActionPostPolicyDefinition;
+import ai.fabric.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import ai.fabric.intent.action.connector.ConnectorWebhookTargetDefinition;
+import ai.fabric.intent.action.policy.ActionPostPolicyEngine;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

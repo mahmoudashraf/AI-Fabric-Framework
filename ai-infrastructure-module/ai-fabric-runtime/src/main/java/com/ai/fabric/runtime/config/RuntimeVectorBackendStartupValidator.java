@@ -1,6 +1,6 @@
 package com.ai.fabric.runtime.config;
 
-import com.ai.infrastructure.rag.VectorDatabaseService;
+import ai.fabric.rag.VectorDatabaseService;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.BeanFactoryUtils;

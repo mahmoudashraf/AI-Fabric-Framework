@@ -1,6 +1,6 @@
 package com.ai.fabric.runtime.admin;
 
-import com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties;
+import ai.fabric.intent.action.connector.AIActionConnectorProperties;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

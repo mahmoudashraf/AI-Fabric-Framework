@@ -46,115 +46,82 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
 
-        <!-- AI Fabric (dev baseline) -->
+        <!-- AI Fabric 0.3.1 framework modules -->
         <dependency>
-            <groupId>com.ai.fabric</groupId>
+            <groupId>io.github.loom-ai-labs</groupId>
             <artifactId>ai-fabric-provider-starter</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-curated-default</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-curated-default</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-curated-commerce</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-curated-commerce</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-curated-support</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-curated-support</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-fabric-provider-openai</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-provider-spring-ai</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-provider-azure</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-provider-anthropic</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-provider-cohere</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-provider-gemini</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-onnx-starter</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-onnx-starter</artifactId>
         </dependency>
         <!-- RAG + vector DB (dev default) -->
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-rag</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-rag</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-lucene</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-vector-lucene</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-qdrant</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-vector-qdrant</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-pinecone</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-vector-pinecone</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-memory</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-vector-memory</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-weaviate</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-vector-weaviate</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-vector-milvus</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-vector-milvus</artifactId>
         </dependency>
 
         <!-- Optional platform capabilities (opt-in via properties) -->
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-chat-session</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-chat-session</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-data-sync</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-data-sync</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-actions-connector</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-actions-connector</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.ai.fabric</groupId>
-            <artifactId>ai-infrastructure-retrieval-connector</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-retrieval-connector</artifactId>
         </dependency>
 
         <!-- Database -->
@@ -185,7 +152,7 @@
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

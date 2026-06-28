@@ -42,6 +42,13 @@ Deployable runtime and generic REST connector services are not public framework 
 
 Private products consume the framework through Maven artifacts. For active local development, install the sibling framework repo into the local Maven repository first, then build this repo.
 
+Current private product integration consumes the public framework release `0.3.1` via the AI Fabric BOM:
+
+- `io.github.loom-ai-labs:ai-fabric-bom:0.3.1`
+- Git tag `ai-fabric-framework-v0.3.1`
+
+Private Docker/CI bootstrap paths should pin the released tag for reproducible product builds unless a task explicitly asks to test unreleased framework changes.
+
 Framework responsibilities:
 
 - reusable primitives

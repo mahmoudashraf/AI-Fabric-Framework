@@ -113,7 +113,7 @@ class RuntimeConnectorAdminProxyServiceTest {
                                                                  String apiKeyValue,
                                                                  String adminApiKeyHeader,
                                                                  String adminApiKeyValue) throws Exception {
-        Class<?> propertiesClass = Class.forName("com.ai.infrastructure.intent.action.connector.AIActionConnectorProperties");
+        Class<?> propertiesClass = Class.forName("ai.fabric.intent.action.connector.AIActionConnectorProperties");
         Object properties = propertiesClass.getDeclaredConstructor().newInstance();
         propertiesClass.getMethod("setBaseUrl", String.class).invoke(properties, baseUrl);
         propertiesClass.getMethod("setConnectTimeout", Duration.class).invoke(properties, connectTimeout);

@@ -6,15 +6,15 @@ import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
-import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.AIActionRegistry;
-import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.source.SearchSourceRegistry;
-import com.ai.infrastructure.shell.BuiltInShellCatalog;
+import ai.fabric.config.AIProviderConfig;
+import ai.fabric.config.AIEntityConfigurationLoader;
+import ai.fabric.intent.action.AIActionMetaData;
+import ai.fabric.intent.action.AIActionRegistry;
+import ai.fabric.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.rag.source.SearchSourceRegistry;
+import ai.fabric.shell.BuiltInShellCatalog;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -77,7 +77,7 @@ public class RuntimeAdminOverviewController {
         long presentationHintedActionCount = actions.stream()
             .filter(action -> action != null
                 && action.getResultPresentationHint() != null
-                && action.getResultPresentationHint() != com.ai.infrastructure.intent.action.ActionResultPresentationHint.DEFAULT)
+                && action.getResultPresentationHint() != ai.fabric.intent.action.ActionResultPresentationHint.DEFAULT)
             .count();
         long moduleMappedActionCount = actions.stream()
             .filter(action -> action != null && StringUtils.hasText(action.getBuiltInModuleId()))

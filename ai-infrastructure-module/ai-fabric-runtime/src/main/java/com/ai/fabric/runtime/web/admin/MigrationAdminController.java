@@ -1,7 +1,7 @@
 package com.ai.fabric.runtime.web.admin;
 
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
-import com.ai.infrastructure.rag.VectorDatabaseService;
+import ai.fabric.rag.VectorDatabaseService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;

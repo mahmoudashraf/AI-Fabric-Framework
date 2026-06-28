@@ -1566,3 +1566,15 @@ Critical fixes that made the gate pass:
 - Regression coverage added in `DeploymentBundleExportImportServiceTest` proves imported vectorization mappings replace source tenant handles with target tenant handles.
 - Focused verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentBundleExportImportServiceTest clean test`.
 - The older caveat that direct Qdrant search worked while runtime chat returned zero sources is now superseded for service-module retrieval on `dep-53f9ca56`.
+
+## 2026-06-28 Platform Upgrade To AI Fabric Framework 0.3.1
+
+- Upgraded private product services to released public framework `0.3.1` (`ai-fabric-framework-v0.3.1`, commit `4fe2a77`) using `io.github.loom-ai-labs:ai-fabric-bom:0.3.1`.
+- Changed private dependency wiring from old copied/framework-era `com.ai.fabric` dependency-management entries to released `io.github.loom-ai-labs` artifacts. Runtime/connector product services still keep their private version `0.1.0-preview`.
+- Runtime now depends on consolidated `ai-fabric-provider-spring-ai`, `ai-fabric-onnx-starter`, `ai-fabric-rag`, curated packs, vector modules, chat session, data sync, actions connector, and retrieval connector from the public framework release.
+- Dockerfiles and Platform regression workflow now clone/install public framework tag `ai-fabric-framework-v0.3.1` instead of `main`; integration-test modules are excluded from the framework bootstrap install.
+- Spring Boot moved to `4.1.0` through the framework/BOM alignment. Product-owned services that still inject Jackson 2 `com.fasterxml.jackson.databind.ObjectMapper` now declare `jackson-databind` where used and provide `@ConditionalOnMissingBean` compatibility mapper beans for runtime, generic REST connector, and vectorization runner.
+- Boot 4 MVC tests now use `spring-boot-starter-webmvc-test` and `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`.
+- Runtime packaging coverage was updated for the 0.3.1 provider shape: `SpringAiProviderAutoConfiguration`, `ONNXAutoConfiguration`, Lucene, Qdrant, memory, Milvus, Pinecone, and Weaviate vector auto-configurations.
+- Verification passed with fresh Maven repo `/tmp/loomai-platform-031-m2`: `mvn -f ai-infrastructure-module/pom.xml test` (143 tests across generic REST connector/runtime), `mvn -f ai-fabric-product/pom.xml test` (19 tests), `mvn -f ai-infrastructure-module/pom.xml -DskipTests clean package`, and `mvn -f ai-fabric-product/pom.xml -DskipTests clean package`.
+- Non-blocking warnings observed: third-party `org.apache.yetus:audience-annotations:0.5.0` effective-model warning, javac annotation-processing warning, Mockito dynamic-agent warning, and existing deprecation/unchecked compile warnings.

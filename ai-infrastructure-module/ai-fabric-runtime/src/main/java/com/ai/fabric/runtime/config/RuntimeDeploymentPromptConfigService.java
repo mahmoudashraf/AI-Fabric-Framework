@@ -1,6 +1,6 @@
 package com.ai.fabric.runtime.config;
 
-import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
+import ai.fabric.prompt.PromptPreviewOverlaySupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
