@@ -153,13 +153,13 @@ platform:
     connector-admin-overview-path: /api/admin/connector/overview
     connector-actions-overview-path: /api/admin/connector/actions/overview
     suites:
-      platform-ui-base-url: ${PLATFORM_UI_BASE_URL:}
+      platform-ui-base-url: ${PLATFORM_UI_BASE_URL:${PLATFORM_CORE_SERVICE_UI_URL:https://console.loomai.pro}}
       weaviate-host: ${PLATFORM_VERIFICATION_WEAVIATE_HOST:${WEAVIATE_HOST:}}
-      shopify-bridge-base-url: ${SHOPIFY_BRIDGE_BASE_URL:}
-      shopify-shop-domain: ${SHOP_DOMAIN:}
-      shopify-product-service-ref: ${PRODUCT_SERVICE_REF:}
+      shopify-bridge-base-url: ${SHOPIFY_BRIDGE_BASE_URL:https://shopify-bridge.loomai.pro}
+      shopify-shop-domain: ${SHOP_DOMAIN:shopping-companion-test.myshopify.com}
+      shopify-product-service-ref: ${PRODUCT_SERVICE_REF:shopify-bridge-prod}
       shopify-embedded-host: ${SHOPIFY_EMBEDDED_HOST:}
-      partner-ui-base-url: ${PARTNER_UI_BASE_URL:}
+      partner-ui-base-url: ${PARTNER_UI_BASE_URL:${PLATFORM_CORE_SERVICE_PARTNER_UI_URL:https://partners.loomai.pro}}
     runner:
       script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
       timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}

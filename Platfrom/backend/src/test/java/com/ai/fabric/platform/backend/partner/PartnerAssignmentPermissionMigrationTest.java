@@ -89,6 +89,7 @@ class PartnerAssignmentPermissionMigrationTest {
         Flyway.configure()
             .dataSource(url, "sa", "")
             .locations("classpath:db/migration")
+            .target(MigrationVersion.fromVersion("120"))
             .load()
             .migrate();
 
@@ -160,6 +161,7 @@ class PartnerAssignmentPermissionMigrationTest {
         Flyway.configure()
             .dataSource(url, "sa", "")
             .locations("classpath:db/migration")
+            .target(MigrationVersion.fromVersion("120"))
             .load()
             .migrate();
 
