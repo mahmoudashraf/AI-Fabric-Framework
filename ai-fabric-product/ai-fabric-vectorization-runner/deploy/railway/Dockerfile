@@ -13,6 +13,8 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 RUN useradd -r -u 10003 -g root vectorization
 
 COPY --from=build /workspace/ai-fabric-product/ai-fabric-vectorization-runner/target/ai-fabric-vectorization-runner-*.jar /app/vectorization-runner.jar
