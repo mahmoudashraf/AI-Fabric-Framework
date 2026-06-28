@@ -1607,3 +1607,15 @@ Critical fixes that made the gate pass:
 - Platform Qdrant release-gate demotion was committed and pushed as `34af74717` (`Demote Qdrant from release-blocking vector checks`) and deployed to production Platform backend. Live suite definitions keep Qdrant hosted verification optional/non-blocking and keep managed-vector provider verification as the blocking vector gate.
 - Remaining caveats: direct authenticated ProdUS backend owner-session smoke was not available from this shell; `dep-f6abfa06` aggregate runtime `/actuator/health` reports readiness `DOWN` while liveness is `UP`; public consumer bridge returns Thinker-disabled and is not the ProdUS backend-mediated integration path; `api.loomai.pro` assignment URL returned `401` while the existing backend-only sslip handoff URL worked.
 - Temporary Hetzner firewall access for local IP `38.126.93.124/32` was removed from production firewall objects after the deployment work.
+
+## 2026-06-28 ProdUS Runtime Aggregate Health Caveat Resolved
+
+- Investigated `dep-f6abfa06` runtime aggregate `/actuator/health` returning HTTP `503` while `/actuator/health/liveness` and `/actuator/health/readiness` returned HTTP `200` / `UP`.
+- Root cause: aggregate health included the framework vector-provider actuator contributor. Zilliz/Milvus was operational and indexed, but the framework strict readiness verdict treated non-efficient scan-backed entity-type counts as not ready; readiness/liveness groups intentionally excluded that contributor, so Coolify gates passed.
+- First runtime commit `d7e7f6b50` added a tolerant runtime vector health indicator. Release `rel-05d65cdb` deployed and passed, but aggregate health still returned 503, so the runtime aggregate path was corrected explicitly.
+- Final runtime commit `f73178c47` makes strict vector provider actuator health opt-in for deployable runtimes (`MANAGEMENT_HEALTH_AI_FABRIC_VECTOR_ENABLED=false` by default) while keeping vector diagnostics available through private admin overview/indexing endpoints.
+- Production release `rel-5780caf6` for `dep-f6abfa06` finished `APPLIED_VERIFIED` / `PASSED` on `dtp-coolify-production`.
+- Final live health proof after release: runtime aggregate `/actuator/health`, `/actuator/health/liveness`, and `/actuator/health/readiness` all returned HTTP `200` / `UP`.
+- Post-fix Platform POC smokes passed: service-module request `rag-b135b3f7-116b-45f5-9313-31328ca539a4` returned `sourcesCount=5` with top source `service-module:api-security-review`; package-template request `rag-015efdce-016c-4fa0-bc93-f8e6878aaa1b` returned `sourcesCount=2` with top source `package-template:security-hardening`.
+- Verification commands passed locally before deploy: `mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -Dtest=RuntimeVectorHealthConfigurationTest test`, `mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -DskipTests package`, and `git diff --check`.
+- Temporary Hetzner firewall access for local IP `38.126.93.124/32` was removed again from firewalls `10915120` and `10918233`; direct local Coolify API check timed out afterward, confirming the closed posture.
