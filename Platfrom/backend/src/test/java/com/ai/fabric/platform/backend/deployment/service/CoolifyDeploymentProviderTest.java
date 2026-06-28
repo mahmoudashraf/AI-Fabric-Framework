@@ -125,6 +125,8 @@ class CoolifyDeploymentProviderTest {
             ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
         verify(coolifyApiClient).createDockerImageApplication(eq(connection), request.capture());
         assertThat(request.getValue().domains()).isEqualTo("http://dep-123.runtime.example.test");
+        assertThat(request.getValue().portsExposes()).isEqualTo("8097");
+        assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
     }
 
     @Test
@@ -218,6 +220,8 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().baseDirectory()).isEqualTo("/");
         assertThat(request.getValue().dockerfileLocation()).isEqualTo("/ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
         assertThat(request.getValue().autoDeployEnabled()).isFalse();
+        assertThat(request.getValue().portsExposes()).isEqualTo("8097");
+        assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
         verifyNoInteractions(sourceArtifactService);
     }
 
@@ -840,6 +844,12 @@ class CoolifyDeploymentProviderTest {
                 "http://dep-123.runtime.example.test",
                 "http://dep-123-connector.runtime.example.test"
             );
+        assertThat(request.getAllValues())
+            .extracting(CoolifyCreatePublicApplicationRequest::portsExposes)
+            .containsExactly("8097", "8082");
+        assertThat(request.getAllValues())
+            .extracting(CoolifyCreatePublicApplicationRequest::healthCheckPort)
+            .containsExactly("8097", "8082");
 
         ArgumentCaptor<List<CoolifyEnvVar>> runtimeEnv = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<CoolifyEnvVar>> connectorEnv = ArgumentCaptor.forClass(List.class);
@@ -994,6 +1004,12 @@ class CoolifyDeploymentProviderTest {
             .contains(
                 "/ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile"
             );
+        assertThat(request.getAllValues())
+            .extracting(CoolifyCreatePublicApplicationRequest::portsExposes)
+            .containsExactly("8097", "8082", "8099");
+        assertThat(request.getAllValues())
+            .extracting(CoolifyCreatePublicApplicationRequest::healthCheckPort)
+            .containsExactly("8097", "8082", "8099");
         verify(vectorizationRunnerProvisioningService).ensureManagedRegistration(any());
         verifyNoInteractions(sourceArtifactService);
     }
