@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.config;
 import ai.fabric.service.VectorManagementService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(prefix = "management.health.ai-fabric.vector", name = "enabled", havingValue = "true")
 public class RuntimeVectorHealthConfiguration {
 
     private static final String VECTOR_COUNT_REASON =

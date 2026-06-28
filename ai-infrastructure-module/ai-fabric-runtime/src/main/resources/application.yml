@@ -127,6 +127,12 @@ ai:
         value: ${ACTIONS_CONNECTOR_API_KEY:}
 
 management:
+  health:
+    ai-fabric:
+      vector:
+        # Runtime aggregate health should answer whether the service is alive/ready to serve.
+        # Vector provider capability diagnostics remain available through the private admin endpoints.
+        enabled: ${MANAGEMENT_HEALTH_AI_FABRIC_VECTOR_ENABLED:false}
   endpoint:
     health:
       probes:
