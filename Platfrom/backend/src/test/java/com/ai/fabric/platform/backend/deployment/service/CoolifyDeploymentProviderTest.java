@@ -126,6 +126,7 @@ class CoolifyDeploymentProviderTest {
         verify(coolifyApiClient).createDockerImageApplication(eq(connection), request.capture());
         assertThat(request.getValue().domains()).isEqualTo("http://dep-123.runtime.example.test");
         assertThat(request.getValue().portsExposes()).isEqualTo("8097");
+        assertThat(request.getValue().healthCheckPath()).isEqualTo("/actuator/health/liveness");
         assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
     }
 
@@ -221,6 +222,7 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().dockerfileLocation()).isEqualTo("/ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile");
         assertThat(request.getValue().autoDeployEnabled()).isFalse();
         assertThat(request.getValue().portsExposes()).isEqualTo("8097");
+        assertThat(request.getValue().healthCheckPath()).isEqualTo("/actuator/health/liveness");
         assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
         verifyNoInteractions(sourceArtifactService);
     }
@@ -848,6 +850,9 @@ class CoolifyDeploymentProviderTest {
             .extracting(CoolifyCreatePublicApplicationRequest::portsExposes)
             .containsExactly("8097", "8082");
         assertThat(request.getAllValues())
+            .extracting(CoolifyCreatePublicApplicationRequest::healthCheckPath)
+            .containsExactly("/actuator/health/liveness", "/actuator/health/liveness");
+        assertThat(request.getAllValues())
             .extracting(CoolifyCreatePublicApplicationRequest::healthCheckPort)
             .containsExactly("8097", "8082");
 
@@ -1007,6 +1012,13 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getAllValues())
             .extracting(CoolifyCreatePublicApplicationRequest::portsExposes)
             .containsExactly("8097", "8082", "8099");
+        assertThat(request.getAllValues())
+            .extracting(CoolifyCreatePublicApplicationRequest::healthCheckPath)
+            .containsExactly(
+                "/actuator/health/liveness",
+                "/actuator/health/liveness",
+                "/actuator/health/liveness"
+            );
         assertThat(request.getAllValues())
             .extracting(CoolifyCreatePublicApplicationRequest::healthCheckPort)
             .containsExactly("8097", "8082", "8099");
