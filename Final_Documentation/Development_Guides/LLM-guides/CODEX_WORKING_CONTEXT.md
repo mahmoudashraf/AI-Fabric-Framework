@@ -1578,3 +1578,32 @@ Critical fixes that made the gate pass:
 - Runtime packaging coverage was updated for the 0.3.1 provider shape: `SpringAiProviderAutoConfiguration`, `ONNXAutoConfiguration`, Lucene, Qdrant, memory, Milvus, Pinecone, and Weaviate vector auto-configurations.
 - Verification passed with fresh Maven repo `/tmp/loomai-platform-031-m2`: `mvn -f ai-infrastructure-module/pom.xml test` (143 tests across generic REST connector/runtime), `mvn -f ai-fabric-product/pom.xml test` (19 tests), `mvn -f ai-infrastructure-module/pom.xml -DskipTests clean package`, and `mvn -f ai-fabric-product/pom.xml -DskipTests clean package`.
 - Non-blocking warnings observed: third-party `org.apache.yetus:audience-annotations:0.5.0` effective-model warning, javac annotation-processing warning, Mockito dynamic-agent warning, and existing deprecation/unchecked compile warnings.
+
+## 2026-06-28 ProdUS Runtime Reapply On Framework 0.3.1 Pin
+
+- Confirmed private runtime source wiring uses released framework `0.3.1`: `ai-infrastructure-module/pom.xml` reports `ai-fabric.framework.version=0.3.1`, and the `ai-fabric-runtime` dependency tree resolves all `io.github.loom-ai-labs` framework modules at `0.3.1`.
+- Confirmed deploy source provenance: local branch `Platform-V10` and `origin/Platform-V10` both point at commit `265064faf4a18ac6c2e39d028dfcbb5b6d1706df`, and runtime/connector/vectorization Dockerfiles pin `AI_FABRIC_FRAMEWORK_REF=ai-fabric-framework-v0.3.1`.
+- Reapplied ProdUS active runtime deployment `dep-53f9ca56` using explicit production target `targetProfileId=dtp-coolify-production`; release `rel-4ed2ffc9` finished `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, `verificationStatus=PASSED`.
+- Platform apply completed connector, vectorization runner, runtime deploy, post-deploy verification, and marketplace dataset sync. Public health checks returned HTTP `200` / `UP` for runtime, connector, and vectorization runner.
+- ProdUS service-module retrieval smoke through Platform POC widget proxy passed after redeploy: provider request id `rag-eed1aff1-e670-45b8-a7e6-f8230cc59a05`, `sourcesCount=1`, `documentsCount=1`, top source `service-module:api-security-review`; temporary POC conversation was deleted with HTTP `204`.
+- Operational gotcha: a first apply attempt without explicit `targetProfileId` created `rel-4600b8d9` against staging and failed before runtime deploy at `wait_for_coolify_connector`. Future dep-53 production applies should always include `targetProfileId=dtp-coolify-production`.
+- `git diff --check` passed after the deployment. Remaining local dirty files were pre-existing/unrelated: `.DS_Store` and `Final_Documentation/User_Guides/LOOMAI_PROVIDER_CAPABILITIES_USER_GUIDE.md`.
+
+## 2026-06-28 Qdrant Demotion And ProdUS Managed Vector Migration Plan
+
+- Added roadmap plan `010_19_QDRANT_DEMOTION_AND_MANAGED_VECTOR_MIGRATION_PLAN.md` to demote Qdrant from default/release-blocking status while keeping it as an advanced provider. The plan chooses Pinecone as the first non-Qdrant managed target, with Weaviate and Zilliz/Milvus as fallbacks based on provider connectivity. It requires explicit staging and production Coolify AI Fabric release upgrade verification, Platform config-only and sealed deployment config backups for ProdUS `dep-53f9ca56`, import preview, baseline retrieval evidence, clone/import migration, reindex, ProdUS retrieval smoke, assignment cutover, rollback reservation, and delayed Qdrant resource retirement. It does not require backing up Coolify itself for this migration. No live migration, backup/export, provider mutation, or assignment change was executed when creating the plan.
+
+## 2026-06-28 ProdUS Managed Zilliz/Milvus Cutover And Qdrant Demotion
+
+- Executed the ProdUS managed-vector migration plan. Current `produs-staging` assignment is now deployment `dep-f6abfa06`, release `rel-86dbe0ab`, version `ver-269b9769`, target profile `dtp-coolify-production`.
+- Old Qdrant-backed deployment `dep-53f9ca56` / release `rel-4ed2ffc9` was not deleted and should remain rollback-reserved until owner-approved soak/cleanup is complete.
+- Pre-cutover Platform deployment backups completed for `dep-53f9ca56`: config-only export `dexp-cadcc013` / bundle `dxb-7a4c6b46`, and sealed export `dexp-a16daf03` / bundle `dxb-59417c44`. Import previews passed. Do not expose sealed payloads or secret material.
+- Pinecone provider connectivity reached `READY`, but managed index creation failed upstream with HTTP `400`, so the allowed fallback was used: Zilliz/Milvus serverless, Platform-managed dedicated storage, project `proj-a58a34b87ccfe2c80d6ec2`.
+- New deployment `dep-f6abfa06` passed production-staging release `rel-8d8f12fc` and production release `rel-86dbe0ab` with provisioning `ACTIVE` and verification `PASSED`.
+- Vectorization bootstrap run `vrn-f459d3ff` completed with `processed=198`, `succeeded=198`, `failed=0`; overview is `IN_SYNC`.
+- Production retrieval smokes passed after cutover:
+  - `rag-8c8b788b-2aac-409b-a2b4-bfdcf00c5b3b`: service-module smoke, `sourcesCount=5`, top source `service-module:api-security-review`.
+  - `rag-156ae1be-96ca-4e73-ac73-0d76fe9bd8bf`: package-template smoke, `sourcesCount=3`, top source `package-template:security-hardening`.
+- Platform Qdrant release-gate demotion was committed and pushed as `34af74717` (`Demote Qdrant from release-blocking vector checks`) and deployed to production Platform backend. Live suite definitions keep Qdrant hosted verification optional/non-blocking and keep managed-vector provider verification as the blocking vector gate.
+- Remaining caveats: direct authenticated ProdUS backend owner-session smoke was not available from this shell; `dep-f6abfa06` aggregate runtime `/actuator/health` reports readiness `DOWN` while liveness is `UP`; public consumer bridge returns Thinker-disabled and is not the ProdUS backend-mediated integration path; `api.loomai.pro` assignment URL returned `401` while the existing backend-only sslip handoff URL worked.
+- Temporary Hetzner firewall access for local IP `38.126.93.124/32` was removed from production firewall objects after the deployment work.
