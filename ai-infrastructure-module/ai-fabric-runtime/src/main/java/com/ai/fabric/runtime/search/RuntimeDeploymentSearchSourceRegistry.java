@@ -95,11 +95,17 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
     @Override
     public List<SearchSource> resolveSearchSources(RAGRequest request) {
         List<SearchSource> resolved = new ArrayList<>();
-        ResolvedKnowledgeSource configuredPrivateSource = configuredSources.stream()
+        ResolvedKnowledgeSource configuredDefaultPrivateSource = configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
+            .filter(source -> !StringUtils.hasText(source.getHandleRef()))
             .findFirst()
             .orElse(defaultPrivateSource(request));
-        resolved.add(new DeploymentPrivateVectorSearchSource(configuredPrivateSource, searchService, vectorDatabaseService));
+        resolved.add(new DeploymentPrivateVectorSearchSource(configuredDefaultPrivateSource, searchService, vectorDatabaseService));
+        configuredSources.stream()
+            .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
+            .filter(source -> StringUtils.hasText(source.getHandleRef()))
+            .map(source -> new DeploymentPrivateVectorSearchSource(source, searchService, vectorDatabaseService))
+            .forEach(resolved::add);
         configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType()))
             .map(source -> new SharedIndexSearchSource(source, searchService, vectorDatabaseService))

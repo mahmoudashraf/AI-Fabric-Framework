@@ -336,6 +336,90 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsSharedIndexKnowledgeSourceDeclaredByAdapterOrTypeOnDedicatedProvider() {
+        DeploymentDraftEntity draft = draft(
+            """
+                {
+                  "actions": [
+                    {
+                      "name": "search_docs",
+                      "description": "Search docs"
+                    }
+                  ]
+                }
+                """,
+            """
+                {
+                  "ai-config": { "vector-dimensions": 512 },
+                  "ai-entities": {
+                    "faq-article": {
+                      "fields": []
+                    }
+                  }
+                }
+                """,
+            """
+                {
+                  "connector": {
+                    "inbound-auth": {
+                      "allow-unauthenticated": false,
+                      "api-key": {
+                        "enabled": true,
+                        "header": "X-AIFABRIC-API-KEY",
+                        "value": "${CONNECTOR_API_KEY}"
+                      }
+                    }
+                  },
+                  "authz": {
+                    "enabled": false
+                  }
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "milvus",
+                  "vectorProvisioningMode": "PLATFORM_MANAGED",
+                  "vectorStoragePosture": "DEDICATED",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        );
+        draft.setKnowledgeSourceConfigJson(
+            """
+                {
+                  "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                  "sources": [
+                    {
+                      "id": "help-center",
+                      "type": "shared-index",
+                      "adapterType": "shared-index",
+                      "handleRef": "plugin/help-center",
+                      "entityType": "faq-article"
+                    }
+                  ]
+                }
+                """
+        );
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("SHARED_INDEX_REQUIRES_SHARED_VECTOR_STORAGE");
+    }
+
+    @Test
     void validateAcceptsPartialExplicitOverrideOverInlineActionRoute() {
         DraftValidationResponse response = service.validate(draft(
             """

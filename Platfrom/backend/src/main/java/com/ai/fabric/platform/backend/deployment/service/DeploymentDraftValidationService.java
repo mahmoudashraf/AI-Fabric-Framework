@@ -362,16 +362,26 @@ public class DeploymentDraftValidationService {
             if (!enabled.isMissingNode() && !enabled.isBoolean()) {
                 issues.add(error("knowledgeSources", "KNOWLEDGE_SOURCE_ENABLED_BOOLEAN", basePath + ".enabled", "enabled must be a boolean when provided."));
             }
-            String sourceType = source.path("sourceType").asText("").trim();
-            if ("shared-index".equalsIgnoreCase(sourceType) && (!sharedStorageCapable || !sharedStorageSelected)) {
+            String sourceType = firstNonBlank(
+                source.path("sourceType").asText("").trim(),
+                source.path("adapterType").asText("").trim(),
+                source.path("type").asText("").trim()
+            );
+            if (isSharedIndexSourceType(sourceType) && (!sharedStorageCapable || !sharedStorageSelected)) {
                 issues.add(error(
                     "knowledgeSources",
                     "SHARED_INDEX_REQUIRES_SHARED_VECTOR_STORAGE",
-                    basePath + ".sourceType",
+                    basePath,
                     "shared-index knowledge sources require vectorStoragePosture=SHARED on a shared-storage-capable vector provider."
                 ));
             }
         }
+    }
+
+    private boolean isSharedIndexSourceType(String value) {
+        return "shared-index".equalsIgnoreCase(value)
+            || "shared-vector".equalsIgnoreCase(value)
+            || "shared_vector".equalsIgnoreCase(value);
     }
 
     private void validateShellConfig(JsonNode shellNode, List<DraftValidationIssue> issues) {
@@ -2174,6 +2184,18 @@ public class DeploymentDraftValidationService {
         if (!value.matches("[A-Za-z0-9._:/-]{1,200}")) {
             issues.add(error("security", code, path, "Invalid runtime public token identifier: " + value));
         }
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private List<String> splitCsv(String csv) {

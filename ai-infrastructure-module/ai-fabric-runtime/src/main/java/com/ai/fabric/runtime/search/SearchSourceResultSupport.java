@@ -35,6 +35,9 @@ final class SearchSourceResultSupport {
         if (source.getFilters() != null) {
             mergedMetadata.putAll(source.getFilters());
         }
+        if (source.getHandleRef() != null && !source.getHandleRef().isBlank()) {
+            mergedMetadata.putIfAbsent(METADATA_KEY_KNOWLEDGE_SOURCE_HANDLE_REF, source.getHandleRef());
+        }
         return AISearchRequest.builder()
             .query(baseRequest.getQuery())
             .entityType(source.getEntityType() != null ? source.getEntityType() : baseRequest.getEntityType())
@@ -50,14 +53,16 @@ final class SearchSourceResultSupport {
     static AISearchResponse filterAndDecorate(AISearchResponse response,
                                               ResolvedKnowledgeSource source,
                                               Map<String, Object> requiredMetadata) {
+        Map<String, Object> effectiveRequiredMetadata = requiredMetadataWithSourceHandle(source, requiredMetadata);
         List<Map<String, Object>> filteredResults = new ArrayList<>();
         if (response.getResults() != null) {
             for (Map<String, Object> result : response.getResults()) {
                 Map<String, Object> metadata = normalizeMetadata(result.get("metadata"));
-                if (!matchesFilters(metadata, requiredMetadata)) {
+                if (!matchesFilters(metadata, effectiveRequiredMetadata)) {
                     continue;
                 }
                 if (DEPLOYMENT_PRIVATE_VECTOR_ADAPTER.equalsIgnoreCase(source.getAdapterType())
+                    && (source.getHandleRef() == null || source.getHandleRef().isBlank())
                     && metadata.containsKey(METADATA_KEY_KNOWLEDGE_SOURCE_HANDLE_REF)) {
                     continue;
                 }
@@ -92,6 +97,18 @@ final class SearchSourceResultSupport {
             .query(response.getQuery())
             .model(response.getModel())
             .build();
+    }
+
+    private static Map<String, Object> requiredMetadataWithSourceHandle(ResolvedKnowledgeSource source,
+                                                                        Map<String, Object> requiredMetadata) {
+        Map<String, Object> effective = new LinkedHashMap<>();
+        if (requiredMetadata != null) {
+            effective.putAll(requiredMetadata);
+        }
+        if (source.getHandleRef() != null && !source.getHandleRef().isBlank()) {
+            effective.putIfAbsent(METADATA_KEY_KNOWLEDGE_SOURCE_HANDLE_REF, source.getHandleRef());
+        }
+        return effective.isEmpty() ? Map.of() : Map.copyOf(effective);
     }
 
     private static Map<String, Object> normalizeMetadata(Object metadata) {

@@ -31,7 +31,14 @@ final class DeploymentPrivateVectorSearchSource implements SearchSource {
 
     @Override
     public boolean isEligible(RAGRequest request) {
-        return true;
+        if (!source.isEnabled()) {
+            return false;
+        }
+        if (source.getAuthModes().isEmpty()) {
+            return true;
+        }
+        String authMode = request != null && request.getAuthContext() != null ? request.getAuthContext().getAuthMode() : null;
+        return authMode != null && source.getAuthModes().stream().anyMatch(candidate -> candidate.equalsIgnoreCase(authMode));
     }
 
     @Override
