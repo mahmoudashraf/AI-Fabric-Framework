@@ -37,8 +37,7 @@ public class PlatformVerificationSuiteScriptContextService {
     private static final String MCP_GATEWAY_API_KEY_SECRET_NAME = "MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY";
     private static final String MCP_GATEWAY_PRODUCT_SERVICE_REF = "mcp-execution-gateway";
     private static final List<String> RELEASE_BLOCKING_PROVIDER_SECRET_NAMES = List.of(
-        "QDRANT_CLOUD_MANAGEMENT_API_KEY",
-        "QDRANT_API_KEY"
+        "ZILLIZ_CLOUD_API_KEY"
     );
     private static final List<String> SHOPIFY_OPTIONAL_SECRET_NAMES = List.of(
         SHOPIFY_BRIDGE_ADMIN_API_KEY_SECRET_NAME,
@@ -124,12 +123,12 @@ public class PlatformVerificationSuiteScriptContextService {
     private PlatformVerificationScriptContextSummary buildManagedProviderVerification() {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("RUN_PINECONE", "false");
-        environment.put("RUN_QDRANT", "true");
-        environment.put("RUN_ZILLIZ", "false");
+        environment.put("RUN_QDRANT", "false");
+        environment.put("RUN_ZILLIZ", "true");
         environment.put("RUN_WEAVIATE", "false");
-        environment.put("QDRANT_EXISTING_CLUSTER_NAME", "cluster");
         environment.put("QDRANT_CREATE_EPHEMERAL_DB_KEY", "false");
         environment.put("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
+        environment.put("ZILLIZ_CREATE_EPHEMERAL_CLUSTER", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>();
         for (String secretName : RELEASE_BLOCKING_PROVIDER_SECRET_NAMES) {

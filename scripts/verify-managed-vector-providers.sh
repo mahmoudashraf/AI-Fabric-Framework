@@ -28,7 +28,7 @@ require_cmd python3
 RUN_ID_SUFFIX="${GITHUB_RUN_ID:-$(date +%s)}"
 
 RUN_PINECONE="${RUN_PINECONE:-true}"
-RUN_QDRANT="${RUN_QDRANT:-true}"
+RUN_QDRANT="${RUN_QDRANT:-false}"
 RUN_ZILLIZ="${RUN_ZILLIZ:-true}"
 RUN_WEAVIATE="${RUN_WEAVIATE:-true}"
 
