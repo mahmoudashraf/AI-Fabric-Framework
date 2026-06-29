@@ -62,6 +62,7 @@ set -euo pipefail
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
 #   SHOPIFY_COMPARISON_MODE=navigator_deep
+#   SHOPIFY_COMPARISON_SAMPLE_QUERY=product
 #   SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS=15
 #   SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS=90
 
@@ -120,6 +121,7 @@ SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
 SHOPIFY_COMPARISON_MODE="${SHOPIFY_COMPARISON_MODE:-navigator_deep}"
+SHOPIFY_COMPARISON_SAMPLE_QUERY="${SHOPIFY_COMPARISON_SAMPLE_QUERY:-product}"
 ORDER_LOOKUP_ORDER_NUMBER="${ORDER_LOOKUP_ORDER_NUMBER:-}"
 ORDER_LOOKUP_EMAIL="${ORDER_LOOKUP_EMAIL:-}"
 ORDER_LOOKUP_SAMPLE_SOURCE="none"
@@ -1406,15 +1408,16 @@ PY
 
   if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
     echo "== Storefront comparison resolver query =="
-    comparison_action_payload="$(python3 - <<'PY' "${SHOP_DOMAIN}"
+    comparison_action_payload="$(python3 - <<'PY' "${SHOP_DOMAIN}" "${SHOPIFY_COMPARISON_SAMPLE_QUERY}"
 import json
 import sys
 
 shop_domain = sys.argv[1]
+sample_query = sys.argv[2]
 print(json.dumps({
     "actionId": "shopify_search_catalog",
     "params": {
-        "query": "shirt",
+        "query": sample_query,
         "country": "US",
         "intent": "product comparison",
         "limit": 5
