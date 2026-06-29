@@ -1966,7 +1966,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             positiveDurationSeconds(connection.config().deploymentPollIntervalSeconds(), DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL)
         );
         Instant deadline = Instant.now().plus(timeout);
-        CoolifyApplicationSummary latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(fallback);
+        CoolifyApplicationSummary latest = observeCoolifyApplication(connection, applicationUuid).orElse(fallback);
         String deploymentUuid = deployResponse == null ? null : deployResponse.deploymentUuid();
         CoolifyDeploymentSummary deployment = observeCoolifyDeployment(connection, deploymentUuid);
         while (!coolifyDeploymentReady(deployment, deploymentUuid) && Instant.now().isBefore(deadline)) {
@@ -1976,7 +1976,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 Thread.currentThread().interrupt();
                 return latest;
             }
-            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+            latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
             deployment = observeCoolifyDeployment(connection, deploymentUuid);
         }
         if (!coolifyDeploymentReady(deployment, deploymentUuid)) {
@@ -1998,16 +1998,38 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 Thread.currentThread().interrupt();
                 return latest;
             }
-            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+            latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
         }
         return latest;
+    }
+
+    private Optional<CoolifyApplicationSummary> observeCoolifyApplication(CoolifyConnection connection, String applicationUuid) {
+        try {
+            return coolifyApiClient.getApplication(connection, applicationUuid);
+        } catch (CoolifyApiException ex) {
+            if (isTransientCoolifyObservationFailure(ex)) {
+                return Optional.empty();
+            }
+            throw ex;
+        }
     }
 
     private CoolifyDeploymentSummary observeCoolifyDeployment(CoolifyConnection connection, String deploymentUuid) {
         if (!StringUtils.hasText(deploymentUuid)) {
             return null;
         }
-        return coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+        try {
+            return coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+        } catch (CoolifyApiException ex) {
+            if (isTransientCoolifyObservationFailure(ex)) {
+                return null;
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isTransientCoolifyObservationFailure(CoolifyApiException ex) {
+        return ex != null && ex.statusCode() == 502;
     }
 
     private boolean coolifyDeploymentReady(CoolifyDeploymentSummary deployment, String deploymentUuid) {
