@@ -16,6 +16,8 @@ set -euo pipefail
 #   PLATFORM_BASE_URL="https://<platform>.up.railway.app" \
 #   PLATFORM_LOGIN_EMAIL="admin@example.com" \
 #   PLATFORM_LOGIN_PASSWORD="..." \
+#   MARKETPLACE_CURL_CONNECT_TIMEOUT_SECONDS=15 \
+#   MARKETPLACE_CURL_MAX_TIME_SECONDS=90 \
 #   ./scripts/verify-marketplace-install-flow.sh
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-${PLATFORM_PUBLIC_BASE_URL:-}}"
@@ -26,6 +28,8 @@ PLATFORM_LOGIN_EMAIL="${PLATFORM_LOGIN_EMAIL:-}"
 PLATFORM_LOGIN_PASSWORD="${PLATFORM_LOGIN_PASSWORD:-}"
 PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
 PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
+MARKETPLACE_CURL_CONNECT_TIMEOUT_SECONDS="${MARKETPLACE_CURL_CONNECT_TIMEOUT_SECONDS:-15}"
+MARKETPLACE_CURL_MAX_TIME_SECONDS="${MARKETPLACE_CURL_MAX_TIME_SECONDS:-90}"
 RELEASE_TERMINAL_FAILURE_CONFIRMATION_POLLS="${RELEASE_TERMINAL_FAILURE_CONFIRMATION_POLLS:-3}"
 CLEANUP_DELETE_POLL_ATTEMPTS="${CLEANUP_DELETE_POLL_ATTEMPTS:-24}"
 CLEANUP_DELETE_POLL_SLEEP_SECONDS="${CLEANUP_DELETE_POLL_SLEEP_SECONDS:-5}"
@@ -254,6 +258,8 @@ platform_request() {
 
   local -a curl_args=(
     curl -sS -X "${method}"
+    --connect-timeout "${MARKETPLACE_CURL_CONNECT_TIMEOUT_SECONDS}"
+    --max-time "${MARKETPLACE_CURL_MAX_TIME_SECONDS}"
     "$(platform_url "${path}")"
     -o "${HTTP_BODY_FILE}"
     -w "%{http_code}"
@@ -273,7 +279,9 @@ platform_request() {
 
   local attempt=1
   while true; do
-    HTTP_STATUS="$("${curl_args[@]}")"
+    if ! HTTP_STATUS="$("${curl_args[@]}")"; then
+      HTTP_STATUS="000"
+    fi
     if [[ "${method}" == "GET" \
         && ( "${HTTP_STATUS}" == "000" || "${HTTP_STATUS}" == "502" || "${HTTP_STATUS}" == "503" || "${HTTP_STATUS}" == "504" ) \
         && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
@@ -289,7 +297,14 @@ platform_request() {
 public_request() {
   local url="$1"
   HTTP_BODY_FILE="${TMP_DIR}/public-$(date +%s%N).json"
-  HTTP_STATUS="$(curl -sS "${url}" -o "${HTTP_BODY_FILE}" -w "%{http_code}")"
+  if ! HTTP_STATUS="$(curl -sS \
+      --connect-timeout "${MARKETPLACE_CURL_CONNECT_TIMEOUT_SECONDS}" \
+      --max-time "${MARKETPLACE_CURL_MAX_TIME_SECONDS}" \
+      "${url}" \
+      -o "${HTTP_BODY_FILE}" \
+      -w "%{http_code}")"; then
+    HTTP_STATUS="000"
+  fi
 }
 
 assert_status() {
