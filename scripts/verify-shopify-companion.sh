@@ -774,14 +774,19 @@ payload = json.loads(os.environ["JSON_PAYLOAD"])
 expected_uri = os.environ["EXPECTED_URI"]
 edges = (((payload.get("data") or {}).get("webhookSubscriptions") or {}).get("edges")) or []
 subscriptions = {}
+subscriptions_by_topic_uri = set()
 for edge in edges:
     node = (edge or {}).get("node") or {}
     name = (node.get("name") or "").strip()
+    topic = (node.get("topic") or "").strip()
+    uri = (node.get("uri") or "").strip()
+    if topic and uri:
+        subscriptions_by_topic_uri.add((topic, uri))
     if not name:
         continue
     subscriptions[name] = {
-        "topic": (node.get("topic") or "").strip(),
-        "uri": (node.get("uri") or "").strip(),
+        "topic": topic,
+        "uri": uri,
     }
 
 missing = []
@@ -789,6 +794,8 @@ wrong = []
 for name, topic in required.items():
     current = subscriptions.get(name)
     if not current:
+        if (topic, expected_uri) in subscriptions_by_topic_uri:
+            continue
         missing.append(name)
         continue
     if current["topic"] != topic or current["uri"] != expected_uri:
