@@ -20,6 +20,8 @@ set -euo pipefail
 #   ADMIN_TARGET_DEPLOYMENT_ID="dep-xxxxxxxx" \
 #   PLATFORM_LOGIN_EMAIL="admin@example.com" \
 #   PLATFORM_LOGIN_PASSWORD="<password>" \
+#   PLATFORM_CURL_CONNECT_TIMEOUT_SECONDS=15 \
+#   PLATFORM_CURL_MAX_TIME_SECONDS=90 \
 #   ./scripts/verify-platform-admin-regression.sh
 #
 # Optional destructive canonical rollout mutation:
@@ -63,6 +65,13 @@ DELETE_SMOKE_TIMEOUT_ATTEMPTS="${DELETE_SMOKE_TIMEOUT_ATTEMPTS:-40}"
 DELETE_SMOKE_TIMEOUT_SLEEP_SECONDS="${DELETE_SMOKE_TIMEOUT_SLEEP_SECONDS:-2}"
 PLATFORM_HTTP_RETRY_ATTEMPTS="${PLATFORM_HTTP_RETRY_ATTEMPTS:-4}"
 PLATFORM_HTTP_RETRY_SLEEP_SECONDS="${PLATFORM_HTTP_RETRY_SLEEP_SECONDS:-5}"
+PLATFORM_CURL_CONNECT_TIMEOUT_SECONDS="${PLATFORM_CURL_CONNECT_TIMEOUT_SECONDS:-15}"
+PLATFORM_CURL_MAX_TIME_SECONDS="${PLATFORM_CURL_MAX_TIME_SECONDS:-90}"
+
+declare -a CURL_TIMEOUT_ARGS=(
+  --connect-timeout "${PLATFORM_CURL_CONNECT_TIMEOUT_SECONDS}"
+  --max-time "${PLATFORM_CURL_MAX_TIME_SECONDS}"
+)
 
 HTTP_STATUS=""
 HTTP_BODY=""
@@ -181,7 +190,7 @@ public_http_get() {
   local status=""
   local attempt=1
   while true; do
-    status="$(curl -sS -L -o "${tmp}" -w "%{http_code}" "${url}" || true)"
+    status="$(curl -sS -L "${CURL_TIMEOUT_ARGS[@]}" -o "${tmp}" -w "%{http_code}" "${url}" || true)"
     if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
         && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
       echo "WARN: transient public GET ${url} returned HTTP ${status}; retrying (${attempt}/${PLATFORM_HTTP_RETRY_ATTEMPTS})..." >&2
@@ -208,7 +217,7 @@ consumer_resolution_http_get() {
     local attempt=1
     while true; do
       status="$(
-        curl -sS -o "${tmp}" -w "%{http_code}" \
+        curl -sS "${CURL_TIMEOUT_ARGS[@]}" -o "${tmp}" -w "%{http_code}" \
           -H "Accept: application/json" \
           -H "${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER}: ${PLATFORM_PUBLIC_API_CLIENT_ID}" \
           -H "${PLATFORM_PUBLIC_API_KEY_HEADER}: ${PLATFORM_PUBLIC_API_KEY}" \
@@ -263,15 +272,15 @@ platform_http() {
   while true; do
     if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
       if [[ -n "${body}" ]]; then
-        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
+        status="$(curl -sS "${CURL_TIMEOUT_ARGS[@]}" -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" --data "${body}" "${url}" || true)"
       else
-        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
+        status="$(curl -sS "${CURL_TIMEOUT_ARGS[@]}" -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" -b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}" "$@" "${url}" || true)"
       fi
     else
       if [[ -n "${body}" ]]; then
-        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
+        status="$(curl -sS "${CURL_TIMEOUT_ARGS[@]}" -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" --data "${body}" "${url}" || true)"
       else
-        status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
+        status="$(curl -sS "${CURL_TIMEOUT_ARGS[@]}" -o "${tmp}" -w "%{http_code}" -X "${method}" "${headers[@]}" "$@" "${url}" || true)"
       fi
     fi
     if [[ "${method}" == "GET" \
@@ -307,7 +316,7 @@ EOF
     local attempt=1
     while true; do
       status="$(
-        curl -sS -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
+        curl -sS "${CURL_TIMEOUT_ARGS[@]}" -o "${tmp}" -w "%{http_code}" -c "${PLATFORM_COOKIE_JAR}" \
           -H "Content-Type: application/json" \
           --data "@${payload}" \
           "${PLATFORM_BASE_URL}/api/platform/auth/login" || true
