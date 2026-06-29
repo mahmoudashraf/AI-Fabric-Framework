@@ -102,16 +102,6 @@ class DeploymentHostedVerificationContextServiceTest {
                   "type":"deployment-private-vector",
                   "adapterType":"deployment-private-vector",
                   "attributionLabel":"Deployment marketplace knowledge"
-                },
-                {
-                  "id":"shared-marketplace-refund-policy",
-                  "type":"shared-vector",
-                  "adapterType":"shared-index",
-                  "attributionLabel":"Shared refund policy knowledge",
-                  "entityType":"policy",
-                  "handleRef":"commerce-catalog/refund-policy",
-                  "filters":{"classification":"refund"},
-                  "authModes":["PUBLIC_RUNTIME_AUTHENTICATED","PLATFORM_PROXY_SESSION","PRIVATE_RUNTIME_BACKEND_MEDIATED"]
                 }
               ]
             }
@@ -194,11 +184,11 @@ class DeploymentHostedVerificationContextServiceTest {
         assertThat(context.env()).containsEntry("STORE_BASE_URL", "https://store.example");
         assertThat(context.env()).containsEntry(
             "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_IDS",
-            "deployment-marketplace-knowledge,shared-marketplace-refund-policy"
+            "deployment-marketplace-knowledge"
         );
         assertThat(context.env()).containsEntry(
             "EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES",
-            "deployment-private-vector,shared-index"
+            "deployment-private-vector"
         );
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_CONTRACT_VERSION", "KNOWLEDGE_SOURCE_CONFIG_V1");
         assertThat(context.env()).containsEntry("EXPECT_MARKETPLACE_SHELL_CONTRACT_VERSION", "SHELL_CONFIG_V1");

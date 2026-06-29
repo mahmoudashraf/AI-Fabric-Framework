@@ -82,14 +82,6 @@ public class DeploymentVerificationRolloutService {
     private static final double DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.1d;
     private static final boolean DEFAULT_SMART_SUGGESTIONS_ENABLED = false;
     private static final String MARKETPLACE_KNOWLEDGE_SOURCE_ID = "deployment-marketplace-knowledge";
-    private static final String MARKETPLACE_SHARED_POLICY_SOURCE_ID = "shared-marketplace-refund-policy";
-    private static final String MARKETPLACE_SHARED_POLICY_HANDLE_REF = "commerce-catalog/refund-policy";
-    private static final String MARKETPLACE_SHARED_POLICY_DATASET_ID = "shared-marketplace-refund-policy-seed";
-    private static final String MARKETPLACE_SHARED_POLICY_PLUGIN_ID = "platform-marketplace-runtime-rollout";
-    private static final String MARKETPLACE_SHARED_POLICY_PLUGIN_VERSION_ID = "platform-marketplace-runtime-rollout-v1";
-    private static final String MARKETPLACE_SHARED_POLICY_DATASET_HASH = "marketplace-runtime-refund-policy-v1";
-    private static final String MARKETPLACE_SHARED_POLICY_DATASET_REF =
-        "classpath:marketplace/datasets/verification/refund-policy.jsonl";
     private static final int ECOMMERCE_VECTOR_DIMENSIONS = 512;
     private static final int OPENAI_VECTOR_DIMENSIONS = 1536;
     private static final int DEFAULT_PAGE_SIZE = 500;
@@ -856,7 +848,7 @@ public class DeploymentVerificationRolloutService {
             new VerificationRolloutDefinition(
                 "marketplace",
                 "Marketplace Runtime Verification",
-                "Canonical marketplace-runtime verification deployment with resolved shell config, two-source retrieval, and rollout-owned managed vector backing.",
+                "Canonical marketplace-runtime verification deployment with resolved shell config, private retrieval, and rollout-owned managed vector backing.",
                 "dev-openai-milvus",
                 "PLATFORM_MANAGED",
                 "marketplace-runtime",
@@ -882,7 +874,7 @@ public class DeploymentVerificationRolloutService {
                     provider.put("openaiEmbeddingDimensions", OPENAI_VECTOR_DIMENSIONS);
                     provider.put("vectorStrategy", "milvus");
                     provider.put("vectorProvisioningMode", "PLATFORM_MANAGED");
-                    provider.put("vectorStoragePosture", "SHARED");
+                    provider.put("vectorStoragePosture", "DEDICATED");
                     provider.remove("qdrantManagedCollectionsEnabled");
                     provider.remove("qdrantCloudProviderId");
                     provider.remove("qdrantCloudRegionId");
@@ -1346,44 +1338,13 @@ public class DeploymentVerificationRolloutService {
             .put("type", "deployment-private-vector")
             .put("adapterType", "deployment-private-vector")
             .put("attributionLabel", "Deployment marketplace knowledge");
-        ObjectNode sharedPolicySource = root.withArray("sources")
-            .addObject()
-            .put("id", MARKETPLACE_SHARED_POLICY_SOURCE_ID)
-            .put("type", "shared-vector")
-            .put("adapterType", "shared-index")
-            .put("attributionLabel", "Shared refund policy knowledge")
-            .put("datasetRef", MARKETPLACE_SHARED_POLICY_DATASET_ID)
-            .put("entityType", "policy")
-            .put("handleRef", MARKETPLACE_SHARED_POLICY_HANDLE_REF)
-            .put("enabled", true);
-        sharedPolicySource.putArray("authModes")
-            .add("PUBLIC_RUNTIME_AUTHENTICATED")
-            .add("PLATFORM_PROXY_SESSION")
-            .add("PRIVATE_RUNTIME_BACKEND_MEDIATED");
-        sharedPolicySource.putObject("filters")
-            .put("classification", "refund");
         return root;
     }
 
     private ObjectNode marketplaceDatasetConfig() {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("contractVersion", "MARKETPLACE_DATASET_CONFIG_V1");
-        ObjectNode dataset = root.putArray("datasets")
-            .addObject()
-            .put("systemManaged", true)
-            .put("marketplacePluginId", MARKETPLACE_SHARED_POLICY_PLUGIN_ID)
-            .put("marketplacePluginVersionId", MARKETPLACE_SHARED_POLICY_PLUGIN_VERSION_ID)
-            .put("datasetId", MARKETPLACE_SHARED_POLICY_DATASET_ID)
-            .put("entityType", "policy")
-            .put("storageScope", "PLUGIN_SCOPED")
-            .put("sharingScope", "TENANT_SHARED")
-            .put("ingestionMode", "PACKAGED_SEED")
-            .put("updateStrategy", "UPSERT_BY_ID")
-            .put("handleRef", MARKETPLACE_SHARED_POLICY_HANDLE_REF)
-            .put("datasetHash", MARKETPLACE_SHARED_POLICY_DATASET_HASH)
-            .put("seedDatasetRef", MARKETPLACE_SHARED_POLICY_DATASET_REF);
-        dataset.putObject("config")
-            .put("scope", "all");
+        root.putArray("datasets");
         return root;
     }
 
