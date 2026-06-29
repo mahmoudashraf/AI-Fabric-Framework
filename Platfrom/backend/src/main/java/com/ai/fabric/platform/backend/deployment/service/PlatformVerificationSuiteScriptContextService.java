@@ -181,6 +181,7 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("SHOPIFY_COMPANION_ENSURE_BILLING_STATE", "true");
         environment.put("EXPECT_BILLING_TIER", "STARTER");
         environment.put("EXPECT_BILLING_STATUS", "ACTIVE");
+        environment.put("STOREFRONT_QUERY_RETRY_ATTEMPTS", "1");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
         for (String secretName : SHOPIFY_OPTIONAL_SECRET_NAMES) {
