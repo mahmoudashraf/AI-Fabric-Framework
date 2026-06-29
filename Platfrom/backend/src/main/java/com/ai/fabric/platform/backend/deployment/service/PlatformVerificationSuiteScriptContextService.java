@@ -109,6 +109,8 @@ public class PlatformVerificationSuiteScriptContextService {
         Map<String, String> environment = basePlatformEnvironment();
         environment.put("PLATFORM_UI_BASE_URL", platformUiBaseUrl);
         environment.put("ADMIN_TARGET_DEPLOYMENT_ID", adminTargetDeploymentId);
+        environment.put("VERIFY_ASYNC_DELETE_SMOKE", "false");
+        environment.put("VERIFY_DEPLOYMENT_OVERRIDE_SMOKE", "false");
         environment.put("VERIFY_CANONICAL_ROLLOUT_MUTATION", "false");
         environment.put("VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION", "false");
         environment.put("INFERENCE_SERVICE_REF", PlatformVerificationSuiteCatalog.SHARED_INFERENCE_SERVICE_REF);
