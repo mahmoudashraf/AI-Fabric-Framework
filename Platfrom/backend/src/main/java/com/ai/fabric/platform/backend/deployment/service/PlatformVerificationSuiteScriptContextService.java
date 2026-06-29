@@ -183,6 +183,9 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("EXPECT_BILLING_STATUS", "ACTIVE");
         environment.put("STOREFRONT_QUERY_RETRY_ATTEMPTS", "1");
         environment.put("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "45");
+        environment.put("SHOPIFY_VERIFY_MERCHANT_SESSION", "false");
+        environment.put("EXPECT_ENABLED_SURFACES", "ai-search");
+        environment.put("EXPECT_MAX_WIDGET_SURFACE", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
         for (String secretName : SHOPIFY_OPTIONAL_SECRET_NAMES) {
@@ -253,6 +256,9 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("READINESS_AUDIT_LOCAL_GATES", "false");
         environment.put("READINESS_AUDIT_REQUIRED_BILLING_TIER", "STARTER");
         environment.put("STOREFRONT_QUERY_RETRY_ATTEMPTS", "1");
+        environment.put("SHOPIFY_VERIFY_MERCHANT_SESSION", "false");
+        environment.put("EXPECT_ENABLED_SURFACES", "ai-search");
+        environment.put("EXPECT_MAX_WIDGET_SURFACE", "false");
         if (suiteProperties.shopifyProductServiceRef() != null && !suiteProperties.shopifyProductServiceRef().isBlank()) {
             environment.put("PRODUCT_SERVICE_REF", suiteProperties.shopifyProductServiceRef());
         }
