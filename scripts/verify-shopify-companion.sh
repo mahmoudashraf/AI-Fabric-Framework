@@ -62,6 +62,8 @@ set -euo pipefail
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
 #   SHOPIFY_COMPARISON_MODE=navigator_deep
+#   SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS=15
+#   SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS=90
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
@@ -125,6 +127,8 @@ STOREFRONT_QUERY_RETRY_ATTEMPTS="${STOREFRONT_QUERY_RETRY_ATTEMPTS:-3}"
 STOREFRONT_QUERY_RETRY_SLEEP_SECONDS="${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS:-2}"
 PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS="${PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS:-12}"
 PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS="${PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS:-10}"
+SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS="${SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS:-15}"
+SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS="${SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS:-90}"
 TEMP_PLATFORM_COOKIE_JAR=""
 
 cleanup() {
@@ -579,6 +583,7 @@ http_request() {
   local response
   response="$(python3 - "$method" "$url" "$body" "${HTTP_COOKIE_JAR:-}" "${headers[@]-}" <<'PY'
 import json
+import os
 import subprocess
 import sys
 
@@ -591,6 +596,8 @@ headers = sys.argv[5:]
 cmd = [
     "curl",
     "-sS",
+    "--connect-timeout", os.environ.get("SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS", "15"),
+    "--max-time", os.environ.get("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "90"),
     "-X", method,
     "-H", "Accept: application/json",
     "-w", "\n%{http_code}",
@@ -622,6 +629,7 @@ http_request_text() {
   local response
   response="$(python3 - "$method" "$url" "${headers[@]-}" <<'PY'
 import subprocess
+import os
 import sys
 
 method = sys.argv[1]
@@ -631,6 +639,8 @@ headers = sys.argv[3:]
 cmd = [
     "curl",
     "-sS",
+    "--connect-timeout", os.environ.get("SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS", "15"),
+    "--max-time", os.environ.get("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "90"),
     "-X", method,
     "-H", "Accept: text/html, text/plain, */*",
     "-w", "\n%{http_code}",
@@ -699,6 +709,7 @@ platform_login() {
   local response
   response="$(python3 - "${platform_base}" "${TEMP_PLATFORM_COOKIE_JAR}" "${PLATFORM_LOGIN_EMAIL}" "${PLATFORM_LOGIN_PASSWORD}" <<'PY'
 import json
+import os
 import subprocess
 import sys
 
@@ -710,6 +721,8 @@ password = sys.argv[4]
 cmd = [
     "curl",
     "-sS",
+    "--connect-timeout", os.environ.get("SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS", "15"),
+    "--max-time", os.environ.get("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "90"),
     "-X", "POST",
     "-H", "Accept: application/json",
     "-H", "Content-Type: application/json",
