@@ -61,6 +61,8 @@ Residual caveats:
 - A direct authenticated ProdUS backend owner-session smoke was not available from this shell. Platform assignment, runtime, vectorization, and POC runtime smokes passed.
 - Shopify package/profile default demotion was not changed in this execution; keep that as a separate product-default review.
 
+2026-06-29 update: the aggregate runtime health and custom-domain assignment caveats are resolved. Runtime aggregate `/actuator/health` now returns HTTP `200` / `UP`, and both the sslip handoff URL and `https://api.loomai.pro/api/public/consumers/produs-staging/runtime-assignment` return HTTP `200` with the same scoped assignment key. The public consumer bridge note remains informational only; ProdUS should keep using backend-mediated private runtime assignment discovery and signed assertions.
+
 ## Core Decision
 
 Qdrant should remain supported in code, but it should no longer be the default dependency for new deployments or the provider that blocks a general Platform release gate.

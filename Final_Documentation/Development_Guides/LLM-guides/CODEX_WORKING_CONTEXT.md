@@ -1619,3 +1619,9 @@ Critical fixes that made the gate pass:
 - Post-fix Platform POC smokes passed: service-module request `rag-b135b3f7-116b-45f5-9313-31328ca539a4` returned `sourcesCount=5` with top source `service-module:api-security-review`; package-template request `rag-015efdce-016c-4fa0-bc93-f8e6878aaa1b` returned `sourcesCount=2` with top source `package-template:security-hardening`.
 - Verification commands passed locally before deploy: `mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -Dtest=RuntimeVectorHealthConfigurationTest test`, `mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -DskipTests package`, and `git diff --check`.
 - Temporary Hetzner firewall access for local IP `38.126.93.124/32` was removed again from firewalls `10915120` and `10918233`; direct local Coolify API check timed out afterward, confirming the closed posture.
+
+## 2026-06-29 ProdUS Assignment Custom Domain Check
+
+- Rechecked ProdUS assignment discovery with the backend-only scoped assignment key. Both the legacy sslip handoff URL and `https://api.loomai.pro/api/public/consumers/produs-staging/runtime-assignment` returned HTTP `200`.
+- Current live assignment remains `consumerId=produs-staging`, `deploymentId=dep-f6abfa06`, `runtimeBaseUrl=http://dep-f6abfa06.46.225.162.106.sslip.io`, `externalIntegrationReady=true`, `privateRuntimeIssuer=produs-staging-backend`, `privateRuntimeAudience=produs-staging`, `privateRuntimeAudienceMode=CONSUMER_ID`, `cacheTtlSeconds=300`.
+- The older `api.loomai.pro returned 401` note is resolved/stale. ProdUS may use either assignment host from the backend, but should keep the browser out of assignment discovery and should not hardcode the deployment id.
