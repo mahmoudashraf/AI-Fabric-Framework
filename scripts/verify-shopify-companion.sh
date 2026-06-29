@@ -60,6 +60,7 @@ set -euo pipefail
 #   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
+#   SHOPIFY_VERIFY_MERCHANT_SESSION=false
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
 #   SHOPIFY_COMPARISON_MODE=navigator_deep
 #   SHOPIFY_COMPARISON_SAMPLE_QUERY=product
@@ -119,6 +120,7 @@ SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
+SHOPIFY_VERIFY_MERCHANT_SESSION="${SHOPIFY_VERIFY_MERCHANT_SESSION:-false}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
 SHOPIFY_COMPARISON_MODE="${SHOPIFY_COMPARISON_MODE:-navigator_deep}"
 SHOPIFY_COMPARISON_SAMPLE_QUERY="${SHOPIFY_COMPARISON_SAMPLE_QUERY:-product}"
@@ -1559,7 +1561,7 @@ else
   assert_nonempty "$(json_get "${store_after_bootstrap_json}" "widgetDetail.settings.enabledSurfaces.0")" "platform widget enabledSurfaces.0"
 fi
 
-if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
+if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" && "${SHOPIFY_VERIFY_MERCHANT_SESSION}" == "true" ]]; then
   echo "== Merchant session =="
   declare -a merchant_headers=("Authorization: ${SHOPIFY_MERCHANT_AUTHORIZATION}")
   if [[ -n "${SHOPIFY_EMBEDDED_HOST}" ]]; then
@@ -1660,6 +1662,8 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant governed actions =="
   http_request GET "${bridge_base}/api/app/store/actions/recent?limit=5" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant governed actions status"
+elif [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
+  echo "Skipping merchant session checks because SHOPIFY_VERIFY_MERCHANT_SESSION is not true."
 fi
 
 if [[ "${effective_expected_order_lookup_supported}" == "true" ]]; then
