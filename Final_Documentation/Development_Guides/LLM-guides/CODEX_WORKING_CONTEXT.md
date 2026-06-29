@@ -1625,3 +1625,12 @@ Critical fixes that made the gate pass:
 - Rechecked ProdUS assignment discovery with the backend-only scoped assignment key. Both the legacy sslip handoff URL and `https://api.loomai.pro/api/public/consumers/produs-staging/runtime-assignment` returned HTTP `200`.
 - Current live assignment remains `consumerId=produs-staging`, `deploymentId=dep-f6abfa06`, `runtimeBaseUrl=http://dep-f6abfa06.46.225.162.106.sslip.io`, `externalIntegrationReady=true`, `privateRuntimeIssuer=produs-staging-backend`, `privateRuntimeAudience=produs-staging`, `privateRuntimeAudienceMode=CONSUMER_ID`, `cacheTtlSeconds=300`.
 - The older `api.loomai.pro returned 401` note is resolved/stale. ProdUS may use either assignment host from the backend, but should keep the browser out of assignment discovery and should not hardcode the deployment id.
+
+## 2026-06-29 Full Platform Release Gate Rerun
+
+- Dispatched a fresh production Platform `full-platform-release-readiness` suite run from the Platform verification API with control-plane repair enabled.
+- Run `vsr-9c82546b` started at `2026-06-29T10:45:00Z` and completed at `2026-06-29T10:45:15Z` with status `FAILED`.
+- Passed stages before stop: `shared-inference-health` and `platform-admin-live-regression`.
+- Blocking failure remains `canonical-rollout-inventory`, not the Qdrant hosted verification demotion: canonical `Marketplace Runtime Verification` deployment `dep-f772d1a4` is `APPLY_FAILED`, latest release status `FAILED`, latest verification status `SKIPPED`, runtime base URL `https://runtime-dep-f772d1a4-dev.up.railway.app`.
+- The release-gate endpoint now points at this run and returns `ready=false` / `status=FAILED`; later stages are blocked by the marketplace canonical inventory failure. `qdrant-hosted-verification` remains non-blocking but was not reached because the suite stops after the earlier blocking failure.
+- Evidence snapshots are under `/private/tmp/produs-vector-migration-20260628.DCiz8u/evidence/`, including `full-platform-release-readiness-vsr-9c82546b-latest.clean.json` and the matching release-gate snapshot.

@@ -63,6 +63,8 @@ Residual caveats:
 
 2026-06-29 update: the aggregate runtime health and custom-domain assignment caveats are resolved. Runtime aggregate `/actuator/health` now returns HTTP `200` / `UP`, and both the sslip handoff URL and `https://api.loomai.pro/api/public/consumers/produs-staging/runtime-assignment` return HTTP `200` with the same scoped assignment key. The public consumer bridge note remains informational only; ProdUS should keep using backend-mediated private runtime assignment discovery and signed assertions.
 
+2026-06-29 release-gate rerun: production Platform suite `full-platform-release-readiness` run `vsr-9c82546b` failed at blocking stage `canonical-rollout-inventory` after `shared-inference-health` and `platform-admin-live-regression` passed. The current blocker is canonical `Marketplace Runtime Verification` deployment `dep-f772d1a4` (`APPLY_FAILED`, latest release `FAILED`, verification `SKIPPED`), not Qdrant demotion. The release-gate endpoint now reports `ready=false` / `status=FAILED` for that latest run. `qdrant-hosted-verification` remains optional/non-blocking, but the suite did not reach it because the earlier canonical inventory stage stopped the run.
+
 ## Core Decision
 
 Qdrant should remain supported in code, but it should no longer be the default dependency for new deployments or the provider that blocks a general Platform release gate.
