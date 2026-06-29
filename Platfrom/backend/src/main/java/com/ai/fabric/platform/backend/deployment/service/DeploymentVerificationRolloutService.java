@@ -856,8 +856,8 @@ public class DeploymentVerificationRolloutService {
             new VerificationRolloutDefinition(
                 "marketplace",
                 "Marketplace Runtime Verification",
-                "Canonical marketplace-runtime verification deployment with resolved shell config, two-source retrieval, and rollout-owned shared vector backing.",
-                "dev-openai-qdrant",
+                "Canonical marketplace-runtime verification deployment with resolved shell config, two-source retrieval, and rollout-owned managed vector backing.",
+                "dev-openai-milvus",
                 "PLATFORM_MANAGED",
                 "marketplace-runtime",
                 false
@@ -880,12 +880,19 @@ public class DeploymentVerificationRolloutService {
                     provider.remove("embeddingServiceMode");
                     provider.put("openaiEmbeddingModel", "text-embedding-3-small");
                     provider.put("openaiEmbeddingDimensions", OPENAI_VECTOR_DIMENSIONS);
-                    provider.put("vectorStrategy", "qdrant");
+                    provider.put("vectorStrategy", "milvus");
                     provider.put("vectorProvisioningMode", "PLATFORM_MANAGED");
                     provider.put("vectorStoragePosture", "SHARED");
-                    provider.put("qdrantManagedCollectionsEnabled", true);
-                    provider.put("qdrantCloudProviderId", QDRANT_PROVIDER);
-                    provider.put("qdrantCloudRegionId", QDRANT_REGION);
+                    provider.remove("qdrantManagedCollectionsEnabled");
+                    provider.remove("qdrantCloudProviderId");
+                    provider.remove("qdrantCloudRegionId");
+                    provider.put("zillizCloudProjectId", ZILLIZ_PROJECT_ID);
+                    provider.put("zillizCloudRegionId", ZILLIZ_REGION_ID);
+                    provider.put("zillizCloudClusterPlan", "Serverless");
+                    provider.remove("zillizCloudCuType");
+                    provider.remove("zillizCloudCuSize");
+                    provider.put("milvusSecure", true);
+                    provider.put("milvusPort", 443);
                     return new UpdateDeploymentDraftRequest(
                         ensureObject(readYaml(ECOMMERCE_ACTIONS_RESOURCE)),
                         ecommerceEntityConfig(OPENAI_VECTOR_DIMENSIONS),
