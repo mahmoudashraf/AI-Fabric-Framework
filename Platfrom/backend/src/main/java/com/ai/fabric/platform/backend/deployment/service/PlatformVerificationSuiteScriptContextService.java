@@ -250,6 +250,8 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("SHOPIFY_BRIDGE_BASE_URL", bridgeBaseUrl);
         environment.put("SHOP_DOMAIN", shopDomain);
         environment.put("READINESS_AUDIT_LOCAL_GATES", "false");
+        environment.put("READINESS_AUDIT_REQUIRED_BILLING_TIER", "STARTER");
+        environment.put("STOREFRONT_QUERY_RETRY_ATTEMPTS", "1");
         if (suiteProperties.shopifyProductServiceRef() != null && !suiteProperties.shopifyProductServiceRef().isBlank()) {
             environment.put("PRODUCT_SERVICE_REF", suiteProperties.shopifyProductServiceRef());
         }
