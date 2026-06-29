@@ -107,7 +107,9 @@ EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED="${EXPECT_ORDER_LOOKUP_MERCHANT_
 EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
 EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-}"
 EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE:-}"
-EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-shopify_search_catalog,shopify_get_product_details,shopify_search_policies,shopify_get_cart,shopify_update_cart}"
+EXPECT_BASE_REQUIRED_ACTIONS="${EXPECT_BASE_REQUIRED_ACTIONS:-shopify_search_catalog,shopify_get_product_details,shopify_search_policies}"
+EXPECT_CART_REQUIRED_ACTIONS="${EXPECT_CART_REQUIRED_ACTIONS:-shopify_get_cart,shopify_update_cart}"
+EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-}"
 SHOPIFY_COMPANION_ENSURE_BILLING_STATE="${SHOPIFY_COMPANION_ENSURE_BILLING_STATE:-false}"
 SHOPIFY_COMPANION_BILLING_STATE_REASON="${SHOPIFY_COMPANION_BILLING_STATE_REASON:-Shopify Companion live verification requires the configured release-gate billing posture.}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
@@ -886,6 +888,17 @@ assert_equals "$(json_get "${product_service_logs_json}" "railwayDeploymentId")"
 assert_nonempty "$(json_get "${product_service_logs_json}" "queriedAt")" "product service Railway logs queriedAt"
 
 echo "== Platform store summary =="
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/billing-summary" "" "${platform_headers[@]-}"
+assert_equals "${HTTP_STATUS}" "200" "platform store billing summary preflight status"
+platform_store_billing_preflight_json="${HTTP_BODY}"
+effective_required_actions="${EXPECT_REQUIRED_ACTIONS}"
+if [[ -z "${effective_required_actions}" ]]; then
+  expected_action_capable="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-$(json_get "${platform_store_billing_preflight_json}" "actionCapable")}"
+  effective_required_actions="${EXPECT_BASE_REQUIRED_ACTIONS}"
+  if [[ "${expected_action_capable}" == "true" ]]; then
+    effective_required_actions="${effective_required_actions},${EXPECT_CART_REQUIRED_ACTIONS}"
+  fi
+fi
 platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store summary status"
 store_json="${HTTP_BODY}"
@@ -900,7 +913,7 @@ assert_nonempty "$(json_get "${store_json}" "deploymentId")" "platform deploymen
 assert_nonempty "$(json_get "${store_json}" "consumerId")" "platform consumerId"
 assert_nonempty "$(json_get "${store_json}" "sourcePreflight.checkedAt")" "platform source preflight checkedAt"
 assert_nonempty "$(json_get "${store_json}" "syncDetail.checkedAt")" "platform sync checkedAt"
-assert_json_array_contains_csv "${store_json}" "capabilities.actionNames" "${EXPECT_REQUIRED_ACTIONS}" "platform store capability actionNames"
+assert_json_array_contains_csv "${store_json}" "capabilities.actionNames" "${effective_required_actions}" "platform store capability actionNames"
 
 echo "== Platform store source coverage =="
 JSON_PAYLOAD="${store_json}" python3 - <<'PY'
