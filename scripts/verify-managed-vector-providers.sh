@@ -12,6 +12,7 @@ set -euo pipefail
 #
 # This script does not delete live Railway services or platform deployments.
 # Cleanup only applies to ephemeral provider resources created by this script.
+# Release-gate defaults stay non-mutating; enable provider create/delete checks explicitly.
 
 require_cmd() {
   local cmd="$1"
@@ -40,7 +41,7 @@ PINECONE_REGION="${PINECONE_REGION:-us-east-1}"
 PINECONE_DIMENSIONS="${PINECONE_DIMENSIONS:-1536}"
 PINECONE_METRIC="${PINECONE_METRIC:-cosine}"
 PINECONE_EXISTING_INDEX_NAME="${PINECONE_EXISTING_INDEX_NAME:-ai-fabric}"
-PINECONE_CREATE_EPHEMERAL_INDEX="${PINECONE_CREATE_EPHEMERAL_INDEX:-true}"
+PINECONE_CREATE_EPHEMERAL_INDEX="${PINECONE_CREATE_EPHEMERAL_INDEX:-false}"
 PINECONE_EPHEMERAL_INDEX_NAME="${PINECONE_EPHEMERAL_INDEX_NAME:-gha-verify-pc-${RUN_ID_SUFFIX}}"
 
 QDRANT_CLOUD_MANAGEMENT_API_KEY="${QDRANT_CLOUD_MANAGEMENT_API_KEY:-}"
