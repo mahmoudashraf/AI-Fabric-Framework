@@ -22,7 +22,7 @@ class CoolifyTargetProfileResolverTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void preflightResolvesSecretAndChecksCoolifyHealthWithoutExposingToken() throws Exception {
+    void preflightResolvesSecretAndChecksCoolifyVersionWithoutExposingToken() {
         DeploymentProviderCredentialRepository credentialRepository = mock(DeploymentProviderCredentialRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
@@ -31,7 +31,6 @@ class CoolifyTargetProfileResolverTest {
 
         when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential));
         when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
-        when(coolifyApiClient.health(org.mockito.ArgumentMatchers.any())).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(coolifyApiClient.version(org.mockito.ArgumentMatchers.any())).thenReturn("4.0.0");
 
         CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
@@ -46,11 +45,11 @@ class CoolifyTargetProfileResolverTest {
         assertThat(summary.status()).isEqualTo("PASSED");
         assertThat(summary.version()).isEqualTo("4.0.0");
         assertThat(summary.message()).doesNotContain("mock-token");
-        assertThat(summary.checks()).contains("credential_resolved", "health_endpoint_ok", "version_endpoint_ok");
+        assertThat(summary.checks()).contains("credential_resolved", "version_endpoint_ok", "version_endpoint_used_for_liveness");
     }
 
     @Test
-    void preflightRetriesTransientCoolifyTransportFailures() throws Exception {
+    void preflightRetriesTransientCoolifyVersionTransportFailures() {
         DeploymentProviderCredentialRepository credentialRepository = mock(DeploymentProviderCredentialRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
@@ -59,10 +58,9 @@ class CoolifyTargetProfileResolverTest {
 
         when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential));
         when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
-        when(coolifyApiClient.health(org.mockito.ArgumentMatchers.any()))
+        when(coolifyApiClient.version(org.mockito.ArgumentMatchers.any()))
             .thenThrow(new CoolifyApiException("Coolify API transport failed for /health.", 502, "/health"))
-            .thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(coolifyApiClient.version(org.mockito.ArgumentMatchers.any())).thenReturn("4.0.0");
+            .thenReturn("4.0.0");
 
         CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
             credentialRepository,
@@ -74,7 +72,7 @@ class CoolifyTargetProfileResolverTest {
         DeploymentProviderPreflightSummary summary = resolver.preflight(profile);
 
         assertThat(summary.status()).isEqualTo("PASSED");
-        assertThat(summary.checks()).contains("coolify_api_retry_2", "health_endpoint_ok", "version_endpoint_ok");
+        assertThat(summary.checks()).contains("coolify_api_retry_2", "version_endpoint_ok");
         assertThat(summary.details().path("attempts").asInt()).isEqualTo(2);
     }
 

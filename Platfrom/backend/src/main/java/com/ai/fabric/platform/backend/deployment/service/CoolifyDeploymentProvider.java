@@ -208,7 +208,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             "Verify Coolify target profile credentials before application reconciliation.",
             () -> {
                 CoolifyConnection resolved = targetProfileResolver.requireConnection(profile);
-                coolifyApiClient.health(resolved);
+                coolifyApiClient.version(resolved);
                 return resolved;
             }
         );

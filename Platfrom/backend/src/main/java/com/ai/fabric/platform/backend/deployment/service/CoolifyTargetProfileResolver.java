@@ -105,12 +105,10 @@ public class CoolifyTargetProfileResolver {
                 if (attempt > 1) {
                     checks.add("coolify_api_retry_" + attempt);
                 }
-                JsonNode health = coolifyApiClient.health(connection);
                 String version = coolifyApiClient.version(connection);
-                checks.add("health_endpoint_ok");
                 checks.add("version_endpoint_ok");
+                checks.add("version_endpoint_used_for_liveness");
                 details.put("attempts", attempt);
-                details.set("health", health);
                 details.put("projectUuid", connection.config().projectUuid());
                 details.put("environmentUuid", connection.config().environmentUuid());
                 details.put("serverUuid", connection.config().serverUuid());
@@ -134,7 +132,7 @@ public class CoolifyTargetProfileResolver {
                     profile.getId(),
                     profile.getProviderType(),
                     "PASSED",
-                    "Coolify API is reachable and credentials are valid.",
+                    "Coolify API version endpoint is reachable and credentials are valid.",
                     connection.baseUrl(),
                     version,
                     List.copyOf(checks),
