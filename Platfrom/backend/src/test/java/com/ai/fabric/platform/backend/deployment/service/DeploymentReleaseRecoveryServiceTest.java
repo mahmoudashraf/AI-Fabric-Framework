@@ -442,6 +442,54 @@ class DeploymentReleaseRecoveryServiceTest {
     }
 
     @Test
+    void reconcileLatestInProgressReleaseForceFailsStaleCoolifyProvisioningStep() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            verificationRunRepository,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentEntity deployment = deployment();
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-coolify-stale");
+        release.setDeploymentId(deployment.getId());
+        release.setDeploymentVersionId("ver-coolify-stale");
+        release.setStatus("PROVISIONING");
+        release.setProvisioningTarget("COOLIFY");
+        release.setProviderType(DeploymentProviderType.COOLIFY);
+        release.setProvisioningStatus("RUNNING");
+        release.setVerificationStatus("PENDING");
+        release.setCurrentStepKey("wait_for_coolify_connector");
+        release.setCurrentStepDescription("Wait for Coolify to report the REST connector application running.");
+        release.setUpdatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        when(deploymentRepository.findByIdForUpdate(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId())).thenReturn(Optional.of(release));
+
+        boolean recovered = service.reconcileLatestInProgressRelease(deployment.getId(), true);
+
+        assertThat(recovered).isTrue();
+        verify(deploymentReleaseExecutionService).markFailed(
+            eq(release.getId()),
+            eq(deployment.getId()),
+            argThat(ex -> ex instanceof IllegalStateException
+                && ex.getMessage() != null
+                && ex.getMessage().contains("wait_for_coolify_connector"))
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
     void reconcileLatestInProgressReleaseFailsStalePreApplyVerificationStep() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
