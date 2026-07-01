@@ -6,7 +6,7 @@
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 
 ARG AI_FABRIC_FRAMEWORK_REPOSITORY=https://github.com/Loom-AI-Labs/ai-fabric-framework.git
-ARG AI_FABRIC_FRAMEWORK_REF=ai-fabric-framework-v0.3.1
+ARG AI_FABRIC_FRAMEWORK_REF=main
 
 WORKDIR /workspace
 
