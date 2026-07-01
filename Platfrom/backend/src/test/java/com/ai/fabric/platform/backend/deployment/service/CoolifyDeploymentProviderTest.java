@@ -224,6 +224,7 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().portsExposes()).isEqualTo("8097");
         assertThat(request.getValue().healthCheckPath()).isEqualTo("/actuator/health/liveness");
         assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
+        verify(coolifyApiClient, never()).getDeployment(eq(connection), anyString());
         verifyNoInteractions(sourceArtifactService);
     }
 

@@ -1955,6 +1955,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                               JsonNode resourceDefaults,
                                                               CoolifyApplicationSummary fallback,
                                                               CoolifyActionResponse deployResponse) {
+        if (applicationReady(fallback)) {
+            return fallback;
+        }
         Duration timeout = durationSeconds(
             resourceDefaults,
             "deploySettleTimeoutSeconds",
