@@ -8,6 +8,8 @@ STRICT_APPLICATION_SMOKE="${COOLIFY_STRICT_APPLICATION_SMOKE:-false}"
 PUBLIC_GIT_SMOKE="${COOLIFY_PUBLIC_GIT_SMOKE:-false}"
 KEEP_SMOKE_APP="${COOLIFY_KEEP_SMOKE_APP:-false}"
 VERIFY_PRODUCTION="${COOLIFY_VERIFY_PRODUCTION:-true}"
+CURL_CONNECT_TIMEOUT_SECONDS="${COOLIFY_CURL_CONNECT_TIMEOUT_SECONDS:-10}"
+CURL_MAX_TIME_SECONDS="${COOLIFY_CURL_MAX_TIME_SECONDS:-30}"
 
 STAGING_PROJECT_UUID="${COOLIFY_STAGING_PROJECT_UUID:-id069t43frp519u5i3dg2jpr}"
 STAGING_ENVIRONMENT_NAME="${COOLIFY_STAGING_ENVIRONMENT_NAME:-staging}"
@@ -72,6 +74,8 @@ curl_json() {
   url="$(api_url "${base_url}" "${path}")"
   if [[ -n "${data}" ]]; then
     curl -fsS \
+      --connect-timeout "${CURL_CONNECT_TIMEOUT_SECONDS}" \
+      --max-time "${CURL_MAX_TIME_SECONDS}" \
       -X "${method}" \
       -H "Authorization: Bearer ${token}" \
       -H "Accept: application/json" \
@@ -80,6 +84,8 @@ curl_json() {
       "${url}"
   else
     curl -fsS \
+      --connect-timeout "${CURL_CONNECT_TIMEOUT_SECONDS}" \
+      --max-time "${CURL_MAX_TIME_SECONDS}" \
       -X "${method}" \
       -H "Authorization: Bearer ${token}" \
       -H "Accept: application/json" \
@@ -112,12 +118,14 @@ verify_instance() {
   local base_url="$2"
   local token="$3"
   local version
-  local health
   local app_count
   version="$(curl_json GET "${base_url}" "${token}" "/version" | json_field version)"
-  health="$(curl_json GET "${base_url}" "${token}" "/health")"
-  app_count="$(curl_json GET "${base_url}" "${token}" "/applications" | json_len)"
-  echo "[coolify] ${label}: version=${version:-unknown} health=${health} applications=${app_count}"
+  if app_count="$(curl_json GET "${base_url}" "${token}" "/applications" | json_len)"; then
+    echo "[coolify] ${label}: version=${version:-unknown} liveness=version_endpoint applications=${app_count}"
+  else
+    echo "WARN: Coolify ${label} application inventory is not currently readable; version endpoint is healthy." >&2
+    echo "[coolify] ${label}: version=${version:-unknown} liveness=version_endpoint applications=unavailable"
+  fi
 }
 
 create_smoke_body() {
