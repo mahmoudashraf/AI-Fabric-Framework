@@ -11,7 +11,7 @@ on:
         type: boolean
         default: true
       product_tests:
-        description: Run ai-fabric-product tests.
+        description: Run ai-fabric-product and platform product-service tests.
         required: false
         type: boolean
         default: true
@@ -33,7 +33,7 @@ on:
         type: boolean
         default: true
       product_tests:
-        description: Run ai-fabric-product tests.
+        description: Run ai-fabric-product and platform product-service tests.
         required: false
         type: boolean
         default: true
@@ -94,6 +94,16 @@ jobs:
         run: |
           mvn -f ai-fabric-product/pom.xml test
 
+      - name: Run AI Fabric relay tests
+        if: ${{ inputs.product_tests }}
+        run: |
+          mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-relay -am test
+
+      - name: Run AI Fabric relay packaged smoke
+        if: ${{ inputs.product_tests }}
+        run: |
+          bash .github/scripts/smoke-p1-relay-local.sh
+
       - name: Run platform UI build
         if: ${{ inputs.ui_build }}
         run: |
@@ -111,3 +121,4 @@ jobs:
           bash -n scripts/run-platform-state-verification-suite.sh
           bash -n scripts/verify-vector-deployment.sh
           bash -n scripts/verify-managed-vector-providers.sh
+          bash -n .github/scripts/smoke-p1-relay-local.sh

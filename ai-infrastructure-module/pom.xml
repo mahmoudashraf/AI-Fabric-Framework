@@ -16,6 +16,7 @@
     <modules>
         <module>ai-infrastructure-generic-rest-connector</module>
         <module>ai-fabric-runtime</module>
+        <module>ai-fabric-relay</module>
     </modules>
 
     <properties>
@@ -33,6 +34,7 @@
         <testcontainers.version>1.19.3</testcontainers.version>
         <awaitility.version>4.2.0</awaitility.version>
         <mockito.version>5.8.0</mockito.version>
+        <swagger-request-validator.version>2.40.0</swagger-request-validator.version>
         <jmh.version>1.37</jmh.version>
         <javafaker.version>1.0.2</javafaker.version>
         <!-- Align gRPC versions across vector DB SDKs (Qdrant/Pinecone/Weaviate/Milvus). -->
@@ -146,6 +148,11 @@
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-junit-jupiter</artifactId>
                 <version>${mockito.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.atlassian.oai</groupId>
+                <artifactId>swagger-request-validator-mockmvc</artifactId>
+                <version>${swagger-request-validator.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.openjdk.jmh</groupId>

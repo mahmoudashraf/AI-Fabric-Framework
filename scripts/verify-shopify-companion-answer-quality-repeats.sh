@@ -20,6 +20,7 @@ QUERY_PACK="${READINESS_AUDIT_QUERY_PACK:-${REPO_ROOT}/scripts/verification/shop
 REPEAT_COUNT="${ANSWER_QUALITY_REPEAT_COUNT:-3}"
 TIMEOUT_SECONDS="${ANSWER_QUALITY_TIMEOUT:-75}"
 OUT_ROOT="${ANSWER_QUALITY_OUT_ROOT:-/tmp}"
+ACTIVE_TIER_PROFILE="${ANSWER_QUALITY_ACTIVE_TIER_PROFILE:-${READINESS_AUDIT_REQUIRED_BILLING_TIER:-}}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_ROOT="${OUT_ROOT%/}/shopify-answer-quality-${STAMP}-repeats"
 SUMMARY_JSON="${RUN_ROOT}/repeat-summary.json"
@@ -37,6 +38,7 @@ echo "Bridge: ${BRIDGE_BASE_URL}"
 echo "Shop: ${SHOP_DOMAIN}"
 echo "Query pack: ${QUERY_PACK}"
 echo "Repeats: ${REPEAT_COUNT}"
+echo "Active tier profile: ${ACTIVE_TIER_PROFILE:-ALL}"
 echo "Output: ${RUN_ROOT}"
 
 printf '{\n  "schemaVersion": 1,\n  "strategy": "shopify-companion-expanded-answer-quality-repeat-gate",\n  "bridgeBaseUrl": %s,\n  "shopDomain": %s,\n  "queryPack": %s,\n  "repeatCount": %s,\n  "runs": [\n' \
@@ -52,6 +54,7 @@ printf '{\n  "schemaVersion": 1,\n  "strategy": "shopify-companion-expanded-answ
   echo "- Shop: \`${SHOP_DOMAIN}\`"
   echo "- Query pack: \`${QUERY_PACK}\`"
   echo "- Repeats: \`${REPEAT_COUNT}\`"
+  echo "- Active tier profile: \`${ACTIVE_TIER_PROFILE:-ALL}\`"
   echo
   echo "| Run | Decision | Passed | Total | Output |"
   echo "|---:|---|---:|---:|---|"
@@ -63,12 +66,17 @@ for run in $(seq 1 "${REPEAT_COUNT}"); do
   OUT_DIR="${RUN_ROOT}/run-${run}"
   mkdir -p "${OUT_DIR}"
   echo "Running repeat ${run}/${REPEAT_COUNT} -> ${OUT_DIR}"
+  tier_args=()
+  if [[ -n "${ACTIVE_TIER_PROFILE}" ]]; then
+    tier_args=(--active-tier-profile "${ACTIVE_TIER_PROFILE}")
+  fi
   if python3 "${REPO_ROOT}/scripts/evaluate-shopify-companion-answers.py" \
     --bridge-base-url "${BRIDGE_BASE_URL}" \
     --shop-domain "${SHOP_DOMAIN}" \
     --query-pack "${QUERY_PACK}" \
     --out "${OUT_DIR}" \
-    --timeout "${TIMEOUT_SECONDS}"; then
+    --timeout "${TIMEOUT_SECONDS}" \
+    "${tier_args[@]}"; then
     :
   else
     all_passed=false

@@ -132,6 +132,7 @@ def evaluate_query(
     global_forbidden_claims: list[str],
     global_forbidden_internal_terms: list[str],
     timeout: int,
+    shopper_session_prefix: str,
 ) -> dict[str, Any]:
     query_id = str(query["queryId"])
     request_payload = {
@@ -145,7 +146,7 @@ def evaluate_query(
         + "/chat/query"
     )
     started = time.time()
-    status, response = post_json(url, request_payload, f"first-product-audit-{query_id}", timeout)
+    status, response = post_json(url, request_payload, f"{shopper_session_prefix}-{query_id}", timeout)
     duration_ms = int((time.time() - started) * 1000)
     answer = extract_answer(response)
     forbidden = [
@@ -263,6 +264,11 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=pathlib.Path)
     parser.add_argument("--timeout", type=int, default=45)
     parser.add_argument(
+        "--shopper-session-prefix",
+        default="",
+        help="Prefix for storefront shopper session IDs. Defaults to a fresh first-product audit run id.",
+    )
+    parser.add_argument(
         "--active-tier-profile",
         default="",
         help="Only evaluate queries whose tierProfile is supported by this active billing tier.",
@@ -270,6 +276,7 @@ def main() -> int:
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
+    shopper_session_prefix = args.shopper_session_prefix.strip() or f"first-product-audit-{int(time.time())}"
     pack = read_json(args.query_pack)
     queries, skipped_queries = filter_queries_by_active_tier(
         [query for query in pack.get("queries", []) if isinstance(query, dict)],
@@ -297,6 +304,7 @@ def main() -> int:
             [str(value) for value in pack.get("globalForbiddenClaims", [])],
             [str(value) for value in pack.get("globalForbiddenInternalTerms", [])],
             args.timeout,
+            shopper_session_prefix,
         )
         for query in queries
     ]
@@ -308,6 +316,7 @@ def main() -> int:
             "productRef": pack.get("productRef", "shopify-companion"),
             "targetStore": args.shop_domain,
             "activeTierProfile": normalize_tier(args.active_tier_profile),
+            "shopperSessionPrefix": shopper_session_prefix,
             "skippedQueries": [
                 {
                     "queryId": query.get("queryId"),
