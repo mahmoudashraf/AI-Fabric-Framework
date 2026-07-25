@@ -53,3 +53,39 @@ The container listens on port `3000` and exposes `GET /health`.
 
 No application secrets are required. `SOURCE_COMMIT`, when enabled by Coolify,
 is surfaced through the health response.
+
+Production resource:
+
+- Project/environment: `loomai-platform` / `production`
+- Application: `loomai-public-site`
+- Application UUID: `t3r7unm08sh3tfatpadz7qky`
+- Validation URL:
+  `https://loomai-public-site.46.225.162.106.sslip.io`
+
+The production Coolify webhook endpoint is intentionally behind the
+control-plane firewall. GitHub push auto-deploy is therefore not part of the
+current contract; use an explicit Coolify deployment after pushing a verified
+site commit.
+
+## Attach `loomai.pro`
+
+Keep the sslip validation URL on the application while attaching the custom
+domains.
+
+1. In the `loomai-public-site` Coolify resource, set Domains to
+   `https://loomai-public-site.46.225.162.106.sslip.io,https://loomai.pro,https://www.loomai.pro`.
+2. Set the redirect preference to `non-www` so `www.loomai.pro` resolves to the
+   canonical apex domain.
+3. In Namecheap Advanced DNS, add `A` record `@` pointing to
+   `46.225.162.106`.
+4. Add `CNAME` record `www` pointing to `loomai.pro`.
+5. Remove only conflicting parking, redirect, `A`, `AAAA`, or `CNAME` records
+   for `@` and `www`. Leave `api`, `console`, `partners`, and
+   `shopify-bridge` unchanged.
+6. Wait for authoritative DNS to answer, then verify `/`, `/health`,
+   `/sitemap.xml`, and one nested product route over HTTPS.
+
+Do not add an apex `AAAA` record until the production proxy's IPv6 route has
+been verified separately. Coolify provisions the Let's Encrypt certificate
+after the records resolve to the production server; no application code change
+or rebuild is required for the domain attachment.

@@ -1720,3 +1720,48 @@ Critical fixes that made the gate pass:
 - Follow-up chat deployment `tehp2lwsv30g2ejwdg7162yi` finished successfully on commit `edea0bbf37bc7780cbb979a9d9472f38d8fe65d9` and left the app `running:healthy`.
 - Final post-autodeploy smoke passed across all four public staging apps: all `/actuator/health` endpoints returned HTTP `200` / `UP`; account resolver demo seed and policy endpoints returned HTTP `200` with four policies; behavior dashboard and `seed-and-analyze` returned HTTP `200` with three scenarios; tenant guard dashboard and `compare?q=VPN` returned HTTP `200`; chat product create returned HTTP `201`, product search found the created headphones product, and `/api/chat/query` returned HTTP `200` / `success=true` with an action-backed answer.
 - Operational note: future pushes to `Loom-AI-Labs/ai-fabric-framework` `main` should auto-deploy all four staging real apps. If another app is added later, set its repository/branch/base directory, enable Coolify auto-deploy, and align its GitHub manual webhook secret or add a separate GitHub webhook.
+
+## 2026-07-25 Loom AI Labs Public Site Production Deployment
+
+- Added a new static-first Astro site at `Platfrom/loomai-site`, based on the
+  supplied `/Users/mahmoudashraf/Downloads/loom-ai-labs-ui` design brief,
+  implementation specification, tokens, content models, and five reference
+  screens. The site follows the same light editorial, deep-navy, cyan/blue/
+  violet visual language without reusing the references as page screenshots.
+- The public information architecture includes Home, Products, Experiments,
+  Research, About, Connect, product/experiment/research details, a real 404,
+  sitemap, robots, and research RSS feed. AI Fabric Framework and AI Fabric
+  Chat UI are presented as equal open-source products. Experiments link to six
+  running demos and use captured live proof rather than placeholder screens.
+- Production source commits are `598e32b0a` (site) and `a0a5177d4` (RSS media
+  type correction), pushed to `mahmoudashraf/AI-Fabric-Framework.git` branch
+  `Platform-V10`.
+- Created production Coolify application `loomai-public-site`, UUID
+  `t3r7unm08sh3tfatpadz7qky`, under project/environment
+  `loomai-platform/production`. It uses repository-root build context,
+  `/Platfrom/loomai-site/Dockerfile`, port `3000`, `/health`, a `512m` memory
+  limit, and a site-only watch path.
+- Live validation URL:
+  `https://loomai-public-site.46.225.162.106.sslip.io`. Final deployment
+  `n7sfc9qpedjrc8te8798tfhh` finished on full commit
+  `a0a5177d46d531c0b3e9cc3d282c34e2e20c08b5`; Coolify reports
+  `running:healthy`, and `/health` reports `UP` with the same commit.
+- Verification passed: Astro diagnostics with zero findings, 20-page build,
+  typed content graph, 19-route static smoke, 1,117-byte total gzip JavaScript
+  payload, Playwright/Axe checks, desktop/mobile overflow and navigation
+  checks, Docker build, production HTTP/security-header/404 checks, all 19
+  content routes at desktop and mobile widths, 20 discovered internal links,
+  and visual inspection of production desktop/mobile screenshots.
+- `loomai.pro` and `www.loomai.pro` had no authoritative `A`, `AAAA`, or CNAME
+  answer at completion. The app remains on the sslip validation host until the
+  owner adds the Coolify custom domains and Namecheap apex/`www` records.
+  Existing `api`, `console`, `partners`, and `shopify-bridge` services were not
+  changed.
+- GitHub push auto-deploy is not currently wired for this application because
+  production Coolify's manual webhook endpoint is behind the intentionally
+  restricted port `8000` control plane. Use an explicit Coolify deploy after a
+  verified push unless a separately secured public webhook ingress is added.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP absence was verified and
+  local Coolify API access returned timeout/HTTP `000`, confirming the closed
+  posture.
