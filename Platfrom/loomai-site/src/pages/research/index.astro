@@ -15,12 +15,19 @@ import {
   TriangleAlert,
 } from '@lucide/astro'
 import FilterBar from '../../components/FilterBar.astro'
-import { research } from '../../data/content'
+import { experiments, research } from '../../data/content'
 import BaseLayout from '../../layouts/BaseLayout.astro'
 
-const featured = research.find(
-  (item) => item.slug === 'application-data-ai-evidence-alignment',
-) ?? research[0]
+const defaultFeatureSlug = 'application-data-ai-evidence-alignment'
+const primaryResearchSlugs = [
+  defaultFeatureSlug,
+  'explicit-application-context',
+  'governed-ai-proposed-actions',
+  'tenant-identity-orchestration-context',
+] as const
+const primaryResearch = primaryResearchSlugs
+  .map((slug) => research.find((item) => item.slug === slug))
+  .filter((item) => item !== undefined)
 const cardSlugs = [
   'explicit-application-context',
   'governed-ai-proposed-actions',
@@ -36,7 +43,6 @@ const filters = [
   { value: 'context-grounding', label: 'Context & Grounding' },
   { value: 'actions-governance', label: 'Actions & Governance' },
   { value: 'privacy-identity', label: 'Privacy & Identity' },
-  { value: 'developer-experience', label: 'Developer Experience' },
 ] as const
 ---
 
@@ -89,64 +95,129 @@ const filters = [
         itemLabel="research items"
       />
 
-      <article
-        class="featured-research"
-        data-filter-item
-        data-category={featured.theme}
-      >
-        <div class="featured-research__copy">
-          <div class="featured-research__badges">
-            <span>Featured investigation</span>
-            <span>Reproducible demo</span>
-          </div>
-          <h2>Keeping Application Data and AI Evidence Aligned</h2>
-          <dl>
-            <div>
-              <dt><CircleQuestionMark size={19} stroke-width={1.55} aria-hidden="true" />Research question:</dt>
-              <dd>How can JPA entity changes become current retrieval evidence without controllers calling indexing endpoints?</dd>
+      {primaryResearch.map((item) => {
+        const isDefault = item.slug === defaultFeatureSlug
+        const linkedExperimentSlug = item.linkedExperimentSlugs[0]
+        const linkedExperiment = experiments.find(
+          (experiment) => experiment.slug === linkedExperimentSlug,
+        )
+        const sourceArtifact = item.implementationArtifacts.find(
+          (artifact) => artifact.href.includes('github.com'),
+        )
+        const image = isDefault
+          ? {
+              src: '/assets/reference/research-proof.png',
+              alt: 'Application data and AI evidence revisions aligned through a lifecycle',
+              width: 650,
+              height: 255,
+            }
+          : {
+              src: linkedExperiment?.screenshot.src ?? '/assets/reference/research-proof.png',
+              alt: linkedExperiment?.screenshot.alt ?? `${item.title} implementation proof`,
+              width: 1280,
+              height: 800,
+            }
+
+        return (
+          <article
+            class="featured-research"
+            data-filter-item
+            data-filter-display="feature"
+            data-filter-default={isDefault ? 'true' : 'false'}
+            data-category={item.theme}
+            hidden={!isDefault}
+          >
+            <div class="featured-research__copy">
+              <div class="featured-research__badges">
+                <span>Featured investigation</span>
+                <span>{item.evidenceLabel}</span>
+              </div>
+              <h2>{item.title}</h2>
+              <dl>
+                <div>
+                  <dt>
+                    <CircleQuestionMark size={19} stroke-width={1.55} aria-hidden="true" />
+                    Research question:
+                  </dt>
+                  <dd>{item.researchQuestion}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Settings size={19} stroke-width={1.55} aria-hidden="true" />
+                    Method summary:
+                  </dt>
+                  <dd>{item.proposedApproach[0]}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Database size={19} stroke-width={1.55} aria-hidden="true" />
+                    Evidence:
+                  </dt>
+                  <dd>
+                    <a href={`/research/${item.slug}`}>{item.maturityLabel}</a>
+                    {linkedExperiment && (
+                      <>
+                        <span>·</span>
+                        <a href={`/experiments/${linkedExperiment.slug}`}>
+                          {linkedExperiment.title} experiment
+                        </a>
+                      </>
+                    )}
+                    {sourceArtifact && (
+                      <>
+                        <span>·</span>
+                        <a href={sourceArtifact.href} target="_blank" rel="noreferrer">
+                          Source available
+                        </a>
+                      </>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>
+                    <TriangleAlert size={19} stroke-width={1.55} aria-hidden="true" />
+                    Limitation:
+                  </dt>
+                  <dd>{item.limitations[0]}</dd>
+                </div>
+              </dl>
+              <div class="featured-research__actions">
+                <a class="loom-button loom-button--primary" href={`/research/${item.slug}`}>
+                  Read investigation
+                </a>
+                {linkedExperiment && (
+                  <a
+                    class="research-inline-link"
+                    href={`/experiments/${linkedExperiment.slug}`}
+                  >
+                    Reproduce experiment <ArrowRight size={17} aria-hidden="true" />
+                  </a>
+                )}
+              </div>
             </div>
-            <div>
-              <dt><Settings size={19} stroke-width={1.55} aria-hidden="true" />Method summary:</dt>
-              <dd>Annotation-derived projection with create, update and delete lifecycle processing.</dd>
+            <div class="featured-research__visual">
+              <img
+                class:list={{ 'featured-research__screenshot': !isDefault }}
+                src={image.src}
+                alt={image.alt}
+                width={image.width}
+                height={image.height}
+                loading={isDefault ? 'eager' : 'lazy'}
+              />
             </div>
-            <div>
-              <dt><Database size={19} stroke-width={1.55} aria-hidden="true" />Evidence:</dt>
-              <dd>
-                <a href="/experiments/live-data-sync">Implemented prototype</a>
-                <span>·</span>
-                <a href="/experiments/live-data-sync">Live Data Sync experiment</a>
-                <span>·</span>
-                <a href="https://github.com/Loom-AI-Labs/ai-fabric-framework" target="_blank" rel="noreferrer">Source available</a>
-              </dd>
-            </div>
-            <div>
-              <dt><TriangleAlert size={19} stroke-width={1.55} aria-hidden="true" />Limitation:</dt>
-              <dd>Bounded lifecycle demonstration—not a universal distributed-consistency guarantee.</dd>
-            </div>
-          </dl>
-          <div class="featured-research__actions">
-            <a class="loom-button loom-button--primary" href={`/research/${featured.slug}`}>
-              Read investigation
-            </a>
-            <a class="research-inline-link" href="/experiments/live-data-sync">
-              Reproduce experiment <ArrowRight size={17} aria-hidden="true" />
-            </a>
-          </div>
-        </div>
-        <div class="featured-research__visual">
-          <img
-            src="/assets/reference/research-proof.png"
-            alt="Application data and AI evidence revisions aligned through a lifecycle"
-            width="650"
-            height="255"
-            loading="eager"
-          />
-        </div>
-      </article>
+          </article>
+        )
+      })}
 
       <div class="research-card-grid">
         {cards.map((item) => (
-          <article class="compact-research" data-filter-item data-category={item.theme}>
+          <article
+            class="compact-research"
+            data-filter-item
+            data-filter-display="compact"
+            data-filter-promoted={primaryResearchSlugs.includes(item.slug as typeof primaryResearchSlugs[number]) ? 'true' : 'false'}
+            data-category={item.theme}
+          >
             <div class="compact-research__layout">
               <span class="compact-research__icon" aria-hidden="true">
                 {item.slug === 'explicit-application-context' ? (
@@ -370,7 +441,6 @@ const filters = [
   .featured-research h2 {
     font-size: 1.75rem;
     margin-bottom: 0.35rem;
-    white-space: nowrap;
   }
 
   .featured-research dl {
@@ -440,6 +510,14 @@ const filters = [
   .featured-research__visual img {
     height: auto;
     width: 100%;
+  }
+
+  .featured-research__visual .featured-research__screenshot {
+    aspect-ratio: 650 / 255;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.55rem;
+    object-fit: cover;
+    object-position: top;
   }
 
   .research-card-grid {
@@ -600,9 +678,6 @@ const filters = [
       border-right: 0;
     }
 
-    .featured-research h2 {
-      white-space: normal;
-    }
   }
 
   @media (max-width: 47.99rem) {

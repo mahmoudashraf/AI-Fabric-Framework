@@ -2,10 +2,10 @@
 import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
 import CallToAction from '../../components/CallToAction.astro'
 import ExperimentCard from '../../components/ExperimentCard.astro'
+import LabProductShowcase from '../../components/LabProductShowcase.astro'
 import PageHero from '../../components/PageHero.astro'
-import ProductCard from '../../components/ProductCard.astro'
 import SectionHeading from '../../components/SectionHeading.astro'
-import { experiments, products } from '../../data/content'
+import { experiments } from '../../data/content'
 import BaseLayout from '../../layouts/BaseLayout.astro'
 ---
 
@@ -21,9 +21,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
     note="Two products · Equal portfolio status · Distinct ownership boundaries"
   />
 
-  <section class="section section--white">
-    <div class="loom-container product-grid">
-      {products.map((product) => <ProductCard product={product} />)}
+  <section class="product-showcase" aria-labelledby="product-portfolio">
+    <div class="loom-container">
+      <LabProductShowcase heading="Products from the lab" headingId="product-portfolio" />
     </div>
   </section>
 
@@ -108,6 +108,29 @@ import BaseLayout from '../../layouts/BaseLayout.astro'
 </BaseLayout>
 
 <style>
+  .product-showcase {
+    background: var(--loom-canvas);
+    padding-block: 2rem 1.5rem;
+    position: relative;
+  }
+
+  .product-showcase::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 42%, #000 100%);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .product-showcase > .loom-container {
+    position: relative;
+    z-index: 1;
+  }
+
   .product-comparison {
     background: var(--loom-surface);
     border: 1px solid var(--loom-border-default);

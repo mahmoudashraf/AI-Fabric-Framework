@@ -42,13 +42,36 @@ const { options, parameter = 'category', itemLabel } = Astro.props
     const applyFilter = (value: string, updateUrl = true) => {
       let visible = 0
       for (const item of items) {
-        const matches = value === 'all' || item.dataset.category === value
+        const categoryMatches = item.dataset.category === value
+        const display = item.dataset.filterDisplay
+        let matches = value === 'all' || categoryMatches
+
+        if (display === 'feature') {
+          matches = value === 'all'
+            ? item.dataset.filterDefault === 'true'
+            : categoryMatches
+        } else if (display === 'compact') {
+          matches = value === 'all'
+            ? item.dataset.filterAllVisible !== 'false'
+            : categoryMatches && item.dataset.filterPromoted !== 'true'
+        }
+
         item.hidden = !matches
         if (matches) visible += 1
       }
 
+      const activeButton = buttons.find((button) => button.dataset.filter === value)
       for (const button of buttons) {
-        button.setAttribute('aria-pressed', String(button.dataset.filter === value))
+        button.setAttribute('aria-pressed', String(button === activeButton))
+      }
+
+      if (activeButton) {
+        const centeredLeft =
+          activeButton.offsetLeft - (bar.clientWidth - activeButton.offsetWidth) / 2
+        bar.scrollTo({
+          left: Math.max(0, centeredLeft),
+          behavior: updateUrl ? 'smooth' : 'auto',
+        })
       }
 
       if (empty) empty.hidden = visible > 0

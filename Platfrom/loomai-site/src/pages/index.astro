@@ -8,6 +8,7 @@ import {
 } from '@lucide/astro'
 import CallToAction from '../components/CallToAction.astro'
 import ExperimentCard from '../components/ExperimentCard.astro'
+import LabProductShowcase from '../components/LabProductShowcase.astro'
 import ResearchCard from '../components/ResearchCard.astro'
 import SectionHeading from '../components/SectionHeading.astro'
 import { experiments, research } from '../data/content'
@@ -51,75 +52,7 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
 
   <section class="home-products" aria-labelledby="products-from-lab">
     <div class="loom-container">
-      <h2 id="products-from-lab">Products from the lab</h2>
-      <div class="home-product-grid">
-        <article class="home-product-card">
-          <p class="home-product-card__eyebrow">Application enablement layer</p>
-          <img
-            class="home-product-card__mark"
-            src="/assets/reference/framework-mark.png"
-            alt="AI Fabric Framework mark"
-            width="135"
-            height="175"
-            loading="lazy"
-          />
-          <div class="home-product-card__copy">
-            <h3>AI Fabric Framework</h3>
-            <p>
-              Live application data, evidence-grounded retrieval and governed
-              actions for Java and Spring Boot.
-            </p>
-            <ul aria-label="Framework capabilities">
-              <li>Live data sync</li>
-              <li>Governed RAG</li>
-              <li>Controlled actions</li>
-            </ul>
-            <a class="loom-button loom-button--primary" href="/products/ai-fabric-framework">
-              Explore framework
-            </a>
-          </div>
-          <img
-            class="home-product-card__art"
-            src="/assets/reference/framework-stack.png"
-            alt=""
-            width="215"
-            height="270"
-            loading="lazy"
-          />
-        </article>
-
-        <article class="home-product-card home-product-card--chat">
-          <p class="home-product-card__eyebrow">User experience layer</p>
-          <div class="home-product-card__copy">
-            <h3>AI Fabric Chat UI</h3>
-            <p>
-              A reusable, framework-neutral chat interface for AI Fabric-enabled
-              applications.
-            </p>
-            <ul aria-label="Chat UI capabilities">
-              <li>Web Component</li>
-              <li>React</li>
-              <li>Arabic and RTL</li>
-              <li>Four layouts</li>
-            </ul>
-            <a class="loom-button loom-button--primary" href="/products/ai-fabric-chat-ui">
-              Explore Chat UI
-            </a>
-          </div>
-          <img
-            class="home-product-card__preview"
-            src="/assets/reference/chat-card-preview.png"
-            alt="AI Fabric Chat UI showing evidence and a confirmed action"
-            width="325"
-            height="270"
-            loading="lazy"
-          />
-        </article>
-      </div>
-
-      <div class="together-rail" aria-label="The two products are built to work together">
-        <span>Built to work together</span>
-      </div>
+      <LabProductShowcase />
 
       <div class="home-path-grid">
         <a href="/experiments">
@@ -297,156 +230,10 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
     z-index: 1;
   }
 
-  .home-products h2 {
-    font-size: 1.45rem;
-    margin-bottom: 0.7rem;
-  }
-
-  .home-product-grid,
   .home-path-grid {
     display: grid;
     gap: 1.6rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .home-product-card {
-    background: linear-gradient(145deg, #fff 55%, #f7f9ff);
-    border: 1px solid var(--loom-border-strong);
-    border-radius: 0.75rem;
-    display: grid;
-    grid-template-columns: 7.75rem minmax(0, 1fr) 13.25rem;
-    min-height: 18.2rem;
-    overflow: hidden;
-    padding: 3.5rem 1.25rem 1.15rem;
-    position: relative;
-  }
-
-  .home-product-card__eyebrow {
-    color: var(--loom-blue-vivid);
-    font-size: 0.7rem;
-    font-weight: 700;
-    inset: 1.15rem auto auto 1.9rem;
-    letter-spacing: 0.12em;
-    position: absolute;
-    text-transform: uppercase;
-  }
-
-  .home-product-card__mark {
-    align-self: center;
-    height: 10.9rem;
-    object-fit: contain;
-    width: 7.4rem;
-  }
-
-  .home-product-card__copy {
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    padding: 0.3rem 0.25rem 0;
-    position: relative;
-    z-index: 2;
-  }
-
-  .home-product-card h3 {
-    font-size: 2rem;
-    margin-bottom: 0.55rem;
-    white-space: nowrap;
-  }
-
-  .home-product-card__copy > p {
-    font-size: 0.96rem;
-    line-height: 1.4;
-    margin-bottom: 0.55rem;
-    max-width: 28ch;
-  }
-
-  .home-product-card ul {
-    color: var(--loom-blue-vivid);
-    display: flex;
-    flex-wrap: wrap;
-    font-size: 0.68rem;
-    gap: 0.35rem 0;
-    list-style: none;
-    margin: 0 0 0.9rem;
-    padding: 0;
-  }
-
-  .home-product-card li + li::before {
-    color: var(--loom-navy-500);
-    content: "·";
-    margin-inline: 0.4rem;
-  }
-
-  .home-product-card .loom-button {
-    align-self: start;
-    margin-top: auto;
-    min-height: 2.7rem;
-    min-width: 11.25rem;
-    padding-inline: 1rem;
-  }
-
-  .home-product-card__art {
-    align-self: center;
-    height: auto;
-    justify-self: end;
-    max-width: none;
-    width: 11.2rem;
-  }
-
-  .home-product-card--chat {
-    grid-template-columns: minmax(0, 1fr) 18.25rem;
-    padding-left: 1.95rem;
-  }
-
-  .home-product-card--chat .home-product-card__copy {
-    padding-right: 0.5rem;
-  }
-
-  .home-product-card--chat .home-product-card__copy > p {
-    max-width: 31ch;
-  }
-
-  .home-product-card__preview {
-    align-self: center;
-    border-radius: 0.65rem;
-    box-shadow: 0 7px 20px rgb(10 29 74 / 8%);
-    height: auto;
-    justify-self: end;
-    max-width: none;
-    width: 16.5rem;
-  }
-
-  .together-rail {
-    height: 3.4rem;
-    margin-inline: auto;
-    position: relative;
-    width: 61%;
-  }
-
-  .together-rail::before {
-    border: 1px solid var(--loom-indigo-500);
-    border-top: 0;
-    border-radius: 0 0 0.7rem 0.7rem;
-    content: "";
-    height: 1rem;
-    inset: 0 0 auto;
-    position: absolute;
-  }
-
-  .together-rail span {
-    background: var(--loom-canvas);
-    border: 1px solid var(--loom-border-accent);
-    border-radius: 999px;
-    color: var(--loom-blue-600);
-    font-size: 0.78rem;
-    left: 50%;
-    min-width: 12.5rem;
-    padding: 0.25rem 1rem;
-    position: absolute;
-    text-align: center;
-    top: 0.25rem;
-    transform: translateX(-50%);
   }
 
   .home-path-grid a {
@@ -526,32 +313,6 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
     margin: 0;
   }
 
-  @media (max-width: 75rem) {
-    .home-product-card {
-      grid-template-columns: 6rem minmax(0, 1fr) 9rem;
-    }
-
-    .home-product-card__mark {
-      width: 5.75rem;
-    }
-
-    .home-product-card__art {
-      width: 10.5rem;
-    }
-
-    .home-product-card h3 {
-      font-size: 1.6rem;
-    }
-
-    .home-product-card--chat {
-      grid-template-columns: minmax(0, 1fr) 13rem;
-    }
-
-    .home-product-card__preview {
-      width: 13rem;
-    }
-  }
-
   @media (max-width: 63.99rem) {
     .home-hero,
     .home-hero__inner {
@@ -572,23 +333,8 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
       width: min(44rem, 100%);
     }
 
-    .home-product-grid,
     .home-path-grid {
       grid-template-columns: 1fr;
-    }
-
-    .home-product-card,
-    .home-product-card--chat {
-      grid-template-columns: 7.5rem minmax(0, 1fr) 14rem;
-    }
-
-    .home-product-card--chat .home-product-card__copy {
-      grid-column: 1 / 3;
-    }
-
-    .home-product-card__preview {
-      grid-column: 3;
-      width: 14rem;
     }
 
     .home-open {
@@ -610,40 +356,6 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
       align-items: flex-start;
       flex-direction: column;
       gap: 1rem;
-    }
-
-    .home-product-card,
-    .home-product-card--chat {
-      display: flex;
-      flex-direction: column;
-      padding: 3.7rem 1.25rem 1.25rem;
-    }
-
-    .home-product-card__mark {
-      align-self: flex-start;
-      height: 7rem;
-      margin-bottom: 0.75rem;
-      width: 5.5rem;
-    }
-
-    .home-product-card h3 {
-      font-size: 1.75rem;
-      white-space: normal;
-    }
-
-    .home-product-card__art,
-    .home-product-card__preview {
-      align-self: center;
-      margin-top: 1.25rem;
-      width: min(100%, 18rem);
-    }
-
-    .home-product-card__art {
-      order: 3;
-    }
-
-    .together-rail {
-      width: 84%;
     }
 
     .home-path-grid a {

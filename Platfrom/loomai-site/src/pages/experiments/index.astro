@@ -16,17 +16,27 @@ import FilterBar from '../../components/FilterBar.astro'
 import { experiments } from '../../data/content'
 import BaseLayout from '../../layouts/BaseLayout.astro'
 
-const featured = experiments.find((item) => item.slug === 'live-data-sync') ?? experiments[0]
-const cardSlugs = [
+const defaultFeatureSlug = 'live-data-sync'
+const primaryExperimentSlugs = [
+  defaultFeatureSlug,
+  'account-resolver',
+  'privacy-shield',
+  'tenant-guard',
+  'ai-shopping-experience',
+] as const
+const primaryExperiments = primaryExperimentSlugs
+  .map((slug) => experiments.find((item) => item.slug === slug))
+  .filter((item) => item !== undefined)
+const compactExperimentSlugs = [
   'ai-shopping-experience',
   'account-resolver',
   'tenant-guard',
   'privacy-shield',
-]
-const cards = cardSlugs
+  'behavior-signals',
+] as const
+const compactExperiments = compactExperimentSlugs
   .map((slug) => experiments.find((item) => item.slug === slug))
   .filter((item) => item !== undefined)
-const additionalExperiment = experiments.find((item) => item.slug === 'behavior-signals')
 const filters = [
   { value: 'all', label: 'All' },
   { value: 'data-retrieval', label: 'Data & Retrieval' },
@@ -84,60 +94,82 @@ const filters = [
     <div class="loom-container experiment-showcase__inner">
       <FilterBar options={filters} itemLabel="experiments" />
 
-      <article
-        class="featured-experiment"
-        data-filter-item
-        data-category={featured.primaryCategory}
-      >
-        <div class="featured-experiment__copy">
-          <div class="featured-experiment__badges">
-            <span class="live-badge"><i></i>Live</span>
-            <span>Data & Retrieval</span>
-          </div>
-          <h2>AI Fabric Live Data Sync</h2>
-          <p>
-            Observe ordinary JPA updates and deletes become current retrieval
-            evidence through the application lifecycle.
-          </p>
-          <ul class="featured-experiment__tags" aria-label="Capabilities">
-            <li>@AICapable</li>
-            <li>@AIAccess</li>
-            <li>RAG</li>
-          </ul>
-          <p class="featured-experiment__proof">
-            <Shield size={18} stroke-width={1.6} aria-hidden="true" />
-            Observable proof: database and vector revisions remain aligned.
-          </p>
-          <div class="featured-experiment__actions">
-            <a
-              class="loom-button loom-button--primary"
-              href={featured.links.launch.href}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Launch experiment
-            </a>
-            <a class="loom-button loom-button--secondary" href={`/experiments/${featured.slug}`}>
-              About the architecture
-            </a>
-          </div>
-        </div>
-        <div class="featured-experiment__visual">
-          <img
-            src="/assets/reference/live-data-proof.png"
-            alt="Live Data Sync proof showing aligned source and vector revisions"
-            width="835"
-            height="245"
-            loading="eager"
-          />
-        </div>
-      </article>
+      {primaryExperiments.map((experiment) => {
+        const isDefault = experiment.slug === defaultFeatureSlug
+        const image = isDefault
+          ? {
+              src: '/assets/reference/live-data-proof.png',
+              alt: 'Live Data Sync proof showing aligned source and vector revisions',
+              width: 835,
+              height: 245,
+            }
+          : {
+              ...experiment.screenshot,
+              width: 1280,
+              height: 800,
+            }
+
+        return (
+          <article
+            class="featured-experiment"
+            data-filter-item
+            data-filter-display="feature"
+            data-filter-default={isDefault ? 'true' : 'false'}
+            data-category={experiment.primaryCategory}
+            hidden={!isDefault}
+          >
+            <div class="featured-experiment__copy">
+              <div class="featured-experiment__badges">
+                <span class="live-badge"><i></i>Live</span>
+                <span>{experiment.categoryLabel}</span>
+              </div>
+              <h2>{isDefault ? 'AI Fabric Live Data Sync' : experiment.title}</h2>
+              <p>{experiment.scenario}</p>
+              <ul class="featured-experiment__tags" aria-label="Capabilities">
+                {experiment.capabilityTags.slice(0, 3).map((tag) => <li>{tag}</li>)}
+              </ul>
+              <p class="featured-experiment__proof">
+                <Shield size={18} stroke-width={1.6} aria-hidden="true" />
+                Observable proof: {experiment.observableProof[0]}
+              </p>
+              <div class="featured-experiment__actions">
+                <a
+                  class="loom-button loom-button--primary"
+                  href={experiment.links.launch.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Launch experiment
+                </a>
+                <a
+                  class="loom-button loom-button--secondary"
+                  href={`/experiments/${experiment.slug}`}
+                >
+                  About the architecture
+                </a>
+              </div>
+            </div>
+            <div class="featured-experiment__visual">
+              <img
+                class:list={{ 'featured-experiment__screenshot': !isDefault }}
+                src={image.src}
+                alt={image.alt}
+                width={image.width}
+                height={image.height}
+                loading={isDefault ? 'eager' : 'lazy'}
+              />
+            </div>
+          </article>
+        )
+      })}
 
       <div class="experiment-card-grid">
-        {cards.map((experiment) => (
+        {compactExperiments.map((experiment) => (
           <article
             class="compact-experiment"
             data-filter-item
+            data-filter-display="compact"
+            data-filter-promoted={primaryExperimentSlugs.includes(experiment.slug as typeof primaryExperimentSlugs[number]) ? 'true' : 'false'}
             data-category={experiment.primaryCategory}
           >
             <div class="compact-experiment__badges">
@@ -194,40 +226,6 @@ const filters = [
           <span><strong>Observable evidence</strong><small>Verify outcomes with source-linked proof.</small></span>
         </li>
       </ol>
-
-      {additionalExperiment && (
-        <div class="additional-experiment">
-          <article
-            class="compact-experiment"
-            data-filter-item
-            data-category={additionalExperiment.primaryCategory}
-          >
-            <div class="compact-experiment__badges">
-              <span class="live-badge"><i></i>Live</span>
-              <span>{additionalExperiment.categoryLabel}</span>
-            </div>
-            <div class="compact-experiment__layout">
-              <div>
-                <h2>{additionalExperiment.title}</h2>
-                <p>{additionalExperiment.summary}</p>
-              </div>
-              <span class="compact-experiment__icon" aria-hidden="true">
-                <Activity size={39} stroke-width={1.55} />
-              </span>
-            </div>
-            <div class="compact-experiment__actions">
-              <a
-                href={additionalExperiment.links.launch.href}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Launch <ArrowRight size={15} aria-hidden="true" />
-              </a>
-              <a href={`/experiments/${additionalExperiment.slug}`}>About</a>
-            </div>
-          </article>
-        </div>
-      )}
     </div>
   </section>
 
@@ -454,6 +452,14 @@ const filters = [
     width: 100%;
   }
 
+  .featured-experiment__visual .featured-experiment__screenshot {
+    aspect-ratio: 835 / 245;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.55rem;
+    object-fit: cover;
+    object-position: top;
+  }
+
   .experiment-card-grid {
     display: grid;
     gap: 1.4rem;
@@ -561,11 +567,6 @@ const filters = [
     display: block;
   }
 
-  .additional-experiment {
-    margin-top: 2rem;
-    max-width: calc(25% - 1rem);
-  }
-
   .experiment-method strong {
     font-size: 0.92rem;
   }
@@ -589,9 +590,6 @@ const filters = [
       display: none;
     }
 
-    .additional-experiment {
-      max-width: calc(50% - 0.7rem);
-    }
   }
 
   @media (max-width: 63.99rem) {
@@ -644,8 +642,5 @@ const filters = [
       flex-direction: column;
     }
 
-    .additional-experiment {
-      max-width: none;
-    }
   }
 </style>
