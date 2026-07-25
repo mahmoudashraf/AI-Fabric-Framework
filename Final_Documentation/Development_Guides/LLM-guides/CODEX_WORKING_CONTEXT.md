@@ -1883,3 +1883,30 @@ Critical fixes that made the gate pass:
 - Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
   `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
   the local production Coolify API probe returned timeout/HTTP `000`.
+
+## 2026-07-25 Public Homepage Assistant Weave Follow-Up
+
+- Replaced the homepage's original abstract weave hero with the owner-supplied
+  assistant-centered weave artwork from
+  `/Users/mahmoudashraf/Downloads/ChatGPT Image Jul 25, 2026, 09_50_37 PM.png`.
+  The composition and small orbital markers remain intact at the existing hero
+  footprint.
+- Optimized the source to a `1440x840` WebP at approximately `141 KB`, preserving
+  two-times desktop rendering resolution while avoiding the original `1.7 MB`
+  first-view payload.
+- Source commit
+  `43e5142a6f27c74ec53c30e9bbab8e5758b67aeb`
+  (`Use assistant weave on public homepage`) was pushed to `Platform-V10`.
+- Local verification passed with Node `22.17.0`: zero Astro diagnostics,
+  20-page build, typed content graph, 19-route static smoke, full
+  Playwright/Axe browser smoke, five responsive homepage screenshots, no
+  horizontal overflow, and visual desktop/mobile inspection.
+- Production Coolify deployment `f8xlf1ny5lphlge4w420udab` finished on the
+  full source commit above. Application `loomai-public-site` reports
+  `running:healthy`; public `/health` reports `UP` and the same commit.
+- Live browser proof at `1440x1000` and `390x844` confirmed HTTP `200`, the
+  `1440x840` hero asset, zero horizontal overflow, and a visible hint of
+  "Products from the lab" in the first mobile viewport.
+- Temporary operator access was removed from Hetzner firewalls `10915120` and
+  `10918233` after deployment. Exact-IP counts returned zero and the local
+  production Coolify API probe returned timeout/HTTP `000`.
