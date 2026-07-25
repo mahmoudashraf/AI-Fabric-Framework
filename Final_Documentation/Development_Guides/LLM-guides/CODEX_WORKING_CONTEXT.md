@@ -1765,3 +1765,42 @@ Critical fixes that made the gate pass:
   `10915120` and `10918233` after deployment. Exact-IP absence was verified and
   local Coolify API access returned timeout/HTTP `000`, confirming the closed
   posture.
+
+## 2026-07-25 Loom AI Labs Public Site Reference-Matched Redesign
+
+- Rebuilt the public site around the supplied final reference screens in
+  `/Users/mahmoudashraf/Downloads/loom-ai-labs-ui`. The homepage,
+  `/products/ai-fabric-chat-ui`, `/experiments`, and `/research` now reproduce
+  the reference composition, typography, density, card hierarchy, diagrams,
+  product previews, filters, and first-viewport content. Remaining routes use
+  the same shared shell and light visual system.
+- Preserved page content, controls, links, filters, headings, and responsive
+  behavior as semantic HTML. Only the intricate supplied weave, product-preview,
+  and proof illustrations were extracted as bounded visual assets; the pages
+  are not flattened screenshots.
+- Updated the shared header to the supplied Loom AI Labs lockup, exact desktop
+  navigation labels, active-route treatment, and GitHub action. Replaced the
+  old dark footer with the required light-only footer treatment.
+- Source commit
+  `ce2f53974119e389916955b994f50be1ad20aa44`
+  (`Match public site to supplied Loom AI Labs references`) was pushed to
+  `Platform-V10`.
+- Local release gates passed: zero Astro diagnostics, 20-page static build,
+  typed content graph, 19-route static smoke, five responsive browser
+  viewports, filter and mobile-navigation behavior, blocking Axe checks, visual
+  screenshot inspection, `git diff --check`, production Docker build, hardened
+  header smoke, nested-route smoke, and healthy container healthcheck.
+- Production Coolify deployment `alj891hv4zk8xjzbzki8a4bf` finished on the
+  full source commit above. Application `loomai-public-site` remains
+  `running:healthy`; live `/health` reports `UP` and the same commit.
+- Live release verification passed for all 19 content routes at both
+  `1536x1024` and `390x844`, including one-H1 checks, horizontal-overflow
+  checks, blocking Axe checks on the principal routes, security headers, nested
+  Chat UI rendering, and real 404 behavior.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
+  the local production Coolify API probe returned timeout/HTTP `000`.
+- Validation URL remains
+  `https://loomai-public-site.46.225.162.106.sslip.io`. Apex `loomai.pro` and
+  `www.loomai.pro` still require the owner-controlled Coolify domain and
+  Namecheap DNS steps recorded in the private production handoff.
