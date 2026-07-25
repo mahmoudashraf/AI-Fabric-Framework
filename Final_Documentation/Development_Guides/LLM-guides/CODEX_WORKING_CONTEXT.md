@@ -1910,3 +1910,37 @@ Critical fixes that made the gate pass:
 - Temporary operator access was removed from Hetzner firewalls `10915120` and
   `10918233` after deployment. Exact-IP counts returned zero and the local
   production Coolify API probe returned timeout/HTTP `000`.
+
+## 2026-07-25 Public Homepage Transparency And Domain Attachment
+
+- Reworked the owner-supplied assistant weave as a transparent hero asset using
+  the built-in image editing flow, a removable chroma background, and the
+  image-generation alpha helper. The final `1440x840` WebP preserves the woven
+  form, assistant, small orbital lines and dots, sparkles, and floating shadow;
+  all four corners are transparent so the site canvas and grid remain visible.
+- Source commit
+  `ae90c80fdf5a4f3ae9ff9023cadad6349ffbbe17`
+  (`Blend homepage weave into site canvas`) was pushed to `Platform-V10`.
+- Local verification passed with Node `22.17.0`: zero Astro diagnostics,
+  20-page build, typed content graph, 19-route static smoke, full
+  Playwright/Axe browser smoke, five responsive homepage screenshots, no
+  horizontal overflow, alpha/corner checks, and visual desktop/mobile
+  inspection.
+- Production Coolify deployment `eoxceu8eeolsdui8v9vdd5uv` finished on the
+  exact source commit above. Application `loomai-public-site` reports
+  `running:healthy`; public `/health` reports `UP` and the same commit.
+- Configured the production Coolify application domains as
+  `https://loomai-public-site.46.225.162.106.sslip.io,https://loomai.pro,https://www.loomai.pro`
+  with redirect policy `non-www`. A conflict scan found no other application
+  using the apex or `www` domains.
+- Pre-DNS routing proof passed over HTTPS using explicit local resolution:
+  apex `/health` returned HTTP `200`/`UP` on the deployed commit and `www`
+  returned HTTP `302` to `https://loomai.pro/`. The sslip validation route
+  remains healthy.
+- Namecheap remains the only owner action: publish `A @ -> 46.225.162.106` and
+  `CNAME www -> loomai.pro`. Public DNS had no answer at completion, so the
+  apex still served Traefik's default certificate. Recheck certificate issuance
+  and the pre-DNS plain-HTTP timeout after DNS propagation.
+- Temporary operator access was removed from Hetzner firewalls `10915120` and
+  `10918233`; exact-IP counts returned zero and the local production Coolify
+  API probe returned timeout/HTTP `000`.
