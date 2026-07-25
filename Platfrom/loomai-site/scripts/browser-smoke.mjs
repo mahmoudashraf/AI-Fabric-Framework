@@ -51,6 +51,13 @@ const browser = await chromium.launch({ headless: true })
 try {
   await waitForServer()
 
+  const feedResponse = await fetch(`${origin}/research/feed.xml`)
+  if (!feedResponse.headers.get('content-type')?.startsWith('application/rss+xml')) {
+    throw new Error(
+      `Research feed has incorrect content type: ${feedResponse.headers.get('content-type')}`,
+    )
+  }
+
   const routes = [
     '/',
     '/products',

@@ -129,11 +129,19 @@ function cacheControl(targetPath) {
   return 'public, max-age=86400, stale-while-revalidate=604800'
 }
 
+function contentType(targetPath, extension) {
+  const researchFeedSuffix = `${path.sep}research${path.sep}feed.xml`
+  if (targetPath.endsWith(researchFeedSuffix)) {
+    return 'application/rss+xml; charset=utf-8'
+  }
+  return contentTypes.get(extension) || 'application/octet-stream'
+}
+
 function serveFile(request, response, targetPath, statusCode = 200) {
   const extension = path.extname(targetPath).toLowerCase()
   response.writeHead(statusCode, {
     'Cache-Control': cacheControl(targetPath),
-    'Content-Type': contentTypes.get(extension) || 'application/octet-stream',
+    'Content-Type': contentType(targetPath, extension),
     ...securityHeaders(extension !== '.html'),
   })
   if (request.method === 'HEAD') {
