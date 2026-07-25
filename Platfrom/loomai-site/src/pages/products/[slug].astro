@@ -5,7 +5,6 @@ import {
   Braces,
   CodeXml,
   Cog,
-  ExternalLink,
   GitFork,
   PanelsTopLeft,
   Puzzle,
@@ -13,10 +12,9 @@ import {
   Workflow,
 } from '@lucide/astro'
 import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
-import Breadcrumbs from '../../components/Breadcrumbs.astro'
 import CallToAction from '../../components/CallToAction.astro'
 import ExperimentCard from '../../components/ExperimentCard.astro'
-import ProductMark from '../../components/ProductMark.astro'
+import FrameworkProductShowcase from '../../components/FrameworkProductShowcase.astro'
 import ResearchCard from '../../components/ResearchCard.astro'
 import SectionHeading from '../../components/SectionHeading.astro'
 import {
@@ -182,99 +180,7 @@ const jsonLd = {
     </>
   )}
 
-  {!isChatUi && (
-  <section class="detail-hero">
-    <div class="loom-container">
-      <Breadcrumbs items={[
-        { label: 'Home', href: '/' },
-        { label: 'Products', href: '/products' },
-        { label: product.name },
-      ]} />
-      <div class="detail-hero__grid">
-        <div>
-          <div class="detail-hero__label">
-            <ProductMark slug={product.slug} size="large" />
-            <div>
-              <p class="loom-eyebrow">{product.name} · Open source</p>
-              <span class="status-label">v{product.version} {product.statusLabel}</span>
-            </div>
-          </div>
-          <h1>
-            {isChatUi
-              ? 'Turn governed AI workflows into a real application experience.'
-              : 'Build dependable AI behavior inside the application you already own.'}
-          </h1>
-          <p class="detail-hero__summary">{product.description}</p>
-          <div class="detail-hero__facts" aria-label="Product facts">
-            <span>{product.layerLabel}</span>
-            <span>{product.licence}</span>
-            <span>Source available</span>
-          </div>
-          <div class="button-group">
-            <a
-              class="loom-button loom-button--primary"
-              href={product.links.primary.href}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {product.links.primary.label}
-              <ExternalLink size={16} aria-hidden="true" />
-            </a>
-            <a
-              class="loom-button loom-button--secondary"
-              href={product.links.source.href}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <GitFork size={17} aria-hidden="true" />
-              View on GitHub
-            </a>
-          </div>
-        </div>
-
-        <div class="detail-visual" aria-label={`${product.name} capability preview`}>
-          <div class="detail-visual__window">
-            <div class="detail-visual__toolbar">
-              <span></span><span></span><span></span>
-              <strong>{isChatUi ? 'application / assistant' : 'application / orchestration'}</strong>
-            </div>
-            {isChatUi ? (
-              <>
-                <div class="visual-message">Show the evidence behind this account recommendation.</div>
-                <div class="visual-message visual-message--assistant">
-                  I used two application sources. One field still needs clarification before an action can be proposed.
-                </div>
-                <div class="visual-evidence">
-                  <span>2 retrieval sources</span>
-                  <span>1 clarification field</span>
-                  <span>Backend conversation</span>
-                  <span>Confirmation required</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div class="framework-pipeline">
-                  {product.flow.map((step, index) => (
-                    <div>
-                      <span>{String(index + 1).padStart(2, '0')}</span>
-                      <strong>{step}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div class="visual-evidence">
-                  <span>Trusted context</span>
-                  <span>Grounded evidence</span>
-                  <span>Governed proposal</span>
-                  <span>Structured result</span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-  )}
+  {!isChatUi && <FrameworkProductShowcase product={product} />}
 
   <section class="section section--white">
     <div class="loom-container split-copy">
@@ -291,23 +197,25 @@ const jsonLd = {
     </div>
   </section>
 
-  <section class="section section--soft">
-    <div class="loom-container">
-      <SectionHeading
-        eyebrow="Capability pillars"
-        title="Five responsibilities, each visible at the integration boundary."
-      />
-      <div class="capability-grid">
-        {product.capabilities.map((capability, index) => (
-          <article class="capability-item">
-            <span class="capability-number">{String(index + 1).padStart(2, '0')}</span>
-            <h3>{capability.name}</h3>
-            <p>{capability.description}</p>
-          </article>
-        ))}
+  {isChatUi && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Capability pillars"
+          title="Five responsibilities, each visible at the integration boundary."
+        />
+        <div class="capability-grid">
+          {product.capabilities.map((capability, index) => (
+            <article class="capability-item">
+              <span class="capability-number">{String(index + 1).padStart(2, '0')}</span>
+              <h3>{capability.name}</h3>
+              <p>{capability.description}</p>
+            </article>
+          ))}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  )}
 
   <section class="section section--white">
     <div class="loom-container">
@@ -332,12 +240,14 @@ const jsonLd = {
     </div>
   </section>
 
-  <section class="section section--soft">
-    <div class="loom-container">
-      <SectionHeading eyebrow="Architecture" title="A narrow path through explicit contracts." />
-      <ArchitectureFlow steps={product.flow} />
-    </div>
-  </section>
+  {isChatUi && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <SectionHeading eyebrow="Architecture" title="A narrow path through explicit contracts." />
+        <ArchitectureFlow steps={product.flow} />
+      </div>
+    </section>
+  )}
 
   <section class="section section--white">
     <div class="loom-container quick-start">
