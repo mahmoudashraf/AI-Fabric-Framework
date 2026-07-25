@@ -1,5 +1,5 @@
 ---
-import { ArrowUpRight, Menu, X } from '@lucide/astro'
+import { ArrowUpRight, GitFork, Menu, X } from '@lucide/astro'
 import { navigation } from '../data/content'
 import LoomWordmark from './LoomWordmark.astro'
 
@@ -25,9 +25,14 @@ const isActive = (patterns: string[]) =>
       ))}
     </nav>
 
-    <a class="site-header__connect" href="/connect">
-      Connect
-      <ArrowUpRight size={16} stroke-width={1.8} aria-hidden="true" />
+    <a
+      class="site-header__connect"
+      href="https://github.com/Loom-AI-Labs"
+      target="_blank"
+      rel="noreferrer"
+    >
+      <GitFork size={19} stroke-width={1.8} aria-hidden="true" />
+      GitHub
     </a>
 
     <button
@@ -59,8 +64,8 @@ const isActive = (patterns: string[]) =>
         <ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" />
       </a>
     ))}
-    <a href="/connect">
-      <span>Connect</span>
+    <a href="https://github.com/Loom-AI-Labs" target="_blank" rel="noreferrer">
+      <span>GitHub</span>
       <ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" />
     </a>
   </nav>

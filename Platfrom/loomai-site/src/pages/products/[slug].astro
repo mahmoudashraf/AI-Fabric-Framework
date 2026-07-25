@@ -1,5 +1,17 @@
 ---
-import { ArrowRight, BookOpen, ExternalLink, GitFork } from '@lucide/astro'
+import {
+  ArrowRight,
+  BookOpen,
+  Braces,
+  CodeXml,
+  Cog,
+  ExternalLink,
+  GitFork,
+  PanelsTopLeft,
+  Puzzle,
+  ShieldCheck,
+  Workflow,
+} from '@lucide/astro'
 import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
 import Breadcrumbs from '../../components/Breadcrumbs.astro'
 import CallToAction from '../../components/CallToAction.astro'
@@ -49,6 +61,128 @@ const jsonLd = {
   canonicalPath={`/products/${product.slug}`}
   jsonLd={jsonLd}
 >
+  {isChatUi && (
+    <>
+      <section class="chat-product-hero">
+        <div class="loom-container chat-product-hero__grid">
+          <div class="chat-product-hero__copy">
+            <div class="chat-product-hero__meta">
+              <span>Products</span>
+              <span>/</span>
+              <span>AI Fabric Chat UI</span>
+              <strong>v0.3.0 Public Beta</strong>
+            </div>
+            <h1>Turn governed AI workflows into a real application experience.</h1>
+            <p>
+              Add retrieval evidence, clarification forms, confirmations, action
+              results and backend-owned conversations to any web application—without
+              moving identity, policy or business execution into the browser.
+            </p>
+            <div class="chat-product-hero__actions">
+              <a
+                class="loom-button loom-button--primary"
+                href={product.links.primary.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Explore live demo
+              </a>
+              <a
+                class="loom-button loom-button--secondary"
+                href={product.links.source.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <GitFork size={18} aria-hidden="true" />
+                View on GitHub
+              </a>
+            </div>
+            <ul class="chat-product-hero__facts" aria-label="Product facts">
+              <li>Web Component</li>
+              <li>React</li>
+              <li>Spring Boot</li>
+              <li>Arabic & RTL</li>
+              <li>Apache 2.0</li>
+            </ul>
+            <div class="chat-product-hero__install">
+              <CodeXml size={18} stroke-width={1.7} aria-hidden="true" />
+              <code>npm install github:Loom-AI-Labs/ai-fabric-chat-ui#v0.3.0</code>
+              <Braces size={18} stroke-width={1.7} aria-hidden="true" />
+            </div>
+          </div>
+
+          <img
+            class="chat-product-hero__visual"
+            src="/assets/reference/chat-ui-preview.png"
+            alt="AI Fabric Chat UI embedded in an account support application"
+            width="775"
+            height="530"
+            fetchpriority="high"
+          />
+        </div>
+      </section>
+
+      <section class="chat-capability-summary">
+        <div class="loom-container">
+          <h2>A presentation layer built around application control</h2>
+          <div class="chat-capability-summary__grid">
+            <article>
+              <Workflow size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Typed orchestration outcomes</h3>
+                <p>Evidence, clarification, confirmation and structured results.</p>
+              </div>
+            </article>
+            <article>
+              <ShieldCheck size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Backend-owned governance</h3>
+                <p>Identity, tenant policy and execution remain in your application.</p>
+              </div>
+            </article>
+            <article>
+              <PanelsTopLeft size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Four responsive layouts</h3>
+                <p>Docked, floating, inline and full-screen.</p>
+              </div>
+            </article>
+            <article>
+              <Puzzle size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Application-native extension</h3>
+                <p>Branding, domain tools, action renderers and attachments.</p>
+              </div>
+            </article>
+          </div>
+
+          <ol class="chat-architecture" aria-label="Chat UI architecture">
+            <li>
+              <span><CodeXml size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>Host application</strong>
+              <ArrowRight size={24} aria-hidden="true" />
+            </li>
+            <li>
+              <span><Braces size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>AI Fabric Chat UI</strong>
+              <ArrowRight size={24} aria-hidden="true" />
+            </li>
+            <li>
+              <span><Cog size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>Application API</strong>
+              <ArrowRight size={24} aria-hidden="true" />
+            </li>
+            <li>
+              <span><Workflow size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>AI Fabric Framework</strong>
+            </li>
+          </ol>
+        </div>
+      </section>
+    </>
+  )}
+
+  {!isChatUi && (
   <section class="detail-hero">
     <div class="loom-container">
       <Breadcrumbs items={[
@@ -140,6 +274,7 @@ const jsonLd = {
       </div>
     </div>
   </section>
+  )}
 
   <section class="section section--white">
     <div class="loom-container split-copy">
@@ -295,6 +430,222 @@ const jsonLd = {
 </BaseLayout>
 
 <style>
+  .chat-product-hero {
+    min-height: 35.7rem;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .chat-product-hero::after,
+  .chat-capability-summary::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 44%, #000);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .chat-product-hero__grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: minmax(0, 38.75rem) minmax(0, 1fr);
+    min-height: 35.7rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .chat-product-hero__copy {
+    align-self: start;
+    padding-top: 1.7rem;
+  }
+
+  .chat-product-hero__meta {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: flex;
+    font-size: 0.72rem;
+    font-weight: 700;
+    gap: 0.8rem;
+    letter-spacing: 0.12em;
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+  }
+
+  .chat-product-hero__meta strong {
+    border: 1px solid #bcbfff;
+    border-radius: 999px;
+    font-size: 0.64rem;
+    margin-left: 0.55rem;
+    padding: 0.22rem 0.9rem;
+  }
+
+  .chat-product-hero h1 {
+    font-size: clamp(2.8rem, 3.15vw, 3.05rem);
+    line-height: 1.06;
+    margin-bottom: 1.5rem;
+    max-width: 12.8em;
+  }
+
+  .chat-product-hero__copy > p {
+    font-size: 1.08rem;
+    line-height: 1.55;
+    margin-bottom: 1.75rem;
+    max-width: 35rem;
+  }
+
+  .chat-product-hero__actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .chat-product-hero__actions .loom-button {
+    min-width: 12rem;
+  }
+
+  .chat-product-hero__facts {
+    color: var(--loom-blue-vivid);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.73rem;
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0;
+  }
+
+  .chat-product-hero__facts li + li::before {
+    color: var(--loom-navy-500);
+    content: "·";
+    margin-inline: 0.65rem;
+  }
+
+  .chat-product-hero__install {
+    align-items: center;
+    border: 1px solid var(--loom-border-strong);
+    border-radius: 0.55rem;
+    color: var(--loom-text-secondary);
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 3.4rem;
+    padding-inline: 0.75rem;
+    width: min(31.5rem, 100%);
+  }
+
+  .chat-product-hero__install code {
+    font-family: var(--loom-font-mono);
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-product-hero__visual {
+    align-self: start;
+    border-radius: 0.8rem;
+    box-shadow: 0 12px 30px rgb(10 29 74 / 12%);
+    height: auto;
+    justify-self: end;
+    margin-top: 1.55rem;
+    max-width: none;
+    position: relative;
+    right: -0.35rem;
+    width: min(52vw, 48.1rem);
+  }
+
+  .chat-capability-summary {
+    padding: 0.85rem 0 1.6rem;
+    position: relative;
+  }
+
+  .chat-capability-summary > .loom-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  .chat-capability-summary h2 {
+    font-size: 1.65rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .chat-capability-summary__grid {
+    display: grid;
+    gap: 1.45rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .chat-capability-summary__grid article {
+    align-items: center;
+    background: rgb(255 255 255 / 78%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 9.75rem;
+    padding: 1.25rem;
+  }
+
+  .chat-capability-summary__grid article > svg {
+    color: var(--loom-indigo-500);
+  }
+
+  .chat-capability-summary__grid h3 {
+    font-size: 1.15rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .chat-capability-summary__grid p {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .chat-architecture {
+    background: rgb(255 255 255 / 76%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0.85rem 1.7rem;
+  }
+
+  .chat-architecture li {
+    align-items: center;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .chat-architecture li:last-child {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .chat-architecture li > span {
+    align-items: center;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.55rem;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    height: 3.8rem;
+    justify-content: center;
+    width: 3.8rem;
+  }
+
+  .chat-architecture strong {
+    font-size: 0.92rem;
+  }
+
+  .chat-architecture li > svg {
+    color: var(--loom-blue-600);
+  }
+
   .framework-pipeline {
     display: grid;
     gap: 0.65rem;
@@ -373,9 +724,78 @@ const jsonLd = {
   }
 
   @media (max-width: 47.99rem) {
+    .chat-product-hero,
+    .chat-product-hero__grid {
+      min-height: 0;
+    }
+
+    .chat-product-hero__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .chat-product-hero__copy {
+      padding-top: 2.5rem;
+    }
+
+    .chat-product-hero h1 {
+      font-size: clamp(2.65rem, 12vw, 3.35rem);
+    }
+
+    .chat-product-hero__meta,
+    .chat-product-hero__actions {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .chat-product-hero__visual {
+      justify-self: center;
+      margin-bottom: 2rem;
+      right: auto;
+      width: 100%;
+    }
+
+    .chat-capability-summary__grid,
+    .chat-architecture {
+      grid-template-columns: 1fr;
+    }
+
+    .chat-architecture {
+      gap: 1.25rem;
+    }
+
+    .chat-architecture li {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .chat-architecture li > svg {
+      display: none;
+    }
+
     .quick-start,
     .release-layout {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (min-width: 48rem) and (max-width: 74rem) {
+    .chat-product-hero__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .chat-product-hero__visual {
+      justify-self: center;
+      margin-bottom: 2rem;
+      right: auto;
+      width: min(48rem, 100%);
+    }
+
+    .chat-capability-summary__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .chat-architecture {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      row-gap: 1.25rem;
     }
   }
 </style>

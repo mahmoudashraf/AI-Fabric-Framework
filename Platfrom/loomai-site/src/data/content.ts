@@ -17,8 +17,8 @@ export const site = {
 
 export const navigation: NavigationItem[] = [
   { label: 'Products', href: '/products', activePatterns: ['/products'] },
-  { label: 'Experiments', href: '/experiments', activePatterns: ['/experiments'] },
-  { label: 'Research', href: '/research', activePatterns: ['/research'] },
+  { label: 'Live Experiments', href: '/experiments', activePatterns: ['/experiments'] },
+  { label: 'Applied Research', href: '/research', activePatterns: ['/research'] },
   { label: 'About', href: '/about', activePatterns: ['/about'] },
 ]
 

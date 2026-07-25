@@ -1,15 +1,17 @@
 ---
-import { ArrowRight, ExternalLink, GitFork } from '@lucide/astro'
-import { Image } from 'astro:assets'
-import ArchitectureFlow from '../components/ArchitectureFlow.astro'
+import {
+  ArrowRight,
+  ExternalLink,
+  FileChartColumnIncreasing,
+  FlaskConical,
+  GitFork,
+} from '@lucide/astro'
 import CallToAction from '../components/CallToAction.astro'
 import ExperimentCard from '../components/ExperimentCard.astro'
-import ProductCard from '../components/ProductCard.astro'
 import ResearchCard from '../components/ResearchCard.astro'
 import SectionHeading from '../components/SectionHeading.astro'
-import { experiments, products, research } from '../data/content'
+import { experiments, research } from '../data/content'
 import BaseLayout from '../layouts/BaseLayout.astro'
-import heroImage from '../assets/loom-woven-hero.png'
 
 const featuredExperiments = experiments.filter((item) => item.featured).slice(0, 3)
 const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
@@ -17,79 +19,136 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
 
 <BaseLayout>
   <section class="home-hero">
-    <Image
-      class="home-hero__art"
-      src={heroImage}
-      alt=""
-      format="webp"
-      quality={86}
-      widths={[768, 1280, 1716]}
-      sizes="100vw"
-      fetchpriority="high"
-      decoding="async"
-    />
     <div class="loom-container home-hero__inner">
       <div class="home-hero__copy">
         <p class="loom-eyebrow">Open-source AI engineering</p>
-        <h1>Loom AI Labs</h1>
-        <p class="home-hero__statement">We weave intelligence into real software.</p>
-        <p class="home-hero__body">
+        <h1>We weave intelligence into real software.</h1>
+        <p>
           Open-source products, live experiments and applied research for dependable
           AI-enabled applications.
         </p>
-        <div class="button-group">
+        <div class="home-hero__actions">
           <a class="loom-button loom-button--primary" href="/products">
             Explore products
-            <ArrowRight size={17} aria-hidden="true" />
           </a>
-          <a class="loom-button loom-button--secondary" href="/experiments">
+          <a class="home-text-action" href="/experiments">
             View live experiments
           </a>
         </div>
       </div>
-    </div>
-  </section>
 
-  <section class="section section--white">
-    <div class="loom-container">
-      <SectionHeading
-        eyebrow="Products from the lab"
-        title="Two open-source layers for one application boundary."
-        body="The framework enables grounded, governed AI behavior. The UI turns those backend contracts into a usable application experience."
-      />
-      <div class="product-grid">
-        {products.map((product) => <ProductCard product={product} />)}
-      </div>
-    </div>
-  </section>
-
-  <section class="section section--soft">
-    <div class="loom-container">
-      <div class="relationship-layout">
-        <div>
-          <p class="loom-eyebrow">Built to work together</p>
-          <h2>Application control stays visible from data to interface.</h2>
-        </div>
-        <p>
-          AI Fabric Framework governs application data, retrieval and actions. AI
-          Fabric Chat UI presents those capabilities through a reusable application
-          experience.
-        </p>
-      </div>
-      <ArchitectureFlow
-        steps={['Application data', 'AI Fabric Framework', 'Backend contracts', 'AI Fabric Chat UI']}
-        label="How the two AI Fabric products connect"
+      <img
+        class="home-hero__visual"
+        src="/assets/reference/home-weave.png"
+        alt=""
+        width="720"
+        height="420"
+        fetchpriority="high"
+        decoding="async"
       />
     </div>
   </section>
 
-  <section class="section section--white">
+  <section class="home-products" aria-labelledby="products-from-lab">
+    <div class="loom-container">
+      <h2 id="products-from-lab">Products from the lab</h2>
+      <div class="home-product-grid">
+        <article class="home-product-card">
+          <p class="home-product-card__eyebrow">Application enablement layer</p>
+          <img
+            class="home-product-card__mark"
+            src="/assets/reference/framework-mark.png"
+            alt="AI Fabric Framework mark"
+            width="135"
+            height="175"
+            loading="lazy"
+          />
+          <div class="home-product-card__copy">
+            <h3>AI Fabric Framework</h3>
+            <p>
+              Live application data, evidence-grounded retrieval and governed
+              actions for Java and Spring Boot.
+            </p>
+            <ul aria-label="Framework capabilities">
+              <li>Live data sync</li>
+              <li>Governed RAG</li>
+              <li>Controlled actions</li>
+            </ul>
+            <a class="loom-button loom-button--primary" href="/products/ai-fabric-framework">
+              Explore framework
+            </a>
+          </div>
+          <img
+            class="home-product-card__art"
+            src="/assets/reference/framework-stack.png"
+            alt=""
+            width="215"
+            height="270"
+            loading="lazy"
+          />
+        </article>
+
+        <article class="home-product-card home-product-card--chat">
+          <p class="home-product-card__eyebrow">User experience layer</p>
+          <div class="home-product-card__copy">
+            <h3>AI Fabric Chat UI</h3>
+            <p>
+              A reusable, framework-neutral chat interface for AI Fabric-enabled
+              applications.
+            </p>
+            <ul aria-label="Chat UI capabilities">
+              <li>Web Component</li>
+              <li>React</li>
+              <li>Arabic and RTL</li>
+              <li>Four layouts</li>
+            </ul>
+            <a class="loom-button loom-button--primary" href="/products/ai-fabric-chat-ui">
+              Explore Chat UI
+            </a>
+          </div>
+          <img
+            class="home-product-card__preview"
+            src="/assets/reference/chat-card-preview.png"
+            alt="AI Fabric Chat UI showing evidence and a confirmed action"
+            width="325"
+            height="270"
+            loading="lazy"
+          />
+        </article>
+      </div>
+
+      <div class="together-rail" aria-label="The two products are built to work together">
+        <span>Built to work together</span>
+      </div>
+
+      <div class="home-path-grid">
+        <a href="/experiments">
+          <FlaskConical size={52} stroke-width={1.45} aria-hidden="true" />
+          <span>
+            <strong>Live Experiments</strong>
+            <small>Try practical AI experiments and see how ideas evolve into working systems.</small>
+          </span>
+          <ArrowRight size={20} aria-hidden="true" />
+        </a>
+        <a href="/research">
+          <FileChartColumnIncreasing size={52} stroke-width={1.45} aria-hidden="true" />
+          <span>
+            <strong>Applied Research</strong>
+            <small>Deep dives at the intersection of AI, software engineering, and real-world impact.</small>
+          </span>
+          <ArrowRight size={20} aria-hidden="true" />
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white home-continuation">
     <div class="loom-container">
       <div class="section-heading-row">
         <SectionHeading
           eyebrow="Runnable engineering proof"
-          title="Featured live experiments"
-          body="Bounded applications that expose what can be inspected, what stays application-owned and what remains deliberately unclaimed."
+          title="See the framework at work."
+          body="Each experiment exposes a bounded scenario, its application boundary and observable evidence."
         />
         <a class="text-link" href="/experiments">
           All experiments
@@ -102,12 +161,12 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
     </div>
   </section>
 
-  <section class="section research-home">
+  <section class="section home-research">
     <div class="loom-container">
       <div class="section-heading-row">
         <SectionHeading
           eyebrow="Implementation-linked"
-          title="Applied research"
+          title="Research that ends in inspectable software."
           body="Engineering investigations with public implementation artifacts, explicit evidence levels and stated limitations."
         />
         <a class="text-link" href="/research">
@@ -122,34 +181,24 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
   </section>
 
   <section class="section section--white">
-    <div class="loom-container open-source-band">
-      <div class="open-source-band__lead">
-        <GitFork size={30} stroke-width={1.6} aria-hidden="true" />
+    <div class="loom-container home-open">
+      <div>
         <p class="loom-eyebrow">Built in the open</p>
-        <h2>Inspect the source, run the proof, question the boundary.</h2>
+        <h2>Inspect the source. Run the proof. Question the boundary.</h2>
       </div>
-      <div class="open-source-band__facts">
-        <div>
-          <strong>Source-linked</strong>
-          <p>Product and experiment pages link to the implementation they describe.</p>
-        </div>
-        <div>
-          <strong>Reproducible</strong>
-          <p>Live proofs use bounded scenarios and state their data and environment limits.</p>
-        </div>
-        <div>
-          <strong>Application-owned</strong>
-          <p>Identity, business policy and execution remain explicit host responsibilities.</p>
-        </div>
-      </div>
+      <p>
+        Products and experiments link directly to their implementation. Claims stop
+        where public evidence stops.
+      </p>
       <a
         class="loom-button loom-button--secondary"
         href="https://github.com/Loom-AI-Labs"
         target="_blank"
         rel="noreferrer"
       >
+        <GitFork size={18} aria-hidden="true" />
         Visit GitHub
-        <ExternalLink size={16} aria-hidden="true" />
+        <ExternalLink size={15} aria-hidden="true" />
       </a>
     </div>
   </section>
@@ -162,81 +211,275 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
 
 <style>
   .home-hero {
-    align-items: center;
-    background: #fbfcff;
-    border-bottom: 1px solid var(--loom-border-subtle);
-    display: flex;
-    min-height: min(48rem, calc(100svh - var(--loom-header-height) - 4rem));
+    min-height: 25.75rem;
     overflow: hidden;
     position: relative;
   }
 
-  .home-hero::after {
-    background: linear-gradient(90deg, var(--loom-blue-600), var(--loom-violet-500));
-    bottom: 0;
+  .home-hero::after,
+  .home-products::after,
+  .home-research::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
     content: "";
-    height: 2px;
-    left: 0;
-    opacity: 0.8;
-    position: absolute;
-    width: 42%;
-  }
-
-  .home-hero__art {
-    height: 100%;
     inset: 0;
-    object-fit: cover;
-    object-position: center;
+    mask-image: linear-gradient(90deg, transparent 42%, #000 100%);
+    pointer-events: none;
     position: absolute;
-    width: 100%;
   }
 
   .home-hero__inner {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 25.75rem;
+    position: relative;
+  }
+
+  .home-hero__copy {
+    align-self: start;
+    padding-top: 3.1rem;
+    position: relative;
+    z-index: 2;
+  }
+
+  .home-hero h1 {
+    font-size: clamp(3.35rem, 4vw, 3.85rem);
+    line-height: 1.06;
+    margin-bottom: 1.35rem;
+    max-width: 11.8em;
+  }
+
+  .home-hero__copy > p:not(.loom-eyebrow) {
+    font-size: 1.2rem;
+    line-height: 1.55;
+    margin-bottom: 1.7rem;
+    max-width: 38rem;
+  }
+
+  .home-hero__actions {
+    align-items: center;
+    display: flex;
+    gap: 3.1rem;
+  }
+
+  .home-hero__actions .loom-button {
+    min-width: 13rem;
+  }
+
+  .home-text-action {
+    border-bottom: 2px solid var(--loom-blue-vivid);
+    color: var(--loom-navy-950);
+    font-weight: 530;
+    padding: 0.55rem 0;
+    text-decoration: none;
+  }
+
+  .home-hero__visual {
+    align-self: center;
+    height: auto;
+    justify-self: end;
+    max-width: none;
+    position: relative;
+    right: -0.75rem;
+    width: min(48vw, 45rem);
+    z-index: 1;
+  }
+
+  .home-products {
+    padding-block: 0.55rem 1.5rem;
+    position: relative;
+  }
+
+  .home-products > .loom-container {
     position: relative;
     z-index: 1;
   }
 
-  .home-hero__copy {
-    max-width: min(42rem, 50%);
-    padding-block: 5rem;
+  .home-products h2 {
+    font-size: 1.45rem;
+    margin-bottom: 0.7rem;
   }
 
-  .home-hero h1 {
-    font-size: var(--loom-text-hero);
-    margin-bottom: 0.4rem;
-  }
-
-  .home-hero__statement {
-    color: var(--loom-text-primary);
-    font-size: clamp(1.65rem, 2.65vw, 2.65rem);
-    font-weight: 680;
-    line-height: 1.18;
-    margin-bottom: 1.5rem;
-    text-wrap: balance;
-  }
-
-  .home-hero__body {
-    font-size: var(--loom-text-body-lg);
-    margin-bottom: 2rem;
-    max-width: 52ch;
-  }
-
-  .relationship-layout {
-    align-items: end;
+  .home-product-grid,
+  .home-path-grid {
     display: grid;
-    gap: 3rem;
-    grid-template-columns: 1.1fr 0.9fr;
-    margin-bottom: 3rem;
+    gap: 1.6rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .relationship-layout h2 {
-    margin-bottom: 0;
-    max-width: 18ch;
+  .home-product-card {
+    background: linear-gradient(145deg, #fff 55%, #f7f9ff);
+    border: 1px solid var(--loom-border-strong);
+    border-radius: 0.75rem;
+    display: grid;
+    grid-template-columns: 7.75rem minmax(0, 1fr) 13.25rem;
+    min-height: 18.2rem;
+    overflow: hidden;
+    padding: 3.5rem 1.25rem 1.15rem;
+    position: relative;
   }
 
-  .relationship-layout > p {
-    font-size: var(--loom-text-body-lg);
-    margin: 0;
+  .home-product-card__eyebrow {
+    color: var(--loom-blue-vivid);
+    font-size: 0.7rem;
+    font-weight: 700;
+    inset: 1.15rem auto auto 1.9rem;
+    letter-spacing: 0.12em;
+    position: absolute;
+    text-transform: uppercase;
+  }
+
+  .home-product-card__mark {
+    align-self: center;
+    height: 10.9rem;
+    object-fit: contain;
+    width: 7.4rem;
+  }
+
+  .home-product-card__copy {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 0.3rem 0.25rem 0;
+    position: relative;
+    z-index: 2;
+  }
+
+  .home-product-card h3 {
+    font-size: 2rem;
+    margin-bottom: 0.55rem;
+    white-space: nowrap;
+  }
+
+  .home-product-card__copy > p {
+    font-size: 0.96rem;
+    line-height: 1.4;
+    margin-bottom: 0.55rem;
+    max-width: 28ch;
+  }
+
+  .home-product-card ul {
+    color: var(--loom-blue-vivid);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.68rem;
+    gap: 0.35rem 0;
+    list-style: none;
+    margin: 0 0 0.9rem;
+    padding: 0;
+  }
+
+  .home-product-card li + li::before {
+    color: var(--loom-navy-500);
+    content: "·";
+    margin-inline: 0.4rem;
+  }
+
+  .home-product-card .loom-button {
+    align-self: start;
+    margin-top: auto;
+    min-height: 2.7rem;
+    min-width: 11.25rem;
+    padding-inline: 1rem;
+  }
+
+  .home-product-card__art {
+    align-self: center;
+    height: auto;
+    justify-self: end;
+    max-width: none;
+    width: 11.2rem;
+  }
+
+  .home-product-card--chat {
+    grid-template-columns: minmax(0, 1fr) 18.25rem;
+    padding-left: 1.95rem;
+  }
+
+  .home-product-card--chat .home-product-card__copy {
+    padding-right: 0.5rem;
+  }
+
+  .home-product-card--chat .home-product-card__copy > p {
+    max-width: 31ch;
+  }
+
+  .home-product-card__preview {
+    align-self: center;
+    border-radius: 0.65rem;
+    box-shadow: 0 7px 20px rgb(10 29 74 / 8%);
+    height: auto;
+    justify-self: end;
+    max-width: none;
+    width: 16.5rem;
+  }
+
+  .together-rail {
+    height: 3.4rem;
+    margin-inline: auto;
+    position: relative;
+    width: 61%;
+  }
+
+  .together-rail::before {
+    border: 1px solid var(--loom-indigo-500);
+    border-top: 0;
+    border-radius: 0 0 0.7rem 0.7rem;
+    content: "";
+    height: 1rem;
+    inset: 0 0 auto;
+    position: absolute;
+  }
+
+  .together-rail span {
+    background: var(--loom-canvas);
+    border: 1px solid var(--loom-border-accent);
+    border-radius: 999px;
+    color: var(--loom-blue-600);
+    font-size: 0.78rem;
+    left: 50%;
+    min-width: 12.5rem;
+    padding: 0.25rem 1rem;
+    position: absolute;
+    text-align: center;
+    top: 0.25rem;
+    transform: translateX(-50%);
+  }
+
+  .home-path-grid a {
+    align-items: center;
+    background: rgb(255 255 255 / 72%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 9rem;
+    padding: 1.6rem 2.5rem;
+    text-decoration: none;
+  }
+
+  .home-path-grid svg {
+    color: var(--loom-indigo-500);
+  }
+
+  .home-path-grid strong,
+  .home-path-grid small {
+    display: block;
+  }
+
+  .home-path-grid strong {
+    font-size: 1.55rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .home-path-grid small {
+    color: var(--loom-text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
   }
 
   .section-heading-row {
@@ -251,103 +494,165 @@ const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
     margin-bottom: 0;
   }
 
-  .research-home {
-    background:
-      linear-gradient(180deg, rgb(248 250 255 / 95%), rgb(244 247 255 / 98%)),
-      repeating-linear-gradient(90deg, transparent 0 79px, rgb(20 108 255 / 4%) 80px);
-    border-block: 1px solid var(--loom-border-subtle);
+  .home-continuation {
+    border-top: 1px solid var(--loom-border-subtle);
   }
 
-  .open-source-band {
-    align-items: start;
+  .home-research {
+    background: #f7f9ff;
+    border-block: 1px solid var(--loom-border-subtle);
+    position: relative;
+  }
+
+  .home-research > .loom-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  .home-open {
+    align-items: center;
     display: grid;
     gap: 3rem;
-    grid-template-columns: 1fr 1.6fr auto;
+    grid-template-columns: 1.25fr 0.9fr auto;
   }
 
-  .open-source-band__lead > svg {
-    color: var(--loom-blue-600);
-    margin-bottom: 1.5rem;
+  .home-open h2 {
+    font-size: clamp(1.8rem, 2.7vw, 2.6rem);
+    margin: 0;
+    max-width: 20ch;
   }
 
-  .open-source-band__lead h2 {
-    font-size: clamp(1.75rem, 2.6vw, 2.5rem);
-    margin-bottom: 0;
-  }
-
-  .open-source-band__facts {
-    display: grid;
-    gap: 1.5rem;
-  }
-
-  .open-source-band__facts div {
-    border-bottom: 1px solid var(--loom-border-default);
-    padding-bottom: 1.25rem;
-  }
-
-  .open-source-band__facts strong {
-    display: block;
-    margin-bottom: 0.25rem;
-  }
-
-  .open-source-band__facts p {
-    font-size: var(--loom-text-small);
+  .home-open > p {
     margin: 0;
   }
 
-  @media (max-width: 64rem) {
-    .home-hero {
-      min-height: auto;
+  @media (max-width: 75rem) {
+    .home-product-card {
+      grid-template-columns: 6rem minmax(0, 1fr) 9rem;
     }
 
-    .home-hero__art {
-      height: auto;
-      object-position: 62% center;
-      opacity: 0.52;
+    .home-product-card__mark {
+      width: 5.75rem;
+    }
+
+    .home-product-card__art {
+      width: 10.5rem;
+    }
+
+    .home-product-card h3 {
+      font-size: 1.6rem;
+    }
+
+    .home-product-card--chat {
+      grid-template-columns: minmax(0, 1fr) 13rem;
+    }
+
+    .home-product-card__preview {
+      width: 13rem;
+    }
+  }
+
+  @media (max-width: 63.99rem) {
+    .home-hero,
+    .home-hero__inner {
+      min-height: 0;
+    }
+
+    .home-hero__inner {
+      grid-template-columns: 1fr;
     }
 
     .home-hero__copy {
-      max-width: 62%;
+      padding-block: 3.5rem 1rem;
     }
 
-    .open-source-band {
-      grid-template-columns: 1fr 1fr;
+    .home-hero__visual {
+      justify-self: center;
+      right: auto;
+      width: min(44rem, 100%);
     }
 
-    .open-source-band > a {
-      grid-column: 1 / -1;
-      width: fit-content;
+    .home-product-grid,
+    .home-path-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .home-product-card,
+    .home-product-card--chat {
+      grid-template-columns: 7.5rem minmax(0, 1fr) 14rem;
+    }
+
+    .home-product-card--chat .home-product-card__copy {
+      grid-column: 1 / 3;
+    }
+
+    .home-product-card__preview {
+      grid-column: 3;
+      width: 14rem;
+    }
+
+    .home-open {
+      grid-template-columns: 1fr;
     }
   }
 
   @media (max-width: 47.99rem) {
-    .home-hero {
-      align-items: start;
-      display: block;
-      padding-bottom: 16rem;
-    }
-
-    .home-hero__art {
-      bottom: 0;
-      height: 20rem;
-      object-position: 72% center;
-      opacity: 1;
-      top: auto;
-    }
-
     .home-hero__copy {
-      max-width: none;
-      padding-block: 4rem 2rem;
+      padding-top: 2.75rem;
     }
 
-    .relationship-layout,
-    .open-source-band {
-      grid-template-columns: 1fr;
+    .home-hero h1 {
+      font-size: clamp(2.7rem, 12vw, 3.4rem);
     }
 
+    .home-hero__actions,
     .section-heading-row {
-      align-items: start;
+      align-items: flex-start;
       flex-direction: column;
+      gap: 1rem;
+    }
+
+    .home-product-card,
+    .home-product-card--chat {
+      display: flex;
+      flex-direction: column;
+      padding: 3.7rem 1.25rem 1.25rem;
+    }
+
+    .home-product-card__mark {
+      align-self: flex-start;
+      height: 7rem;
+      margin-bottom: 0.75rem;
+      width: 5.5rem;
+    }
+
+    .home-product-card h3 {
+      font-size: 1.75rem;
+      white-space: normal;
+    }
+
+    .home-product-card__art,
+    .home-product-card__preview {
+      align-self: center;
+      margin-top: 1.25rem;
+      width: min(100%, 18rem);
+    }
+
+    .home-product-card__art {
+      order: 3;
+    }
+
+    .together-rail {
+      width: 84%;
+    }
+
+    .home-path-grid a {
+      gap: 1rem;
+      padding: 1.25rem;
+    }
+
+    .home-path-grid strong {
+      font-size: 1.25rem;
     }
   }
 </style>
