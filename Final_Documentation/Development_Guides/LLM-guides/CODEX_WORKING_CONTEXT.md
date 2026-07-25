@@ -1804,3 +1804,44 @@ Critical fixes that made the gate pass:
   `https://loomai-public-site.46.225.162.106.sslip.io`. Apex `loomai.pro` and
   `www.loomai.pro` still require the owner-controlled Coolify domain and
   Namecheap DNS steps recorded in the private production handoff.
+
+## 2026-07-25 Public Site Rich Index Consistency Follow-Up
+
+- Replaced the older generic `/products` cards with the same
+  `LabProductShowcase` component used by the homepage's "Products from the lab"
+  section. The two pages now share the same product composition, artwork,
+  responsive behavior, and "Built to work together" relationship rail.
+- Made rich experiment panels data-driven for every populated category:
+  Live Data Sync for `data-retrieval`, Account Resolver for
+  `governed-actions`, Privacy Shield for `privacy-security`, Tenant Guard for
+  `tenant-access`, and AI Shopping Experience for `adaptive-experience`.
+  Behavior Signals remains a compact secondary item under Adaptive Experience.
+- Made rich research panels data-driven for every populated theme:
+  Application Data and AI Evidence Alignment for `data-consistency`, Explicit
+  Application Context for `context-grounding`, Governed AI-Proposed Actions for
+  `actions-governance`, and Tenant Identity as Orchestration Context for
+  `privacy-identity`. Privacy-Aware RAG remains a compact secondary item under
+  Privacy and Identity.
+- The empty `developer-experience` research filter is no longer presented.
+  No placeholder investigation was fabricated; add the filter back when a real
+  implementation-linked research artifact exists.
+- Extended the shared filter behavior with explicit feature/compact roles,
+  duplicate suppression for selected filters, query-string deep-link support,
+  and active-chip centering on narrow screens. The behavior is driven by data
+  attributes rather than title or domain text matching.
+- Source commit
+  `8b8ecdd4d14ae1f25428bb1983a152699615984d`
+  (`Unify rich product and filtered index views`) was pushed to
+  `Platform-V10`.
+- Local release gates passed: zero Astro diagnostics, 20-page build, typed
+  content graph, 19-route static smoke, full Playwright/Axe browser suite,
+  visual desktop/mobile inspection, all nine populated filter states at
+  `1440x1000` and `390x844`, horizontal-overflow checks, and production Docker
+  build plus container health.
+- Production Coolify deployment `euvp84mqtdpo070wa84fow5u` finished on the
+  full source commit above. Public `/health` reports `UP` and the same commit.
+  Live desktop/mobile checks passed for `/products` and every populated
+  experiment/research filter with zero serious or critical Axe findings.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
+  the local production Coolify API probe returned timeout/HTTP `000`.
