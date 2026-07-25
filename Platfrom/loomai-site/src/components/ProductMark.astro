@@ -1,0 +1,15 @@
+---
+import { Blocks, MessagesSquare } from '@lucide/astro'
+
+type Props = {
+  slug: string
+  size?: 'small' | 'large'
+}
+
+const { slug, size = 'small' } = Astro.props
+const Icon = slug === 'ai-fabric-chat-ui' ? MessagesSquare : Blocks
+---
+
+<span class:list={['product-mark', `product-mark--${size}`]} aria-hidden="true">
+  <Icon size={size === 'large' ? 34 : 24} stroke-width={1.6} />
+</span>

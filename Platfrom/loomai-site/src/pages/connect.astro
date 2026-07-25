@@ -1,0 +1,169 @@
+---
+import { ArrowUpRight, GitFork, Handshake, Mail, Terminal } from '@lucide/astro'
+import PageHero from '../components/PageHero.astro'
+import { site } from '../data/content'
+import BaseLayout from '../layouts/BaseLayout.astro'
+---
+
+<BaseLayout
+  title="Connect"
+  description="Connect with Loom AI Labs about product adoption, open-source contribution and applied engineering."
+  canonicalPath="/connect"
+>
+  <PageHero
+    eyebrow="Connect"
+    title="Start with the work."
+    body="Choose the path closest to your question: product adoption, an open-source issue or an applied engineering collaboration."
+    note="No sales theater · Direct technical context · Public source when appropriate"
+  />
+
+  <section class="section section--white">
+    <div class="loom-container contact-options">
+      <article class="contact-option loom-card">
+        <Handshake size={28} stroke-width={1.6} aria-hidden="true" />
+        <h2>Product adoption</h2>
+        <p>
+          Discuss a Spring application boundary, Chat UI integration or a
+          production evaluation path.
+        </p>
+        <a
+          class="text-link"
+          href={`mailto:${site.email}?subject=Loom%20AI%20Labs%20product%20adoption`}
+        >
+          Email Loom AI Labs
+          <Mail size={16} aria-hidden="true" />
+        </a>
+      </article>
+
+      <article class="contact-option loom-card">
+        <GitFork size={28} stroke-width={1.6} aria-hidden="true" />
+        <h2>Open-source contribution</h2>
+        <p>
+          Report a reproducible issue, propose a focused capability or improve
+          documentation beside the implementation.
+        </p>
+        <a
+          class="text-link"
+          href="https://github.com/Loom-AI-Labs"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Choose a repository
+          <ArrowUpRight size={16} aria-hidden="true" />
+        </a>
+      </article>
+
+      <article class="contact-option loom-card">
+        <Terminal size={28} stroke-width={1.6} aria-hidden="true" />
+        <h2>Applied engineering</h2>
+        <p>
+          Bring a bounded question that can become an inspectable implementation,
+          experiment or research artifact.
+        </p>
+        <a
+          class="text-link"
+          href={`mailto:${site.email}?subject=Loom%20AI%20Labs%20applied%20engineering`}
+        >
+          Share the question
+          <Mail size={16} aria-hidden="true" />
+        </a>
+      </article>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container contact-brief">
+      <div>
+        <p class="loom-eyebrow">Useful first message</p>
+        <h2>Enough context to start in the right place.</h2>
+      </div>
+      <ol>
+        <li><span>01</span><p>The application or workflow you are changing.</p></li>
+        <li><span>02</span><p>The data, retrieval or action boundary involved.</p></li>
+        <li><span>03</span><p>What can be reproduced today and what remains unknown.</p></li>
+        <li><span>04</span><p>Whether the result should become public open-source work.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="contact-direct">
+    <div class="loom-container">
+      <p>Direct contact</p>
+      <a href={`mailto:${site.email}`}>{site.email}</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .contact-brief {
+    align-items: start;
+    display: grid;
+    gap: 4rem;
+    grid-template-columns: 0.8fr 1.2fr;
+  }
+
+  .contact-brief h2 {
+    font-size: clamp(1.8rem, 3vw, 2.7rem);
+  }
+
+  .contact-brief ol {
+    display: grid;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .contact-brief li {
+    border-top: 1px solid var(--loom-border-default);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 2rem 1fr;
+    padding-block: 1rem;
+  }
+
+  .contact-brief li span {
+    color: var(--loom-blue-600);
+    font-family: var(--loom-font-mono);
+    font-size: 0.72rem;
+  }
+
+  .contact-brief li p {
+    margin: 0;
+  }
+
+  .contact-direct {
+    background: var(--loom-navy-950);
+    color: #fff;
+    padding-block: 2rem;
+  }
+
+  .contact-direct .loom-container {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+  }
+
+  .contact-direct p {
+    color: #aab8d4;
+    margin: 0;
+  }
+
+  .contact-direct a {
+    color: #fff;
+    font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+    font-weight: 680;
+    text-decoration: none;
+  }
+
+  @media (max-width: 47.99rem) {
+    .contact-brief {
+      grid-template-columns: 1fr;
+    }
+
+    .contact-direct .loom-container {
+      align-items: start;
+      flex-direction: column;
+    }
+  }
+</style>

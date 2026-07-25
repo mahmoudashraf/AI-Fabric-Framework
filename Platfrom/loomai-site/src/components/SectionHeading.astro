@@ -1,0 +1,16 @@
+---
+type Props = {
+  eyebrow?: string
+  title: string
+  body?: string
+  align?: 'start' | 'center'
+}
+
+const { eyebrow, title, body, align = 'start' } = Astro.props
+---
+
+<div class:list={['section-heading', `section-heading--${align}`]}>
+  {eyebrow && <p class="loom-eyebrow">{eyebrow}</p>}
+  <h2>{title}</h2>
+  {body && <p>{body}</p>}
+</div>

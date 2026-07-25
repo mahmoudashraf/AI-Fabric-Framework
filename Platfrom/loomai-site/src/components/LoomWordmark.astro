@@ -1,0 +1,42 @@
+---
+type Props = {
+  compact?: boolean
+  inverse?: boolean
+}
+
+const { compact = false, inverse = false } = Astro.props
+---
+
+<span class:list={['loom-wordmark', { 'loom-wordmark--compact': compact, 'loom-wordmark--inverse': inverse }]}>
+  <span class="loom-wordmark__name">Loom AI</span>
+  {!compact && <span class="loom-wordmark__labs">Labs</span>}
+</span>
+
+<style>
+  .loom-wordmark {
+    align-items: baseline;
+    color: var(--loom-navy-950);
+    display: inline-flex;
+    font-family: var(--loom-font-display);
+    font-size: 1.08rem;
+    font-weight: 780;
+    gap: 0.28rem;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .loom-wordmark__labs {
+    color: var(--loom-blue-600);
+    font-weight: 650;
+  }
+
+  .loom-wordmark--compact {
+    font-size: 1rem;
+  }
+
+  .loom-wordmark--inverse,
+  .loom-wordmark--inverse .loom-wordmark__labs {
+    color: #fff;
+  }
+</style>

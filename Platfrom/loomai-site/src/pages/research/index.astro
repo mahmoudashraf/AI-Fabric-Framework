@@ -1,0 +1,108 @@
+---
+import { Rss } from '@lucide/astro'
+import FilterBar from '../../components/FilterBar.astro'
+import PageHero from '../../components/PageHero.astro'
+import ResearchCard from '../../components/ResearchCard.astro'
+import SectionHeading from '../../components/SectionHeading.astro'
+import { research, researchThemes } from '../../data/content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+const featured = research.find((item) => item.featured) ?? research[0]
+const remaining = research.filter((item) => item.slug !== featured.slug)
+---
+
+<BaseLayout
+  title="Applied Research"
+  description="Implementation-linked engineering investigations into reliable AI enablement for Java applications."
+  canonicalPath="/research"
+>
+  <PageHero
+    eyebrow="Independent applied engineering"
+    title="Applied Research"
+    body="Engineering investigations into reliable AI enablement for Java applications—covering live data, retrieval evidence, governed actions, privacy and tenant boundaries."
+    note="Implementation-linked · Limitations stated · Independently developed"
+  />
+
+  <section class="section research-collection">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Featured investigation"
+        title="Evidence is a lifecycle, not an ingestion event."
+      />
+      <div class="research-grid">
+        <ResearchCard item={featured} featured />
+      </div>
+
+      <FilterBar options={researchThemes} parameter="theme" itemLabel="research items" />
+
+      <div class="research-grid">
+        {remaining.map((item) => <ResearchCard item={item} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container evidence-layout">
+      <div>
+        <p class="loom-eyebrow">Evidence levels</p>
+        <h2>Claims stop where public evidence stops.</h2>
+        <p>
+          Each investigation carries the highest evidence level supported by its
+          linked artifact. Measured evaluation is reserved for published methods,
+          results and limitations.
+        </p>
+      </div>
+      <ol class="evidence-rail">
+        <li>Design rationale</li>
+        <li>Implemented prototype</li>
+        <li>Reproducible demo</li>
+        <li>Measured evaluation</li>
+      </ol>
+      <a class="loom-button loom-button--secondary" href="/research/feed.xml">
+        <Rss size={17} aria-hidden="true" />
+        Follow the research feed
+      </a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .research-collection {
+    background:
+      linear-gradient(180deg, rgb(248 250 255 / 95%), rgb(244 247 255 / 98%)),
+      repeating-linear-gradient(90deg, transparent 0 79px, rgb(20 108 255 / 4%) 80px);
+  }
+
+  .research-collection :global(.filter-bar) {
+    margin-top: 4rem;
+  }
+
+  .evidence-layout {
+    display: grid;
+    gap: 2.5rem;
+    grid-template-columns: 0.85fr 1.4fr;
+  }
+
+  .evidence-layout h2 {
+    font-size: clamp(1.75rem, 2.5vw, 2.4rem);
+  }
+
+  .evidence-layout :global(.evidence-rail) {
+    align-self: center;
+  }
+
+  .evidence-layout > a {
+    grid-column: 2;
+    width: fit-content;
+  }
+
+  @media (max-width: 47.99rem) {
+    .evidence-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .evidence-layout > a {
+      grid-column: auto;
+    }
+  }
+</style>

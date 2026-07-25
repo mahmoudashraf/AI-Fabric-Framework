@@ -1,0 +1,381 @@
+---
+import { ArrowRight, BookOpen, ExternalLink, GitFork } from '@lucide/astro'
+import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
+import Breadcrumbs from '../../components/Breadcrumbs.astro'
+import CallToAction from '../../components/CallToAction.astro'
+import ExperimentCard from '../../components/ExperimentCard.astro'
+import ProductMark from '../../components/ProductMark.astro'
+import ResearchCard from '../../components/ResearchCard.astro'
+import SectionHeading from '../../components/SectionHeading.astro'
+import {
+  getRelatedExperiments,
+  getRelatedResearch,
+  products,
+} from '../../data/content'
+import type { Product } from '../../data/types'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+export function getStaticPaths() {
+  return products.map((product) => ({
+    params: { slug: product.slug },
+    props: { product },
+  }))
+}
+
+type Props = {
+  product: Product
+}
+
+const { product } = Astro.props
+const relatedExperiments = getRelatedExperiments(product.slug).slice(0, 3)
+const relatedResearch = getRelatedResearch(product.slug).slice(0, 3)
+const isChatUi = product.slug === 'ai-fabric-chat-ui'
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareSourceCode',
+  name: product.name,
+  description: product.description,
+  codeRepository: product.links.source.href,
+  license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  version: product.version,
+  programmingLanguage: isChatUi ? ['TypeScript', 'JavaScript'] : 'Java',
+  runtimePlatform: isChatUi ? 'Web browser' : 'Spring Boot',
+}
+---
+
+<BaseLayout
+  title={product.name}
+  description={product.description}
+  canonicalPath={`/products/${product.slug}`}
+  jsonLd={jsonLd}
+>
+  <section class="detail-hero">
+    <div class="loom-container">
+      <Breadcrumbs items={[
+        { label: 'Home', href: '/' },
+        { label: 'Products', href: '/products' },
+        { label: product.name },
+      ]} />
+      <div class="detail-hero__grid">
+        <div>
+          <div class="detail-hero__label">
+            <ProductMark slug={product.slug} size="large" />
+            <div>
+              <p class="loom-eyebrow">{product.name} · Open source</p>
+              <span class="status-label">v{product.version} {product.statusLabel}</span>
+            </div>
+          </div>
+          <h1>
+            {isChatUi
+              ? 'Turn governed AI workflows into a real application experience.'
+              : 'Build dependable AI behavior inside the application you already own.'}
+          </h1>
+          <p class="detail-hero__summary">{product.description}</p>
+          <div class="detail-hero__facts" aria-label="Product facts">
+            <span>{product.layerLabel}</span>
+            <span>{product.licence}</span>
+            <span>Source available</span>
+          </div>
+          <div class="button-group">
+            <a
+              class="loom-button loom-button--primary"
+              href={product.links.primary.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {product.links.primary.label}
+              <ExternalLink size={16} aria-hidden="true" />
+            </a>
+            <a
+              class="loom-button loom-button--secondary"
+              href={product.links.source.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <GitFork size={17} aria-hidden="true" />
+              View on GitHub
+            </a>
+          </div>
+        </div>
+
+        <div class="detail-visual" aria-label={`${product.name} capability preview`}>
+          <div class="detail-visual__window">
+            <div class="detail-visual__toolbar">
+              <span></span><span></span><span></span>
+              <strong>{isChatUi ? 'application / assistant' : 'application / orchestration'}</strong>
+            </div>
+            {isChatUi ? (
+              <>
+                <div class="visual-message">Show the evidence behind this account recommendation.</div>
+                <div class="visual-message visual-message--assistant">
+                  I used two application sources. One field still needs clarification before an action can be proposed.
+                </div>
+                <div class="visual-evidence">
+                  <span>2 retrieval sources</span>
+                  <span>1 clarification field</span>
+                  <span>Backend conversation</span>
+                  <span>Confirmation required</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div class="framework-pipeline">
+                  {product.flow.map((step, index) => (
+                    <div>
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                      <strong>{step}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div class="visual-evidence">
+                  <span>Trusted context</span>
+                  <span>Grounded evidence</span>
+                  <span>Governed proposal</span>
+                  <span>Structured result</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container split-copy">
+      <div>
+        <p class="loom-eyebrow">The problem</p>
+        <h2>Useful AI needs software boundaries, not only prompts.</h2>
+        <p>{product.problem}</p>
+      </div>
+      <div>
+        <p class="loom-eyebrow">The product value</p>
+        <h2>A reusable layer with an explicit host contract.</h2>
+        <p>{product.value}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Capability pillars"
+        title="Five responsibilities, each visible at the integration boundary."
+      />
+      <div class="capability-grid">
+        {product.capabilities.map((capability, index) => (
+          <article class="capability-item">
+            <span class="capability-number">{String(index + 1).padStart(2, '0')}</span>
+            <h3>{capability.name}</h3>
+            <p>{capability.description}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Ownership boundary"
+        title="Product responsibility stops before application authority."
+      />
+      <div class="boundary-grid">
+        <article class="boundary-column">
+          <h3>{product.shortName} owns</h3>
+          <ul class="check-list">
+            {product.owns.map((item) => <li>{item}</li>)}
+          </ul>
+        </article>
+        <article class="boundary-column">
+          <h3>Host application owns</h3>
+          <ul class="plain-list">
+            {product.hostOwns.map((item) => <li>{item}</li>)}
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container">
+      <SectionHeading eyebrow="Architecture" title="A narrow path through explicit contracts." />
+      <ArchitectureFlow steps={product.flow} />
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container quick-start">
+      <div>
+        <p class="loom-eyebrow">Quick start</p>
+        <h2>Begin with one application-owned path.</h2>
+        <p>
+          Start from the public documentation, wire one bounded scenario and keep
+          authorization and source data in the host.
+        </p>
+        <a
+          class="text-link"
+          href={product.links.documentation.href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <BookOpen size={17} aria-hidden="true" />
+          {product.links.documentation.label}
+        </a>
+      </div>
+      <pre class="code-block" tabindex="0" aria-label={`${product.name} quick start code`}><code>{product.quickStart.code}</code></pre>
+    </div>
+  </section>
+
+  {relatedExperiments.length > 0 && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Live proof"
+          title={`See ${product.shortName} in bounded applications.`}
+        />
+        <div class="experiment-grid">
+          {relatedExperiments.map((item) => <ExperimentCard experiment={item} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="section section--white">
+    <div class="loom-container release-layout">
+      <div>
+        <p class="loom-eyebrow">Compatibility and release status</p>
+        <h2>Current public integration surface</h2>
+        <ul class="compatibility-list">
+          {product.compatibility.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+      <div class="release-panel">
+        <span>Current release</span>
+        <strong>v{product.version}</strong>
+        <p>{product.statusLabel} · {product.licence}</p>
+        {product.links.releaseNotes && (
+          <a
+            class="text-link"
+            href={product.links.releaseNotes.href}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View release history
+            <ArrowRight size={17} aria-hidden="true" />
+          </a>
+        )}
+      </div>
+    </div>
+  </section>
+
+  {relatedResearch.length > 0 && (
+    <section class="section research-related">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Related research"
+          title="The engineering questions behind the product surface."
+        />
+        <div class="research-grid">
+          {relatedResearch.map((item) => <ResearchCard item={item} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <CallToAction
+    eyebrow="Contribute"
+    title={`Help shape ${product.name}.`}
+    body="Inspect the implementation, open a focused issue or bring a reproducible application boundary that the current contracts do not handle well."
+    primaryLabel="Open the source repository"
+    primaryHref={product.links.source.href}
+    secondaryLabel="Explore live experiments"
+    secondaryHref="/experiments"
+  />
+</BaseLayout>
+
+<style>
+  .framework-pipeline {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .framework-pipeline div {
+    align-items: center;
+    background: var(--loom-surface-soft);
+    border-left: 2px solid var(--loom-blue-600);
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: 2rem 1fr;
+    padding: 0.8rem;
+  }
+
+  .framework-pipeline span,
+  .capability-number {
+    color: var(--loom-blue-600);
+    font-family: var(--loom-font-mono);
+    font-size: 0.7rem;
+  }
+
+  .framework-pipeline strong {
+    font-size: 0.85rem;
+  }
+
+  .capability-number {
+    display: block;
+    margin-bottom: 1.1rem;
+  }
+
+  .quick-start,
+  .release-layout {
+    align-items: start;
+    display: grid;
+    gap: clamp(2rem, 6vw, 6rem);
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .quick-start h2,
+  .release-layout h2 {
+    font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+  }
+
+  .release-panel {
+    background: var(--loom-surface-soft);
+    border: 1px solid var(--loom-border-default);
+    border-radius: var(--loom-radius-md);
+    display: grid;
+    gap: 0.3rem;
+    justify-items: start;
+    padding: 2rem;
+  }
+
+  .release-panel > span {
+    color: var(--loom-text-muted);
+    font-family: var(--loom-font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
+
+  .release-panel > strong {
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    line-height: 1;
+  }
+
+  .release-panel .text-link {
+    margin-top: 1.25rem;
+  }
+
+  .research-related {
+    background:
+      linear-gradient(180deg, rgb(248 250 255 / 95%), rgb(244 247 255 / 98%)),
+      repeating-linear-gradient(90deg, transparent 0 79px, rgb(20 108 255 / 4%) 80px);
+    border-top: 1px solid var(--loom-border-subtle);
+  }
+
+  @media (max-width: 47.99rem) {
+    .quick-start,
+    .release-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,166 @@
+---
+import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
+import CallToAction from '../../components/CallToAction.astro'
+import ExperimentCard from '../../components/ExperimentCard.astro'
+import PageHero from '../../components/PageHero.astro'
+import ProductCard from '../../components/ProductCard.astro'
+import SectionHeading from '../../components/SectionHeading.astro'
+import { experiments, products } from '../../data/content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+---
+
+<BaseLayout
+  title="Products"
+  description="AI Fabric Framework and AI Fabric Chat UI: two open-source layers for dependable AI-enabled applications."
+  canonicalPath="/products"
+>
+  <PageHero
+    eyebrow="Open-source portfolio"
+    title="Products"
+    body="Build grounded, governed AI behavior in the backend and present it through a reusable application experience."
+    note="Two products · Equal portfolio status · Distinct ownership boundaries"
+  />
+
+  <section class="section section--white">
+    <div class="loom-container product-grid">
+      {products.map((product) => <ProductCard product={product} />)}
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Responsibility boundaries"
+        title="Adopt the layer you need without relocating application authority."
+        body="The framework and UI solve different parts of the product surface. Neither replaces identity, authorization, domain policy or business execution."
+      />
+      <div class="product-comparison">
+        <div class="product-comparison__heading">
+          <span>Responsibility</span>
+          <strong>AI Fabric Framework</strong>
+          <strong>AI Fabric Chat UI</strong>
+        </div>
+        <div>
+          <span>Grounding and retrieval contracts</span>
+          <strong>Owns</strong>
+          <span>Renders evidence</span>
+        </div>
+        <div>
+          <span>Action lifecycle contracts</span>
+          <strong>Owns</strong>
+          <span>Renders proposal and confirmation</span>
+        </div>
+        <div>
+          <span>Conversation presentation</span>
+          <span>Returns backend state</span>
+          <strong>Owns</strong>
+        </div>
+        <div>
+          <span>Identity and authorization</span>
+          <span>Host application</span>
+          <span>Host application</span>
+        </div>
+        <div>
+          <span>Business execution</span>
+          <span>Host application</span>
+          <span>Host application</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Architecture"
+        title="From application context to user-visible evidence."
+      />
+      <ArchitectureFlow
+        steps={['Host application', 'AI Fabric Framework', 'Backend response contracts', 'AI Fabric Chat UI']}
+      />
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Related proof"
+        title="See the products operating in bounded applications."
+        body="Each experiment links to source and states what its scenario does and does not demonstrate."
+      />
+      <div class="experiment-grid">
+        {experiments.filter((item) => item.featured).slice(0, 3).map((item) => (
+          <ExperimentCard experiment={item} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <CallToAction
+    eyebrow="Open source"
+    title="Build with the source in view."
+    body="Both products are developed publicly under Apache 2.0, with implementation examples and release history available on GitHub."
+    primaryLabel="Visit Loom AI Labs on GitHub"
+    primaryHref="https://github.com/Loom-AI-Labs"
+    secondaryLabel="Read the research"
+    secondaryHref="/research"
+  />
+</BaseLayout>
+
+<style>
+  .product-comparison {
+    background: var(--loom-surface);
+    border: 1px solid var(--loom-border-default);
+    border-radius: var(--loom-radius-md);
+    overflow: hidden;
+  }
+
+  .product-comparison > div {
+    align-items: center;
+    border-bottom: 1px solid var(--loom-border-default);
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    min-height: 4.5rem;
+    padding-inline: 1.5rem;
+  }
+
+  .product-comparison > div:last-child {
+    border-bottom: 0;
+  }
+
+  .product-comparison__heading {
+    background: var(--loom-navy-950);
+    color: #fff;
+    font-size: 0.85rem;
+  }
+
+  .product-comparison > div:not(.product-comparison__heading) > span {
+    color: var(--loom-text-secondary);
+  }
+
+  .product-comparison > div:not(.product-comparison__heading) > :not(:first-child) {
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 47.99rem) {
+    .product-comparison {
+      background: transparent;
+      border: 0;
+      display: grid;
+      gap: 1rem;
+      overflow: visible;
+    }
+
+    .product-comparison > div {
+      background: var(--loom-surface);
+      border: 1px solid var(--loom-border-default);
+      grid-template-columns: 1fr;
+      padding-block: 1rem;
+    }
+
+    .product-comparison__heading {
+      display: none !important;
+    }
+  }
+</style>

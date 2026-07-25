@@ -1,0 +1,246 @@
+---
+import { CodeXml, FlaskConical, GitBranch, Layers, Scale, Workflow } from '@lucide/astro'
+import ArchitectureFlow from '../components/ArchitectureFlow.astro'
+import CallToAction from '../components/CallToAction.astro'
+import PageHero from '../components/PageHero.astro'
+import SectionHeading from '../components/SectionHeading.astro'
+import { site } from '../data/content'
+import BaseLayout from '../layouts/BaseLayout.astro'
+---
+
+<BaseLayout
+  title="About"
+  description="The mission, engineering principles and open-source model behind Loom AI Labs."
+  canonicalPath="/about"
+>
+  <PageHero
+    eyebrow="Independent open-source engineering"
+    title="About Loom AI Labs"
+    body="Loom AI Labs is the project and brand home for open-source products, runnable engineering proof and implementation-linked research into dependable AI-enabled software."
+    note={`Maintained by ${site.maintainer} with open-source contributors`}
+  />
+
+  <section class="section section--white">
+    <div class="loom-container split-copy">
+      <div>
+        <p class="loom-eyebrow">Mission</p>
+        <h2>Make AI behavior legible inside real applications.</h2>
+      </div>
+      <div>
+        <p>
+          The work focuses on the space between a model API and a dependable
+          product: trusted application context, current data, retrieval evidence,
+          governed actions, visible limitations and reusable user experience.
+        </p>
+        <p>
+          Loom AI Labs does not treat prompts as a substitute for identity,
+          authorization, source-of-truth data or business execution.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Engineering principles"
+        title="A small set of rules shapes every layer."
+      />
+      <div class="principle-grid">
+        <article>
+          <Layers size={26} stroke-width={1.6} aria-hidden="true" />
+          <h3>Application-owned</h3>
+          <p>Identity, policy, domain data and execution stay with the host application.</p>
+        </article>
+        <article>
+          <Workflow size={26} stroke-width={1.6} aria-hidden="true" />
+          <h3>Explicit contracts</h3>
+          <p>Context, evidence, clarification and actions cross typed, inspectable boundaries.</p>
+        </article>
+        <article>
+          <FlaskConical size={26} stroke-width={1.6} aria-hidden="true" />
+          <h3>Proof before claims</h3>
+          <p>Live demos and public implementation support claims; limitations remain visible.</p>
+        </article>
+        <article>
+          <GitBranch size={26} stroke-width={1.6} aria-hidden="true" />
+          <h3>Composable adoption</h3>
+          <p>Teams can adopt one capability without relocating their whole application.</p>
+        </article>
+        <article>
+          <CodeXml size={26} stroke-width={1.6} aria-hidden="true" />
+          <h3>Source in view</h3>
+          <p>Products and runnable proof link back to the implementation they describe.</p>
+        </article>
+        <article>
+          <Scale size={26} stroke-width={1.6} aria-hidden="true" />
+          <h3>Bounded language</h3>
+          <p>Prototype, evidence and maturity terms match what public artifacts establish.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="One connected body of work"
+        title="Products, experiments and research have different jobs."
+      />
+      <ArchitectureFlow
+        steps={['Engineering question', 'Open-source product', 'Runnable experiment', 'Documented observation']}
+        label="Loom AI Labs work lifecycle"
+      />
+      <div class="relationship-definitions">
+        <div>
+          <strong>Products</strong>
+          <p>Reusable open-source software with a supported public integration surface.</p>
+        </div>
+        <div>
+          <strong>Experiments</strong>
+          <p>Bounded applications that make one technical capability inspectable.</p>
+        </div>
+        <div>
+          <strong>Research</strong>
+          <p>Engineering investigations linking questions, implementations and limitations.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container maintainer-layout">
+      <div>
+        <p class="loom-eyebrow">Maintainer identity</p>
+        <h2>{site.maintainer}</h2>
+        <p>
+          Loom AI Labs is independently maintained. Contributions are reviewed
+          against the same application-boundary, evidence and source-linking
+          principles used across the public work.
+        </p>
+      </div>
+      <div>
+        <p class="loom-eyebrow">Open-source model</p>
+        <h2>Public foundations, inspectable change.</h2>
+        <p>
+          AI Fabric Framework and AI Fabric Chat UI are released under Apache 2.0.
+          Issues and pull requests belong in the relevant public repository, close
+          to code and verification.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <CallToAction
+    eyebrow="Contribution path"
+    title="Start with a reproducible boundary."
+    body="Bring an issue, an integration gap or a bounded experiment with enough context for another engineer to inspect it."
+    primaryLabel="Visit Loom AI Labs on GitHub"
+    primaryHref="https://github.com/Loom-AI-Labs"
+    secondaryLabel="Connect directly"
+    secondaryHref="/connect"
+  />
+</BaseLayout>
+
+<style>
+  .principle-grid {
+    display: grid;
+    gap: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .principle-grid article {
+    border-left: 1px solid var(--loom-border-default);
+    border-top: 1px solid var(--loom-border-default);
+    min-height: 14rem;
+    padding: 2rem;
+  }
+
+  .principle-grid article:nth-child(3n) {
+    border-right: 1px solid var(--loom-border-default);
+  }
+
+  .principle-grid article:nth-last-child(-n + 3) {
+    border-bottom: 1px solid var(--loom-border-default);
+  }
+
+  .principle-grid svg {
+    color: var(--loom-blue-600);
+    margin-bottom: 2rem;
+  }
+
+  .principle-grid h3 {
+    font-size: 1.15rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .principle-grid p {
+    font-size: var(--loom-text-small);
+    margin: 0;
+  }
+
+  .relationship-definitions {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 3rem;
+  }
+
+  .relationship-definitions div {
+    border-top: 2px solid var(--loom-blue-600);
+    padding-top: 1rem;
+  }
+
+  .relationship-definitions p {
+    font-size: var(--loom-text-small);
+    margin: 0.4rem 0 0;
+  }
+
+  .maintainer-layout {
+    display: grid;
+    gap: clamp(2rem, 6vw, 6rem);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .maintainer-layout h2 {
+    font-size: clamp(1.75rem, 2.7vw, 2.6rem);
+  }
+
+  @media (max-width: 59.99rem) {
+    .principle-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .principle-grid article:nth-child(3n) {
+      border-right: 0;
+    }
+
+    .principle-grid article:nth-child(2n) {
+      border-right: 1px solid var(--loom-border-default);
+    }
+
+    .principle-grid article:nth-last-child(3) {
+      border-bottom: 0;
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .principle-grid,
+    .relationship-definitions,
+    .maintainer-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .principle-grid article,
+    .principle-grid article:nth-child(2n),
+    .principle-grid article:nth-child(3n) {
+      border: 1px solid var(--loom-border-default);
+      border-bottom: 0;
+      min-height: 0;
+    }
+
+    .principle-grid article:last-child {
+      border-bottom: 1px solid var(--loom-border-default);
+    }
+  }
+</style>

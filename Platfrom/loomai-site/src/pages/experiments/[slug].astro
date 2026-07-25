@@ -1,0 +1,276 @@
+---
+import { ExternalLink, GitFork } from '@lucide/astro'
+import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
+import Breadcrumbs from '../../components/Breadcrumbs.astro'
+import CallToAction from '../../components/CallToAction.astro'
+import ResearchCard from '../../components/ResearchCard.astro'
+import SectionHeading from '../../components/SectionHeading.astro'
+import { experiments, research } from '../../data/content'
+import type { Experiment } from '../../data/types'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+export function getStaticPaths() {
+  return experiments.map((experiment) => ({
+    params: { slug: experiment.slug },
+    props: { experiment },
+  }))
+}
+
+type Props = {
+  experiment: Experiment
+}
+
+const { experiment } = Astro.props
+const relatedResearch = research.filter((item) =>
+  item.linkedExperimentSlugs.includes(experiment.slug),
+)
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: experiment.title,
+  description: experiment.summary,
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Web',
+  url: `https://loomai.pro/experiments/${experiment.slug}`,
+  codeRepository: experiment.links.source.href,
+  isAccessibleForFree: true,
+}
+---
+
+<BaseLayout
+  title={experiment.title}
+  description={experiment.summary}
+  canonicalPath={`/experiments/${experiment.slug}`}
+  image={experiment.screenshot.src}
+  jsonLd={jsonLd}
+>
+  <section class="detail-hero">
+    <div class="loom-container">
+      <Breadcrumbs items={[
+        { label: 'Home', href: '/' },
+        { label: 'Experiments', href: '/experiments' },
+        { label: experiment.title },
+      ]} />
+      <div class="experiment-detail-hero">
+        <div>
+          <div class="card-meta">
+            <span class="status-dot status-dot--live">{experiment.status}</span>
+            <span>{experiment.categoryLabel}</span>
+          </div>
+          <h1>{experiment.title}</h1>
+          <p class="detail-hero__summary">{experiment.summary}</p>
+          <div class="button-group">
+            <a
+              class="loom-button loom-button--primary"
+              href={experiment.links.launch.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Launch experiment
+              <ExternalLink size={16} aria-hidden="true" />
+            </a>
+            <a
+              class="loom-button loom-button--secondary"
+              href={experiment.links.source.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <GitFork size={17} aria-hidden="true" />
+              Inspect source
+            </a>
+          </div>
+        </div>
+        <figure class="proof-frame">
+          <img
+            src={experiment.screenshot.src}
+            alt={experiment.screenshot.alt}
+            width="1280"
+            height="800"
+            decoding="async"
+          />
+          <figcaption>Live application capture · verified {experiment.lastVerified}</figcaption>
+        </figure>
+      </div>
+      <dl class="detail-meta-grid">
+        <div><dt>Status</dt><dd>{experiment.status}</dd></div>
+        <div><dt>Last verified</dt><dd>{experiment.lastVerified}</dd></div>
+        <div><dt>AI Fabric</dt><dd>{experiment.frameworkVersion}</dd></div>
+        <div><dt>Data</dt><dd>{experiment.usesSyntheticData ? 'Synthetic' : 'Documented source'}</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container article-shell">
+      <div class="article-content">
+        <section id="question">
+          <p class="loom-eyebrow">Question</p>
+          <h2>Hypothesis</h2>
+          <p>{experiment.hypothesis}</p>
+        </section>
+
+        <section id="demonstrates">
+          <h2>What this demonstrates</h2>
+          <ul class="check-list">
+            {experiment.observableProof.map((item) => <li>{item}</li>)}
+          </ul>
+        </section>
+
+        <section id="boundaries">
+          <h2>What this does not demonstrate</h2>
+          <ul class="plain-list">
+            {experiment.notDemonstrated.map((item) => <li>{item}</li>)}
+          </ul>
+        </section>
+
+        <section id="flow">
+          <h2>Architecture and data flow</h2>
+          <ArchitectureFlow
+            steps={['Synthetic source data', 'Host application policy', 'AI Fabric capability', 'Observable UI result']}
+            label={`${experiment.title} architecture`}
+          />
+        </section>
+
+        <section id="steps">
+          <h2>Guided steps</h2>
+          <ol class="numbered-steps">
+            {experiment.guidedSteps.map((step, index) => (
+              <li>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <p>{step}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section id="evidence">
+          <h2>Observable evidence</h2>
+          <p>
+            The running application and its health surface are the public evidence
+            for this experiment. The source repository exposes the implementation
+            path behind the visible result.
+          </p>
+          <div class="button-group">
+            <a
+              class="loom-button loom-button--secondary"
+              href={experiment.links.launch.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open live proof
+              <ExternalLink size={16} aria-hidden="true" />
+            </a>
+            <a
+              class="loom-button loom-button--secondary"
+              href={experiment.links.source.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Inspect implementation
+              <GitFork size={16} aria-hidden="true" />
+            </a>
+          </div>
+        </section>
+
+        <section id="security">
+          <h2>Security and data boundary</h2>
+          <p class="notice">{experiment.applicationControlBoundary}</p>
+          <p>{experiment.dataNotice}</p>
+        </section>
+
+        <section id="limitations">
+          <h2>Known limitations</h2>
+          <ul class="plain-list">
+            {experiment.knownLimitations.map((item) => <li>{item}</li>)}
+          </ul>
+        </section>
+
+        <section id="stack">
+          <h2>Technologies and products used</h2>
+          <ul class="tag-list">
+            {experiment.runtimeStack.map((item) => <li>{item}</li>)}
+          </ul>
+        </section>
+      </div>
+
+      <aside class="article-aside">
+        <h2>On this page</h2>
+        <nav aria-label="Experiment sections">
+          <a href="#question">Question</a>
+          <a href="#demonstrates">Demonstrates</a>
+          <a href="#boundaries">Boundaries</a>
+          <a href="#flow">Architecture</a>
+          <a href="#steps">Guided steps</a>
+          <a href="#evidence">Evidence</a>
+          <a href="#security">Data boundary</a>
+          <a href="#limitations">Limitations</a>
+          <a href="#stack">Technologies</a>
+        </nav>
+      </aside>
+    </div>
+  </section>
+
+  {relatedResearch.length > 0 && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Related research"
+          title="The investigation behind this proof."
+        />
+        <div class="research-grid">
+          {relatedResearch.map((item) => <ResearchCard item={item} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <CallToAction
+    title="Inspect the live system and its source together."
+    body="The experiment is useful when the visible result, application boundary and implementation can all be questioned."
+    primaryLabel="Launch experiment"
+    primaryHref={experiment.links.launch.href}
+    secondaryLabel="Browse all experiments"
+    secondaryHref="/experiments"
+  />
+</BaseLayout>
+
+<style>
+  .experiment-detail-hero {
+    align-items: center;
+    display: grid;
+    gap: clamp(2rem, 6vw, 5rem);
+    grid-template-columns: 0.85fr 1.15fr;
+  }
+
+  .numbered-steps {
+    display: grid;
+    gap: 0;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .numbered-steps li {
+    border-top: 1px solid var(--loom-border-default);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 2rem 1fr;
+    padding-block: 1rem;
+  }
+
+  .numbered-steps span {
+    color: var(--loom-blue-600);
+    font-family: var(--loom-font-mono);
+    font-size: 0.72rem;
+  }
+
+  .numbered-steps p {
+    margin: 0;
+  }
+
+  @media (max-width: 59.99rem) {
+    .experiment-detail-hero {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

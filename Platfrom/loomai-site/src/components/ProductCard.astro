@@ -1,0 +1,28 @@
+---
+import { ArrowRight } from '@lucide/astro'
+import type { Product } from '../data/types'
+import ProductMark from './ProductMark.astro'
+
+type Props = {
+  product: Product
+}
+
+const { product } = Astro.props
+---
+
+<article class="product-card loom-card" data-interactive="true">
+  <div class="product-card__topline">
+    <ProductMark slug={product.slug} />
+    <span class="status-label">{product.statusLabel}</span>
+  </div>
+  <p class="loom-eyebrow">{product.layerLabel}</p>
+  <h3><a href={`/products/${product.slug}`}>{product.name}</a></h3>
+  <p>{product.summary}</p>
+  <ul class="inline-proof" aria-label={`${product.name} compatibility`}>
+    {product.compatibility.slice(0, 3).map((item) => <li>{item}</li>)}
+  </ul>
+  <a class="text-link" href={`/products/${product.slug}`}>
+    Explore product
+    <ArrowRight size={17} stroke-width={1.8} aria-hidden="true" />
+  </a>
+</article>

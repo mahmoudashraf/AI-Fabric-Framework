@@ -1,0 +1,74 @@
+---
+import CallToAction from '../../components/CallToAction.astro'
+import ExperimentCard from '../../components/ExperimentCard.astro'
+import FilterBar from '../../components/FilterBar.astro'
+import PageHero from '../../components/PageHero.astro'
+import SectionHeading from '../../components/SectionHeading.astro'
+import { experimentCategories, experiments } from '../../data/content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+const featured = experiments.find((item) => item.slug === 'ai-shopping-experience') ?? experiments[0]
+const remaining = experiments.filter((item) => item.slug !== featured.slug)
+---
+
+<BaseLayout
+  title="Live Experiments"
+  description="Runnable AI Fabric applications that test live data, grounded retrieval and governed actions in bounded scenarios."
+  canonicalPath="/experiments"
+>
+  <PageHero
+    eyebrow="Deployed engineering prototypes"
+    title="Live Experiments"
+    body="Explore runnable AI Fabric applications that test live data, grounded retrieval and governed actions while keeping business logic inside the application."
+    note="Synthetic data · Bounded scenarios · Source-linked"
+  />
+
+  <section class="section section--white experiment-collection">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Featured proof"
+        title="A visible path from application data to user experience."
+      />
+      <div class="experiment-grid">
+        <ExperimentCard experiment={featured} featured />
+      </div>
+
+      <FilterBar options={experimentCategories} itemLabel="experiments" />
+
+      <div class="experiment-grid">
+        {remaining.map((experiment) => <ExperimentCard experiment={experiment} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Evaluation method"
+        title="What every experiment should make observable."
+      />
+      <ol class="evidence-rail">
+        <li><strong>Scenario</strong><br />A bounded question and synthetic dataset.</li>
+        <li><strong>Boundary</strong><br />What the application owns and enforces.</li>
+        <li><strong>Evidence</strong><br />What a visitor can inspect in the running system.</li>
+        <li><strong>Limitations</strong><br />What the prototype does not establish.</li>
+      </ol>
+    </div>
+  </section>
+
+  <CallToAction
+    eyebrow="Contribute"
+    title="Turn a technical question into inspectable proof."
+    body="Open an issue with a bounded scenario, source data posture, observable result and known limitation."
+    primaryLabel="View example source"
+    primaryHref="https://github.com/Loom-AI-Labs/ai-fabric-framework/tree/main/examples/real-apps"
+    secondaryLabel="Read applied research"
+    secondaryHref="/research"
+  />
+</BaseLayout>
+
+<style>
+  .experiment-collection :global(.filter-bar) {
+    margin-top: 4rem;
+  }
+</style>

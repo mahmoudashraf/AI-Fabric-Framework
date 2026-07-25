@@ -1,0 +1,80 @@
+---
+import '@fontsource-variable/inter'
+import '@fontsource-variable/jetbrains-mono'
+import '../styles/global.css'
+import SiteFooter from '../components/SiteFooter.astro'
+import SiteHeader from '../components/SiteHeader.astro'
+import { site } from '../data/content'
+
+type Props = {
+  title?: string
+  description?: string
+  canonicalPath?: string
+  image?: string
+  type?: 'website' | 'article'
+  noIndex?: boolean
+  jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>
+}
+
+const {
+  title,
+  description = site.description,
+  canonicalPath = Astro.url.pathname,
+  image = '/assets/loom-woven-hero.png',
+  type = 'website',
+  noIndex = false,
+  jsonLd,
+} = Astro.props
+
+const pageTitle = title ? `${title} | ${site.name}` : `${site.name} | Open-source AI engineering`
+const canonicalUrl = new URL(canonicalPath, site.canonicalOrigin).toString()
+const imageUrl = new URL(image, site.canonicalOrigin).toString()
+const defaultJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: site.name,
+  url: site.canonicalOrigin,
+  description: site.description,
+  sameAs: [
+    'https://github.com/Loom-AI-Labs',
+    'https://ai-fabric.dev',
+  ],
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f8faff" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    {noIndex && <meta name="robots" content="noindex, nofollow" />}
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="alternate" type="application/rss+xml" title="Loom AI Labs research" href="/research/feed.xml" />
+
+    <meta property="og:type" content={type} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={imageUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+    <title>{pageTitle}</title>
+
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(defaultJsonLd)} />
+    {jsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <SiteHeader />
+    <main id="main-content">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>

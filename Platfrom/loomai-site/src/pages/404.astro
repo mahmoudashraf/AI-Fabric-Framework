@@ -1,0 +1,44 @@
+---
+import { ArrowLeft } from '@lucide/astro'
+import BaseLayout from '../layouts/BaseLayout.astro'
+---
+
+<BaseLayout
+  title="Page not found"
+  description="The requested Loom AI Labs page could not be found."
+  canonicalPath="/404"
+  noIndex
+>
+  <section class="not-found">
+    <div class="loom-container">
+      <p class="loom-eyebrow">404 · Not found</p>
+      <h1>This path is not part of the current weave.</h1>
+      <p>The page may have moved, or the address may be incomplete.</p>
+      <a class="loom-button loom-button--primary" href="/">
+        <ArrowLeft size={17} aria-hidden="true" />
+        Return home
+      </a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found {
+    align-items: center;
+    background:
+      linear-gradient(90deg, rgb(255 255 255 / 94%), rgb(248 250 255 / 92%)),
+      url("/assets/loom-woven-hero.png") center / cover no-repeat;
+    display: flex;
+    min-height: 65svh;
+    padding-block: 5rem;
+  }
+
+  .not-found h1 {
+    max-width: 15ch;
+  }
+
+  .not-found p:not(.loom-eyebrow) {
+    font-size: var(--loom-text-body-lg);
+    margin-bottom: 2rem;
+  }
+</style>
