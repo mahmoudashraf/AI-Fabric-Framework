@@ -1845,3 +1845,41 @@ Critical fixes that made the gate pass:
 - Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
   `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
   the local production Coolify API probe returned timeout/HTTP `000`.
+
+## 2026-07-25 AI Fabric Framework Product Page Redesign
+
+- Replaced the generic AI Fabric Framework product hero at
+  `/products/ai-fabric-framework` with a bespoke, reference-led product
+  experience matching the quality and visual authorship of the Chat UI page.
+- The new first viewport includes the owner-proposed headline and hierarchy,
+  current `0.4.0` `@AICapable` / `@AIProcess` lifecycle example, live-demo and
+  GitHub actions, a semantic application-authority architecture map, visible
+  entity-sync and governed-action lifecycles, four capability summaries, and
+  an application-to-provider authority rail.
+- Added the two owner-supplied `1600x1000` architecture diagrams as real
+  product assets:
+  `ai-fabric-architecture-overview-light.png` and
+  `ai-fabric-orchestration-pipeline-light.png`. Desktop/tablet display them at
+  the available width; mobile uses a contained, keyboard-focusable horizontal
+  inspection region so diagram text remains readable without page overflow.
+- Removed the old generic capability-pillar and narrow architecture-flow
+  sections from the Framework route because the new product-specific surfaces
+  replace them. The Chat UI route and its existing bespoke presentation were
+  left unchanged.
+- Source commit
+  `cf43561cf588d0ad498d702ad18cb1d6c2bea3de`
+  (`Redesign AI Fabric Framework product page`) was pushed to `Platform-V10`.
+- Local release gates passed: zero Astro diagnostics, 20-page build, typed
+  content graph, 19-route static smoke, full Playwright/Axe browser suite,
+  desktop/tablet/mobile visual inspection, one-H1 and overflow checks, full
+  diagram natural-dimension checks, production Docker build, container health,
+  and container route/asset content-type checks. JavaScript remained at 1,117
+  gzip bytes.
+- Production Coolify deployment `a12olmusrs8ogp8rnw3khuyb` finished on the
+  full source commit above. Public `/health` reports `UP` and the same commit.
+  Live desktop/tablet/mobile checks confirmed both diagrams at `1600x1000`, the
+  semantic architecture map, no page overflow, and zero serious or critical
+  Axe findings. The live Chat UI route regression check remained HTTP `200`.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
+  the local production Coolify API probe returned timeout/HTTP `000`.
