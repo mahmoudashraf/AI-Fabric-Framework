@@ -40,14 +40,33 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-fabric-runtime`
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
-Private products consume the framework through Maven artifacts. For active local development, install the sibling framework repo into the local Maven repository first, then build this repo.
+Private products consume the framework through published Maven artifacts.
+Current private product integration consumes public framework release `0.5.0`
+through the AI Fabric BOM:
 
-Current private product integration consumes the public framework release `0.3.1` via the AI Fabric BOM:
+- `io.github.loom-ai-labs:ai-fabric-bom:0.5.0`
+- Git tag `ai-fabric-framework-v0.5.0`
+- Release commit `a49138c6bff39c66bf48c3885cb911e8d7b78d84`
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.3.1`
-- Git tag `ai-fabric-framework-v0.3.1`
+The private runtime and embedding worker must each resolve one AI Fabric
+version. Docker/CI builds consume released Maven artifacts and must not clone
+mutable framework source. A local framework install is allowed only for
+explicit unreleased-framework development and is not publication or release
+evidence.
 
-Private Docker/CI bootstrap paths should pin the released tag for reproducible product builds unless a task explicitly asks to test unreleased framework changes.
+Platform uses the V04 entity lifecycle contract. The `0.5.0` base migration
+is greenfield and one-way: do not add dual readers, compatibility shims, or
+version fallbacks. Preserve immutable historical deployment records as
+evidence. After base parity is green, add `ai-fabric-execution` only to the
+private runtime for the bounded, additive
+`deployment-knowledge-specialist@1`; preserve existing chat behavior.
+
+Known framework blocker: the private runtime indexing admin facade currently
+uses framework queue internals to provide durable Data Sync work status and
+queue summaries because released `0.5.0` has no stable public query contract
+for them. Keep that functionality. When a public release supplies the
+contract, replace the internal imports in one change and do not retain both
+paths. This does not block the read-only specialist.
 
 Framework debugging and contract escalation:
 

@@ -1,13 +1,14 @@
 # LoomAI Platform-V11 AI Fabric 0.5.0 Migration Plan
 
-- **Status:** Active - Gate B passed; Gate A platform migration pending
+- **Status:** Gates A/B passed; base 0.5.0 verified; specialist implementation active
 - **Platform branch:** `Platform-V11`
-- **Platform baseline commit:** `a4563cda56e2bf6bb3955c711254a7c68e458b3e`
+- **Platform pre-change commit:** `d401490910887180afbebd5328482da8798f6f4a`
 - **Framework release tag:** `ai-fabric-framework-v0.5.0`
 - **Framework release commit:** `a49138c6bff39c66bf48c3885cb911e8d7b78d84`
-- **Current platform AI Fabric version:** `0.3.1`
-- **Required lifecycle baseline:** `0.4.0`
+- **Current source AI Fabric version:** `0.5.0`
+- **Entity lifecycle contract:** `V04` (completed before this dependency move)
 - **Target release:** `0.5.0`
+- **Framework follow-up:** `0.5.1` stable indexing work-status query contract
 - **Prepared:** 2026-07-30
 - **Classification:** Private platform engineering document
 
@@ -19,21 +20,19 @@ framework source in production images, rewriting immutable deployment versions,
 or deploying a runtime over an incompatible entity artifact, indexing queue, or
 vector projection.
 
-The migration has two mandatory boundaries:
+The current migration has two mandatory boundaries:
 
-1. Complete and prove the AI Fabric `0.4.0` entity lifecycle, persistence,
-   indexing, Data Sync, and vector cutover.
-2. Revalidate published `0.5.0` from Maven Central in a clean consumer
-   repository, then move the runtime process to `0.5.0` and adopt the optional
-   execution module through one bounded read-only specialist.
+1. Preserve the completed `V04` entity lifecycle, persistence, indexing, Data
+   Sync, retrieval, action, and vector behavior while moving every private
+   framework consumer to the published `0.5.0` BOM.
+2. Add `ai-fabric-execution` only to the private runtime and prove the
+   additive, read-only `deployment-knowledge-specialist@1` without changing
+   the existing chat surfaces.
 
-The first `0.5.0` proof is:
-
-```text
-deployment-knowledge-specialist@1
-```
-
-It is additive. Existing chat endpoints remain unchanged.
+The adoption is one-way and greenfield. Do not add dual readers, version
+fallbacks, compatibility shims, or a temporary `0.4.0` runtime hop. Existing
+chat, RAG, action, Data Sync, session, and provider behavior must remain
+available while the specialist is introduced on a separate typed endpoint.
 
 ## 2. Controlling Documents
 
@@ -58,8 +57,8 @@ against a locally installed candidate.
 - Do not create a second orchestration, action, receipt, review, chat-memory, or
   vector lifecycle.
 - Preserve existing `/api/chat/me/query` and `/api/chat/me/query-once` behavior.
-- Add `ai-fabric-execution` only to `ai-fabric-runtime` in the first `0.5.0`
-  adoption slice.
+- Add `ai-fabric-execution` only after the base version move is green, and only
+  to `ai-fabric-runtime`.
 - Build identity, tenant, deployment, subject, and scopes only from verified
   backend state.
 - Keep exact specialist and vector scopes. Production wildcards are prohibited.
@@ -75,6 +74,29 @@ against a locally installed candidate.
 ## 4. Current-State Evidence
 
 Audit timestamp: 2026-07-30, Europe/London.
+
+The detailed subsections below preserve the initial pre-migration audit. The
+authoritative current overlay is:
+
+| Item | Current source state |
+| --- | --- |
+| Platform pre-change commit | `d401490910887180afbebd5328482da8798f6f4a` |
+| Runtime BOM | `io.github.loom-ai-labs:ai-fabric-bom:0.5.0` |
+| Product/embedding-worker BOM | `io.github.loom-ai-labs:ai-fabric-bom:0.5.0` |
+| Platform deployment compiler default | `0.5.0` |
+| New deployment-version default | `0.5.0` |
+| Entity contract | `V04` |
+| Execution module | Not yet adopted; required next only in `ai-fabric-runtime` |
+| Compatibility mode | None; one-way source migration |
+| Preserved temporary coupling | Private indexing admin facade uses `0.5.0` queue internals |
+| Required `0.5.1` replacement | Stable work-status and queue-summary query contracts |
+
+The private indexing facade remains intentionally present because Platform
+uses `/api/admin/indexing/work/{workId}` to reconcile durable Data Sync work.
+Removing it before a stable framework query contract exists would lose
+functionality. On `0.5.1`, replace the internal `IndexingQueueService`,
+`IndexingQueueRepository`, `IndexingQueueEntry`, and `IndexingStatus` imports
+with the public query contract in one change; do not retain both paths.
 
 ### 4.1 Repository identity
 
@@ -174,11 +196,13 @@ they cannot be cited as test evidence.
 
 | Gate | Status | Current evidence | Required transition |
 | --- | --- | --- | --- |
-| A - `0.4.0` lifecycle cutover | **BLOCKED** | Platform still resolves `0.3.1`; stale entity contracts and mutable framework Docker builds remain | Complete Phases A through F and establish a stable `0.4.0` deployment baseline |
-| B - `0.5.0` publication | **PASSED** | Immutable tag/release, Central BOM and execution JAR, and out-of-tree consumer proof all passed | Revalidate from a fresh repository when adoption begins |
-| C - Platform `0.5.0` compile/adoption | **NOT STARTED** | Gate A must pass first; Gate B is open | One-version dependency tree, specialist compile, focused tests |
-| D - Packaged runtime | **NOT STARTED** | Prohibited until C passes | Docker image built without framework clone; startup and auth proof |
-| E - Isolated deployment/canary | **NOT STARTED** | Prohibited until D passes | Real provider, Data Sync, retrieval, tenant, failure, and rollback evidence |
+| A - `V04` lifecycle deployment baseline | **PASSED** | Canonical Marketplace and Ecommerce are V04/IN_SYNC; full run `vsr-ad5b4532` passed and release gate is `READY` | Preserve behavior during the version move |
+| B - `0.5.0` publication | **PASSED** | Immutable release/tag, Maven Central artifacts, and clean consumer proof | None |
+| C - Platform `0.5.0` source adoption | **PASSED** | Both consumer graphs resolve only `0.5.0`; infrastructure, product, and backend reactors are green | None |
+| D - Local packaged runtime | **PASSED** | Docker image `sha256:ab5ecfb50b3db331539bb25944299c7b8738f178f6e88cd1a302065342242117` built without framework source and returned `UP` for liveness/readiness | Promote an immutable image through isolated staging |
+| E - Specialist source/package proof | **IN PROGRESS** | Base runtime is green; execution dependency, manifest, mode, trusted endpoint, and focused tests remain | Complete Phases H through K |
+| F - Isolated specialist deployment/canary | **PENDING** | Prohibited until the packaged specialist is green | Back up target config, deploy, then run provider/Data Sync/retrieval/chat/tenant/failure gates |
+| G - Stable indexing status API | **NON-BLOCKING FRAMEWORK BLOCKER** | Released `0.5.0` returns `indexingWorkId` but lacks the stable per-work and queue-summary query contract Platform needs | Keep current facade behavior; replace private imports when the public framework contract is released |
 
 ### 5.1 Maven Central evidence
 
@@ -215,7 +239,10 @@ for the release URL, workflow, dependency tree, and artifact checksums.
 
 ## 6. Migration Phases
 
-Only one phase may be in progress at a time.
+Sections A through G preserve the original `0.4` planning and publication
+history. The controlling route now is: completed live V04 baseline, direct
+base-runtime adoption of `0.5.0`, local package proof, bounded specialist
+implementation, isolated deployment, and canary.
 
 ### Phase A - Make the `0.4` source contract valid
 
@@ -376,7 +403,7 @@ Gate A passes only after a stable `0.4.0` deployment baseline is recorded.
 
 ### Phase G - Prove the published `0.5.0` release
 
-Status: **BLOCKED ON FRAMEWORK PUBLICATION**
+Status: **PASSED**
 
 1. Verify release tag and GitHub release.
 2. Create a new empty Maven repository.
@@ -390,7 +417,7 @@ Do not substitute a locally installed candidate.
 
 ### Phase H - Align Platform runtime dependencies to `0.5.0`
 
-Status: **BLOCKED ON PHASES F AND G**
+Status: **IN PROGRESS - BASE ALIGNMENT PASSED; EXECUTION DEPENDENCY NEXT**
 
 1. Move every AI Fabric dependency in the runtime process to `0.5.0`.
 2. Add `ai-fabric-execution` only to `ai-fabric-runtime`.
@@ -409,7 +436,7 @@ no execution module in Platform backend
 
 ### Phase I - Add `deployment-knowledge-specialist@1`
 
-Status: **BLOCKED ON PHASE H**
+Status: **PENDING - PHASE H BASE ALIGNMENT PASSED**
 
 1. Package an exact-version manifest in `ai-fabric-runtime`.
 2. Validate its syntax against the schema in the published `0.5.0` JAR.
@@ -753,16 +780,70 @@ gate. Never mark a skipped or blocked check as passed.
   applied, a fresh full release gate passes, and external canary/rollback
   evidence is complete.
 
+### 2026-07-30 - Gate A live completion
+
+- Repaired both backed-up canonical V04 vector runners with verified
+  deployment context and redeployed the exact Platform commit
+  `d401490910887180afbebd5328482da8798f6f4a`.
+- Marketplace reindex `vrn-c655bc7f` completed 2/2 and Ecommerce reindex
+  `vrn-3ec9a7e9` completed 2/2; both deployments are `IN_SYNC`.
+- Isolated hosted verification `hvr-0fdcb8bb` passed all 41 Marketplace
+  checks.
+- Full Platform suite `vsr-ad5b4532` passed all 13 required stages. The release
+  gate returned `ready=true`, `status=READY`.
+- The optional Qdrant migration stage remained failed with
+  `MIGRATION_REQUIRED`, `blocking=false`; it is not represented as green.
+- No missing framework endpoint caused the live repair. Platform's runner had
+  omitted server-verified deployment context required by the released Data
+  Sync contract.
+
+### 2026-07-30 - Direct base-runtime adoption of AI Fabric 0.5.0
+
+- Applied the user's greenfield decision: there is no supported
+  backward-compatibility mode, dual reader, or intermediate `0.4.0` runtime
+  deployment in the current source path.
+- Changed the private runtime and product BOM defaults to `0.5.0`.
+- Changed Platform deployment compilation and new deployment-version defaults
+  to `0.5.0`, and aligned the new version-entity contract fallback with V04;
+  immutable historical database migrations and explicit
+  incompatible-version tests remain unchanged.
+- Did not add `ai-fabric-execution` in the dependency-only base slice. The next
+  mandatory slice adds it only to `ai-fabric-runtime` for
+  `deployment-knowledge-specialist@1`.
+- Passed the private infrastructure reactor: 187 tests, zero failures or
+  errors.
+- Passed the private product reactor: 32 tests, zero failures or errors.
+- Passed Platform backend `clean verify`: 725 tests, zero failures, errors, or
+  skips, with executable JAR packaging.
+- Passed focused Platform deployment-version checks: 50 tests, zero failures
+  or errors.
+- Confirmed the runtime and embedding-worker dependency trees contain only AI
+  Fabric `0.5.0`.
+- Built the production-shaped private runtime image without cloning framework
+  source. Image ID:
+  `sha256:ab5ecfb50b3db331539bb25944299c7b8738f178f6e88cd1a302065342242117`.
+- Confirmed an unconfigured image fails closed on missing trusted runtime auth.
+  Re-ran it with throwaway local auth configuration and confirmed aggregate
+  health, liveness, and readiness all returned `UP`.
+- Preserved the private runtime's authenticated indexing-status facade. It is
+  required by durable Data Sync reconciliation but currently imports framework
+  queue internals.
+- Recorded a framework blocker for stable per-work status and queue-summary
+  query contracts absent from released `0.5.0`. It blocks facade decoupling,
+  not specialist adoption. When a public release provides the contract,
+  replace the internal imports in one greenfield change.
+- No staging or production deployment was changed by this source migration.
+
 ## 12. Immediate Next Actions
 
-1. Deploy the migration-aware canonical repair correction.
-2. Publish/apply backed-up Marketplace and Ecommerce canonical drafts as new
-   V04 versions through the audited repair path.
-3. Run the fresh full release gate to green, then complete external runtime
-   canary and rollback proof.
-4. Revalidate Gate B from a new Maven repository immediately before dependency
-   edits.
-5. Move the complete runtime process to one AI Fabric version, `0.5.0`.
-6. Add `ai-fabric-execution` only to `ai-fabric-runtime`.
-7. Implement and prove `deployment-knowledge-specialist@1` through the gated
-   phases in this plan.
+1. Commit and push the bounded base `0.5.0` source and evidence changes.
+2. Add `ai-fabric-execution` only to `ai-fabric-runtime`.
+3. Implement and package `deployment-knowledge-specialist@1`, its strict mode,
+   trusted context mapper, typed endpoint, and focused failure/tenant tests.
+4. Build the production runtime image, back up the selected isolated
+   deployment, deploy, and run the real-provider specialist canary.
+5. Run the complete release gate plus existing Data Sync, retrieval,
+   MCP/read-action, chat-session, tenant-isolation, failure, and rollback
+   checks.
+6. Replace private indexing queue imports only after a released framework
+   status-query contract exists.

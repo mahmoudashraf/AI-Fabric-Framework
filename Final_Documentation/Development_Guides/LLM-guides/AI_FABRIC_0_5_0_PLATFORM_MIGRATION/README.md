@@ -1,10 +1,14 @@
 # Platform-V11 AI Fabric 0.5.0 Migration
 
-Status: **GATE B PASSED; GATE A PLATFORM DEPLOYED, CANONICAL CUTOVER PENDING**
+Status: **GATES A/B PASSED; 0.5.0 BASE VERIFIED; SPECIALIST IMPLEMENTATION ACTIVE**
 
-This folder is the working evidence set for migrating LoomAI Platform-V11 from
-AI Fabric `0.3.1` through the mandatory `0.4.0` lifecycle baseline and then to
-the published `0.5.0` agentic execution release.
+This folder is the working evidence set for the one-way migration of LoomAI
+Platform-V11 private framework consumers to published AI Fabric `0.5.0`.
+Platform already owns the V04 lifecycle contract. The current migration moves
+the base runtime, embedding worker, and deployment metadata to `0.5.0` without
+adding a compatibility path. The next bounded phase adds
+`ai-fabric-execution` only to the private runtime and proves
+`deployment-knowledge-specialist@1` as required by the adoption prompt.
 
 ## Documents
 
@@ -23,21 +27,28 @@ the published `0.5.0` agentic execution release.
 ## Gate Order
 
 ```text
-Current Platform 0.3.1
+Completed V04 entity lifecycle source contract
         |
         v
-Gate A: complete and prove the 0.4.0 entity lifecycle cutover
+Published AI Fabric 0.5.0 artifacts and clean-consumer proof
         |
         v
-Gate B: revalidate the already-published 0.5.0 artifacts from an empty
-        Maven repository
+Private base runtime and embedding worker resolve only 0.5.0
         |
         v
-Adopt one read-only deployment-knowledge specialist in the private runtime
+Add and package deployment-knowledge-specialist@1
         |
         v
-Package, deploy in isolation, canary, observe, and retain rollback
+Deploy in isolation, canary, observe, and retain operational rollback
 ```
 
-Do not bypass Gate A with a compatibility shim, and do not satisfy Gate B with
-a local framework checkout or `mvn install`.
+Do not add dual readers, compatibility shims, or runtime version fallbacks.
+Historical immutable deployment records remain evidence; they are not an
+active compatibility path. The specialist is additive and must not change the
+existing chat surfaces.
+
+AI Fabric `0.5.0` does not expose the stable per-work status and queue-summary
+query API needed to remove Platform's private indexing facade imports. That is
+a recorded framework blocker for decoupling the facade, not a blocker for the
+read-only specialist. Do not remove the existing behavior or invent a second
+queue contract while waiting for the framework follow-up.

@@ -1974,3 +1974,37 @@ Critical fixes that made the gate pass:
 - Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
   `10915120` and `10918233`. Exact-IP counts are zero and the production
   Coolify API again times out locally with HTTP `000`.
+
+## 2026-07-30 AI Fabric 0.5.0 Private Consumer Migration
+
+- Migrated `ai-infrastructure-module` and `ai-fabric-product` BOM defaults,
+  Platform deployment compilation, and new deployment-version defaults to
+  published AI Fabric `0.5.0`; aligned the new version entity fallback to V04.
+- Kept the completed V04 entity/data lifecycle and existing RAG, actions,
+  chat-session, indexing, provider, vector, runtime, and connector behavior.
+  The dependency-only base slice did not add `ai-fabric-execution`; the
+  controlling adoption prompt requires it next, only in the private runtime,
+  for `deployment-knowledge-specialist@1`.
+- Applied the greenfield rule: no dual version readers, compatibility shims,
+  runtime fallback, or intermediate `0.4.0` deployment path. Immutable
+  historical deployment/migration records remain untouched.
+- Verification passed: infrastructure 187 tests, product 32 tests, focused
+  Platform deployment checks 50 tests, and Platform backend `clean verify`
+  725 tests; runtime and embedding-worker dependency graphs contain only
+  `0.5.0`.
+- Production-shaped private runtime image
+  `sha256:ab5ecfb50b3db331539bb25944299c7b8738f178f6e88cd1a302065342242117`
+  built without framework source. Missing auth failed closed; throwaway local
+  auth produced `UP` aggregate, liveness, and readiness health.
+- Preserved `VectorIndexAdminController` work-status and queue-summary behavior
+  because durable Data Sync reconciliation uses it. The controller currently
+  imports AI Fabric queue internals.
+- Released AI Fabric `0.5.0` lacks the stable public work-status and
+  queue-summary query contract needed to remove those internals. This blocks
+  facade decoupling, not the specialist. Replace the imports in one change
+  when a public framework release supplies the contract.
+- No staging or production deployment was changed in this source migration.
+- Gate A is now live-green: canonical Marketplace and Ecommerce are V04 and
+  `IN_SYNC`; full suite `vsr-ad5b4532` passed all 13 required stages and the
+  release gate returned `READY`. Optional Qdrant remains non-blocking
+  `MIGRATION_REQUIRED`.

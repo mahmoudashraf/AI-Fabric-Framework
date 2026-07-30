@@ -1,8 +1,39 @@
 # Gate A Deployment And Rollback Evidence
 
-Status: **PLATFORM DEPLOYMENT PASSED; CANONICAL V04 CUTOVER AND EXTERNAL ROLLBACK PENDING**
+Status: **GATE A LIVE BASELINE PASSED; AI FABRIC 0.5.0 CANARY/ROLLBACK PENDING**
 
 Evidence date: 2026-07-30
+
+## 0. Current Gate A Completion Overlay
+
+The attempt history below is retained because it explains the migration and
+fail-closed corrections. The current result supersedes its former pending
+status:
+
+```text
+Marketplace active deployment: dep-d99b3252
+Marketplace reindex: vrn-c655bc7f, COMPLETED 2/2
+Marketplace vector state: IN_SYNC
+
+Ecommerce active deployment: dep-c5b5fe23
+Ecommerce reindex: vrn-3ec9a7e9, COMPLETED 2/2
+Ecommerce vector state: IN_SYNC
+
+full release suite: vsr-ad5b4532
+required stages: 13 passed
+release gate status: READY
+```
+
+Runner images resolved exact Platform commit
+`d401490910887180afbebd5328482da8798f6f4a`. The runner correction supplies
+server-verified tenant/customer/deployment metadata to the released Data Sync
+contract. This was a Platform adapter defect, not a missing AI Fabric
+endpoint.
+
+The Qdrant migration check remains optional and non-blocking. The next
+deployment boundary is the isolated AI Fabric `0.5.0` specialist image and its
+rollback drill; production assignments must remain unchanged until that
+boundary is green.
 
 ## 1. Packaged Runtime Restore Drill
 
@@ -202,9 +233,11 @@ draft to V04, and then allows the normal rollout update/validate/publish/apply
 sequence. Invalid, non-V04, or tenant-unsafe canonical config remains blocked
 and audited.
 
-## 7. External Deployment Gate
+## 7. Historical External Deployment Gate
 
-The following evidence is still required before Gate A is complete:
+The following list was the gate at the time of the failed run above. Items 1
+through 5 are now complete through `vsr-ad5b4532`; the historical text is
+retained to show what the run required:
 
 1. commit and deploy the migration-aware release-gate correction;
 2. repair the two backed-up canonical drafts through the audited migration
@@ -220,5 +253,5 @@ The following evidence is still required before Gate A is complete:
    is green.
 
 The local restore drill proves the package and state backup mechanism. It does
-not claim that Coolify, DNS, assignment mapping, or production rollback has
-already been exercised.
+not claim that the future AI Fabric `0.5.0` specialist image has completed its
+Coolify canary or rollback drill.

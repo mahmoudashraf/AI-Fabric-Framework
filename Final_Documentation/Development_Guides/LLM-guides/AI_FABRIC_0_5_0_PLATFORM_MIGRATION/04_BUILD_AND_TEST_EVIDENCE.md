@@ -8,6 +8,71 @@ Branch: `Platform-V11`
 
 No secret values are recorded in this report.
 
+## 0. AI Fabric 0.5.0 Base Consumer Migration
+
+Status: **PASSED FOR SOURCE, TESTS, MAVEN PACKAGING, AND LOCAL RUNTIME IMAGE**
+
+This is the current evidence overlay. The Gate A `0.4.0` sections below remain
+historical proof of the V04 lifecycle conversion.
+
+Implemented on the `Platform-V11` worktree based on
+`d401490910887180afbebd5328482da8798f6f4a`:
+
+- `ai-infrastructure-module` BOM default: `0.5.0`
+- `ai-fabric-product` BOM default: `0.5.0`
+- Platform deployment compiler default: `0.5.0`
+- new deployment-version Java default: `0.5.0`
+- new deployment-version entity-contract fallback: `AI_ENTITY_CONFIG_V0_4`
+- optional `ai-fabric-execution`: not added
+- active compatibility path: none
+
+Verification:
+
+| Verification | Result |
+| --- | --- |
+| Runtime focused reactor | 142 tests, 0 failures/errors/skips |
+| Product vectorization focused reactor | 32 tests, 0 failures/errors/skips |
+| Platform deployment-version focused set | 50 tests, 0 failures/errors/skips |
+| Full private infrastructure reactor | 187 tests, 0 failures/errors/skips |
+| Full private product reactor | 32 tests, 0 failures/errors/skips |
+| Platform backend `clean verify` | 725 tests, 0 failures/errors/skips; executable JAR produced |
+| Runtime dependency graph | All `io.github.loom-ai-labs` artifacts resolve to `0.5.0` |
+| Embedding-worker dependency graph | All `io.github.loom-ai-labs` artifacts resolve to `0.5.0` |
+| Product Maven package/install | All five modules packaged successfully; tests were intentionally skipped only for this post-test graph setup |
+| Private runtime Docker build | Passed from repository-root context without framework source clone |
+| Unconfigured image security smoke | Failed closed on missing trusted backend/assertion/issuer/audience auth material |
+| Configured local image smoke | Aggregate health, liveness, and readiness returned `UP` |
+
+Local image evidence:
+
+```text
+tag: loomai-ai-fabric-runtime:0.5.0-local
+image id: sha256:ab5ecfb50b3db331539bb25944299c7b8738f178f6e88cd1a302065342242117
+size: 762848285 bytes
+```
+
+Only throwaway local auth values were used for the successful startup smoke.
+No production secret is recorded here.
+
+The vectorization runner has no direct public AI Fabric dependency; its
+framework-filtered dependency tree is therefore empty. The embedding worker is
+the product reactor's direct framework consumer and is the relevant
+convergence graph.
+
+Preserved follow-up:
+
+- `VectorIndexAdminController` still uses framework indexing queue internals to
+  expose authenticated per-work status and queue summaries.
+- Platform's durable Data Sync reconciliation depends on that behavior.
+- AI Fabric `0.5.0` returns `indexingWorkId` but does not provide the stable
+  public query contract needed to remove those internal imports without
+  losing functionality.
+- AI Fabric `0.5.1` must provide stable work-status and queue-summary queries.
+  Replace the internals in one change when that release is ready; do not add a
+  dual implementation.
+
+No live deployment was performed as part of this evidence.
+
 ## 1. Implemented Baseline
 
 - Both product reactors consume AI Fabric `0.4.0`.

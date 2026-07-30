@@ -1,6 +1,6 @@
 # Gate A Evidence - Stable AI Fabric 0.4.0 Baseline
 
-Status: **IMPLEMENTED AND PACKAGED - EXTERNAL STAGING CANARY PENDING**
+Status: **PASSED - LIVE V04 BASELINE AND RELEASE GATE GREEN**
 
 Target: a live, reproducible Platform baseline using AI Fabric `0.4.0` entity
 lifecycle semantics before any `0.5.0` specialist is enabled.
@@ -283,13 +283,13 @@ a mutually compatible point.
 | Clean build and focused integration tests pass | Passed |
 | Isolated packaged-runtime canary passes | Passed |
 | Platform backend/UI deploy on isolated external staging | Passed at immutable commit `196aaf921c0dfbe7d7f0468b53fae1c2abacacf0` |
-| Canonical deployment drafts/active versions use audited V04 contract | Pending cutover; config-only backups completed |
-| Fresh full Platform release gate passes | Pending rerun after canonical V04 cutover; first fresh run `vsr-807a8010` correctly exposed the legacy active versions |
-| Isolated external runtime canary passes | Pending |
-| Backup and rollback drill are evidenced | Passed for packaged runtime; external deployment rollback remains pending |
+| Canonical deployment drafts/active versions use audited V04 contract | Passed; Marketplace and Ecommerce are V04 and `IN_SYNC` |
+| Fresh full Platform release gate passes | Passed; `vsr-ad5b4532` passed all 13 required stages and returned `READY` |
+| External hosted runtime verification passes | Passed; Marketplace `hvr-0fdcb8bb` passed 41 checks and the full suite passed both hosted-product stages |
+| Backup and rollback drill are evidenced | Passed for config backup and packaged-runtime restore; the separate `0.5.0` canary still requires its own deployment rollback |
 
 Detailed command and canary evidence is recorded in files `04` through `07`.
-Gate A remains **BLOCKED** on the audited canonical V04 cutover, fresh green
-full release gate, external runtime canary, and deployment-level rollback
-proof. The Platform backend/UI deployment itself is now green; that control
-plane proof is not relabeled as a customer-runtime canary.
+Gate A is **PASSED**. The optional Qdrant migration check remains
+`MIGRATION_REQUIRED` and non-blocking. This result does not pre-approve the
+AI Fabric `0.5.0` specialist image: its isolated deployment, tenant/provider
+canary, and rollback remain separate required evidence.

@@ -1,10 +1,36 @@
 # Gate A Canary And Tenant Evidence
 
-Status: **PACKAGED CANARY PASSED; PLATFORM DEPLOYED; EXTERNAL RUNTIME CANARY PENDING**
+Status: **GATE A PASSED; AI FABRIC 0.5.0 SPECIALIST CANARY PENDING**
 
 Evidence date: 2026-07-30
 Safe canary tenant: `ten-gate-a`
 Safe canary deployment: `dep-gate-a-040`
+
+## 0. Current Live Gate A Result
+
+The historical packaged canary below is now backed by a fresh live Platform
+release gate:
+
+```text
+full suite: vsr-ad5b4532
+required stages: 13 passed
+release gate: READY
+ready: true
+evaluated: 2026-07-30T19:56:41Z
+expires: 2026-07-31T07:56:20Z
+```
+
+Canonical Marketplace and Ecommerce are V04 and `IN_SYNC`. Their governed
+reindex runs completed without failed operations:
+
+```text
+Marketplace: vrn-c655bc7f, 2/2 completed
+Ecommerce:   vrn-3ec9a7e9, 2/2 completed
+```
+
+The optional Qdrant stage reported `MIGRATION_REQUIRED` with
+`blocking=false`. This does not weaken the required-stage result and is not
+recorded as a successful Qdrant verification.
 
 ## 1. Tenant Fixtures
 
@@ -83,8 +109,8 @@ assertion. The browser/request body did not own those values.
 
 ## 5. Gate Decision
 
-The packaged tenant canary is green, and the Platform backend/UI now run the
-Gate A control-plane code on isolated staging. Gate A still requires the same
-tenant/auth/retrieval checks against an externally deployed runtime after the
-canonical V04 cutover and fresh Platform release gate pass. Specialist
-execution remains disabled.
+The packaged tenant canary and live Gate A release gate are green. Specialist
+execution remains disabled in the live baseline. The next canary must exercise
+the separately packaged AI Fabric `0.5.0`
+`deployment-knowledge-specialist@1` while repeating the tenant, auth,
+retrieval, provider-failure, and existing-chat regressions.

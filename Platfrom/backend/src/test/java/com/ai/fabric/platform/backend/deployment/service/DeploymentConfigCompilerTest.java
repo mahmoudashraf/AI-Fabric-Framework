@@ -196,7 +196,7 @@ class DeploymentConfigCompilerTest {
         assertThat(document.path("searchable-fields").get(0).path("preprocessing").asText())
             .isEqualTo("NORMALIZE");
         assertThat(document.has("marketplaceManaged")).isFalse();
-        assertThat(manifest.path("aiFabricFrameworkVersion").asText()).isEqualTo("0.4.0");
+        assertThat(manifest.path("aiFabricFrameworkVersion").asText()).isEqualTo("0.5.0");
         assertThat(manifest.path("entityConfigContractVersion").asText())
             .isEqualTo("AI_ENTITY_CONFIG_V0_4");
         assertThat(manifest.path("entityConfigHash").asText()).hasSize(64);
@@ -265,7 +265,7 @@ class DeploymentConfigCompilerTest {
             .hasMessageContaining("AI_FABRIC_RUNTIME_ARTIFACT_INCOMPATIBLE")
             .hasMessageContaining("AI_ENTITY_CONFIG_V0_3")
             .hasMessageContaining("0.3.1")
-            .hasMessageContaining("0.4.0");
+            .hasMessageContaining("0.5.0");
     }
 
     @Test

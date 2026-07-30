@@ -139,3 +139,12 @@ Current P0 cleanup items:
 - 2026-06-10: Repo-boundary correction: deployable `ai-fabric-runtime` and `ai-infrastructure-generic-rest-connector` are private LoomAI product services and must stay in TheBaseRepo at the current deployment paths. The public `ai-fabric-framework` repo should contain reusable framework libraries/packages, not hosted runtime/connector product service code.
 - 2026-06-11: Deployment import/restore must rewrite tenant-scoped knowledge-source and vectorization metadata to the target deployment's current handles. Runtime shared-index filters should remain strict; stale imported handle drift must be fixed in the control plane, not by loosening retrieval isolation.
 - 2026-06-28: Private Platform/product services now consume the public AI Fabric Framework release `0.3.1` through the `io.github.loom-ai-labs:ai-fabric-bom` instead of copied framework source. Private deployable runtime/connector services remain product code; Docker/CI should pin released framework tags for reproducible product builds unless explicitly testing unreleased framework changes.
+- 2026-07-30: Private Platform/runtime consumers move one-way to published AI
+  Fabric `0.5.0` while preserving the completed V04 lifecycle and current
+  runtime capabilities. Do not add backward-compatibility paths.
+  `ai-fabric-execution` is added only to the private runtime in a separate
+  bounded slice for `deployment-knowledge-specialist@1`; it must not replace
+  existing chat. Released `0.5.0` does not expose the stable work-status and
+  queue-summary query contracts needed to remove LoomAI's temporary indexing
+  queue-internal coupling, so that decoupling remains a non-blocking framework
+  follow-up.
