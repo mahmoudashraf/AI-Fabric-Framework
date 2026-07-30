@@ -2008,3 +2008,31 @@ Critical fixes that made the gate pass:
   `IN_SYNC`; full suite `vsr-ad5b4532` passed all 13 required stages and the
   release gate returned `READY`. Optional Qdrant remains non-blocking
   `MIGRATION_REQUIRED`.
+
+## 2026-07-30 Specialist Trusted-Retrieval Security Gate
+
+- Implemented the private, read-only
+  `deployment-knowledge-specialist@1`, exact scope catalog, deployment-private
+  source selection, provider-side tenant/deployment filters, fail-closed
+  post-filtering, and server-owned import metadata replacement.
+- Product verification passed: 19 focused runtime tests, 159 full runtime
+  tests, four POC import tests, and 727 Platform backend tests.
+- A real two-tenant OpenAI canary found that released AI Fabric `0.5.0`
+  omitted trusted tenant/deployment/scope propagation from
+  `DefaultAIExecutionGateway` into RAG metadata. The unpatched canary attached
+  Tenant B evidence to Tenant A. Treat this as a hard specialist deployment
+  blocker.
+- Framework fix `7055dda` is pushed on
+  `codex/specialist-trusted-retrieval-context`; 1,056 relevant framework tests
+  pass on top of released `0.5.1`. Merge it for immutable `0.5.2` or later.
+- A private runtime packaged with that patch passed grounded, cross-tenant,
+  update/delete, hostile-evidence, no-memory, missing-scope,
+  missing-boundary, and provider-disabled canaries.
+- `ai.service.features.enable-generation=false` does not disable an enabled
+  provider in `0.5.0`; it only skips provider validation. Use
+  `OPENAI_ENABLED=false` for the tested provider-off posture, and do not treat
+  the generation feature flag as an operational kill switch until the
+  framework contract is corrected or clarified.
+- No staging or production deployment was changed. Resume hosted migration
+  only after immutable Maven publication, then repeat the full canary and
+  release gate.

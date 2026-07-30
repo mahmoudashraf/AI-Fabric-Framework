@@ -214,3 +214,34 @@ Public customer migration remains access-controlled.
 - Remaining product image-family builds are repeated in the external
   deployment gate; the runtime image itself was built from the repository root
   without a sibling framework checkout.
+
+## 7. Specialist Slice Verification And Blocker
+
+The additive `deployment-knowledge-specialist@1` slice passed:
+
+| Verification | Result |
+| --- | --- |
+| Focused runtime search/specialist set | 19 tests, 0 failures/errors |
+| Full private runtime reactor | 159 tests, 0 failures/errors |
+| Deployment POC import set | 4 tests, 0 failures/errors |
+| Full Platform backend verification | 727 tests, 0 failures/errors |
+| Patched framework execution reactor on `0.5.1` | 1,056 tests, 0 failures/errors |
+| Packaged real-provider canary | Grounding, isolation, update/delete, hostile evidence, no-memory, auth, and provider-off cases passed |
+
+The canary exposed a framework release blocker. AI Fabric `0.5.0`
+`DefaultAIExecutionGateway` does not propagate all trusted execution boundary
+fields into the orchestration metadata used by RAG. Framework commit
+`7055dda` corrects that contract on top of released `0.5.1` and passed the
+full relevant framework
+reactor. It is not yet an immutable published release.
+
+Do not deploy the specialist on released `0.5.0`. The correction must be
+merged into immutable `0.5.2` or later, published to Maven, consumed without
+a local artifact override, and reverified in an isolated hosted canary.
+Released `0.5.1` does not contain the correction and must not be retagged.
+
+Full evidence:
+
+```text
+08_SPECIALIST_SECURITY_CANARY_AND_FRAMEWORK_BLOCKER.md
+```

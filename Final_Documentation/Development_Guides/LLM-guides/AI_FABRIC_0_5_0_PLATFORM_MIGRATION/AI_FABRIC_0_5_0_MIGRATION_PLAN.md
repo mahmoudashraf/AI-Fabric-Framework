@@ -834,16 +834,46 @@ gate. Never mark a skipped or blocked check as passed.
   replace the internal imports in one greenfield change.
 - No staging or production deployment was changed by this source migration.
 
+### 2026-07-30 - Specialist implementation and security canary
+
+- Added the bounded, read-only
+  `deployment-knowledge-specialist@1` to the private runtime while preserving
+  existing chat and action behavior.
+- Centralized exact specialist/vector scopes and required verified private
+  runtime tenant/deployment identity.
+- Restricted specialist retrieval to deployment-private sources with native
+  metadata filtering and a second fail-closed hit filter.
+- Made deployment POC import replace caller-supplied tenant, deployment, and
+  customer metadata with server-owned target values.
+- Passed 19 focused runtime tests, 159 full runtime tests, four import tests,
+  and 727 full Platform backend tests.
+- Found a framework release blocker: released AI Fabric `0.5.0` drops trusted
+  tenant/deployment/scope values before RAG authorization. An unpatched
+  two-tenant canary attached Tenant B evidence to Tenant A.
+- Implemented and pushed framework correction `7055dda` on
+  `codex/specialist-trusted-retrieval-context`. The relevant framework
+  reactors passed 1,056 tests on top of released `0.5.1`.
+- Rebuilt the private runtime with the patched execution artifact in an
+  isolated Maven repository and proved real OpenAI grounding, cross-tenant
+  isolation, Data Sync update/delete, hostile-evidence resistance,
+  no-hidden-memory failure, auth denial, and visible provider-off failure.
+- Kept staging and production unchanged. The specialist remains blocked until
+  the framework correction is included in a new immutable release and the
+  hosted canary is repeated against published artifacts.
+- Recorded full evidence in
+  `08_SPECIALIST_SECURITY_CANARY_AND_FRAMEWORK_BLOCKER.md`.
+
 ## 12. Immediate Next Actions
 
-1. Commit and push the bounded base `0.5.0` source and evidence changes.
-2. Add `ai-fabric-execution` only to `ai-fabric-runtime`.
-3. Implement and package `deployment-knowledge-specialist@1`, its strict mode,
-   trusted context mapper, typed endpoint, and focused failure/tenant tests.
-4. Build the production runtime image, back up the selected isolated
-   deployment, deploy, and run the real-provider specialist canary.
-5. Run the complete release gate plus existing Data Sync, retrieval,
-   MCP/read-action, chat-session, tenant-isolation, failure, and rollback
-   checks.
-6. Replace private indexing queue imports only after a released framework
-   status-query contract exists.
+1. Merge framework correction `7055dda` into the active next-release line.
+2. Publish immutable `0.5.2` or later with matching Maven artifacts. Do not
+   mutate released `0.5.1`, which does not contain the correction.
+3. Consume that published BOM once, without a local repository or dual-version
+   fallback.
+4. Rebuild and inspect the private runtime image to prove the published
+   execution artifact is nested.
+5. Deploy an isolated hosted canary and repeat the complete two-tenant,
+   provider-failure, auth, Data Sync, chat, MCP/read-action, and rollback gate.
+6. Promote only after the hosted release gate is fully green.
+7. Replace remaining private indexing queue internals only when the active
+   public framework release exposes the required stable query contract.

@@ -86,6 +86,24 @@ Framework debugging and contract escalation:
   endpoint should exist. Confirm ownership and the intended public contract
   from framework evidence first.
 
+Active specialist release blocker:
+
+- Released AI Fabric `0.5.0` does not preserve trusted tenant, deployment, and
+  scope values from `TrustedExecutionContext` into the RAG authorization
+  metadata used by `SearchSource`.
+- An unpatched real-provider two-tenant canary attached Tenant B evidence to a
+  Tenant A result.
+- Framework correction `7055dda` on
+  `codex/specialist-trusted-retrieval-context` passed 1,056 relevant framework
+  tests on top of released `0.5.1`; the equivalent pre-rebase patch passed the
+  packaged LoomAI canary.
+- Released `0.5.1` does not contain this correction. Merge it and publish
+  immutable `0.5.2` or later before any hosted specialist deployment. Never
+  move or recreate the `0.5.1` tag.
+- Keep LoomAI's native provider filter and fail-closed post-filter as defense
+  in depth. Do not replace the framework fix with a private execution gateway
+  or loosen the product boundary.
+
 Framework responsibilities:
 
 - reusable primitives

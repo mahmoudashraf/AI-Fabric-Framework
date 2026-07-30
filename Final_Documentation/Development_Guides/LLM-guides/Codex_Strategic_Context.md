@@ -148,3 +148,12 @@ Current P0 cleanup items:
   queue-summary query contracts needed to remove LoomAI's temporary indexing
   queue-internal coupling, so that decoupling remains a non-blocking framework
   follow-up.
+- 2026-07-30: Specialist retrieval authority is an end-to-end framework
+  contract. Released `0.5.0` lost trusted tenant, deployment, and scope values
+  between `TrustedExecutionContext` and RAG metadata; an unpatched two-tenant
+  canary leaked cross-tenant evidence. Framework correction `7055dda` and the
+  LoomAI defense-in-depth filters pass locally, but specialist deployment is
+  blocked until the correction is released as immutable `0.5.2` or later and
+  the hosted two-tenant canary is repeated. Released `0.5.1` does not include
+  the fix and must not be retagged. Do not compensate with a product-side
+  duplicate gateway, relaxed filter, or request-owned identity.
