@@ -1944,3 +1944,33 @@ Critical fixes that made the gate pass:
 - Temporary operator access was removed from Hetzner firewalls `10915120` and
   `10918233`; exact-IP counts returned zero and the local production Coolify
   API probe returned timeout/HTTP `000`.
+
+## 2026-07-26 Public Domain DNS And Certificate Completion
+
+- Owner-supplied Namecheap Advanced DNS records were confirmed through Google
+  and Cloudflare DNS-over-HTTPS. Apex, `api`, `console`, `partners`, and
+  `shopify-bridge` resolve to production Coolify IPv4 `46.225.162.106`;
+  service subdomains retain IPv6 `2a01:4f8:1c18:c04::1`; `www` is a CNAME to
+  `loomai.pro`; and the apex intentionally has no IPv6 record.
+- The operator machine's traditional port-53 DNS path returned stale Heroku
+  IPv4 `18.204.152.241` and synthetic `::` responses even for explicitly named
+  resolvers. DNS-over-HTTPS is the reliable verification path from this
+  network; do not rewrite correct Namecheap records based on the local
+  port-53 result.
+- Reapplied the unchanged Coolify public-site domains and completed targeted
+  restart deployment `s13u536skt6jbliyrhn65i06` on commit
+  `a3e00b1efd1266ada4a1a285a1e4eb6ef87c646c`. The trusted apex certificate is
+  active. Apex health, sitemap, and Framework product routes returned HTTP
+  `200`; `www` returned HTTP `302` to `https://loomai.pro/`.
+- Reapplied the unchanged Partner Portal domain mapping and completed targeted
+  restart deployment `i12ebbaesy9lhevp3vamugce` on the same commit. Its sslip
+  health route returned HTTP `200`, and independent external HTTP and HTTPS
+  checks for `partners.loomai.pro/health` returned `UP`. Local direct SNI
+  requests still time out because of the operator network path.
+- Existing branded service checks remained healthy: Platform API, Console, and
+  Shopify Bridge returned HTTP `200`. An independent external plain-HTTP fetch
+  reached the Loom AI Labs homepage, while direct local port-80 requests timed
+  out; treat that as the same operator-network limitation.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233`. Exact-IP counts are zero and the production
+  Coolify API again times out locally with HTTP `000`.
