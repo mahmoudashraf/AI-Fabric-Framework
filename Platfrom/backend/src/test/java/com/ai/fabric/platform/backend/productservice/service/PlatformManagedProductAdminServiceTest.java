@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.productservice.service;
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVersionSummary;
@@ -10,7 +11,11 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayLogEntrySummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayLogTagsSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.deployment.service.PlatformManagedProductProvisioningService;
 import com.ai.fabric.platform.backend.deployment.service.RailwayGraphqlClient;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
@@ -43,6 +48,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -307,6 +313,85 @@ class PlatformManagedProductAdminServiceTest {
         assertThat(health.healthProbe().status()).isEqualTo("READY");
         assertThat(health.driftStatus()).isEqualTo("COOLIFY_DOMAIN_DRIFT");
         assertThat(health.driftMessage()).contains("does not match");
+    }
+
+    @Test
+    void healthReportsMissingCoolifyApplicationOnConfiguredTarget() throws Exception {
+        httpServer = HttpServer.create(new InetSocketAddress(0), 0);
+        httpServer.createContext("/actuator/health", this::handleHealthRequest);
+        httpServer.start();
+        String baseUrl = "http://127.0.0.1:" + httpServer.getAddress().getPort();
+
+        PlatformManagedProductServiceEntity service = productService("mcp-execution-gateway");
+        service.setEnvironmentScope("staging");
+        service.setBaseUrl(baseUrl);
+        service.setDetailsJson("""
+            {
+              "providerType": "COOLIFY",
+              "targetProfileId": "dtp-coolify-staging",
+              "coolifyApplicationUuid": "missing-coolify-app",
+              "coolifyFqdn": "%s"
+            }
+            """.formatted(baseUrl));
+
+        DeploymentTargetProfileEntity profile = new DeploymentTargetProfileEntity();
+        profile.setId("dtp-coolify-staging");
+        profile.setEnvironmentName("staging");
+        profile.setProviderConfigJson("""
+            {"defaultPublicDomainSuffix":"127.0.0.1"}
+            """);
+
+        PlatformManagedProductServiceService serviceService = mock(PlatformManagedProductServiceService.class);
+        PlatformManagedProductServiceRepository serviceRepository = mock(PlatformManagedProductServiceRepository.class);
+        ShopifyStoreConnectionRepository shopifyStoreConnectionRepository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        PlatformManagedProductProvisioningService provisioningService = mock(PlatformManagedProductProvisioningService.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        CoolifyTargetProfileResolver coolifyTargetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        CoolifyConnection connection = mock(CoolifyConnection.class);
+
+        when(serviceService.requireService("mcp-execution-gateway")).thenReturn(service);
+        when(serviceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(coolifyTargetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.getApplication(connection, "missing-coolify-app")).thenReturn(Optional.empty());
+
+        PlatformManagedProductAdminService adminService = new PlatformManagedProductAdminService(
+            serviceService,
+            serviceRepository,
+            shopifyStoreConnectionRepository,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformSecretService,
+            provisioningService,
+            platformAuditService,
+            railwayGraphqlClient,
+            coolifyTargetProfileResolver,
+            coolifyApiClient,
+            targetProfileRepository,
+            null,
+            new ShopifyStoreSourcePreflightSupport(new ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator(),
+            new ObjectMapper()
+        );
+
+        PlatformManagedProductServiceHealthSummary health = adminService.getHealth("mcp-execution-gateway");
+
+        assertThat(health.status()).isEqualTo("DEGRADED");
+        assertThat(health.healthProbe().status()).isEqualTo("READY");
+        assertThat(health.driftStatus()).isEqualTo("COOLIFY_APPLICATION_MISSING");
+        assertThat(health.driftMessage()).contains("does not exist");
     }
 
     @Test

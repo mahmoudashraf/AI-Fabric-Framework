@@ -1718,6 +1718,31 @@ public class PlatformManagedProductAdminService {
                 "Managed product service base URL does not belong to its Coolify target profile domain."
             );
         }
+        if (coolifyTargetProfileResolver == null || coolifyApiClient == null) {
+            return null;
+        }
+        try {
+            CoolifyConnection connection = coolifyTargetProfileResolver.requireConnection(profile);
+            var observedApplication = coolifyApiClient.getApplication(connection, applicationUuid);
+            if (observedApplication.isEmpty()) {
+                return new DriftResult(
+                    "COOLIFY_APPLICATION_MISSING",
+                    "Configured Coolify application does not exist on the managed product service target profile."
+                );
+            }
+            String observedFqdn = observedApplication.get().fqdn();
+            if (hasText(observedFqdn) && !domainListsOverlap(service.getBaseUrl(), observedFqdn)) {
+                return new DriftResult(
+                    "COOLIFY_DOMAIN_DRIFT",
+                    "Managed product service base URL does not match the observed Coolify application domain."
+                );
+            }
+        } catch (RuntimeException ex) {
+            return new DriftResult(
+                "COOLIFY_OBSERVATION_FAILED",
+                "Coolify application state could not be verified for this managed product service."
+            );
+        }
         return null;
     }
 
