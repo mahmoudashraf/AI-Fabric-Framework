@@ -5,6 +5,8 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.EntityConfigMigrationAuditEntity;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigMigrationMessage;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigMigrationReport;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigMigrationResult;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigV03ToV04Migrator;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
@@ -19,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -64,8 +68,92 @@ public class DeploymentEntityConfigMigrationService {
     }
 
     @Transactional
-    DeploymentEntityConfigMigrationSummary applyForCanonicalRolloutInternal(String draftId) {
-        return apply(targetInternal(draftId));
+    DeploymentEntityConfigMigrationSummary applyCanonicalConfigForRolloutInternal(
+        String draftId,
+        JsonNode canonicalEntityConfig,
+        JsonNode canonicalProviderConfig
+    ) {
+        MigrationTarget target = targetInternal(draftId);
+        assertActiveMutableDraft(target.deployment(), target.draft());
+        String beforeConfigJson = target.draft().getEntityConfigJson();
+        EntityConfigMigrationResult sourceResult = evaluate(target.draft());
+        EntityConfigMigrationResult canonicalResult = evaluateCanonical(
+            canonicalEntityConfig,
+            canonicalProviderConfig
+        );
+        List<EntityConfigMigrationMessage> warnings =
+            new ArrayList<>(sourceResult.report().warnings());
+        sourceResult.report().blockers().forEach(blocker -> warnings.add(
+            new EntityConfigMigrationMessage(
+                "SOURCE_" + blocker.code() + "_RESOLVED_BY_CANONICAL_CONFIG",
+                blocker.path(),
+                blocker.message()
+            )
+        ));
+        warnings.add(new EntityConfigMigrationMessage(
+            "CANONICAL_ROLLOUT_CONFIG_ADOPTED",
+            "$",
+            "The Platform-owned canonical V0_4 entity configuration replaced the legacy verification draft."
+        ));
+        List<EntityConfigMigrationMessage> blockers =
+            new ArrayList<>(canonicalResult.report().blockers());
+        boolean canonicalV04 = EntityConfigContractService.CONTRACT_VERSION_V04.equals(
+            canonicalResult.report().sourceContractVersion()
+        );
+        if (!canonicalV04) {
+            blockers.add(new EntityConfigMigrationMessage(
+                "CANONICAL_ROLLOUT_CONFIG_NOT_V04",
+                "$",
+                "The Platform-owned canonical entity configuration must already satisfy the V0_4 contract."
+            ));
+        }
+
+        String sourceContractVersion = target.draft().getEntityConfigContractVersion();
+        if (sourceContractVersion == null || sourceContractVersion.isBlank()) {
+            sourceContractVersion = sourceResult.report().sourceContractVersion();
+        }
+        String beforeHash = sourceResult.report().beforeHash();
+        String afterHash = canonicalResult.report().afterHash();
+        boolean migrationRequired =
+            !EntityConfigContractService.CONTRACT_VERSION_V04.equals(sourceContractVersion)
+                || !beforeHash.equals(afterHash);
+        EntityConfigMigrationReport report = new EntityConfigMigrationReport(
+            sourceContractVersion,
+            EntityConfigContractService.CONTRACT_VERSION_V04,
+            migrationRequired,
+            !blockers.isEmpty(),
+            beforeHash,
+            afterHash,
+            canonicalResult.report().convertedEntityTypes(),
+            sourceResult.report().droppedKeys(),
+            warnings,
+            blockers,
+            !beforeHash.equals(afterHash)
+        );
+        EntityConfigMigrationResult result = new EntityConfigMigrationResult(
+            canonicalResult.migratedConfig(),
+            report
+        );
+        Instant now = Instant.now();
+        boolean applied = false;
+        String auditStatus;
+        if (report.blocked()) {
+            auditStatus = "BLOCKED";
+        } else if (!report.migrationRequired()) {
+            auditStatus = "NO_CHANGE";
+        } else {
+            target.draft().setEntityConfigJson(writeJson(result.migratedConfig()));
+            target.draft().setEntityConfigContractVersion(EntityConfigContractService.CONTRACT_VERSION_V04);
+            target.draft().setStatus("MODIFIED");
+            target.draft().setUpdatedAt(now);
+            draftRepository.save(target.draft());
+            applied = true;
+            auditStatus = "APPLIED";
+        }
+
+        saveAudit(target, result, auditStatus, beforeConfigJson, now);
+        recordPlatformAudit(target, result, auditStatus);
+        return summary(target, result, applied, now);
     }
 
     private DeploymentEntityConfigMigrationSummary apply(MigrationTarget target) {
@@ -93,19 +181,7 @@ public class DeploymentEntityConfigMigrationService {
         }
 
         saveAudit(target, result, auditStatus, beforeConfigJson, now);
-        platformAuditService.record(
-            "ENTITY_CONFIG_MIGRATION_" + auditStatus,
-            "DEPLOYMENT_DRAFT",
-            target.draft().getId(),
-            Map.of(
-                "deploymentId", target.deployment().getId(),
-                "sourceContractVersion", result.report().sourceContractVersion(),
-                "targetContractVersion", result.report().targetContractVersion(),
-                "beforeHash", result.report().beforeHash(),
-                "afterHash", result.report().afterHash(),
-                "blocked", result.report().blocked()
-            )
-        );
+        recordPlatformAudit(target, result, auditStatus);
         return summary(target, result, applied, now);
     }
 
@@ -127,6 +203,19 @@ public class DeploymentEntityConfigMigrationService {
         try {
             JsonNode entityConfig = objectMapper.readTree(draft.getEntityConfigJson());
             JsonNode providerConfig = objectMapper.readTree(draft.getProviderConfigJson());
+            return evaluateCanonical(entityConfig, providerConfig);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Entity configuration migration could not parse the draft: " + ex.getMessage(),
+                ex
+            );
+        }
+    }
+
+    private EntityConfigMigrationResult evaluateCanonical(JsonNode entityConfig,
+                                                          JsonNode providerConfig) {
+        try {
             return migrator.preview(
                 entityConfig,
                 new EntityConfigValidationContext(
@@ -137,7 +226,8 @@ public class DeploymentEntityConfigMigrationService {
         } catch (Exception ex) {
             throw new ResponseStatusException(
                 CONFLICT,
-                "Entity configuration migration could not parse the draft: " + ex.getMessage(),
+                "Entity configuration migration could not evaluate the canonical config: "
+                    + ex.getMessage(),
                 ex
             );
         }
@@ -177,6 +267,24 @@ public class DeploymentEntityConfigMigrationService {
         audit.setReportJson(writeJson(result.report()));
         audit.setCreatedAt(now);
         auditRepository.save(audit);
+    }
+
+    private void recordPlatformAudit(MigrationTarget target,
+                                     EntityConfigMigrationResult result,
+                                     String auditStatus) {
+        platformAuditService.record(
+            "ENTITY_CONFIG_MIGRATION_" + auditStatus,
+            "DEPLOYMENT_DRAFT",
+            target.draft().getId(),
+            Map.of(
+                "deploymentId", target.deployment().getId(),
+                "sourceContractVersion", result.report().sourceContractVersion(),
+                "targetContractVersion", result.report().targetContractVersion(),
+                "beforeHash", result.report().beforeHash(),
+                "afterHash", result.report().afterHash(),
+                "blocked", result.report().blocked()
+            )
+        );
     }
 
     private DeploymentEntityConfigMigrationSummary summary(MigrationTarget target,

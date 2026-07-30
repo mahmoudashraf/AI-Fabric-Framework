@@ -741,8 +741,13 @@ gate. Never mark a skipped or blocked check as passed.
   service before validation/publication/apply. This internal repair applies
   only to Platform-owned canonical verification rollouts; customer draft
   migration remains explicit and admin-controlled.
-- Passed the final clean Platform backend verification with 721 tests and zero
+- Passed the final clean Platform backend verification with 722 tests and zero
   failures, errors, or skips.
+- Confirmed the first live canonical repair attempt failed closed before
+  mutation because the generic editor rejects V03 entity changes. Reworked the
+  trusted repair to validate and atomically adopt authoritative V04 config
+  inside the migration service, including target-provider tenant rules and
+  complete before/after audit evidence.
 - No missing AI Fabric endpoint or framework defect was found. Gate A remains
   **BLOCKED** until the correction is deployed, new canonical V04 versions are
   applied, a fresh full release gate passes, and external canary/rollback

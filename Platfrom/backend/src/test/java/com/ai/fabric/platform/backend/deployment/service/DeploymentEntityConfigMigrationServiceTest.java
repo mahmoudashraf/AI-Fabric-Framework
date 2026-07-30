@@ -133,13 +133,13 @@ class DeploymentEntityConfigMigrationServiceTest {
     }
 
     @Test
-    void canonicalRepairAdvancesLegacyLabelOnNormalizedV04ConfigWithoutRequestAccess() throws Exception {
+    void canonicalRepairAdoptsAuthoritativeV04ConfigWithoutRequestAccess() throws Exception {
         DeploymentEntity deployment = deployment("drf-active");
         var normalized = migrator.preview(objectMapper.readTree(validLegacyConfig())).migratedConfig();
         DeploymentDraftEntity draft = draft(
             "drf-active",
             "MODIFIED",
-            objectMapper.writeValueAsString(normalized)
+            legacyConfigWithUnknownMetadataType()
         );
         stubInternalTarget(deployment, draft);
         when(draftRepository.save(any(DeploymentDraftEntity.class)))
@@ -147,10 +147,21 @@ class DeploymentEntityConfigMigrationServiceTest {
         when(auditRepository.save(any(EntityConfigMigrationAuditEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        var result = service.applyForCanonicalRolloutInternal(draft.getId());
+        var result = service.applyCanonicalConfigForRolloutInternal(
+            draft.getId(),
+            normalized,
+            objectMapper.createObjectNode()
+        );
 
         assertThat(result.applied()).isTrue();
-        assertThat(result.report().migrationRequired()).isFalse();
+        assertThat(result.report().migrationRequired()).isTrue();
+        assertThat(result.report().blocked()).isFalse();
+        assertThat(result.report().warnings())
+            .extracting(message -> message.code())
+            .contains(
+                "CANONICAL_ROLLOUT_CONFIG_ADOPTED",
+                "SOURCE_UNKNOWN_METADATA_TYPE_RESOLVED_BY_CANONICAL_CONFIG"
+            );
         assertThat(result.currentContractVersion())
             .isEqualTo(EntityConfigContractService.CONTRACT_VERSION_V04);
         verify(deploymentAccessService, never()).requireDeploymentEditorAccess(any());
@@ -159,7 +170,44 @@ class DeploymentEntityConfigMigrationServiceTest {
         verify(auditRepository).save(auditCaptor.capture());
         assertThat(auditCaptor.getValue().getStatus()).isEqualTo("APPLIED");
         assertThat(auditCaptor.getValue().getBeforeHash())
-            .isEqualTo(auditCaptor.getValue().getAfterHash());
+            .isNotEqualTo(auditCaptor.getValue().getAfterHash());
+        assertThat(auditCaptor.getValue().getBeforeConfigJson())
+            .isEqualTo(legacyConfigWithUnknownMetadataType());
+        assertThat(auditCaptor.getValue().getAfterConfigJson())
+            .contains("\"indexing\"");
+    }
+
+    @Test
+    void canonicalRepairValidatesV04ConfigAgainstTargetSharedVectorPosture() throws Exception {
+        DeploymentEntity deployment = deployment("drf-active");
+        var normalizedWithoutTenant =
+            migrator.preview(objectMapper.readTree(validLegacyConfig())).migratedConfig();
+        DeploymentDraftEntity draft = draft("drf-active", "MODIFIED", validLegacyConfig());
+        stubInternalTarget(deployment, draft);
+        when(auditRepository.save(any(EntityConfigMigrationAuditEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.applyCanonicalConfigForRolloutInternal(
+            draft.getId(),
+            normalizedWithoutTenant,
+            objectMapper.createObjectNode().put("vectorStoragePosture", "SHARED")
+        );
+
+        assertThat(result.applied()).isFalse();
+        assertThat(result.report().blocked()).isTrue();
+        assertThat(result.report().blockers())
+            .extracting(message -> message.code())
+            .contains(
+                "V04_SHARED_VECTOR_TENANT_METADATA_REQUIRED",
+                "CANONICAL_ROLLOUT_CONFIG_NOT_V04"
+            );
+        assertThat(draft.getEntityConfigContractVersion())
+            .isEqualTo(EntityConfigContractService.CONTRACT_VERSION_V03);
+        verify(draftRepository, never()).save(any());
+        ArgumentCaptor<EntityConfigMigrationAuditEntity> auditCaptor =
+            ArgumentCaptor.forClass(EntityConfigMigrationAuditEntity.class);
+        verify(auditRepository).save(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().getStatus()).isEqualTo("BLOCKED");
     }
 
     @Test

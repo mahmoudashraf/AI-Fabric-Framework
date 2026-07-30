@@ -916,7 +916,11 @@ class DeploymentVerificationRolloutServiceTest {
         when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(deploymentService.getActiveDraftForDeploymentInternal(deployment.getId())).thenReturn(draft);
-        when(migrationService.applyForCanonicalRolloutInternal(draft.id())).thenReturn(
+        when(migrationService.applyCanonicalConfigForRolloutInternal(
+            eq(draft.id()),
+            any(JsonNode.class),
+            any(JsonNode.class)
+        )).thenReturn(
             new DeploymentEntityConfigMigrationSummary(
                 deployment.getId(),
                 draft.id(),
@@ -975,8 +979,12 @@ class DeploymentVerificationRolloutServiceTest {
         service.recreateRollouts(List.of("ecommerce"));
 
         InOrder order = inOrder(deploymentService, migrationService);
+        order.verify(migrationService).applyCanonicalConfigForRolloutInternal(
+            eq(draft.id()),
+            any(JsonNode.class),
+            any(JsonNode.class)
+        );
         order.verify(deploymentService).updateDraftInternal(eq(draft.id()), any(UpdateDeploymentDraftRequest.class));
-        order.verify(migrationService).applyForCanonicalRolloutInternal(draft.id());
         order.verify(deploymentService).validateDraftInternal(draft.id());
         order.verify(deploymentService).publishDraftInternal(draft.id(), true);
     }

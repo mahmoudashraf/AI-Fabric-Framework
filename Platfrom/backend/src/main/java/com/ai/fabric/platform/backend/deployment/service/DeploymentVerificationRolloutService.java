@@ -450,7 +450,6 @@ public class DeploymentVerificationRolloutService {
         ensureCanonicalOwnershipAssignments(deploymentId);
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentInternal(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
-        deploymentService.updateDraftInternal(draft.id(), request);
         if (draft.entityConfigContractVersion() != null
             && !draft.entityConfigContractVersion().isBlank()
             && !EntityConfigContractService.CONTRACT_VERSION_V04.equals(draft.entityConfigContractVersion())) {
@@ -461,7 +460,11 @@ public class DeploymentVerificationRolloutService {
                         + "' requires an audited entity-contract migration."
                 );
             }
-            var migration = deploymentEntityConfigMigrationService.applyForCanonicalRolloutInternal(draft.id());
+            var migration = deploymentEntityConfigMigrationService.applyCanonicalConfigForRolloutInternal(
+                draft.id(),
+                request.entityConfig(),
+                request.providerConfig()
+            );
             if (migration.report().blocked()
                 || !EntityConfigContractService.CONTRACT_VERSION_V04.equals(
                     migration.currentContractVersion()
@@ -473,6 +476,7 @@ public class DeploymentVerificationRolloutService {
                 );
             }
         }
+        deploymentService.updateDraftInternal(draft.id(), request);
         seedCanonicalVectorization(deploymentId);
 
         DraftValidationResponse validation = deploymentService.validateDraftInternal(draft.id());

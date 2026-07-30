@@ -54,15 +54,15 @@ code, not the immutable framework release.
 | --- | --- |
 | AI Fabric product reactor | 31 tests, 0 failures/errors |
 | AI Fabric infrastructure reactor | 187 tests, 0 failures/errors |
-| Platform backend clean verify | 721 tests, 0 failures/errors/skips |
+| Platform backend clean verify | 722 tests, 0 failures/errors/skips |
 | Platform UI production build | Passed |
 | Runtime search-source regression | 10 tests, 0 failures/errors |
 | Vectorization durable-work/failure tests | 18 tests, 0 failures/errors |
 | Platform retry/checkpoint tests | 3 tests, 0 failures/errors |
 | Both dependency trees | AI Fabric `0.4.0` only |
 | PostgreSQL 16 Flyway `V128` validation | Passed |
-| PostgreSQL 16 dynamic marketplace `V129` migration | 1 test, 0 failures/errors; included in the 721-test backend total |
-| Legacy active-version and canonical audited-repair regressions | 3 focused tests added; complete focused service set 25 tests, 0 failures/errors |
+| PostgreSQL 16 dynamic marketplace `V129` migration | 1 test, 0 failures/errors; included in the 722-test backend total |
+| Legacy active-version and canonical audited-repair regressions | 4 focused tests added; complete focused service set 26 tests, 0 failures/errors |
 
 Focused commands:
 
@@ -118,14 +118,26 @@ The corrected source:
 - marks canonical rollout readiness as repairable instead of throwing;
 - writes required tenant vector metadata into the authoritative canonical
   entity config; and
-- invokes the existing audited migration service after canonical config update
-  and before validation/publication/apply.
+- invokes the existing audited migration service to validate and atomically
+  adopt the authoritative canonical config before the generic draft update,
+  validation, publication, and apply.
 
-The repair regression proves the important transitional case: canonical JSON
-can already be normalized V04 while its persisted draft label is V03. The
-internal canonical repair advances the label, records an `APPLIED` migration
-audit with equal before/after semantic hashes, and does not require a
-request-scoped user. Public customer migration remains access-controlled.
+The first deployed repair sequence tried the generic draft update before
+migration. The API correctly rejected that edit with HTTP 400, and no new
+version was published. The corrected operation supplies the source-controlled
+entity and target provider configs directly to the migration service. It:
+
+- validates V04 under the target shared/dedicated vector posture;
+- records the preserved V03 config and semantic hash as `before` evidence;
+- records the normalized canonical V04 config and hash as `after` evidence;
+- converts resolved source blockers into audit warnings rather than hiding
+  them;
+- writes the mutable draft and contract label atomically; and
+- still rejects a non-V04 or tenant-unsafe canonical config without mutation.
+
+The internal canonical repair does not require a request-scoped user because
+only the Platform-owned rollout service can call its package-private method.
+Public customer migration remains access-controlled.
 
 ## 6. Residual Build Notes
 

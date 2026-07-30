@@ -177,7 +177,32 @@ The correction:
 Historical V03 versions remain immutable. Only a new V04 version may become
 active.
 
-## 6. External Deployment Gate
+## 6. Canonical Repair Sequencing Check
+
+The first deployed repair implementation attempted to write canonical entity
+config through the generic draft editor before advancing the V03 contract
+label. Ecommerce repair returned HTTP 400:
+
+```text
+Migrate this draft to AI_ENTITY_CONFIG_V0_4 before editing entity configuration.
+```
+
+This was the expected fail-closed editor behavior. Live readback after the
+attempt confirmed:
+
+```text
+Ecommerce: draft drf-74d30047 remains V03; 5 published versions; latest v5
+Marketplace: draft drf-fa0bfdbf remains V03; 6 published versions; latest v6
+```
+
+The follow-up repair is atomic inside the migration service: it validates the
+Platform-owned canonical entity config against the target provider posture,
+records old/new config and semantic hashes, advances only the active mutable
+draft to V04, and then allows the normal rollout update/validate/publish/apply
+sequence. Invalid, non-V04, or tenant-unsafe canonical config remains blocked
+and audited.
+
+## 7. External Deployment Gate
 
 The following evidence is still required before Gate A is complete:
 
