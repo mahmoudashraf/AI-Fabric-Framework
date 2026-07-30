@@ -143,9 +143,16 @@ public class ProductServiceController {
         return adminService.runStoreSourcePreflight(serviceRef, shopDomain);
     }
 
-    @PostMapping("/{serviceRef}/reconcile")
+    @PostMapping(value = "/{serviceRef}/reconcile", params = "!targetProfileId")
     public PlatformManagedProductServiceSummary reconcile(@PathVariable String serviceRef) {
         return adminService.reconcile(serviceRef);
+    }
+
+    @PostMapping(value = "/{serviceRef}/reconcile", params = "targetProfileId")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public PlatformManagedProductServiceSummary reconcileToTarget(@PathVariable String serviceRef,
+                                                                  @RequestParam String targetProfileId) {
+        return adminService.reconcile(serviceRef, targetProfileId);
     }
 
     @PostMapping("/{serviceRef}/restart")

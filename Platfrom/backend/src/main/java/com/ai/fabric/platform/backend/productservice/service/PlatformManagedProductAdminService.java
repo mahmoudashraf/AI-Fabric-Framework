@@ -614,6 +614,11 @@ public class PlatformManagedProductAdminService {
     }
 
     @Transactional
+    public PlatformManagedProductServiceSummary reconcile(String serviceRef, String targetProfileId) {
+        return provisioningService.reconcile(serviceRef, targetProfileId);
+    }
+
+    @Transactional
     public PlatformManagedProductServiceSummary scale(String serviceRef, Integer desiredReplicas) {
         return provisioningService.scale(serviceRef, desiredReplicas);
     }
@@ -1655,7 +1660,109 @@ public class PlatformManagedProductAdminService {
         if (!hasText(service.getBaseUrl())) {
             return new DriftResult("BASE_URL_MISSING", "Managed product service base URL is not configured.");
         }
+        DriftResult coolifyDrift = buildRecordedCoolifyDrift(service);
+        if (coolifyDrift != null) {
+            return coolifyDrift;
+        }
         return new DriftResult("NO_DRIFT", "No drift detected.");
+    }
+
+    private DriftResult buildRecordedCoolifyDrift(PlatformManagedProductServiceEntity service) {
+        if (!isCoolifyManaged(service)) {
+            return null;
+        }
+        JsonNode details = mutableDetails(service);
+        String targetProfileId = text(details, "targetProfileId");
+        if (!hasText(targetProfileId)) {
+            return new DriftResult(
+                "COOLIFY_TARGET_PROFILE_MISSING",
+                "Coolify target profile is missing for this managed product service."
+            );
+        }
+        String applicationUuid = text(details, "coolifyApplicationUuid");
+        if (!hasText(applicationUuid)) {
+            return new DriftResult(
+                "COOLIFY_APPLICATION_LINKAGE_MISSING",
+                "Coolify application linkage is missing for this managed product service."
+            );
+        }
+        String recordedFqdn = text(details, "coolifyFqdn");
+        if (hasText(recordedFqdn) && !domainListsOverlap(service.getBaseUrl(), recordedFqdn)) {
+            return new DriftResult(
+                "COOLIFY_DOMAIN_DRIFT",
+                "Managed product service base URL does not match its recorded Coolify application domain."
+            );
+        }
+        if (targetProfileRepository == null) {
+            return null;
+        }
+        DeploymentTargetProfileEntity profile = targetProfileRepository.findById(targetProfileId).orElse(null);
+        if (profile == null) {
+            return new DriftResult(
+                "COOLIFY_TARGET_PROFILE_MISSING",
+                "Configured Coolify target profile no longer exists: " + targetProfileId
+            );
+        }
+        if (hasText(service.getEnvironmentScope())
+            && hasText(profile.getEnvironmentName())
+            && !service.getEnvironmentScope().equalsIgnoreCase(profile.getEnvironmentName())) {
+            return new DriftResult(
+                "COOLIFY_TARGET_ENVIRONMENT_DRIFT",
+                "Managed product service environment does not match its Coolify target profile."
+            );
+        }
+        String domainSuffix = providerDomainSuffix(profile);
+        if (hasText(domainSuffix) && !domainMatchesSuffix(service.getBaseUrl(), domainSuffix)) {
+            return new DriftResult(
+                "COOLIFY_TARGET_DOMAIN_DRIFT",
+                "Managed product service base URL does not belong to its Coolify target profile domain."
+            );
+        }
+        return null;
+    }
+
+    private String providerDomainSuffix(DeploymentTargetProfileEntity profile) {
+        try {
+            JsonNode providerConfig = objectMapper.readTree(profile.getProviderConfigJson());
+            return text(providerConfig, "defaultPublicDomainSuffix");
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private boolean domainListsOverlap(String left, String right) {
+        Set<String> leftHosts = domainHosts(left);
+        Set<String> rightHosts = domainHosts(right);
+        return leftHosts.stream().anyMatch(rightHosts::contains);
+    }
+
+    private boolean domainMatchesSuffix(String baseUrl, String suffix) {
+        String suffixCandidate = suffix.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalizedSuffix = suffixCandidate.startsWith(".") ? suffixCandidate.substring(1) : suffixCandidate;
+        return domainHosts(baseUrl).stream()
+            .anyMatch(host -> host.equals(normalizedSuffix) || host.endsWith("." + normalizedSuffix));
+    }
+
+    private Set<String> domainHosts(String domains) {
+        Set<String> hosts = new LinkedHashSet<>();
+        if (!hasText(domains)) {
+            return hosts;
+        }
+        for (String domain : domains.split(",")) {
+            String candidate = trimToNull(domain);
+            if (!hasText(candidate)) {
+                continue;
+            }
+            try {
+                URI uri = URI.create(candidate.contains("://") ? candidate : "https://" + candidate);
+                if (hasText(uri.getHost())) {
+                    hosts.add(uri.getHost().toLowerCase(java.util.Locale.ROOT));
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Invalid recorded domains are treated as non-matching drift.
+            }
+        }
+        return hosts;
     }
 
     private boolean isCoolifyManaged(PlatformManagedProductServiceEntity service) {
