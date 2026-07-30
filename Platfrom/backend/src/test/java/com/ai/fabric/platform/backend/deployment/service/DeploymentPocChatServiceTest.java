@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryReq
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistQueryRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -22,6 +23,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -234,6 +236,168 @@ class DeploymentPocChatServiceTest {
             });
             assertThat(response.traceSummary().actionValidation()).isNotNull();
             assertThat(response.traceSummary().actionValidation().path("sourcesUsed").path("user").asBoolean()).isTrue();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void deploymentKnowledgeQueryUsesOnlyPrivateExactSpecialistScopes()
+        throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        AtomicReference<String> capturedTrustedBackendKey =
+            new AtomicReference<>();
+        AtomicReference<String> capturedPrivateAuthorization =
+            new AtomicReference<>();
+        AtomicReference<String> capturedPublicAuthorization =
+            new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext(
+                "/api/specialists/deployment-knowledge/query",
+                exchange -> {
+                    capturedBody.set(
+                        new String(
+                            exchange.getRequestBody().readAllBytes(),
+                            StandardCharsets.UTF_8
+                        )
+                    );
+                    capturedTrustedBackendKey.set(
+                        exchange.getRequestHeaders().getFirst(
+                            "X-AIFABRIC-RUNTIME-API-KEY"
+                        )
+                    );
+                    capturedPrivateAuthorization.set(
+                        exchange.getRequestHeaders().getFirst(
+                            "X-AIFABRIC-RUNTIME-AUTHORIZATION"
+                        )
+                    );
+                    capturedPublicAuthorization.set(
+                        exchange.getRequestHeaders().getFirst("Authorization")
+                    );
+                    writeJson(
+                        exchange,
+                        200,
+                        """
+                            {
+                              "status": "ANSWERED",
+                              "answer": "Lucene is configured.",
+                              "specialistName": "deployment-knowledge-specialist",
+                              "specialistVersion": "1",
+                              "correlationId": "exec-specialist-1",
+                              "evidence": [
+                                {
+                                  "documentId": "deployment-vector-config",
+                                  "title": "Vector configuration",
+                                  "relevanceScore": 0.92,
+                                  "source": "deployment-document",
+                                  "vectorSpace": "document"
+                                }
+                              ],
+                              "reasonCode": null
+                            }
+                            """
+                    );
+                }
+            );
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(
+                server,
+                null,
+                "trusted-backend-key"
+            );
+            authenticateOperator();
+
+            DeploymentPocChatService.SpecialistQueryResult result =
+                service.queryDeploymentKnowledge(
+                    "dep-123",
+                    new DeploymentPocSpecialistQueryRequest(
+                        "Which vector provider is configured?"
+                    )
+                );
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(requestBody.size()).isEqualTo(1);
+            assertThat(requestBody.has("question")).isTrue();
+            assertThat(requestBody.path("question").asText())
+                .isEqualTo("Which vector provider is configured?");
+            assertThat(capturedTrustedBackendKey.get())
+                .isEqualTo("trusted-backend-key");
+            assertThat(capturedPublicAuthorization.get()).isNull();
+            Map<String, Object> assertion = decodeAssertionPayload(
+                capturedPrivateAuthorization.get()
+            );
+            assertThat(assertion.get("scopes")).isEqualTo(
+                List.of(
+                    "specialist:deployment-knowledge-specialist@1",
+                    "vector:document"
+                )
+            );
+            assertThat(assertion).containsEntry("deploymentId", "dep-123");
+            assertThat(assertion).containsEntry("tenantId", "ten-123");
+            assertThat(result.status()).isEqualTo(HttpStatus.OK);
+            assertThat(result.response().status()).isEqualTo("ANSWERED");
+            assertThat(result.response().correlationId())
+                .isEqualTo("exec-specialist-1");
+            assertThat(result.response().evidence()).singleElement()
+                .satisfies(evidence -> {
+                    assertThat(evidence.documentId())
+                        .isEqualTo("deployment-vector-config");
+                    assertThat(evidence.vectorSpace())
+                        .isEqualTo("document");
+                });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void deploymentKnowledgeQueryPreservesTypedRuntimeFailure()
+        throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext(
+                "/api/specialists/deployment-knowledge/query",
+                exchange -> writeJson(
+                    exchange,
+                    422,
+                    """
+                        {
+                          "status": "INVALID",
+                          "answer": "No approved evidence was available.",
+                          "specialistName": "deployment-knowledge-specialist",
+                          "specialistVersion": "1",
+                          "correlationId": "exec-specialist-failure",
+                          "evidence": [],
+                          "reasonCode": "GROUNDING_VALIDATION_FAILED"
+                        }
+                        """
+                )
+            );
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(
+                server,
+                null,
+                "trusted-backend-key"
+            );
+            authenticateOperator();
+
+            DeploymentPocChatService.SpecialistQueryResult result =
+                service.queryDeploymentKnowledge(
+                    "dep-123",
+                    new DeploymentPocSpecialistQueryRequest(
+                        "Which provider is configured?"
+                    )
+                );
+
+            assertThat(result.status())
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+            assertThat(result.response().status()).isEqualTo("INVALID");
+            assertThat(result.response().reasonCode())
+                .isEqualTo("GROUNDING_VALIDATION_FAILED");
+            assertThat(result.response().evidence()).isEmpty();
         } finally {
             server.stop(0);
         }

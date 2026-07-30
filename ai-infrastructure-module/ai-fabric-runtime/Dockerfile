@@ -16,6 +16,9 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:21-jre
 
+ARG SOURCE_COMMIT=unknown
+ARG SOURCE_BUILD_TIME=unknown
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl gosu && rm -rf /var/lib/apt/lists/*
@@ -31,7 +34,9 @@ RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8097
 
-ENV JAVA_OPTS=""
+ENV JAVA_OPTS="" \
+    APP_BUILD_COMMIT="${SOURCE_COMMIT}" \
+    APP_BUILD_TIME="${SOURCE_BUILD_TIME}"
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=12 \
     CMD curl -fsS http://127.0.0.1:8097/actuator/health/liveness || exit 1

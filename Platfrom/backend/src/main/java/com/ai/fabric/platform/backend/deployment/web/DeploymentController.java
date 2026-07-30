@@ -20,6 +20,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocAuthPath;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatQueryResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistQueryRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistQueryResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggestionsResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
@@ -91,6 +93,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -450,6 +453,24 @@ public class DeploymentController {
     public DeploymentPocChatQueryResponse queryPocChat(@PathVariable String deploymentId,
                                                        @RequestBody DeploymentPocChatQueryRequest request) {
         return deploymentPocChatService.query(deploymentId, request);
+    }
+
+    @PostMapping(
+        "/deployments/{deploymentId}/specialists/deployment-knowledge/query"
+    )
+    public ResponseEntity<DeploymentPocSpecialistQueryResponse>
+        queryDeploymentKnowledgeSpecialist(
+            @PathVariable String deploymentId,
+            @Valid @RequestBody DeploymentPocSpecialistQueryRequest request
+        ) {
+        DeploymentPocChatService.SpecialistQueryResult result =
+            deploymentPocChatService.queryDeploymentKnowledge(
+                deploymentId,
+                request
+            );
+        return ResponseEntity
+            .status(result.status())
+            .body(result.response());
     }
 
     @GetMapping("/deployments/{deploymentId}/poc")

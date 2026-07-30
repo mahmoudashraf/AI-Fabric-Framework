@@ -123,6 +123,10 @@
             <groupId>io.github.loom-ai-labs</groupId>
             <artifactId>ai-fabric-retrieval-connector</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.github.loom-ai-labs</groupId>
+            <artifactId>ai-fabric-execution</artifactId>
+        </dependency>
 
         <!-- Database -->
         <dependency>

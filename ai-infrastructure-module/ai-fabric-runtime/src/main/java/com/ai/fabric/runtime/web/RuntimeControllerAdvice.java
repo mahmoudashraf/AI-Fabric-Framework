@@ -2,6 +2,9 @@ package com.ai.fabric.runtime.web;
 
 import ai.fabric.chat.exception.ChatSessionAccessDeniedException;
 import ai.fabric.chat.exception.ChatSessionNotFoundException;
+import com.ai.fabric.runtime.specialist.DeploymentKnowledgeSpecialistService.DeploymentKnowledgeInvocationException;
+import com.ai.fabric.runtime.specialist.DeploymentKnowledgeSpecialistService;
+import com.ai.fabric.runtime.web.dto.DeploymentKnowledgeQueryResponse;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +17,24 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class RuntimeControllerAdvice {
+
+    @ExceptionHandler(DeploymentKnowledgeInvocationException.class)
+    public ResponseEntity<DeploymentKnowledgeQueryResponse>
+        handleDeploymentKnowledgeInvocation(
+            DeploymentKnowledgeInvocationException ex
+        ) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+            new DeploymentKnowledgeQueryResponse(
+                "FAILED",
+                "The specialist execution failed.",
+                DeploymentKnowledgeSpecialistService.SPECIALIST_NAME,
+                DeploymentKnowledgeSpecialistService.SPECIALIST_VERSION,
+                ex.correlationId(),
+                java.util.List.of(),
+                "EXECUTION_INVOCATION_FAILED"
+            )
+        );
+    }
 
     @ExceptionHandler(ChatSessionNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(ChatSessionNotFoundException ex) {
@@ -60,4 +81,3 @@ public class RuntimeControllerAdvice {
         ));
     }
 }
-

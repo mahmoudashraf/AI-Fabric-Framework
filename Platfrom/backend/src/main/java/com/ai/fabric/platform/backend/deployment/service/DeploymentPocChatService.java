@@ -12,6 +12,9 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatSuggesti
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocChatTurnSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocConversationResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocRuntimeAuthContextSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistEvidenceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistQueryRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentPocSpecialistQueryResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceDocumentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentPocTraceSummary;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
@@ -26,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
@@ -59,6 +63,9 @@ public class DeploymentPocChatService {
     private static final String SCOPE_CHAT_SUGGESTIONS = "chat:suggestions";
     private static final String SCOPE_CHAT_CONVERSATIONS = "chat:conversations";
     private static final String SCOPE_CHAT_PROMPT_PREVIEW = "chat:prompt-preview";
+    private static final String SCOPE_DEPLOYMENT_KNOWLEDGE_SPECIALIST =
+        "specialist:deployment-knowledge-specialist@1";
+    private static final String SCOPE_DOCUMENT_VECTOR = "vector:document";
     private static final String METADATA_KEY_TIMING = "timing";
     private static final String METADATA_KEY_RUNTIME_REQUEST_DURATION_MS = "runtimeRequestDurationMs";
     private static final String METADATA_KEY_RUNTIME_AUTH_RESOLUTION_MS = "runtimeAuthResolutionMs";
@@ -175,6 +182,97 @@ public class DeploymentPocChatService {
         );
 
         return summary;
+    }
+
+    public SpecialistQueryResult queryDeploymentKnowledge(
+        String deploymentId,
+        DeploymentPocSpecialistQueryRequest request
+    ) {
+        if (request == null || !StringUtils.hasText(request.getQuestion())) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "question is required."
+            );
+        }
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("question", request.getQuestion().trim());
+
+        HttpResponse<String> runtimeResponse;
+        try {
+            Map<String, String> authHeaders = runtimePrivateAuthHeaders(
+                deployment,
+                runtimePrivateProxyIdentity(deployment),
+                List.of(
+                    SCOPE_DEPLOYMENT_KNOWLEDGE_SPECIALIST,
+                    SCOPE_DOCUMENT_VECTOR
+                )
+            );
+            if (authHeaders.isEmpty()) {
+                throw new ResponseStatusException(
+                    BAD_REQUEST,
+                    pocAuthPathUnavailableMessage(
+                        deployment,
+                        DeploymentPocAuthPath.PLATFORM_PRIVATE
+                    )
+                );
+            }
+            runtimeResponse = sendRequest(
+                runtimeUri(
+                    deployment.getRuntimeBaseUrl(),
+                    "/api/specialists/deployment-knowledge/query"
+                ),
+                "POST",
+                body,
+                authHeaders
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                BAD_GATEWAY,
+                "Failed to reach deployment runtime: " + ex.getMessage(),
+                ex
+            );
+        }
+
+        if (runtimeResponse.statusCode() == 404) {
+            throw new ResponseStatusException(
+                BAD_GATEWAY,
+                verifiedRuntimeRouteRequiredMessage(
+                    deployment.getId(),
+                    "/api/specialists/deployment-knowledge/query"
+                )
+            );
+        }
+        HttpStatus status = HttpStatus.resolve(runtimeResponse.statusCode());
+        if (status == null) {
+            throw new ResponseStatusException(
+                BAD_GATEWAY,
+                "Runtime specialist returned unsupported HTTP status "
+                    + runtimeResponse.statusCode()
+                    + "."
+            );
+        }
+
+        DeploymentPocSpecialistQueryResponse response =
+            parseSpecialistResponse(runtimeResponse.body());
+        platformAuditService.record(
+            "DEPLOYMENT_KNOWLEDGE_SPECIALIST_QUERIED",
+            "DEPLOYMENT",
+            deployment.getId(),
+            Map.of(
+                "questionLength",
+                request.getQuestion().trim().length(),
+                "runtimeStatus",
+                runtimeResponse.statusCode(),
+                "specialist",
+                "deployment-knowledge-specialist@1",
+                "resultStatus",
+                response.status()
+            )
+        );
+        return new SpecialistQueryResult(status, response);
     }
 
     public JsonNode widgetQuery(String deploymentId,
@@ -586,6 +684,68 @@ public class DeploymentPocChatService {
                 ));
         }
         return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private DeploymentPocSpecialistQueryResponse parseSpecialistResponse(
+        String responseBody
+    ) {
+        try {
+            JsonNode response = StringUtils.hasText(responseBody)
+                ? objectMapper.readTree(responseBody)
+                : objectMapper.createObjectNode();
+            String status = trimToNull(textOrNull(response, "status"));
+            String specialistName = trimToNull(
+                textOrNull(response, "specialistName")
+            );
+            String specialistVersion = trimToNull(
+                textOrNull(response, "specialistVersion")
+            );
+            String correlationId = trimToNull(
+                textOrNull(response, "correlationId")
+            );
+            if (!StringUtils.hasText(status)
+                || !"deployment-knowledge-specialist".equals(specialistName)
+                || !"1".equals(specialistVersion)
+                || !StringUtils.hasText(correlationId)) {
+                throw new IllegalArgumentException(
+                    "Runtime specialist response contract is incomplete."
+                );
+            }
+            List<DeploymentPocSpecialistEvidenceSummary> evidence =
+                response.path("evidence").isArray()
+                    ? java.util.stream.StreamSupport.stream(
+                        response.path("evidence").spliterator(),
+                        false
+                    )
+                        .filter(JsonNode::isObject)
+                        .limit(4)
+                        .map(item -> new DeploymentPocSpecialistEvidenceSummary(
+                            textOrNull(item, "documentId"),
+                            textOrNull(item, "title"),
+                            item.path("relevanceScore").isNumber()
+                                ? item.path("relevanceScore").asDouble()
+                                : null,
+                            textOrNull(item, "source"),
+                            textOrNull(item, "vectorSpace")
+                        ))
+                        .toList()
+                    : List.of();
+            return new DeploymentPocSpecialistQueryResponse(
+                status,
+                textOrNull(response, "answer"),
+                specialistName,
+                specialistVersion,
+                correlationId,
+                evidence,
+                textOrNull(response, "reasonCode")
+            );
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                BAD_GATEWAY,
+                "Runtime specialist returned an invalid response contract.",
+                ex
+            );
+        }
     }
 
     private URI runtimeUri(String runtimeBaseUrl, String pathWithQuery) {
@@ -1413,6 +1573,12 @@ public class DeploymentPocChatService {
         String callerType,
         String sessionId,
         String issuer
+    ) {
+    }
+
+    public record SpecialistQueryResult(
+        HttpStatus status,
+        DeploymentPocSpecialistQueryResponse response
     ) {
     }
 
