@@ -80,7 +80,10 @@ public class ConnectorDataSyncTargetWriter {
             if (!delete) {
                 operation.set("entity", objectMapper.valueToTree(record.entity()));
             }
-            operation.set("metadata", objectMapper.valueToTree(record.metadata()));
+            operation.set(
+                "metadata",
+                operationMetadata(record, verifiedAuthContext)
+            );
             ObjectNode identity = operation.putObject("identity");
             identity.put("sourceRecordId", record.sourceRecordId());
             if (StringUtils.hasText(record.sourceRecordVersion())) {
@@ -122,6 +125,32 @@ public class ConnectorDataSyncTargetWriter {
             throw new IllegalStateException("Vectorization target returned invalid batch counts.");
         }
         return new VectorizationTargetWriteResult(succeeded, failed);
+    }
+
+    private ObjectNode operationMetadata(
+        VectorizationMappedRecord record,
+        JsonNode verifiedAuthContext
+    ) {
+        ObjectNode metadata = objectMapper.createObjectNode();
+        JsonNode mappedMetadata = objectMapper.valueToTree(record.metadata());
+        if (mappedMetadata.isObject()) {
+            metadata.setAll((ObjectNode) mappedMetadata);
+        }
+        promoteVerifiedContext(metadata, verifiedAuthContext, "tenantId");
+        promoteVerifiedContext(metadata, verifiedAuthContext, "customerId");
+        promoteVerifiedContext(metadata, verifiedAuthContext, "deploymentId");
+        return metadata;
+    }
+
+    private void promoteVerifiedContext(
+        ObjectNode metadata,
+        JsonNode verifiedAuthContext,
+        String fieldName
+    ) {
+        String value = verifiedAuthContext.path(fieldName).asText(null);
+        if (StringUtils.hasText(value)) {
+            metadata.put(fieldName, value.trim());
+        }
     }
 
     public DataSyncWorkStatus readWorkStatus(

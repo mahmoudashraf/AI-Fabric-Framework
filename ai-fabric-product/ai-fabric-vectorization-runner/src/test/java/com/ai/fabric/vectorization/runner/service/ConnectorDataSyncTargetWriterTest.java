@@ -75,6 +75,57 @@ class ConnectorDataSyncTargetWriterTest {
             assertThat(request.path("trace").path("authContext").path("subjectId").asText()).isEqualTo("system:platform-vectorization-runner");
             assertThat(request.path("trace").path("authContext").path("deploymentId").asText()).isEqualTo("dep-1");
             assertThat(request.path("operations")).hasSize(1);
+            JsonNode metadata = request.path("operations").get(0).path("metadata");
+            assertThat(metadata.path("tenantId").asText()).isEqualTo("ten-1");
+            assertThat(metadata.path("customerId").asText()).isEqualTo("cus-1");
+            assertThat(metadata.path("deploymentId").asText()).isEqualTo("dep-1");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void upsertBatchUsesVerifiedContextInsteadOfSourceOwnedScopeMetadata() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/ai/data-sync/batch", exchange -> {
+            capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] body = """
+                {"success":true,"totalOperations":1,"succeededOperations":1,"failedOperations":0,"results":[]}
+                """.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(body);
+            }
+        });
+        server.start();
+        try {
+            writer.upsertBatch(
+                bundle("http://localhost:" + server.getAddress().getPort()),
+                "product",
+                List.of(new VectorizationMappedRecord(
+                    "product",
+                    "sku-1",
+                    "sku-1",
+                    "v1",
+                    Map.of("name", "Laptop"),
+                    Map.of(
+                        "source", "approved-catalog",
+                        "tenantId", "source-tenant",
+                        "customerId", "source-customer",
+                        "deploymentId", "source-deployment"
+                    )
+                ))
+            );
+
+            JsonNode metadata = objectMapper.readTree(capturedBody.get())
+                .path("operations")
+                .get(0)
+                .path("metadata");
+            assertThat(metadata.path("source").asText()).isEqualTo("approved-catalog");
+            assertThat(metadata.path("tenantId").asText()).isEqualTo("ten-1");
+            assertThat(metadata.path("customerId").asText()).isEqualTo("cus-1");
+            assertThat(metadata.path("deploymentId").asText()).isEqualTo("dep-1");
         } finally {
             server.stop(0);
         }
