@@ -50,6 +50,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -423,6 +424,7 @@ public class VectorizationService {
             case "RESUME" -> run.setRequestedStatus("RESUME_REQUESTED");
             case "CANCEL" -> run.setRequestedStatus("CANCEL_REQUESTED");
             case "RETRY" -> {
+                preservePendingDataSyncWorkForRetry(run);
                 run.setRequestedStatus("RETRY_REQUESTED");
                 run.setStatus("QUEUED");
                 run.setStartedAt(null);
@@ -442,6 +444,71 @@ public class VectorizationService {
         run.setUpdatedAt(now);
         runRepository.save(run);
         return summarizeRun(run);
+    }
+
+    private void preservePendingDataSyncWorkForRetry(
+        VectorizationRunEntity run
+    ) {
+        ObjectNode overrides = jsonSupport.readObject(
+            run.getExecutionOverridesJson()
+        );
+        overrides.remove("pendingDataSyncWork");
+
+        JsonNode failures = jsonSupport.readTree(run.getErrorSummaryJson())
+            .path("dataSync")
+            .path("failures");
+        if (failures.isArray()) {
+            ArrayNode pendingWork = jsonSupport.arrayNode();
+            Set<String> seenWorkIds = new LinkedHashSet<>();
+            failures.forEach(failure -> {
+                String workId = trimToNull(
+                    failure.path("indexingWorkId").asText(null)
+                );
+                boolean durable = failure.path("durableHandoffAccepted")
+                    .asBoolean(false);
+                boolean requiresReconciliation =
+                    "RECONCILE_DURABLE_WORK".equals(
+                        normalizeText(
+                            failure.path("retryDisposition").asText(null)
+                        )
+                    );
+                if (!durable
+                    || !requiresReconciliation
+                    || workId == null
+                    || !seenWorkIds.add(workId)) {
+                    return;
+                }
+                ObjectNode item = pendingWork.addObject();
+                item.put("workId", workId);
+                putIfText(item, "vectorSpace", failure.path("vectorSpace"));
+                putIfText(item, "entityId", failure.path("entityId"));
+                putIfText(
+                    item,
+                    "indexingStatus",
+                    failure.path("indexingStatus")
+                );
+                putIfText(
+                    item,
+                    "providerRequestId",
+                    failure.path("providerRequestId")
+                );
+            });
+            if (!pendingWork.isEmpty()) {
+                overrides.set("pendingDataSyncWork", pendingWork);
+            }
+        }
+        run.setExecutionOverridesJson(jsonSupport.write(overrides));
+    }
+
+    private void putIfText(
+        ObjectNode target,
+        String fieldName,
+        JsonNode value
+    ) {
+        String text = trimToNull(value == null ? null : value.asText(null));
+        if (text != null) {
+            target.put(fieldName, text);
+        }
     }
 
     @Transactional

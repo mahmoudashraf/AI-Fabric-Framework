@@ -92,6 +92,7 @@ class DeploymentServiceApplyGuardTest {
             platformCustomerConsumerService,
             provisioningProperties(),
             platformAuditService,
+            new com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService(new ObjectMapper()),
             new ObjectMapper()
         );
 

@@ -5,6 +5,8 @@ server:
 spring:
   application:
     name: ai-fabric-runtime
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:classpath:ai-entity-config.yml}
   datasource:
     url: jdbc:h2:file:./data/ai-fabric-runtime.db
     driver-class-name: org.h2.Driver
@@ -67,9 +69,6 @@ ai:
             type: ${AUTHZ_OUTBOUND_AUTH_TYPE:INHERIT_ACTIONS_API_KEY} # NONE | API_KEY | INHERIT_ACTIONS_API_KEY
             api-key-header: ${AUTHZ_API_KEY_HEADER:${ACTIONS_CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}}
             api-key-value: ${AUTHZ_API_KEY:${ACTIONS_CONNECTOR_API_KEY:}}
-  config:
-    default-file: ai-entity-config.yml
-
   chat:
     enabled: true
     window-size: 12

@@ -198,11 +198,20 @@ public class MarketplaceDatasetRuntimeSyncClient {
             operation.put("vectorSpace", entityType);
             operation.put("id", document.id());
             operation.put("content", document.content());
-            operation.set("metadata", objectMapper.valueToTree(mergeMetadata(document.metadata(), Map.of(
-                "knowledgeSourceHandleRef", handleRef,
-                "marketplaceDatasetId", datasetId,
-                "marketplaceDatasetHash", datasetHash
-            ))));
+            operation.set(
+                "metadata",
+                objectMapper.valueToTree(
+                    mergeMetadata(
+                        document.metadata(),
+                        trustedDatasetMetadata(
+                            deployment,
+                            datasetId,
+                            handleRef,
+                            datasetHash
+                        )
+                    )
+                )
+            );
             ObjectNode identity = operation.putObject("identity");
             identity.put("sourceRecordId", document.id());
             identity.put("sourceRecordVersion", datasetHash);
@@ -274,6 +283,29 @@ public class MarketplaceDatasetRuntimeSyncClient {
             merged.putAll(right);
         }
         return merged;
+    }
+
+    private Map<String, Object> trustedDatasetMetadata(
+        DeploymentEntity deployment,
+        String datasetId,
+        String handleRef,
+        String datasetHash
+    ) {
+        java.util.LinkedHashMap<String, Object> metadata =
+            new java.util.LinkedHashMap<>();
+        putIfText(metadata, "deploymentId", deployment == null ? null : deployment.getId());
+        putIfText(metadata, "customerId", deployment == null ? null : deployment.getCustomerId());
+        putIfText(metadata, "tenantId", deployment == null ? null : deployment.getTenantId());
+        putIfText(metadata, "knowledgeSourceHandleRef", handleRef);
+        putIfText(metadata, "marketplaceDatasetId", datasetId);
+        putIfText(metadata, "marketplaceDatasetHash", datasetHash);
+        return metadata;
+    }
+
+    private void putIfText(Map<String, Object> target, String key, String value) {
+        if (target != null && StringUtils.hasText(key) && StringUtils.hasText(value)) {
+            target.put(key, value.trim());
+        }
     }
 
     private URI runtimeUri(DeploymentEntity deployment, String path) {

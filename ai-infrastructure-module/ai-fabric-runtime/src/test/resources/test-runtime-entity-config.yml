@@ -1,8 +1,14 @@
 ai-entities:
   product:
-    features:
-      - embedding
-      - search
+    indexing:
+      enabled: true
+      max-characters: 8000
+    analysis:
+      enabled: false
+      after: []
     searchable-fields:
       - name: name
-        include-in-rag: true
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 100
+        required: true

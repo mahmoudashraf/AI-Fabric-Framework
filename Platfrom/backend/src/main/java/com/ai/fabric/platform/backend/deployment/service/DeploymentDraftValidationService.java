@@ -1,6 +1,10 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractIssue;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationIssue;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.marketplace.service.PlatformManagedInferenceEndpointService;
@@ -64,23 +68,42 @@ public class DeploymentDraftValidationService {
     private final ObjectMapper objectMapper;
     private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
+    private final EntityConfigContractService entityConfigContractService;
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper) {
-        this(objectMapper, null, null);
+        this(objectMapper, null, null, new EntityConfigContractService(objectMapper));
     }
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper,
                                             PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService) {
-        this(objectMapper, platformManagedInferenceEndpointService, null);
+        this(
+            objectMapper,
+            platformManagedInferenceEndpointService,
+            null,
+            new EntityConfigContractService(objectMapper)
+        );
+    }
+
+    public DeploymentDraftValidationService(ObjectMapper objectMapper,
+                                            PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
+                                            PlatformManagedInferenceServiceService platformManagedInferenceServiceService) {
+        this(
+            objectMapper,
+            platformManagedInferenceEndpointService,
+            platformManagedInferenceServiceService,
+            new EntityConfigContractService(objectMapper)
+        );
     }
 
     @Autowired
     public DeploymentDraftValidationService(ObjectMapper objectMapper,
                                             PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
-                                            PlatformManagedInferenceServiceService platformManagedInferenceServiceService) {
+                                            PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
+                                            EntityConfigContractService entityConfigContractService) {
         this.objectMapper = objectMapper;
         this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
+        this.entityConfigContractService = entityConfigContractService;
     }
 
     public DraftValidationResponse validate(DeploymentDraftEntity draft) {
@@ -97,7 +120,7 @@ public class DeploymentDraftValidationService {
 
             List<DraftValidationIssue> issues = new ArrayList<>();
             ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
-            validateEntities(entityNode, issues);
+            validateEntities(entityNode, providerNode, issues);
             validateRouting(routingNode, actionValidation, issues);
             validateProviders(providerNode, issues);
             validateEmbeddingDimensionsCompatibility(entityNode, providerNode, issues);
@@ -839,41 +862,21 @@ public class DeploymentDraftValidationService {
         }
     }
 
-    private void validateEntities(JsonNode entityNode, List<DraftValidationIssue> issues) {
-        JsonNode aiConfig = entityNode.path("ai-config");
-        if (!aiConfig.isObject()) {
-            issues.add(error("knowledge", "AI_CONFIG_REQUIRED", "$.ai-config", "ai-config object is required."));
-        } else {
-            int vectorDimensions = aiConfig.path("vector-dimensions").asInt(-1);
-            if (vectorDimensions <= 0) {
-                issues.add(error("knowledge", "VECTOR_DIMENSIONS_INVALID", "$.ai-config.vector-dimensions", "vector-dimensions must be a positive integer."));
-            }
+    private void validateEntities(JsonNode entityNode,
+                                  JsonNode providerNode,
+                                  List<DraftValidationIssue> issues) {
+        EntityConfigContractValidation validation = entityConfigContractService.validate(
+            entityNode,
+            new EntityConfigValidationContext(
+                false,
+                ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerNode)
+            )
+        );
+        for (EntityConfigContractIssue issue : validation.issues()) {
+            issues.add(error("knowledge", issue.code(), issue.path(), issue.message()));
         }
-
-        JsonNode entities = entityNode.path("ai-entities");
-        if (!entities.isObject()) {
-            issues.add(error("knowledge", "AI_ENTITIES_REQUIRED", "$.ai-entities", "ai-entities must be an object keyed by entity type."));
-            return;
-        }
-
-        if (entities.isEmpty()) {
+        if (entityNode.path("ai-entities").isObject() && entityNode.path("ai-entities").isEmpty()) {
             issues.add(warning("knowledge", "NO_ENTITY_TYPES_CONFIGURED", "$.ai-entities", "No entity types are configured yet."));
-            return;
-        }
-
-        Iterator<String> fieldNames = entities.fieldNames();
-        while (fieldNames.hasNext()) {
-            String entityType = fieldNames.next();
-            JsonNode entity = entities.path(entityType);
-            if (!entity.isObject()) {
-                issues.add(error("knowledge", "ENTITY_OBJECT_REQUIRED", "$.ai-entities." + entityType, "Each entity type must map to an object."));
-                continue;
-            }
-
-            JsonNode fields = entity.path("fields");
-            if (!fields.isMissingNode() && !fields.isArray()) {
-                issues.add(error("knowledge", "ENTITY_FIELDS_ARRAY", "$.ai-entities." + entityType + ".fields", "fields must be an array when provided."));
-            }
         }
     }
 

@@ -841,6 +841,15 @@ public class DeploymentReleaseVerificationService {
                 }
             });
         }
+        JsonNode manifest = readJson(version.getManifestJson());
+        String expectedAiFabricFrameworkVersion =
+            blankToFallback(version.getAiFabricFrameworkVersion(), "");
+        String expectedEntityConfigContractVersion =
+            blankToFallback(version.getEntityConfigContractVersion(), "");
+        String expectedEntityConfigHash = blankToFallback(
+            manifest.path("entityConfigHash").asText(""),
+            ""
+        );
 
         Set<String> expectedRoutingActions = new LinkedHashSet<>();
         JsonNode routingActions = routingConfig.path("actions");
@@ -907,6 +916,10 @@ public class DeploymentReleaseVerificationService {
             expectedActionNames,
             expectedConfirmationInterceptorNames,
             expectedEntityTypes,
+            version.getId(),
+            expectedAiFabricFrameworkVersion,
+            expectedEntityConfigContractVersion,
+            expectedEntityConfigHash,
             expectedRoutingActions,
             blankToFallback(knowledgeSourceConfig.path("contractVersion").asText(""), "KNOWLEDGE_SOURCE_CONFIG_V1"),
             expectedKnowledgeSourceIds,
@@ -994,8 +1007,49 @@ public class DeploymentReleaseVerificationService {
         Set<String> actionNamesWithPostActionWebhookPolicies = textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies"));
         Set<String> webhookTargetIds = textSet(probe.body().path("webhookTargetIds"));
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
+        JsonNode aiFabricEntities = probe.body().path("aifabricEntities");
 
         ObjectNode details = objectMapper.createObjectNode();
+        details.put(
+            "expectedAiFabricFrameworkVersion",
+            expectations.expectedAiFabricFrameworkVersion()
+        );
+        details.put(
+            "actualAiFabricFrameworkVersion",
+            probe.body().path("aiFabricFrameworkVersion").asText("")
+        );
+        details.put(
+            "expectedEntityConfigContractVersion",
+            expectations.expectedEntityConfigContractVersion()
+        );
+        details.put(
+            "actualEntityConfigContractVersion",
+            probe.body().path("entityConfigContractVersion").asText("")
+        );
+        details.put(
+            "expectedEntityConfigHash",
+            expectations.expectedEntityConfigHash()
+        );
+        details.put(
+            "actualEntityConfigHash",
+            probe.body().path("entityConfigHash").asText("")
+        );
+        details.put(
+            "expectedDeploymentVersionId",
+            expectations.expectedDeploymentVersionId()
+        );
+        details.put(
+            "actualDeploymentVersionId",
+            probe.body().path("deploymentVersionId").asText("")
+        );
+        details.put(
+            "aiFabricEntityDiagnosticsAvailable",
+            aiFabricEntities.path("available").asBoolean(false)
+        );
+        details.put(
+            "indexingQueueReady",
+            aiFabricEntities.path("queue").path("ready").asBoolean(false)
+        );
         details.put("expectedEntityConfigLocation", expectations.artifacts().entityArtifactUrl());
         details.put("actualEntityConfigLocation", entityConfigLocation);
         details.put("expectedPromptConfigLocation", expectations.artifacts().promptArtifactUrl());
@@ -2212,7 +2266,22 @@ public class DeploymentReleaseVerificationService {
         Set<String> confirmationInterceptorRuleNames = textSet(probe.body().path("confirmationInterceptorRuleNames"));
         Set<String> confirmationInterceptorSources = textSet(probe.body().path("confirmationInterceptorSources"));
         Set<String> supportedEntityTypes = textSet(probe.body().path("supportedEntityTypes"));
+        JsonNode aiFabricEntities = probe.body().path("aifabricEntities");
         return probe.body().path("success").asBoolean(false)
+            && expectations.expectedAiFabricFrameworkVersion().equals(
+                probe.body().path("aiFabricFrameworkVersion").asText("")
+            )
+            && expectations.expectedEntityConfigContractVersion().equals(
+                probe.body().path("entityConfigContractVersion").asText("")
+            )
+            && expectations.expectedEntityConfigHash().equals(
+                probe.body().path("entityConfigHash").asText("")
+            )
+            && expectations.expectedDeploymentVersionId().equals(
+                probe.body().path("deploymentVersionId").asText("")
+            )
+            && aiFabricEntities.path("available").asBoolean(false)
+            && aiFabricEntities.path("queue").path("ready").asBoolean(false)
             && expectations.artifacts().entityArtifactUrl().equals(probe.body().path("entityConfigLocation").asText(""))
             && runtimePromptConfigMatchesExpected(probe, expectations)
             && runtimeKnowledgeSourcesMatchExpected(probe, expectations)
@@ -2931,6 +3000,10 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNames,
         Set<String> expectedConfirmationInterceptorNames,
         Set<String> expectedEntityTypes,
+        String expectedDeploymentVersionId,
+        String expectedAiFabricFrameworkVersion,
+        String expectedEntityConfigContractVersion,
+        String expectedEntityConfigHash,
         Set<String> expectedRoutingActions,
         String expectedKnowledgeSourceContractVersion,
         Set<String> expectedKnowledgeSourceIds,

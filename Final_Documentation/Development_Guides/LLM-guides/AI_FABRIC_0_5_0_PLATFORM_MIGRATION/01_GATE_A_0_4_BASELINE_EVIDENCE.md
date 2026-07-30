@@ -1,6 +1,6 @@
 # Gate A Evidence - Stable AI Fabric 0.4.0 Baseline
 
-Status: **BLOCKED - IMPLEMENTATION NOT STARTED**
+Status: **IMPLEMENTED AND PACKAGED - EXTERNAL STAGING CANARY PENDING**
 
 Target: a live, reproducible Platform baseline using AI Fabric `0.4.0` entity
 lifecycle semantics before any `0.5.0` specialist is enabled.
@@ -257,20 +257,22 @@ a mutually compatible point.
 
 | Check | Status |
 | --- | --- |
-| Source entity YAML uses only the explicit `0.4` contract | Pending |
-| Removed-key rejection tests pass | Pending |
-| Platform owns a typed versioned entity model | Pending |
-| Draft migration is deterministic and idempotent | Pending |
-| Immutable old releases are unchanged | Pending |
-| Compiler emits deterministic versioned artifacts | Pending |
-| Indexed-output hash follows `0.4` output semantics | Pending |
-| Data Sync exposes safe classified failures | Pending |
-| Both product reactors resolve only `0.4.0` | Pending |
-| Product Docker builds use published artifacts, not source clones | Pending |
-| Clean build and focused integration tests pass | Pending |
-| Isolated live baseline canary passes | Pending |
-| Backup and rollback drill are evidenced | Pending |
+| Source entity YAML uses only the explicit `0.4` contract | Passed |
+| Removed-key rejection tests pass | Passed |
+| Platform owns a typed versioned entity model | Passed |
+| Draft migration is deterministic and idempotent | Passed |
+| Immutable old releases are unchanged | Passed |
+| Compiler emits deterministic versioned artifacts | Passed |
+| Indexed-output hash follows `0.4` output semantics | Passed |
+| Data Sync exposes safe classified failures | Passed |
+| Both product reactors resolve only `0.4.0` | Passed |
+| Product Docker builds use published artifacts, not source clones | Passed for source audit and runtime image; remaining image-family builds are deployment-gate checks |
+| Clean build and focused integration tests pass | Passed |
+| Isolated packaged-runtime canary passes | Passed |
+| Isolated external staging canary passes | Pending |
+| Backup and rollback drill are evidenced | Passed for packaged runtime; external deployment rollback remains pending |
 
-Gate A remains **BLOCKED** until every row is passed with command output,
-artifact versions, timestamps, and safe live identifiers recorded here or in
-the later build/deployment evidence files.
+Detailed command and canary evidence is recorded in files `04` through `07`.
+Gate A remains **BLOCKED** only on the external staging deployment and its
+deployment-level rollback proof. A local Docker canary is strong package
+evidence, but it is not relabeled as a live Coolify deployment.

@@ -365,6 +365,68 @@ class RuntimeDeploymentSearchSourceRegistryTest {
     }
 
     @Test
+    void sourceFiltersAcceptLuceneSerializedMetadataWithoutWeakeningScopeChecks() {
+        ResolvedKnowledgeSource source = ResolvedKnowledgeSource.builder()
+            .id("gate-a-tenant-a-documents")
+            .type("document")
+            .adapterType("deployment-private-vector")
+            .attributionLabel("Gate A tenant A evidence")
+            .entityType("document")
+            .filters(Map.of(
+                "tenantId", "ten-gate-a",
+                "deploymentId", "dep-gate-a-040"
+            ))
+            .enabled(true)
+            .build();
+        AISearchResponse response = AISearchResponse.builder()
+            .results(List.of(
+                Map.of(
+                    "id", "gate-a-aurora",
+                    "score", 0.94,
+                    "metadata", """
+                        {"tenantId":"ten-gate-a","deploymentId":"dep-gate-a-040","source":"gate-a"}
+                        """
+                ),
+                Map.of(
+                    "id", "gate-b-borealis",
+                    "score", 0.93,
+                    "metadata", """
+                        {"tenantId":"ten-gate-b","deploymentId":"dep-gate-a-040","source":"gate-b"}
+                        """
+                ),
+                Map.of(
+                    "id", "malformed",
+                    "score", 0.92,
+                    "metadata", "{not-json"
+                )
+            ))
+            .totalResults(3)
+            .maxScore(0.94)
+            .query("Project Aurora release checks")
+            .build();
+
+        AISearchResponse filtered = SearchSourceResultSupport.filterAndDecorate(
+            response,
+            source,
+            source.getFilters()
+        );
+
+        assertThat(filtered.getResults())
+            .hasSize(1)
+            .first()
+            .satisfies(result -> {
+                assertThat(result).containsEntry("id", "gate-a-aurora");
+                assertThat(result.get("metadata")).isInstanceOf(Map.class);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metadata = (Map<String, Object>) result.get("metadata");
+                assertThat(metadata)
+                    .containsEntry("tenantId", "ten-gate-a")
+                    .containsEntry("deploymentId", "dep-gate-a-040")
+                    .containsEntry("knowledgeSourceId", "gate-a-tenant-a-documents");
+            });
+    }
+
+    @Test
     void defaultPrivateSourceStillExcludesHandleScopedMarketplaceDocuments() {
         ResolvedKnowledgeSource source = ResolvedKnowledgeSource.builder()
             .id("deployment-private-vector")

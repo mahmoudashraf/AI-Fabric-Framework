@@ -36,6 +36,9 @@ public class DeploymentDraftEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String entityConfigJson;
 
+    @Column(nullable = false)
+    private String entityConfigContractVersion = "AI_ENTITY_CONFIG_V0_4";
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String routingConfigJson;
 
@@ -109,6 +112,14 @@ public class DeploymentDraftEntity {
 
     public void setEntityConfigJson(String entityConfigJson) {
         this.entityConfigJson = entityConfigJson;
+    }
+
+    public String getEntityConfigContractVersion() {
+        return entityConfigContractVersion;
+    }
+
+    public void setEntityConfigContractVersion(String entityConfigContractVersion) {
+        this.entityConfigContractVersion = entityConfigContractVersion;
     }
 
     public String getRoutingConfigJson() {

@@ -12,6 +12,7 @@ import ai.fabric.intent.action.AIActionMetaData;
 import ai.fabric.intent.action.AIActionRegistry;
 import ai.fabric.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
 import ai.fabric.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import ai.fabric.indexing.observability.AIEntityIndexingEndpoint;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.rag.source.SearchSourceRegistry;
 import ai.fabric.shell.BuiltInShellCatalog;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 @RestController
@@ -47,8 +49,9 @@ public class RuntimeAdminOverviewController {
     private final ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigServiceProvider;
     private final ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigServiceProvider;
     private final ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider;
+    private final ObjectProvider<AIEntityIndexingEndpoint> entityIndexingEndpointProvider;
 
-    @Value("${ai.config.default-file:ai-entity-config.yml}")
+    @Value("${AI_CONFIG_DEFAULT_FILE:${spring.config.import:optional:classpath:ai-entity-config.yml}}")
     private String entityConfigLocation;
 
     @Value("${ai.prompts.deployment.config-file:}")
@@ -59,6 +62,24 @@ public class RuntimeAdminOverviewController {
 
     @Value("${ai.shell.deployment.config-file:}")
     private String shellConfigLocation;
+
+    @Value("${AI_FABRIC_FRAMEWORK_VERSION:}")
+    private String configuredAiFabricFrameworkVersion;
+
+    @Value("${AI_ENTITY_CONFIG_CONTRACT_VERSION:}")
+    private String entityConfigContractVersion;
+
+    @Value("${AI_ENTITY_CONFIG_HASH:}")
+    private String entityConfigHash;
+
+    @Value("${PLATFORM_DEPLOYMENT_VERSION_ID:}")
+    private String deploymentVersionId;
+
+    @Value("${APP_BUILD_COMMIT:${SOURCE_COMMIT:unknown}}")
+    private String productSourceCommit;
+
+    @Value("${APP_BUILD_TIME:${SOURCE_BUILD_TIME:unknown}}")
+    private String productBuildTime;
 
     @GetMapping("/overview")
     public ResponseEntity<?> overview(HttpServletRequest httpRequest) {
@@ -111,10 +132,28 @@ public class RuntimeAdminOverviewController {
         RuntimeDeploymentShellConfigService shellConfigService = shellConfigServiceProvider.getIfAvailable();
         ConnectorActionWebhookPolicyCatalog webhookPolicyCatalog = webhookPolicyCatalogProvider.getIfAvailable();
         SearchSourceRegistry searchSourceRegistry = searchSourceRegistryProvider.getIfAvailable();
+        AIEntityIndexingEndpoint entityIndexingEndpoint =
+            entityIndexingEndpointProvider.getIfAvailable();
         Map<String, Object> searchSourceDiagnostics = searchSourceRegistry != null
             ? searchSourceRegistry.adminDiagnostics()
             : Map.of();
         body.put("success", true);
+        body.put("aiFabricFrameworkVersion", resolvedAiFabricFrameworkVersion());
+        body.put(
+            "configuredAiFabricFrameworkVersion",
+            blankToUnknown(configuredAiFabricFrameworkVersion)
+        );
+        body.put(
+            "entityConfigContractVersion",
+            blankToUnknown(entityConfigContractVersion)
+        );
+        body.put("entityConfigHash", blankToUnknown(entityConfigHash));
+        body.put(
+            "deploymentVersionId",
+            blankToUnknown(deploymentVersionId)
+        );
+        body.put("productSourceCommit", blankToUnknown(productSourceCommit));
+        body.put("productBuildTime", blankToUnknown(productBuildTime));
         body.put("entityConfigLocation", entityConfigLocation);
         body.put("promptConfigLocation", promptConfigLocation);
         body.put("knowledgeSourceConfigLocation", knowledgeSourceConfigLocation);
@@ -163,10 +202,65 @@ public class RuntimeAdminOverviewController {
         body.put("shellStarterPromptsCount", shellConfigService != null ? shellConfigService.currentStarterPromptCount() : 0);
         body.put("shellGreetingConfigured", shellConfigService != null && StringUtils.hasText(shellConfigService.currentGreetingMessage()));
         body.put("searchSourceDiagnostics", searchSourceDiagnostics);
+        body.put(
+            "aifabricEntities",
+            entityIndexingDiagnostics(entityIndexingEndpoint)
+        );
         body.put("marketplaceSupport", marketplaceSupport(knowledgeSourceConfigService, shellConfigService, searchSourceRegistry, searchSourceDiagnostics));
         body.put("auth", authDiagnostics(runtimeAuthProperties));
         body.put("authWarnings", authWarnings(runtimeAuthProperties));
         return ResponseEntity.ok(body);
+    }
+
+    private Map<String, Object> entityIndexingDiagnostics(
+        AIEntityIndexingEndpoint endpoint
+    ) {
+        if (endpoint == null) {
+            return Map.of(
+                "available",
+                false,
+                "errorCode",
+                "AI_FABRIC_ENTITY_DIAGNOSTICS_UNAVAILABLE"
+            );
+        }
+        try {
+            Map<String, Object> diagnostics =
+                new LinkedHashMap<>(endpoint.entities());
+            diagnostics.put("available", true);
+            return diagnostics;
+        } catch (RuntimeException ignored) {
+            return Map.of(
+                "available",
+                false,
+                "errorCode",
+                "AI_FABRIC_ENTITY_DIAGNOSTICS_FAILED"
+            );
+        }
+    }
+
+    private String resolvedAiFabricFrameworkVersion() {
+        try (var stream = AIEntityConfigurationLoader.class
+            .getClassLoader()
+            .getResourceAsStream(
+                "META-INF/maven/io.github.loom-ai-labs/"
+                    + "ai-fabric-core/pom.properties"
+            )) {
+            if (stream != null) {
+                Properties properties = new Properties();
+                properties.load(stream);
+                String version = properties.getProperty("version");
+                if (StringUtils.hasText(version)) {
+                    return version.trim();
+                }
+            }
+        } catch (Exception ignored) {
+            // The configured value remains useful in IDE/exploded-class runs.
+        }
+        return blankToUnknown(configuredAiFabricFrameworkVersion);
+    }
+
+    private static String blankToUnknown(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "unknown";
     }
 
     @GetMapping("/auth/overview")

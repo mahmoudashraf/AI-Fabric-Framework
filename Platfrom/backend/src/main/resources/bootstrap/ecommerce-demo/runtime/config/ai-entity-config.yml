@@ -1,67 +1,121 @@
+ai-config:
+  vector-dimensions: 512
+
 ai-entities:
   product:
-    features: ["embedding", "search"]
-    auto-process: false
-    enable-search: true
-    auto-embedding: true
-    indexable: true
+    indexing:
+      enabled: true
+      max-characters: 8000
+    analysis:
+      enabled: false
+      after: []
     searchable-fields:
-      - name: "name"
-        weight: 2.0
-      - name: "description"
-        weight: 1.8
-      - name: "category"
-        weight: 1.0
-      - name: "tags"
-        weight: 1.0
-      - name: "sku"
-        weight: 0.6
+      - name: name
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 100
+        required: true
+      - name: description
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: CLEAN
+        priority: 90
+      - name: category
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 80
+      - name: tags
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 70
+      - name: sku
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 60
+        required: true
     metadata-fields:
-      - name: "sku"
-        type: "string"
-      - name: "category"
-        type: "string"
-      - name: "price"
-        type: "number"
-      - name: "currency"
-        type: "string"
-      - name: "inStockQty"
-        type: "number"
+      - name: sku
+        data-type: ID
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 100
+        required: true
+      - name: category
+        data-type: STRING
+        destinations: [VECTOR_METADATA]
+        priority: 80
+      - name: price
+        data-type: NUMBER
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+      - name: currency
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+      - name: inStockQty
+        data-type: NUMBER
+        destinations: [VECTOR_METADATA]
+        priority: 70
 
   policy:
-    features: ["embedding", "search"]
-    auto-process: false
-    enable-search: true
-    auto-embedding: true
-    indexable: true
+    indexing:
+      enabled: true
+      max-characters: 8000
+    analysis:
+      enabled: false
+      after: []
     searchable-fields:
-      - name: "title"
-        weight: 2.0
-      - name: "text"
-        weight: 1.8
-      - name: "classification"
-        weight: 1.0
+      - name: title
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 100
+        required: true
+      - name: text
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: CLEAN
+        priority: 90
+        required: true
+      - name: classification
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 70
     metadata-fields:
-      - name: "classification"
-        type: "string"
-      - name: "title"
-        type: "string"
+      - name: classification
+        data-type: STRING
+        destinations: [VECTOR_METADATA]
+        priority: 80
+      - name: title
+        data-type: STRING
+        destinations: [API_RESPONSE]
+        priority: 70
 
   review:
-    features: ["embedding", "search"]
-    auto-process: false
-    enable-search: true
-    auto-embedding: true
-    indexable: true
+    indexing:
+      enabled: true
+      max-characters: 8000
+    analysis:
+      enabled: false
+      after: []
     searchable-fields:
-      - name: "text"
-        weight: 1.8
-      - name: "sku"
-        weight: 0.8
-      - name: "rating"
-        weight: 0.4
+      - name: text
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: CLEAN
+        priority: 100
+        required: true
+      - name: sku
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 80
+        required: true
+      - name: rating
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: NORMALIZE
+        priority: 60
     metadata-fields:
-      - name: "sku"
-        type: "string"
-      - name: "rating"
-        type: "number"
+      - name: sku
+        data-type: ID
+        destinations: [VECTOR_METADATA]
+        priority: 100
+        required: true
+      - name: rating
+        data-type: NUMBER
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80

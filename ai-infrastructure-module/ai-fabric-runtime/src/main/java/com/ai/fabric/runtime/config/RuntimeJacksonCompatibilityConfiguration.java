@@ -11,6 +11,6 @@ class RuntimeJacksonCompatibilityConfiguration {
     @Bean
     @ConditionalOnMissingBean(ObjectMapper.class)
     ObjectMapper jackson2ObjectMapper() {
-        return new ObjectMapper();
+        return new ObjectMapper().findAndRegisterModules();
     }
 }

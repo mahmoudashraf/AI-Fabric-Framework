@@ -10,7 +10,30 @@ public record DeploymentVersionSummary(
     String status,
     String configHash,
     boolean reindexRequired,
-    Instant publishedAt
+    Instant publishedAt,
+    String entityConfigContractVersion,
+    String aiFabricFrameworkVersion
 ) {
-}
 
+    public DeploymentVersionSummary(String id,
+                                    String deploymentId,
+                                    String sourceDraftId,
+                                    String versionLabel,
+                                    String status,
+                                    String configHash,
+                                    boolean reindexRequired,
+                                    Instant publishedAt) {
+        this(
+            id,
+            deploymentId,
+            sourceDraftId,
+            versionLabel,
+            status,
+            configHash,
+            reindexRequired,
+            publishedAt,
+            null,
+            null
+        );
+    }
+}

@@ -58,15 +58,11 @@ Deployable runtime and generic REST connector services are private product servi
 
 They consume public framework artifacts through Maven. Do not copy reusable framework source back into this private repo to solve deployment-source wiring.
 
-## Docker Framework Bootstrap
+## Docker Framework Dependency
 
-Runtime and generic REST connector Docker builds install the public framework into the build-stage local Maven repository before packaging the private service.
+Production Docker builds resolve the public AI Fabric artifacts from Maven Central using the exact
+version declared by the private product reactor. They do not clone framework source or install a
+mutable branch during image assembly.
 
-By default, Docker builds clone the latest public framework `main` branch:
-
-```text
-AI_FABRIC_FRAMEWORK_REPOSITORY=https://github.com/Loom-AI-Labs/ai-fabric-framework.git
-AI_FABRIC_FRAMEWORK_REF=main
-```
-
-This intentionally matches the current preview-development flow. For a frozen release later, override `AI_FABRIC_FRAMEWORK_REF` with a published tag.
+To change the framework consumed by an image, update the reactor's AI Fabric version, pass its normal
+test and packaged-image gates, and rebuild the product image from that reviewed source commit.

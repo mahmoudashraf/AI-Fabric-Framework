@@ -8,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentManagedVectorR
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentExportRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentImportPreviewRequest;
@@ -116,6 +117,8 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(summary.secretSummary().items()).hasSize(1);
         assertThat(summary.secretSummary().items().get(0).valueIncluded()).isFalse();
         assertThat(summary.secretSummary().items().get(0).secretName()).isEqualTo("MANAGED_DEPLOYMENT_SECRET");
+        assertThat(summary.bundle().path("manifest").path("activeDraft").path("entityConfigContractVersion").asText())
+            .isEqualTo(EntityConfigContractService.CONTRACT_VERSION_V04);
     }
 
     @Test
@@ -383,6 +386,70 @@ class DeploymentBundleExportImportServiceTest {
         verify(deploymentService).createDeployment(requestCaptor.capture());
         assertThat(requestCaptor.getValue().customerId()).isEqualTo(sourceDeployment.getCustomerId());
         assertThat(requestCaptor.getValue().tenantId()).isNull();
+        ArgumentCaptor<DeploymentDraftEntity> draftCaptor = ArgumentCaptor.forClass(DeploymentDraftEntity.class);
+        verify(draftRepository).save(draftCaptor.capture());
+        assertThat(draftCaptor.getValue().getEntityConfigContractVersion())
+            .isEqualTo(EntityConfigContractService.CONTRACT_VERSION_V04);
+    }
+
+    @Test
+    void importOfBundleWithoutEntityContractMetadataRemainsV03UntilExplicitMigration() {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity sourceDeployment = deployment();
+        DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
+        stubExportState(sourceDeployment, sourceDraft);
+        var export = service.exportDeployment(
+            sourceDeployment.getId(),
+            new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "legacy bundle", null, true, true)
+        );
+        var legacyBundle = export.bundle().deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) legacyBundle.path("manifest").path("activeDraft"))
+            .remove("entityConfigContractVersion");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) legacyBundle.path("integrity"))
+            .put("manifestHash", sealingService.sha256(legacyBundle.path("manifest")));
+
+        DeploymentEntity importedDeployment = deployment();
+        importedDeployment.setId("dep-imported");
+        importedDeployment.setActiveDraftId("drf-imported");
+        DeploymentDraftEntity importedDraft = draft(importedDeployment.getId());
+        importedDraft.setId("drf-imported");
+        when(deploymentService.createDeployment(any(CreateDeploymentRequest.class))).thenReturn(new DeploymentSummary(
+            importedDeployment.getId(),
+            importedDeployment.getName(),
+            importedDeployment.getEnvironmentName(),
+            importedDeployment.getTemplateId(),
+            null,
+            null,
+            importedDeployment.getStatus(),
+            null,
+            importedDeployment.getRuntimeBaseUrl(),
+            false,
+            false,
+            false,
+            importedDeployment.getCreatedAt()
+        ));
+        when(deploymentRepository.findById(importedDeployment.getId())).thenReturn(Optional.of(importedDeployment));
+        when(draftRepository.findById(importedDraft.getId())).thenReturn(Optional.of(importedDraft));
+        when(draftRepository.save(any(DeploymentDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.importDeployment(new DeploymentImportRequest(
+            legacyBundle,
+            ImportMode.CONFIG_ONLY_CLONE,
+            null,
+            "Imported Deployment",
+            "staging-import",
+            null,
+            null,
+            null,
+            null,
+            "legacy import"
+        ));
+
+        ArgumentCaptor<DeploymentDraftEntity> draftCaptor = ArgumentCaptor.forClass(DeploymentDraftEntity.class);
+        verify(draftRepository).save(draftCaptor.capture());
+        assertThat(draftCaptor.getValue().getEntityConfigContractVersion())
+            .isEqualTo(EntityConfigContractService.CONTRACT_VERSION_V03);
     }
 
     @Test

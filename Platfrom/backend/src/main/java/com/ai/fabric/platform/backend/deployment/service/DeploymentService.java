@@ -8,6 +8,9 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentPromptRevision
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
@@ -120,6 +123,7 @@ public class DeploymentService {
     private final PlatformCustomerConsumerService platformCustomerConsumerService;
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
+    private final EntityConfigContractService entityConfigContractService;
     private final ObjectMapper objectMapper;
     private VectorizationPlanRepository vectorizationPlanRepository;
 
@@ -259,6 +263,7 @@ public class DeploymentService {
                              PlatformCustomerConsumerService platformCustomerConsumerService,
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
+                             EntityConfigContractService entityConfigContractService,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
@@ -290,6 +295,7 @@ public class DeploymentService {
         this.platformCustomerConsumerService = platformCustomerConsumerService;
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
+        this.entityConfigContractService = entityConfigContractService;
         this.objectMapper = objectMapper;
     }
 
@@ -1062,7 +1068,25 @@ public class DeploymentService {
             draft.setActionsConfigJson(writeJson(request.actionsConfig()));
         }
         if (request.entityConfig() != null) {
-            draft.setEntityConfigJson(writeJson(request.entityConfig()));
+            if (!EntityConfigContractService.CONTRACT_VERSION_V04.equals(
+                draft.getEntityConfigContractVersion()
+            )) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Migrate this draft to AI_ENTITY_CONFIG_V0_4 before editing entity configuration."
+                );
+            }
+            JsonNode providerConfig = request.providerConfig() != null
+                ? request.providerConfig()
+                : readJson(draft.getProviderConfigJson());
+            EntityConfigContractValidation entityValidation = entityConfigContractService.requireValid(
+                request.entityConfig(),
+                new EntityConfigValidationContext(
+                    false,
+                    ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerConfig)
+                )
+            );
+            draft.setEntityConfigJson(writeJson(entityValidation.normalizedPlatformConfig()));
         }
         if (request.routingConfig() != null) {
             draft.setRoutingConfigJson(writeJson(request.routingConfig()));
@@ -1193,6 +1217,14 @@ public class DeploymentService {
             : getDeploymentForEditorAction(draft.getDeploymentId());
         assertNotArchived(deployment, "publish draft");
         assertActiveEditableDraft(deployment, draft, "be published");
+        if (!EntityConfigContractService.CONTRACT_VERSION_V04.equals(
+            draft.getEntityConfigContractVersion()
+        )) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Draft must be migrated to AI_ENTITY_CONFIG_V0_4 before publication."
+            );
+        }
         Instant now = Instant.now();
         DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
         if (!validation.publishReady()) {
@@ -1231,6 +1263,8 @@ public class DeploymentService {
         version.setReindexRequired(reindexRequired);
         version.setActionsConfigJson(draft.getActionsConfigJson());
         version.setEntityConfigJson(draft.getEntityConfigJson());
+        version.setEntityConfigContractVersion(draft.getEntityConfigContractVersion());
+        version.setAiFabricFrameworkVersion(deploymentConfigCompiler.frameworkVersion());
         version.setRoutingConfigJson(draft.getRoutingConfigJson());
         version.setProviderConfigJson(draft.getProviderConfigJson());
         version.setSecurityConfigJson(draft.getSecurityConfigJson());
@@ -1256,6 +1290,7 @@ public class DeploymentService {
         nextDraft.setStatus("DRAFT");
         nextDraft.setActionsConfigJson(draft.getActionsConfigJson());
         nextDraft.setEntityConfigJson(draft.getEntityConfigJson());
+        nextDraft.setEntityConfigContractVersion(draft.getEntityConfigContractVersion());
         nextDraft.setRoutingConfigJson(draft.getRoutingConfigJson());
         nextDraft.setProviderConfigJson(draft.getProviderConfigJson());
         nextDraft.setSecurityConfigJson(draft.getSecurityConfigJson());
@@ -1453,6 +1488,7 @@ public class DeploymentService {
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
+        deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
         deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment);
         deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
             deployment,
@@ -1686,6 +1722,7 @@ public class DeploymentService {
         draft.setDeploymentId(deployment.getId());
         draft.setRevisionNumber(1);
         draft.setStatus("DRAFT");
+        draft.setEntityConfigContractVersion(EntityConfigContractService.CONTRACT_VERSION_V04);
         draft.setActionsConfigJson(writeJson(defaultActionsConfig()));
         draft.setEntityConfigJson(writeJson(defaultEntityConfig(template)));
         draft.setRoutingConfigJson(writeJson(defaultRoutingConfig()));
@@ -2356,7 +2393,8 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getShellConfigJson()),
                 objectMapper.readTree(draft.getMarketplaceDatasetConfigJson()),
                 draft.getCreatedAt(),
-                draft.getUpdatedAt()
+                draft.getUpdatedAt(),
+                draft.getEntityConfigContractVersion()
             );
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read draft config", ex);
@@ -2477,6 +2515,7 @@ public class DeploymentService {
     private boolean draftMatchesVersion(DeploymentDraftEntity draft, DeploymentVersionEntity version) {
         return safeEquals(draft.getActionsConfigJson(), version.getActionsConfigJson())
             && safeEquals(draft.getEntityConfigJson(), version.getEntityConfigJson())
+            && safeEquals(draft.getEntityConfigContractVersion(), version.getEntityConfigContractVersion())
             && safeEquals(draft.getRoutingConfigJson(), version.getRoutingConfigJson())
             && safeEquals(draft.getProviderConfigJson(), version.getProviderConfigJson())
             && safeEquals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
@@ -2498,7 +2537,9 @@ public class DeploymentService {
             version.getStatus(),
             version.getConfigHash(),
             version.isReindexRequired(),
-            version.getPublishedAt()
+            version.getPublishedAt(),
+            version.getEntityConfigContractVersion(),
+            version.getAiFabricFrameworkVersion()
         );
     }
 

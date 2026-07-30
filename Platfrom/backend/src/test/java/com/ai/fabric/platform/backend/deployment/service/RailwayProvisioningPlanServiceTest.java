@@ -239,6 +239,10 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
+            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.4.0")
+            .containsEntry("AI_ENTITY_CONFIG_CONTRACT_VERSION", "AI_ENTITY_CONFIG_V0_4")
+            .containsEntry("AI_ENTITY_CONFIG_HASH", "entity-hash-123")
+            .containsEntry("PLATFORM_DEPLOYMENT_VERSION_ID", "ver-123")
             .containsEntry("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts")
             .containsEntry("CORS_ALLOWED_ORIGINS", "https://ai-fabric.dev,http://localhost:8080")
             .containsEntry("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*lovable*")
@@ -252,6 +256,8 @@ class RailwayProvisioningPlanServiceTest {
             .startsWith("https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?")
             .contains("expires=")
             .contains("sig=");
+        assertThat(runtimeEnv.get("AI_ENTITY_ARTIFACT_URL"))
+            .isEqualTo(runtimeEnv.get("AI_CONFIG_DEFAULT_FILE"));
 
         assertThat(connectorEnv)
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_ENABLED", "true")
@@ -1615,6 +1621,8 @@ class RailwayProvisioningPlanServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
+        version.setAiFabricFrameworkVersion("0.4.0");
+        version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_4");
         version.setReindexRequired(false);
         version.setActionsConfigJson("{\"actions\":[]}");
         version.setEntityConfigJson("{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}");
@@ -1624,7 +1632,13 @@ class RailwayProvisioningPlanServiceTest {
         version.setActionsArtifactYaml("actions: []");
         version.setEntityArtifactYaml("ai-entities: {}");
         version.setRoutingArtifactYaml("actions: {}");
-        version.setManifestJson("{}");
+        version.setManifestJson("""
+            {
+              "aiFabricFrameworkVersion": "0.4.0",
+              "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
+              "entityConfigHash": "entity-hash-123"
+            }
+            """);
         version.setPublishedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return version;
     }

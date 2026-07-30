@@ -19,7 +19,8 @@ public record DeploymentDraftResponse(
     JsonNode shellConfig,
     JsonNode marketplaceDatasetConfig,
     Instant createdAt,
-    Instant updatedAt
+    Instant updatedAt,
+    String entityConfigContractVersion
 ) {
     public DeploymentDraftResponse(String id,
                                    String deploymentId,
@@ -48,7 +49,8 @@ public record DeploymentDraftResponse(
             null,
             null,
             createdAt,
-            updatedAt
+            updatedAt,
+            null
         );
     }
 
@@ -81,7 +83,43 @@ public record DeploymentDraftResponse(
             shellConfig,
             null,
             createdAt,
-            updatedAt
+            updatedAt,
+            null
+        );
+    }
+
+    public DeploymentDraftResponse(String id,
+                                   String deploymentId,
+                                   int revisionNumber,
+                                   String status,
+                                   JsonNode actionsConfig,
+                                   JsonNode entityConfig,
+                                   JsonNode routingConfig,
+                                   JsonNode providerConfig,
+                                   JsonNode securityConfig,
+                                   JsonNode promptConfig,
+                                   JsonNode knowledgeSourceConfig,
+                                   JsonNode shellConfig,
+                                   JsonNode marketplaceDatasetConfig,
+                                   Instant createdAt,
+                                   Instant updatedAt) {
+        this(
+            id,
+            deploymentId,
+            revisionNumber,
+            status,
+            actionsConfig,
+            entityConfig,
+            routingConfig,
+            providerConfig,
+            securityConfig,
+            promptConfig,
+            knowledgeSourceConfig,
+            shellConfig,
+            marketplaceDatasetConfig,
+            createdAt,
+            updatedAt,
+            null
         );
     }
 }

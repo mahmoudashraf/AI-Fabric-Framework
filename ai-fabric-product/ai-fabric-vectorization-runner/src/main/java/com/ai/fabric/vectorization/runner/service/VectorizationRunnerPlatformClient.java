@@ -90,7 +90,10 @@ public class VectorizationRunnerPlatformClient {
             text(response.path("targetDescriptor"), "batchPath"),
             text(response.path("targetDescriptor"), "vectorSpacesPath"),
             text(response.path("targetDescriptor"), "authHeader"),
-            text(response.path("targetAuth"), "apiKey")
+            text(response.path("targetAuth"), "apiKey"),
+            text(response.path("targetDescriptor"), "workStatusPath"),
+            text(response.path("targetDescriptor"), "privateAuthorizationHeader"),
+            text(response.path("targetAuth"), "privateAuthorization")
         );
         return new VectorizationExecutionBundle(
             requiredText(response, "deploymentId"),

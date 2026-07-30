@@ -51,7 +51,7 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
-        <!-- AI Fabric 0.3.1 framework modules -->
+        <!-- AI Fabric framework modules, versioned by the parent BOM -->
         <dependency>
             <groupId>io.github.loom-ai-labs</groupId>
             <artifactId>ai-fabric-provider-starter</artifactId>

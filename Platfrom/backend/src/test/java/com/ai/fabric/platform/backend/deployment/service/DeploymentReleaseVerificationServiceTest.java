@@ -51,6 +51,11 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
+    private static final String AI_FABRIC_VERSION = "0.4.0";
+    private static final String ENTITY_CONFIG_CONTRACT_VERSION =
+        "AI_ENTITY_CONFIG_V0_4";
+    private static final String ENTITY_CONFIG_HASH = "entity-hash-123";
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
@@ -201,6 +206,14 @@ class DeploymentReleaseVerificationServiceTest {
                     """
                         {
                           "success": true,
+                          "aiFabricFrameworkVersion": "0.4.0",
+                          "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
+                          "entityConfigHash": "entity-hash-123",
+                          "deploymentVersionId": "ver-123",
+                          "aifabricEntities": {
+                            "available": true,
+                            "queue": {"ready": true}
+                          },
                           "entityConfigLocation": "%s",
                           "promptConfigLocation": "%s",
                           "knowledgeSourceConfigLocation": "",
@@ -498,6 +511,14 @@ class DeploymentReleaseVerificationServiceTest {
                     ? """
                         {
                           "success": true,
+                          "aiFabricFrameworkVersion": "0.4.0",
+                          "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
+                          "entityConfigHash": "entity-hash-123",
+                          "deploymentVersionId": "ver-old",
+                          "aifabricEntities": {
+                            "available": true,
+                            "queue": {"ready": true}
+                          },
                           "entityConfigLocation": "%s",
                           "promptConfigLocation": "%s",
                           "knowledgeSourceConfigLocation": "%s",
@@ -551,6 +572,14 @@ class DeploymentReleaseVerificationServiceTest {
                     ) : """
                         {
                           "success": true,
+                          "aiFabricFrameworkVersion": "0.4.0",
+                          "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
+                          "entityConfigHash": "entity-hash-123",
+                          "deploymentVersionId": "ver-123",
+                          "aifabricEntities": {
+                            "available": true,
+                            "queue": {"ready": true}
+                          },
                           "entityConfigLocation": "%s",
                           "promptConfigLocation": "%s",
                           "knowledgeSourceConfigLocation": "%s",
@@ -2443,6 +2472,14 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
+                      "aiFabricFrameworkVersion": "0.4.0",
+                      "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
+                      "entityConfigHash": "entity-hash-123",
+                      "deploymentVersionId": "ver-123",
+                      "aifabricEntities": {
+                        "available": true,
+                        "queue": {"ready": true}
+                      },
                       "entityConfigLocation": "%s",
                       "promptConfigLocation": "%s",
                       "knowledgeSourceConfigLocation": "%s",
@@ -2834,6 +2871,10 @@ class DeploymentReleaseVerificationServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
+        version.setAiFabricFrameworkVersion(AI_FABRIC_VERSION);
+        version.setEntityConfigContractVersion(
+            ENTITY_CONFIG_CONTRACT_VERSION
+        );
         version.setReindexRequired(false);
         version.setActionsConfigJson("""
             {
@@ -2938,8 +2979,18 @@ class DeploymentReleaseVerificationServiceTest {
         version.setEntityArtifactYaml("ai-entities: {}");
         version.setRoutingArtifactYaml("actions: {}");
         version.setManifestJson("""
-            {"deploymentId":"dep-123","versionId":"ver-123"}
-            """);
+            {
+              "deploymentId": "dep-123",
+              "versionId": "ver-123",
+              "aiFabricFrameworkVersion": "%s",
+              "entityConfigContractVersion": "%s",
+              "entityConfigHash": "%s"
+            }
+            """.formatted(
+                AI_FABRIC_VERSION,
+                ENTITY_CONFIG_CONTRACT_VERSION,
+                ENTITY_CONFIG_HASH
+            ));
         version.setPublishedAt(Instant.parse("2026-03-29T00:00:00Z"));
         return version;
     }

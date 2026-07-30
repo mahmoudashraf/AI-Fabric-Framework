@@ -1,6 +1,6 @@
 # Platform-V11 AI Fabric 0.5.0 Migration
 
-Status: **ANALYSIS COMPLETE - GATE B PASSED; GATE A REMAINS ACTIVE**
+Status: **GATE B PASSED; GATE A PACKAGED PROOF PASSED, STAGING PENDING**
 
 This folder is the working evidence set for migrating LoomAI Platform-V11 from
 AI Fabric `0.3.1` through the mandatory `0.4.0` lifecycle baseline and then to
@@ -15,8 +15,10 @@ the published `0.5.0` agentic execution release.
 | `01_GATE_A_0_4_BASELINE_EVIDENCE.md` | File-level `0.4.0` implementation and proof checklist |
 | `02_GATE_B_0_5_PUBLICATION_EVIDENCE.md` | Public tag, Maven Central, and standalone-consumer gate |
 | `03_CONFIGURATION_MATRIX_REDACTED.md` | Property ownership, sensitivity, restart, reindex, and live-readback matrix |
-
-The remaining numbered evidence files are created as their phases execute.
+| `04_BUILD_AND_TEST_EVIDENCE.md` | Gate A source, build, dependency, and test results |
+| `05_PACKAGED_RUNTIME_EVIDENCE.md` | Packaged `0.4.0` runtime lifecycle and failure canaries |
+| `06_CANARY_AND_TENANT_EVIDENCE.md` | Retrieval, tenant-isolation, and auth proof |
+| `07_DEPLOYMENT_AND_ROLLBACK_EVIDENCE.md` | Snapshot/restore drill and external deployment gate |
 
 ## Gate Order
 

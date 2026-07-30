@@ -40,7 +40,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -140,7 +159,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -209,7 +247,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -271,7 +328,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "faq-article": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -353,7 +429,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "faq-article": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -451,7 +546,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "order": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -527,7 +641,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -621,7 +754,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -712,7 +864,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -786,7 +957,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -857,7 +1047,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -928,7 +1137,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1003,7 +1231,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1078,7 +1325,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1153,7 +1419,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1232,7 +1517,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1307,7 +1611,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1392,7 +1715,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1459,7 +1801,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1529,7 +1890,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1604,7 +1984,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1681,7 +2080,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1760,7 +2178,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1823,7 +2260,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1887,7 +2343,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -1950,7 +2425,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 768 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2012,7 +2506,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2083,7 +2596,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2155,7 +2687,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1024 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2230,7 +2781,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2304,7 +2874,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2375,7 +2964,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 384 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2445,7 +3053,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 1536 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2520,7 +3147,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 384 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2592,7 +3238,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2672,7 +3337,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2738,7 +3422,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2821,7 +3524,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2891,7 +3613,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }
@@ -2959,7 +3700,26 @@ class DeploymentDraftValidationServiceTest {
                   "ai-config": { "vector-dimensions": 512 },
                   "ai-entities": {
                     "product": {
-                      "fields": []
+                      "indexing": { "enabled": true, "max-characters": 8000 },
+                      "analysis": { "enabled": false, "after": [] },
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true
+                        }
+                      ]
                     }
                   }
                 }

@@ -6,8 +6,32 @@ public record TargetConnectionDescriptor(
     String batchPath,
     String vectorSpacesPath,
     String authHeader,
-    String apiKey
+    String apiKey,
+    String workStatusPath,
+    String privateAuthorizationHeader,
+    String privateAuthorization
 ) {
+
+    public TargetConnectionDescriptor(
+        String targetType,
+        String baseUrl,
+        String batchPath,
+        String vectorSpacesPath,
+        String authHeader,
+        String apiKey
+    ) {
+        this(
+            targetType,
+            baseUrl,
+            batchPath,
+            vectorSpacesPath,
+            authHeader,
+            apiKey,
+            null,
+            null,
+            null
+        );
+    }
 
     @Override
     public String toString() {
@@ -16,6 +40,9 @@ public record TargetConnectionDescriptor(
             + ", batchPath=" + batchPath
             + ", vectorSpacesPath=" + vectorSpacesPath
             + ", authHeader=" + authHeader
-            + ", apiKey=<masked>]";
+            + ", apiKey=<masked>"
+            + ", workStatusPath=" + workStatusPath
+            + ", privateAuthorizationHeader=" + privateAuthorizationHeader
+            + ", privateAuthorization=<masked>]";
     }
 }

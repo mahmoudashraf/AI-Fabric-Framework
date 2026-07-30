@@ -35,6 +35,7 @@ import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunn
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationRunnerSessionRepository;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSourceConnectionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,6 +86,7 @@ public class VectorizationRunnerService {
     private final VectorizationRunnerSessionRepository sessionRepository;
     private final VectorizationCheckpointRepository checkpointRepository;
     private final VectorizationFailureBucketRepository failureBucketRepository;
+    private final ObjectMapper objectMapper;
     private final VectorizationJsonSupport jsonSupport;
     private final VectorizationTokenService tokenService;
     private final VectorizationService vectorizationService;
@@ -103,6 +105,7 @@ public class VectorizationRunnerService {
                                       VectorizationRunnerSessionRepository sessionRepository,
                                       VectorizationCheckpointRepository checkpointRepository,
                                       VectorizationFailureBucketRepository failureBucketRepository,
+                                      ObjectMapper objectMapper,
                                       VectorizationJsonSupport jsonSupport,
                                       VectorizationTokenService tokenService,
                                       VectorizationService vectorizationService,
@@ -120,6 +123,7 @@ public class VectorizationRunnerService {
         this.sessionRepository = sessionRepository;
         this.checkpointRepository = checkpointRepository;
         this.failureBucketRepository = failureBucketRepository;
+        this.objectMapper = objectMapper;
         this.jsonSupport = jsonSupport;
         this.tokenService = tokenService;
         this.vectorizationService = vectorizationService;
@@ -274,11 +278,32 @@ public class VectorizationRunnerService {
         if (!StringUtils.hasText(targetBaseUrl)) {
             throw new ResponseStatusException(BAD_REQUEST, "Deployment runtime URL is not available for vectorization execution.");
         }
-        String runtimeTrustedBackendApiKey = trimToNull(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME));
-        if (!StringUtils.hasText(runtimeTrustedBackendApiKey)) {
+        Map<String, String> runtimeHeaders = RuntimePrivateAccessSupport.issueSystemHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "system:platform-vectorization-runner",
+            run.getId(),
+            "platform-vectorization-runner",
+            List.of(
+                "data-sync:upsert",
+                "data-sync:delete",
+                "vectorization:runner",
+                RuntimePrivateAccessSupport.SCOPE_RUNTIME_INDEXING_OVERVIEW
+            ),
+            properties.runLeaseTtl()
+        );
+        String runtimeTrustedBackendApiKey = trimToNull(
+            runtimeHeaders.get(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER)
+        );
+        String runtimePrivateAuthorization = trimToNull(
+            runtimeHeaders.get(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER)
+        );
+        if (!StringUtils.hasText(runtimeTrustedBackendApiKey)
+            || !StringUtils.hasText(runtimePrivateAuthorization)) {
             throw new ResponseStatusException(
                 BAD_REQUEST,
-                RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME + " is not configured for vectorization execution."
+                "Runtime private access is not fully configured for vectorization execution."
             );
         }
         ObjectNode targetVerifiedAuthContext = jsonSupport.objectNode();
@@ -301,9 +326,15 @@ public class VectorizationRunnerService {
         targetDescriptor.put("batchPath", "/api/ai/data-sync/batch");
         targetDescriptor.put("vectorSpacesPath", "/api/ai/data-sync/vector-spaces");
         targetDescriptor.put("authHeader", RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+        targetDescriptor.put("workStatusPath", "/api/admin/indexing/work/{workId}");
+        targetDescriptor.put(
+            "privateAuthorizationHeader",
+            RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER
+        );
 
         ObjectNode targetAuth = jsonSupport.objectNode();
         targetAuth.put("apiKey", runtimeTrustedBackendApiKey);
+        targetAuth.put("privateAuthorization", runtimePrivateAuthorization);
 
         return new VectorizationExecutionBundleSummary(
             run.getDeploymentId(),

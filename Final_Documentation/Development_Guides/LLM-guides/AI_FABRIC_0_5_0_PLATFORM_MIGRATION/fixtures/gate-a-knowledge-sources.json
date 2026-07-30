@@ -1,0 +1,20 @@
+{
+  "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+  "sources": [
+    {
+      "id": "gate-a-tenant-a-documents",
+      "type": "document",
+      "adapterType": "deployment-private-vector",
+      "attributionLabel": "Gate A tenant A evidence",
+      "entityType": "document",
+      "filters": {
+        "tenantId": "ten-gate-a",
+        "deploymentId": "dep-gate-a-040"
+      },
+      "authModes": [
+        "PRIVATE_RUNTIME_BACKEND_MEDIATED"
+      ],
+      "enabled": true
+    }
+  ]
+}

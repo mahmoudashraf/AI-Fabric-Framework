@@ -45,6 +45,12 @@ public class DeploymentVersionEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String entityConfigJson;
 
+    @Column(nullable = false)
+    private String entityConfigContractVersion = "AI_ENTITY_CONFIG_V0_3";
+
+    @Column(nullable = false)
+    private String aiFabricFrameworkVersion = "0.3.1";
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String routingConfigJson;
 
@@ -151,6 +157,22 @@ public class DeploymentVersionEntity {
 
     public void setEntityConfigJson(String entityConfigJson) {
         this.entityConfigJson = entityConfigJson;
+    }
+
+    public String getEntityConfigContractVersion() {
+        return entityConfigContractVersion;
+    }
+
+    public void setEntityConfigContractVersion(String entityConfigContractVersion) {
+        this.entityConfigContractVersion = entityConfigContractVersion;
+    }
+
+    public String getAiFabricFrameworkVersion() {
+        return aiFabricFrameworkVersion;
+    }
+
+    public void setAiFabricFrameworkVersion(String aiFabricFrameworkVersion) {
+        this.aiFabricFrameworkVersion = aiFabricFrameworkVersion;
     }
 
     public String getRoutingConfigJson() {

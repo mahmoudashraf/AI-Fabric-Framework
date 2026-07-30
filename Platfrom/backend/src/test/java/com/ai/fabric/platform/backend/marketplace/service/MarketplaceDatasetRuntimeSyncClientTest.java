@@ -70,7 +70,10 @@ class MarketplaceDatasetRuntimeSyncClientTest {
             List.of(new MarketplaceDatasetSyncService.DatasetDocument(
                 "doc-1",
                 "hello",
-                Map.of("source", "test")
+                Map.of(
+                    "source", "test",
+                    "tenantId", "source-controlled-tenant"
+                )
             ))
         );
 
@@ -81,6 +84,17 @@ class MarketplaceDatasetRuntimeSyncClientTest {
         assertThat(authContext.path("subjectId").asText()).isEqualTo("system:platform-marketplace-dataset-sync");
         assertThat(authContext.path("grantedScopes")).extracting(JsonNode::asText)
             .containsExactly("data-sync:upsert", "vectorization:verification");
+        JsonNode metadata = observedRequest.get()
+            .path("operations")
+            .path(0)
+            .path("metadata");
+        assertThat(metadata.path("source").asText()).isEqualTo("test");
+        assertThat(metadata.path("deploymentId").asText()).isEqualTo("dep-123");
+        assertThat(metadata.path("customerId").asText()).isEqualTo("cus-123");
+        assertThat(metadata.path("tenantId").asText()).isEqualTo("ten-123");
+        assertThat(metadata.path("knowledgeSourceHandleRef").asText()).isEqualTo("handle-1");
+        assertThat(metadata.path("marketplaceDatasetId").asText()).isEqualTo("dataset-1");
+        assertThat(metadata.path("marketplaceDatasetHash").asText()).isEqualTo("hash-1");
     }
 
     @Test

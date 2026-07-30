@@ -1,5 +1,9 @@
 package com.ai.fabric.platform.backend.marketplace.service;
 
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractIssue;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
@@ -10,6 +14,7 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPermiss
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPricingSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -121,9 +126,12 @@ public class MarketplaceManifestService {
         Pattern.compile("\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[[0-9]+])*");
 
     private final ObjectMapper objectMapper;
+    private final EntityConfigContractService entityConfigContractService;
 
     public MarketplaceManifestService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        this.entityConfigContractService =
+            new EntityConfigContractService(objectMapper);
     }
 
     public ParsedMarketplaceManifest parseAndValidate(MarketplacePluginEntity plugin,
@@ -895,6 +903,36 @@ public class MarketplaceManifestService {
                 throw invalid(plugin, version, "each contributions.entityConfig.ai-entities entry must be an object.");
             }
         });
+
+        ObjectNode candidate = objectMapper.createObjectNode();
+        candidate.putObject("ai-config").put("vector-dimensions", 512);
+        candidate.set("ai-entities", entities.deepCopy());
+        EntityConfigContractValidation validation =
+            entityConfigContractService.validate(
+                candidate,
+                new EntityConfigValidationContext(false, true)
+            );
+        if (!validation.valid()) {
+            String details = validation.issues().stream()
+                .limit(3)
+                .map(this::summarizeEntityConfigIssue)
+                .collect(java.util.stream.Collectors.joining("; "));
+            throw invalid(
+                plugin,
+                version,
+                "contributions.entityConfig must use "
+                    + EntityConfigContractService.CONTRACT_VERSION_V04
+                    + ": "
+                    + details
+            );
+        }
+    }
+
+    private String summarizeEntityConfigIssue(EntityConfigContractIssue issue) {
+        if (issue == null) {
+            return "ENTITY_CONFIG_INVALID";
+        }
+        return issue.code() + " at " + issue.path() + ": " + issue.message();
     }
 
     private void validateRequiredCapabilities(MarketplacePluginEntity plugin,

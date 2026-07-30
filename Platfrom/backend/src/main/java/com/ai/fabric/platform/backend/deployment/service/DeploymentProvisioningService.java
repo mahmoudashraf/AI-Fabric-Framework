@@ -11,17 +11,21 @@ public class DeploymentProvisioningService {
 
     private final DeploymentTargetProfileService targetProfileService;
     private final DeploymentProviderRegistry providerRegistry;
+    private final DeploymentConfigCompiler deploymentConfigCompiler;
 
     public DeploymentProvisioningService(DeploymentTargetProfileService targetProfileService,
-                                         DeploymentProviderRegistry providerRegistry) {
+                                         DeploymentProviderRegistry providerRegistry,
+                                         DeploymentConfigCompiler deploymentConfigCompiler) {
         this.targetProfileService = targetProfileService;
         this.providerRegistry = providerRegistry;
+        this.deploymentConfigCompiler = deploymentConfigCompiler;
     }
 
     public ProvisioningResult provision(DeploymentEntity deployment,
                                         DeploymentVersionEntity version,
                                         DeploymentReleaseEntity release,
                                         ProvisioningProgressTracker progressTracker) {
+        deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
         DeploymentTargetProfileEntity targetProfile = targetProfileService.resolveForRelease(release);
         targetProfileService.applyProfileToRelease(release, targetProfile);
         return providerRegistry.require(targetProfile.getProviderType())

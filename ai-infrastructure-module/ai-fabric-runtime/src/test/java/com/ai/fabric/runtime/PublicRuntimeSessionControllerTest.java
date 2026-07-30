@@ -19,14 +19,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = {
+@SpringBootTest(
+    args = "--spring.config.import=classpath:test-runtime-entity-config.yml",
+    properties = {
     "OPENAI_ENABLED=true",
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "spring.datasource.url=jdbc:h2:mem:public-runtime-session-main;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
     "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-trusted-backend-secret",
     "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
@@ -175,14 +176,15 @@ class PublicRuntimeSessionControllerTest {
     }
 }
 
-@SpringBootTest(properties = {
+@SpringBootTest(
+    args = "--spring.config.import=classpath:test-runtime-entity-config.yml",
+    properties = {
     "OPENAI_ENABLED=true",
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "spring.datasource.url=jdbc:h2:mem:public-runtime-session-disabled;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
     "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-trusted-backend-secret",
     "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
@@ -207,14 +209,15 @@ class PublicRuntimeSessionControllerDisabledBootstrapTest {
     }
 }
 
-@SpringBootTest(properties = {
+@SpringBootTest(
+    args = "--spring.config.import=classpath:test-runtime-entity-config.yml",
+    properties = {
     "OPENAI_ENABLED=true",
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "spring.datasource.url=jdbc:h2:mem:public-runtime-session-rate-limit;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
     "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-trusted-backend-secret",
     "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
@@ -251,14 +254,15 @@ class PublicRuntimeSessionControllerRateLimitTest {
     }
 }
 
-@SpringBootTest(properties = {
+@SpringBootTest(
+    args = "--spring.config.import=classpath:test-runtime-entity-config.yml",
+    properties = {
     "OPENAI_ENABLED=true",
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "spring.datasource.url=jdbc:h2:mem:public-runtime-session-authenticated;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
     "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-trusted-backend-secret",
     "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
@@ -386,14 +390,15 @@ class PublicRuntimeAuthenticatedChatTest {
     }
 }
 
-@SpringBootTest(properties = {
+@SpringBootTest(
+    args = "--spring.config.import=classpath:test-runtime-entity-config.yml",
+    properties = {
     "OPENAI_ENABLED=true",
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "spring.datasource.url=jdbc:h2:mem:public-runtime-session-default-shell;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
     "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-trusted-backend-secret",
     "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",

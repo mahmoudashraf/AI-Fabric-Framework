@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationPlanRevisionEntity;
+import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerSessionEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
@@ -32,6 +33,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class VectorizationServiceTest {
@@ -142,6 +144,71 @@ class VectorizationServiceTest {
         assertThat(summary.runnerInstanceId()).isEqualTo("runner-1");
         assertThat(summary.productVersion()).isEqualTo("2026.04.track-b");
         assertThat(summary.compatibilityVersion()).isEqualTo("1");
+    }
+
+    @Test
+    void retryPreservesDurableDataSyncWorkForReconciliation() {
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-1");
+        VectorizationRunEntity run = new VectorizationRunEntity();
+        run.setId("run-1");
+        run.setDeploymentId("dep-1");
+        run.setReason("BOOTSTRAP");
+        run.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        run.setStatus("FAILED");
+        run.setRequestedStatus("FAILED");
+        run.setEntityScopeJson("[\"product\"]");
+        run.setProgressSummaryJson("{\"failedRecords\":1}");
+        run.setCheckpointSummaryJson("{\"checkpointType\":\"PAGE\"}");
+        run.setExecutionOverridesJson("{\"batchSize\":25}");
+        run.setErrorSummaryJson("""
+            {
+              "dataSync": {
+                "failures": [
+                  {
+                    "indexingWorkId": "71",
+                    "indexingStatus": "FAILED_RETRYABLE",
+                    "vectorSpace": "product",
+                    "entityId": "product-1",
+                    "providerRequestId": "sync-1",
+                    "durableHandoffAccepted": true,
+                    "retryDisposition": "RECONCILE_DURABLE_WORK"
+                  },
+                  {
+                    "indexingWorkId": "72",
+                    "durableHandoffAccepted": false,
+                    "retryDisposition": "SAFE_RESUBMIT"
+                  }
+                ]
+              }
+            }
+            """);
+
+        when(deploymentRepository.findById("dep-1"))
+            .thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment))
+            .thenReturn(deployment);
+        when(runRepository.findById("run-1")).thenReturn(Optional.of(run));
+
+        service().updateRunCommand("dep-1", "run-1", "RETRY");
+
+        ObjectNode overrides = jsonSupport.readObject(
+            run.getExecutionOverridesJson()
+        );
+        assertThat(overrides.path("batchSize").asInt()).isEqualTo(25);
+        assertThat(overrides.path("pendingDataSyncWork")).hasSize(1);
+        assertThat(
+            overrides.path("pendingDataSyncWork").get(0).path("workId").asText()
+        ).isEqualTo("71");
+        assertThat(
+            overrides.path("pendingDataSyncWork").get(0)
+                .path("vectorSpace").asText()
+        ).isEqualTo("product");
+        assertThat(jsonSupport.readObject(run.getErrorSummaryJson())).isEmpty();
+        assertThat(run.getStatus()).isEqualTo("QUEUED");
+        assertThat(run.getRequestedStatus()).isEqualTo("RETRY_REQUESTED");
+        verify(checkpointRepository).deleteByRunId("run-1");
+        verify(failureBucketRepository).deleteByRunId("run-1");
     }
 
     private VectorizationService service() {

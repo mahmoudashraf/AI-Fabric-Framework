@@ -6,17 +6,19 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = {
+@SpringBootTest(
+    args = "--spring.config.import=classpath:test-runtime-entity-config.yml",
+    properties = {
     "OPENAI_ENABLED=true",
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "spring.datasource.url=jdbc:h2:mem:runtime-data-sync-endpoint;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-secret",
     "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
     "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS=platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM",
@@ -34,17 +36,18 @@ class RuntimeDataSyncEndpointTest {
                 .header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.vectorSpaces[0]").value("product"));
+            .andExpect(jsonPath("$.vectorSpaces", hasItem("product")));
     }
 }
 
-@SpringBootTest(properties = {
+@SpringBootTest(
+    args = "--spring.config.import=classpath:test-runtime-entity-config.yml",
+    properties = {
     "OPENAI_ENABLED=true",
     "OPENAI_API_KEY=test",
     "ACTIONS_CONNECTOR_BASE_URL=http://localhost:18082",
     "ACTIONS_CONNECTOR_API_KEY=test",
     "spring.datasource.url=jdbc:h2:mem:runtime-data-sync-endpoint-trusted;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
-    "ai.config.default-file=classpath:test-runtime-entity-config.yml",
     "AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE=VERIFIED_CONTEXT_REQUIRED",
     "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY=runtime-secret",
     "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY=runtime-private-signing-secret",
@@ -69,6 +72,6 @@ class RuntimeDataSyncTrustedBackendEndpointTest {
                 .header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-secret"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.vectorSpaces[0]").value("product"));
+            .andExpect(jsonPath("$.vectorSpaces", hasItem("product")));
     }
 }

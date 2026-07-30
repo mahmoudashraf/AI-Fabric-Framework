@@ -34,6 +34,7 @@ import ai.fabric.intent.action.confirmation.ConfirmationInterceptorDecisionType;
 import ai.fabric.intent.action.confirmation.ConfirmationInterceptorRule;
 import ai.fabric.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
 import ai.fabric.intent.action.confirmation.ConfirmationInterceptorTrigger;
+import ai.fabric.indexing.observability.AIEntityIndexingEndpoint;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.rag.source.SearchSourceRegistry;
 import ai.fabric.shell.BuiltInShellCatalog;
@@ -126,6 +127,12 @@ class RuntimeAdminOverviewControllerTest {
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "knowledgeSourceConfigLocation", "https://platform.example/knowledge-sources");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "shellConfigLocation", "https://platform.example/shell");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredAiFabricFrameworkVersion", "0.4.0");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigHash", "entity-hash-123");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentVersionId", "ver-123");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "productSourceCommit", "commit-123");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "productBuildTime", "2026-07-30T12:00:00Z");
 
         ResponseEntity<?> response = controller.overview(authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_ADMIN_OVERVIEW));
 
@@ -135,6 +142,13 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
+        assertThat(body).containsEntry("aiFabricFrameworkVersion", "0.4.0");
+        assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.4.0");
+        assertThat(body).containsEntry("entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
+        assertThat(body).containsEntry("entityConfigHash", "entity-hash-123");
+        assertThat(body).containsEntry("deploymentVersionId", "ver-123");
+        assertThat(body).containsEntry("productSourceCommit", "commit-123");
+        assertThat(body).containsEntry("productBuildTime", "2026-07-30T12:00:00Z");
         assertThat(body).containsEntry("supportsVectorScan", true);
         assertThat(body).containsEntry("actionsCount", 1L);
         assertThat(body).containsEntry("groundingEligibleActionsCount", 0L);
@@ -162,6 +176,14 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("shellGreetingConfigured", true);
         assertThat(body.get("supportedEntityTypes")).isEqualTo(Set.of("product", "policy", "review"));
         assertThat(body.get("vectorScope")).isEqualTo(vectorScope);
+        assertThat(body.get("aifabricEntities")).isEqualTo(Map.of(
+            "available", true,
+            "queue", Map.of(
+                "ready", true,
+                "pending", 0L,
+                "deadLetters", 0L
+            )
+        ));
         assertThat(body.get("inferenceProfile")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> inferenceProfile = (Map<String, Object>) body.get("inferenceProfile");
@@ -435,7 +457,8 @@ class RuntimeAdminOverviewControllerTest {
                 webhookPolicyProvider,
                 knowledgeSourceProvider,
                 shellConfigProvider,
-                searchSourceRegistryProvider
+                searchSourceRegistryProvider,
+                entityIndexingEndpointProvider()
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
@@ -534,6 +557,20 @@ class RuntimeAdminOverviewControllerTest {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("runtimeDeploymentSearchSourceRegistry", registry);
         return beanFactory.getBeanProvider(SearchSourceRegistry.class);
+    }
+
+    private ObjectProvider<AIEntityIndexingEndpoint> entityIndexingEndpointProvider() {
+        AIEntityIndexingEndpoint endpoint = mock(AIEntityIndexingEndpoint.class);
+        when(endpoint.entities()).thenReturn(Map.of(
+            "queue", Map.of(
+                "ready", true,
+                "pending", 0L,
+                "deadLetters", 0L
+            )
+        ));
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("aiEntityIndexingEndpoint", endpoint);
+        return beanFactory.getBeanProvider(AIEntityIndexingEndpoint.class);
     }
 
     private ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigProvider() {

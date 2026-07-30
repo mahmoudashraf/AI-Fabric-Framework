@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.security.RuntimePrivateAssertionSigningService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationEventService;
 import com.ai.fabric.platform.backend.shopify.service.ShopifyStoreVectorizationLedgerService;
@@ -105,6 +106,8 @@ class VectorizationRunnerServiceTest {
         when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment()));
         when(platformSecretService.resolveSecret("SOURCE_API_KEY")).thenReturn("source-secret");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME))
+            .thenReturn("runtime-signing-secret");
 
         VectorizationExecutionBundleSummary summary = service().fetchExecutionBundle("session-token", "vrn-1");
 
@@ -115,7 +118,13 @@ class VectorizationRunnerServiceTest {
         assertThat(summary.targetDescriptor().path("baseUrl").asText()).isEqualTo("https://runtime.dep-1.example");
         assertThat(summary.targetDescriptor().path("batchPath").asText()).isEqualTo("/api/ai/data-sync/batch");
         assertThat(summary.targetDescriptor().path("authHeader").asText()).isEqualTo("X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(summary.targetDescriptor().path("workStatusPath").asText())
+            .isEqualTo("/api/admin/indexing/work/{workId}");
+        assertThat(summary.targetDescriptor().path("privateAuthorizationHeader").asText())
+            .isEqualTo("X-AIFABRIC-RUNTIME-AUTHORIZATION");
         assertThat(summary.targetAuth().path("apiKey").asText()).isEqualTo("runtime-secret");
+        assertThat(summary.targetAuth().path("privateAuthorization").asText())
+            .startsWith("Bearer rpa1.");
     }
 
     @Test
@@ -136,6 +145,8 @@ class VectorizationRunnerServiceTest {
             """)));
         when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment()));
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME))
+            .thenReturn("runtime-signing-secret");
 
         VectorizationExecutionBundleSummary summary = service().fetchExecutionBundle("session-token", "vrn-1");
 
@@ -162,6 +173,8 @@ class VectorizationRunnerServiceTest {
         when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment()));
         when(platformSecretService.resolveSecret("SOURCE_API_KEY")).thenReturn("source-secret");
         when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(platformSecretService.resolveSecret(RuntimePrivateAssertionSigningService.SECRET_NAME))
+            .thenReturn("runtime-signing-secret");
 
         VectorizationExecutionBundleSummary summary = service().fetchExecutionBundle("session-token", "vrn-1");
 
@@ -329,6 +342,7 @@ class VectorizationRunnerServiceTest {
             sessionRepository,
             checkpointRepository,
             failureBucketRepository,
+            objectMapper,
             jsonSupport,
             tokenService,
             vectorizationService,

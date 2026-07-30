@@ -3,6 +3,8 @@ package com.ai.fabric.runtime.search;
 import ai.fabric.dto.AISearchRequest;
 import ai.fabric.dto.AISearchResponse;
 import ai.fabric.rag.source.ResolvedKnowledgeSource;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,6 +15,9 @@ import java.util.Objects;
 final class SearchSourceResultSupport {
 
     private static final String DEPLOYMENT_PRIVATE_VECTOR_ADAPTER = "deployment-private-vector";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
+    private static final TypeReference<Map<String, Object>> METADATA_MAP_TYPE = new TypeReference<>() {
+    };
 
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_ID = "knowledgeSourceId";
     static final String METADATA_KEY_KNOWLEDGE_SOURCE_TYPE = "knowledgeSourceType";
@@ -112,6 +117,13 @@ final class SearchSourceResultSupport {
     }
 
     private static Map<String, Object> normalizeMetadata(Object metadata) {
+        if (metadata instanceof CharSequence serializedMetadata) {
+            try {
+                metadata = OBJECT_MAPPER.readValue(serializedMetadata.toString(), METADATA_MAP_TYPE);
+            } catch (Exception ignored) {
+                return Map.of();
+            }
+        }
         if (!(metadata instanceof Map<?, ?> rawMap)) {
             return Map.of();
         }

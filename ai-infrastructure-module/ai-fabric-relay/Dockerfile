@@ -4,18 +4,7 @@
 
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 
-ARG AI_FABRIC_FRAMEWORK_REPOSITORY=https://github.com/Loom-AI-Labs/ai-fabric-framework.git
-ARG AI_FABRIC_FRAMEWORK_REF=main
-
 WORKDIR /workspace
-
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
-
-RUN git clone --depth 1 --branch "$AI_FABRIC_FRAMEWORK_REF" "$AI_FABRIC_FRAMEWORK_REPOSITORY" /tmp/ai-fabric-framework \
-    && mvn -f /tmp/ai-fabric-framework/ai-infrastructure-module/pom.xml -B -V -DskipTests install \
-        -pl '!integration-Testing/vector-contract-tests,!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
-        -am \
-    && rm -rf /tmp/ai-fabric-framework
 
 # Copy the sources needed to build the relay (and its parents/modules)
 COPY ai-infrastructure-module ai-infrastructure-module

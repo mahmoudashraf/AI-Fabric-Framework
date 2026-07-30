@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCente
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentEntityConfigMigrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationContextSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentHostedVerificationDispatchSummary;
@@ -69,6 +70,7 @@ import com.ai.fabric.platform.backend.deployment.service.DeploymentRailwayLogSer
 import com.ai.fabric.platform.backend.deployment.service.DeploymentActivityService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentBulkOperationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentHostedVerificationService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentEntityConfigMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocChatService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocImportService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentPocPromptSessionService;
@@ -112,6 +114,7 @@ public class DeploymentController {
     private final DeploymentRailwayLogService deploymentRailwayLogService;
     private final DeploymentBulkOperationService deploymentBulkOperationService;
     private final DeploymentHostedVerificationService deploymentHostedVerificationService;
+    private final DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService;
     private final DeploymentTenantMigrationService deploymentTenantMigrationService;
     private final DeploymentVerificationRolloutService deploymentVerificationRolloutService;
     private final DeploymentPocChatService deploymentPocChatService;
@@ -130,6 +133,7 @@ public class DeploymentController {
                                 DeploymentRailwayLogService deploymentRailwayLogService,
                                 DeploymentBulkOperationService deploymentBulkOperationService,
                                 DeploymentHostedVerificationService deploymentHostedVerificationService,
+                                DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService,
                                 DeploymentTenantMigrationService deploymentTenantMigrationService,
                                 DeploymentVerificationRolloutService deploymentVerificationRolloutService,
                                 DeploymentPocChatService deploymentPocChatService,
@@ -147,6 +151,7 @@ public class DeploymentController {
         this.deploymentRailwayLogService = deploymentRailwayLogService;
         this.deploymentBulkOperationService = deploymentBulkOperationService;
         this.deploymentHostedVerificationService = deploymentHostedVerificationService;
+        this.deploymentEntityConfigMigrationService = deploymentEntityConfigMigrationService;
         this.deploymentTenantMigrationService = deploymentTenantMigrationService;
         this.deploymentVerificationRolloutService = deploymentVerificationRolloutService;
         this.deploymentPocChatService = deploymentPocChatService;
@@ -592,6 +597,17 @@ public class DeploymentController {
     @PostMapping("/deployment-drafts/{draftId}/validate")
     public DraftValidationResponse validateDraft(@PathVariable String draftId) {
         return deploymentService.validateDraft(draftId);
+    }
+
+    @PostMapping("/deployment-drafts/{draftId}/entity-config-migration/preview")
+    public DeploymentEntityConfigMigrationSummary previewEntityConfigMigration(@PathVariable String draftId) {
+        return deploymentEntityConfigMigrationService.preview(draftId);
+    }
+
+    @PostMapping("/deployment-drafts/{draftId}/entity-config-migration/apply")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentEntityConfigMigrationSummary applyEntityConfigMigration(@PathVariable String draftId) {
+        return deploymentEntityConfigMigrationService.apply(draftId);
     }
 
     @PostMapping("/deployment-drafts/{draftId}/publish")

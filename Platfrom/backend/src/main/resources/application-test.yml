@@ -6,9 +6,11 @@ spring:
     password:
   flyway:
     # V121-V124 are production Coolify target-profile tuning migrations that
-    # rely on PostgreSQL JSONB operators. They do not change the application
-    # schema, and production has already applied them on PostgreSQL.
-    target: "120"
+    # rely on PostgreSQL JSONB operators. The test-only V120.1 migration mirrors
+    # the later application schema additions without executing those
+    # production-only data updates against H2.
+    locations: classpath:db/migration,classpath:db/test-migration
+    target: "120.1"
 
 platform:
   bootstrap:

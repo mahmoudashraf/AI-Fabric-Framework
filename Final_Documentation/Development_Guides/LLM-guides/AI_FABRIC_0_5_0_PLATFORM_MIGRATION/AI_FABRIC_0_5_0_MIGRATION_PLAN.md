@@ -694,6 +694,32 @@ gate. Never mark a skipped or blocked check as passed.
 - Confirmed its AI Fabric dependency tree contains only `0.5.0`.
 - Marked Gate B **PASSED**. Gate A remains the active platform blocker.
 
+### 2026-07-30 - Gate A implementation and packaged canary
+
+- Migrated the Platform-owned entity contract, persisted draft/version model,
+  compiler, validator, editor, manifests, and indexed-output hash to the
+  explicit `0.4` baseline.
+- Added deterministic and auditable draft migration while preserving immutable
+  historical release bytes.
+- Added bounded Data Sync failure classification and durable-work
+  reconciliation.
+- Removed framework source cloning from product Docker builds and resolved the
+  `0.4.0` framework from Maven artifacts.
+- Passed the product, infrastructure, backend, frontend, focused runtime, and
+  focused durable-retry checks recorded in `04_BUILD_AND_TEST_EVIDENCE.md`.
+- Built packaged image digest
+  `sha256:aec3c8daeb50312299283ce8e38b4612d0224cfac434997938255123029b4391`.
+- Fixed two Platform runtime integration defects found by the package canary:
+  the Boot 4 fallback mapper did not register Java time modules, and the
+  search-source adapter did not normalize Lucene's serialized JSON metadata
+  before its fail-closed source filter.
+- Proved create, update, persistence across restart, retrieval, delete,
+  projection rejection, auth failures, retryable provider failure, dead-letter
+  termination, tenant isolation, and snapshot restoration.
+- Kept Gate A **BLOCKED** on the isolated external staging deployment and
+  deployment-level rollback proof. Local packaged-runtime evidence is not
+  represented as a Coolify deployment.
+
 ## 12. Immediate Next Actions
 
 1. Re-audit the current Platform branch before editing.

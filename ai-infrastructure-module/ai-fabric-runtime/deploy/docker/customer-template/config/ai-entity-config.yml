@@ -1,22 +1,14 @@
 ai-entities:
   document:
-    features: ["embedding", "search"]
-    auto-process: true
-    enable-search: true
-    auto-embedding: true
-    indexable: true
-
-    crud-operations:
-      create:
-        generate-embedding: true
-        index-for-search: true
-        enable-analysis: false
-      update:
-        generate-embedding: true
-        index-for-search: true
-        enable-analysis: false
-      delete:
-        index-for-search: false
-        remove-from-search: true
-        cleanup-embeddings: false
-
+    indexing:
+      enabled: true
+      max-characters: 8000
+    analysis:
+      enabled: false
+      after: []
+    searchable-fields:
+      - name: content
+        destinations: [SEMANTIC_SEARCH, RAG_CONTEXT]
+        preprocessing: CLEAN
+        priority: 100
+        required: true

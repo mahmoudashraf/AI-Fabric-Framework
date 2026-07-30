@@ -236,6 +236,23 @@ public class RailwayProvisioningPlanService {
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
 
         var artifacts = artifactService.toBundleSummary(version);
+        JsonNode manifest = readJson(version.getManifestJson());
+        String aiFabricFrameworkVersion = requireReleaseMetadata(
+            "aiFabricFrameworkVersion",
+            version.getAiFabricFrameworkVersion()
+        );
+        String entityConfigContractVersion = requireReleaseMetadata(
+            "entityConfigContractVersion",
+            version.getEntityConfigContractVersion()
+        );
+        String entityConfigHash = requireReleaseMetadata(
+            "entityConfigHash",
+            manifest.path("entityConfigHash").asText("")
+        );
+        String deploymentVersionId = requireReleaseMetadata(
+            "deploymentVersionId",
+            version.getId()
+        );
         RailwayArtifactUrlsSummary artifactUrls = new RailwayArtifactUrlsSummary(
             artifacts.actionsArtifactUrl(),
             artifacts.entityArtifactUrl(),
@@ -249,6 +266,26 @@ public class RailwayProvisioningPlanService {
         List<RailwayEnvVarSummary> runtimeEnv = new ArrayList<>();
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CATALOG_PATH", artifactUrls.actions()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_FRAMEWORK_VERSION",
+            aiFabricFrameworkVersion
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_ENTITY_CONFIG_CONTRACT_VERSION",
+            entityConfigContractVersion
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_ENTITY_CONFIG_HASH",
+            entityConfigHash
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_ENTITY_ARTIFACT_URL",
+            artifactUrls.entities()
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "PLATFORM_DEPLOYMENT_VERSION_ID",
+            deploymentVersionId
+        ));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_PROMPTS_DEPLOYMENT_CONFIG_FILE", artifactUrls.prompts()));
         addOptionalEnv(runtimeEnv, "AI_KNOWLEDGE_SOURCES_DEPLOYMENT_CONFIG_FILE", artifactUrls.knowledgeSources());
         addOptionalEnv(runtimeEnv, "AI_SHELL_DEPLOYMENT_CONFIG_FILE", artifactUrls.shell());
@@ -893,6 +930,17 @@ public class RailwayProvisioningPlanService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String requireReleaseMetadata(String field, String value) {
+        if (!hasText(value)) {
+            throw new IllegalStateException(
+                "Published deployment version is missing required release "
+                    + "metadata: "
+                    + field
+            );
+        }
+        return value.trim();
     }
 
     private String trimToNull(String value) {

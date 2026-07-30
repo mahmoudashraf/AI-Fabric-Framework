@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.marketplace.service;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -267,6 +268,45 @@ class MarketplaceManifestServiceTest {
         assertThat(parsed.contributions().actionIds()).containsExactly("list_products");
     }
 
+    @Test
+    void dataManifestAcceptsTypedV04EntityContributionWithTenantMetadata() {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+            service.parseAndValidate(
+                dataPlugin(),
+                dataVersion(validDataManifest())
+            );
+
+        assertThat(parsed.datasets())
+            .extracting(
+                MarketplaceManifestService.ParsedMarketplaceDatasetDefinition::entityType
+            )
+            .containsExactly("support-policy");
+    }
+
+    @Test
+    void dataManifestRejectsLegacyEntityContribution() throws Exception {
+        ObjectNode manifestNode =
+            (ObjectNode) objectMapper.readTree(validDataManifest());
+        ObjectNode entity = (ObjectNode) manifestNode
+            .path("contributions")
+            .path("entityConfig")
+            .path("ai-entities")
+            .path("support-policy");
+        entity.removeAll();
+        entity.put("entity-type", "support-policy");
+        entity.put("auto-embedding", true);
+        entity.put("indexable", true);
+        entity.put("enable-search", true);
+        String manifest = objectMapper.writeValueAsString(manifestNode);
+
+        assertThatThrownBy(() ->
+            service.parseAndValidate(dataPlugin(), dataVersion(manifest))
+        )
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("AI_ENTITY_CONFIG_V0_4")
+            .hasMessageContaining("LEGACY_ENTITY_PROPERTY_REMOVED");
+    }
+
     private MarketplacePluginEntity actionPlugin() {
         MarketplacePluginEntity plugin = new MarketplacePluginEntity();
         plugin.setId("mkp-action-test");
@@ -282,6 +322,16 @@ class MarketplaceManifestServiceTest {
         return plugin;
     }
 
+    private MarketplacePluginEntity dataPlugin() {
+        MarketplacePluginEntity plugin = actionPlugin();
+        plugin.setId("mkp-data-test");
+        plugin.setSlug("data-test");
+        plugin.setDisplayName("Data Test");
+        plugin.setPluginType("DATA");
+        plugin.setShortDescription("Test data plugin.");
+        return plugin;
+    }
+
     private MarketplacePluginVersionEntity version(String manifestJson) {
         MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
         version.setId("mkv-action-test-v1");
@@ -293,5 +343,79 @@ class MarketplaceManifestServiceTest {
         version.setCreatedAt(Instant.parse("2026-05-04T00:00:00Z"));
         version.setPublishedAt(Instant.parse("2026-05-04T00:00:00Z"));
         return version;
+    }
+
+    private MarketplacePluginVersionEntity dataVersion(String manifestJson) {
+        MarketplacePluginVersionEntity version = version(manifestJson);
+        version.setId("mkv-data-test-v1");
+        version.setPluginId("mkp-data-test");
+        return version;
+    }
+
+    private String validDataManifest() {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "DATA",
+              "compatibility": {
+                "requiredCapabilities": ["knowledgeSources"]
+              },
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {
+                "contributesKnowledgeSources": true,
+                "requiresSharedDatasetAccess": true
+              },
+              "contributions": {
+                "entityConfig": {
+                  "ai-entities": {
+                    "support-policy": {
+                      "indexing": {"enabled": true, "max-characters": 8000},
+                      "analysis": {"enabled": false, "after": []},
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "max-length": 8000,
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true,
+                          "sanitize-pii": false
+                        }
+                      ]
+                    }
+                  }
+                },
+                "datasets": [
+                  {
+                    "datasetId": "policy-seed",
+                    "entityType": "support-policy",
+                    "storageScope": "PLUGIN_SCOPED",
+                    "sharingScope": "TENANT_SHARED",
+                    "ingestionMode": "PACKAGED_SEED",
+                    "updateStrategy": "UPSERT_BY_ID",
+                    "seedDatasetRef": "classpath:marketplace/policy.jsonl"
+                  }
+                ],
+                "knowledgeSources": [
+                  {
+                    "sourceType": "shared-index",
+                    "sourceKey": "policy",
+                    "datasetRef": "policy-seed",
+                    "entityType": "support-policy",
+                    "attributionLabel": "Policy data"
+                  }
+                ]
+              }
+            }
+            """;
     }
 }

@@ -2475,8 +2475,40 @@ export type DeploymentDraftResponse = {
   promptConfig: unknown
   knowledgeSourceConfig: unknown
   shellConfig: unknown
+  marketplaceDatasetConfig: unknown
+  entityConfigContractVersion: string | null
   createdAt: string
   updatedAt: string
+}
+
+export type EntityConfigMigrationMessage = {
+  code: string
+  path: string
+  message: string
+}
+
+export type EntityConfigMigrationReport = {
+  sourceContractVersion: string
+  targetContractVersion: string
+  migrationRequired: boolean
+  blocked: boolean
+  beforeHash: string
+  afterHash: string
+  convertedEntityTypes: string[]
+  droppedKeys: string[]
+  warnings: EntityConfigMigrationMessage[]
+  blockers: EntityConfigMigrationMessage[]
+  vectorRebuildRequired: boolean
+}
+
+export type DeploymentEntityConfigMigrationSummary = {
+  deploymentId: string
+  draftId: string
+  currentContractVersion: string
+  applied: boolean
+  report: EntityConfigMigrationReport
+  migratedConfig: unknown
+  evaluatedAt: string
 }
 
 export type DeploymentWebhookDeliverySummary = {
@@ -5470,6 +5502,20 @@ export function updateDeploymentDraft(draftId: string, payload: UpdateDeployment
     method: 'PUT',
     body: JSON.stringify(payload),
   })
+}
+
+export function previewDeploymentEntityConfigMigration(draftId: string) {
+  return request<DeploymentEntityConfigMigrationSummary>(
+    `/api/deployment-drafts/${draftId}/entity-config-migration/preview`,
+    { method: 'POST' },
+  )
+}
+
+export function applyDeploymentEntityConfigMigration(draftId: string) {
+  return request<DeploymentEntityConfigMigrationSummary>(
+    `/api/deployment-drafts/${draftId}/entity-config-migration/apply`,
+    { method: 'POST' },
+  )
 }
 
 export function applyDeploymentCuratedModule(

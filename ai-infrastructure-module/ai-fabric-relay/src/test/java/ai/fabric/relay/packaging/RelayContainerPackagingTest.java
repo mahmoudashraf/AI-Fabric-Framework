@@ -14,14 +14,18 @@ class RelayContainerPackagingTest {
         String dockerfile = Files.readString(moduleFile("Dockerfile"));
 
         assertThat(dockerfile).contains(
-            "ARG AI_FABRIC_FRAMEWORK_REPOSITORY=https://github.com/Loom-AI-Labs/ai-fabric-framework.git",
-            "ARG AI_FABRIC_FRAMEWORK_REF=main",
-            "git clone --depth 1 --branch \"$AI_FABRIC_FRAMEWORK_REF\"",
             "COPY ai-infrastructure-module ai-infrastructure-module",
             "-pl ai-fabric-relay",
             "ai-infrastructure-module/ai-fabric-relay/target/ai-fabric-relay-*.jar"
         );
         assertThat(dockerfile).contains("mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-relay -am package");
+        assertThat(dockerfile).doesNotContain(
+            "AI_FABRIC_FRAMEWORK_REPOSITORY",
+            "AI_FABRIC_FRAMEWORK_REF",
+            "git clone",
+            "/tmp/ai-fabric-framework",
+            "mvn install"
+        );
         assertThat(dockerfile).doesNotContain("mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-relay -am -DskipTests package");
         assertThat(dockerfile).doesNotContain("dependency:go-offline");
         assertThat(dockerfile).doesNotContain("ai-infrastructure-relay");

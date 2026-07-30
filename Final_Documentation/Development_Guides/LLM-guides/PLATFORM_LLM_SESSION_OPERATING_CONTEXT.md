@@ -49,6 +49,24 @@ Current private product integration consumes the public framework release `0.3.1
 
 Private Docker/CI bootstrap paths should pin the released tag for reproducible product builds unless a task explicitly asks to test unreleased framework changes.
 
+Framework debugging and contract escalation:
+
+- Use `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework` as the
+  authoritative local framework checkout when debugging framework behavior.
+- Before adding a product-side workaround, inspect the framework source,
+  public contract, tests, and release notes to determine which layer owns the
+  behavior.
+- When a required endpoint or contract is genuinely a framework
+  responsibility but the framework does not expose it, raise that absence as
+  an explicit blocker. Record the expected contract, caller/use case, owning
+  framework module, evidence that it is missing, and release impact.
+- Do not hide a missing framework contract behind a private duplicate
+  endpoint, dummy implementation, stub, text-matched special case, or silent
+  product fallback.
+- Do not declare a framework blocker merely because a consumer assumed an
+  endpoint should exist. Confirm ownership and the intended public contract
+  from framework evidence first.
+
 Framework responsibilities:
 
 - reusable primitives

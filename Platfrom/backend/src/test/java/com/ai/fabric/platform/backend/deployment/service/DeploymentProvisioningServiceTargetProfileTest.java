@@ -29,6 +29,8 @@ class DeploymentProvisioningServiceTargetProfileTest {
         DeploymentTargetProfileService targetProfileService = mock(DeploymentTargetProfileService.class);
         DeploymentTargetProfileEntity profile = profile("dtp-railway-api-default", DeploymentProviderType.RAILWAY_API);
         DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        DeploymentConfigCompiler deploymentConfigCompiler = mock(DeploymentConfigCompiler.class);
         release.setId("rel-123");
         FakeProvider railwayApi = new FakeProvider(DeploymentProviderType.RAILWAY_API, "https://runtime.example");
         FakeProvider railwayStub = new FakeProvider(DeploymentProviderType.RAILWAY_STUB, "https://stub.example");
@@ -37,18 +39,20 @@ class DeploymentProvisioningServiceTargetProfileTest {
 
         DeploymentProvisioningService service = new DeploymentProvisioningService(
             targetProfileService,
-            new DeploymentProviderRegistry(List.of(railwayStub, railwayApi))
+            new DeploymentProviderRegistry(List.of(railwayStub, railwayApi)),
+            deploymentConfigCompiler
         );
 
         ProvisioningResult result = service.provision(
             new DeploymentEntity(),
-            new DeploymentVersionEntity(),
+            version,
             release,
             null
         );
 
         assertThat(result.target()).isEqualTo("RAILWAY_API");
         assertThat(result.runtimeBaseUrl()).isEqualTo("https://runtime.example");
+        verify(deploymentConfigCompiler).requireRuntimeArtifactCompatible(version);
         verify(targetProfileService).applyProfileToRelease(release, profile);
     }
 
@@ -62,7 +66,8 @@ class DeploymentProvisioningServiceTargetProfileTest {
 
         DeploymentProvisioningService service = new DeploymentProvisioningService(
             targetProfileService,
-            new DeploymentProviderRegistry(List.of(new FakeProvider(DeploymentProviderType.RAILWAY_STUB, "https://stub.example")))
+            new DeploymentProviderRegistry(List.of(new FakeProvider(DeploymentProviderType.RAILWAY_STUB, "https://stub.example"))),
+            mock(DeploymentConfigCompiler.class)
         );
 
         assertThatThrownBy(() -> service.provision(
@@ -84,7 +89,8 @@ class DeploymentProvisioningServiceTargetProfileTest {
 
         DeploymentProvisioningService service = new DeploymentProvisioningService(
             targetProfileService,
-            new DeploymentProviderRegistry(List.of(new FakeProvider(DeploymentProviderType.RAILWAY_STUB, "https://stub.example")))
+            new DeploymentProviderRegistry(List.of(new FakeProvider(DeploymentProviderType.RAILWAY_STUB, "https://stub.example"))),
+            mock(DeploymentConfigCompiler.class)
         );
 
         assertThat(service.selectedTarget()).isEqualTo("RAILWAY_STUB");

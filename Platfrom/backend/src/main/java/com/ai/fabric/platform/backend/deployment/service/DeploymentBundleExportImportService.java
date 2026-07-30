@@ -9,6 +9,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResour
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.entity.PublicApiDeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels;
@@ -456,6 +457,7 @@ public class DeploymentBundleExportImportService {
         node.put("deploymentId", draft.getDeploymentId());
         node.put("revisionNumber", draft.getRevisionNumber());
         node.put("status", draft.getStatus());
+        node.put("entityConfigContractVersion", draft.getEntityConfigContractVersion());
         ObjectNode configs = node.putObject("configs");
         configs.set("actions", readJson(draft.getActionsConfigJson()));
         configs.set("entities", readJson(draft.getEntityConfigJson()));
@@ -489,6 +491,8 @@ public class DeploymentBundleExportImportService {
         node.put("status", version.getStatus());
         node.put("configHash", version.getConfigHash());
         node.put("reindexRequired", version.isReindexRequired());
+        node.put("entityConfigContractVersion", version.getEntityConfigContractVersion());
+        node.put("aiFabricFrameworkVersion", version.getAiFabricFrameworkVersion());
         ObjectNode configs = node.putObject("configs");
         configs.set("actions", readJson(version.getActionsConfigJson()));
         configs.set("entities", readJson(version.getEntityConfigJson()));
@@ -1316,9 +1320,14 @@ public class DeploymentBundleExportImportService {
     }
 
     private void copyConfigsFromBundle(DeploymentDraftEntity draft, JsonNode bundle, ImportConfigRewrite rewrite) {
-        JsonNode configs = bundle.path("manifest").path("activeDraft").path("configs");
+        JsonNode bundledDraft = bundle.path("manifest").path("activeDraft");
+        JsonNode configs = bundledDraft.path("configs");
         draft.setActionsConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "actions"), rewrite)));
         draft.setEntityConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "entities"), rewrite)));
+        draft.setEntityConfigContractVersion(firstNonBlank(
+            bundledDraft.path("entityConfigContractVersion").asText(null),
+            EntityConfigContractService.CONTRACT_VERSION_V03
+        ));
         draft.setRoutingConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "routing"), rewrite)));
         draft.setProviderConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "provider"), rewrite)));
         draft.setSecurityConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "security"), rewrite)));
