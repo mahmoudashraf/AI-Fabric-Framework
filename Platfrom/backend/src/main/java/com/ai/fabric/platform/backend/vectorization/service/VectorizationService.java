@@ -172,9 +172,25 @@ public class VectorizationService {
     public VectorizationSourceConnectionSummary upsertSourceConnection(String deploymentId,
                                                                       UpsertVectorizationSourceConnectionRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return upsertSourceConnectionForDeployment(deployment, request);
+    }
+
+    /**
+     * Upserts vectorization source connection data for an internal workflow that already resolved and authorized the deployment.
+     * Public/controller paths must use upsertSourceConnection so deployment editor access is checked.
+     */
+    @Transactional
+    public VectorizationSourceConnectionSummary upsertSourceConnectionForTrustedCaller(DeploymentEntity deployment,
+                                                                                      UpsertVectorizationSourceConnectionRequest request) {
+        return upsertSourceConnectionForDeployment(deployment, request);
+    }
+
+    private VectorizationSourceConnectionSummary upsertSourceConnectionForDeployment(DeploymentEntity deployment,
+                                                                                   UpsertVectorizationSourceConnectionRequest request) {
         assertNoInlineSecrets(request.connectionConfig());
 
         Instant now = Instant.now();
+        String deploymentId = deployment.getId();
         VectorizationSourceConnectionEntity entity = connectionRepository.findByDeploymentId(deploymentId).orElseGet(() -> {
             VectorizationSourceConnectionEntity created = new VectorizationSourceConnectionEntity();
             created.setId(generateId("vcn"));
@@ -218,6 +234,22 @@ public class VectorizationService {
     @Transactional
     public VectorizationPlanSummary upsertPlan(String deploymentId, UpsertVectorizationPlanRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
+        return upsertPlanForDeployment(deployment, request);
+    }
+
+    /**
+     * Upserts vectorization plan data for an internal workflow that already resolved and authorized the deployment.
+     * Public/controller paths must use upsertPlan so deployment editor access is checked.
+     */
+    @Transactional
+    public VectorizationPlanSummary upsertPlanForTrustedCaller(DeploymentEntity deployment,
+                                                              UpsertVectorizationPlanRequest request) {
+        return upsertPlanForDeployment(deployment, request);
+    }
+
+    private VectorizationPlanSummary upsertPlanForDeployment(DeploymentEntity deployment,
+                                                            UpsertVectorizationPlanRequest request) {
+        String deploymentId = deployment.getId();
         DeploymentVersionEntity activeVersion = activeVersion(deployment);
         VectorizationPlanEntity plan = ensurePlan(deployment);
         VectorizationSourceConnectionEntity connection = requireConnectionForDeployment(deploymentId, request.sourceConnectionId());

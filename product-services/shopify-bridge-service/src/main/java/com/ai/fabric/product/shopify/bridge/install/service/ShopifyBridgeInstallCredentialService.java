@@ -8,6 +8,8 @@ import com.ai.fabric.product.shopify.bridge.install.model.ShopifyTokenExchangeMa
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeResolvedStoreCredentials;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeUpsertStoreCredentialsRequest;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionStatusSummary;
+import com.ai.fabric.product.shopify.bridge.webhook.model.ShopifyWebhookSubscriptionTopicStatusSummary;
 import com.ai.fabric.product.shopify.bridge.webhook.service.ShopifyWebhookSubscriptionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,6 +116,20 @@ public class ShopifyBridgeInstallCredentialService {
         }
     }
 
+    public ShopifyWebhookSubscriptionStatusSummary reconcileWebhookSubscriptions(String shopDomain) {
+        ShopifyBridgeCredentialAcquisition acquisition = resolvePersistedMaterial(shopDomain)
+            .orElseThrow(() -> new ResponseStatusException(
+                CONFLICT,
+                "Shopify webhook repair requires persisted store credentials. Install or reconnect the app first."
+            ));
+        String accessToken = acquisition.tokenExchangeMaterial().accessToken();
+        webhookSubscriptionService.reconcileContentSubscriptions(shopDomain, accessToken);
+        ShopifyWebhookSubscriptionStatusSummary summary =
+            webhookSubscriptionService.inspectContentSubscriptions(shopDomain, accessToken);
+        refreshAppScopesWebhookReadySafely(shopDomain, accessToken);
+        return summary;
+    }
+
     private boolean shouldRefresh(ShopifyTokenExchangeMaterial material) {
         if (material == null || !material.expiring()) {
             return false;
@@ -170,15 +186,11 @@ public class ShopifyBridgeInstallCredentialService {
 
     private void refreshAppScopesWebhookReadySafely(String shopDomain, String accessToken) {
         try {
+            ShopifyWebhookSubscriptionTopicStatusSummary topicStatus =
+                webhookSubscriptionService.inspectTopicStatus(shopDomain, accessToken, APP_SCOPES_UPDATE_TOPIC);
             installRecordService.recordAppScopesUpdateWebhookReady(
                 shopDomain,
-                "READY".equalsIgnoreCase(
-                    webhookSubscriptionService.inspectTopicStatus(
-                        shopDomain,
-                        accessToken,
-                        APP_SCOPES_UPDATE_TOPIC
-                    ).status()
-                )
+                topicStatus != null && "READY".equalsIgnoreCase(topicStatus.status())
             );
         } catch (RuntimeException ex) {
             log.warn("Shopify APP_SCOPES_UPDATE readiness refresh failed for shop={}", shopDomain, ex);

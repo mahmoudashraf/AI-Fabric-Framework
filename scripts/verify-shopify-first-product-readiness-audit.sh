@@ -252,12 +252,13 @@ fi
 tail -20 "${OUT_DIR}/live-verification-summary.txt" || true
 
 echo "== Answer quality audit =="
-record_command "python3 scripts/evaluate-shopify-companion-answers.py --bridge-base-url <redacted> --shop-domain ${SHOP_DOMAIN} --query-pack ${QUERY_PACK} --out ${OUT_DIR}"
+record_command "python3 scripts/evaluate-shopify-companion-answers.py --bridge-base-url <redacted> --shop-domain ${SHOP_DOMAIN} --query-pack ${QUERY_PACK} --out ${OUT_DIR} --active-tier-profile ${READINESS_AUDIT_REQUIRED_BILLING_TIER}"
 python3 "${REPO_ROOT}/scripts/evaluate-shopify-companion-answers.py" \
   --bridge-base-url "${SHOPIFY_BRIDGE_BASE_URL}" \
   --shop-domain "${SHOP_DOMAIN}" \
   --query-pack "${QUERY_PACK}" \
-  --out "${OUT_DIR}"
+  --out "${OUT_DIR}" \
+  --active-tier-profile "${READINESS_AUDIT_REQUIRED_BILLING_TIER}"
 
 cat > "${OUT_DIR}/browser-proof-summary.md" <<EOF
 # Browser Proof Summary

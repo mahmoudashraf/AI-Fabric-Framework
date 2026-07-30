@@ -2,7 +2,7 @@ package com.ai.fabric.runtime.config;
 
 import com.ai.fabric.runtime.authz.AllowVerifiedEntityAccessPolicy;
 import com.ai.fabric.runtime.authz.RemoteHttpEntityAccessPolicy;
-import com.ai.infrastructure.access.policy.EntityAccessPolicy;
+import ai.fabric.access.policy.EntityAccessPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

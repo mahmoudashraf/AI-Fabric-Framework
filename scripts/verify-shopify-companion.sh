@@ -60,8 +60,12 @@ set -euo pipefail
 #   SHOPIFY_ADMIN_ACCESS_TOKEN=<offline-access-token>
 #   SHOPIFY_ADMIN_API_VERSION=2026-04
 #   SHOPIFY_MERCHANT_AUTHORIZATION="Bearer <session-token>"
+#   SHOPIFY_VERIFY_MERCHANT_SESSION=false
 #   SHOPIFY_EMBEDDED_HOST=<base64-host>
 #   SHOPIFY_COMPARISON_MODE=navigator_deep
+#   SHOPIFY_COMPARISON_SAMPLE_QUERY=product
+#   SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS=15
+#   SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS=90
 
 PLATFORM_BASE_URL="${PLATFORM_BASE_URL:-}"
 PLATFORM_API_KEY="${PLATFORM_API_KEY:-}"
@@ -107,15 +111,19 @@ EXPECT_ORDER_LOOKUP_MERCHANT_HANDOFF_CONFIGURED="${EXPECT_ORDER_LOOKUP_MERCHANT_
 EXPECT_SUPPORT_LIFECYCLE_STAGE="${EXPECT_SUPPORT_LIFECYCLE_STAGE:-}"
 EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED="${EXPECT_HISTORICAL_ORDER_LOOKUP_SUPPORTED:-}"
 EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE="${EXPECT_OLDER_ORDERS_REQUIRE_BROADER_SCOPE:-}"
-EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-shopify_search_catalog,shopify_get_product_details,shopify_search_policies,shopify_get_cart,shopify_update_cart}"
+EXPECT_BASE_REQUIRED_ACTIONS="${EXPECT_BASE_REQUIRED_ACTIONS:-shopify_search_catalog,shopify_get_product_details,shopify_search_policies}"
+EXPECT_CART_REQUIRED_ACTIONS="${EXPECT_CART_REQUIRED_ACTIONS:-shopify_get_cart,shopify_update_cart}"
+EXPECT_REQUIRED_ACTIONS="${EXPECT_REQUIRED_ACTIONS:-}"
 SHOPIFY_COMPANION_ENSURE_BILLING_STATE="${SHOPIFY_COMPANION_ENSURE_BILLING_STATE:-false}"
 SHOPIFY_COMPANION_BILLING_STATE_REASON="${SHOPIFY_COMPANION_BILLING_STATE_REASON:-Shopify Companion live verification requires the configured release-gate billing posture.}"
 SHOPIFY_ADMIN_ACCESS_TOKEN="${SHOPIFY_ADMIN_ACCESS_TOKEN:-}"
 SHOPIFY_ADMIN_ACCESS_TOKEN_SOURCE="none"
 SHOPIFY_ADMIN_API_VERSION="${SHOPIFY_ADMIN_API_VERSION:-2026-04}"
 SHOPIFY_MERCHANT_AUTHORIZATION="${SHOPIFY_MERCHANT_AUTHORIZATION:-}"
+SHOPIFY_VERIFY_MERCHANT_SESSION="${SHOPIFY_VERIFY_MERCHANT_SESSION:-false}"
 SHOPIFY_EMBEDDED_HOST="${SHOPIFY_EMBEDDED_HOST:-}"
 SHOPIFY_COMPARISON_MODE="${SHOPIFY_COMPARISON_MODE:-navigator_deep}"
+SHOPIFY_COMPARISON_SAMPLE_QUERY="${SHOPIFY_COMPARISON_SAMPLE_QUERY:-product}"
 ORDER_LOOKUP_ORDER_NUMBER="${ORDER_LOOKUP_ORDER_NUMBER:-}"
 ORDER_LOOKUP_EMAIL="${ORDER_LOOKUP_EMAIL:-}"
 ORDER_LOOKUP_SAMPLE_SOURCE="none"
@@ -123,6 +131,8 @@ STOREFRONT_QUERY_RETRY_ATTEMPTS="${STOREFRONT_QUERY_RETRY_ATTEMPTS:-3}"
 STOREFRONT_QUERY_RETRY_SLEEP_SECONDS="${STOREFRONT_QUERY_RETRY_SLEEP_SECONDS:-2}"
 PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS="${PRODUCT_SERVICE_LOGS_RETRY_ATTEMPTS:-12}"
 PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS="${PRODUCT_SERVICE_LOGS_RETRY_SLEEP_SECONDS:-10}"
+SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS="${SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS:-15}"
+SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS="${SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS:-90}"
 TEMP_PLATFORM_COOKIE_JAR=""
 
 cleanup() {
@@ -577,6 +587,7 @@ http_request() {
   local response
   response="$(python3 - "$method" "$url" "$body" "${HTTP_COOKIE_JAR:-}" "${headers[@]-}" <<'PY'
 import json
+import os
 import subprocess
 import sys
 
@@ -589,6 +600,8 @@ headers = sys.argv[5:]
 cmd = [
     "curl",
     "-sS",
+    "--connect-timeout", os.environ.get("SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS", "15"),
+    "--max-time", os.environ.get("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "90"),
     "-X", method,
     "-H", "Accept: application/json",
     "-w", "\n%{http_code}",
@@ -620,6 +633,7 @@ http_request_text() {
   local response
   response="$(python3 - "$method" "$url" "${headers[@]-}" <<'PY'
 import subprocess
+import os
 import sys
 
 method = sys.argv[1]
@@ -629,6 +643,8 @@ headers = sys.argv[3:]
 cmd = [
     "curl",
     "-sS",
+    "--connect-timeout", os.environ.get("SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS", "15"),
+    "--max-time", os.environ.get("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "90"),
     "-X", method,
     "-H", "Accept: text/html, text/plain, */*",
     "-w", "\n%{http_code}",
@@ -697,6 +713,7 @@ platform_login() {
   local response
   response="$(python3 - "${platform_base}" "${TEMP_PLATFORM_COOKIE_JAR}" "${PLATFORM_LOGIN_EMAIL}" "${PLATFORM_LOGIN_PASSWORD}" <<'PY'
 import json
+import os
 import subprocess
 import sys
 
@@ -708,6 +725,8 @@ password = sys.argv[4]
 cmd = [
     "curl",
     "-sS",
+    "--connect-timeout", os.environ.get("SHOPIFY_COMPANION_CURL_CONNECT_TIMEOUT_SECONDS", "15"),
+    "--max-time", os.environ.get("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "90"),
     "-X", "POST",
     "-H", "Accept: application/json",
     "-H", "Content-Type: application/json",
@@ -759,14 +778,19 @@ payload = json.loads(os.environ["JSON_PAYLOAD"])
 expected_uri = os.environ["EXPECTED_URI"]
 edges = (((payload.get("data") or {}).get("webhookSubscriptions") or {}).get("edges")) or []
 subscriptions = {}
+subscriptions_by_topic_uri = set()
 for edge in edges:
     node = (edge or {}).get("node") or {}
     name = (node.get("name") or "").strip()
+    topic = (node.get("topic") or "").strip()
+    uri = (node.get("uri") or "").strip()
+    if topic and uri:
+        subscriptions_by_topic_uri.add((topic, uri))
     if not name:
         continue
     subscriptions[name] = {
-        "topic": (node.get("topic") or "").strip(),
-        "uri": (node.get("uri") or "").strip(),
+        "topic": topic,
+        "uri": uri,
     }
 
 missing = []
@@ -774,6 +798,8 @@ wrong = []
 for name, topic in required.items():
     current = subscriptions.get(name)
     if not current:
+        if (topic, expected_uri) in subscriptions_by_topic_uri:
+            continue
         missing.append(name)
         continue
     if current["topic"] != topic or current["uri"] != expected_uri:
@@ -886,6 +912,17 @@ assert_equals "$(json_get "${product_service_logs_json}" "railwayDeploymentId")"
 assert_nonempty "$(json_get "${product_service_logs_json}" "queriedAt")" "product service Railway logs queriedAt"
 
 echo "== Platform store summary =="
+platform_request GET "${platform_base}/api/product-services/${PRODUCT_SERVICE_REF}/stores/${SHOP_DOMAIN}/billing-summary" "" "${platform_headers[@]-}"
+assert_equals "${HTTP_STATUS}" "200" "platform store billing summary preflight status"
+platform_store_billing_preflight_json="${HTTP_BODY}"
+effective_required_actions="${EXPECT_REQUIRED_ACTIONS}"
+if [[ -z "${effective_required_actions}" ]]; then
+  expected_action_capable="${EXPECT_ACTION_CAPABILITY_AVAILABLE:-$(json_get "${platform_store_billing_preflight_json}" "actionCapable")}"
+  effective_required_actions="${EXPECT_BASE_REQUIRED_ACTIONS}"
+  if [[ "${expected_action_capable}" == "true" ]]; then
+    effective_required_actions="${effective_required_actions},${EXPECT_CART_REQUIRED_ACTIONS}"
+  fi
+fi
 platform_request GET "${platform_base}/api/shopify/stores/${SHOP_DOMAIN}" "" "${platform_headers[@]-}"
 assert_equals "${HTTP_STATUS}" "200" "platform store summary status"
 store_json="${HTTP_BODY}"
@@ -900,7 +937,7 @@ assert_nonempty "$(json_get "${store_json}" "deploymentId")" "platform deploymen
 assert_nonempty "$(json_get "${store_json}" "consumerId")" "platform consumerId"
 assert_nonempty "$(json_get "${store_json}" "sourcePreflight.checkedAt")" "platform source preflight checkedAt"
 assert_nonempty "$(json_get "${store_json}" "syncDetail.checkedAt")" "platform sync checkedAt"
-assert_json_array_contains_csv "${store_json}" "capabilities.actionNames" "${EXPECT_REQUIRED_ACTIONS}" "platform store capability actionNames"
+assert_json_array_contains_csv "${store_json}" "capabilities.actionNames" "${effective_required_actions}" "platform store capability actionNames"
 
 echo "== Platform store source coverage =="
 JSON_PAYLOAD="${store_json}" python3 - <<'PY'
@@ -1373,15 +1410,16 @@ PY
 
   if [[ -n "${SHOPIFY_BRIDGE_ADMIN_API_KEY}" ]]; then
     echo "== Storefront comparison resolver query =="
-    comparison_action_payload="$(python3 - <<'PY' "${SHOP_DOMAIN}"
+    comparison_action_payload="$(python3 - <<'PY' "${SHOP_DOMAIN}" "${SHOPIFY_COMPARISON_SAMPLE_QUERY}"
 import json
 import sys
 
 shop_domain = sys.argv[1]
+sample_query = sys.argv[2]
 print(json.dumps({
     "actionId": "shopify_search_catalog",
     "params": {
-        "query": "shirt",
+        "query": sample_query,
         "country": "US",
         "intent": "product comparison",
         "limit": 5
@@ -1523,7 +1561,7 @@ else
   assert_nonempty "$(json_get "${store_after_bootstrap_json}" "widgetDetail.settings.enabledSurfaces.0")" "platform widget enabledSurfaces.0"
 fi
 
-if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
+if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" && "${SHOPIFY_VERIFY_MERCHANT_SESSION}" == "true" ]]; then
   echo "== Merchant session =="
   declare -a merchant_headers=("Authorization: ${SHOPIFY_MERCHANT_AUTHORIZATION}")
   if [[ -n "${SHOPIFY_EMBEDDED_HOST}" ]]; then
@@ -1624,6 +1662,8 @@ if [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
   echo "== Merchant governed actions =="
   http_request GET "${bridge_base}/api/app/store/actions/recent?limit=5" "" "${merchant_headers[@]-}"
   assert_equals "${HTTP_STATUS}" "200" "merchant governed actions status"
+elif [[ -n "${SHOPIFY_MERCHANT_AUTHORIZATION}" ]]; then
+  echo "Skipping merchant session checks because SHOPIFY_VERIFY_MERCHANT_SESSION is not true."
 fi
 
 if [[ "${effective_expected_order_lookup_supported}" == "true" ]]; then

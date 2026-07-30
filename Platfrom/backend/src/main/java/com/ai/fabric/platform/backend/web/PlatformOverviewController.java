@@ -66,6 +66,7 @@ public class PlatformOverviewController {
                 "provider-preflight",
                 "railway-plan-preview",
                 "railway-api-provider",
+                "platform-core-service-operations",
                 "railway-preflight",
                 "structured-draft-editors",
                 "platform-secrets",

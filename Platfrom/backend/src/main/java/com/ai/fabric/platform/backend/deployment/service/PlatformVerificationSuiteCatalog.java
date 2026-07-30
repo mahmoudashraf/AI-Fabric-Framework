@@ -27,8 +27,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
         "marketplace",
-        "ecommerce",
-        "qdrant"
+        "ecommerce"
     );
 
     public List<PlatformVerificationSuiteDefinitionSummary> listDefinitions() {
@@ -95,11 +94,11 @@ public class PlatformVerificationSuiteCatalog {
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "qdrant-hosted-verification",
-                    "Qdrant hosted verification",
+                    "Qdrant hosted verification (optional)",
                     "HOSTED_DEPLOYMENT_VERIFICATION",
                     "qdrant",
-                    true,
-                    "Run the vector hosted verification against the canonical qdrant deployment."
+                    false,
+                    "Optional advanced-provider verification for the canonical Qdrant deployment. Qdrant is supported but no longer a release-blocking default."
                 )
             )
         );
@@ -142,7 +141,7 @@ public class PlatformVerificationSuiteCatalog {
                     "SCRIPT_VERIFICATION",
                     PlatformVerificationSuiteScriptContextService.SCRIPT_MANAGED_VECTOR_PROVIDER_VERIFICATION,
                     true,
-                    "Run direct provider verification for the release-blocking Qdrant Cloud provider."
+                    "Run direct provider verification for the release-blocking managed vector provider."
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "coolify-provider-verification",
@@ -218,11 +217,11 @@ public class PlatformVerificationSuiteCatalog {
                 ),
                 new PlatformVerificationSuiteStageDefinitionSummary(
                     "qdrant-hosted-verification",
-                    "Qdrant hosted verification",
+                    "Qdrant hosted verification (optional)",
                     "HOSTED_DEPLOYMENT_VERIFICATION",
                     "qdrant",
-                    true,
-                    "Run the vector hosted verification against the canonical qdrant deployment."
+                    false,
+                    "Optional advanced-provider verification for the canonical Qdrant deployment. Qdrant is supported but no longer a release-blocking default."
                 )
             )
         );

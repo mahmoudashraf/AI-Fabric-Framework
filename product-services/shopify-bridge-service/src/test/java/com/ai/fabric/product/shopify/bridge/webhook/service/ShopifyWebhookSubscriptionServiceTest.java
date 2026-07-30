@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -108,7 +109,7 @@ class ShopifyWebhookSubscriptionServiceTest {
                 Map<String, Object> webhookSubscription = (Map<String, Object>) variables.get("webhookSubscription");
                 assertThat(webhookSubscription)
                     .containsEntry("filter", "type:lookbook")
-                    .containsEntry("name", "loom-metaobjects-create-lookbook");
+                    .doesNotContainKey("name");
             });
     }
 
@@ -138,6 +139,60 @@ class ShopifyWebhookSubscriptionServiceTest {
             .doesNotThrowAnyException();
     }
 
+    @Test
+    void reconcileContentSubscriptionsRepairsDuplicateWebhookNameDrift() {
+        ShopifyAdminGraphqlClient client = mock(ShopifyAdminGraphqlClient.class);
+        AtomicInteger createAttempts = new AtomicInteger();
+        when(client.execute(anyString(), anyString(), anyString(), anyMap()))
+            .thenAnswer(invocation -> {
+                String query = invocation.getArgument(2);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> variables = invocation.getArgument(3);
+                if (query.contains("metaobjectDefinitions")) {
+                    return Map.of(
+                        "errors",
+                        List.of(Map.of("message", "Access denied for metaobjectDefinitions."))
+                    );
+                }
+                if (query.contains("webhookSubscriptions")) {
+                    @SuppressWarnings("unchecked")
+                    List<String> topics = (List<String>) variables.get("topics");
+                    if (topics == null) {
+                        return listResponse(
+                            "SHOP_UPDATE",
+                            "https://old.example.com/api/webhooks/shopify",
+                            "loom-app-uninstalled"
+                        );
+                    }
+                    return emptyListResponse();
+                }
+                if (query.contains("webhookSubscriptionDelete")) {
+                    return deleteResponse();
+                }
+                if (query.contains("webhookSubscriptionCreate")) {
+                    if ("APP_UNINSTALLED".equals(variables.get("topic"))
+                        && createAttempts.getAndIncrement() == 0) {
+                        return userErrorCreateResponse("Name already exists, no duplicate allowed");
+                    }
+                    return createResponse();
+                }
+                return emptyListResponse();
+            });
+
+        ShopifyWebhookSubscriptionService service = new ShopifyWebhookSubscriptionService(client, properties());
+
+        assertThatCode(() -> service.reconcileContentSubscriptions("demo.myshopify.com", "token"))
+            .doesNotThrowAnyException();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(client, atLeastOnce()).execute(anyString(), anyString(), anyString(), variablesCaptor.capture());
+
+        assertThat(variablesCaptor.getAllValues())
+            .anySatisfy(variables -> assertThat(variables).containsEntry("id", "gid://shopify/WebhookSubscription/SHOP_UPDATE"));
+        assertThat(createAttempts).hasValue(2);
+    }
+
     private static ShopifyBridgeProperties properties() {
         return new ShopifyBridgeProperties(
             "Shopify Bridge Service",
@@ -154,7 +209,11 @@ class ShopifyWebhookSubscriptionServiceTest {
             "",
             "",
             "",
-            ""
+            "",
+            "",
+            "",
+            "",
+            300
         );
     }
 
@@ -181,6 +240,20 @@ class ShopifyWebhookSubscriptionServiceTest {
                         "uri", "https://bridge.example.com/api/webhooks/shopify",
                         "name", "created"
                     ),
+                    "userErrors",
+                    List.of()
+                )
+            )
+        );
+    }
+
+    private static Map<String, Object> deleteResponse() {
+        return Map.of(
+            "data",
+            Map.of(
+                "webhookSubscriptionDelete",
+                Map.of(
+                    "deletedWebhookSubscriptionId", "gid://shopify/WebhookSubscription/SHOP_UPDATE",
                     "userErrors",
                     List.of()
                 )

@@ -99,7 +99,7 @@ public class DeploymentCuratedModuleCatalogService {
                 DEFAULT_MODULE_ID,
                 "Default",
                 "General-purpose assistant baseline using the platform default prompt preset.",
-                null,
+                "default",
                 "default"
             ),
             "classpath:bootstrap/prompts/default-prompt-config.json"

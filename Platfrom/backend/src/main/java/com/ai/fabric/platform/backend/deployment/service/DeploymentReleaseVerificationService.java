@@ -737,10 +737,8 @@ public class DeploymentReleaseVerificationService {
             return;
         }
 
-        JsonNode runnerService = readJson(release.getProvisioningDetailsJson())
-            .path("railway")
-            .path("services")
-            .path("vectorizationRunner");
+        JsonNode provisioningDetails = readJson(release.getProvisioningDetailsJson());
+        JsonNode runnerService = managedVectorizationRunnerService(provisioningDetails);
         ObjectNode details = objectMapper.createObjectNode();
         details.put("serviceId", runnerService.path("serviceId").asText(""));
         details.put("serviceName", runnerService.path("serviceName").asText(""));
@@ -760,6 +758,30 @@ public class DeploymentReleaseVerificationService {
                 : "Release provisioning details do not include the expected platform-managed vectorization runner service.",
             details
         );
+    }
+
+    private JsonNode managedVectorizationRunnerService(JsonNode provisioningDetails) {
+        JsonNode railwayRunner = provisioningDetails
+            .path("railway")
+            .path("services")
+            .path("vectorizationRunner");
+        if (runnerServiceProvisioned(railwayRunner)) {
+            return railwayRunner;
+        }
+        JsonNode coolifyRunner = provisioningDetails
+            .path("coolify")
+            .path("services")
+            .path("vectorizationRunner");
+        if (runnerServiceProvisioned(coolifyRunner)) {
+            return coolifyRunner;
+        }
+        return railwayRunner.isObject() ? railwayRunner : coolifyRunner;
+    }
+
+    private boolean runnerServiceProvisioned(JsonNode runnerService) {
+        return runnerService.isObject()
+            && (hasText(runnerService.path("serviceId").asText("")) || hasText(runnerService.path("serviceName").asText("")))
+            && hasText(runnerService.path("deploymentStatus").asText(""));
     }
 
     private Map<String, String> runtimeAdminHeaders(DeploymentEntity deployment) {

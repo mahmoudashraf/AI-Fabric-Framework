@@ -14,6 +14,8 @@ import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstall
 import com.ai.fabric.product.shopify.bridge.governedaction.repository.ShopifyBridgeGovernedActionAuditRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
@@ -60,6 +62,36 @@ class ShopifyStorefrontGovernedActionServiceTest {
             .containsExactly("ADD_TO_CART", "UPDATE_CART_QUANTITY", "CANCEL_CHECKOUT");
         assertThat(capability.grantUrl()).contains("/actions/grant");
         assertThat(capability.completeUrl()).contains("/actions/complete");
+    }
+
+    @Test
+    void capabilityFallsBackToTokenlessBillingWhenShopifyCredentialRefreshFails() {
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
+            .thenThrow(new HttpClientErrorException(HttpStatus.UNAUTHORIZED));
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteSummary());
+
+        ShopifyStorefrontGovernedActionService service = new ShopifyStorefrontGovernedActionService(
+            mock(PlatformShopifyStoreClient.class),
+            installCredentialService,
+            billingService,
+            mock(ShopifyBridgeGovernedActionAuditRepository.class),
+            tokenService(),
+            mock(ShopifyBridgeUsageService.class),
+            fixedClock()
+        );
+
+        ShopifyStorefrontGovernedActionCapability capability = service.capability(
+            "alpha.myshopify.com",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/actions/grant",
+            "https://bridge.example.com/api/storefront/shops/alpha.myshopify.com/actions/complete"
+        );
+
+        assertThat(capability.available()).isTrue();
+        assertThat(capability.allowedActionTypes())
+            .containsExactly("ADD_TO_CART", "UPDATE_CART_QUANTITY", "CANCEL_CHECKOUT");
+        verify(billingService).summarizeForShop("alpha.myshopify.com", null);
     }
 
     @Test
@@ -228,7 +260,11 @@ class ShopifyStorefrontGovernedActionServiceTest {
                 "X-PLATFORM-API-KEY",
                 "webhook-secret",
                 "bridge-admin-key",
-                "X-BRIDGE-API-KEY"
+                "X-BRIDGE-API-KEY",
+            "runtime-api-key",
+            "runtime-signing-key",
+            "platform-consumer-bridge",
+            300
             ),
             new ObjectMapper(),
             fixedClock()

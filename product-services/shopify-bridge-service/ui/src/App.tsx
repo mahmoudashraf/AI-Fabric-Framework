@@ -991,6 +991,8 @@ export default function App() {
   const usageSummary = state.usageSummary
   const recentGovernedActions = state.recentGovernedActions
   const partnerAccessRequests = state.partnerAccessRequests
+  const partnerManagementActive = partnerAccessRequests.some((request) => request.status === 'APPROVED' || request.status === 'ACTIVE')
+  const embeddedOperationsMovedToPartnerPortal = true
   const partnerAccessError = state.partnerAccessError
   const billingSummary = state.billingSummary
   const billingApprovalRequired = Boolean(
@@ -1149,6 +1151,7 @@ export default function App() {
   const canGoLive =
     Boolean(session) &&
     Boolean(store) &&
+    !embeddedOperationsMovedToPartnerPortal &&
     !installRecoveryRequired &&
     !supportReadinessLaunchBlocked &&
     !billingLaunchBlocked &&
@@ -1157,10 +1160,12 @@ export default function App() {
   const canReconcileVectorization =
     Boolean(session) &&
     Boolean(store?.deploymentId) &&
+    !embeddedOperationsMovedToPartnerPortal &&
     !installRecoveryRequired
   const canVectorizeNow =
     Boolean(session) &&
     Boolean(vectorizationSummary?.readyToRun) &&
+    !embeddedOperationsMovedToPartnerPortal &&
     !installRecoveryRequired
   const vectorizationBusy =
     busyAction === 'vectorization-reconcile' ||
@@ -1470,6 +1475,11 @@ export default function App() {
           {actionError ? <Banner tone="critical">{actionError}</Banner> : null}
           {actionMessage ? <Banner tone="success">{actionMessage}</Banner> : null}
           {state.loading ? <Banner tone="info">Loading Shopify Bridge shell…</Banner> : null}
+          {embeddedOperationsMovedToPartnerPortal ? (
+            <Banner tone="info">
+              Partner Portal is now the management surface for Loom Companion configuration, knowledge indexing, launch actions, widget settings, and support handoff after merchant approval. Shopify Admin remains active for app install, scope consent, billing approval, theme activation, and partner access approval or revocation.
+            </Banner>
+          ) : null}
           <Tabs tabs={ADMIN_TABS} selected={selectedTab} onSelect={setSelectedTab} />
 
           {selectedSection === 'home' ? (
@@ -1599,48 +1609,56 @@ export default function App() {
                   <Text as="h2" variant="headingMd">
                     Source categories
                   </Text>
-                  <Text as="p" variant="bodyMd" tone="subdued">
-                    Choose the bounded Shopify source categories that should flow into Companion knowledge. Changing these toggles resets source readiness and requires a fresh preflight plus Shopify-backed knowledge refresh.
-                  </Text>
-                  <Checkbox
-                    label="Products"
-                    checked={sourceSettings.productsEnabled}
-                    onChange={(checked) => setSourceSettings((current) => ({ ...current, productsEnabled: checked }))}
-                  />
-                  <Checkbox
-                    label="Collections"
-                    checked={sourceSettings.collectionsEnabled}
-                    onChange={(checked) => setSourceSettings((current) => ({ ...current, collectionsEnabled: checked }))}
-                  />
-                  <Checkbox
-                    label="Pages"
-                    checked={sourceSettings.pagesEnabled}
-                    onChange={(checked) => setSourceSettings((current) => ({ ...current, pagesEnabled: checked }))}
-                  />
-                  <Checkbox
-                    label="Policies"
-                    checked={sourceSettings.policiesEnabled}
-                    onChange={(checked) => setSourceSettings((current) => ({ ...current, policiesEnabled: checked }))}
-                  />
-                  <Checkbox
-                    label="Articles"
-                    checked={sourceSettings.articlesEnabled}
-                    onChange={(checked) => setSourceSettings((current) => ({ ...current, articlesEnabled: checked }))}
-                  />
-                  <Checkbox
-                    label="Metaobjects"
-                    checked={sourceSettings.metaobjectsEnabled}
-                    onChange={(checked) => setSourceSettings((current) => ({ ...current, metaobjectsEnabled: checked }))}
-                  />
-                  <InlineStack gap="200">
-                    <Button
-                      onClick={() => void handleSourceSettingsSave()}
-                      loading={busyAction === 'source-settings'}
-                      disabled={!session || installRecoveryRequired || !sourceSettingsDirty}
-                    >
-                      Save source settings
-                    </Button>
-                  </InlineStack>
+                  {embeddedOperationsMovedToPartnerPortal ? (
+                    <Banner tone="info">
+                      Catalog, policy, article, page, and metaobject source selection is controlled from Partner Portal after merchant approval. Shopify Admin keeps install, billing, theme activation, and partner approval flows only.
+                    </Banner>
+                  ) : (
+                    <>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        Choose the bounded Shopify source categories that should flow into Companion knowledge.
+                      </Text>
+                      <Checkbox
+                        label="Products"
+                        checked={sourceSettings.productsEnabled}
+                        onChange={(checked) => setSourceSettings((current) => ({ ...current, productsEnabled: checked }))}
+                      />
+                      <Checkbox
+                        label="Collections"
+                        checked={sourceSettings.collectionsEnabled}
+                        onChange={(checked) => setSourceSettings((current) => ({ ...current, collectionsEnabled: checked }))}
+                      />
+                      <Checkbox
+                        label="Pages"
+                        checked={sourceSettings.pagesEnabled}
+                        onChange={(checked) => setSourceSettings((current) => ({ ...current, pagesEnabled: checked }))}
+                      />
+                      <Checkbox
+                        label="Policies"
+                        checked={sourceSettings.policiesEnabled}
+                        onChange={(checked) => setSourceSettings((current) => ({ ...current, policiesEnabled: checked }))}
+                      />
+                      <Checkbox
+                        label="Articles"
+                        checked={sourceSettings.articlesEnabled}
+                        onChange={(checked) => setSourceSettings((current) => ({ ...current, articlesEnabled: checked }))}
+                      />
+                      <Checkbox
+                        label="Metaobjects"
+                        checked={sourceSettings.metaobjectsEnabled}
+                        onChange={(checked) => setSourceSettings((current) => ({ ...current, metaobjectsEnabled: checked }))}
+                      />
+                      <InlineStack gap="200">
+                        <Button
+                          onClick={() => void handleSourceSettingsSave()}
+                          loading={busyAction === 'source-settings'}
+                          disabled={!session || installRecoveryRequired || !sourceSettingsDirty}
+                        >
+                          Save source settings
+                        </Button>
+                      </InlineStack>
+                    </>
+                  )}
                 </BlockStack>
               </Card>
             </Box>
@@ -1891,7 +1909,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleWidgetSettingsSave()}
                       loading={busyWidgetSettings}
-                      disabled={!session || installRecoveryRequired || !widgetSettingsDirty}
+                      disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired || !widgetSettingsDirty}
                     >
                       Save advanced routing
                     </Button>
@@ -1942,7 +1960,7 @@ export default function App() {
                         ) : null}
                       </InlineStack>
                       <Text as="p" variant="bodyMd" tone="subdued">
-                        Shopify source selection drives deployment plugin installs and the source-backed indexing plan. Use reconcile to align the deployment with the current store scope, then use refresh, reindex, and live update controls for enabled Shopify data.
+                        Shopify source selection, knowledge refresh, reindexing, and live update policy are managed from Partner Portal. This view is read-only so Shopify Admin cannot drift from the approved Partner Portal state.
                       </Text>
                       <List type="bullet">
                         <List.Item>Selected categories: {vectorizationSummary.selectedCategories.join(', ') || 'None selected'}</List.Item>
@@ -1990,68 +2008,72 @@ export default function App() {
                           </List>
                         </Banner>
                       ) : null}
-                      <InlineStack gap="200">
-                        <Button
-                          onClick={() => void handleVectorizationReconcile()}
-                          loading={busyAction === 'vectorization-reconcile'}
-                          disabled={!canReconcileVectorization}
-                        >
-                          Reconcile deployment support
-                        </Button>
-                        <Button
-                          variant="primary"
-                          onClick={() => void handleIndexAll()}
-                          loading={busyAction === 'vectorization-index-all'}
-                          disabled={!canVectorizeNow}
-                        >
-                          Refresh knowledge
-                        </Button>
-                        <Button
-                          onClick={() => void handleReindexAll()}
-                          loading={busyAction === 'vectorization-reindex-all'}
-                          disabled={!canVectorizeNow}
-                        >
-                          Reindex all enabled data
-                        </Button>
-                      </InlineStack>
+                      {!embeddedOperationsMovedToPartnerPortal ? (
+                        <>
+                          <InlineStack gap="200">
+                            <Button
+                              onClick={() => void handleVectorizationReconcile()}
+                              loading={busyAction === 'vectorization-reconcile'}
+                              disabled={!canReconcileVectorization}
+                            >
+                              Reconcile deployment support
+                            </Button>
+                            <Button
+                              variant="primary"
+                              onClick={() => void handleIndexAll()}
+                              loading={busyAction === 'vectorization-index-all'}
+                              disabled={!canVectorizeNow}
+                            >
+                              Refresh knowledge
+                            </Button>
+                            <Button
+                              onClick={() => void handleReindexAll()}
+                              loading={busyAction === 'vectorization-reindex-all'}
+                              disabled={!canVectorizeNow}
+                            >
+                              Reindex all enabled data
+                            </Button>
+                          </InlineStack>
 
-                      <BlockStack gap="200">
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Bounded reindex selection
-                        </Text>
-                        <InlineStack gap="200">
-                          {vectorizationSummary.selectedEntityTypes.map((entityType) => (
-                            <Checkbox
-                              key={entityType}
-                              label={entityType}
-                              checked={selectedReindexEntityTypes.includes(entityType)}
-                              onChange={(checked) => {
-                                setSelectedReindexEntityTypes((current) =>
-                                  checked
-                                    ? Array.from(new Set([...current, entityType]))
-                                    : current.filter((value) => value !== entityType)
-                                )
-                              }}
-                            />
-                          ))}
-                        </InlineStack>
-                        <InlineStack gap="200">
-                          <Button
-                            onClick={() => void handleReindexSelected()}
-                            loading={busyAction === 'vectorization-reindex-selected'}
-                            disabled={!canVectorizeNow || !selectedReindexEntityTypes.length}
-                          >
-                            Reindex selected types
-                          </Button>
-                          <Button
-                            onClick={() => void handleRetryFailedAutoRun()}
-                            loading={busyAction === 'vectorization-auto-retry'}
-                            disabled={vectorizationBusy || !vectorizationSummary.automation?.lastFailedAutoIndexAt}
-                          >
-                            Retry failed live updates
-                          </Button>
-                        </InlineStack>
-                      </BlockStack>
+                          <BlockStack gap="200">
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              Bounded reindex selection
+                            </Text>
+                            <InlineStack gap="200">
+                              {vectorizationSummary.selectedEntityTypes.map((entityType) => (
+                                <Checkbox
+                                  key={entityType}
+                                  label={entityType}
+                                  checked={selectedReindexEntityTypes.includes(entityType)}
+                                  onChange={(checked) => {
+                                    setSelectedReindexEntityTypes((current) =>
+                                      checked
+                                        ? Array.from(new Set([...current, entityType]))
+                                        : current.filter((value) => value !== entityType)
+                                    )
+                                  }}
+                                />
+                              ))}
+                            </InlineStack>
+                            <InlineStack gap="200">
+                              <Button
+                                onClick={() => void handleReindexSelected()}
+                                loading={busyAction === 'vectorization-reindex-selected'}
+                                disabled={!canVectorizeNow || !selectedReindexEntityTypes.length}
+                              >
+                                Reindex selected types
+                              </Button>
+                              <Button
+                                onClick={() => void handleRetryFailedAutoRun()}
+                                loading={busyAction === 'vectorization-auto-retry'}
+                                disabled={vectorizationBusy || !vectorizationSummary.automation?.lastFailedAutoIndexAt}
+                              >
+                                Retry failed live updates
+                              </Button>
+                            </InlineStack>
+                          </BlockStack>
+                        </>
+                      ) : null}
 
                       <BlockStack gap="150">
                         <Text as="p" variant="bodySm" tone="subdued">
@@ -2072,7 +2094,7 @@ export default function App() {
                         )}
                       </BlockStack>
 
-                      {vectorizationPolicyDraft ? (
+                      {vectorizationPolicyDraft && !embeddedOperationsMovedToPartnerPortal ? (
                         <BlockStack gap="200">
                           <Text as="h3" variant="headingSm">
                             Live update policy
@@ -2203,16 +2225,18 @@ export default function App() {
                                   <Text as="p" variant="bodySm" tone="subdued">
                                     Occurred {formatTimestamp(event.occurredAt)} · Last attempt {formatTimestamp(event.lastAttemptAt)}
                                   </Text>
-                                  <InlineStack gap="200">
-                                    <Button
-                                      size="micro"
-                                      onClick={() => void handleReplayVectorizationEvent(event.id)}
-                                      loading={busyAction === 'vectorization-event-replay'}
-                                      disabled={vectorizationBusy}
-                                    >
-                                      Replay event
-                                    </Button>
-                                  </InlineStack>
+                                  {!embeddedOperationsMovedToPartnerPortal ? (
+                                    <InlineStack gap="200">
+                                      <Button
+                                        size="micro"
+                                        onClick={() => void handleReplayVectorizationEvent(event.id)}
+                                        loading={busyAction === 'vectorization-event-replay'}
+                                        disabled={vectorizationBusy}
+                                      >
+                                        Replay event
+                                      </Button>
+                                    </InlineStack>
+                                  ) : null}
                                 </BlockStack>
                               </Box>
                             ))}
@@ -3429,7 +3453,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleWidgetSettingsSave()}
                       loading={busyWidgetSettings}
-                      disabled={!session || installRecoveryRequired || !widgetSettingsDirty}
+                      disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired || !widgetSettingsDirty}
                     >
                       Save widget settings
                     </Button>
@@ -3513,7 +3537,7 @@ export default function App() {
                     <Button
                       onClick={() => void handleSupportProfileSave()}
                       loading={busySupportProfile}
-                      disabled={!session || installRecoveryRequired || !supportProfileDirty}
+                      disabled={!session || embeddedOperationsMovedToPartnerPortal || installRecoveryRequired || !supportProfileDirty}
                     >
                       Save support profile
                     </Button>
@@ -3799,35 +3823,44 @@ export default function App() {
                 >
                   Connect current shop
                 </Button>
-                <Button
-                  onClick={() => void handleSourcePreflight()}
-                  loading={busyAction === 'preflight'}
-                  disabled={!session || installRecoveryRequired}
-                >
-                  Run source preflight
-                </Button>
-                <Button
-                  onClick={() => void handleBootstrap()}
-                  loading={busyAction === 'bootstrap'}
-                  disabled={!session || installRecoveryRequired}
-                >
-                  Bootstrap deployment
-                </Button>
-                <Button
-                  onClick={() => void handleIndexAll()}
-                  loading={busyAction === 'vectorization-index-all'}
-                  disabled={!canVectorizeNow}
-                >
-                  Refresh knowledge
-                </Button>
-                <Button
-                  onClick={() => void handleGoLive()}
-                  loading={busyAction === 'go-live'}
-                  disabled={!canGoLive}
-                >
-                  Publish and apply
-                </Button>
+                {!embeddedOperationsMovedToPartnerPortal ? (
+                  <>
+                    <Button
+                      onClick={() => void handleSourcePreflight()}
+                      loading={busyAction === 'preflight'}
+                      disabled={!session || installRecoveryRequired}
+                    >
+                      Run source preflight
+                    </Button>
+                    <Button
+                      onClick={() => void handleBootstrap()}
+                      loading={busyAction === 'bootstrap'}
+                      disabled={!session || installRecoveryRequired}
+                    >
+                      Bootstrap deployment
+                    </Button>
+                    <Button
+                      onClick={() => void handleIndexAll()}
+                      loading={busyAction === 'vectorization-index-all'}
+                      disabled={!canVectorizeNow}
+                    >
+                      Refresh knowledge
+                    </Button>
+                    <Button
+                      onClick={() => void handleGoLive()}
+                      loading={busyAction === 'go-live'}
+                      disabled={!canGoLive}
+                    >
+                      Publish and apply
+                    </Button>
+                  </>
+                ) : null}
               </InlineStack>
+              {embeddedOperationsMovedToPartnerPortal ? (
+                <Banner tone="info">
+                  Launch, source readiness, and knowledge actions are now operated from Partner Portal. Shopify Admin remains limited to store connection and merchant-controlled approvals.
+                </Banner>
+              ) : null}
             </BlockStack>
           </Card>
           ) : null}

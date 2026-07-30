@@ -1,12 +1,12 @@
 package com.ai.fabric.runtime.config;
 
-import com.ai.infrastructure.access.AIAccessControlService;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.core.AIEmbeddingService;
-import com.ai.infrastructure.datasync.controller.DataSyncController;
-import com.ai.infrastructure.datasync.service.DataSyncService;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.service.VectorManagementService;
+import ai.fabric.access.AIAccessControlService;
+import ai.fabric.config.AIEntityConfigurationLoader;
+import ai.fabric.core.AIEmbeddingService;
+import ai.fabric.datasync.controller.DataSyncController;
+import ai.fabric.datasync.service.DataSyncService;
+import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.service.VectorManagementService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;

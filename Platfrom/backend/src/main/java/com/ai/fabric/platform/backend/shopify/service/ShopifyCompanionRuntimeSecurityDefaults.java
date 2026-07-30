@@ -13,7 +13,7 @@ final class ShopifyCompanionRuntimeSecurityDefaults {
     private ShopifyCompanionRuntimeSecurityDefaults() {
     }
 
-    static boolean apply(ObjectNode securityConfig, String deploymentId) {
+    static boolean apply(ObjectNode securityConfig, String deploymentId, String consumerId) {
         if (securityConfig == null) {
             return false;
         }
@@ -31,6 +31,9 @@ final class ShopifyCompanionRuntimeSecurityDefaults {
         );
         if (StringUtils.hasText(deploymentId)) {
             changed |= ensureCsvContains(securityConfig, "privateRuntimeAcceptedAudiences", deploymentId);
+        }
+        if (StringUtils.hasText(consumerId)) {
+            changed |= ensureCsvContains(securityConfig, "privateRuntimeAcceptedAudiences", consumerId);
         }
         return changed;
     }

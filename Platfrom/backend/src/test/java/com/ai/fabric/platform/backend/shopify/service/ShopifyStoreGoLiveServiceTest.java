@@ -52,7 +52,7 @@ class ShopifyStoreGoLiveServiceTest {
         when(productServiceRepository.findById("ps-1")).thenReturn(Optional.of(productService("ps-1")));
         when(productAdminService.getStoreSupportReadiness("shopify-bridge-prod", "alpha.myshopify.com"))
             .thenReturn(supportReadiness("READY", true, true));
-        when(deploymentService.getActiveDraftForDeployment("dep-1")).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.getActiveDraftForDeploymentForTrustedCaller("dep-1")).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -69,7 +69,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:00:00Z")
         ));
-        when(deploymentService.updateDraft(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.updateDraftForTrustedCaller(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -86,7 +86,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:01:00Z")
         ));
-        when(deploymentService.publishDraft("drf-1")).thenReturn(new DeploymentVersionSummary(
+        when(deploymentService.publishDraftForTrustedCaller("drf-1")).thenReturn(new DeploymentVersionSummary(
             "ver-1",
             "dep-1",
             "drf-1",
@@ -96,7 +96,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersionForTrustedCaller("dep-1", "ver-1", "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -136,13 +136,13 @@ class ShopifyStoreGoLiveServiceTest {
 
         assertThat(result.onboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
         assertThat(store.getOnboardingStatus()).isEqualTo("GO_LIVE_REQUESTED");
-        verify(deploymentService).updateDraft(eq("drf-1"), argThat(request ->
+        verify(deploymentService).updateDraftForTrustedCaller(eq("drf-1"), argThat(request ->
             matchesShopifyCompanionSecurityDefaults(request)
         ));
-        verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
-        verify(draftCompilerService).syncDeploymentDraft("dep-1");
-        verify(deploymentService).publishDraft("drf-1");
-        verify(deploymentService).applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null);
+        verify(deploymentService).updateDraftForTrustedCaller(eq("drf-1"), argThat(this::matchesShopifyBridgeRoutingDefaults));
+        verify(draftCompilerService).syncDeploymentDraftForTrustedCaller("dep-1");
+        verify(deploymentService).publishDraftForTrustedCaller("drf-1");
+        verify(deploymentService).applyVersionForTrustedCaller("dep-1", "ver-1", "dtp-coolify-production", null);
     }
 
     @Test
@@ -164,7 +164,7 @@ class ShopifyStoreGoLiveServiceTest {
 
         ObjectNode securityConfig = JsonNodeFactory.instance.objectNode();
         securityConfig.put("authzMode", "ALLOW_VERIFIED");
-        when(deploymentService.getActiveDraftForDeployment("dep-1")).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.getActiveDraftForDeploymentForTrustedCaller("dep-1")).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -181,7 +181,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:00:00Z")
         ));
-        when(deploymentService.updateDraft(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
+        when(deploymentService.updateDraftForTrustedCaller(eq("drf-1"), any(UpdateDeploymentDraftRequest.class))).thenReturn(new DeploymentDraftResponse(
             "drf-1",
             "dep-1",
             3,
@@ -198,7 +198,7 @@ class ShopifyStoreGoLiveServiceTest {
             Instant.parse("2026-04-18T10:00:00Z"),
             Instant.parse("2026-04-18T10:01:00Z")
         ));
-        when(deploymentService.publishDraft("drf-1")).thenReturn(new DeploymentVersionSummary(
+        when(deploymentService.publishDraftForTrustedCaller("drf-1")).thenReturn(new DeploymentVersionSummary(
             "ver-1",
             "dep-1",
             "drf-1",
@@ -208,7 +208,7 @@ class ShopifyStoreGoLiveServiceTest {
             false,
             Instant.parse("2026-04-18T10:05:00Z")
         ));
-        when(deploymentService.applyVersion("dep-1", "ver-1", null, "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
+        when(deploymentService.applyVersionForTrustedCaller("dep-1", "ver-1", "dtp-coolify-production", null)).thenReturn(new DeploymentReleaseSummary(
             "rel-1",
             "dep-1",
             "ver-1",
@@ -246,7 +246,7 @@ class ShopifyStoreGoLiveServiceTest {
 
         service.goLive("alpha.myshopify.com");
 
-        verify(deploymentService).updateDraft(eq("drf-1"), argThat(this::matchesShopifyCompanionSecurityDefaults));
+        verify(deploymentService).updateDraftForTrustedCaller(eq("drf-1"), argThat(this::matchesShopifyCompanionSecurityDefaults));
     }
 
     @Test
@@ -463,6 +463,7 @@ class ShopifyStoreGoLiveServiceTest {
         ObjectNode upstream = (ObjectNode) routing.path("connector").path("upstream");
         ObjectNode auth = (ObjectNode) upstream.path("auth");
         ObjectNode actions = (ObjectNode) routing.path("actions");
+        ObjectNode actionsConfig = request.actionsConfig() instanceof ObjectNode object ? object : null;
         ObjectNode searchCatalog = (ObjectNode) routing.path("actions").path("shopify_search_catalog");
         ObjectNode updateCart = (ObjectNode) routing.path("actions").path("shopify_update_cart");
         ObjectNode requestBody = (ObjectNode) searchCatalog.path("request").path("body");
@@ -473,7 +474,12 @@ class ShopifyStoreGoLiveServiceTest {
             && "${SHOPIFY_BRIDGE_SHARED_SECRET}".equals(auth.path("value").asText())
             && !actions.has("find_similar_products")
             && !actions.has("compare_products")
+            && !actions.has("list_products")
+            && !actions.has("search_products")
             && actions.has("custom_unrelated_action")
+            && actionsConfig != null
+            && !actionsConfig.path("actions").findValuesAsText("name").contains("list_products")
+            && !actionsConfig.path("actions").findValuesAsText("name").contains("search_products")
             && "POST".equals(searchCatalog.path("method").asText())
             && "/api/admin/stores/alpha.myshopify.com/actions/execute".equals(searchCatalog.path("path").asText())
             && "POST".equals(updateCart.path("method").asText())
@@ -489,6 +495,12 @@ class ShopifyStoreGoLiveServiceTest {
     private ObjectNode currentActionsConfig() {
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         var actions = root.putArray("actions");
+        actions.addObject()
+            .put("name", "shopify_search_catalog")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_STOREFRONT_READ_MCP_PLUGIN_ID);
+        actions.addObject()
+            .put("name", "shopify_update_cart")
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.ACTION_CART_MCP_PLUGIN_ID);
         actions.addObject().put("name", "list_products");
         actions.addObject().put("name", "search_products");
         actions.addObject().put("name", "get_product_details");
@@ -505,6 +517,8 @@ class ShopifyStoreGoLiveServiceTest {
         ObjectNode actions = routing.putObject("actions");
         managedShopifyBridgeRoute(actions.putObject("find_similar_products"));
         managedShopifyBridgeRoute(actions.putObject("compare_products"));
+        managedShopifyBridgeRoute(actions.putObject("list_products"));
+        managedShopifyBridgeRoute(actions.putObject("search_products"));
         ObjectNode unrelated = actions.putObject("custom_unrelated_action");
         unrelated.put("method", "POST");
         unrelated.put("path", "/api/custom/actions");
@@ -530,7 +544,8 @@ class ShopifyStoreGoLiveServiceTest {
         return "ALLOW_VERIFIED".equals(security.path("authzMode").asText())
             && issuers.contains("platform-consumer-bridge")
             && issuers.contains("platform-poc:SESSION")
-            && audiences.contains("dep-1");
+            && audiences.contains("dep-1")
+            && audiences.contains("consumer-alpha");
     }
 
     private PlatformManagedProductServiceEntity productService(String id) {

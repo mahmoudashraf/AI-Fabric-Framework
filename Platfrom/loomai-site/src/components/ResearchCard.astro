@@ -1,0 +1,42 @@
+---
+import { ArrowRight } from '@lucide/astro'
+import type { ResearchArtifact } from '../data/types'
+
+type Props = {
+  item: ResearchArtifact
+  featured?: boolean
+}
+
+const { item, featured = false } = Astro.props
+---
+
+<article
+  class:list={['research-card loom-card', { 'research-card--featured': featured }]}
+  data-interactive="true"
+  data-filter-item
+  data-category={item.theme}
+>
+  <div class="research-card__signal" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div class="card-meta">
+    <span>{item.themeLabel}</span>
+    <span>{item.evidenceLabel}</span>
+  </div>
+  <h3><a href={`/research/${item.slug}`}>{item.title}</a></h3>
+  <p>{item.abstract}</p>
+  <dl class="research-card__facts">
+    <div>
+      <dt>Artifact</dt>
+      <dd>{item.artifactType}</dd>
+    </div>
+    <div>
+      <dt>Maturity</dt>
+      <dd>{item.maturityLabel}</dd>
+    </div>
+  </dl>
+  <a class="text-link" href={`/research/${item.slug}`}>
+    Read investigation
+    <ArrowRight size={17} aria-hidden="true" />
+  </a>
+</article>

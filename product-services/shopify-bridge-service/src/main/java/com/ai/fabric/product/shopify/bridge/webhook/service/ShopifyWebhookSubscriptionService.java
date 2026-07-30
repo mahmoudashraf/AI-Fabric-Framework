@@ -196,6 +196,10 @@ public class ShopifyWebhookSubscriptionService {
         try {
             createSubscription(shopDomain, accessToken, desired, webhookUri);
         } catch (ResponseStatusException ex) {
+            if (isDuplicateNameFailure(ex)
+                && recoverDuplicateNameConflict(shopDomain, accessToken, desired, webhookUri)) {
+                return;
+            }
             if (desired.metaobjectScoped() && isRecoverableMetaobjectFilterFailure(ex)) {
                 LOGGER.warn(
                     "Skipping Shopify metaobject webhook subscription for shop={} topic={} filter={} because Shopify rejected the filter: {}",
@@ -302,11 +306,13 @@ public class ShopifyWebhookSubscriptionService {
     private List<ExistingWebhookSubscription> listSubscriptions(String shopDomain,
                                                                 String accessToken,
                                                                 String topic) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("topics", topic == null ? null : List.of(topic));
         Map<String, Object> response = shopifyAdminGraphqlClient.execute(
             shopDomain,
             accessToken,
             LIST_SUBSCRIPTIONS_QUERY,
-            Map.of("topics", List.of(topic))
+            variables
         );
         failOnGraphQlErrors(response, "Shopify webhook subscription lookup failed.");
         Map<String, Object> data = requireMap(response.get("data"), "Shopify webhook subscription lookup returned no data.");
@@ -328,13 +334,51 @@ public class ShopifyWebhookSubscriptionService {
             .toList();
     }
 
+    private boolean recoverDuplicateNameConflict(String shopDomain,
+                                                 String accessToken,
+                                                 DesiredWebhookSubscription desired,
+                                                 String webhookUri) {
+        List<ExistingWebhookSubscription> existing = listSubscriptions(shopDomain, accessToken, null).stream()
+            .filter(subscription -> same(subscription.name(), desired.name()))
+            .toList();
+        boolean exactMatch = existing.stream().anyMatch(subscription ->
+            same(subscription.topic(), desired.topic())
+                && same(subscription.uri(), webhookUri)
+                && sameOptional(subscription.filter(), desired.filter())
+        );
+        if (exactMatch) {
+            return true;
+        }
+
+        List<ExistingWebhookSubscription> conflicting = existing.stream()
+            .filter(subscription ->
+                !same(subscription.topic(), desired.topic())
+                    || !same(subscription.uri(), webhookUri)
+                    || !sameOptional(subscription.filter(), desired.filter())
+            )
+            .toList();
+        if (conflicting.isEmpty()) {
+            return false;
+        }
+        for (ExistingWebhookSubscription subscription : conflicting) {
+            LOGGER.info(
+                "Deleting Shopify webhook subscription name conflict for shop={} topic={} subscriptionId={}",
+                normalizeShopDomain(shopDomain),
+                desired.topic(),
+                subscription.id()
+            );
+            deleteSubscription(shopDomain, accessToken, subscription.id());
+        }
+        createSubscription(shopDomain, accessToken, desired, webhookUri);
+        return true;
+    }
+
     private void createSubscription(String shopDomain,
                                     String accessToken,
                                     DesiredWebhookSubscription desired,
                                     String webhookUri) {
         Map<String, Object> webhookSubscription = new LinkedHashMap<>();
         webhookSubscription.put("uri", webhookUri);
-        webhookSubscription.put("name", desired.name());
         if (desired.filter() != null) {
             webhookSubscription.put("filter", desired.filter());
         }
@@ -505,6 +549,15 @@ public class ShopifyWebhookSubscriptionService {
                 message.toLowerCase(Locale.ROOT).contains("specified filter is invalid")
                     || message.toLowerCase(Locale.ROOT).contains("filter is invalid")
             );
+    }
+
+    private boolean isDuplicateNameFailure(ResponseStatusException ex) {
+        String message = optionalText(ex.getReason());
+        if (message == null) {
+            message = optionalText(ex.getMessage());
+        }
+        return message != null
+            && message.toLowerCase(Locale.ROOT).contains("name already exists");
     }
 
     private String normalizeShopDomain(String shopDomain) {

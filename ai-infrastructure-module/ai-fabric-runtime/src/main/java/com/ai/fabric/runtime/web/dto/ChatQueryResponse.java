@@ -1,6 +1,6 @@
 package com.ai.fabric.runtime.web.dto;
 
-import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
+import ai.fabric.intent.orchestration.OrchestrationResult;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;

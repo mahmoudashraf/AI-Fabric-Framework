@@ -1,13 +1,13 @@
 package com.ai.fabric.runtime.search;
 
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
-import com.ai.infrastructure.core.AISearchService;
-import com.ai.infrastructure.dto.RAGRequest;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.source.KnowledgeSourceAdapterType;
-import com.ai.infrastructure.rag.source.ResolvedKnowledgeSource;
-import com.ai.infrastructure.rag.source.SearchSource;
-import com.ai.infrastructure.rag.source.SearchSourceRegistry;
+import ai.fabric.core.AISearchService;
+import ai.fabric.dto.RAGRequest;
+import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.rag.source.KnowledgeSourceAdapterType;
+import ai.fabric.rag.source.ResolvedKnowledgeSource;
+import ai.fabric.rag.source.SearchSource;
+import ai.fabric.rag.source.SearchSourceRegistry;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -95,11 +95,17 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
     @Override
     public List<SearchSource> resolveSearchSources(RAGRequest request) {
         List<SearchSource> resolved = new ArrayList<>();
-        ResolvedKnowledgeSource configuredPrivateSource = configuredSources.stream()
+        ResolvedKnowledgeSource configuredDefaultPrivateSource = configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
+            .filter(source -> !StringUtils.hasText(source.getHandleRef()))
             .findFirst()
             .orElse(defaultPrivateSource(request));
-        resolved.add(new DeploymentPrivateVectorSearchSource(configuredPrivateSource, searchService, vectorDatabaseService));
+        resolved.add(new DeploymentPrivateVectorSearchSource(configuredDefaultPrivateSource, searchService, vectorDatabaseService));
+        configuredSources.stream()
+            .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
+            .filter(source -> StringUtils.hasText(source.getHandleRef()))
+            .map(source -> new DeploymentPrivateVectorSearchSource(source, searchService, vectorDatabaseService))
+            .forEach(resolved::add);
         configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType()))
             .map(source -> new SharedIndexSearchSource(source, searchService, vectorDatabaseService))

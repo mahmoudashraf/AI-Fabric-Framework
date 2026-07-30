@@ -1,8 +1,8 @@
 package com.ai.fabric.embedding.worker.web;
 
-import com.ai.infrastructure.core.AIEmbeddingService;
-import com.ai.infrastructure.dto.AIEmbeddingRequest;
-import com.ai.infrastructure.dto.AIEmbeddingResponse;
+import ai.fabric.core.AIEmbeddingService;
+import ai.fabric.dto.AIEmbeddingRequest;
+import ai.fabric.dto.AIEmbeddingResponse;
 import jakarta.validation.constraints.NotEmpty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;

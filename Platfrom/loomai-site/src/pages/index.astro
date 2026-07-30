@@ -1,0 +1,370 @@
+---
+import {
+  ArrowRight,
+  ExternalLink,
+  FileChartColumnIncreasing,
+  FlaskConical,
+  GitFork,
+} from '@lucide/astro'
+import CallToAction from '../components/CallToAction.astro'
+import ExperimentCard from '../components/ExperimentCard.astro'
+import LabProductShowcase from '../components/LabProductShowcase.astro'
+import ResearchCard from '../components/ResearchCard.astro'
+import SectionHeading from '../components/SectionHeading.astro'
+import { experiments, research } from '../data/content'
+import BaseLayout from '../layouts/BaseLayout.astro'
+
+const featuredExperiments = experiments.filter((item) => item.featured).slice(0, 3)
+const featuredResearch = research.filter((item) => item.featured).slice(0, 3)
+---
+
+<BaseLayout>
+  <section class="home-hero">
+    <div class="loom-container home-hero__inner">
+      <div class="home-hero__copy">
+        <p class="loom-eyebrow">Open-source AI engineering</p>
+        <h1>We weave intelligence into real software.</h1>
+        <p>
+          Open-source products, live experiments and applied research for dependable
+          AI-enabled applications.
+        </p>
+        <div class="home-hero__actions">
+          <a class="loom-button loom-button--primary" href="/products">
+            Explore products
+          </a>
+          <a class="home-text-action" href="/experiments">
+            View live experiments
+          </a>
+        </div>
+      </div>
+
+      <img
+        class="home-hero__visual"
+        src="/assets/reference/home-weave-with-assistant.webp"
+        alt=""
+        width="1440"
+        height="840"
+        fetchpriority="high"
+        decoding="async"
+      />
+    </div>
+  </section>
+
+  <section class="home-products" aria-labelledby="products-from-lab">
+    <div class="loom-container">
+      <LabProductShowcase />
+
+      <div class="home-path-grid">
+        <a href="/experiments">
+          <FlaskConical size={52} stroke-width={1.45} aria-hidden="true" />
+          <span>
+            <strong>Live Experiments</strong>
+            <small>Try practical AI experiments and see how ideas evolve into working systems.</small>
+          </span>
+          <ArrowRight size={20} aria-hidden="true" />
+        </a>
+        <a href="/research">
+          <FileChartColumnIncreasing size={52} stroke-width={1.45} aria-hidden="true" />
+          <span>
+            <strong>Applied Research</strong>
+            <small>Deep dives at the intersection of AI, software engineering, and real-world impact.</small>
+          </span>
+          <ArrowRight size={20} aria-hidden="true" />
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white home-continuation">
+    <div class="loom-container">
+      <div class="section-heading-row">
+        <SectionHeading
+          eyebrow="Runnable engineering proof"
+          title="See the framework at work."
+          body="Each experiment exposes a bounded scenario, its application boundary and observable evidence."
+        />
+        <a class="text-link" href="/experiments">
+          All experiments
+          <ArrowRight size={17} aria-hidden="true" />
+        </a>
+      </div>
+      <div class="experiment-grid">
+        {featuredExperiments.map((experiment) => <ExperimentCard experiment={experiment} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section home-research">
+    <div class="loom-container">
+      <div class="section-heading-row">
+        <SectionHeading
+          eyebrow="Implementation-linked"
+          title="Research that ends in inspectable software."
+          body="Engineering investigations with public implementation artifacts, explicit evidence levels and stated limitations."
+        />
+        <a class="text-link" href="/research">
+          All research
+          <ArrowRight size={17} aria-hidden="true" />
+        </a>
+      </div>
+      <div class="research-grid">
+        {featuredResearch.map((item) => <ResearchCard item={item} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container home-open">
+      <div>
+        <p class="loom-eyebrow">Built in the open</p>
+        <h2>Inspect the source. Run the proof. Question the boundary.</h2>
+      </div>
+      <p>
+        Products and experiments link directly to their implementation. Claims stop
+        where public evidence stops.
+      </p>
+      <a
+        class="loom-button loom-button--secondary"
+        href="https://github.com/Loom-AI-Labs"
+        target="_blank"
+        rel="noreferrer"
+      >
+        <GitFork size={18} aria-hidden="true" />
+        Visit GitHub
+        <ExternalLink size={15} aria-hidden="true" />
+      </a>
+    </div>
+  </section>
+
+  <CallToAction
+    title="Bring a real application problem."
+    body="Discuss framework adoption, UI integration, a reproducible experiment or an engineering research question."
+  />
+</BaseLayout>
+
+<style>
+  .home-hero {
+    min-height: 25.75rem;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .home-hero::after,
+  .home-products::after,
+  .home-research::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 42%, #000 100%);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .home-hero__inner {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 25.75rem;
+    position: relative;
+  }
+
+  .home-hero__copy {
+    align-self: start;
+    padding-top: 3.1rem;
+    position: relative;
+    z-index: 2;
+  }
+
+  .home-hero h1 {
+    font-size: clamp(3.35rem, 4vw, 3.85rem);
+    line-height: 1.06;
+    margin-bottom: 1.35rem;
+    max-width: 11.8em;
+  }
+
+  .home-hero__copy > p:not(.loom-eyebrow) {
+    font-size: 1.2rem;
+    line-height: 1.55;
+    margin-bottom: 1.7rem;
+    max-width: 38rem;
+  }
+
+  .home-hero__actions {
+    align-items: center;
+    display: flex;
+    gap: 3.1rem;
+  }
+
+  .home-hero__actions .loom-button {
+    min-width: 13rem;
+  }
+
+  .home-text-action {
+    border-bottom: 2px solid var(--loom-blue-vivid);
+    color: var(--loom-navy-950);
+    font-weight: 530;
+    padding: 0.55rem 0;
+    text-decoration: none;
+  }
+
+  .home-hero__visual {
+    align-self: center;
+    height: auto;
+    justify-self: end;
+    max-width: none;
+    position: relative;
+    right: -0.75rem;
+    width: min(48vw, 45rem);
+    z-index: 1;
+  }
+
+  .home-products {
+    padding-block: 0.55rem 1.5rem;
+    position: relative;
+  }
+
+  .home-products > .loom-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  .home-path-grid {
+    display: grid;
+    gap: 1.6rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-path-grid a {
+    align-items: center;
+    background: rgb(255 255 255 / 72%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 9rem;
+    padding: 1.6rem 2.5rem;
+    text-decoration: none;
+  }
+
+  .home-path-grid svg {
+    color: var(--loom-indigo-500);
+  }
+
+  .home-path-grid strong,
+  .home-path-grid small {
+    display: block;
+  }
+
+  .home-path-grid strong {
+    font-size: 1.55rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .home-path-grid small {
+    color: var(--loom-text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .section-heading-row {
+    align-items: end;
+    display: flex;
+    gap: 2rem;
+    justify-content: space-between;
+    margin-bottom: clamp(2rem, 4vw, 3.5rem);
+  }
+
+  .section-heading-row :global(.section-heading) {
+    margin-bottom: 0;
+  }
+
+  .home-continuation {
+    border-top: 1px solid var(--loom-border-subtle);
+  }
+
+  .home-research {
+    background: #f7f9ff;
+    border-block: 1px solid var(--loom-border-subtle);
+    position: relative;
+  }
+
+  .home-research > .loom-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  .home-open {
+    align-items: center;
+    display: grid;
+    gap: 3rem;
+    grid-template-columns: 1.25fr 0.9fr auto;
+  }
+
+  .home-open h2 {
+    font-size: clamp(1.8rem, 2.7vw, 2.6rem);
+    margin: 0;
+    max-width: 20ch;
+  }
+
+  .home-open > p {
+    margin: 0;
+  }
+
+  @media (max-width: 63.99rem) {
+    .home-hero,
+    .home-hero__inner {
+      min-height: 0;
+    }
+
+    .home-hero__inner {
+      grid-template-columns: 1fr;
+    }
+
+    .home-hero__copy {
+      padding-block: 3.5rem 1rem;
+    }
+
+    .home-hero__visual {
+      justify-self: center;
+      right: auto;
+      width: min(44rem, 100%);
+    }
+
+    .home-path-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .home-open {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .home-hero__copy {
+      padding-top: 2.75rem;
+    }
+
+    .home-hero h1 {
+      font-size: clamp(2.7rem, 12vw, 3.4rem);
+    }
+
+    .home-hero__actions,
+    .section-heading-row {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .home-path-grid a {
+      gap: 1rem;
+      padding: 1.25rem;
+    }
+
+    .home-path-grid strong {
+      font-size: 1.25rem;
+    }
+  }
+</style>

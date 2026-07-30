@@ -25,7 +25,7 @@ class TraceContextSupportTest {
                 "dep-123",
                 "cus-123",
                 "ten-123",
-                "shopify-app",
+                "commerce-app",
                 "2026-04-07T01:45:00Z",
                 List.of("chat:query", "chat:actions"),
                 List.of("storefront-chat")
@@ -45,7 +45,7 @@ class TraceContextSupportTest {
             .containsEntry("X-AIFABRIC-AUTH-DEPLOYMENT-ID", "dep-123")
             .containsEntry("X-AIFABRIC-AUTH-CUSTOMER-ID", "cus-123")
             .containsEntry("X-AIFABRIC-AUTH-TENANT-ID", "ten-123")
-            .containsEntry("X-AIFABRIC-AUTH-ISSUER", "shopify-app")
+            .containsEntry("X-AIFABRIC-AUTH-ISSUER", "commerce-app")
             .containsEntry("X-AIFABRIC-AUTH-EXPIRES-AT", "2026-04-07T01:45:00Z")
             .containsEntry("X-AIFABRIC-AUTH-SCOPES", "chat:query,chat:actions")
             .containsEntry("X-AIFABRIC-AUTH-AUDIENCES", "storefront-chat");

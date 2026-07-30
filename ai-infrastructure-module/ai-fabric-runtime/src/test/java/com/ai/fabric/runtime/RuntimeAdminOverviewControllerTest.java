@@ -13,30 +13,30 @@ import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigServic
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminScopeCatalog;
-import com.ai.infrastructure.config.AIEntityConfigurationLoader;
-import com.ai.infrastructure.config.AIProviderConfig;
-import com.ai.infrastructure.dto.AISearchRequest;
-import com.ai.infrastructure.dto.AISearchResponse;
-import com.ai.infrastructure.dto.VectorRecord;
-import com.ai.infrastructure.dto.VectorScanPage;
-import com.ai.infrastructure.dto.VectorScanRequest;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.AIContributionProvenance;
-import com.ai.infrastructure.intent.action.ActionAccessMode;
-import com.ai.infrastructure.intent.action.ActionResultPresentationHint;
-import com.ai.infrastructure.intent.action.ActionSideEffectLevel;
-import com.ai.infrastructure.intent.action.AIActionRegistry;
-import com.ai.infrastructure.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
-import com.ai.infrastructure.intent.action.connector.ConnectorWebhookTargetDefinition;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecision;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorDecisionType;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorRule;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
-import com.ai.infrastructure.intent.action.confirmation.ConfirmationInterceptorTrigger;
-import com.ai.infrastructure.rag.VectorDatabaseService;
-import com.ai.infrastructure.rag.source.SearchSourceRegistry;
-import com.ai.infrastructure.shell.BuiltInShellCatalog;
+import ai.fabric.config.AIEntityConfigurationLoader;
+import ai.fabric.config.AIProviderConfig;
+import ai.fabric.dto.AISearchRequest;
+import ai.fabric.dto.AISearchResponse;
+import ai.fabric.dto.VectorRecord;
+import ai.fabric.dto.VectorScanPage;
+import ai.fabric.dto.VectorScanRequest;
+import ai.fabric.intent.action.AIActionMetaData;
+import ai.fabric.intent.action.AIContributionProvenance;
+import ai.fabric.intent.action.ActionAccessMode;
+import ai.fabric.intent.action.ActionResultPresentationHint;
+import ai.fabric.intent.action.ActionSideEffectLevel;
+import ai.fabric.intent.action.AIActionRegistry;
+import ai.fabric.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
+import ai.fabric.intent.action.connector.ConnectorWebhookTargetDefinition;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorDecision;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorDecisionType;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorRule;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
+import ai.fabric.intent.action.confirmation.ConfirmationInterceptorTrigger;
+import ai.fabric.rag.VectorDatabaseService;
+import ai.fabric.rag.source.SearchSourceRegistry;
+import ai.fabric.shell.BuiltInShellCatalog;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -73,7 +73,7 @@ class RuntimeAdminOverviewControllerTest {
         authProperties.getIngress().setAcceptedAudiences(List.of("dep-auth"));
         authProperties.getPublicTokens().setSigningKey("public-signing-secret");
         authProperties.getPublicTokens().setIssuer("runtime-public-bootstrap");
-        authProperties.getPublicTokens().getAcceptedIssuers().add("shopify-app");
+        authProperties.getPublicTokens().getAcceptedIssuers().add("commerce-app");
         authProperties.getPublicTokens().getAcceptedAudiences().add("storefront-chat");
         authProperties.getPublicTokens().setDefaultAudience("storefront-chat");
         authProperties.getPublicTokens().getBootstrap().setEnabled(true);
@@ -235,7 +235,7 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(auth).containsEntry("publicDefaultAudience", "storefront-chat");
         assertThat(auth.get("privateAssertionAcceptedIssuers")).isEqualTo(List.of("platform-poc:SESSION"));
         assertThat(auth.get("privateAssertionAcceptedAudiences")).isEqualTo(List.of("dep-auth"));
-        assertThat(auth.get("publicAcceptedIssuers")).isEqualTo(List.of("shopify-app"));
+        assertThat(auth.get("publicAcceptedIssuers")).isEqualTo(List.of("commerce-app"));
         assertThat(auth.get("publicAcceptedAudiences")).isEqualTo(List.of("storefront-chat"));
         assertThat(auth.get("publicAnonymousGrantedScopes"))
             .isEqualTo(List.of("chat:query", "chat:suggestions", "chat:conversations"));
@@ -472,7 +472,7 @@ class RuntimeAdminOverviewControllerTest {
             public List<ConfirmationInterceptorRule> getRules() {
                 return List.of(new ConfirmationInterceptorRule(
                     "cancel_to_retention_offer",
-                    new ConfirmationInterceptorTrigger(List.of("cancel_purchase_order"), com.ai.infrastructure.dto.IntentType.CONFIRMATION_POSITIVE, "_retentionOfferOffered"),
+                    new ConfirmationInterceptorTrigger(List.of("cancel_purchase_order"), ai.fabric.dto.IntentType.CONFIRMATION_POSITIVE, "_retentionOfferOffered"),
                     new ConfirmationInterceptorDecision(ConfirmationInterceptorDecisionType.PROMPT_ACTION, "offer_order_discount", Map.of(), null),
                     ConfirmationInterceptorStackPolicy.NONE
                 ));

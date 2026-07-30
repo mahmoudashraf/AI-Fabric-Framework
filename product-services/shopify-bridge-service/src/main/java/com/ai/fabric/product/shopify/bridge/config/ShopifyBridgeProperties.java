@@ -18,9 +18,12 @@ public record ShopifyBridgeProperties(
     String platformAdminApiKeyHeader,
     String webhookSharedSecret,
     String adminApiKey,
-    String adminApiKeyHeader
+    String adminApiKeyHeader,
+    String runtimeTrustedBackendApiKey,
+    String runtimePrivateAssertionSigningKey,
+    String runtimePrivateAssertionIssuer,
+    int runtimeAssignmentCacheTtlSeconds
 ) {
-
     public ShopifyBridgeProperties {
         appName = normalize(appName, "Shopify Bridge Service");
         serviceRef = normalize(serviceRef, "shopify-bridge-local");
@@ -37,6 +40,10 @@ public record ShopifyBridgeProperties(
         webhookSharedSecret = normalize(webhookSharedSecret, "");
         adminApiKey = normalize(adminApiKey, "");
         adminApiKeyHeader = normalize(adminApiKeyHeader, "X-BRIDGE-API-KEY");
+        runtimeTrustedBackendApiKey = normalize(runtimeTrustedBackendApiKey, "");
+        runtimePrivateAssertionSigningKey = normalize(runtimePrivateAssertionSigningKey, "");
+        runtimePrivateAssertionIssuer = normalize(runtimePrivateAssertionIssuer, "platform-consumer-bridge");
+        runtimeAssignmentCacheTtlSeconds = runtimeAssignmentCacheTtlSeconds > 0 ? runtimeAssignmentCacheTtlSeconds : 300;
     }
 
     private static String normalize(String value, String fallback) {

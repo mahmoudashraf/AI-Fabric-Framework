@@ -8,6 +8,10 @@ This document defines the recommended release strategy for AI Fabric:
 - what should remain private as product/platform capability
 - how to structure the boundary so the public framework is useful without giving away the enterprise product moat
 
+Execution plan:
+
+- `doc/Productization/future-work/AI_FABRIC_FRAMEWORK_PUBLIC_REPO_SEPARATION_AND_RELEASE_PLAN.md`
+
 ---
 
 ## 1) Executive Summary
@@ -357,6 +361,7 @@ This is a strong and understandable packaging model.
 
 - move platform-only docs and modules into clearly private areas/repos
 - create framework release process
+- first selected release route: publish framework Maven artifacts to GitHub Packages and attach a framework-only source archive to a GitHub Release
 
 ### Phase 4
 

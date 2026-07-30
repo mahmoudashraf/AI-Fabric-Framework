@@ -17,7 +17,9 @@ public interface PlatformConsumerRepository extends JpaRepository<PlatformConsum
 
     Optional<PlatformConsumerEntity> findByConsumerIdIgnoreCase(String consumerId);
 
-    Optional<PlatformConsumerEntity> findByBoundDeploymentId(String deploymentId);
+    List<PlatformConsumerEntity> findByBoundDeploymentIdOrderByUpdatedAtDesc(String deploymentId);
+
+    List<PlatformConsumerEntity> findByBoundReleaseIdOrderByUpdatedAtDesc(String releaseId);
 
     long deleteByCustomerIdAndConsumerIdIgnoreCase(String customerId, String consumerId);
 }

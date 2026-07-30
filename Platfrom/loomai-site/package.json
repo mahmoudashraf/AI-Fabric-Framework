@@ -1,0 +1,34 @@
+{
+  "name": "@loom-ai-labs/public-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=9.6.5"
+  },
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1 --port 4321",
+    "check": "astro check",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1 --port 4321",
+    "start": "node deploy/container/server.mjs",
+    "smoke:content": "node --experimental-strip-types scripts/content-smoke.ts",
+    "smoke": "npm run smoke:content && node scripts/static-smoke.mjs",
+    "smoke:browser": "node scripts/browser-smoke.mjs",
+    "verify": "npm run check && npm run build && npm run smoke && npm run smoke:browser"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@lucide/astro": "1.26.0",
+    "astro": "7.1.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.9",
+    "@axe-core/playwright": "4.12.1",
+    "@types/node": "26.1.1",
+    "playwright": "1.62.0",
+    "typescript": "6.0.3"
+  }
+}

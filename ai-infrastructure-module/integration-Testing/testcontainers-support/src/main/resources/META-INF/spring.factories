@@ -1,3 +1,0 @@
-org.springframework.context.ApplicationContextInitializer=\
-  com.ai.infrastructure.it.config.TestcontainersInitializer
-

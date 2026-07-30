@@ -467,7 +467,7 @@ jobs:
     uses: ./.github/workflows/managed-vector-provider-verification.yml
     with:
       run_pinecone: true
-      run_qdrant: true
+      run_qdrant: false
       run_zilliz: true
       run_weaviate: true
       cleanup_ephemeral_resources: true

@@ -6,8 +6,8 @@
 
     <parent>
         <groupId>com.ai.fabric</groupId>
-        <artifactId>ai-fabric-spring-boot-starter</artifactId>
-        <version>1.0.0</version>
+        <artifactId>ai-fabric-product-services-parent</artifactId>
+        <version>0.1.0-preview</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -36,6 +36,11 @@
         <dependency>
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
 
         <dependency>

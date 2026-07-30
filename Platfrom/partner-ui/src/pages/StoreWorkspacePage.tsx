@@ -47,7 +47,8 @@ import { listClientImplementations } from '../api/implementations'
 import { getLaunchReadiness, requestProductionPromotion } from '../api/launch'
 import { createStoreNote, listStoreNotes } from '../api/notes'
 import { activatePackageTrial, deactivatePackageTrial, getProductControls, updateProductSourceSettings, updateProductSupportProfile, updateProductWidgetSettings } from '../api/productControls'
-import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerLaunchReadiness, PartnerProductControl, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
+import type { PartnerClientImplementation, PartnerEscalation, PartnerEvidenceBundle, PartnerLaunchReadiness, PartnerProductControl, PartnerShopifyOperations, PartnerShopifyVectorizationSourcePolicy, PartnerStore, PartnerTemplateApplication, PartnerVerificationRun, PartnerVerificationStep } from '../api/schemas'
+import { getShopifyOperations, indexAllShopifyKnowledge, reconcileShopifyKnowledge, reindexAllShopifyKnowledge, reindexSelectedShopifyKnowledge, replayShopifyKnowledgeEvent, retryLastFailedShopifyKnowledgeRun, runShopifySourcePreflight, updateShopifyKnowledgePolicy } from '../api/shopifyOperations'
 import { getPartnerStore } from '../api/stores'
 import { listTemplateApplications } from '../api/templates'
 import { listStoreThinkerSessions } from '../api/thinker'
@@ -193,6 +194,7 @@ export function StoreWorkspacePage() {
         <Tabs value={tab} onChange={(_event, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
           <Tab label="Overview" />
           <Tab label="Product controls" />
+          <Tab label="Shopify operations" />
           <Tab label="Setup checklist" />
           <Tab label="Launch" />
           <Tab label="Verification" />
@@ -213,12 +215,13 @@ export function StoreWorkspacePage() {
         />
       ) : null}
       {tab === 1 ? <ProductControlsTab storeId={store.id} /> : null}
-      {tab === 2 ? <SetupTab store={store} latestRun={latestRun} templates={appliedTemplates} /> : null}
-      {tab === 3 ? <LaunchTab store={store} /> : null}
-      {tab === 4 ? <VerificationTab storeId={store.id} /> : null}
-      {tab === 5 ? <EvidenceTab storeId={store.id} /> : null}
-      {tab === 6 ? <ThinkerTab storeId={store.id} /> : null}
-      {tab === 7 ? (
+      {tab === 2 ? <ShopifyOperationsTab storeId={store.id} /> : null}
+      {tab === 3 ? <SetupTab store={store} latestRun={latestRun} templates={appliedTemplates} /> : null}
+      {tab === 4 ? <LaunchTab store={store} /> : null}
+      {tab === 5 ? <VerificationTab storeId={store.id} /> : null}
+      {tab === 6 ? <EvidenceTab storeId={store.id} /> : null}
+      {tab === 7 ? <ThinkerTab storeId={store.id} /> : null}
+      {tab === 8 ? (
         <Paper sx={{ p: 2 }}>
           <Typography variant="h3">Support center</Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
@@ -227,7 +230,7 @@ export function StoreWorkspacePage() {
           <Button sx={{ mt: 2 }} onClick={() => navigate('/support')}>Open support</Button>
         </Paper>
       ) : null}
-      {tab === 8 ? <NotesTab storeId={store.id} /> : null}
+      {tab === 9 ? <NotesTab storeId={store.id} /> : null}
       <EscalationDialog open={dialogOpen} onClose={() => setDialogOpen(false)} storeId={store.id} />
     </>
   )
@@ -941,6 +944,436 @@ function ProductControlsTab({ storeId }: { storeId: string }) {
           </Paper>
         </Stack>
       </Box>
+    </Stack>
+  )
+}
+
+function ShopifyOperationsTab({ storeId }: { storeId: string }) {
+  const { api } = useSupabaseAuth()
+  const queryClient = useQueryClient()
+  const operationsQuery = useQuery({
+    queryKey: ['shopify-operations', storeId],
+    queryFn: () => getShopifyOperations(api, storeId),
+    enabled: Boolean(storeId),
+  })
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([])
+  const [policyDraft, setPolicyDraft] = useState<PartnerShopifyVectorizationSourcePolicy[]>([])
+
+  useEffect(() => {
+    const vectorization = operationsQuery.data?.vectorization
+    if (!vectorization) {
+      return
+    }
+    setSelectedEntityTypes((current) => current.length > 0 ? current : vectorization.selectedEntityTypes)
+    setPolicyDraft(vectorization.policy?.sourcePolicies ?? [])
+  }, [operationsQuery.data])
+
+  const applyOperationsUpdate = async (updated: PartnerShopifyOperations) => {
+    queryClient.setQueryData(['shopify-operations', storeId], updated)
+    await queryClient.invalidateQueries({ queryKey: ['store', storeId] })
+    await queryClient.invalidateQueries({ queryKey: ['activity'] })
+  }
+
+  const reconcileMutation = useMutation({
+    mutationFn: () => reconcileShopifyKnowledge(api, storeId),
+    onSuccess: applyOperationsUpdate,
+  })
+  const sourcePreflightMutation = useMutation({
+    mutationFn: () => runShopifySourcePreflight(api, storeId),
+    onSuccess: applyOperationsUpdate,
+  })
+  const indexAllMutation = useMutation({
+    mutationFn: () => indexAllShopifyKnowledge(api, storeId),
+    onSuccess: applyOperationsUpdate,
+  })
+  const reindexAllMutation = useMutation({
+    mutationFn: () => reindexAllShopifyKnowledge(api, storeId),
+    onSuccess: applyOperationsUpdate,
+  })
+  const reindexSelectedMutation = useMutation({
+    mutationFn: () => reindexSelectedShopifyKnowledge(api, storeId, selectedEntityTypes),
+    onSuccess: applyOperationsUpdate,
+  })
+  const policyMutation = useMutation({
+    mutationFn: () => updateShopifyKnowledgePolicy(api, storeId, {
+      policyVersion: operationsQuery.data?.vectorization?.policy?.policyVersion ?? 0,
+      sourcePolicies: policyDraft,
+    }),
+    onSuccess: applyOperationsUpdate,
+  })
+  const replayMutation = useMutation({
+    mutationFn: (eventId: string) => replayShopifyKnowledgeEvent(api, storeId, eventId),
+    onSuccess: applyOperationsUpdate,
+  })
+  const retryFailedMutation = useMutation({
+    mutationFn: () => retryLastFailedShopifyKnowledgeRun(api, storeId),
+    onSuccess: applyOperationsUpdate,
+  })
+
+  if (operationsQuery.isLoading) {
+    return <LinearProgress />
+  }
+  if (operationsQuery.isError || !operationsQuery.data) {
+    return <Alert severity="error">{operationsQuery.error instanceof Error ? operationsQuery.error.message : 'Shopify operations could not be loaded.'}</Alert>
+  }
+
+  const operations = operationsQuery.data
+  const vectorization = operations.vectorization
+  const canManageSources = operations.capabilities.includes('KNOWLEDGE_SOURCE_CONTROL')
+  const canTriggerSync = operations.capabilities.includes('KNOWLEDGE_SYNC_TRIGGER')
+  const operationPending = sourcePreflightMutation.isPending || reconcileMutation.isPending || indexAllMutation.isPending || reindexAllMutation.isPending || reindexSelectedMutation.isPending || replayMutation.isPending || retryFailedMutation.isPending
+  const policyPending = policyMutation.isPending
+  const operationError = [
+    sourcePreflightMutation.error,
+    reconcileMutation.error,
+    indexAllMutation.error,
+    reindexAllMutation.error,
+    reindexSelectedMutation.error,
+    replayMutation.error,
+    retryFailedMutation.error,
+    policyMutation.error,
+  ].find(Boolean)
+  const selectableFieldsByCategory = (vectorization?.effectiveIndexedFields ?? [])
+    .filter((field) => field.selectableForTriggerPolicy)
+    .reduce<Record<string, { fieldKey: string; label: string }[]>>((acc, field) => {
+      const sourceCategory = field.sourceCategory
+      acc[sourceCategory] = acc[sourceCategory] ?? []
+      acc[sourceCategory].push({ fieldKey: field.fieldKey, label: field.label })
+      return acc
+    }, {})
+
+  const updatePolicyDraft = (sourceCategory: string, patch: Partial<PartnerShopifyVectorizationSourcePolicy>) => {
+    setPolicyDraft((current) => current.map((policy) => policy.sourceCategory === sourceCategory ? { ...policy, ...patch } : policy))
+  }
+
+  return (
+    <Stack spacing={2}>
+      <Paper sx={{ p: 2 }}>
+        <SectionHeading icon={<SyncOutlinedIcon />} title="Shopify operations" />
+        <Typography color="text.secondary" sx={{ mt: 1 }}>
+          Partner-safe controls for Shopify Companion operations. Provider credentials, Coolify internals, and raw deployment identifiers stay inside Platform.
+        </Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(6, 1fr)' }, gap: 1.5, mt: 2 }}>
+          <InfoTile label="Install" value={titleize(operations.installStatus)} />
+          <InfoTile label="Widget" value={titleize(operations.widgetStatus)} />
+          <InfoTile label="Knowledge" value={titleize(operations.knowledgeSyncStatus)} />
+          <InfoTile label="Readiness" value={titleize(operations.readinessStatus)} />
+          <InfoTile label="Billing" value={`${titleize(operations.billing.tierKey ?? 'unknown')} / ${titleize(operations.billing.status ?? 'unknown')}`} />
+          <InfoTile label="Checked" value={formatDateTime(operations.checkedAt)} />
+        </Box>
+      </Paper>
+
+      {operationError ? <Alert severity="error">{operationError instanceof Error ? operationError.message : 'Shopify operation failed.'}</Alert> : null}
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.1fr 0.9fr' }, gap: 2 }}>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<StorefrontOutlinedIcon />} title="Storefront activation" />
+          <Typography color="text.secondary" sx={{ mt: 1 }}>
+            Partner Portal owns Loom Companion configuration. Shopify Admin is kept for merchant-owned install, scope, billing, and theme activation consent.
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1, mt: 2 }}>
+            <InfoTile label="Activation" value={titleize(operations.activation.status)} />
+            <InfoTile label="Embed" value={operations.activation.appEmbedHandle} />
+            <InfoTile label="Plan" value={titleize(operations.billing.planName ?? operations.billing.tierKey ?? 'unknown')} />
+            <InfoTile label="Billing mode" value={titleize(operations.billing.mode ?? 'unknown')} />
+          </Box>
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 2 }}>
+            <Button variant="outlined" href={operations.activation.storefrontUrl} target="_blank" rel="noreferrer">
+              Open storefront
+            </Button>
+            <Button variant="outlined" href={operations.activation.themeEditorUrl} target="_blank" rel="noreferrer">
+              Open Shopify theme editor
+            </Button>
+          </Stack>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="subtitle2">Theme placements</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1, mt: 1 }}>
+            {operations.activation.placements.map((placement) => (
+              <Box key={placement.surfaceId} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography sx={{ fontWeight: 700 }}>{placement.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">{placement.blockHandle} · {placement.template}</Typography>
+                  </Box>
+                  <StatusChip status={placement.enabled ? 'ENABLED' : placement.available ? 'AVAILABLE' : 'GATED'} />
+                </Stack>
+                <Typography variant="caption" color="text.secondary">{placement.guidance}</Typography>
+              </Box>
+            ))}
+          </Box>
+        </Paper>
+
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<ShieldOutlinedIcon />} title="Merchant-owned Shopify actions" />
+          <Stack spacing={1} sx={{ mt: 2 }}>
+            {operations.activation.merchantActions.map((action) => (
+              <Box key={action.actionKey} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography sx={{ fontWeight: 700 }}>{action.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">{action.owner} · {action.reason}</Typography>
+                  </Box>
+                  <StatusChip status={action.status} />
+                </Stack>
+                {action.url ? (
+                  <Button size="small" sx={{ mt: 1 }} href={action.url} target="_blank" rel="noreferrer">
+                    Open action
+                  </Button>
+                ) : null}
+              </Box>
+            ))}
+          </Stack>
+        </Paper>
+      </Box>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1fr 1fr 1fr' }, gap: 2 }}>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<HistoryOutlinedIcon />} title="Usage and value signals" />
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 2 }}>
+            <InfoTile label="Today" value={String(operations.usage.totalToday)} />
+            <InfoTile label="Last 7 days" value={String(operations.usage.totalLast7Days)} />
+          </Box>
+          {operations.usage.reason ? <Alert severity="info" sx={{ mt: 2 }}>{operations.usage.reason}</Alert> : null}
+          {operations.usage.topQuestions.length > 0 ? (
+            <Stack spacing={1} sx={{ mt: 2 }}>
+              <Typography variant="subtitle2">Top shopper questions</Typography>
+              {operations.usage.topQuestions.slice(0, 4).map((item) => (
+                <TimelineRow key={`${item.key}-${item.queryText}`} title={item.queryText ?? item.label ?? 'Question'} subtitle={`${item.count} ask${item.count === 1 ? '' : 's'} · ${formatDateTime(item.lastAskedAt)}`} status="READY" />
+              ))}
+            </Stack>
+          ) : null}
+          {operations.usage.roiMessage ? <Alert severity="success" sx={{ mt: 2 }}>{operations.usage.roiMessage}</Alert> : null}
+          <ChipRow values={operations.usage.roiRecommendations} empty="No ROI recommendations reported yet." />
+        </Paper>
+
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<FactCheckOutlinedIcon />} title="Provisioning and support" />
+          <Stack spacing={1.25} sx={{ mt: 2 }}>
+            <TimelineRow title="Managed service provisioning" subtitle={operations.provisioning.summaryMessage ?? operations.provisioning.nextAction ?? 'No provisioning message reported.'} status={operations.provisioning.status ?? 'UNKNOWN'} />
+            <TimelineRow title="Support readiness" subtitle={operations.supportReadiness.message ?? 'No support readiness message reported.'} status={operations.supportReadiness.status} />
+            <TimelineRow title="Webhook posture" subtitle={operations.webhooks.message ?? `${operations.webhooks.readyCount}/${operations.webhooks.expectedCount} expected topics ready`} status={operations.webhooks.status} />
+          </Stack>
+          {operations.supportReadiness.nextActions.length > 0 ? (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" color="text.secondary">Next support actions</Typography>
+              <ChipRow values={operations.supportReadiness.nextActions} empty="No support actions." />
+            </Box>
+          ) : null}
+        </Paper>
+
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<HistoryOutlinedIcon />} title="Recent governed actions" />
+          {operations.recentActions.length === 0 ? (
+            <Alert severity="info" sx={{ mt: 2 }}>No governed shopper action audit entries are available yet.</Alert>
+          ) : (
+            <Stack spacing={1} sx={{ mt: 2 }}>
+              {operations.recentActions.slice(0, 6).map((action) => (
+                <Box key={action.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                    <Box>
+                      <Typography sx={{ fontWeight: 700 }}>{titleize(action.actionType ?? action.actionPackage ?? 'shopper action')}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {titleize(action.surfaceId ?? action.pageType ?? 'storefront')} · {formatDateTime(action.createdAt)}
+                      </Typography>
+                    </Box>
+                    <StatusChip status={action.status ?? 'UNKNOWN'} />
+                  </Stack>
+                  {action.message ? <Typography variant="caption" color="text.secondary">{action.message}</Typography> : null}
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </Paper>
+      </Box>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', xl: '1.1fr 0.9fr' }, gap: 2 }}>
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<SyncOutlinedIcon />} title="Knowledge runtime" />
+          {!vectorization ? (
+            <Alert severity="warning" sx={{ mt: 2 }}>Vectorization has not been configured for this store yet.</Alert>
+          ) : (
+            <Stack spacing={2} sx={{ mt: 2 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1 }}>
+                <InfoTile label="Ready" value={vectorization.readyToRun ? 'Ready' : 'Blocked'} />
+                <InfoTile label="Runner" value={titleize(vectorization.runnerRegistrationStatus ?? 'unknown')} />
+                <InfoTile label="Plan" value={titleize(vectorization.planStatus ?? 'unknown')} />
+                <InfoTile label="Mode" value={titleize(vectorization.runnerMode ?? 'unknown')} />
+              </Box>
+              {vectorization.blockingReasons.length > 0 ? (
+                <Alert severity="warning">
+                  {vectorization.blockingReasons.slice(0, 3).join(' ')}
+                </Alert>
+              ) : null}
+              {vectorization.reconciliationRequired ? (
+                <Alert severity="info">Marketplace DATA plugins or vectorization runner state need reconciliation.</Alert>
+              ) : null}
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Button variant="outlined" onClick={() => sourcePreflightMutation.mutate()} disabled={!canManageSources || operationPending}>
+                  Run source preflight
+                </Button>
+                <Button variant="outlined" onClick={() => reconcileMutation.mutate()} disabled={!canManageSources || operationPending}>
+                  Reconcile setup
+                </Button>
+                <Button variant="contained" onClick={() => indexAllMutation.mutate()} disabled={!canTriggerSync || operationPending || !vectorization.readyToRun}>
+                  Index enabled data
+                </Button>
+                <Button variant="outlined" onClick={() => reindexAllMutation.mutate()} disabled={!canTriggerSync || operationPending || !vectorization.readyToRun}>
+                  Reindex all
+                </Button>
+                <Button variant="outlined" color="warning" onClick={() => retryFailedMutation.mutate()} disabled={!canTriggerSync || operationPending || !vectorization.automation?.lastFailedAutoIndexAt}>
+                  Retry failed live run
+                </Button>
+              </Stack>
+              <Divider />
+              <Typography variant="subtitle2">Selected reindex</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 0.5 }}>
+                {vectorization.selectedEntityTypes.map((entityType) => (
+                  <FormControlLabel
+                    key={entityType}
+                    control={<Checkbox checked={selectedEntityTypes.includes(entityType)} onChange={() => setSelectedEntityTypes(toggleValue(selectedEntityTypes, entityType))} />}
+                    label={titleize(entityType)}
+                    disabled={!canTriggerSync || operationPending}
+                  />
+                ))}
+              </Box>
+              <Button
+                sx={{ alignSelf: 'flex-start' }}
+                variant="outlined"
+                onClick={() => reindexSelectedMutation.mutate()}
+                disabled={!canTriggerSync || operationPending || selectedEntityTypes.length === 0 || !vectorization.readyToRun}
+              >
+                Reindex selected
+              </Button>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Selected categories</Typography>
+                <ChipRow values={vectorization.selectedCategories} empty="No enabled Shopify source categories." />
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Marketplace plugin posture</Typography>
+                <ChipRow values={[...vectorization.installedPluginIds.map((id) => `${id}: installed`), ...vectorization.missingPluginIds.map((id) => `${id}: missing`), ...vectorization.disabledPluginIds.map((id) => `${id}: disabled`)]} empty="No plugin posture reported." />
+              </Box>
+            </Stack>
+          )}
+        </Paper>
+
+        <Paper sx={{ p: 2 }}>
+          <SectionHeading icon={<HistoryOutlinedIcon />} title="Recent live update events" />
+          {!vectorization || vectorization.recentEvents.length === 0 ? (
+            <Alert severity="info" sx={{ mt: 2 }}>No Shopify live update events have been recorded yet.</Alert>
+          ) : (
+            <Stack spacing={1} sx={{ mt: 2 }}>
+              {vectorization.recentEvents.slice(0, 8).map((event) => (
+                <Box key={event.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                    <Box>
+                      <Typography sx={{ fontWeight: 700 }}>{titleize(event.entityType ?? event.sourceCategory ?? 'event')} {event.operation ? `- ${titleize(event.operation)}` : ''}</Typography>
+                      <Typography variant="caption" color="text.secondary">{formatDateTime(event.occurredAt ?? event.queuedAt)} · {event.triggerReason ?? 'live update'}</Typography>
+                    </Box>
+                    <StatusChip status={event.status ?? 'UNKNOWN'} />
+                  </Stack>
+                  {event.failureCode ? <Alert severity="warning" sx={{ mt: 1 }}>{event.failureCode}</Alert> : null}
+                  <Button sx={{ mt: 1 }} size="small" onClick={() => replayMutation.mutate(event.id)} disabled={!canTriggerSync || operationPending}>
+                    Replay event
+                  </Button>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </Paper>
+      </Box>
+
+      {vectorization?.policy ? (
+        <Paper sx={{ p: 2 }}>
+          <Accordion defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Stack spacing={0.25}>
+                <Typography sx={{ fontWeight: 700 }}>Live update policy</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Choose how Shopify create/update/delete events keep indexed knowledge fresh.
+                </Typography>
+              </Stack>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Stack spacing={2}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.5 }}>
+                  {policyDraft.map((policy) => {
+                    const selectableFields = selectableFieldsByCategory[policy.sourceCategory] ?? []
+                    return (
+                      <Paper key={policy.sourceCategory} variant="outlined" sx={{ p: 1.5 }}>
+                        <Stack spacing={1}>
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                            <Typography sx={{ fontWeight: 700 }}>{titleize(policy.sourceCategory)}</Typography>
+                            <StatusChip status={policy.enabled ? 'ENABLED' : 'DISABLED'} />
+                          </Stack>
+                          <FormControlLabel
+                            control={<Checkbox checked={policy.autoIndexingEnabled} onChange={(event) => updatePolicyDraft(policy.sourceCategory, { autoIndexingEnabled: event.target.checked })} />}
+                            label="Auto index live changes"
+                            disabled={!canManageSources || policyPending}
+                          />
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+                            <FormControlLabel
+                              control={<Checkbox checked={policy.createTriggerEnabled} onChange={(event) => updatePolicyDraft(policy.sourceCategory, { createTriggerEnabled: event.target.checked })} />}
+                              label="Create"
+                              disabled={!canManageSources || policyPending}
+                            />
+                            <FormControlLabel
+                              control={<Checkbox checked={policy.deleteTriggerEnabled} onChange={(event) => updatePolicyDraft(policy.sourceCategory, { deleteTriggerEnabled: event.target.checked })} />}
+                              label="Delete"
+                              disabled={!canManageSources || policyPending}
+                            />
+                          </Box>
+                          <TextField select label="Update trigger" value={policy.updateTriggerMode} onChange={(event) => updatePolicyDraft(policy.sourceCategory, { updateTriggerMode: event.target.value })} disabled={!canManageSources || policyPending}>
+                            {['FULL_REINDEX', 'INDEXED_ONLY', 'SELECTED_FIELDS', 'DISABLED'].map((mode) => <MenuItem key={mode} value={mode}>{titleize(mode)}</MenuItem>)}
+                          </TextField>
+                          {selectableFields.length > 0 ? (
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">Selected update fields</Typography>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5 }}>
+                                {selectableFields.map((field) => (
+                                  <FormControlLabel
+                                    key={field.fieldKey}
+                                    control={<Checkbox checked={policy.selectedIndexedFields.includes(field.fieldKey)} onChange={() => updatePolicyDraft(policy.sourceCategory, { selectedIndexedFields: toggleValue(policy.selectedIndexedFields, field.fieldKey) })} />}
+                                    label={field.label}
+                                    disabled={!canManageSources || policyPending || policy.updateTriggerMode !== 'SELECTED_FIELDS'}
+                                  />
+                                ))}
+                              </Box>
+                            </Box>
+                          ) : null}
+                          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                            <TextField
+                              type="number"
+                              label="Debounce seconds"
+                              value={policy.debounceWindowSeconds}
+                              onChange={(event) => updatePolicyDraft(policy.sourceCategory, { debounceWindowSeconds: Math.max(0, Number(event.target.value)) })}
+                              disabled={!canManageSources || policyPending}
+                            />
+                            <TextField
+                              type="number"
+                              label="Min interval seconds"
+                              value={policy.minimumRunIntervalSeconds}
+                              onChange={(event) => updatePolicyDraft(policy.sourceCategory, { minimumRunIntervalSeconds: Math.max(0, Number(event.target.value)) })}
+                              disabled={!canManageSources || policyPending}
+                            />
+                          </Box>
+                        </Stack>
+                      </Paper>
+                    )
+                  })}
+                </Box>
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Button variant="outlined" onClick={() => setPolicyDraft(vectorization.policy?.sourcePolicies ?? [])} disabled={policyPending}>
+                    Reset policy edits
+                  </Button>
+                  <Button variant="contained" onClick={() => policyMutation.mutate()} disabled={!canManageSources || policyPending || policyDraft.length === 0}>
+                    Save live update policy
+                  </Button>
+                </Stack>
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
+        </Paper>
+      ) : null}
     </Stack>
   )
 }

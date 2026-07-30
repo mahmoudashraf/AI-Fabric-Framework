@@ -65,6 +65,17 @@ public class CoolifyApiClient {
         return applications;
     }
 
+    public List<CoolifyDatabaseSummary> listDatabases(CoolifyConnection connection) {
+        JsonNode response = requestJson(connection, "GET", "/databases", null, true);
+        List<CoolifyDatabaseSummary> databases = new ArrayList<>();
+        if (response.isArray()) {
+            for (JsonNode item : response) {
+                databases.add(toDatabase(item));
+            }
+        }
+        return databases;
+    }
+
     public List<CoolifyProjectSummary> listProjects(CoolifyConnection connection) {
         JsonNode response = requestJson(connection, "GET", "/projects", null, true);
         List<CoolifyProjectSummary> projects = new ArrayList<>();
@@ -144,6 +155,20 @@ public class CoolifyApiClient {
         return Optional.of(toApplication(response));
     }
 
+    public Optional<CoolifyDatabaseSummary> getDatabase(CoolifyConnection connection, String uuid) {
+        JsonNode response = requestJson(
+            connection,
+            "GET",
+            "/databases/" + encodePath(uuid),
+            null,
+            false
+        );
+        if (response == null || response.isMissingNode() || response.isNull()) {
+            return Optional.empty();
+        }
+        return Optional.of(toDatabase(response));
+    }
+
     public Optional<CoolifyDeploymentSummary> getDeployment(CoolifyConnection connection, String deploymentUuid) {
         JsonNode response = requestJson(
             connection,
@@ -178,6 +203,29 @@ public class CoolifyApiClient {
             throw new CoolifyApiException("Coolify public application create did not return an application UUID.", 201, "/applications/public");
         }
         return uuid;
+    }
+
+    public String createPostgresDatabase(CoolifyConnection connection,
+                                         CoolifyCreatePostgresDatabaseRequest request) {
+        ObjectNode body = postgresDatabaseBody(request);
+        JsonNode response = requestJson(connection, "POST", "/databases/postgresql", body, true);
+        String uuid = response.path("uuid").asText(null);
+        if (!StringUtils.hasText(uuid)) {
+            throw new CoolifyApiException("Coolify PostgreSQL database create did not return a database UUID.", 201, "/databases/postgresql");
+        }
+        return uuid;
+    }
+
+    public void updatePostgresDatabase(CoolifyConnection connection,
+                                       String uuid,
+                                       CoolifyCreatePostgresDatabaseRequest request) {
+        requestJson(
+            connection,
+            "PATCH",
+            "/databases/" + encodePath(uuid),
+            postgresDatabaseUpdateBody(request),
+            true
+        );
     }
 
     public void updateDockerImageApplication(CoolifyConnection connection,
@@ -370,6 +418,18 @@ public class CoolifyApiClient {
         return action(connection, "/applications/" + encodePath(uuid) + "/restart");
     }
 
+    public CoolifyActionResponse startDatabase(CoolifyConnection connection, String uuid) {
+        return action(connection, "/databases/" + encodePath(uuid) + "/start");
+    }
+
+    public CoolifyActionResponse stopDatabase(CoolifyConnection connection, String uuid) {
+        return action(connection, "/databases/" + encodePath(uuid) + "/stop");
+    }
+
+    public CoolifyActionResponse restartDatabase(CoolifyConnection connection, String uuid) {
+        return action(connection, "/databases/" + encodePath(uuid) + "/restart");
+    }
+
     public CoolifyActionResponse delete(CoolifyConnection connection,
                                         String uuid,
                                         boolean deleteConfigurations,
@@ -390,6 +450,32 @@ public class CoolifyApiClient {
             connection,
             "GET",
             "/applications/" + encodePath(uuid) + "/logs?lines=" + normalizedLines,
+            null,
+            true
+        );
+        return response.path("logs").asText("");
+    }
+
+    public CoolifyActionResponse deleteDatabase(CoolifyConnection connection,
+                                                String uuid,
+                                                boolean deleteConfigurations,
+                                                boolean deleteVolumes,
+                                                boolean dockerCleanup,
+                                                boolean deleteConnectedNetworks) {
+        String path = "/databases/" + encodePath(uuid)
+            + "?delete_configurations=" + deleteConfigurations
+            + "&delete_volumes=" + deleteVolumes
+            + "&docker_cleanup=" + dockerCleanup
+            + "&delete_connected_networks=" + deleteConnectedNetworks;
+        return action(connection, "DELETE", path);
+    }
+
+    public String databaseLogs(CoolifyConnection connection, String uuid, int lines) {
+        int normalizedLines = Math.max(1, Math.min(lines, 1000));
+        JsonNode response = requestJson(
+            connection,
+            "GET",
+            "/databases/" + encodePath(uuid) + "/logs?lines=" + normalizedLines,
             null,
             true
         );
@@ -490,6 +576,36 @@ public class CoolifyApiClient {
         body.put("instant_deploy", request.instantDeploy());
         body.put("is_auto_deploy_enabled", request.autoDeployEnabled());
         body.put("is_force_https_enabled", request.forceHttps());
+        return body;
+    }
+
+    private ObjectNode postgresDatabaseBody(CoolifyCreatePostgresDatabaseRequest request) {
+        ObjectNode body = objectMapper.createObjectNode();
+        put(body, "project_uuid", request.projectUuid());
+        put(body, "server_uuid", request.serverUuid());
+        put(body, "environment_name", request.environmentName());
+        put(body, "environment_uuid", request.environmentUuid());
+        put(body, "destination_uuid", request.destinationUuid());
+        put(body, "name", request.name());
+        put(body, "description", request.description());
+        put(body, "image", request.image());
+        put(body, "postgres_user", request.postgresUser());
+        put(body, "postgres_password", request.postgresPassword());
+        put(body, "postgres_db", request.postgresDatabase());
+        body.put("is_public", request.isPublic());
+        body.put("instant_deploy", request.instantDeploy());
+        return body;
+    }
+
+    private ObjectNode postgresDatabaseUpdateBody(CoolifyCreatePostgresDatabaseRequest request) {
+        ObjectNode body = objectMapper.createObjectNode();
+        put(body, "name", request.name());
+        put(body, "description", request.description());
+        put(body, "image", request.image());
+        put(body, "postgres_user", request.postgresUser());
+        put(body, "postgres_password", request.postgresPassword());
+        put(body, "postgres_db", request.postgresDatabase());
+        body.put("is_public", request.isPublic());
         return body;
     }
 
@@ -601,6 +717,18 @@ public class CoolifyApiClient {
             node.path("status").asText(null),
             node.path("docker_registry_image_name").asText(null),
             node.path("docker_registry_image_tag").asText(null),
+            node
+        );
+    }
+
+    private CoolifyDatabaseSummary toDatabase(JsonNode node) {
+        return new CoolifyDatabaseSummary(
+            textFirst(node, "uuid", "id"),
+            textFirst(node, "name"),
+            textFirst(node, "status"),
+            firstNonBlank(textFirst(node, "type", "database_type", "databaseType"), textFirst(node, "kind")),
+            textFirst(node, "postgres_user", "postgresUser", "username"),
+            textFirst(node, "postgres_db", "postgresDb", "database", "databaseName"),
             node
         );
     }

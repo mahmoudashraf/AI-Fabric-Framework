@@ -5,6 +5,8 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderPreflig
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceActionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceActionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceHandleSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLifecycleRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLifecycleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceLogsSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
@@ -87,8 +89,9 @@ public class DeploymentProviderOperationsController {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public List<DeploymentProviderResourceHandleSummary> listResources(@RequestParam(required = false) DeploymentProviderType providerType,
                                                                        @RequestParam(required = false) String deploymentId,
-                                                                       @RequestParam(required = false) String targetProfileId) {
-        return providerResourceActionService.listResources(providerType, deploymentId, targetProfileId);
+                                                                       @RequestParam(required = false) String targetProfileId,
+                                                                       @RequestParam(defaultValue = "false") boolean refresh) {
+        return providerResourceActionService.listResources(providerType, deploymentId, targetProfileId, refresh);
     }
 
     @GetMapping("/resources/{handleId}/status")
@@ -102,6 +105,15 @@ public class DeploymentProviderOperationsController {
     public DeploymentProviderResourceLogsSummary resourceLogs(@PathVariable String handleId,
                                                               @RequestParam(defaultValue = "200") int lines) {
         return providerResourceActionService.logs(handleId, lines);
+    }
+
+    @PostMapping("/resources/{handleId}/lifecycle-status")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentProviderResourceLifecycleSummary markResourceLifecycleStatus(
+        @PathVariable String handleId,
+        @RequestBody DeploymentProviderResourceLifecycleRequest request
+    ) {
+        return providerResourceActionService.markLifecycleStatus(handleId, request);
     }
 
     @PostMapping("/resources/{handleId}/start")

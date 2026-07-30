@@ -1,0 +1,1034 @@
+---
+import {
+  ArrowRight,
+  AtSign,
+  Box,
+  BrainCircuit,
+  CircleCheckBig,
+  CodeXml,
+  Database,
+  ExternalLink,
+  FileSearch,
+  GitFork,
+  LockKeyhole,
+  Puzzle,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  UserRoundCheck,
+  Workflow,
+} from '@lucide/astro'
+import type { Product } from '../data/types'
+
+type Props = {
+  product: Product
+}
+
+const { product } = Astro.props
+---
+
+<section class="framework-hero" aria-labelledby="framework-product-title">
+  <div class="loom-container framework-hero__grid">
+    <div class="framework-hero__copy">
+      <div class="framework-hero__meta">
+        <span>Products</span>
+        <span>/</span>
+        <span>AI Fabric Framework</span>
+        <strong>Open source · {product.statusLabel}</strong>
+      </div>
+
+      <h1 id="framework-product-title">
+        Build intelligent Java applications without surrendering application control.
+      </h1>
+      <p>
+        Connect live application data, evidence-grounded retrieval and governed
+        actions to Spring Boot while your application retains authority over
+        identity, authorization, validation, persistence and execution.
+      </p>
+
+      <div class="framework-hero__actions">
+        <a class="loom-button loom-button--primary" href="/experiments">
+          Explore live demos
+        </a>
+        <a
+          class="loom-button loom-button--secondary"
+          href={product.links.source.href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <GitFork size={18} aria-hidden="true" />
+          View on GitHub
+        </a>
+      </div>
+
+      <ul class="framework-hero__facts" aria-label="Framework facts">
+        <li>Java</li>
+        <li>Spring Boot</li>
+        <li>Spring AI</li>
+        <li>Provider-neutral</li>
+        <li>Apache 2.0</li>
+      </ul>
+
+      <pre
+        class="framework-code"
+        tabindex="0"
+        aria-label="AI Fabric annotation-driven lifecycle example"
+      ><code><span class="framework-code__annotation">@AICapable</span>(entityType = <span class="framework-code__value">"product"</span>)
+class <span class="framework-code__type">Product</span> &lbrace; ... &rbrace;
+
+<span class="framework-code__annotation">@AIProcess</span>(operation = AIProcessOperation.UPDATE)
+<span class="framework-code__type">Product</span> save(<span class="framework-code__type">Product</span> product) &lbrace; ... &rbrace;</code></pre>
+    </div>
+
+    <div class="framework-map" aria-label="AI Fabric application authority architecture">
+      <aside class="framework-map__brand" aria-hidden="true">
+        <span class="framework-map__mark">
+          <img
+            src="/assets/reference/framework-mark.png"
+            alt=""
+            width="135"
+            height="175"
+          />
+        </span>
+        <strong>AI FABRIC</strong>
+      </aside>
+
+      <div class="framework-map__body">
+        <div class="framework-map__columns">
+          <section class="framework-map__group">
+            <p>Application-owned</p>
+            <div class="framework-map__node">
+              <UserRoundCheck size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Identity & Policy</strong>
+                <small>Users, tenants, roles, capabilities</small>
+              </span>
+            </div>
+            <div class="framework-map__node">
+              <CodeXml size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Domain Services</strong>
+                <small>Validation, business rules, workflows</small>
+              </span>
+            </div>
+            <div class="framework-map__node">
+              <Database size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Application DB</strong>
+                <small>Relational DB, source of truth</small>
+              </span>
+            </div>
+          </section>
+
+          <ArrowRight class="framework-map__column-arrow" size={24} aria-hidden="true" />
+
+          <section class="framework-map__group framework-map__group--fabric">
+            <p>AI Fabric enablement</p>
+            <div class="framework-map__node">
+              <Workflow size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Orchestration</strong>
+                <small>Coordinate retrieval, actions and policy</small>
+              </span>
+            </div>
+            <div class="framework-map__node">
+              <FileSearch size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Live Evidence</strong>
+                <small>Keep approved evidence aligned with app data</small>
+              </span>
+            </div>
+            <div class="framework-map__node">
+              <ShieldCheck size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Governed Actions</strong>
+                <small>Propose, verify and act within policy</small>
+              </span>
+            </div>
+          </section>
+
+          <ArrowRight class="framework-map__column-arrow" size={24} aria-hidden="true" />
+
+          <section class="framework-map__group">
+            <p>Providers</p>
+            <div class="framework-map__node">
+              <BrainCircuit size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Models</strong>
+                <small>LLMs and inference</small>
+              </span>
+            </div>
+            <div class="framework-map__node">
+              <Box size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Embeddings</strong>
+                <small>Embedding models</small>
+              </span>
+            </div>
+            <div class="framework-map__node">
+              <Database size={27} stroke-width={1.55} aria-hidden="true" />
+              <span>
+                <strong>Vector Stores</strong>
+                <small>Vector databases and search</small>
+              </span>
+            </div>
+          </section>
+        </div>
+
+        <div class="framework-map__lifecycle">
+          <div>
+            <Database size={22} stroke-width={1.55} aria-hidden="true" />
+            <span><strong>Entity change</strong><small>App data updated</small></span>
+          </div>
+          <ArrowRight size={19} aria-hidden="true" />
+          <div>
+            <AtSign size={22} stroke-width={1.55} aria-hidden="true" />
+            <span><strong>@AIProcess</strong><small>Hook triggered</small></span>
+          </div>
+          <ArrowRight size={19} aria-hidden="true" />
+          <div>
+            <CircleCheckBig size={22} stroke-width={1.55} aria-hidden="true" />
+            <span><strong>Evidence updated</strong><small>Retrieval store aligned</small></span>
+          </div>
+        </div>
+
+        <div class="framework-map__lifecycle framework-map__lifecycle--action">
+          <div>
+            <Sparkles size={22} stroke-width={1.55} aria-hidden="true" />
+            <span><strong>Action proposed</strong><small>Intent generated</small></span>
+          </div>
+          <ArrowRight size={19} aria-hidden="true" />
+          <div>
+            <LockKeyhole size={22} stroke-width={1.55} aria-hidden="true" />
+            <span><strong>Policy check</strong><small>Rules evaluated</small></span>
+          </div>
+          <ArrowRight size={19} aria-hidden="true" />
+          <div>
+            <CircleCheckBig size={22} stroke-width={1.55} aria-hidden="true" />
+            <span><strong>Confirm</strong><small>Approved to proceed</small></span>
+          </div>
+          <ArrowRight size={19} aria-hidden="true" />
+          <div>
+            <CodeXml size={22} stroke-width={1.55} aria-hidden="true" />
+            <span><strong>Application service</strong><small>Execution in app</small></span>
+          </div>
+        </div>
+
+        <p class="framework-map__authority">The application remains the authority</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="framework-capabilities" aria-labelledby="framework-capability-title">
+  <div class="loom-container">
+    <h2 id="framework-capability-title">
+      An enablement layer built around application authority
+    </h2>
+
+    <div class="framework-capabilities__grid">
+      <article>
+        <AtSign size={48} stroke-width={1.45} aria-hidden="true" />
+        <div>
+          <h3>Annotation-driven integration</h3>
+          <p>
+            Declare searchable entities, context and lifecycle hooks using
+            familiar Java annotations.
+          </p>
+        </div>
+      </article>
+      <article>
+        <RefreshCw size={48} stroke-width={1.45} aria-hidden="true" />
+        <div>
+          <h3>Live data synchronization</h3>
+          <p>
+            Keep approved retrieval evidence aligned with application changes.
+          </p>
+        </div>
+      </article>
+      <article>
+        <ShieldCheck size={48} stroke-width={1.45} aria-hidden="true" />
+        <div>
+          <h3>Governed retrieval & actions</h3>
+          <p>
+            Ground responses in evidence and require policy checks or
+            confirmation before execution.
+          </p>
+        </div>
+      </article>
+      <article>
+        <Puzzle size={48} stroke-width={1.45} aria-hidden="true" />
+        <div>
+          <h3>Provider flexibility</h3>
+          <p>
+            Integrate models and vector stores behind richer framework
+            contracts.
+          </p>
+        </div>
+      </article>
+    </div>
+
+    <ol class="framework-authority-flow" aria-label="AI Fabric authority flow">
+      <li>
+        <span class="framework-authority-flow__icons">
+          <Database size={37} stroke-width={1.45} aria-hidden="true" />
+          <ShieldCheck size={34} stroke-width={1.45} aria-hidden="true" />
+        </span>
+        <span>
+          <strong>Application data, identity & policy</strong>
+          <small>Source of truth</small>
+        </span>
+        <ArrowRight size={25} aria-hidden="true" />
+      </li>
+      <li>
+        <span class="framework-authority-flow__mark">
+          <img
+            src="/assets/reference/framework-mark.png"
+            alt=""
+            width="135"
+            height="175"
+            loading="lazy"
+          />
+        </span>
+        <span>
+          <strong>AI Fabric orchestration & evidence flow</strong>
+          <small>Enablement layer</small>
+        </span>
+        <ArrowRight size={25} aria-hidden="true" />
+      </li>
+      <li>
+        <span class="framework-authority-flow__icons">
+          <BrainCircuit size={37} stroke-width={1.45} aria-hidden="true" />
+          <Database size={37} stroke-width={1.45} aria-hidden="true" />
+        </span>
+        <span>
+          <strong>Models & vector stores</strong>
+          <small>Pluggable providers</small>
+        </span>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="framework-diagram framework-diagram--overview">
+  <div class="loom-container">
+    <div class="framework-diagram__heading">
+      <div>
+        <p class="loom-eyebrow">Public architecture</p>
+        <h2>Application authority, made inspectable.</h2>
+        <p>
+          AI Fabric embeds inside the Spring Boot application and coordinates
+          only the optional capabilities that the application enables.
+        </p>
+      </div>
+      <a
+        class="loom-button loom-button--secondary"
+        href="/assets/products/ai-fabric-architecture-overview-light.png"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open architecture
+        <ExternalLink size={16} aria-hidden="true" />
+      </a>
+    </div>
+    <figure>
+      <div
+        class="framework-diagram__viewport"
+        tabindex="0"
+        aria-label="Scrollable AI Fabric architecture overview"
+      >
+        <img
+          src="/assets/products/ai-fabric-architecture-overview-light.png"
+          alt="AI Fabric architecture showing the Spring Boot application as trusted authority, embedded orchestration, optional capabilities, and pluggable model, embedding, and vector database providers"
+          width="1600"
+          height="1000"
+          loading="lazy"
+        />
+      </div>
+      <figcaption>
+        Application data and authorization stay authoritative; vector state is
+        derived and provider boundaries remain replaceable.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="framework-diagram framework-diagram--pipeline">
+  <div class="loom-container">
+    <div class="framework-diagram__heading">
+      <div>
+        <p class="loom-eyebrow">Ordered request pipeline</p>
+        <h2>Every governed request follows an explicit contract.</h2>
+        <p>
+          Protection, context resolution, intent handling, result normalization
+          and recording happen in a stable order, with optional steps activated
+          only when their modules are present.
+        </p>
+      </div>
+      <a
+        class="loom-button loom-button--secondary"
+        href="/assets/products/ai-fabric-orchestration-pipeline-light.png"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open pipeline
+        <ExternalLink size={16} aria-hidden="true" />
+      </a>
+    </div>
+    <figure>
+      <div
+        class="framework-diagram__viewport"
+        tabindex="0"
+        aria-label="Scrollable AI Fabric orchestration pipeline"
+      >
+        <img
+          src="/assets/products/ai-fabric-orchestration-pipeline-light.png"
+          alt="Ordered AI Fabric orchestration pipeline from security and access control through intent handling, result normalization, response sanitization, and optional conversation persistence"
+          width="1600"
+          height="1000"
+          loading="lazy"
+        />
+      </div>
+      <figcaption>
+        The order is an extension contract: authority gates fail closed while
+        optional intelligence and persistence stages remain modular.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<style>
+  .framework-hero {
+    overflow: hidden;
+    padding-block: 1.6rem 1.4rem;
+    position: relative;
+  }
+
+  .framework-hero::after,
+  .framework-capabilities::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 40%, #000 100%);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .framework-hero__grid {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: minmax(0, 0.83fr) minmax(0, 1.17fr);
+    position: relative;
+    z-index: 1;
+  }
+
+  .framework-hero__copy {
+    min-width: 0;
+    padding-top: 0.35rem;
+  }
+
+  .framework-hero__meta {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.7rem;
+    font-weight: 700;
+    gap: 0.7rem;
+    letter-spacing: 0;
+    margin-bottom: 1.25rem;
+    text-transform: uppercase;
+  }
+
+  .framework-hero__meta strong {
+    border: 1px solid #bcbfff;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    margin-left: 0.3rem;
+    padding: 0.22rem 0.8rem;
+  }
+
+  .framework-hero h1 {
+    font-size: 3.35rem;
+    line-height: 1.06;
+    margin-bottom: 1.15rem;
+    max-width: 12.4em;
+  }
+
+  .framework-hero__copy > p {
+    font-size: 1.05rem;
+    line-height: 1.55;
+    margin-bottom: 1.25rem;
+    max-width: 38rem;
+  }
+
+  .framework-hero__actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .framework-hero__actions .loom-button {
+    min-width: 11.5rem;
+  }
+
+  .framework-hero__facts {
+    color: var(--loom-blue-vivid);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    list-style: none;
+    margin: 0 0 0.8rem;
+    padding: 0;
+  }
+
+  .framework-hero__facts li + li::before {
+    color: var(--loom-navy-500);
+    content: "·";
+    margin-inline: 0.6rem;
+  }
+
+  .framework-code {
+    background: rgb(255 255 255 / 86%);
+    border: 1px solid var(--loom-border-strong);
+    border-radius: 0.5rem;
+    color: var(--loom-navy-950);
+    font-family: var(--loom-font-mono);
+    font-size: 0.72rem;
+    line-height: 1.65;
+    margin: 0;
+    overflow: auto;
+    padding: 0.85rem 1rem;
+    width: min(32rem, 100%);
+  }
+
+  .framework-code__annotation {
+    color: #075fff;
+  }
+
+  .framework-code__value {
+    color: #8b32d9;
+  }
+
+  .framework-code__type {
+    color: #007c69;
+  }
+
+  .framework-map {
+    align-self: start;
+    background: rgb(255 255 255 / 94%);
+    border: 1px solid #aabce4;
+    border-radius: 0.5rem;
+    box-shadow: 0 12px 28px rgb(10 29 74 / 9%);
+    display: grid;
+    grid-template-columns: 5.1rem minmax(0, 1fr);
+    min-height: 33rem;
+    overflow: hidden;
+  }
+
+  .framework-map__brand {
+    align-items: center;
+    background: #0b3477;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    justify-content: center;
+    padding: 1rem 0.55rem;
+  }
+
+  .framework-map__brand strong {
+    font-size: 0.72rem;
+    letter-spacing: 0;
+    text-align: center;
+  }
+
+  .framework-map__mark {
+    align-items: center;
+    background: #fff;
+    border-radius: 0.5rem;
+    display: inline-flex;
+    height: 6rem;
+    justify-content: center;
+    overflow: hidden;
+    width: 4rem;
+  }
+
+  .framework-map__mark img {
+    height: auto;
+    width: 3.6rem;
+  }
+
+  .framework-map__body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 1.05rem 1rem 0;
+  }
+
+  .framework-map__columns {
+    align-items: center;
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns:
+      minmax(0, 0.95fr) auto minmax(0, 1.15fr) auto
+      minmax(0, 0.92fr);
+  }
+
+  .framework-map__group {
+    border: 1px solid #b8c9e8;
+    border-radius: 0.5rem;
+    display: grid;
+    gap: 0.55rem;
+    min-height: 17.4rem;
+    padding: 0.75rem 0.55rem;
+  }
+
+  .framework-map__group--fabric {
+    border: 2px solid #08bfe1;
+    box-shadow: inset 0 0 0 1px #7652ff;
+  }
+
+  .framework-map__group > p {
+    color: var(--loom-blue-600);
+    font-size: 0.62rem;
+    font-weight: 750;
+    letter-spacing: 0;
+    margin: 0;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .framework-map__node {
+    align-items: center;
+    border: 1px solid #cbd7ed;
+    border-radius: 0.45rem;
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 4.5rem;
+    padding: 0.45rem;
+  }
+
+  .framework-map__node > svg {
+    color: var(--loom-blue-vivid);
+  }
+
+  .framework-map__node strong,
+  .framework-map__node small {
+    display: block;
+  }
+
+  .framework-map__node strong {
+    font-size: 0.73rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .framework-map__node small {
+    color: var(--loom-text-secondary);
+    font-size: 0.61rem;
+    line-height: 1.35;
+  }
+
+  .framework-map__column-arrow {
+    color: var(--loom-navy-700);
+  }
+
+  .framework-map__lifecycle {
+    align-items: center;
+    border: 1px solid #aabce4;
+    border-radius: 0.45rem;
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    margin-top: 0.75rem;
+    min-height: 3.45rem;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .framework-map__lifecycle--action {
+    border-style: dashed;
+    grid-template-columns: 1fr auto 1fr auto 1fr auto 1.1fr;
+    margin-top: 0.55rem;
+  }
+
+  .framework-map__lifecycle > div {
+    align-items: center;
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  .framework-map__lifecycle > div > svg {
+    color: var(--loom-blue-600);
+  }
+
+  .framework-map__lifecycle--action > div:nth-of-type(3) {
+    background: #f1fbf5;
+    border: 1px solid #aadac0;
+    border-radius: 0.4rem;
+    padding: 0.35rem;
+  }
+
+  .framework-map__lifecycle--action > div:nth-of-type(3) > svg {
+    color: #0c7a42;
+  }
+
+  .framework-map__lifecycle strong,
+  .framework-map__lifecycle small {
+    display: block;
+  }
+
+  .framework-map__lifecycle strong {
+    font-size: 0.63rem;
+  }
+
+  .framework-map__lifecycle small {
+    color: var(--loom-text-secondary);
+    font-size: 0.54rem;
+  }
+
+  .framework-map__lifecycle > svg {
+    color: var(--loom-navy-700);
+  }
+
+  .framework-map__authority {
+    color: var(--loom-navy-900);
+    font-size: 0.65rem;
+    font-weight: 750;
+    letter-spacing: 0;
+    margin: auto -1rem 0;
+    padding: 0.55rem;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .framework-capabilities {
+    padding-block: 0.55rem 1.4rem;
+    position: relative;
+  }
+
+  .framework-capabilities > .loom-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  .framework-capabilities h2 {
+    font-size: 1.65rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .framework-capabilities__grid {
+    display: grid;
+    gap: 1.35rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .framework-capabilities__grid article {
+    align-items: center;
+    background: rgb(255 255 255 / 82%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.5rem;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 8.8rem;
+    padding: 1rem;
+  }
+
+  .framework-capabilities__grid article > svg {
+    color: var(--loom-indigo-500);
+  }
+
+  .framework-capabilities__grid h3 {
+    font-size: 1.08rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .framework-capabilities__grid p {
+    font-size: 0.76rem;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .framework-authority-flow {
+    background: rgb(255 255 255 / 82%);
+    border: 1px solid #9fb7e8;
+    border-radius: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    list-style: none;
+    margin: 1.2rem 0 0;
+    padding: 0.7rem 1.5rem;
+  }
+
+  .framework-authority-flow li {
+    align-items: center;
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-width: 0;
+  }
+
+  .framework-authority-flow li:last-child {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .framework-authority-flow__icons {
+    align-items: center;
+    color: var(--loom-navy-800);
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .framework-authority-flow__mark {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.45rem;
+    display: inline-flex;
+    height: 4rem;
+    justify-content: center;
+    overflow: hidden;
+    width: 4rem;
+  }
+
+  .framework-authority-flow__mark img {
+    height: auto;
+    width: 2.55rem;
+  }
+
+  .framework-authority-flow strong,
+  .framework-authority-flow small {
+    display: block;
+  }
+
+  .framework-authority-flow strong {
+    font-size: 0.85rem;
+  }
+
+  .framework-authority-flow small {
+    color: var(--loom-blue-600);
+    font-size: 0.61rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin-top: 0.2rem;
+    text-transform: uppercase;
+  }
+
+  .framework-authority-flow li > svg {
+    color: var(--loom-blue-600);
+  }
+
+  .framework-diagram {
+    border-top: 1px solid var(--loom-border-subtle);
+    padding-block: 4rem;
+  }
+
+  .framework-diagram--overview {
+    background: #fff;
+  }
+
+  .framework-diagram--pipeline {
+    background: #f5f8ff;
+  }
+
+  .framework-diagram__heading {
+    align-items: end;
+    display: flex;
+    gap: 2rem;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .framework-diagram__heading > div {
+    max-width: 50rem;
+  }
+
+  .framework-diagram__heading h2 {
+    font-size: 2.55rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .framework-diagram__heading p:last-child {
+    margin: 0;
+    max-width: 45rem;
+  }
+
+  .framework-diagram__heading .loom-button {
+    flex: 0 0 auto;
+  }
+
+  .framework-diagram figure {
+    margin: 0;
+  }
+
+  .framework-diagram__viewport {
+    background: #f8faff;
+    border: 1px solid #cbd7ed;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .framework-diagram__viewport:focus-visible {
+    outline: 3px solid rgb(20 108 255 / 30%);
+    outline-offset: 3px;
+  }
+
+  .framework-diagram__viewport img {
+    display: block;
+    height: auto;
+    width: 100%;
+  }
+
+  .framework-diagram figcaption {
+    color: var(--loom-text-secondary);
+    font-size: 0.78rem;
+    margin-top: 0.75rem;
+  }
+
+  @media (max-width: 74rem) {
+    .framework-hero__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .framework-hero__copy {
+      max-width: 45rem;
+    }
+
+    .framework-map {
+      min-height: 0;
+    }
+
+    .framework-capabilities__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .framework-authority-flow {
+      gap: 1.2rem;
+      grid-template-columns: 1fr;
+    }
+
+    .framework-authority-flow li,
+    .framework-authority-flow li:last-child {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .framework-authority-flow li > svg {
+      display: none;
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .framework-hero {
+      padding-top: 2.25rem;
+    }
+
+    .framework-hero h1 {
+      font-size: 2.65rem;
+    }
+
+    .framework-hero__actions {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .framework-hero__meta {
+      gap: 0.45rem;
+    }
+
+    .framework-hero__meta strong {
+      margin-left: 0;
+    }
+
+    .framework-hero__actions {
+      gap: 0.75rem;
+    }
+
+    .framework-hero__actions .loom-button {
+      width: 100%;
+    }
+
+    .framework-code {
+      font-size: 0.62rem;
+    }
+
+    .framework-map {
+      display: block;
+    }
+
+    .framework-map__brand {
+      flex-direction: row;
+      justify-content: flex-start;
+      min-height: 4.5rem;
+      padding-inline: 1rem;
+    }
+
+    .framework-map__mark {
+      height: 3.4rem;
+      width: 3.4rem;
+    }
+
+    .framework-map__mark img {
+      width: 2.4rem;
+    }
+
+    .framework-map__body {
+      padding-inline: 0.75rem;
+    }
+
+    .framework-map__columns {
+      grid-template-columns: 1fr;
+    }
+
+    .framework-map__group {
+      min-height: 0;
+    }
+
+    .framework-map__column-arrow {
+      justify-self: center;
+      transform: rotate(90deg);
+    }
+
+    .framework-map__lifecycle,
+    .framework-map__lifecycle--action {
+      gap: 0.65rem;
+      grid-template-columns: 1fr;
+    }
+
+    .framework-map__lifecycle > svg {
+      justify-self: center;
+      transform: rotate(90deg);
+    }
+
+    .framework-capabilities__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .framework-diagram {
+      padding-block: 3rem;
+    }
+
+    .framework-diagram__heading {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .framework-diagram__heading h2 {
+      font-size: 2rem;
+    }
+
+    .framework-diagram__viewport {
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+
+    .framework-diagram__viewport img {
+      min-width: 56rem;
+    }
+  }
+</style>

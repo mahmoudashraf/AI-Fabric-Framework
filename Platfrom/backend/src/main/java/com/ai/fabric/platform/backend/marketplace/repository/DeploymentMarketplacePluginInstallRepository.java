@@ -11,4 +11,10 @@ public interface DeploymentMarketplacePluginInstallRepository extends JpaReposit
     List<DeploymentMarketplacePluginInstallEntity> findByDeploymentIdOrderByUpdatedAtDesc(String deploymentId);
 
     Optional<DeploymentMarketplacePluginInstallEntity> findByDeploymentIdAndPluginId(String deploymentId, String pluginId);
+
+    Optional<DeploymentMarketplacePluginInstallEntity> findByDeploymentIdAndPluginIdAndPluginVersionId(
+        String deploymentId,
+        String pluginId,
+        String pluginVersionId
+    );
 }

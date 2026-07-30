@@ -291,8 +291,9 @@ public class PlatformUserAdminService {
     private PlatformRole normalizeRole(String role) {
         try {
             PlatformRole normalized = PlatformRole.valueOf(role.trim().toUpperCase(Locale.ROOT));
-            if (normalized == PlatformRole.PUBLIC_API_CLIENT) {
-                throw new ResponseStatusException(BAD_REQUEST, "PUBLIC_API_CLIENT is not a valid platform user role.");
+            if (normalized == PlatformRole.PUBLIC_API_CLIENT
+                || normalized == PlatformRole.CONSUMER_RUNTIME_ASSIGNMENT_CLIENT) {
+                throw new ResponseStatusException(BAD_REQUEST, normalized.name() + " is not a valid platform user role.");
             }
             return normalized;
         } catch (IllegalArgumentException ex) {

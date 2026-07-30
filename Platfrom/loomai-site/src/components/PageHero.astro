@@ -1,0 +1,23 @@
+---
+type Props = {
+  eyebrow: string
+  title: string
+  body: string
+  note?: string
+  compact?: boolean
+}
+
+const { eyebrow, title, body, note, compact = false } = Astro.props
+---
+
+<section class:list={['page-hero', { 'page-hero--compact': compact }]}>
+  <div class="loom-container">
+    <div class="page-hero__copy">
+      <p class="loom-eyebrow">{eyebrow}</p>
+      <h1>{title}</h1>
+      <p class="page-hero__body">{body}</p>
+      {note && <p class="page-hero__note">{note}</p>}
+      <slot />
+    </div>
+  </div>
+</section>

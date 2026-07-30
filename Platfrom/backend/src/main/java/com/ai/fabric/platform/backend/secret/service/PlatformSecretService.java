@@ -267,6 +267,9 @@ public class PlatformSecretService {
         if (name.startsWith("MANAGED_VECTORIZATION_RUNNER_TOKEN_DEP_")) {
             return "VECTORIZATION_RUNNER_REGISTRATION_TOKEN";
         }
+        if (name.startsWith("MANAGED_RUNTIME_POSTGRES_PASSWORD_DEP_")) {
+            return "RUNTIME_POSTGRES_PASSWORD";
+        }
         return name;
     }
 
@@ -373,6 +376,14 @@ public class PlatformSecretService {
             new SecretDefinition(
                 "Runtime Public Token Signing Key",
                 "Signing key used by runtime deployments when they validate signed public bearer tokens for public-runtime integrations.",
+                false
+            )
+        );
+        secrets.put(
+            "LOOMAI_ASSIGNMENT_API_KEY",
+            new SecretDefinition(
+                "LoomAI Consumer Runtime Assignment API Key",
+                "Scoped machine credential used only by approved consumers to read their current runtime assignment.",
                 false
             )
         );

@@ -1,9 +1,11 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PublicApiDeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentLifecycleSnapshotSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentIntegrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentOverviewSummary;
@@ -14,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.model.PublicApplyDeploymentResp
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentCredentialsResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentStatusResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.PublicConsumerRuntimeAssignmentResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicCreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentialsResponse;
@@ -31,12 +34,17 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.ai.fabric.platform.backend.tenant.service.PlatformCustomerConsumerService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,6 +65,8 @@ public class PublicProvisioningApiService {
     private static final String RUNTIME_PUBLIC_TOKEN_SCHEME = "Bearer";
     private static final String AUTH_CONFIGURATION_REQUIRED = "AUTH_CONFIGURATION_REQUIRED";
     private static final String VERIFIED_AUTH_CONTEXT_PATH = "/api/chat/me/auth-context";
+    private static final String DEFAULT_PRIVATE_RUNTIME_ISSUER = "platform-consumer-bridge";
+    private static final int RUNTIME_ASSIGNMENT_CACHE_TTL_SECONDS = 300;
 
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
     private final DeploymentService deploymentService;
@@ -246,20 +256,132 @@ public class PublicProvisioningApiService {
 
     public PublicConsumerDeploymentSummary getConsumerDeployment(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
         return toPublicConsumerSummary(resolved.consumer().getConsumerId(), overview);
     }
 
     public PublicConsumerDeploymentStatusResponse getConsumerDeploymentStatus(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
         return toPublicConsumerStatusResponse(resolved.consumer().getConsumerId(), overview);
     }
 
     public PublicConsumerDeploymentCredentialsResponse getConsumerDeploymentCredentials(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
-        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
         return toPublicConsumerCredentialsResponse(resolved.consumer().getConsumerId(), overview);
+    }
+
+    public PublicConsumerRuntimeAssignmentResponse getConsumerRuntimeAssignment(String consumerId) {
+        PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
+        DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
+        com.fasterxml.jackson.databind.JsonNode securityConfig = latestPublishedSecurityConfig(overview.id());
+        PublicDeploymentAccessSummary access = accessSummary(overview, securityConfig);
+        PublicDeploymentIntegrationSummary integration = integrationSummary(access);
+        String issuer = preferredPrivateRuntimeIssuer(securityConfig);
+        String audience = preferredPrivateRuntimeAudience(resolved.consumer().getConsumerId());
+        String audienceMode = "CONSUMER_ID";
+        boolean externalIntegrationReady = access.trustedBackend().externalIntegrationReady()
+            && csvValues(ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig)).contains(issuer)
+            && csvValues(ManagedDeploymentProfileCatalog.privateRuntimeAcceptedAudiences(securityConfig)).contains(audience);
+        String revision = assignmentRevision(
+            resolved.consumer().getConsumerId(),
+            overview.id(),
+            overview.runtimeBaseUrl(),
+            integration.preferredIntegrationMode(),
+            access.posture().runtimeAuthMode(),
+            issuer,
+            audience
+        );
+        return new PublicConsumerRuntimeAssignmentResponse(
+            resolved.consumer().getConsumerId(),
+            overview.id(),
+            overview.runtimeBaseUrl(),
+            access.posture().runtimeAuthMode(),
+            integration.preferredIntegrationMode(),
+            issuer,
+            audience,
+            audienceMode,
+            access.trustedBackend().authorizationHeader(),
+            access.trustedBackend().assertionAuthorizationHeader(),
+            access.trustedBackend().assertionTokenScheme(),
+            externalIntegrationReady,
+            revision,
+            RUNTIME_ASSIGNMENT_CACHE_TTL_SECONDS,
+            access.runtime(),
+            integration.guidance()
+        );
+    }
+
+    private DeploymentOverviewSummary overviewForResolvedConsumer(PlatformCustomerConsumerService.ResolvedPublicConsumer resolved) {
+        DeploymentOverviewSummary overview = deploymentService.getDeploymentOverviewForExternalResolution(resolved.deployment().getId());
+        if (resolved.release() == null) {
+            return overview;
+        }
+        String releaseRuntimeBaseUrl = releaseRuntimeBaseUrl(resolved.release());
+        if (releaseRuntimeBaseUrl == null || releaseRuntimeBaseUrl.isBlank()) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Consumer release binding does not include a runtime URL."
+            );
+        }
+        return new DeploymentOverviewSummary(
+            overview.id(),
+            overview.name(),
+            overview.environment(),
+            overview.templateId(),
+            overview.binding(),
+            overview.source(),
+            overview.access(),
+            overview.status(),
+            overview.activeVersion(),
+            overview.healthStatus(),
+            overview.healthSummary(),
+            releaseRuntimeBaseUrl,
+            releaseConnectorProvisioned(resolved.release()),
+            overview.approvalRequiredForApply(),
+            overview.approvalRequiredForDelete(),
+            releaseLifecycleSnapshot(resolved.release()),
+            overview.latestVerification(),
+            overview.deletion(),
+            overview.archivedAt(),
+            overview.createdAt(),
+            overview.updatedAt()
+        );
+    }
+
+    private DeploymentLifecycleSnapshotSummary releaseLifecycleSnapshot(DeploymentReleaseEntity release) {
+        return new DeploymentLifecycleSnapshotSummary(
+            release.getId(),
+            release.getDeploymentVersionId(),
+            release.getStatus(),
+            release.getProvisioningStatus(),
+            release.getVerificationStatus(),
+            release.getCurrentStepKey(),
+            release.getCurrentStepDescription(),
+            release.getUpdatedAt()
+        );
+    }
+
+    private String releaseRuntimeBaseUrl(DeploymentReleaseEntity release) {
+        JsonNode details = readJson(release.getProvisioningDetailsJson());
+        return normalizeRuntimeBaseUrl(firstNonBlank(
+            details.path("runtimeBaseUrl").asText(null),
+            details.path("runtime").path("baseUrl").asText(null),
+            details.path("railway").path("services").path("runtime").path("baseUrl").asText(null),
+            details.path("runtimeFqdn").asText(null),
+            details.path("fqdn").asText(null)
+        ));
+    }
+
+    private boolean releaseConnectorProvisioned(DeploymentReleaseEntity release) {
+        JsonNode details = readJson(release.getProvisioningDetailsJson());
+        return firstNonBlank(
+            details.path("connectorBaseUrl").asText(null),
+            details.path("restConnector").path("baseUrl").asText(null),
+            details.path("railway").path("services").path("restConnector").path("baseUrl").asText(null),
+            details.path("connectorFqdn").asText(null)
+        ) != null;
     }
 
     public DeploymentIntegrationSummary getInternalIntegrationSummary(String deploymentId) {
@@ -704,10 +826,12 @@ public class PublicProvisioningApiService {
             blankToNull(runtimeBaseUrl),
             null,
             preferredChatQueryUrl(runtimeBaseUrl),
+            preferredQueryOnceUrl(runtimeBaseUrl),
             preferredSuggestionsUrl(runtimeBaseUrl),
             preferredConversationsUrl(runtimeBaseUrl),
             preferredConversationItemUrlTemplate(runtimeBaseUrl),
             blankToNull(runtimeBaseUrl),
+            preferredRuntimeHealthUrl(runtimeBaseUrl),
             preferredAuthContextUrl(runtimeBaseUrl),
             preferredAuthOverviewUrl(runtimeBaseUrl)
         );
@@ -718,7 +842,7 @@ public class PublicProvisioningApiService {
     }
 
     private PublicRuntimeEndpointsSummary emptyRuntimeEndpoints() {
-        return new PublicRuntimeEndpointsSummary(null, null, null, null, null, null, null, null, null);
+        return new PublicRuntimeEndpointsSummary(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private PublicTrustedBackendAccessSummary emptyTrustedBackend() {
@@ -747,6 +871,14 @@ public class PublicProvisioningApiService {
             return null;
         }
         return baseUrl + "/api/chat/me/suggestions";
+    }
+
+    private String preferredQueryOnceUrl(String runtimeBaseUrl) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        return baseUrl + "/api/chat/me/query-once";
     }
 
     private String preferredConversationsUrl(String runtimeBaseUrl) {
@@ -779,6 +911,14 @@ public class PublicProvisioningApiService {
             return null;
         }
         return baseUrl + "/api/admin/auth/overview";
+    }
+
+    private String preferredRuntimeHealthUrl(String runtimeBaseUrl) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        if (baseUrl == null) {
+            return null;
+        }
+        return baseUrl + "/actuator/health";
     }
 
     private String preferredConnectorOverviewUrl(String runtimeBaseUrl) {
@@ -854,7 +994,85 @@ public class PublicProvisioningApiService {
     }
 
     private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String normalized = blankToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeRuntimeBaseUrl(String value) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            return normalized;
+        }
+        return "https://" + normalized;
+    }
+
+    private String preferredPrivateRuntimeIssuer(com.fasterxml.jackson.databind.JsonNode securityConfig) {
+        List<String> configuredIssuers = csvValues(ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig));
+        if (configuredIssuers.contains(DEFAULT_PRIVATE_RUNTIME_ISSUER)) {
+            return DEFAULT_PRIVATE_RUNTIME_ISSUER;
+        }
+        if (!configuredIssuers.isEmpty()) {
+            return configuredIssuers.get(0);
+        }
+        return DEFAULT_PRIVATE_RUNTIME_ISSUER;
+    }
+
+    private String preferredPrivateRuntimeAudience(String consumerId) {
+        return consumerId;
+    }
+
+    private List<String> csvValues(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(","))
+            .map(String::trim)
+            .filter(value -> !value.isBlank())
+            .distinct()
+            .toList();
+    }
+
+    private String assignmentRevision(String consumerId,
+                                      String deploymentId,
+                                      String runtimeBaseUrl,
+                                      String preferredIntegrationMode,
+                                      String runtimeAuthMode,
+                                      String issuer,
+                                      String audience) {
+        String material = String.join("|",
+            blankToEmpty(consumerId),
+            blankToEmpty(deploymentId),
+            blankToEmpty(runtimeBaseUrl),
+            blankToEmpty(preferredIntegrationMode),
+            blankToEmpty(runtimeAuthMode),
+            blankToEmpty(issuer),
+            blankToEmpty(audience)
+        );
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(material.getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest).substring(0, 22);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to calculate runtime assignment revision.", ex);
+        }
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private String generateId(String prefix) {

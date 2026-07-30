@@ -1,7 +1,7 @@
 package com.ai.fabric.runtime;
 
 import com.ai.fabric.runtime.config.RuntimeVectorBackendStartupValidator;
-import com.ai.infrastructure.rag.VectorDatabaseService;
+import ai.fabric.rag.VectorDatabaseService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
@@ -76,22 +76,22 @@ class RuntimeVectorBackendStartupValidatorTest {
         }
 
         @Override
-        public Optional<com.ai.infrastructure.dto.VectorRecord> getVector(String vectorId) {
+        public Optional<ai.fabric.dto.VectorRecord> getVector(String vectorId) {
             return Optional.empty();
         }
 
         @Override
-        public Optional<com.ai.infrastructure.dto.VectorRecord> getVectorByEntity(String entityType, String entityId) {
+        public Optional<ai.fabric.dto.VectorRecord> getVectorByEntity(String entityType, String entityId) {
             return Optional.empty();
         }
 
         @Override
-        public com.ai.infrastructure.dto.AISearchResponse search(List<Double> queryVector, com.ai.infrastructure.dto.AISearchRequest request) {
+        public ai.fabric.dto.AISearchResponse search(List<Double> queryVector, ai.fabric.dto.AISearchRequest request) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public com.ai.infrastructure.dto.AISearchResponse searchByEntityType(List<Double> queryVector, String entityType, int limit, double threshold) {
+        public ai.fabric.dto.AISearchResponse searchByEntityType(List<Double> queryVector, String entityType, int limit, double threshold) {
             throw new UnsupportedOperationException();
         }
 
@@ -106,12 +106,12 @@ class RuntimeVectorBackendStartupValidatorTest {
         }
 
         @Override
-        public List<String> batchStoreVectors(List<com.ai.infrastructure.dto.VectorRecord> vectors) {
+        public List<String> batchStoreVectors(List<ai.fabric.dto.VectorRecord> vectors) {
             return List.of();
         }
 
         @Override
-        public int batchUpdateVectors(List<com.ai.infrastructure.dto.VectorRecord> vectors) {
+        public int batchUpdateVectors(List<ai.fabric.dto.VectorRecord> vectors) {
             return 0;
         }
 
@@ -121,7 +121,7 @@ class RuntimeVectorBackendStartupValidatorTest {
         }
 
         @Override
-        public List<com.ai.infrastructure.dto.VectorRecord> getVectorsByEntityType(String entityType) {
+        public List<ai.fabric.dto.VectorRecord> getVectorsByEntityType(String entityType) {
             return List.of();
         }
 

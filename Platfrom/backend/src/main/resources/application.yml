@@ -72,10 +72,38 @@ platform:
     client-id-header-name: ${PLATFORM_PUBLIC_API_CLIENT_ID_HEADER:X-PLATFORM-CLIENT-ID}
     api-key-header-name: ${PLATFORM_PUBLIC_API_KEY_HEADER:X-PLATFORM-PUBLIC-API-KEY}
     clients: {}
+    consumer-runtime-assignment:
+      enabled: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_ENABLED:false}
+      consumer-id: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_CONSUMER_ID:produs-staging}
+      api-key-header-name: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY_HEADER:X-LOOMAI-ASSIGNMENT-API-KEY}
+      api-key: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY:}
+      api-key-secret-name: ${PLATFORM_CONSUMER_RUNTIME_ASSIGNMENT_API_KEY_SECRET_NAME:LOOMAI_ASSIGNMENT_API_KEY}
   delivery:
     public-base-url: ${PLATFORM_PUBLIC_BASE_URL:http://localhost:${server.port}}
     signed-artifacts-enabled: ${PLATFORM_SIGNED_ARTIFACTS_ENABLED:true}
     artifact-url-ttl: ${PLATFORM_ARTIFACT_URL_TTL:3650d}
+  core-services:
+    enabled: ${PLATFORM_CORE_SERVICES_ENABLED:true}
+    target-profile-id: ${PLATFORM_CORE_SERVICES_TARGET_PROFILE_ID:dtp-coolify-production}
+    services:
+      - service-ref: loomai-platform-backend
+        display-name: Platform Backend
+        service-kind: PLATFORM_BACKEND
+        provider-resource-uuid: ${PLATFORM_CORE_SERVICE_BACKEND_UUID:adkvp3aqatl1yyrmd58v2yv6}
+        public-base-url: ${PLATFORM_CORE_SERVICE_BACKEND_URL:https://api.loomai.pro}
+        health-path: ${PLATFORM_CORE_SERVICE_BACKEND_HEALTH_PATH:/actuator/health}
+      - service-ref: loomai-platform-ui
+        display-name: Platform Console
+        service-kind: PLATFORM_CONSOLE
+        provider-resource-uuid: ${PLATFORM_CORE_SERVICE_UI_UUID:kl2c28ku13y7qr8n3doe4mlb}
+        public-base-url: ${PLATFORM_CORE_SERVICE_UI_URL:https://console.loomai.pro}
+        health-path: ${PLATFORM_CORE_SERVICE_UI_HEALTH_PATH:/health}
+      - service-ref: loomai-partner-ui
+        display-name: Partner Portal
+        service-kind: PARTNER_PORTAL
+        provider-resource-uuid: ${PLATFORM_CORE_SERVICE_PARTNER_UI_UUID:o2ljhx3ynme1t5igepshn97m}
+        public-base-url: ${PLATFORM_CORE_SERVICE_PARTNER_UI_URL:https://partners.loomai.pro}
+        health-path: ${PLATFORM_CORE_SERVICE_PARTNER_UI_HEALTH_PATH:/health}
   provisioning:
     mode: ${PLATFORM_PROVISIONING_MODE:RAILWAY_STUB}
     railway-api-endpoint: ${RAILWAY_API_ENDPOINT:https://backboard.railway.com/graphql/v2}
@@ -85,9 +113,9 @@ platform:
     environment-name: ${PLATFORM_PROVISIONING_ENVIRONMENT:dev}
     workspace-id: ${RAILWAY_WORKSPACE_ID:}
     runtime-service-root: ${PLATFORM_RUNTIME_SERVICE_ROOT:ai-infrastructure-module/ai-fabric-runtime}
-    runtime-dockerfile-path: ${PLATFORM_RUNTIME_DOCKERFILE_PATH:ai-infrastructure-module/ai-fabric-runtime/deploy/railway/Dockerfile}
+    runtime-dockerfile-path: ${PLATFORM_RUNTIME_DOCKERFILE_PATH:ai-infrastructure-module/ai-fabric-runtime/Dockerfile}
     connector-service-root: ${PLATFORM_CONNECTOR_SERVICE_ROOT:ai-infrastructure-module/ai-infrastructure-generic-rest-connector}
-    connector-dockerfile-path: ${PLATFORM_CONNECTOR_DOCKERFILE_PATH:ai-infrastructure-module/ai-infrastructure-generic-rest-connector/deploy/railway/Dockerfile}
+    connector-dockerfile-path: ${PLATFORM_CONNECTOR_DOCKERFILE_PATH:ai-infrastructure-module/ai-infrastructure-generic-rest-connector/Dockerfile}
     runtime-service-name-prefix: ${PLATFORM_RUNTIME_SERVICE_NAME_PREFIX:runtime}
     connector-service-name-prefix: ${PLATFORM_CONNECTOR_SERVICE_NAME_PREFIX:rest-connector}
     project-name-max-length: ${PLATFORM_PROJECT_NAME_MAX_LENGTH:32}
@@ -125,13 +153,13 @@ platform:
     connector-admin-overview-path: /api/admin/connector/overview
     connector-actions-overview-path: /api/admin/connector/actions/overview
     suites:
-      platform-ui-base-url: ${PLATFORM_UI_BASE_URL:}
+      platform-ui-base-url: ${PLATFORM_UI_BASE_URL:${PLATFORM_CORE_SERVICE_UI_URL:https://console.loomai.pro}}
       weaviate-host: ${PLATFORM_VERIFICATION_WEAVIATE_HOST:${WEAVIATE_HOST:}}
-      shopify-bridge-base-url: ${SHOPIFY_BRIDGE_BASE_URL:}
-      shopify-shop-domain: ${SHOP_DOMAIN:}
-      shopify-product-service-ref: ${PRODUCT_SERVICE_REF:}
+      shopify-bridge-base-url: ${SHOPIFY_BRIDGE_BASE_URL:https://shopify-bridge.loomai.pro}
+      shopify-shop-domain: ${SHOP_DOMAIN:shopping-companion-test.myshopify.com}
+      shopify-product-service-ref: ${PRODUCT_SERVICE_REF:shopify-bridge-prod}
       shopify-embedded-host: ${SHOPIFY_EMBEDDED_HOST:}
-      partner-ui-base-url: ${PARTNER_UI_BASE_URL:}
+      partner-ui-base-url: ${PARTNER_UI_BASE_URL:${PLATFORM_CORE_SERVICE_PARTNER_UI_URL:https://partners.loomai.pro}}
     runner:
       script-root: ${PLATFORM_HOSTED_VERIFICATION_SCRIPT_ROOT:scripts}
       timeout: ${PLATFORM_HOSTED_VERIFICATION_TIMEOUT:10m}
@@ -145,22 +173,22 @@ platform:
     required-compatibility-version: ${PLATFORM_VECTORIZATION_REQUIRED_COMPATIBILITY_VERSION:1}
     runner-provisioning:
       service-root: ${PLATFORM_VECTORIZATION_RUNNER_SERVICE_ROOT:ai-fabric-product/ai-fabric-vectorization-runner}
-      dockerfile-path: ${PLATFORM_VECTORIZATION_RUNNER_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-vectorization-runner/deploy/railway/Dockerfile}
+      dockerfile-path: ${PLATFORM_VECTORIZATION_RUNNER_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-vectorization-runner/deploy/container/Dockerfile}
       service-name-prefix: ${PLATFORM_VECTORIZATION_RUNNER_SERVICE_NAME_PREFIX:vectorization-runner}
       poll-interval: ${PLATFORM_VECTORIZATION_RUNNER_POLL_INTERVAL:15s}
   inference:
     provisioning:
       shared-project-name-prefix: ${PLATFORM_INFERENCE_SHARED_PROJECT_NAME_PREFIX:loom-inference}
       shared-embedding-service-root: ${PLATFORM_SHARED_EMBEDDING_SERVICE_ROOT:.}
-      shared-embedding-dockerfile-path: ${PLATFORM_SHARED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile}
+      shared-embedding-dockerfile-path: ${PLATFORM_SHARED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/container/Dockerfile}
       shared-embedding-service-name-prefix: ${PLATFORM_SHARED_EMBEDDING_SERVICE_NAME_PREFIX:shared-embeddings}
       shared-embedding-health-path: ${PLATFORM_SHARED_EMBEDDING_HEALTH_PATH:/actuator/health}
       shared-ollama-service-root: ${PLATFORM_SHARED_OLLAMA_SERVICE_ROOT:ai-fabric-product/ai-fabric-shared-ollama-service}
-      shared-ollama-dockerfile-path: ${PLATFORM_SHARED_OLLAMA_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-shared-ollama-service/deploy/railway/Dockerfile}
+      shared-ollama-dockerfile-path: ${PLATFORM_SHARED_OLLAMA_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-shared-ollama-service/deploy/container/Dockerfile}
       shared-ollama-service-name-prefix: ${PLATFORM_SHARED_OLLAMA_SERVICE_NAME_PREFIX:shared-ollama}
       shared-ollama-health-path: ${PLATFORM_SHARED_OLLAMA_HEALTH_PATH:/api/tags}
       dedicated-embedding-service-root: ${PLATFORM_DEDICATED_EMBEDDING_SERVICE_ROOT:.}
-      dedicated-embedding-dockerfile-path: ${PLATFORM_DEDICATED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/railway/Dockerfile}
+      dedicated-embedding-dockerfile-path: ${PLATFORM_DEDICATED_EMBEDDING_DOCKERFILE_PATH:ai-fabric-product/ai-fabric-embedding-worker/deploy/container/Dockerfile}
       dedicated-embedding-service-name-prefix: ${PLATFORM_DEDICATED_EMBEDDING_SERVICE_NAME_PREFIX:embedding-worker}
       dedicated-embedding-health-path: ${PLATFORM_DEDICATED_EMBEDDING_HEALTH_PATH:/actuator/health}
       poll-interval: ${PLATFORM_INFERENCE_PROVISIONING_POLL_INTERVAL:15s}

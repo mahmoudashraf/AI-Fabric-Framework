@@ -1,11 +1,15 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorRegistrySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTenantScopedVectorSummary;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
@@ -315,6 +319,65 @@ class DeploymentReleaseExecutionServiceTest {
     }
 
     @Test
+    void refreshProviderResourceHandlesAfterProvisioningPersistsFreshProviderStatus() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+        DeploymentProvisioningService deploymentProvisioningService = mock(DeploymentProvisioningService.class);
+        DeploymentReleaseProgressService deploymentReleaseProgressService = mock(DeploymentReleaseProgressService.class);
+        DeploymentReleaseVerificationService deploymentReleaseVerificationService = mock(DeploymentReleaseVerificationService.class);
+        DeploymentTenantScopedVectorService deploymentTenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+        DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService = mock(DeploymentTenantScopedVectorRegistryService.class);
+        MarketplaceDatasetSyncService marketplaceDatasetSyncService = mock(MarketplaceDatasetSyncService.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository =
+            mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentProviderRegistry providerRegistry = mock(DeploymentProviderRegistry.class);
+        DeploymentProvisioningProvider provider = mock(DeploymentProvisioningProvider.class);
+
+        DeploymentReleaseExecutionService service = new DeploymentReleaseExecutionService(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
+            resourceHandleRepository,
+            providerRegistry,
+            Runnable::run,
+            TransactionOperations.withoutTransaction(),
+            new ObjectMapper()
+        );
+
+        DeploymentProviderResourceHandleEntity handle = providerHandle("dep-123", "rel-123", "exited:unhealthy");
+        when(resourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-123")).thenReturn(List.of(handle));
+        when(providerRegistry.require(DeploymentProviderType.COOLIFY)).thenReturn(provider);
+        when(provider.status(handle)).thenReturn(new DeploymentProviderResourceStatusSummary(
+            handle.getId(),
+            DeploymentProviderType.COOLIFY,
+            handle.getProviderResourceUuid(),
+            "ACTIVE",
+            "running:healthy",
+            "runtime.example.test",
+            new ObjectMapper().createObjectNode(),
+            Instant.parse("2026-03-31T00:00:01Z")
+        ));
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.refreshProviderResourceHandlesAfterProvisioning("dep-123", "rel-123");
+
+        verify(resourceHandleRepository).save(handle);
+        assertThat(handle.getStatus()).isEqualTo("ACTIVE");
+        assertThat(handle.getLastObservedStatus()).isEqualTo("running:healthy");
+        assertThat(handle.getFqdn()).isEqualTo("runtime.example.test");
+    }
+
+    @Test
     void executeApplyFallsBackInlineWhenExecutorRejectsDispatch() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
@@ -477,5 +540,26 @@ class DeploymentReleaseExecutionServiceTest {
         verify(deploymentReleaseVerificationService, never()).verify(any(), any(), any(), any());
         verify(deploymentProvisioningService, never()).provision(any(), any(), any(), any());
         verify(deploymentRepository, never()).save(any(DeploymentEntity.class));
+    }
+
+    private static DeploymentProviderResourceHandleEntity providerHandle(String deploymentId,
+                                                                         String releaseId,
+                                                                         String status) {
+        Instant now = Instant.parse("2026-03-31T00:00:00Z");
+        DeploymentProviderResourceHandleEntity handle = new DeploymentProviderResourceHandleEntity();
+        handle.setId("dpr-123");
+        handle.setDeploymentId(deploymentId);
+        handle.setReleaseId(releaseId);
+        handle.setTargetProfileId("dtp-coolify");
+        handle.setProviderType(DeploymentProviderType.COOLIFY);
+        handle.setResourceKind("APPLICATION");
+        handle.setProviderResourceUuid("coolify-app-123");
+        handle.setStatus(status);
+        handle.setLastObservedStatus(status);
+        handle.setLastObservedAt(now);
+        handle.setMetadataJson("{}");
+        handle.setCreatedAt(now);
+        handle.setUpdatedAt(now);
+        return handle;
     }
 }

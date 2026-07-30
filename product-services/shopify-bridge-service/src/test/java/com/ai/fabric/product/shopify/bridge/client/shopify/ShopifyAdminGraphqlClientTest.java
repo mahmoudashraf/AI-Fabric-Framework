@@ -74,7 +74,11 @@ class ShopifyAdminGraphqlClientTest {
             "X-PLATFORM-API-KEY",
             "webhook-secret",
             "bridge-admin-key",
-            "X-BRIDGE-API-KEY"
+            "X-BRIDGE-API-KEY",
+        "runtime-api-key",
+        "runtime-signing-key",
+        "platform-consumer-bridge",
+        300
         );
     }
 }

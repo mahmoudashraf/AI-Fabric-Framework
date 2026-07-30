@@ -14,6 +14,12 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+TIER_RANKS = {
+    "FREE": 0,
+    "STARTER": 1,
+    "ELITE": 2,
+}
+
 
 def read_json(path: pathlib.Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -85,6 +91,40 @@ def conversation_id(payload: Any) -> str:
     return ""
 
 
+def normalize_tier(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def filter_queries_by_active_tier(
+    queries: list[dict[str, Any]],
+    active_tier_profile: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    active_tier = normalize_tier(active_tier_profile)
+    if not active_tier:
+        return queries, []
+
+    active_rank = TIER_RANKS.get(active_tier)
+    included: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for query in queries:
+        query_tier = normalize_tier(query.get("tierProfile"))
+        if not query_tier:
+            included.append(query)
+            continue
+        query_rank = TIER_RANKS.get(query_tier)
+        if active_rank is not None and query_rank is not None:
+            if query_rank <= active_rank:
+                included.append(query)
+            else:
+                skipped.append(query)
+            continue
+        if query_tier == active_tier:
+            included.append(query)
+        else:
+            skipped.append(query)
+    return included, skipped
+
+
 def evaluate_query(
     bridge_base_url: str,
     shop_domain: str,
@@ -92,6 +132,7 @@ def evaluate_query(
     global_forbidden_claims: list[str],
     global_forbidden_internal_terms: list[str],
     timeout: int,
+    shopper_session_prefix: str,
 ) -> dict[str, Any]:
     query_id = str(query["queryId"])
     request_payload = {
@@ -105,7 +146,7 @@ def evaluate_query(
         + "/chat/query"
     )
     started = time.time()
-    status, response = post_json(url, request_payload, f"first-product-audit-{query_id}", timeout)
+    status, response = post_json(url, request_payload, f"{shopper_session_prefix}-{query_id}", timeout)
     duration_ms = int((time.time() - started) * 1000)
     answer = extract_answer(response)
     forbidden = [
@@ -222,12 +263,38 @@ def main() -> int:
     parser.add_argument("--query-pack", required=True, type=pathlib.Path)
     parser.add_argument("--out", required=True, type=pathlib.Path)
     parser.add_argument("--timeout", type=int, default=45)
+    parser.add_argument(
+        "--shopper-session-prefix",
+        default="",
+        help="Prefix for storefront shopper session IDs. Defaults to a fresh first-product audit run id.",
+    )
+    parser.add_argument(
+        "--active-tier-profile",
+        default="",
+        help="Only evaluate queries whose tierProfile is supported by this active billing tier.",
+    )
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
+    shopper_session_prefix = args.shopper_session_prefix.strip() or f"first-product-audit-{int(time.time())}"
     pack = read_json(args.query_pack)
+    queries, skipped_queries = filter_queries_by_active_tier(
+        [query for query in pack.get("queries", []) if isinstance(query, dict)],
+        args.active_tier_profile,
+    )
+    effective_pack = dict(pack)
+    effective_pack["queries"] = queries
+    if args.active_tier_profile:
+        effective_pack["activeTierProfile"] = normalize_tier(args.active_tier_profile)
+        effective_pack["skippedQueries"] = [
+            {
+                "queryId": query.get("queryId"),
+                "tierProfile": query.get("tierProfile"),
+            }
+            for query in skipped_queries
+        ]
     target_pack_path = args.out / "answer-quality-query-pack.json"
-    target_pack_path.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    target_pack_path.write_text(json.dumps(effective_pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     results = [
         evaluate_query(
@@ -237,8 +304,9 @@ def main() -> int:
             [str(value) for value in pack.get("globalForbiddenClaims", [])],
             [str(value) for value in pack.get("globalForbiddenInternalTerms", [])],
             args.timeout,
+            shopper_session_prefix,
         )
-        for query in pack.get("queries", [])
+        for query in queries
     ]
     decision = "PASS" if results and all(result["passed"] for result in results) else "FAIL"
     write_json(
@@ -247,6 +315,15 @@ def main() -> int:
             "schemaVersion": 1,
             "productRef": pack.get("productRef", "shopify-companion"),
             "targetStore": args.shop_domain,
+            "activeTierProfile": normalize_tier(args.active_tier_profile),
+            "shopperSessionPrefix": shopper_session_prefix,
+            "skippedQueries": [
+                {
+                    "queryId": query.get("queryId"),
+                    "tierProfile": query.get("tierProfile"),
+                }
+                for query in skipped_queries
+            ],
             "decision": decision,
             "passedQueries": sum(1 for result in results if result["passed"]),
             "totalQueries": len(results),

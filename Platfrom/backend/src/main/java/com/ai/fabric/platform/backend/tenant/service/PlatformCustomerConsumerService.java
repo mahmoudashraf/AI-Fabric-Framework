@@ -2,6 +2,8 @@ package com.ai.fabric.platform.backend.tenant.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.security.PlatformPrincipal;
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
@@ -48,6 +50,7 @@ public class PlatformCustomerConsumerService {
     private final PlatformConsumerBindingHistoryRepository bindingHistoryRepository;
     private final PlatformCustomerRepository customerRepository;
     private final DeploymentRepository deploymentRepository;
+    private final DeploymentReleaseRepository deploymentReleaseRepository;
     private final PlatformCustomerAccessService platformCustomerAccessService;
     private final PlatformAuditService platformAuditService;
 
@@ -55,12 +58,14 @@ public class PlatformCustomerConsumerService {
                                            PlatformConsumerBindingHistoryRepository bindingHistoryRepository,
                                            PlatformCustomerRepository customerRepository,
                                            DeploymentRepository deploymentRepository,
+                                           DeploymentReleaseRepository deploymentReleaseRepository,
                                            PlatformCustomerAccessService platformCustomerAccessService,
                                            PlatformAuditService platformAuditService) {
         this.consumerRepository = consumerRepository;
         this.bindingHistoryRepository = bindingHistoryRepository;
         this.customerRepository = customerRepository;
         this.deploymentRepository = deploymentRepository;
+        this.deploymentReleaseRepository = deploymentReleaseRepository;
         this.platformCustomerAccessService = platformCustomerAccessService;
         this.platformAuditService = platformAuditService;
     }
@@ -153,44 +158,32 @@ public class PlatformCustomerConsumerService {
                                                  String consumerId,
                                                  UpdatePlatformConsumerBindingRequest request) {
         PlatformConsumerEntity consumer = requireManagedConsumer(customerId, consumerId);
-        String nextDeploymentId = normalizeOptionalId(request.deploymentId());
-        if (sameDeployment(consumer.getBoundDeploymentId(), nextDeploymentId)) {
-            return summarizeConsumer(consumer);
-        }
-
-        if (nextDeploymentId != null) {
-            requireBindableDeployment(consumer.getCustomerId(), nextDeploymentId);
-        }
-
-        String previousDeploymentId = consumer.getBoundDeploymentId();
-        Instant now = Instant.now();
-        consumer.setBoundDeploymentId(nextDeploymentId);
-        if (nextDeploymentId != null) {
-            consumer.setLastBoundAt(now);
-        }
-        consumer.setUpdatedAt(now);
-        consumerRepository.saveAndFlush(consumer);
-        recordBindingHistory(
+        return updateBindingInternal(
             consumer,
-            previousDeploymentId,
-            nextDeploymentId,
+            normalizeOptionalId(request.deploymentId()),
+            normalizeOptionalId(request.releaseId()),
+            normalizeOptionalId(request.targetProfileId()),
             normalizeDescription(request.reason()),
-            now
+            true
         );
+    }
 
-        platformAuditService.record(
-            "CUSTOMER_CONSUMER_BINDING_UPDATED",
-            "PLATFORM_CONSUMER",
-            consumer.getConsumerId(),
-            auditDetails(
-                "customerId", consumer.getCustomerId(),
-                "consumerId", consumer.getConsumerId(),
-                "fromDeploymentId", previousDeploymentId,
-                "toDeploymentId", nextDeploymentId,
-                "reason", normalizeDescription(request.reason())
-            )
+    @Transactional
+    public PlatformConsumerSummary updateBindingForTrustedPromotion(String customerId,
+                                                                    String consumerId,
+                                                                    String deploymentId,
+                                                                    String releaseId,
+                                                                    String targetProfileId,
+                                                                    String reason) {
+        PlatformConsumerEntity consumer = requireTrustedConsumer(customerId, consumerId);
+        return updateBindingInternal(
+            consumer,
+            normalizeOptionalId(deploymentId),
+            normalizeOptionalId(releaseId),
+            normalizeOptionalId(targetProfileId),
+            normalizeDescription(reason),
+            true
         );
-        return summarizeConsumer(consumer);
     }
 
     @Transactional
@@ -255,7 +248,9 @@ public class PlatformCustomerConsumerService {
         if (!StringUtils.hasText(deploymentId)) {
             return null;
         }
-        return consumerRepository.findByBoundDeploymentId(deploymentId.trim())
+        return consumerRepository.findByBoundDeploymentIdOrderByUpdatedAtDesc(deploymentId.trim())
+            .stream()
+            .findFirst()
             .map(this::summarizeConsumer)
             .orElse(null);
     }
@@ -263,7 +258,7 @@ public class PlatformCustomerConsumerService {
     @Transactional(readOnly = true)
     public boolean hasBoundConsumer(String deploymentId) {
         return StringUtils.hasText(deploymentId)
-            && consumerRepository.findByBoundDeploymentId(deploymentId.trim()).isPresent();
+            && !consumerRepository.findByBoundDeploymentIdOrderByUpdatedAtDesc(deploymentId.trim()).isEmpty();
     }
 
     @Transactional(readOnly = true)
@@ -279,7 +274,19 @@ public class PlatformCustomerConsumerService {
         }
         DeploymentEntity deployment = deploymentRepository.findById(consumer.getBoundDeploymentId())
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Consumer binding points to a missing deployment."));
-        return new ResolvedPublicConsumer(consumer, deployment);
+        DeploymentReleaseEntity release = null;
+        if (StringUtils.hasText(consumer.getBoundReleaseId())) {
+            release = deploymentReleaseRepository.findById(consumer.getBoundReleaseId().trim())
+                .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Consumer binding points to a missing release."));
+            if (!deployment.getId().equals(release.getDeploymentId())) {
+                throw new ResponseStatusException(CONFLICT, "Consumer release binding does not belong to its deployment.");
+            }
+            if (!"APPLIED_VERIFIED".equalsIgnoreCase(release.getStatus())
+                || !"PASSED".equalsIgnoreCase(release.getVerificationStatus())) {
+                throw new ResponseStatusException(CONFLICT, "Consumer release binding is not verified.");
+            }
+        }
+        return new ResolvedPublicConsumer(consumer, deployment, release);
     }
 
     private PlatformConsumerEntity requireManagedConsumer(String customerId, String consumerId) {
@@ -290,6 +297,17 @@ public class PlatformCustomerConsumerService {
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Consumer not found: " + normalizedConsumerId));
         if (!customer.getId().equals(consumer.getCustomerId())) {
             throw new ResponseStatusException(NOT_FOUND, "Consumer not found: " + normalizedConsumerId);
+        }
+        return consumer;
+    }
+
+    private PlatformConsumerEntity requireTrustedConsumer(String customerId, String consumerId) {
+        PlatformCustomerEntity customer = requireActiveCustomer(customerId);
+        String normalizedConsumerId = normalizeConsumerId(consumerId);
+        PlatformConsumerEntity consumer = consumerRepository.findByCustomerIdAndConsumerIdIgnoreCase(customer.getId(), normalizedConsumerId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Consumer not found: " + normalizedConsumerId));
+        if (!ACTIVE.equalsIgnoreCase(consumer.getStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Consumer is disabled: " + normalizedConsumerId);
         }
         return consumer;
     }
@@ -316,11 +334,90 @@ public class PlatformCustomerConsumerService {
         if (deployment.getArchivedAt() != null || "ARCHIVED".equalsIgnoreCase(deployment.getStatus())) {
             throw new ResponseStatusException(BAD_REQUEST, "Archived deployments cannot be bound to consumers.");
         }
-        PlatformConsumerEntity existing = consumerRepository.findByBoundDeploymentId(deploymentId).orElse(null);
-        if (existing != null) {
-            throw new ResponseStatusException(CONFLICT, "Deployment is already bound to consumer: " + existing.getConsumerId());
-        }
         return deployment;
+    }
+
+    private PlatformConsumerSummary updateBindingInternal(PlatformConsumerEntity consumer,
+                                                          String nextDeploymentId,
+                                                          String nextReleaseId,
+                                                          String requestedTargetProfileId,
+                                                          String reason,
+                                                          boolean requireVerifiedRelease) {
+        if (nextDeploymentId == null && (nextReleaseId != null || requestedTargetProfileId != null)) {
+            throw new ResponseStatusException(BAD_REQUEST, "deploymentId is required when binding a release or target profile.");
+        }
+
+        DeploymentReleaseEntity release = null;
+        String nextTargetProfileId = requestedTargetProfileId;
+        if (nextDeploymentId != null) {
+            requireBindableDeployment(consumer.getCustomerId(), nextDeploymentId);
+            if (nextReleaseId != null) {
+                release = requireBindableRelease(nextDeploymentId, nextReleaseId, requestedTargetProfileId, requireVerifiedRelease);
+                nextTargetProfileId = StringUtils.hasText(release.getTargetProfileId())
+                    ? release.getTargetProfileId()
+                    : requestedTargetProfileId;
+            }
+        }
+
+        if (sameBinding(consumer, nextDeploymentId, nextReleaseId, nextTargetProfileId)) {
+            return summarizeConsumer(consumer);
+        }
+
+        String previousDeploymentId = consumer.getBoundDeploymentId();
+        Instant now = Instant.now();
+        consumer.setBoundDeploymentId(nextDeploymentId);
+        consumer.setBoundReleaseId(nextReleaseId);
+        consumer.setBoundTargetProfileId(nextTargetProfileId);
+        if (nextDeploymentId != null) {
+            consumer.setLastBoundAt(now);
+        }
+        consumer.setUpdatedAt(now);
+        consumerRepository.saveAndFlush(consumer);
+        recordBindingHistory(
+            consumer,
+            previousDeploymentId,
+            nextDeploymentId,
+            reason,
+            now
+        );
+
+        platformAuditService.record(
+            "CUSTOMER_CONSUMER_BINDING_UPDATED",
+            "PLATFORM_CONSUMER",
+            consumer.getConsumerId(),
+            auditDetails(
+                "customerId", consumer.getCustomerId(),
+                "consumerId", consumer.getConsumerId(),
+                "fromDeploymentId", previousDeploymentId,
+                "toDeploymentId", nextDeploymentId,
+                "toReleaseId", nextReleaseId,
+                "toTargetProfileId", nextTargetProfileId,
+                "reason", reason
+            )
+        );
+        return summarizeConsumer(consumer);
+    }
+
+    private DeploymentReleaseEntity requireBindableRelease(String deploymentId,
+                                                           String releaseId,
+                                                           String requestedTargetProfileId,
+                                                           boolean requireVerifiedRelease) {
+        DeploymentReleaseEntity release = deploymentReleaseRepository.findById(releaseId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Release not found: " + releaseId));
+        if (!deploymentId.equals(release.getDeploymentId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Release does not belong to the selected deployment.");
+        }
+        if (StringUtils.hasText(requestedTargetProfileId)
+            && StringUtils.hasText(release.getTargetProfileId())
+            && !requestedTargetProfileId.equals(release.getTargetProfileId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Release target profile does not match the requested target profile.");
+        }
+        if (requireVerifiedRelease
+            && (!"APPLIED_VERIFIED".equalsIgnoreCase(release.getStatus())
+                || !"PASSED".equalsIgnoreCase(release.getVerificationStatus()))) {
+            throw new ResponseStatusException(CONFLICT, "Only verified releases can be bound to public consumers.");
+        }
+        return release;
     }
 
     private List<PlatformConsumerSummary> summarizeConsumers(List<PlatformConsumerEntity> consumers) {
@@ -333,13 +430,24 @@ public class PlatformCustomerConsumerService {
             .map(String::trim)
             .distinct()
             .toList();
+        List<String> releaseIds = consumers.stream()
+            .map(PlatformConsumerEntity::getBoundReleaseId)
+            .filter(StringUtils::hasText)
+            .map(String::trim)
+            .distinct()
+            .toList();
         Map<String, DeploymentEntity> deploymentsById = deploymentIds.isEmpty()
             ? Collections.emptyMap()
             : deploymentRepository.findAllById(deploymentIds).stream()
                 .collect(Collectors.toMap(DeploymentEntity::getId, deployment -> deployment, (left, right) -> left, LinkedHashMap::new));
+        Map<String, DeploymentReleaseEntity> releasesById = releaseIds.isEmpty()
+            ? Collections.emptyMap()
+            : deploymentReleaseRepository.findAllById(releaseIds).stream()
+                .collect(Collectors.toMap(DeploymentReleaseEntity::getId, release -> release, (left, right) -> left, LinkedHashMap::new));
         return consumers.stream()
             .map(consumer -> {
                 DeploymentEntity deployment = deploymentsById.get(consumer.getBoundDeploymentId());
+                DeploymentReleaseEntity release = releasesById.get(consumer.getBoundReleaseId());
                 return new PlatformConsumerSummary(
                     consumer.getConsumerId(),
                     consumer.getCustomerId(),
@@ -350,6 +458,11 @@ public class PlatformCustomerConsumerService {
                     deployment == null ? null : deployment.getName(),
                     deployment == null ? null : deployment.getEnvironmentName(),
                     deployment == null ? null : deployment.getStatus(),
+                    consumer.getBoundReleaseId(),
+                    release == null ? null : release.getStatus(),
+                    StringUtils.hasText(consumer.getBoundTargetProfileId())
+                        ? consumer.getBoundTargetProfileId()
+                        : release == null ? null : release.getTargetProfileId(),
                     consumer.getLastBoundAt(),
                     consumer.getCreatedAt(),
                     consumer.getUpdatedAt()
@@ -419,7 +532,16 @@ public class PlatformCustomerConsumerService {
         return deployment == null ? null : deployment.getName();
     }
 
-    private boolean sameDeployment(String left, String right) {
+    private boolean sameBinding(PlatformConsumerEntity consumer,
+                                String deploymentId,
+                                String releaseId,
+                                String targetProfileId) {
+        return sameOptionalId(consumer.getBoundDeploymentId(), deploymentId)
+            && sameOptionalId(consumer.getBoundReleaseId(), releaseId)
+            && sameOptionalId(consumer.getBoundTargetProfileId(), targetProfileId);
+    }
+
+    private boolean sameOptionalId(String left, String right) {
         String normalizedLeft = normalizeOptionalId(left);
         String normalizedRight = normalizeOptionalId(right);
         return normalizedLeft == null ? normalizedRight == null : normalizedLeft.equals(normalizedRight);
@@ -486,7 +608,11 @@ public class PlatformCustomerConsumerService {
 
     public record ResolvedPublicConsumer(
         PlatformConsumerEntity consumer,
-        DeploymentEntity deployment
+        DeploymentEntity deployment,
+        DeploymentReleaseEntity release
     ) {
+        public ResolvedPublicConsumer(PlatformConsumerEntity consumer, DeploymentEntity deployment) {
+            this(consumer, deployment, null);
+        }
     }
 }

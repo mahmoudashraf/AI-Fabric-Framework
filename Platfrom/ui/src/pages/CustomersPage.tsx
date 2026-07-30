@@ -755,6 +755,13 @@ export function CustomersPage() {
                                                 Bound to deployment <strong>{consumer.boundDeploymentName}</strong>
                                                 {' '}
                                                 ({consumer.boundDeploymentEnvironment}) with deployment status {consumer.boundDeploymentStatus}.
+                                                {consumer.boundReleaseId ? (
+                                                  <>
+                                                    {' '}
+                                                    Release {consumer.boundReleaseId} is {consumer.boundReleaseStatus ?? 'recorded'}
+                                                    {consumer.boundTargetProfileId ? ` on ${consumer.boundTargetProfileId}` : ''}.
+                                                  </>
+                                                ) : null}
                                               </Alert>
                                             ) : (
                                               <Alert severity="info">This consumer is not currently bound to a deployment.</Alert>

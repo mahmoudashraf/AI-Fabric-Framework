@@ -85,6 +85,8 @@ public class ShopifyBridgeDiagnosticsService {
             emptyToNull(properties.platformBaseUrl()),
             emptyToNull(properties.publicBaseUrl()),
             !properties.adminApiKey().isBlank(),
+            !properties.runtimeTrustedBackendApiKey().isBlank(),
+            !properties.runtimePrivateAssertionSigningKey().isBlank(),
             status,
             serverStartedAt,
             installs,
@@ -107,7 +109,8 @@ public class ShopifyBridgeDiagnosticsService {
                 "generic-mcp-execution-gateway-client",
                 "shopify-mcp-readiness-via-gateway",
                 "billing-posture-summary",
-                "usage-attribution-summary"
+                "usage-attribution-summary",
+                "runtime-private-auth-readiness"
             ),
             List.of()
         );

@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +22,7 @@ class CoolifyTargetProfileResolverTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void preflightResolvesSecretAndChecksCoolifyHealthWithoutExposingToken() throws Exception {
+    void preflightResolvesSecretAndChecksCoolifyVersionWithoutExposingToken() {
         DeploymentProviderCredentialRepository credentialRepository = mock(DeploymentProviderCredentialRepository.class);
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
@@ -30,7 +31,6 @@ class CoolifyTargetProfileResolverTest {
 
         when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential));
         when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
-        when(coolifyApiClient.health(org.mockito.ArgumentMatchers.any())).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(coolifyApiClient.version(org.mockito.ArgumentMatchers.any())).thenReturn("4.0.0");
 
         CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
@@ -45,7 +45,74 @@ class CoolifyTargetProfileResolverTest {
         assertThat(summary.status()).isEqualTo("PASSED");
         assertThat(summary.version()).isEqualTo("4.0.0");
         assertThat(summary.message()).doesNotContain("mock-token");
-        assertThat(summary.checks()).contains("credential_resolved", "health_endpoint_ok", "version_endpoint_ok");
+        assertThat(summary.checks()).contains("credential_resolved", "version_endpoint_ok", "version_endpoint_used_for_liveness");
+    }
+
+    @Test
+    void preflightRetriesTransientCoolifyVersionTransportFailures() {
+        DeploymentProviderCredentialRepository credentialRepository = mock(DeploymentProviderCredentialRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentProviderCredentialEntity credential = credential();
+        DeploymentTargetProfileEntity profile = profile();
+
+        when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential));
+        when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
+        when(coolifyApiClient.version(org.mockito.ArgumentMatchers.any()))
+            .thenThrow(new CoolifyApiException("Coolify API transport failed for /health.", 502, "/health"))
+            .thenReturn("4.0.0");
+
+        CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
+            credentialRepository,
+            platformSecretService,
+            coolifyApiClient,
+            objectMapper
+        );
+
+        DeploymentProviderPreflightSummary summary = resolver.preflight(profile);
+
+        assertThat(summary.status()).isEqualTo("PASSED");
+        assertThat(summary.checks()).contains("coolify_api_retry_2", "version_endpoint_ok");
+        assertThat(summary.details().path("attempts").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    void customerGroupedProfileCanResolveConfigWithoutDefaultEnvironmentUuid() {
+        CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
+            mock(DeploymentProviderCredentialRepository.class),
+            mock(PlatformSecretService.class),
+            mock(CoolifyApiClient.class),
+            objectMapper
+        );
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setProviderConfigJson("""
+            {"baseUrl":"http://coolify.example","projectUuid":"project","environmentName":"staging","serverUuid":"server","destinationUuid":"destination","apiVersionPinned":"4.0.0"}
+            """);
+        profile.setResourceDefaultsJson("""
+            {"customerProjectGroupingEnabled":true,"customerProjectEnvironmentName":"staging"}
+            """);
+
+        CoolifyTargetProfileConfig config = resolver.readConfig(profile);
+
+        assertThat(config.environmentName()).isEqualTo("staging");
+        assertThat(config.environmentUuid()).isNull();
+    }
+
+    @Test
+    void nonGroupedProfileStillRequiresEnvironmentUuid() {
+        CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
+            mock(DeploymentProviderCredentialRepository.class),
+            mock(PlatformSecretService.class),
+            mock(CoolifyApiClient.class),
+            objectMapper
+        );
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setProviderConfigJson("""
+            {"baseUrl":"http://coolify.example","projectUuid":"project","environmentName":"staging","serverUuid":"server","destinationUuid":"destination","apiVersionPinned":"4.0.0"}
+            """);
+
+        assertThatThrownBy(() -> resolver.readConfig(profile))
+            .hasMessageContaining("environmentUuid");
     }
 
     private DeploymentProviderCredentialEntity credential() {

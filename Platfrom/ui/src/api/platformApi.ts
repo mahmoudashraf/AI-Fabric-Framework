@@ -62,6 +62,111 @@ export type DeploymentSummary = {
   createdAt: string
 }
 
+export type DeploymentBundleExportMode = 'CONFIG_ONLY' | 'SEALED_BACKUP'
+export type DeploymentBundleImportMode = 'CONFIG_ONLY_CLONE' | 'SEALED_CLONE' | 'RESTORE_IN_PLACE'
+export type DeploymentBundleSecretClassification =
+  | 'SEALED_EXPORTABLE'
+  | 'REGENERATE_RECOMMENDED'
+  | 'FORBIDDEN'
+  | 'ENVIRONMENT_BOUND'
+  | 'MISSING_REFERENCE'
+
+export type DeploymentBundleSecretInventoryItem = {
+  secretName: string
+  classification: DeploymentBundleSecretClassification
+  valuePresent: boolean
+  valueIncluded: boolean
+  restorePolicy: string
+  sources: string[]
+}
+
+export type DeploymentBundleSecretSummary = {
+  includedValues: number
+  sealedEligible: number
+  regenerateRecommended: number
+  forbidden: number
+  environmentBound: number
+  missingReference: number
+  items: DeploymentBundleSecretInventoryItem[]
+}
+
+export type DeploymentBundleExternalIntegrationImpact = {
+  requiresCustomerEnvChange: boolean
+  changedValues: string[]
+  reason: string
+}
+
+export type DeploymentBundleExportPreviewSummary = {
+  deploymentId: string
+  exportMode: DeploymentBundleExportMode
+  includedSections: string[]
+  secretSummary: DeploymentBundleSecretSummary
+  externalIntegrationImpact: DeploymentBundleExternalIntegrationImpact
+  warnings: string[]
+}
+
+export type DeploymentBundleExportSummary = {
+  exportId: string
+  bundleId: string
+  exportMode: DeploymentBundleExportMode
+  status: string
+  bundleHash: string
+  manifestHash: string
+  secretEnvelopeHash: string | null
+  secretSummary: DeploymentBundleSecretSummary
+  bundle: unknown
+  createdAt: string
+}
+
+export type DeploymentBundleImportPreviewSummary = {
+  schemaValid: boolean
+  integrityValid: boolean
+  secretsReadable: boolean
+  importMode: DeploymentBundleImportMode
+  sourceDeploymentId: string
+  targetDeploymentId: string | null
+  newDeploymentName: string
+  externalIntegrationImpact: DeploymentBundleExternalIntegrationImpact
+  blockingIssues: string[]
+  warnings: string[]
+  requiredSecretActions: string[]
+}
+
+export type DeploymentBundleImportExecutionSummary = {
+  importId: string
+  status: string
+  importMode: DeploymentBundleImportMode
+  deploymentId: string
+  draftId: string
+  externalIntegrationImpact: DeploymentBundleExternalIntegrationImpact
+  requiredSecretActions: string[]
+  nextSteps: string[]
+  createdAt: string
+}
+
+export type DeploymentBundleExportRequest = {
+  exportMode: DeploymentBundleExportMode
+  reason?: string
+  recipient?: {
+    type: 'OPERATOR_PUBLIC_KEY'
+    publicKeyPem: string
+  }
+  includeReleaseEvidence?: boolean
+  includeProviderMappings?: boolean
+}
+
+export type DeploymentBundleImportRequest = {
+  bundle: unknown
+  importMode: DeploymentBundleImportMode
+  targetDeploymentId?: string
+  newDeploymentName?: string
+  targetEnvironment?: string
+  targetCustomerId?: string
+  targetTenantId?: string
+  privateKeyPem?: string
+  reason?: string
+}
+
 export type DeleteDeploymentRequest = {
   hardDelete?: boolean
   approvalId?: string
@@ -2028,6 +2133,67 @@ export type DeploymentProviderResourceLogsSummary = {
   fetchedAt: string
 }
 
+export type DeploymentProviderResourceLifecycleSummary = {
+  handleId: string
+  deploymentId: string
+  releaseId: string | null
+  targetProfileId: string
+  providerType: DeploymentProviderType
+  resourceKind: string
+  fqdn: string | null
+  previousStatus: string | null
+  status: string
+  proposedAction: string | null
+  reason: string | null
+  metadata: unknown
+  updatedAt: string
+}
+
+export type DeploymentProviderResourceOrphanScanSummary = {
+  deploymentId: string
+  marked: boolean
+  candidateCount: number
+  candidates: DeploymentProviderResourceLifecycleSummary[]
+  message: string
+}
+
+export type DeploymentPracticalPromotionRequest = {
+  versionId?: string
+  stagingTargetProfileId?: string
+  productionTargetProfileId?: string
+  sourceArtifactId?: string
+}
+
+export type DeploymentPracticalPromotionActivationRequest = {
+  productionReleaseId: string
+  consumerId: string
+  markStagingSuperseded?: boolean
+  reason?: string
+}
+
+export type DeploymentPracticalPromotionRollbackRequest = {
+  consumerId: string
+  rollbackDeploymentId: string
+  rollbackReleaseId: string
+  rollbackTargetProfileId?: string
+  reason?: string
+}
+
+export type DeploymentPracticalPromotionSummary = {
+  status: string
+  message: string
+  deploymentId: string
+  versionId: string
+  stagingTargetProfileId: string
+  productionTargetProfileId: string
+  stagingReleaseId: string | null
+  stagingReleaseStatus: string | null
+  productionReleaseId: string | null
+  productionReleaseStatus: string | null
+  consumer: PlatformConsumerSummary | null
+  resources: DeploymentProviderResourceLifecycleSummary[]
+}
+
 export type DeploymentSecretUsageItemSummary = {
   secretName: string
   displayName: string
@@ -3078,6 +3244,36 @@ export type PlatformDiagnosticsSummary = {
   recentHostedVerificationRuns: DeploymentHostedVerificationRunSummary[]
 }
 
+export type PlatformCoreServiceSummary = {
+  serviceRef: string
+  displayName: string
+  serviceKind: string | null
+  managementMode: string
+  targetProfileId: string | null
+  providerResourceUuid: string | null
+  publicBaseUrl: string | null
+  healthPath: string | null
+  healthUrl: string | null
+  status: string
+  observedStatus: string | null
+  message: string
+  observedAt: string
+  details: Record<string, unknown>
+}
+
+export type PlatformCoreServiceActionSummary = {
+  serviceRef: string
+  displayName: string
+  action: string
+  status: string
+  message: string
+  deploymentUuid: string | null
+  targetProfileId: string | null
+  providerResourceUuid: string | null
+  requestedAt: string
+  details: Record<string, unknown>
+}
+
 export type DraftValidationIssue = {
   severity: string
   section: string
@@ -3325,6 +3521,9 @@ export type PlatformConsumerSummary = {
   boundDeploymentName: string | null
   boundDeploymentEnvironment: string | null
   boundDeploymentStatus: string | null
+  boundReleaseId: string | null
+  boundReleaseStatus: string | null
+  boundTargetProfileId: string | null
   lastBoundAt: string | null
   createdAt: string
   updatedAt: string
@@ -4480,6 +4679,77 @@ export function fetchDeploymentProviderResourceLogs(handleId: string, lines = 20
   )
 }
 
+export function markDeploymentProviderResourceLifecycleStatus(
+  handleId: string,
+  payload: { status: string; reason?: string },
+) {
+  return request<DeploymentProviderResourceLifecycleSummary>(
+    `/api/deployment-provider/resources/${encodeURIComponent(handleId)}/lifecycle-status`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function planDeploymentPracticalPromotion(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionRequest = {},
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/plan`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function requestDeploymentPracticalProductionApply(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionRequest = {},
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/production-apply`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function activateDeploymentPracticalProductionConsumer(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionActivationRequest,
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/activate-production-consumer`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function rollbackDeploymentPracticalProductionConsumer(
+  deploymentId: string,
+  payload: DeploymentPracticalPromotionRollbackRequest,
+) {
+  return request<DeploymentPracticalPromotionSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/rollback-production-consumer`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function scanDeploymentPracticalPromotionOrphanResources(deploymentId: string, mark = false) {
+  return request<DeploymentProviderResourceOrphanScanSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/practical-promotion/orphan-resources?mark=${encodeURIComponent(String(mark))}`,
+  )
+}
+
 function deploymentProviderResourceAction(
   handleId: string,
   action: 'start' | 'stop' | 'restart',
@@ -4617,6 +4887,40 @@ export function bulkDeploymentAction(payload: {
   })
 }
 
+export function previewDeploymentBundleExport(
+  deploymentId: string,
+  payload: {
+    exportMode: DeploymentBundleExportMode
+    includeReleaseEvidence?: boolean
+  },
+) {
+  return request<DeploymentBundleExportPreviewSummary>(`/api/deployments/${deploymentId}/export/preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createDeploymentBundleExport(deploymentId: string, payload: DeploymentBundleExportRequest) {
+  return request<DeploymentBundleExportSummary>(`/api/deployments/${deploymentId}/exports`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function previewDeploymentBundleImport(payload: DeploymentBundleImportRequest) {
+  return request<DeploymentBundleImportPreviewSummary>('/api/deployment-imports/preview', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createDeploymentBundleImport(payload: DeploymentBundleImportRequest) {
+  return request<DeploymentBundleImportExecutionSummary>('/api/deployment-imports', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function fetchDeploymentVersions(deploymentId: string) {
   return request<DeploymentVersionSummary[]>(`/api/deployments/${deploymentId}/versions`)
 }
@@ -4639,6 +4943,28 @@ export function fetchRailwayPreflight() {
 
 export function fetchPlatformDiagnostics() {
   return request<PlatformDiagnosticsSummary>('/api/platform/diagnostics')
+}
+
+export function fetchPlatformCoreServices() {
+  return request<PlatformCoreServiceSummary[]>('/api/platform/core-services')
+}
+
+export function deployPlatformCoreService(serviceRef: string) {
+  return request<PlatformCoreServiceActionSummary>(
+    `/api/platform/core-services/${encodeURIComponent(serviceRef)}/deploy`,
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function restartPlatformCoreService(serviceRef: string) {
+  return request<PlatformCoreServiceActionSummary>(
+    `/api/platform/core-services/${encodeURIComponent(serviceRef)}/restart`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export function fetchPlatformDiagnosticsLogs(options?: {
@@ -4888,6 +5214,8 @@ export function updatePlatformConsumer(customerId: string, consumerId: string, p
 
 export function updatePlatformConsumerBinding(customerId: string, consumerId: string, payload: {
   deploymentId?: string
+  releaseId?: string
+  targetProfileId?: string
   reason?: string
 }) {
   return request<PlatformConsumerSummary>(

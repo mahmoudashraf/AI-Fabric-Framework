@@ -1,7 +1,7 @@
 package com.ai.fabric.runtime.authz;
 
-import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.dto.AIAccessSubjectContext;
+import ai.fabric.access.policy.EntityAccessPolicy;
+import ai.fabric.dto.AIAccessSubjectContext;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;

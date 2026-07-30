@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -26,6 +28,8 @@ import java.util.UUID;
 
 @Service
 public class ShopifyStorefrontChatService {
+
+    private static final Logger log = LoggerFactory.getLogger(ShopifyStorefrontChatService.class);
 
     private static final int MAX_CONTEXT_TEXT_LENGTH = 240;
     private static final int MAX_CONTEXT_ATTACHMENT_TEXT_LENGTH = 1_200;
@@ -45,6 +49,20 @@ public class ShopifyStorefrontChatService {
         "shopifyEffectiveConversationMode",
         "shopifyAllowedConversationModes",
         "shopifyPageModeMappings"
+    );
+    private static final Set<String> RUNTIME_QUERY_FIELDS = Set.of(
+        "query",
+        "conversationId",
+        "position",
+        "mode",
+        "context",
+        "attachments",
+        "promptPreview"
+    );
+    private static final Set<String> RUNTIME_SUGGESTIONS_FIELDS = Set.of(
+        "content",
+        "attachments",
+        "maxSuggestions"
     );
     private static final Set<String> DEPTH_SURFACE_ENTRIES = Set.of(
         "launcher",
@@ -169,6 +187,7 @@ public class ShopifyStorefrontChatService {
     public JsonNode query(String shopDomain, JsonNode request, String shopperSessionId) {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
         ObjectNode normalizedRequest = normalizeRequest(request, store.shopDomain());
+        normalizeQueryFields(normalizedRequest);
         ShopifyBridgeBillingSummary billingSummary = storefrontBillingSummary(store, normalizedRequest);
         enforceSurfaceEntitlement(store, normalizedRequest, billingSummary);
         JsonNode productContextResponse = productContextRequiredResponse(normalizedRequest);
@@ -177,15 +196,21 @@ public class ShopifyStorefrontChatService {
         }
         appendStorefrontActionPolicyAttachment(normalizedRequest, billingSummary);
         applyStorefrontConversationMode(normalizedRequest, billingSummary);
-        JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
-        return shapeStorefrontResponse(response, normalizedRequest, store, billingSummary);
+        ObjectNode runtimeRequest = runtimeQueryRequest(normalizedRequest);
+        JsonNode response = platformShopifyStoreClient.queryConsumerBridgeChat(store.consumerId(), runtimeRequest, shopperSessionId);
+        return shapeStorefrontResponse(response, runtimeRequest, store, billingSummary);
     }
 
     public JsonNode suggestions(String shopDomain, JsonNode request, String shopperSessionId) {
         ShopifyBridgeStoreSummary store = requireReadyStore(shopDomain);
         ObjectNode normalizedRequest = normalizeRequest(request, store.shopDomain());
+        normalizeSuggestionFields(normalizedRequest);
         enforceSurfaceEntitlement(store, normalizedRequest, storefrontBillingSummary(store, normalizedRequest));
-        return platformShopifyStoreClient.suggestConsumerBridgeChat(store.consumerId(), normalizedRequest, shopperSessionId);
+        return platformShopifyStoreClient.suggestConsumerBridgeChat(
+            store.consumerId(),
+            runtimeSuggestionsRequest(normalizedRequest),
+            shopperSessionId
+        );
     }
 
     private ObjectNode normalizeRequest(JsonNode request, String shopDomain) {
@@ -211,6 +236,71 @@ public class ShopifyStorefrontChatService {
             body.set("attachments", attachments);
         }
         return body;
+    }
+
+    private void normalizeQueryFields(ObjectNode body) {
+        if (body == null) {
+            return;
+        }
+        if (!StringUtils.hasText(textOrNull(body, "query"))) {
+            String query = firstNonBlank(textOrNull(body, "message"), textOrNull(body, "content"));
+            if (query != null) {
+                body.put("query", query);
+            }
+        }
+        normalizeConversationModeAlias(body);
+        body.remove("message");
+        body.remove("content");
+        body.remove("conversationMode");
+    }
+
+    private void normalizeSuggestionFields(ObjectNode body) {
+        if (body == null) {
+            return;
+        }
+        if (!StringUtils.hasText(textOrNull(body, "content"))) {
+            String content = firstNonBlank(textOrNull(body, "query"), textOrNull(body, "message"));
+            if (content != null) {
+                body.put("content", content);
+            }
+        }
+        normalizeConversationModeAlias(body);
+        body.remove("message");
+        body.remove("query");
+        body.remove("conversationMode");
+    }
+
+    private void normalizeConversationModeAlias(ObjectNode body) {
+        if (body == null) {
+            return;
+        }
+        String requestedMode = firstNonBlank(textOrNull(body, "mode"), textOrNull(body, "conversationMode"));
+        String normalizedMode = normalizeConversationMode(requestedMode);
+        if (normalizedMode != null) {
+            body.put("mode", platformConversationMode(normalizedMode));
+        }
+    }
+
+    private ObjectNode runtimeQueryRequest(ObjectNode body) {
+        return copyRuntimeFields(body, RUNTIME_QUERY_FIELDS);
+    }
+
+    private ObjectNode runtimeSuggestionsRequest(ObjectNode body) {
+        return copyRuntimeFields(body, RUNTIME_SUGGESTIONS_FIELDS);
+    }
+
+    private ObjectNode copyRuntimeFields(ObjectNode body, Set<String> allowedFields) {
+        ObjectNode runtimeRequest = objectMapper.createObjectNode();
+        if (body == null || allowedFields == null || allowedFields.isEmpty()) {
+            return runtimeRequest;
+        }
+        allowedFields.forEach(field -> {
+            JsonNode value = body.get(field);
+            if (value != null && !value.isNull()) {
+                runtimeRequest.set(field, value.deepCopy());
+            }
+        });
+        return runtimeRequest;
     }
 
     private void rejectLegacyPublicChatFields(ObjectNode body) {
@@ -722,10 +812,19 @@ public class ShopifyStorefrontChatService {
     }
 
     private String storefrontAccessToken(String shopDomain) {
-        return installCredentialService.resolvePersistedMaterial(shopDomain)
-            .map(ShopifyBridgeCredentialAcquisition::tokenExchangeMaterial)
-            .map(material -> trimToNull(material.accessToken()))
-            .orElse(null);
+        try {
+            return installCredentialService.resolvePersistedMaterial(shopDomain)
+                .map(ShopifyBridgeCredentialAcquisition::tokenExchangeMaterial)
+                .map(material -> trimToNull(material.accessToken()))
+                .orElse(null);
+        } catch (RuntimeException exception) {
+            log.warn(
+                "Shopify storefront chat continuing without refreshed credential material for shop={}. Token-backed subscription refresh remains gated until the app is reconnected. cause={}",
+                shopDomain,
+                exception.toString()
+            );
+            return null;
+        }
     }
 
     private String normalizeSurfaceEntry(String value) {

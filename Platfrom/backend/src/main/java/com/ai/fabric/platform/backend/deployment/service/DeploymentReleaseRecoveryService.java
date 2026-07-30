@@ -76,6 +76,9 @@ public class DeploymentReleaseRecoveryService {
         if (latestRelease != null && reconcilePassedVerificationForFailedRelease(deployment, latestRelease)) {
             return true;
         }
+        if (force && latestRelease != null && isStale(latestRelease) && isStaleCoolifyProvisioningCandidate(latestRelease)) {
+            return reconcileStaleCoolifyProvisioning(deployment, latestRelease);
+        }
         if (latestRelease == null || !isRecoveryCandidate(latestRelease) || (!force && !isStale(latestRelease))) {
             return false;
         }
@@ -162,6 +165,24 @@ public class DeploymentReleaseRecoveryService {
             ? release.getCurrentStepDescription().trim()
             : stepKey;
         String message = "Recovered stale Railway apply before activation confirmation at step '"
+            + stepKey
+            + "' ("
+            + description
+            + ").";
+        deploymentReleaseExecutionService.markFailed(
+            release.getId(),
+            deployment.getId(),
+            new IllegalStateException(message)
+        );
+        return true;
+    }
+
+    private boolean reconcileStaleCoolifyProvisioning(DeploymentEntity deployment, DeploymentReleaseEntity release) {
+        String stepKey = StringUtils.hasText(release.getCurrentStepKey()) ? release.getCurrentStepKey().trim() : "unknown";
+        String description = StringUtils.hasText(release.getCurrentStepDescription())
+            ? release.getCurrentStepDescription().trim()
+            : stepKey;
+        String message = "Recovered stale Coolify apply before activation confirmation at step '"
             + stepKey
             + "' ("
             + description
@@ -303,6 +324,14 @@ public class DeploymentReleaseRecoveryService {
         };
     }
 
+    private boolean isStaleCoolifyProvisioningCandidate(DeploymentReleaseEntity release) {
+        boolean coolify = "COOLIFY".equalsIgnoreCase(release.getProvisioningTarget())
+            || release.getProviderType() == DeploymentProviderType.COOLIFY;
+        return coolify
+            && "PROVISIONING".equals(release.getStatus())
+            && isPreActivationCoolifyProvisioningStep(release.getCurrentStepKey());
+    }
+
     private boolean hasMarketplaceDatasetSyncSummary(JsonNode details) {
         JsonNode summary = details == null ? null : details.path("marketplaceDatasets");
         return summary != null
@@ -325,6 +354,23 @@ public class DeploymentReleaseRecoveryService {
                  "trigger_deploy" -> true;
             default -> false;
         };
+    }
+
+    private boolean isPreActivationCoolifyProvisioningStep(String stepKey) {
+        if (!StringUtils.hasText(stepKey)) {
+            return false;
+        }
+        String normalized = stepKey.trim();
+        return normalized.equals("prepare_apply")
+            || normalized.equals("ensure_vector_backend")
+            || normalized.equals("resolve_coolify_connection")
+            || normalized.equals("resolve_coolify_source")
+            || normalized.equals("resolve_coolify_resource_scope")
+            || normalized.equals("provision_vectorization_runner_registration")
+            || normalized.startsWith("reconcile_coolify_")
+            || normalized.startsWith("configure_coolify_")
+            || normalized.startsWith("trigger_coolify_")
+            || normalized.startsWith("wait_for_coolify_");
     }
 
     private boolean isQueuedApplyCandidate(DeploymentReleaseEntity release) {

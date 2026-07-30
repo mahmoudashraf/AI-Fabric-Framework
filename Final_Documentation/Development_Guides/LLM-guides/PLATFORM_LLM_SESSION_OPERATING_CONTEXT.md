@@ -9,6 +9,7 @@ Use it together with:
 
 - `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md`
 - `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_FRAMEWORK_PHILOSOPHY.md`
+- `Final_Documentation/Development_Guides/LLM-guides/USER_GLOBAL_LLM_WORKING_RULES.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_UI_RELEASE_VERIFICATION_ARCHITECTURE.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_AND_AUTH_TROUBLESHOOTING_GUIDE.md`
 - `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_VERIFICATION_RESTART_GUIDE.md`
@@ -19,11 +20,34 @@ We are building two related but different things:
 
 ### Framework
 
-The framework lives primarily under:
+The framework now lives in the public sibling repository:
 
-- `ai-infrastructure-module`
+- `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework`
+- `https://github.com/Loom-AI-Labs/ai-fabric-framework`
+
+The framework source is no longer kept inside this private product repository. The old private-repo paths were removed:
+
+- `Real_Apps`
+- reusable framework library modules formerly under `ai-infrastructure-module`
+
+Framework responsibilities still include:
+
 - provider modules
-- orchestration, retrieval, auth, connector, and runtime primitives
+- orchestration, retrieval, action connector libraries, auth primitives, vector modules, curated packs, and provider integrations
+
+Deployable runtime and generic REST connector services are not public framework deliverables. They are private LoomAI product services and live in this private repo at:
+
+- `ai-infrastructure-module/ai-fabric-runtime`
+- `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
+
+Private products consume the framework through Maven artifacts. For active local development, install the sibling framework repo into the local Maven repository first, then build this repo.
+
+Current private product integration consumes the public framework release `0.3.1` via the AI Fabric BOM:
+
+- `io.github.loom-ai-labs:ai-fabric-bom:0.3.1`
+- Git tag `ai-fabric-framework-v0.3.1`
+
+Private Docker/CI bootstrap paths should pin the released tag for reproducible product builds unless a task explicitly asks to test unreleased framework changes.
 
 Framework responsibilities:
 

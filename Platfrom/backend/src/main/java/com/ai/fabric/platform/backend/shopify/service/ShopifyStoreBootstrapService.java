@@ -144,13 +144,13 @@ public class ShopifyStoreBootstrapService {
                 existingDeployment.getStatus()
             );
         ensureSharedVectorBootstrapDefaults(deployment.id());
-        ensureShopifyCompanionSecurityDefaults(deployment.id());
 
         PlatformConsumerEntity existingConsumer = resolveConsumer(store.getConsumerId());
         boolean createdConsumer = existingConsumer == null;
         PlatformConsumerSummary consumer = existingConsumer == null
             ? createConsumer(store, customer, deployment, resolvedRequest)
             : ensureConsumerBinding(existingConsumer, deployment);
+        ensureShopifyCompanionSecurityDefaults(deployment.id(), consumer.consumerId());
 
         List<String> installedPluginIds = ensureBundle(store, deployment.id(), createdDeployment, resolvedRequest);
         deploymentMarketplaceDraftCompilerService.syncDeploymentDraft(deployment.id());
@@ -429,10 +429,10 @@ public class ShopifyStoreBootstrapService {
         );
     }
 
-    private void ensureShopifyCompanionSecurityDefaults(String deploymentId) {
+    private void ensureShopifyCompanionSecurityDefaults(String deploymentId, String consumerId) {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deploymentId);
         ObjectNode securityConfig = ensureObject(draft.securityConfig());
-        boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId);
+        boolean changed = ShopifyCompanionRuntimeSecurityDefaults.apply(securityConfig, deploymentId, consumerId);
         if (!changed) {
             return;
         }

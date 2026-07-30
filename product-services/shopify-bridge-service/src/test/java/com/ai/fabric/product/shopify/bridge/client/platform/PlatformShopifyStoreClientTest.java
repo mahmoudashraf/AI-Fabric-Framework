@@ -28,7 +28,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -63,7 +64,11 @@ class PlatformShopifyStoreClientTest {
                 "X-PLATFORM-API-KEY",
                 "webhook-secret",
                 "bridge-admin-key",
-                "X-BRIDGE-API-KEY"
+                "X-BRIDGE-API-KEY",
+                "runtime-api-key",
+                "runtime-signing-key",
+                "platform-consumer-bridge",
+                300
             )
         );
     }
@@ -546,10 +551,12 @@ class PlatformShopifyStoreClientTest {
     }
 
     @Test
-    void queryConsumerBridgeChatUsesPlatformAdminApiKeyAndShopperSessionHeader() {
-        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+    void queryConsumerBridgeChatUsesDirectRuntimeAssignmentAndPrivateRuntimeHeaders() {
+        expectRuntimeAssignment();
+        server.expect(requestTo("https://runtime.example.com/api/chat/me/query"))
             .andExpect(method(HttpMethod.POST))
-            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andExpect(header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-api-key"))
+            .andExpect(header("X-AIFABRIC-RUNTIME-AUTHORIZATION", startsWith("Bearer rpa1.")))
             .andExpect(header("X-AI-FABRIC-SHOPPER-SESSION-ID", "shopper-session-1"))
             .andRespond(withSuccess("""
                 {"success":true,"conversationId":"conv-1","result":{"message":"Hello from runtime"}}
@@ -563,13 +570,15 @@ class PlatformShopifyStoreClientTest {
 
     @Test
     void queryConsumerBridgeChatRetriesTransientServerFailure() {
-        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+        expectRuntimeAssignment();
+        server.expect(requestTo("https://runtime.example.com/api/chat/me/query"))
             .andExpect(method(HttpMethod.POST))
-            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andExpect(header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-api-key"))
             .andRespond(withServerError());
-        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+        expectRuntimeAssignment();
+        server.expect(requestTo("https://runtime.example.com/api/chat/me/query"))
             .andExpect(method(HttpMethod.POST))
-            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andExpect(header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-api-key"))
             .andRespond(withSuccess("""
                 {"success":true,"conversationId":"conv-retry","result":{"message":"Hello after retry"}}
                 """, MediaType.APPLICATION_JSON));
@@ -582,10 +591,11 @@ class PlatformShopifyStoreClientTest {
 
     @Test
     void queryConsumerBridgeChatDoesNotRetryClientFailure() {
-        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/query"))
+        expectRuntimeAssignment();
+        server.expect(requestTo("https://runtime.example.com/api/chat/me/query"))
             .andExpect(method(HttpMethod.POST))
-            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
-            .andRespond(withStatus(FORBIDDEN)
+            .andExpect(header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-api-key"))
+            .andRespond(withStatus(BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("""
                     {"message":"forbidden"}
@@ -593,16 +603,18 @@ class PlatformShopifyStoreClientTest {
 
         assertThatThrownBy(() -> client.queryConsumerBridgeChat("consumer-alpha", null, null))
             .isInstanceOf(RestClientResponseException.class)
-            .hasMessageContaining("403");
+            .hasMessageContaining("400");
 
         server.verify();
     }
 
     @Test
     void suggestConsumerBridgeChatUsesPlatformAdminApiKey() {
-        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/bridge/chat/suggestions"))
+        expectRuntimeAssignment();
+        server.expect(requestTo("https://runtime.example.com/api/chat/me/suggestions"))
             .andExpect(method(HttpMethod.POST))
-            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andExpect(header("X-AIFABRIC-RUNTIME-API-KEY", "runtime-api-key"))
+            .andExpect(header("X-AIFABRIC-RUNTIME-AUTHORIZATION", startsWith("Bearer rpa1.")))
             .andRespond(withSuccess("""
                 {"success":true,"suggestions":["Show me backpacks","What is your return policy?"]}
                 """, MediaType.APPLICATION_JSON));
@@ -611,6 +623,41 @@ class PlatformShopifyStoreClientTest {
 
         assertThat(response.path("suggestions")).hasSize(2);
         server.verify();
+    }
+
+    private void expectRuntimeAssignment() {
+        server.expect(requestTo("https://platform.example.com/api/public/consumers/consumer-alpha/runtime-assignment"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-PLATFORM-API-KEY", "platform-admin-key"))
+            .andRespond(withSuccess("""
+                {
+                  "consumerId":"consumer-alpha",
+                  "deploymentId":"dep-1",
+                  "runtimeBaseUrl":"https://runtime.example.com",
+                  "runtimeAuthMode":"PRIVATE_RUNTIME_SIGNED_ASSERTION",
+                  "preferredIntegrationMode":"BACKEND_MEDIATED_PRIVATE_RUNTIME",
+                  "privateRuntimeIssuer":"platform-consumer-bridge",
+                  "privateRuntimeAudience":"consumer-alpha",
+                  "privateRuntimeAudienceMode":"CONSUMER_ID",
+                  "trustedBackendApiKeyHeader":"X-AIFABRIC-RUNTIME-API-KEY",
+                  "privateAssertionAuthorizationHeader":"X-AIFABRIC-RUNTIME-AUTHORIZATION",
+                  "privateAssertionTokenScheme":"Bearer",
+                  "externalIntegrationReady":true,
+                  "assignmentRevision":"rev-1",
+                  "cacheTtlSeconds":300,
+                  "endpoints":{
+                    "chatBaseUrl":"https://runtime.example.com",
+                    "chatQueryUrl":"https://runtime.example.com/api/chat/me/query",
+                    "queryOnceUrl":"https://runtime.example.com/api/chat/me/query-once",
+                    "suggestionsUrl":"https://runtime.example.com/api/chat/me/suggestions",
+                    "conversationsUrl":"https://runtime.example.com/api/chat/me/conversations",
+                    "operationalBaseUrl":"https://runtime.example.com",
+                    "healthUrl":"https://runtime.example.com/actuator/health",
+                    "authContextUrl":"https://runtime.example.com/api/chat/me/auth-context"
+                  },
+                  "guidance":"Use backend-mediated private runtime calls."
+                }
+                """, MediaType.APPLICATION_JSON));
     }
 
     private String storeBody(String sourceReadinessStatus, String syncStatus, String widgetStatus) {

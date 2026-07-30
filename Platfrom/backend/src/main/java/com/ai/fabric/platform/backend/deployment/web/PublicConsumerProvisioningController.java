@@ -3,6 +3,7 @@ package com.ai.fabric.platform.backend.deployment.web;
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentCredentialsResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentStatusResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentSummary;
+import com.ai.fabric.platform.backend.deployment.model.PublicConsumerRuntimeAssignmentResponse;
 import com.ai.fabric.platform.backend.deployment.service.PublicProvisioningApiService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,5 +37,11 @@ public class PublicConsumerProvisioningController {
     @PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR') or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
     public PublicConsumerDeploymentCredentialsResponse getConsumerCredentials(@PathVariable String consumerId) {
         return publicProvisioningApiService.getConsumerDeploymentCredentials(consumerId);
+    }
+
+    @GetMapping("/{consumerId}/runtime-assignment")
+    @PreAuthorize("hasAnyRole('PUBLIC_API_CLIENT','PLATFORM_ADMIN','PLATFORM_OPERATOR') or @consumerRuntimeAssignmentAccessEvaluator.canAccess(authentication, #consumerId) or @shopifyStorePlatformAccessEvaluator.canAccessConsumer(authentication, #consumerId)")
+    public PublicConsumerRuntimeAssignmentResponse getConsumerRuntimeAssignment(@PathVariable String consumerId) {
+        return publicProvisioningApiService.getConsumerRuntimeAssignment(consumerId);
     }
 }

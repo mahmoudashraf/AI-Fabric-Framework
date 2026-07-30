@@ -14,6 +14,8 @@ import com.ai.fabric.product.shopify.bridge.governedaction.repository.ShopifyBri
 import com.ai.fabric.product.shopify.bridge.install.service.ShopifyBridgeInstallCredentialService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,6 +33,7 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 @Service
 public class ShopifyStorefrontGovernedActionService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShopifyStorefrontGovernedActionService.class);
     private static final Duration GRANT_TTL = Duration.ofMinutes(5);
     private static final int MIN_RECENT_ACTION_LIMIT = 1;
     private static final int MAX_RECENT_ACTION_LIMIT = 25;
@@ -333,9 +336,19 @@ public class ShopifyStorefrontGovernedActionService {
     }
 
     private ShopifyBridgeBillingSummary resolveBillingSummary(String shopDomain) {
-        return installCredentialService.resolvePersistedMaterial(shopDomain)
-            .map(acquisition -> billingService.summarizeForShop(shopDomain, acquisition.tokenExchangeMaterial().accessToken()))
-            .orElseGet(() -> billingService.summarizeForShop(shopDomain, null));
+        try {
+            return installCredentialService.resolvePersistedMaterial(shopDomain)
+                .map(acquisition -> billingService.summarizeForShop(shopDomain, acquisition.tokenExchangeMaterial().accessToken()))
+                .orElseGet(() -> billingService.summarizeForShop(shopDomain, null));
+        } catch (RuntimeException ex) {
+            log.warn(
+                "Shopify governed action capability continuing without refreshed credential material for shop={}. "
+                    + "Token-backed subscription refresh remains gated until the app is reconnected. cause={}",
+                shopDomain,
+                ex.toString()
+            );
+            return billingService.summarizeForShop(shopDomain, null);
+        }
     }
 
     private void requireGuidedCommerceEnabled(ShopifyBridgeBillingSummary billingSummary) {

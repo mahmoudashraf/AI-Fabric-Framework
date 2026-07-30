@@ -61,10 +61,12 @@ if [[ "${PRODUCT_TESTS}" == "true" ]]; then
 fi
 
 if [[ "${INFRASTRUCTURE_TESTS}" == "true" ]]; then
-  run_step "Targeted platform infrastructure tests" run_maven_sanitized \
+  run_step "AI Fabric product service tests" run_maven_sanitized \
     mvn -f ai-infrastructure-module/pom.xml \
-      -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
+      -pl ai-infrastructure-generic-rest-connector,ai-fabric-runtime,ai-fabric-relay \
       -am test -DskipITs
+
+  run_step "AI Fabric relay packaged smoke" bash .github/scripts/smoke-p1-relay-local.sh
 fi
 
 if [[ "${UI_BUILD}" == "true" ]]; then
@@ -86,6 +88,7 @@ if [[ "${SHELL_SYNTAX_CHECKS}" == "true" ]]; then
     bash -n scripts/resolve-verification-rollouts.sh &&
     bash -n scripts/run-platform-deployment-verification.sh &&
     bash -n scripts/run-platform-state-verification-suite.sh &&
-    bash -n scripts/run-shopify-companion-rollout.sh
+    bash -n scripts/run-shopify-companion-rollout.sh &&
+    bash -n .github/scripts/smoke-p1-relay-local.sh
   '
 fi

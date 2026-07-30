@@ -27,7 +27,7 @@ Controlled design-partner/private launch: passed for the current staged branch a
 
 Public self-service Shopify App Store launch: not ready.
 
-Production self-service launch through Platform-managed promotion: not ready.
+Production self-service launch through Platform-managed promotion: partially proven for controlled beta; not ready for public self-service launch.
 
 Current sellable posture:
 
@@ -39,17 +39,18 @@ Current sellable posture:
 Current non-claim posture:
 
 - Do not claim full public self-service onboarding.
-- Do not claim broad production promotion readiness.
+- Do not claim broad production promotion readiness beyond the named controlled production proof recorded below.
 - Do not claim Customer Account MCP order, return, refund, or store-credit features beyond tools that have fresh live proof.
 - Do not claim Checkout MCP automation as live until checkout-specific credentials, storefront access, and managed tools/call proof are recorded.
 - Do not sell MCP, Coolify, Hetzner, or AI Fabric internals to merchants.
+- Do not install real merchant production stores through the staging/development Shopify app; use a dedicated production Shopify app with production-only URLs and secrets.
 
 ## Consolidated Next Urgent Steps From Latest Readiness Review
 
 These are the active release-gating points that must stay visible in this plan.
 
 1. Run a fresh hosted/full Shopify release gate on the current deployed branch. The May 8 gate is expired and cannot be used for a new release decision.
-2. Execute controlled production-promotion proof through `dtp-coolify-production`: real `Go production` mutation, production verification, rollback/deactivation proof, and a failed-promotion proof that staging stays untouched.
+2. Execute controlled production-promotion proof through `dtp-coolify-production`: real `Go production` mutation, production verification, rollback/deactivation proof, and a failed-promotion proof that staging stays untouched. Current status: production apply, rollback-by-reapply, forward restore, and validation-failure staging isolation are proven; provider-level failed-deployment rehearsal still needs a safe harness.
 3. Finish Customer Account and Checkout public-claim gates: durable Customer Account OAuth across Bridge redeploy/recreate, successful owned-resource `tools/call` proof, and Checkout MCP proof without storefront password redirects.
 4. Fix or re-verify the support-readiness mismatch: Platform package posture must match storefront bootstrap flags, so the storefront never advertises a capability that Platform marks unsupported.
 5. Implement durable owned-resource refs/cart-handle persistence if we want reliable "my cart", "my latest order", and "return last order" behavior across turns and redeploys.
@@ -180,6 +181,111 @@ Remaining release boundaries:
 
 - Controlled staging/design-partner release is supported only while the 2026-05-25 full gate remains fresh or after rerunning it.
 - Public self-service Shopify/App Store launch still requires controlled production-promotion proof, production rollback/deactivation proof, failed-promotion staging isolation proof, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture, and complete public support/App Store packaging.
+
+## 2026-05-25 Platform-V10 Branch Switch And Fresh Hosted Gate
+
+Run directory: `/tmp/platform-v10-release-gate-20260525T222058Z`
+
+Branch/commit: `Platform-V10` at `726a24980` (`Align staging branch defaults to Platform-V10`).
+
+Status: passed for current controlled staging/design-partner launch posture. Public self-service production/App Store remains blocked by the production and public-claim gates listed below.
+
+### Platform-V10 Reconciliation
+
+Status: passed.
+
+Evidence:
+
+- All Coolify staging AI-Fabric app Git sources that still pointed at `Platform-V9` were updated to `Platform-V10`; readback reported `updated_platform_v10_count=23` and `remaining_platform_v9_count=0`.
+- Platform backend deployment env now has `PLATFORM_DEPLOY_BRANCH=Platform-V10` for normal and preview env entries.
+- Redeployed branch-critical services on Platform-V10: Platform backend, Platform UI, Partner UI, landing site, ecommerce store, shared runtime, MCP Gateway, Shopify Bridge staging, Shopify runtime/rest/vectorization services for `dep-8c3e7259`, and ProdUS runtime/rest/vectorization services for `dep-7706fafb`.
+- All 14 triggered Coolify deployments finished. Final status table: `/tmp/platform-v10-coolify-update/deployment-status-final.tsv`.
+- Health checks returned `UP` for Platform backend, Shopify Bridge, MCP Gateway, shared runtime, Shopify runtime `dep-8c3e7259`, and ProdUS runtime `dep-7706fafb`.
+
+### Hosted Gate Remediation
+
+Status: fixed and rerun.
+
+Evidence:
+
+- First Platform-V10 hosted full gate run `vsr-9eb12613` failed at `marketplace-hosted-verification`.
+- Failure cause: the shared demo ecommerce verification store returned zero products from `/api/products`, so the Marketplace hosted verifier could not resolve two distinct sample SKUs for comparison checks.
+- Remediation: `loomai-ecommerce-store` Coolify env `APP_DEMO_SEED_DATA` was changed from `false` to `true` for normal and preview env entries and redeployed as Coolify deployment `xvwn4s5fru71prxlx1fksi10`.
+- Post-remediation proof: `/api/products/count` returned `2`; `/api/products?limit=5` returned distinct canonical products `SKU-0001` and `SKU-0002`.
+
+### Fresh Platform-V10 Hosted Full Release Gate
+
+Status: passed.
+
+Evidence:
+
+- Hosted full suite run: `vsr-bde04505`.
+- Result: `PASSED`, completed `2026-05-25T22:28:09.424629Z`.
+- `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, expiring `2026-05-26T10:28:09.424629Z`.
+- Final gate artifact: `/tmp/platform-v10-release-gate-20260525T222058Z/release-gate-summary.json`.
+
+Passed hosted summaries:
+
+- Marketplace hosted verification: `hvr-6068a29d`, 42 passes, 2 warnings.
+- Ecommerce hosted verification: `hvr-60477a69`, 43 passes, 2 warnings.
+- Qdrant hosted verification: `hvr-ee549d06`, 25 passes, 2 warnings.
+
+Current release boundary after Platform-V10:
+
+- Controlled staging/design-partner launch remains green while this Platform-V10 gate is fresh.
+- Public self-service Shopify/App Store launch is still blocked by controlled production promotion, production rollback/deactivation, failed-promotion staging-isolation proof, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture, and complete public support/App Store packaging.
+
+## 2026-05-28/29 Controlled Production Proof
+
+Run directory: `/tmp/loomai-production-readiness-20260528T174005Z`
+
+Branch/commit: `Platform-V10`, latest production-proof Bridge resilience commit `9421f96f4`.
+
+Status: controlled production beta proof is partially complete and materially stronger than the previous readiness state. Public self-service Shopify/App Store launch remains blocked by public-claim, packaging, DNS, and provider-failure rehearsal gates.
+
+Production target/profile proof:
+
+- Production target profile `dtp-coolify-production` preflight passed after the profile was corrected to use the internal production Coolify API URL from Platform (`http://coolify:8080`) while retaining the external operator URL for humans.
+- Production Platform, Bridge, runtime, connector, and vectorization services are managed through Platform/Coolify records, not manual provider-only state.
+
+Production promotion proof:
+
+- Published version `ver-1b77bfba` (`v10`) was applied to deployment `dep-8c3e7259` through `dtp-coolify-production`.
+- Production release `rel-ec590e44` reached `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Production Bridge bootstrap returned `available=true`, `deploymentId=dep-8c3e7259`, `consumerId=shopify-shopping-companion-test`, and `runtimeAuthMode=PRIVATE_RUNTIME_SIGNED_ASSERTION`.
+- Production runtime health returned `UP`.
+
+Production fixes required during proof:
+
+- Production Bridge stale Shopify credential refresh failures were made non-fatal for bootstrap, governed-action capability, and chat paths in commits `4c3e86b86`, `61ab231c0`, and `9421f96f4`.
+- Production product service `shopify-bridge-prod` was corrected from stale staging metadata to production environment scope, production Bridge URL, and production Coolify app UUID.
+- Production vectorization connection was corrected from old Railway/staging source state to production Bridge source endpoints and production secret ref.
+- Production store source credential was changed to the dedicated non-expiring Admin API source token for vectorization-source reads; token material remains private only.
+
+Production vectorization/RAG proof:
+
+- Managed production reindex run `vrn-2d5921b5` completed successfully with `81` processed, `81` succeeded, `0` failed.
+- Production vectorization preview/source counts after reindex: `product=77`, `support-policy=4`.
+- Production RAG smoke for `summarize high performance laptops for gaming` returned canonical `ragResponse.documents` and `sources` with grounded product evidence.
+
+Rollback and staging-isolation proof:
+
+- Rollback-by-reapply to previous published version `ver-1d4b7a13` (`v9`) produced release `rel-baf3d84e`, final state `APPLIED_VERIFIED`, verification `PASSED`.
+- Forward restore to current version `ver-1b77bfba` produced release `rel-9bfd761f`, final state `APPLIED_VERIFIED`, verification `PASSED`.
+- Staging Bridge bootstrap fields stayed unchanged before/after rollback-forward: `deploymentId`, `consumerId`, `runtimeBaseUrl`, `runtimeAuthMode`, `billingTier`, and `billingStatus`.
+- A negative apply with a non-existent version id and `targetProfileId=dtp-coolify-production` failed with HTTP `404`; latest production release remained `rel-9bfd761f` on `ver-1b77bfba`, and staging bootstrap stayed unchanged.
+
+Release boundary after this proof:
+
+- Controlled production beta for a named design-partner store is now technically viable after release-owner review of remaining business/support posture.
+- Public self-service Shopify/App Store launch remains blocked by:
+  - production DNS/TLS migration off `sslip.io`;
+  - dedicated production Shopify Partner app setup with production App URL, OAuth redirects, webhooks, Customer Account redirects, Checkout redirects, and production-only secrets;
+  - provider-level failed-deployment rehearsal with a safe failure harness;
+  - public Customer Account/Checkout claim proof;
+  - durable Customer Account OAuth / owned-resource posture, if those claims are included;
+  - pricing/onboarding/support/App Store packaging;
+  - final support escalation and monitoring readiness.
 
 ## What Must Be Done If We Release What We Have Now
 
@@ -313,7 +419,7 @@ The debug inspector must align with the current canonical payload and must show 
 
 1. Controlled production-promotion proof
 
-Prove actual `Go production` mutation through `dtp-coolify-production`, production provisioning verification, production verification after provisioning, rollback/deactivation proof, and a failed promotion proving staging remains untouched.
+Status: partially passed for controlled beta. Actual production apply, production provisioning verification, production verification after provisioning, rollback-by-reapply, forward restore, and validation-failure staging isolation are proven. Still required before public self-service launch: a safe provider-level failed-deployment rehearsal and final DNS/TLS/support posture.
 
 2. Public support packaging
 
@@ -441,15 +547,16 @@ Artifacts:
 
 Outcome:
 
-- public self-service production gate can move from blocked to evidence-backed
+- controlled production beta gate can move from blocked to evidence-backed
 
 Required proof:
 
-- actual Go production mutation through `dtp-coolify-production`
-- production provisioning verification
-- production storefront/bridge verification
-- rollback/deactivation proof
-- failed promotion leaves staging untouched
+- actual Go production mutation through `dtp-coolify-production` - passed on 2026-05-28/29
+- production provisioning verification - passed
+- production storefront/bridge/RAG verification - passed
+- rollback-by-reapply and forward restore proof - passed
+- failed validation attempt leaves staging untouched - passed
+- safe provider-level failed-deployment rehearsal - still pending
 
 This slice is not required for a strictly staging/private design-partner pilot, but it is required before public self-service claims.
 
@@ -484,7 +591,8 @@ Pass only when all design-partner gates pass plus:
 
 - production promotion proof is complete
 - rollback/deactivation proof is complete
-- failed promotion isolation proof is complete
+- failed promotion isolation proof is complete, including a provider-level failed-deployment rehearsal rather than only validation-failure isolation
+- dedicated production Shopify app is configured and secrets are installed only in production
 - Customer Account MCP public claims are proven feature-by-feature
 - Checkout MCP public claims are proven feature-by-feature
 - durable owned-resource refs are implemented or customer-owned flows remain explicitly gated
@@ -497,6 +605,7 @@ Pass only when all design-partner gates pass plus:
 Release posture should be:
 
 1. Ship a controlled design-partner/private Shopify Companion launch after the fresh staging release gate and answer-quality repeat gate pass.
-2. Keep public App Store/self-service production launch blocked until production promotion, rollback, support packaging, and customer-owned capability proof are complete.
-3. Treat Customer Account MCP and Checkout MCP as gated beta capabilities, not headline launch promises.
-4. Use the debug/RAG inspector and answer-quality repeat gate as mandatory evidence for every Shopify deploy that affects storefront chat, indexing, actions, prompts, Bridge response shape, or widget behavior.
+2. Treat the 2026-05-28/29 production proof as enough for named controlled production beta review, not public launch.
+3. Keep public App Store/self-service production launch blocked until provider-level failed-promotion rehearsal, final production DNS/TLS, dedicated production Shopify app setup, support packaging, and customer-owned capability proof are complete.
+4. Treat Customer Account MCP and Checkout MCP as gated beta capabilities, not headline launch promises.
+5. Use the debug/RAG inspector and answer-quality repeat gate as mandatory evidence for every Shopify deploy that affects storefront chat, indexing, actions, prompts, Bridge response shape, or widget behavior.

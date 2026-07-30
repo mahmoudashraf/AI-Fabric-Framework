@@ -16,21 +16,23 @@ import com.ai.fabric.runtime.web.dto.RuntimeShellStarterPromptResponse;
 import com.ai.fabric.runtime.web.dto.SuggestionsRequest;
 import com.ai.fabric.runtime.web.dto.SuggestionsResponse;
 import com.ai.fabric.runtime.web.dto.TurnResponse;
-import com.ai.infrastructure.core.AICoreService;
-import com.ai.infrastructure.core.LlmPurpose;
-import com.ai.infrastructure.dto.AIAccessSubjectContext;
-import com.ai.infrastructure.dto.AIGenerationRequest;
-import com.ai.infrastructure.dto.AIGenerationResponse;
-import com.ai.infrastructure.intent.action.AIActionMetaData;
-import com.ai.infrastructure.intent.action.AIActionRegistry;
-import com.ai.infrastructure.intent.action.ActionResult;
-import com.ai.infrastructure.intent.orchestration.OrchestrationContext;
-import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
-import com.ai.infrastructure.intent.orchestration.OrchestrationResult;
-import com.ai.infrastructure.intent.orchestration.RAGOrchestrator;
-import com.ai.infrastructure.intent.orchestration.attachment.OrchestrationAttachment;
-import com.ai.infrastructure.prompt.PromptPreviewOverlaySupport;
-import com.ai.infrastructure.shell.BuiltInShellCatalog;
+import ai.fabric.core.AICoreService;
+import ai.fabric.core.LlmPurpose;
+import ai.fabric.dto.AIAccessSubjectContext;
+import ai.fabric.dto.AIGenerationRequest;
+import ai.fabric.dto.AIGenerationResponse;
+import ai.fabric.dto.AIGenerationInputPart;
+import ai.fabric.dto.AIGenerationInputType;
+import ai.fabric.intent.action.AIActionMetaData;
+import ai.fabric.intent.action.AIActionRegistry;
+import ai.fabric.intent.action.ActionResult;
+import ai.fabric.intent.orchestration.OrchestrationContext;
+import ai.fabric.intent.orchestration.OrchestrationContextMetadataKeys;
+import ai.fabric.intent.orchestration.OrchestrationResult;
+import ai.fabric.intent.orchestration.RAGOrchestrator;
+import ai.fabric.intent.orchestration.attachment.OrchestrationAttachment;
+import ai.fabric.prompt.PromptPreviewOverlaySupport;
+import ai.fabric.shell.BuiltInShellCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +40,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -57,6 +60,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -86,6 +94,12 @@ public class ChatRuntimeController {
     private static final int MAX_SUGGESTION_ATTACHMENT_TEXT_CHARS = 1_200;
     private static final int MAX_SUGGESTION_METADATA_VALUE_CHARS = 300;
     private static final int MAX_SUGGESTION_METADATA_ENTRIES = 12;
+    private static final int MAX_VECTOR_SPACE_HINTS = 12;
+    private static final int MAX_VECTOR_SPACE_HINT_CHARS = 96;
+    private static final int MAX_TRANSIENT_FILE_URL_INPUTS = 8;
+    private static final long MAX_TRANSIENT_FILE_URL_DECLARED_SIZE_BYTES = 50L * 1024L * 1024L;
+    private static final Duration MAX_TRANSIENT_FILE_URL_TTL = Duration.ofHours(24);
+    private static final String REDACTED_TRANSIENT_FILE_URL = "[REDACTED_TRANSIENT_FILE_URL]";
 
     private enum QueryPersistenceMode {
         PERSIST_IF_AVAILABLE,
@@ -107,6 +121,9 @@ public class ChatRuntimeController {
     private final ObjectProvider<RuntimeDeploymentPromptConfigService> deploymentPromptConfigServiceProvider;
     private final ObjectProvider<RuntimeDeploymentShellConfigService> deploymentShellConfigServiceProvider;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
+
+    @Value("${ai.fabric.runtime.transient-file-url.allowed-hosts:}")
+    private String transientFileUrlAllowedHosts;
 
     @PostMapping("/me/query")
     public ResponseEntity<ChatQueryResponse> query(@Valid @RequestBody ChatQueryRequest request,
@@ -796,6 +813,11 @@ public class ChatRuntimeController {
             builder.attachments(request.getAttachments());
         }
 
+        List<AIGenerationInputPart> transientInputParts = extractTransientFileUrlInputs(request.getContext());
+        if (!transientInputParts.isEmpty()) {
+            builder.transientInputParts(transientInputParts);
+        }
+
         builder.sessionId(sessionId);
         if (StringUtils.hasText(verifiedUserId)) {
             builder.userId(verifiedUserId);
@@ -810,8 +832,10 @@ public class ChatRuntimeController {
         Integer responseGenerationMaxTokensStandard = deploymentResponseGenerationMaxTokensStandard();
         Integer responseGenerationMaxTokensDeep = deploymentResponseGenerationMaxTokensDeep();
         Map<String, Object> requestContext = sanitizeRequestContext(request.getContext());
+        List<String> vectorSpaceHints = extractVectorSpaceHints(requestContext);
         if (!promptPreview.isEmpty()
             || !requestContext.isEmpty()
+            || !vectorSpaceHints.isEmpty()
             || identity != null
             || ragSimilarityThreshold != null
             || ragMaxDocumentsUsedForContext != null
@@ -829,6 +853,10 @@ public class ChatRuntimeController {
             }
             if (!requestContext.isEmpty()) {
                 metadata.put("requestContext", requestContext);
+            }
+            if (!vectorSpaceHints.isEmpty()) {
+                metadata.put(OrchestrationContextMetadataKeys.RAG_VECTOR_SPACE_HINT, vectorSpaceHints.get(0));
+                metadata.put(OrchestrationContextMetadataKeys.RAG_PREFERRED_VECTOR_SPACES, List.copyOf(vectorSpaceHints));
             }
             if (ragSimilarityThreshold != null) {
                 metadata.put(OrchestrationContextMetadataKeys.RAG_SIMILARITY_THRESHOLD, ragSimilarityThreshold);
@@ -901,7 +929,7 @@ public class ChatRuntimeController {
             if (entry == null || !StringUtils.hasText(entry.getKey()) || count >= MAX_SUGGESTION_METADATA_ENTRIES) {
                 continue;
             }
-            Object value = sanitizeContextValue(entry.getValue());
+            Object value = sanitizeContextValue(entry.getKey(), entry.getValue());
             if (value != null) {
                 sanitized.put(entry.getKey().trim(), value);
                 count += 1;
@@ -910,9 +938,66 @@ public class ChatRuntimeController {
         return sanitized.isEmpty() ? Map.of() : Map.copyOf(sanitized);
     }
 
-    private Object sanitizeContextValue(Object value) {
+    private List<String> extractVectorSpaceHints(Map<String, Object> requestContext) {
+        if (requestContext == null || requestContext.isEmpty()) {
+            return List.of();
+        }
+        List<String> hints = new ArrayList<>();
+        collectVectorSpaceHints(hints, requestContext.get("preferredVectorSpaces"));
+        collectVectorSpaceHints(hints, requestContext.get("vectorSpace"));
+        collectVectorSpaceHints(hints, requestContext.get("entityType"));
+        collectVectorSpaceHints(hints, requestContext.get("preferred_vector_spaces"));
+        collectVectorSpaceHints(hints, requestContext.get("vector_space"));
+        collectVectorSpaceHints(hints, requestContext.get("entity_type"));
+        return hints.isEmpty() ? List.of() : List.copyOf(hints);
+    }
+
+    private void collectVectorSpaceHints(List<String> hints, Object raw) {
+        if (hints == null || hints.size() >= MAX_VECTOR_SPACE_HINTS || raw == null) {
+            return;
+        }
+        if (raw instanceof List<?> list) {
+            for (Object item : list) {
+                collectVectorSpaceHints(hints, item);
+                if (hints.size() >= MAX_VECTOR_SPACE_HINTS) {
+                    return;
+                }
+            }
+            return;
+        }
+        if (raw instanceof String text) {
+            for (String part : text.split(",")) {
+                String normalized = normalizeVectorSpaceHint(part);
+                if (normalized != null && !hints.contains(normalized)) {
+                    hints.add(normalized);
+                    if (hints.size() >= MAX_VECTOR_SPACE_HINTS) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private String normalizeVectorSpaceHint(String raw) {
+        String trimmed = trimToNull(raw);
+        if (trimmed == null || trimmed.length() > MAX_VECTOR_SPACE_HINT_CHARS) {
+            return null;
+        }
+        for (int i = 0; i < trimmed.length(); i++) {
+            char ch = trimmed.charAt(i);
+            if (!(Character.isLetterOrDigit(ch) || ch == '-' || ch == '_' || ch == '.' || ch == ':')) {
+                return null;
+            }
+        }
+        return trimmed;
+    }
+
+    private Object sanitizeContextValue(String key, Object value) {
         if (value == null) {
             return null;
+        }
+        if (isTransientFileUrlKey(key)) {
+            return REDACTED_TRANSIENT_FILE_URL;
         }
         if (value instanceof String text) {
             String trimmed = trimToNull(text);
@@ -933,7 +1018,7 @@ public class ChatRuntimeController {
                 if (entry == null || entry.getKey() == null || count >= MAX_SUGGESTION_METADATA_ENTRIES) {
                     continue;
                 }
-                Object nestedValue = sanitizeContextValue(entry.getValue());
+                Object nestedValue = sanitizeContextValue(String.valueOf(entry.getKey()), entry.getValue());
                 if (nestedValue != null) {
                     nested.put(String.valueOf(entry.getKey()), nestedValue);
                     count += 1;
@@ -947,7 +1032,7 @@ public class ChatRuntimeController {
                 if (nested.size() >= MAX_SUGGESTION_METADATA_ENTRIES) {
                     break;
                 }
-                Object nestedValue = sanitizeContextValue(item);
+                Object nestedValue = sanitizeContextValue(null, item);
                 if (nestedValue != null) {
                     nested.add(nestedValue);
                 }
@@ -961,6 +1046,212 @@ public class ChatRuntimeController {
         return text.length() > MAX_SUGGESTION_METADATA_VALUE_CHARS
             ? text.substring(0, MAX_SUGGESTION_METADATA_VALUE_CHARS)
             : text;
+    }
+
+    private List<AIGenerationInputPart> extractTransientFileUrlInputs(Map<String, Object> rawContext) {
+        if (rawContext == null || rawContext.isEmpty()) {
+            return List.of();
+        }
+        Object rawDocuments = rawContext.get("documents");
+        if (!(rawDocuments instanceof List<?> documents) || documents.isEmpty()) {
+            return List.of();
+        }
+
+        List<AIGenerationInputPart> parts = new ArrayList<>();
+        for (Object item : documents) {
+            if (parts.size() >= MAX_TRANSIENT_FILE_URL_INPUTS) {
+                break;
+            }
+            if (!(item instanceof Map<?, ?> document)) {
+                continue;
+            }
+            String temporaryAccessUrl = coerceText(document.get("temporaryAccessUrl"));
+            if (!StringUtils.hasText(temporaryAccessUrl)) {
+                continue;
+            }
+            validateTransientFileUrl(temporaryAccessUrl);
+            Long sizeBytes = coerceLong(document.get("sizeBytes"));
+            validateTransientFileSize(sizeBytes);
+            String expiresAt = firstTextValue(document.get("expiresAt"), document.get("temporaryAccessExpiresAt"));
+            validateTransientFileExpiry(expiresAt);
+            parts.add(AIGenerationInputPart.builder()
+                .type(AIGenerationInputType.FILE_URL)
+                .url(temporaryAccessUrl.trim())
+                .documentId(firstTextValue(document.get("documentId"), document.get("id")))
+                .fileName(firstTextValue(document.get("fileName"), document.get("name"), document.get("title")))
+                .contentType(firstTextValue(document.get("contentType"), document.get("mimeType")))
+                .sizeBytes(sizeBytes)
+                .expiresAt(expiresAt)
+                .build());
+        }
+        return parts.isEmpty() ? List.of() : List.copyOf(parts);
+    }
+
+    private void validateTransientFileUrl(String rawUrl) {
+        if (!StringUtils.hasText(rawUrl)) {
+            throw new IllegalArgumentException("temporaryAccessUrl must not be blank");
+        }
+        URI uri;
+        try {
+            uri = new URI(rawUrl.trim());
+        } catch (URISyntaxException ex) {
+            throw new IllegalArgumentException("temporaryAccessUrl must be a valid HTTPS URL");
+        }
+        if (!"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new IllegalArgumentException("temporaryAccessUrl must use HTTPS");
+        }
+        String host = uri.getHost();
+        if (!StringUtils.hasText(host) || isUnsafeTransientFileUrlHost(host)) {
+            throw new IllegalArgumentException("temporaryAccessUrl host is not allowed");
+        }
+        if (!isTransientFileUrlHostAllowed(host)) {
+            throw new IllegalArgumentException("temporaryAccessUrl host is not in the allowed host list");
+        }
+        if (StringUtils.hasText(uri.getUserInfo())) {
+            throw new IllegalArgumentException("temporaryAccessUrl must not include user info");
+        }
+    }
+
+    private void validateTransientFileSize(Long sizeBytes) {
+        if (sizeBytes == null) {
+            return;
+        }
+        if (sizeBytes < 0) {
+            throw new IllegalArgumentException("temporaryAccessUrl declared size must not be negative");
+        }
+        if (sizeBytes > MAX_TRANSIENT_FILE_URL_DECLARED_SIZE_BYTES) {
+            throw new IllegalArgumentException("temporaryAccessUrl declared size exceeds runtime limit");
+        }
+    }
+
+    private void validateTransientFileExpiry(String expiresAt) {
+        if (!StringUtils.hasText(expiresAt)) {
+            return;
+        }
+        Instant expiry;
+        try {
+            expiry = Instant.parse(expiresAt.trim());
+        } catch (DateTimeParseException ex) {
+            throw new IllegalArgumentException("temporaryAccessUrl expiresAt must be an ISO-8601 instant");
+        }
+        Instant now = Instant.now();
+        if (!expiry.isAfter(now)) {
+            throw new IllegalArgumentException("temporaryAccessUrl is expired");
+        }
+        if (expiry.isAfter(now.plus(MAX_TRANSIENT_FILE_URL_TTL))) {
+            throw new IllegalArgumentException("temporaryAccessUrl expiresAt must be near-term");
+        }
+    }
+
+    private boolean isTransientFileUrlHostAllowed(String host) {
+        if (!StringUtils.hasText(transientFileUrlAllowedHosts)) {
+            return true;
+        }
+        String normalizedHost = host.trim().toLowerCase();
+        for (String rawAllowedHost : transientFileUrlAllowedHosts.split(",")) {
+            String allowedHost = rawAllowedHost == null ? "" : rawAllowedHost.trim().toLowerCase();
+            if (!StringUtils.hasText(allowedHost)) {
+                continue;
+            }
+            if (allowedHost.startsWith("*.")) {
+                String suffix = allowedHost.substring(1);
+                if (normalizedHost.endsWith(suffix) && normalizedHost.length() > suffix.length()) {
+                    return true;
+                }
+            } else if (normalizedHost.equals(allowedHost)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isUnsafeTransientFileUrlHost(String host) {
+        if (!StringUtils.hasText(host)) {
+            return true;
+        }
+        String normalized = host.trim().toLowerCase();
+        if (normalized.equals("localhost")
+            || normalized.endsWith(".localhost")
+            || normalized.endsWith(".local")
+            || normalized.equals("metadata.google.internal")
+            || normalized.equals("169.254.169.254")) {
+            return true;
+        }
+        if (normalized.contains(":")) {
+            return normalized.equals("::1")
+                || normalized.startsWith("fe80:")
+                || normalized.startsWith("fc")
+                || normalized.startsWith("fd");
+        }
+        return isPrivateIpv4Literal(normalized);
+    }
+
+    private boolean isPrivateIpv4Literal(String host) {
+        String[] parts = host.split("\\.");
+        if (parts.length != 4) {
+            return false;
+        }
+        int[] octets = new int[4];
+        for (int i = 0; i < parts.length; i++) {
+            try {
+                if (parts[i].isEmpty() || (parts[i].length() > 1 && parts[i].startsWith("0"))) {
+                    return false;
+                }
+                octets[i] = Integer.parseInt(parts[i]);
+            } catch (NumberFormatException ex) {
+                return false;
+            }
+            if (octets[i] < 0 || octets[i] > 255) {
+                return false;
+            }
+        }
+        return octets[0] == 0
+            || octets[0] == 10
+            || octets[0] == 127
+            || (octets[0] == 100 && octets[1] >= 64 && octets[1] <= 127)
+            || (octets[0] == 169 && octets[1] == 254)
+            || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
+            || (octets[0] == 192 && octets[1] == 168);
+    }
+
+    private boolean isTransientFileUrlKey(String key) {
+        if (!StringUtils.hasText(key)) {
+            return false;
+        }
+        String normalized = key.trim();
+        return "temporaryAccessUrl".equals(normalized)
+            || "temporaryFileUrl".equals(normalized)
+            || "fileUrl".equals(normalized);
+    }
+
+    private String firstTextValue(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            String text = coerceText(value);
+            if (StringUtils.hasText(text)) {
+                return text.trim();
+            }
+        }
+        return null;
+    }
+
+    private String coerceText(Object value) {
+        return value instanceof String text ? trimToNull(text) : null;
+    }
+
+    private Long coerceLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            try {
+                return Long.parseLong(text.trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return null;
     }
 
     private Map<String, String> sanitizePromptPreview(Map<String, String> promptPreview) {

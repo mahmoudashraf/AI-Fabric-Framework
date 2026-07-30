@@ -1,0 +1,43 @@
+---
+import { ArrowRight, Mail } from '@lucide/astro'
+
+type Props = {
+  eyebrow?: string
+  title: string
+  body: string
+  primaryLabel?: string
+  primaryHref?: string
+  secondaryLabel?: string
+  secondaryHref?: string
+}
+
+const {
+  eyebrow = 'Connect',
+  title,
+  body,
+  primaryLabel = 'Start a conversation',
+  primaryHref = '/connect',
+  secondaryLabel = 'Explore products',
+  secondaryHref = '/products',
+} = Astro.props
+---
+
+<section class="cta-band">
+  <div class="loom-container cta-band__inner">
+    <div>
+      <p class="loom-eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      <p>{body}</p>
+    </div>
+    <div class="button-group">
+      <a class="loom-button loom-button--primary" href={primaryHref}>
+        {primaryHref.startsWith('mailto:') ? <Mail size={17} aria-hidden="true" /> : null}
+        {primaryLabel}
+        {!primaryHref.startsWith('mailto:') && <ArrowRight size={17} aria-hidden="true" />}
+      </a>
+      <a class="loom-button loom-button--secondary" href={secondaryHref}>
+        {secondaryLabel}
+      </a>
+    </div>
+  </div>
+</section>

@@ -14,12 +14,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class CoolifyTargetProfileResolver {
+
+    private static final int PREFLIGHT_ATTEMPTS = 3;
+    private static final Duration PREFLIGHT_RETRY_DELAY = Duration.ofSeconds(2);
 
     private final DeploymentProviderCredentialRepository credentialRepository;
     private final PlatformSecretService platformSecretService;
@@ -64,12 +68,14 @@ public class CoolifyTargetProfileResolver {
 
     public CoolifyTargetProfileConfig readConfig(DeploymentTargetProfileEntity profile) {
         JsonNode config = readJson(profile.getProviderConfigJson());
+        JsonNode resourceDefaults = readJson(profile.getResourceDefaultsJson());
+        boolean customerProjectGroupingEnabled = booleanValue(resourceDefaults, "customerProjectGroupingEnabled", false);
         String baseUrl = requireText(config, "baseUrl", profile);
         return new CoolifyTargetProfileConfig(
             stripTrailingSlash(baseUrl),
             requireText(config, "projectUuid", profile),
             requireText(config, "environmentName", profile),
-            requireText(config, "environmentUuid", profile),
+            customerProjectGroupingEnabled ? text(config, "environmentUuid") : requireText(config, "environmentUuid", profile),
             requireText(config, "serverUuid", profile),
             requireText(config, "destinationUuid", profile),
             text(config, "defaultPublicDomainSuffix"),
@@ -91,56 +97,86 @@ public class CoolifyTargetProfileResolver {
         CoolifyConnection connection = requireConnection(profile);
         details.put("baseUrl", connection.baseUrl());
         checks.add("credential_resolved");
-        try {
-            JsonNode health = coolifyApiClient.health(connection);
-            String version = coolifyApiClient.version(connection);
-            checks.add("health_endpoint_ok");
-            checks.add("version_endpoint_ok");
-            details.set("health", health);
-            details.put("projectUuid", connection.config().projectUuid());
-            details.put("environmentUuid", connection.config().environmentUuid());
-            details.put("serverUuid", connection.config().serverUuid());
-            details.put("destinationUuid", connection.config().destinationUuid());
-            if (StringUtils.hasText(connection.config().apiVersionPinned())
-                && !connection.config().apiVersionPinned().equals(version)) {
-                checks.add("version_pin_mismatch");
+        RuntimeException lastFailure = null;
+        int attemptsUsed = 0;
+        for (int attempt = 1; attempt <= PREFLIGHT_ATTEMPTS; attempt++) {
+            attemptsUsed = attempt;
+            try {
+                if (attempt > 1) {
+                    checks.add("coolify_api_retry_" + attempt);
+                }
+                String version = coolifyApiClient.version(connection);
+                checks.add("version_endpoint_ok");
+                checks.add("version_endpoint_used_for_liveness");
+                details.put("attempts", attempt);
+                details.put("projectUuid", connection.config().projectUuid());
+                details.put("environmentUuid", connection.config().environmentUuid());
+                details.put("serverUuid", connection.config().serverUuid());
+                details.put("destinationUuid", connection.config().destinationUuid());
+                if (StringUtils.hasText(connection.config().apiVersionPinned())
+                    && !connection.config().apiVersionPinned().equals(version)) {
+                    checks.add("version_pin_mismatch");
+                    return new DeploymentProviderPreflightSummary(
+                        profile.getId(),
+                        profile.getProviderType(),
+                        "WARNING",
+                        "Coolify is reachable, but the live version does not match the pinned target profile version.",
+                        connection.baseUrl(),
+                        version,
+                        List.copyOf(checks),
+                        details,
+                        checkedAt
+                    );
+                }
                 return new DeploymentProviderPreflightSummary(
                     profile.getId(),
                     profile.getProviderType(),
-                    "WARNING",
-                    "Coolify is reachable, but the live version does not match the pinned target profile version.",
+                    "PASSED",
+                    "Coolify API version endpoint is reachable and credentials are valid.",
                     connection.baseUrl(),
                     version,
                     List.copyOf(checks),
                     details,
                     checkedAt
                 );
+            } catch (RuntimeException ex) {
+                lastFailure = ex;
+                if (!isTransientPreflightFailure(ex) || attempt == PREFLIGHT_ATTEMPTS) {
+                    break;
+                }
+                sleepPreflightRetry();
             }
-            return new DeploymentProviderPreflightSummary(
-                profile.getId(),
-                profile.getProviderType(),
-                "PASSED",
-                "Coolify API is reachable and credentials are valid.",
-                connection.baseUrl(),
-                version,
-                List.copyOf(checks),
-                details,
-                checkedAt
-            );
-        } catch (RuntimeException ex) {
-            checks.add("coolify_api_failed");
-            details.put("errorType", ex.getClass().getSimpleName());
-            return new DeploymentProviderPreflightSummary(
-                profile.getId(),
-                profile.getProviderType(),
-                "FAILED",
-                ex.getMessage(),
-                connection.baseUrl(),
-                null,
-                List.copyOf(checks),
-                details,
-                checkedAt
-            );
+        }
+        checks.add("coolify_api_failed");
+        details.put("attempts", attemptsUsed);
+        details.put("errorType", lastFailure == null ? "RuntimeException" : lastFailure.getClass().getSimpleName());
+        return new DeploymentProviderPreflightSummary(
+            profile.getId(),
+            profile.getProviderType(),
+            "FAILED",
+            lastFailure == null ? "Coolify API preflight failed." : lastFailure.getMessage(),
+            connection.baseUrl(),
+            null,
+            List.copyOf(checks),
+            details,
+            checkedAt
+        );
+    }
+
+    private boolean isTransientPreflightFailure(RuntimeException ex) {
+        if (ex instanceof CoolifyApiException coolifyApiException) {
+            int statusCode = coolifyApiException.statusCode();
+            return statusCode == 502 || statusCode == 503 || statusCode == 504;
+        }
+        return false;
+    }
+
+    private void sleepPreflightRetry() {
+        try {
+            Thread.sleep(PREFLIGHT_RETRY_DELAY.toMillis());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while retrying Coolify preflight.", ex);
         }
     }
 

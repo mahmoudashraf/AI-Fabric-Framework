@@ -29,7 +29,7 @@ class RuntimePublicTokenServiceTest {
             "cus-public",
             "ten-public",
             List.of("chat:query", "chat:conversations"),
-            "shopify-app",
+            "commerce-app",
             List.of("storefront-chat")
         );
 
@@ -38,7 +38,7 @@ class RuntimePublicTokenServiceTest {
         assertThat(authContext.getAuthMode()).isEqualTo(RuntimeAuthMode.PUBLIC_RUNTIME_AUTHENTICATED);
         assertThat(authContext.getSubjectId()).isEqualTo("customer-123");
         assertThat(authContext.getAudiences()).containsExactly("storefront-chat");
-        assertThat(authContext.getIssuer()).isEqualTo("shopify-app");
+        assertThat(authContext.getIssuer()).isEqualTo("commerce-app");
     }
 
     @Test
@@ -77,7 +77,7 @@ class RuntimePublicTokenServiceTest {
             "cus-public",
             "ten-public",
             List.of("chat:query"),
-            "shopify-app",
+            "commerce-app",
             List.of("different-audience")
         ).token();
 
@@ -100,7 +100,7 @@ class RuntimePublicTokenServiceTest {
             "cus-public",
             "ten-public",
             List.of("chat:query", "chat:admin"),
-            "shopify-app",
+            "commerce-app",
             List.of("storefront-chat")
         ))
             .isInstanceOf(IllegalArgumentException.class)
@@ -141,7 +141,7 @@ class RuntimePublicTokenServiceTest {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getPublicTokens().setSigningKey("public-secret");
         properties.getPublicTokens().setIssuer("runtime-public-test");
-        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "shopify-app"));
+        properties.getPublicTokens().setAcceptedIssuers(List.of("runtime-public-test", "commerce-app"));
         properties.getPublicTokens().setAcceptedAudiences(List.of("storefront-chat"));
         properties.getPublicTokens().setDefaultAudience("storefront-chat");
         properties.getPublicTokens().getBootstrap().setEnabled(true);

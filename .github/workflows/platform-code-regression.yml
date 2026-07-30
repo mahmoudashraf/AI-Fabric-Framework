@@ -11,12 +11,7 @@ on:
         type: boolean
         default: true
       product_tests:
-        description: Run ai-fabric-product tests.
-        required: false
-        type: boolean
-        default: true
-      infrastructure_tests:
-        description: Run targeted ai-infrastructure modules used by the platform product path.
+        description: Run ai-fabric-product and platform product-service tests.
         required: false
         type: boolean
         default: true
@@ -38,12 +33,7 @@ on:
         type: boolean
         default: true
       product_tests:
-        description: Run ai-fabric-product tests.
-        required: false
-        type: boolean
-        default: true
-      infrastructure_tests:
-        description: Run targeted ai-infrastructure modules used by the platform product path.
+        description: Run ai-fabric-product and platform product-service tests.
         required: false
         type: boolean
         default: true
@@ -69,7 +59,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        if: ${{ inputs.backend_tests || inputs.product_tests || inputs.infrastructure_tests }}
+        if: ${{ inputs.backend_tests || inputs.product_tests }}
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -92,8 +82,9 @@ jobs:
       - name: Install AI Fabric framework artifacts for product tests
         if: ${{ inputs.product_tests }}
         run: |
-          mvn -f ai-infrastructure-module/pom.xml -B -V -DskipTests install \
-            -pl '!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
+          git clone --depth 1 --branch main https://github.com/Loom-AI-Labs/ai-fabric-framework.git /tmp/ai-fabric-framework
+          mvn -f /tmp/ai-fabric-framework/ai-infrastructure-module/pom.xml -B -V -DskipTests install \
+            -pl '!integration-Testing/vector-contract-tests,!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
             -am
         env:
           MAVEN_OPTS: "-Xmx2g"
@@ -103,12 +94,15 @@ jobs:
         run: |
           mvn -f ai-fabric-product/pom.xml test
 
-      - name: Run targeted platform infrastructure tests
-        if: ${{ inputs.infrastructure_tests }}
+      - name: Run AI Fabric relay tests
+        if: ${{ inputs.product_tests }}
         run: |
-          mvn -f ai-infrastructure-module/pom.xml \
-            -pl ai-infrastructure-data-sync,victor-databases/ai-infrastructure-vector-pinecone,victor-databases/ai-infrastructure-vector-qdrant,victor-databases/ai-infrastructure-vector-weaviate,victor-databases/ai-infrastructure-vector-milvus \
-            -am test -DskipITs
+          mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-relay -am test
+
+      - name: Run AI Fabric relay packaged smoke
+        if: ${{ inputs.product_tests }}
+        run: |
+          bash .github/scripts/smoke-p1-relay-local.sh
 
       - name: Run platform UI build
         if: ${{ inputs.ui_build }}
@@ -127,3 +121,4 @@ jobs:
           bash -n scripts/run-platform-state-verification-suite.sh
           bash -n scripts/verify-vector-deployment.sh
           bash -n scripts/verify-managed-vector-providers.sh
+          bash -n .github/scripts/smoke-p1-relay-local.sh

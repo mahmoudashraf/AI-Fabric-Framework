@@ -171,13 +171,13 @@ public class MarketplacePublishingService {
             throw new ResponseStatusException(CONFLICT, "Marketplace plugin version must be VALIDATED before publication.");
         }
         MarketplacePluginEntity plugin = requirePlugin(version.getPluginId());
-        MarketplacePublisherEntity publisher = requirePublisher(version.getSubmittedByPublisherId());
-        if (!"ACTIVE".equalsIgnoreCase(publisher.getStatus()) || !"VERIFIED".equalsIgnoreCase(publisher.getVerificationStatus())) {
-            throw new ResponseStatusException(CONFLICT, "Marketplace publisher must be active and verified before publication.");
-        }
+        validatePublicationOwnership(plugin, version);
         manifestService.parseAndValidate(plugin, version);
         plugin.setStatus("ACTIVE");
         plugin.setUpdatedAt(Instant.now());
+        if (isPlatformManagedMcpImport(plugin, version) && "DRAFT".equalsIgnoreCase(version.getReleaseChannel())) {
+            version.setReleaseChannel("STAGING");
+        }
         version.setStatus("PUBLISHED");
         version.setPublishedAt(Instant.now());
         version.setReviewedAt(Instant.now());
@@ -250,6 +250,28 @@ public class MarketplacePublishingService {
 
     private MarketplacePublisherEntity requirePublisher(String publisherId) {
         return marketplacePublisherService.requirePublisherAccess(publisherId);
+    }
+
+    private void validatePublicationOwnership(MarketplacePluginEntity plugin, MarketplacePluginVersionEntity version) {
+        if (!StringUtils.hasText(version.getSubmittedByPublisherId())) {
+            if (isPlatformManagedMcpImport(plugin, version)) {
+                return;
+            }
+            throw new ResponseStatusException(CONFLICT, "Marketplace plugin version has no publisher owner.");
+        }
+        MarketplacePublisherEntity publisher = requirePublisher(version.getSubmittedByPublisherId());
+        if (!"ACTIVE".equalsIgnoreCase(publisher.getStatus()) || !"VERIFIED".equalsIgnoreCase(publisher.getVerificationStatus())) {
+            throw new ResponseStatusException(CONFLICT, "Marketplace publisher must be active and verified before publication.");
+        }
+    }
+
+    private boolean isPlatformManagedMcpImport(MarketplacePluginEntity plugin, MarketplacePluginVersionEntity version) {
+        if (!"ACTION".equalsIgnoreCase(plugin.getPluginType())) {
+            return false;
+        }
+        JsonNode manifest = readManifest(version.getManifestJson());
+        JsonNode mcpServers = manifest.path("contributions").path("mcpServers");
+        return mcpServers.isArray() && !mcpServers.isEmpty();
     }
 
     private JsonNode normalizeManifest(JsonNode manifest) {

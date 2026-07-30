@@ -1,0 +1,93 @@
+---
+import { ArrowUpRight, GitFork, Menu, X } from '@lucide/astro'
+import { navigation } from '../data/content'
+import LoomWordmark from './LoomWordmark.astro'
+
+const currentPath = Astro.url.pathname
+const isActive = (patterns: string[]) =>
+  patterns.some((pattern) => currentPath === pattern || currentPath.startsWith(`${pattern}/`))
+---
+
+<header class="site-header" data-site-header>
+  <div class="loom-container site-header__inner">
+    <a class="site-header__brand" href="/" aria-label="Loom AI Labs home">
+      <LoomWordmark />
+    </a>
+
+    <nav class="site-header__nav" aria-label="Primary navigation">
+      {navigation.map((item) => (
+        <a
+          href={item.href}
+          aria-current={isActive(item.activePatterns) ? 'page' : undefined}
+        >
+          {item.label}
+        </a>
+      ))}
+    </nav>
+
+    <a
+      class="site-header__connect"
+      href="https://github.com/Loom-AI-Labs"
+      target="_blank"
+      rel="noreferrer"
+    >
+      <GitFork size={19} stroke-width={1.8} aria-hidden="true" />
+      GitHub
+    </a>
+
+    <button
+      class="icon-button site-header__menu"
+      type="button"
+      aria-label="Open navigation"
+      aria-haspopup="dialog"
+      data-menu-open
+    >
+      <Menu size={22} stroke-width={1.8} aria-hidden="true" />
+    </button>
+  </div>
+</header>
+
+<dialog class="mobile-menu" data-mobile-menu aria-labelledby="mobile-menu-title">
+  <div class="mobile-menu__header">
+    <p id="mobile-menu-title"><LoomWordmark /></p>
+    <button class="icon-button" type="button" aria-label="Close navigation" data-menu-close>
+      <X size={22} stroke-width={1.8} aria-hidden="true" />
+    </button>
+  </div>
+  <nav class="mobile-menu__nav" aria-label="Mobile navigation">
+    {navigation.map((item) => (
+      <a
+        href={item.href}
+        aria-current={isActive(item.activePatterns) ? 'page' : undefined}
+      >
+        <span>{item.label}</span>
+        <ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" />
+      </a>
+    ))}
+    <a href="https://github.com/Loom-AI-Labs" target="_blank" rel="noreferrer">
+      <span>GitHub</span>
+      <ArrowUpRight size={18} stroke-width={1.8} aria-hidden="true" />
+    </a>
+  </nav>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('[data-mobile-menu]')
+  const openButton = document.querySelector<HTMLButtonElement>('[data-menu-open]')
+  const closeButton = document.querySelector<HTMLButtonElement>('[data-menu-close]')
+
+  const closeMenu = () => {
+    if (dialog?.open) {
+      dialog.close()
+    }
+  }
+
+  openButton?.addEventListener('click', () => dialog?.showModal())
+  closeButton?.addEventListener('click', closeMenu)
+  dialog?.addEventListener('click', (event) => {
+    if (event.target === dialog) {
+      closeMenu()
+    }
+  })
+  dialog?.addEventListener('close', () => openButton?.focus())
+</script>

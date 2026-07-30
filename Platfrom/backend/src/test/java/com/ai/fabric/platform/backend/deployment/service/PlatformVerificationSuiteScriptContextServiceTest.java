@@ -107,11 +107,10 @@ class PlatformVerificationSuiteScriptContextServiceTest {
     }
 
     @Test
-    void buildsReleaseBlockingQdrantProviderVerificationContext() {
+    void buildsReleaseBlockingZillizProviderVerificationContext() {
         PlatformSecretService secretService = mock(PlatformSecretService.class);
         DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
-        when(secretService.resolveSecret("QDRANT_CLOUD_MANAGEMENT_API_KEY")).thenReturn("qdrant-mgmt");
-        when(secretService.resolveSecret("QDRANT_API_KEY")).thenReturn("qdrant");
+        when(secretService.resolveSecret("ZILLIZ_CLOUD_API_KEY")).thenReturn("zilliz");
 
         PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
             new PlatformVerificationSuiteProperties(
@@ -160,18 +159,17 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThat(context.scriptPath()).isEqualTo("scripts/verify-managed-vector-providers.sh");
         assertThat(context.environment())
             .containsEntry("RUN_PINECONE", "false")
-            .containsEntry("RUN_QDRANT", "true")
-            .containsEntry("RUN_ZILLIZ", "false")
+            .containsEntry("RUN_QDRANT", "false")
+            .containsEntry("RUN_ZILLIZ", "true")
             .containsEntry("RUN_WEAVIATE", "false")
-            .containsEntry("QDRANT_EXISTING_CLUSTER_NAME", "cluster")
             .containsEntry("QDRANT_CREATE_EPHEMERAL_DB_KEY", "false")
-            .containsEntry("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
+            .containsEntry("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false")
+            .containsEntry("ZILLIZ_CREATE_EPHEMERAL_CLUSTER", "false");
         assertThat(context.environment()).doesNotContainKey("WEAVIATE_HOST");
         assertThat(context.secretEnvironment())
-            .containsEntry("QDRANT_CLOUD_MANAGEMENT_API_KEY", "qdrant-mgmt")
-            .containsEntry("QDRANT_API_KEY", "qdrant");
+            .containsEntry("ZILLIZ_CLOUD_API_KEY", "zilliz");
         assertThat(context.secretEnvironment())
-            .doesNotContainKeys("PINECONE_API_KEY", "ZILLIZ_CLOUD_API_KEY", "WEAVIATE_API_KEY");
+            .doesNotContainKeys("PINECONE_API_KEY", "QDRANT_CLOUD_MANAGEMENT_API_KEY", "QDRANT_API_KEY", "WEAVIATE_API_KEY");
     }
 
     @Test

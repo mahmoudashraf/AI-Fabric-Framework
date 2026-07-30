@@ -1,0 +1,723 @@
+---
+import {
+  ArrowRight,
+  ChartNoAxesColumnIncreasing,
+  CircleQuestionMark,
+  Database,
+  FileChartColumnIncreasing,
+  FileText,
+  FlaskConical,
+  Lightbulb,
+  LockKeyhole,
+  Network,
+  Settings,
+  ShieldCheck,
+  TriangleAlert,
+} from '@lucide/astro'
+import FilterBar from '../../components/FilterBar.astro'
+import { experiments, research } from '../../data/content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+const defaultFeatureSlug = 'application-data-ai-evidence-alignment'
+const primaryResearchSlugs = [
+  defaultFeatureSlug,
+  'explicit-application-context',
+  'governed-ai-proposed-actions',
+  'tenant-identity-orchestration-context',
+] as const
+const primaryResearch = primaryResearchSlugs
+  .map((slug) => research.find((item) => item.slug === slug))
+  .filter((item) => item !== undefined)
+const cardSlugs = [
+  'explicit-application-context',
+  'governed-ai-proposed-actions',
+  'tenant-identity-orchestration-context',
+  'privacy-aware-rag-context',
+]
+const cards = cardSlugs
+  .map((slug) => research.find((item) => item.slug === slug))
+  .filter((item) => item !== undefined)
+const filters = [
+  { value: 'all', label: 'All' },
+  { value: 'data-consistency', label: 'Data Consistency' },
+  { value: 'context-grounding', label: 'Context & Grounding' },
+  { value: 'actions-governance', label: 'Actions & Governance' },
+  { value: 'privacy-identity', label: 'Privacy & Identity' },
+] as const
+---
+
+<BaseLayout
+  title="Applied Research"
+  description="Implementation-linked engineering investigations into reliable AI enablement for Java applications."
+  canonicalPath="/research"
+>
+  <section class="research-hero">
+    <div class="loom-container research-hero__inner">
+      <div class="research-hero__copy">
+        <p class="loom-eyebrow">Independent applied engineering</p>
+        <h1>Applied Research</h1>
+        <p>
+          Engineering investigations into reliable AI enablement for Java
+          applications—covering live data, retrieval evidence, governed actions,
+          privacy and tenant boundaries.
+        </p>
+        <div class="research-hero__actions">
+          <a class="loom-button loom-button--primary" href="#research-list">
+            Browse investigations
+          </a>
+          <a class="research-text-link" href="/experiments">Explore live experiments</a>
+        </div>
+        <p class="research-hero__note">
+          <ShieldCheck size={21} stroke-width={1.6} aria-hidden="true" />
+          <span>Implementation-linked</span>
+          <i>·</i>
+          <span>Limitations stated</span>
+          <i>·</i>
+          <span>Independently developed</span>
+        </p>
+      </div>
+      <img
+        class="research-hero__visual"
+        src="/assets/reference/research-weave.png"
+        alt="Research lifecycle from question through limitations"
+        width="810"
+        height="295"
+        fetchpriority="high"
+      />
+    </div>
+  </section>
+
+  <section class="research-showcase" id="research-list">
+    <div class="loom-container research-showcase__inner">
+      <FilterBar
+        options={filters}
+        parameter="theme"
+        itemLabel="research items"
+      />
+
+      {primaryResearch.map((item) => {
+        const isDefault = item.slug === defaultFeatureSlug
+        const linkedExperimentSlug = item.linkedExperimentSlugs[0]
+        const linkedExperiment = experiments.find(
+          (experiment) => experiment.slug === linkedExperimentSlug,
+        )
+        const sourceArtifact = item.implementationArtifacts.find(
+          (artifact) => artifact.href.includes('github.com'),
+        )
+        const image = isDefault
+          ? {
+              src: '/assets/reference/research-proof.png',
+              alt: 'Application data and AI evidence revisions aligned through a lifecycle',
+              width: 650,
+              height: 255,
+            }
+          : {
+              src: linkedExperiment?.screenshot.src ?? '/assets/reference/research-proof.png',
+              alt: linkedExperiment?.screenshot.alt ?? `${item.title} implementation proof`,
+              width: 1280,
+              height: 800,
+            }
+
+        return (
+          <article
+            class="featured-research"
+            data-filter-item
+            data-filter-display="feature"
+            data-filter-default={isDefault ? 'true' : 'false'}
+            data-category={item.theme}
+            hidden={!isDefault}
+          >
+            <div class="featured-research__copy">
+              <div class="featured-research__badges">
+                <span>Featured investigation</span>
+                <span>{item.evidenceLabel}</span>
+              </div>
+              <h2>{item.title}</h2>
+              <dl>
+                <div>
+                  <dt>
+                    <CircleQuestionMark size={19} stroke-width={1.55} aria-hidden="true" />
+                    Research question:
+                  </dt>
+                  <dd>{item.researchQuestion}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Settings size={19} stroke-width={1.55} aria-hidden="true" />
+                    Method summary:
+                  </dt>
+                  <dd>{item.proposedApproach[0]}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Database size={19} stroke-width={1.55} aria-hidden="true" />
+                    Evidence:
+                  </dt>
+                  <dd>
+                    <a href={`/research/${item.slug}`}>{item.maturityLabel}</a>
+                    {linkedExperiment && (
+                      <>
+                        <span>·</span>
+                        <a href={`/experiments/${linkedExperiment.slug}`}>
+                          {linkedExperiment.title} experiment
+                        </a>
+                      </>
+                    )}
+                    {sourceArtifact && (
+                      <>
+                        <span>·</span>
+                        <a href={sourceArtifact.href} target="_blank" rel="noreferrer">
+                          Source available
+                        </a>
+                      </>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>
+                    <TriangleAlert size={19} stroke-width={1.55} aria-hidden="true" />
+                    Limitation:
+                  </dt>
+                  <dd>{item.limitations[0]}</dd>
+                </div>
+              </dl>
+              <div class="featured-research__actions">
+                <a class="loom-button loom-button--primary" href={`/research/${item.slug}`}>
+                  Read investigation
+                </a>
+                {linkedExperiment && (
+                  <a
+                    class="research-inline-link"
+                    href={`/experiments/${linkedExperiment.slug}`}
+                  >
+                    Reproduce experiment <ArrowRight size={17} aria-hidden="true" />
+                  </a>
+                )}
+              </div>
+            </div>
+            <div class="featured-research__visual">
+              <img
+                class:list={{ 'featured-research__screenshot': !isDefault }}
+                src={image.src}
+                alt={image.alt}
+                width={image.width}
+                height={image.height}
+                loading={isDefault ? 'eager' : 'lazy'}
+              />
+            </div>
+          </article>
+        )
+      })}
+
+      <div class="research-card-grid">
+        {cards.map((item) => (
+          <article
+            class="compact-research"
+            data-filter-item
+            data-filter-display="compact"
+            data-filter-promoted={primaryResearchSlugs.includes(item.slug as typeof primaryResearchSlugs[number]) ? 'true' : 'false'}
+            data-category={item.theme}
+          >
+            <div class="compact-research__layout">
+              <span class="compact-research__icon" aria-hidden="true">
+                {item.slug === 'explicit-application-context' ? (
+                  <FileText size={40} stroke-width={1.5} />
+                ) : item.slug === 'governed-ai-proposed-actions' ? (
+                  <Network size={40} stroke-width={1.5} />
+                ) : item.slug === 'tenant-identity-orchestration-context' ? (
+                  <LockKeyhole size={40} stroke-width={1.5} />
+                ) : (
+                  <FileChartColumnIncreasing size={40} stroke-width={1.5} />
+                )}
+              </span>
+              <div>
+                <p class="compact-research__type">{item.artifactType}</p>
+                <h2>{item.title}</h2>
+              </div>
+            </div>
+            <p class="compact-research__question">
+              <strong>Research question:</strong> {item.researchQuestion}
+            </p>
+            <span class="compact-research__theme">{item.themeLabel}</span>
+            <div class="compact-research__actions">
+              <a href={`/research/${item.slug}`}>Read note <ArrowRight size={15} aria-hidden="true" /></a>
+              {item.linkedExperimentSlugs[0] && (
+                <a href={`/experiments/${item.linkedExperimentSlugs[0]}`}>
+                  Related experiment <ArrowRight size={15} aria-hidden="true" />
+                </a>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div class="evidence-levels" aria-label="Research evidence levels">
+        <div>
+          <Lightbulb size={31} stroke-width={1.5} aria-hidden="true" />
+          <span><strong>Design rationale</strong><small>Exploratory ideas and reasoning</small></span>
+          <ArrowRight size={21} aria-hidden="true" />
+        </div>
+        <div>
+          <Settings size={31} stroke-width={1.5} aria-hidden="true" />
+          <span><strong>Implemented prototype</strong><small>Code and working implementation</small></span>
+          <ArrowRight size={21} aria-hidden="true" />
+        </div>
+        <div>
+          <FlaskConical size={31} stroke-width={1.5} aria-hidden="true" />
+          <span><strong>Reproducible demo</strong><small>Experiments others can run</small></span>
+          <ArrowRight size={21} aria-hidden="true" />
+        </div>
+        <div>
+          <ChartNoAxesColumnIncreasing size={31} stroke-width={1.5} aria-hidden="true" />
+          <span><strong>Measured evaluation</strong><small>Empirical results and analysis</small></span>
+        </div>
+      </div>
+      <p class="evidence-levels__note">Only published evidence levels are claimed.</p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .research-hero {
+    min-height: 19.4rem;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .research-hero::after,
+  .research-showcase::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 45%, #000);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .research-hero__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    min-height: 19.4rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .research-hero__copy {
+    align-self: center;
+  }
+
+  .research-hero h1 {
+    font-size: clamp(3.25rem, 4vw, 3.85rem);
+    margin-bottom: 0.65rem;
+  }
+
+  .research-hero__copy > p:not(.loom-eyebrow, .research-hero__note) {
+    font-size: 1.05rem;
+    line-height: 1.48;
+    margin-bottom: 0.75rem;
+    max-width: 39rem;
+  }
+
+  .research-hero__actions {
+    align-items: center;
+    display: flex;
+    gap: 2.4rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .research-hero__actions .loom-button {
+    min-height: 2.75rem;
+    min-width: 12.5rem;
+  }
+
+  .research-text-link {
+    border-bottom: 1px solid var(--loom-blue-vivid);
+    color: var(--loom-blue-vivid);
+    padding-block: 0.45rem;
+    text-decoration: none;
+  }
+
+  .research-hero__note {
+    align-items: center;
+    color: var(--loom-text-muted);
+    display: flex;
+    font-size: 0.78rem;
+    gap: 0.55rem;
+    margin: 0;
+  }
+
+  .research-hero__note svg {
+    color: var(--loom-navy-500);
+    flex: 0 0 auto;
+  }
+
+  .research-hero__note i {
+    font-style: normal;
+  }
+
+  .research-hero__visual {
+    align-self: center;
+    height: auto;
+    justify-self: end;
+    max-width: none;
+    position: relative;
+    right: -1.75rem;
+    width: min(54vw, 50.6rem);
+  }
+
+  .research-showcase {
+    padding-bottom: 0.8rem;
+    position: relative;
+  }
+
+  .research-showcase__inner {
+    position: relative;
+    z-index: 1;
+  }
+
+  .research-showcase__inner :global(.filter-bar) {
+    border: 1px solid var(--loom-border-default);
+    border-bottom: 0;
+    border-radius: 0.75rem 0.75rem 0 0;
+    margin-bottom: 0;
+    padding: 1rem 1.2rem;
+  }
+
+  .research-showcase__inner :global(.filter-button) {
+    border-radius: 999px;
+    min-height: 2.2rem;
+    padding-inline: 1.3rem;
+  }
+
+  .research-showcase__inner :global(.filter-button[aria-pressed="true"]) {
+    background: #fff;
+    border-color: var(--loom-blue-vivid);
+    color: var(--loom-blue-vivid);
+  }
+
+  .featured-research {
+    background: rgb(255 255 255 / 82%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    grid-template-columns: 51% 49%;
+    margin: 0 1.2rem;
+    min-height: 17.25rem;
+    overflow: hidden;
+  }
+
+  .featured-research__copy {
+    border-right: 1px solid var(--loom-border-default);
+    padding: 0.8rem 1.1rem;
+  }
+
+  .featured-research__badges {
+    display: flex;
+    gap: 0.7rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .featured-research__badges span {
+    background: #eef3ff;
+    border: 1px solid #c8d5ff;
+    border-radius: 0.3rem;
+    color: var(--loom-blue-vivid);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.18rem 0.55rem;
+    text-transform: uppercase;
+  }
+
+  .featured-research__badges span:last-child {
+    background: #eafaff;
+    border-color: #bde8f2;
+    color: #08758c;
+  }
+
+  .featured-research h2 {
+    font-size: 1.75rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .featured-research dl {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0 0 0.45rem;
+  }
+
+  .featured-research dl > div {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .featured-research dt {
+    align-items: center;
+    color: var(--loom-navy-950);
+    display: inline-flex;
+    font-size: 0.77rem;
+    font-weight: 700;
+    gap: 0.45rem;
+    margin-right: 0.35rem;
+    white-space: nowrap;
+  }
+
+  .featured-research dd {
+    color: var(--loom-text-secondary);
+    font-size: 0.77rem;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .featured-research dd a {
+    color: var(--loom-blue-vivid);
+    text-decoration: none;
+  }
+
+  .featured-research dd span {
+    margin-inline: 0.3rem;
+  }
+
+  .featured-research__actions {
+    align-items: center;
+    display: flex;
+    gap: 1.4rem;
+  }
+
+  .featured-research__actions .loom-button {
+    min-height: 2.15rem;
+    min-width: 9.4rem;
+    padding-inline: 0.9rem;
+  }
+
+  .research-inline-link {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: inline-flex;
+    font-size: 0.76rem;
+    gap: 0.65rem;
+    text-decoration: none;
+  }
+
+  .featured-research__visual {
+    align-self: center;
+    padding: 0.5rem 1.25rem;
+  }
+
+  .featured-research__visual img {
+    height: auto;
+    width: 100%;
+  }
+
+  .featured-research__visual .featured-research__screenshot {
+    aspect-ratio: 650 / 255;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.55rem;
+    object-fit: cover;
+    object-position: top;
+  }
+
+  .research-card-grid {
+    display: grid;
+    gap: 1.2rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0.65rem 0.1rem 0;
+  }
+
+  .compact-research {
+    background: rgb(255 255 255 / 82%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 10rem;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .compact-research__layout {
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .compact-research__icon {
+    color: var(--loom-blue-vivid);
+  }
+
+  .compact-research__type {
+    color: var(--loom-blue-vivid);
+    font-size: 0.52rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.1rem;
+    text-transform: uppercase;
+  }
+
+  .compact-research h2 {
+    font-size: 0.98rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .compact-research__question {
+    display: -webkit-box;
+    font-size: 0.68rem;
+    line-height: 1.4;
+    margin: 0 0 0.25rem;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .compact-research__question strong {
+    color: var(--loom-navy-950);
+  }
+
+  .compact-research__theme {
+    align-self: flex-start;
+    background: #f4f6ff;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.3rem;
+    color: var(--loom-blue-vivid);
+    font-size: 0.64rem;
+    padding: 0.1rem 0.4rem;
+  }
+
+  .compact-research__actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 0.35rem;
+  }
+
+  .compact-research__actions a {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: inline-flex;
+    font-size: 0.65rem;
+    gap: 0.35rem;
+    text-decoration: none;
+  }
+
+  .evidence-levels {
+    background: rgb(255 255 255 / 78%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 0.8rem;
+    padding: 0.75rem 1.8rem;
+  }
+
+  .evidence-levels > div {
+    align-items: center;
+    display: grid;
+    gap: 0.85rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .evidence-levels > div:last-child {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .evidence-levels svg {
+    color: var(--loom-indigo-500);
+  }
+
+  .evidence-levels strong,
+  .evidence-levels small {
+    display: block;
+  }
+
+  .evidence-levels strong {
+    font-size: 0.78rem;
+  }
+
+  .evidence-levels small {
+    color: var(--loom-text-secondary);
+    font-size: 0.67rem;
+  }
+
+  .evidence-levels__note {
+    font-size: 0.7rem;
+    margin: 0.35rem 0 0;
+    text-align: center;
+  }
+
+  @media (max-width: 74rem) {
+    .research-card-grid,
+    .evidence-levels {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .evidence-levels {
+      row-gap: 1.5rem;
+    }
+  }
+
+  @media (max-width: 63.99rem) {
+    .research-hero__inner {
+      grid-template-columns: 1fr;
+      padding-top: 3rem;
+    }
+
+    .research-hero__visual {
+      justify-self: center;
+      right: auto;
+      width: min(50rem, 110%);
+    }
+
+    .featured-research {
+      grid-template-columns: 1fr;
+    }
+
+    .featured-research__copy {
+      border-bottom: 1px solid var(--loom-border-default);
+      border-right: 0;
+    }
+
+  }
+
+  @media (max-width: 47.99rem) {
+    .research-hero h1 {
+      font-size: clamp(2.85rem, 12vw, 3.6rem);
+    }
+
+    .research-hero__actions {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .research-hero__note {
+      flex-wrap: wrap;
+    }
+
+    .featured-research {
+      margin-inline: 0;
+    }
+
+    .featured-research dl > div {
+      grid-template-columns: 1fr;
+    }
+
+    .featured-research__actions {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .research-card-grid,
+    .evidence-levels {
+      grid-template-columns: 1fr;
+    }
+
+    .evidence-levels > div {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .evidence-levels > div > svg:last-child {
+      display: none;
+    }
+  }
+</style>

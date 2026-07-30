@@ -1,0 +1,39 @@
+---
+type Props = {
+  compact?: boolean
+}
+
+const { compact = false } = Astro.props
+---
+
+<span class:list={['loom-wordmark', { 'loom-wordmark--compact': compact }]}>
+  <img
+    src="/assets/reference/loom-wordmark.png"
+    alt="Loom AI Labs"
+    width="260"
+    height="64"
+    decoding="async"
+  />
+</span>
+
+<style>
+  .loom-wordmark {
+    display: inline-flex;
+    width: 14.75rem;
+  }
+
+  .loom-wordmark img {
+    height: auto;
+    width: 100%;
+  }
+
+  .loom-wordmark--compact {
+    width: 12rem;
+  }
+
+  @media (max-width: 47.99rem) {
+    .loom-wordmark {
+      width: 12.25rem;
+    }
+  }
+</style>

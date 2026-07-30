@@ -1,10 +1,13 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceStatusSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
@@ -46,6 +49,8 @@ public class DeploymentReleaseExecutionService {
     private final DeploymentTenantScopedVectorService deploymentTenantScopedVectorService;
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
     private final MarketplaceDatasetSyncService marketplaceDatasetSyncService;
+    private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
+    private final DeploymentProviderRegistry providerRegistry;
     private final Executor releaseExecutionExecutor;
     private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
@@ -61,6 +66,8 @@ public class DeploymentReleaseExecutionService {
                                              DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
                                              DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
                                              MarketplaceDatasetSyncService marketplaceDatasetSyncService,
+                                             DeploymentProviderResourceHandleRepository resourceHandleRepository,
+                                             DeploymentProviderRegistry providerRegistry,
                                              @Qualifier("releaseExecutionExecutor") Executor releaseExecutionExecutor,
                                              PlatformTransactionManager transactionManager,
                                              ObjectMapper objectMapper) {
@@ -75,6 +82,8 @@ public class DeploymentReleaseExecutionService {
             deploymentTenantScopedVectorService,
             deploymentTenantScopedVectorRegistryService,
             marketplaceDatasetSyncService,
+            resourceHandleRepository,
+            providerRegistry,
             releaseExecutionExecutor,
             new TransactionTemplate(transactionManager),
             objectMapper
@@ -94,6 +103,40 @@ public class DeploymentReleaseExecutionService {
                                       Executor releaseExecutionExecutor,
                                       TransactionOperations transactionOperations,
                                       ObjectMapper objectMapper) {
+        this(
+            deploymentRepository,
+            versionRepository,
+            releaseRepository,
+            verificationRunRepository,
+            deploymentProvisioningService,
+            deploymentReleaseProgressService,
+            deploymentReleaseVerificationService,
+            deploymentTenantScopedVectorService,
+            deploymentTenantScopedVectorRegistryService,
+            marketplaceDatasetSyncService,
+            null,
+            null,
+            releaseExecutionExecutor,
+            transactionOperations,
+            objectMapper
+        );
+    }
+
+    DeploymentReleaseExecutionService(DeploymentRepository deploymentRepository,
+                                      DeploymentVersionRepository versionRepository,
+                                      DeploymentReleaseRepository releaseRepository,
+                                      DeploymentVerificationRunRepository verificationRunRepository,
+                                      DeploymentProvisioningService deploymentProvisioningService,
+                                      DeploymentReleaseProgressService deploymentReleaseProgressService,
+                                      DeploymentReleaseVerificationService deploymentReleaseVerificationService,
+                                      DeploymentTenantScopedVectorService deploymentTenantScopedVectorService,
+                                      DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
+                                      MarketplaceDatasetSyncService marketplaceDatasetSyncService,
+                                      DeploymentProviderResourceHandleRepository resourceHandleRepository,
+                                      DeploymentProviderRegistry providerRegistry,
+                                      Executor releaseExecutionExecutor,
+                                      TransactionOperations transactionOperations,
+                                      ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.versionRepository = versionRepository;
         this.releaseRepository = releaseRepository;
@@ -104,6 +147,8 @@ public class DeploymentReleaseExecutionService {
         this.deploymentTenantScopedVectorService = deploymentTenantScopedVectorService;
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
         this.marketplaceDatasetSyncService = marketplaceDatasetSyncService;
+        this.resourceHandleRepository = resourceHandleRepository;
+        this.providerRegistry = providerRegistry;
         this.releaseExecutionExecutor = releaseExecutionExecutor;
         this.transactionOperations = transactionOperations;
         this.objectMapper = objectMapper;
@@ -192,8 +237,41 @@ public class DeploymentReleaseExecutionService {
         );
 
         applyProvisioningResult(deploymentId, versionId, releaseId, provisioningResult);
+        refreshProviderResourceHandlesAfterProvisioning(deploymentId, releaseId);
         syncMarketplaceDatasets(deploymentId, versionId, releaseId);
         runVerification(deploymentId, versionId, releaseId);
+    }
+
+    protected void refreshProviderResourceHandlesAfterProvisioning(String deploymentId, String releaseId) {
+        if (resourceHandleRepository == null || providerRegistry == null) {
+            return;
+        }
+        resourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc(deploymentId).stream()
+            .filter(handle -> handle.getProviderType() != null)
+            .filter(handle -> !StringUtils.hasText(handle.getReleaseId()) || releaseId.equals(handle.getReleaseId()))
+            .forEach(this::refreshProviderHandleSafely);
+    }
+
+    private void refreshProviderHandleSafely(DeploymentProviderResourceHandleEntity handle) {
+        try {
+            DeploymentProviderResourceStatusSummary status = providerRegistry.require(handle.getProviderType()).status(handle);
+            handle.setStatus(status.status());
+            handle.setLastObservedStatus(status.observedStatus());
+            handle.setLastObservedAt(status.observedAt());
+            handle.setFqdn(status.fqdn());
+            handle.setUpdatedAt(Instant.now());
+            resourceHandleRepository.save(handle);
+        } catch (RuntimeException ex) {
+            log.warn(
+                "Failed to refresh provider resource after provisioning: deploymentId={}, releaseId={}, handleId={}, providerType={}, resourceKind={}, message={}",
+                handle.getDeploymentId(),
+                handle.getReleaseId(),
+                handle.getId(),
+                handle.getProviderType(),
+                handle.getResourceKind(),
+                ex.getMessage()
+            );
+        }
     }
 
     protected DeploymentVerificationRunEntity runPreApplyVerification(String deploymentId,

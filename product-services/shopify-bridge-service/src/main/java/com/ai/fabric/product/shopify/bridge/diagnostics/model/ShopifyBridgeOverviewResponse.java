@@ -15,6 +15,8 @@ public record ShopifyBridgeOverviewResponse(
     String platformBaseUrl,
     String publicBaseUrl,
     boolean adminApiKeyConfigured,
+    boolean runtimeTrustedBackendApiKeyConfigured,
+    boolean runtimePrivateAssertionSigningKeyConfigured,
     String status,
     Instant serverStartedAt,
     ShopifyBridgeInstallOverview installs,

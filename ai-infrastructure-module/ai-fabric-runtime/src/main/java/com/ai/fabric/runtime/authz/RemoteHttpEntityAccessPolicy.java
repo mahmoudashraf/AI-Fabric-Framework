@@ -1,9 +1,9 @@
 package com.ai.fabric.runtime.authz;
 
 import com.ai.fabric.runtime.config.RuntimeAuthzProperties;
-import com.ai.infrastructure.access.policy.EntityAccessPolicy;
-import com.ai.infrastructure.dto.AIAccessSubjectContext;
-import com.ai.infrastructure.intent.orchestration.OrchestrationContextMetadataKeys;
+import ai.fabric.access.policy.EntityAccessPolicy;
+import ai.fabric.dto.AIAccessSubjectContext;
+import ai.fabric.intent.orchestration.OrchestrationContextMetadataKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;

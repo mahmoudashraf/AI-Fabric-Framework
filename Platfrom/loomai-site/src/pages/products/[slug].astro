@@ -1,0 +1,711 @@
+---
+import {
+  ArrowRight,
+  BookOpen,
+  Braces,
+  CodeXml,
+  Cog,
+  GitFork,
+  PanelsTopLeft,
+  Puzzle,
+  ShieldCheck,
+  Workflow,
+} from '@lucide/astro'
+import ArchitectureFlow from '../../components/ArchitectureFlow.astro'
+import CallToAction from '../../components/CallToAction.astro'
+import ExperimentCard from '../../components/ExperimentCard.astro'
+import FrameworkProductShowcase from '../../components/FrameworkProductShowcase.astro'
+import ResearchCard from '../../components/ResearchCard.astro'
+import SectionHeading from '../../components/SectionHeading.astro'
+import {
+  getRelatedExperiments,
+  getRelatedResearch,
+  products,
+} from '../../data/content'
+import type { Product } from '../../data/types'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+export function getStaticPaths() {
+  return products.map((product) => ({
+    params: { slug: product.slug },
+    props: { product },
+  }))
+}
+
+type Props = {
+  product: Product
+}
+
+const { product } = Astro.props
+const relatedExperiments = getRelatedExperiments(product.slug).slice(0, 3)
+const relatedResearch = getRelatedResearch(product.slug).slice(0, 3)
+const isChatUi = product.slug === 'ai-fabric-chat-ui'
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareSourceCode',
+  name: product.name,
+  description: product.description,
+  codeRepository: product.links.source.href,
+  license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  version: product.version,
+  programmingLanguage: isChatUi ? ['TypeScript', 'JavaScript'] : 'Java',
+  runtimePlatform: isChatUi ? 'Web browser' : 'Spring Boot',
+}
+---
+
+<BaseLayout
+  title={product.name}
+  description={product.description}
+  canonicalPath={`/products/${product.slug}`}
+  jsonLd={jsonLd}
+>
+  {isChatUi && (
+    <>
+      <section class="chat-product-hero">
+        <div class="loom-container chat-product-hero__grid">
+          <div class="chat-product-hero__copy">
+            <div class="chat-product-hero__meta">
+              <span>Products</span>
+              <span>/</span>
+              <span>AI Fabric Chat UI</span>
+              <strong>v0.3.0 Public Beta</strong>
+            </div>
+            <h1>Turn governed AI workflows into a real application experience.</h1>
+            <p>
+              Add retrieval evidence, clarification forms, confirmations, action
+              results and backend-owned conversations to any web application—without
+              moving identity, policy or business execution into the browser.
+            </p>
+            <div class="chat-product-hero__actions">
+              <a
+                class="loom-button loom-button--primary"
+                href={product.links.primary.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Explore live demo
+              </a>
+              <a
+                class="loom-button loom-button--secondary"
+                href={product.links.source.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <GitFork size={18} aria-hidden="true" />
+                View on GitHub
+              </a>
+            </div>
+            <ul class="chat-product-hero__facts" aria-label="Product facts">
+              <li>Web Component</li>
+              <li>React</li>
+              <li>Spring Boot</li>
+              <li>Arabic & RTL</li>
+              <li>Apache 2.0</li>
+            </ul>
+            <div class="chat-product-hero__install">
+              <CodeXml size={18} stroke-width={1.7} aria-hidden="true" />
+              <code>npm install github:Loom-AI-Labs/ai-fabric-chat-ui#v0.3.0</code>
+              <Braces size={18} stroke-width={1.7} aria-hidden="true" />
+            </div>
+          </div>
+
+          <img
+            class="chat-product-hero__visual"
+            src="/assets/reference/chat-ui-preview.png"
+            alt="AI Fabric Chat UI embedded in an account support application"
+            width="775"
+            height="530"
+            fetchpriority="high"
+          />
+        </div>
+      </section>
+
+      <section class="chat-capability-summary">
+        <div class="loom-container">
+          <h2>A presentation layer built around application control</h2>
+          <div class="chat-capability-summary__grid">
+            <article>
+              <Workflow size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Typed orchestration outcomes</h3>
+                <p>Evidence, clarification, confirmation and structured results.</p>
+              </div>
+            </article>
+            <article>
+              <ShieldCheck size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Backend-owned governance</h3>
+                <p>Identity, tenant policy and execution remain in your application.</p>
+              </div>
+            </article>
+            <article>
+              <PanelsTopLeft size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Four responsive layouts</h3>
+                <p>Docked, floating, inline and full-screen.</p>
+              </div>
+            </article>
+            <article>
+              <Puzzle size={50} stroke-width={1.45} aria-hidden="true" />
+              <div>
+                <h3>Application-native extension</h3>
+                <p>Branding, domain tools, action renderers and attachments.</p>
+              </div>
+            </article>
+          </div>
+
+          <ol class="chat-architecture" aria-label="Chat UI architecture">
+            <li>
+              <span><CodeXml size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>Host application</strong>
+              <ArrowRight size={24} aria-hidden="true" />
+            </li>
+            <li>
+              <span><Braces size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>AI Fabric Chat UI</strong>
+              <ArrowRight size={24} aria-hidden="true" />
+            </li>
+            <li>
+              <span><Cog size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>Application API</strong>
+              <ArrowRight size={24} aria-hidden="true" />
+            </li>
+            <li>
+              <span><Workflow size={28} stroke-width={1.55} aria-hidden="true" /></span>
+              <strong>AI Fabric Framework</strong>
+            </li>
+          </ol>
+        </div>
+      </section>
+    </>
+  )}
+
+  {!isChatUi && <FrameworkProductShowcase product={product} />}
+
+  <section class="section section--white">
+    <div class="loom-container split-copy">
+      <div>
+        <p class="loom-eyebrow">The problem</p>
+        <h2>Useful AI needs software boundaries, not only prompts.</h2>
+        <p>{product.problem}</p>
+      </div>
+      <div>
+        <p class="loom-eyebrow">The product value</p>
+        <h2>A reusable layer with an explicit host contract.</h2>
+        <p>{product.value}</p>
+      </div>
+    </div>
+  </section>
+
+  {isChatUi && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Capability pillars"
+          title="Five responsibilities, each visible at the integration boundary."
+        />
+        <div class="capability-grid">
+          {product.capabilities.map((capability, index) => (
+            <article class="capability-item">
+              <span class="capability-number">{String(index + 1).padStart(2, '0')}</span>
+              <h3>{capability.name}</h3>
+              <p>{capability.description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="section section--white">
+    <div class="loom-container">
+      <SectionHeading
+        eyebrow="Ownership boundary"
+        title="Product responsibility stops before application authority."
+      />
+      <div class="boundary-grid">
+        <article class="boundary-column">
+          <h3>{product.shortName} owns</h3>
+          <ul class="check-list">
+            {product.owns.map((item) => <li>{item}</li>)}
+          </ul>
+        </article>
+        <article class="boundary-column">
+          <h3>Host application owns</h3>
+          <ul class="plain-list">
+            {product.hostOwns.map((item) => <li>{item}</li>)}
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  {isChatUi && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <SectionHeading eyebrow="Architecture" title="A narrow path through explicit contracts." />
+        <ArchitectureFlow steps={product.flow} />
+      </div>
+    </section>
+  )}
+
+  <section class="section section--white">
+    <div class="loom-container quick-start">
+      <div>
+        <p class="loom-eyebrow">Quick start</p>
+        <h2>Begin with one application-owned path.</h2>
+        <p>
+          Start from the public documentation, wire one bounded scenario and keep
+          authorization and source data in the host.
+        </p>
+        <a
+          class="text-link"
+          href={product.links.documentation.href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <BookOpen size={17} aria-hidden="true" />
+          {product.links.documentation.label}
+        </a>
+      </div>
+      <pre class="code-block" tabindex="0" aria-label={`${product.name} quick start code`}><code>{product.quickStart.code}</code></pre>
+    </div>
+  </section>
+
+  {relatedExperiments.length > 0 && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Live proof"
+          title={`See ${product.shortName} in bounded applications.`}
+        />
+        <div class="experiment-grid">
+          {relatedExperiments.map((item) => <ExperimentCard experiment={item} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="section section--white">
+    <div class="loom-container release-layout">
+      <div>
+        <p class="loom-eyebrow">Compatibility and release status</p>
+        <h2>Current public integration surface</h2>
+        <ul class="compatibility-list">
+          {product.compatibility.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+      <div class="release-panel">
+        <span>Current release</span>
+        <strong>v{product.version}</strong>
+        <p>{product.statusLabel} · {product.licence}</p>
+        {product.links.releaseNotes && (
+          <a
+            class="text-link"
+            href={product.links.releaseNotes.href}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View release history
+            <ArrowRight size={17} aria-hidden="true" />
+          </a>
+        )}
+      </div>
+    </div>
+  </section>
+
+  {relatedResearch.length > 0 && (
+    <section class="section research-related">
+      <div class="loom-container">
+        <SectionHeading
+          eyebrow="Related research"
+          title="The engineering questions behind the product surface."
+        />
+        <div class="research-grid">
+          {relatedResearch.map((item) => <ResearchCard item={item} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <CallToAction
+    eyebrow="Contribute"
+    title={`Help shape ${product.name}.`}
+    body="Inspect the implementation, open a focused issue or bring a reproducible application boundary that the current contracts do not handle well."
+    primaryLabel="Open the source repository"
+    primaryHref={product.links.source.href}
+    secondaryLabel="Explore live experiments"
+    secondaryHref="/experiments"
+  />
+</BaseLayout>
+
+<style>
+  .chat-product-hero {
+    min-height: 35.7rem;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .chat-product-hero::after,
+  .chat-capability-summary::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 44%, #000);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .chat-product-hero__grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: minmax(0, 38.75rem) minmax(0, 1fr);
+    min-height: 35.7rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .chat-product-hero__copy {
+    align-self: start;
+    padding-top: 1.7rem;
+  }
+
+  .chat-product-hero__meta {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: flex;
+    font-size: 0.72rem;
+    font-weight: 700;
+    gap: 0.8rem;
+    letter-spacing: 0.12em;
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+  }
+
+  .chat-product-hero__meta strong {
+    border: 1px solid #bcbfff;
+    border-radius: 999px;
+    font-size: 0.64rem;
+    margin-left: 0.55rem;
+    padding: 0.22rem 0.9rem;
+  }
+
+  .chat-product-hero h1 {
+    font-size: clamp(2.8rem, 3.15vw, 3.05rem);
+    line-height: 1.06;
+    margin-bottom: 1.5rem;
+    max-width: 12.8em;
+  }
+
+  .chat-product-hero__copy > p {
+    font-size: 1.08rem;
+    line-height: 1.55;
+    margin-bottom: 1.75rem;
+    max-width: 35rem;
+  }
+
+  .chat-product-hero__actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .chat-product-hero__actions .loom-button {
+    min-width: 12rem;
+  }
+
+  .chat-product-hero__facts {
+    color: var(--loom-blue-vivid);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.73rem;
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: 0;
+  }
+
+  .chat-product-hero__facts li + li::before {
+    color: var(--loom-navy-500);
+    content: "·";
+    margin-inline: 0.65rem;
+  }
+
+  .chat-product-hero__install {
+    align-items: center;
+    border: 1px solid var(--loom-border-strong);
+    border-radius: 0.55rem;
+    color: var(--loom-text-secondary);
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 3.4rem;
+    padding-inline: 0.75rem;
+    width: min(31.5rem, 100%);
+  }
+
+  .chat-product-hero__install code {
+    font-family: var(--loom-font-mono);
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-product-hero__visual {
+    align-self: start;
+    border-radius: 0.8rem;
+    box-shadow: 0 12px 30px rgb(10 29 74 / 12%);
+    height: auto;
+    justify-self: end;
+    margin-top: 1.55rem;
+    max-width: none;
+    position: relative;
+    right: -0.35rem;
+    width: min(52vw, 48.1rem);
+  }
+
+  .chat-capability-summary {
+    padding: 0.85rem 0 1.6rem;
+    position: relative;
+  }
+
+  .chat-capability-summary > .loom-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  .chat-capability-summary h2 {
+    font-size: 1.65rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .chat-capability-summary__grid {
+    display: grid;
+    gap: 1.45rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .chat-capability-summary__grid article {
+    align-items: center;
+    background: rgb(255 255 255 / 78%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 9.75rem;
+    padding: 1.25rem;
+  }
+
+  .chat-capability-summary__grid article > svg {
+    color: var(--loom-indigo-500);
+  }
+
+  .chat-capability-summary__grid h3 {
+    font-size: 1.15rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .chat-capability-summary__grid p {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .chat-architecture {
+    background: rgb(255 255 255 / 76%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0.85rem 1.7rem;
+  }
+
+  .chat-architecture li {
+    align-items: center;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .chat-architecture li:last-child {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .chat-architecture li > span {
+    align-items: center;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.55rem;
+    color: var(--loom-blue-600);
+    display: inline-flex;
+    height: 3.8rem;
+    justify-content: center;
+    width: 3.8rem;
+  }
+
+  .chat-architecture strong {
+    font-size: 0.92rem;
+  }
+
+  .chat-architecture li > svg {
+    color: var(--loom-blue-600);
+  }
+
+  .framework-pipeline {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .framework-pipeline div {
+    align-items: center;
+    background: var(--loom-surface-soft);
+    border-left: 2px solid var(--loom-blue-600);
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: 2rem 1fr;
+    padding: 0.8rem;
+  }
+
+  .framework-pipeline span,
+  .capability-number {
+    color: var(--loom-blue-600);
+    font-family: var(--loom-font-mono);
+    font-size: 0.7rem;
+  }
+
+  .framework-pipeline strong {
+    font-size: 0.85rem;
+  }
+
+  .capability-number {
+    display: block;
+    margin-bottom: 1.1rem;
+  }
+
+  .quick-start,
+  .release-layout {
+    align-items: start;
+    display: grid;
+    gap: clamp(2rem, 6vw, 6rem);
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .quick-start h2,
+  .release-layout h2 {
+    font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+  }
+
+  .release-panel {
+    background: var(--loom-surface-soft);
+    border: 1px solid var(--loom-border-default);
+    border-radius: var(--loom-radius-md);
+    display: grid;
+    gap: 0.3rem;
+    justify-items: start;
+    padding: 2rem;
+  }
+
+  .release-panel > span {
+    color: var(--loom-text-muted);
+    font-family: var(--loom-font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
+
+  .release-panel > strong {
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    line-height: 1;
+  }
+
+  .release-panel .text-link {
+    margin-top: 1.25rem;
+  }
+
+  .research-related {
+    background:
+      linear-gradient(180deg, rgb(248 250 255 / 95%), rgb(244 247 255 / 98%)),
+      repeating-linear-gradient(90deg, transparent 0 79px, rgb(20 108 255 / 4%) 80px);
+    border-top: 1px solid var(--loom-border-subtle);
+  }
+
+  @media (max-width: 47.99rem) {
+    .chat-product-hero,
+    .chat-product-hero__grid {
+      min-height: 0;
+    }
+
+    .chat-product-hero__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .chat-product-hero__copy {
+      padding-top: 2.5rem;
+    }
+
+    .chat-product-hero h1 {
+      font-size: clamp(2.65rem, 12vw, 3.35rem);
+    }
+
+    .chat-product-hero__meta,
+    .chat-product-hero__actions {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .chat-product-hero__visual {
+      justify-self: center;
+      margin-bottom: 2rem;
+      right: auto;
+      width: 100%;
+    }
+
+    .chat-capability-summary__grid,
+    .chat-architecture {
+      grid-template-columns: 1fr;
+    }
+
+    .chat-architecture {
+      gap: 1.25rem;
+    }
+
+    .chat-architecture li {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .chat-architecture li > svg {
+      display: none;
+    }
+
+    .quick-start,
+    .release-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (min-width: 48rem) and (max-width: 74rem) {
+    .chat-product-hero__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .chat-product-hero__visual {
+      justify-self: center;
+      margin-bottom: 2rem;
+      right: auto;
+      width: min(48rem, 100%);
+    }
+
+    .chat-capability-summary__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .chat-architecture {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      row-gap: 1.25rem;
+    }
+  }
+</style>

@@ -104,6 +104,40 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryMapsStorefrontMessageAndConversationModeIntoRuntimeContract() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Here are some snowboards."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "message":"Show me snowboards",
+                  "content":"Should not be sent",
+                  "conversationMode":"thinker",
+                  "debugOnly":"storefront-ui"
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        ArgumentCaptor<JsonNode> requestCaptor = ArgumentCaptor.forClass(JsonNode.class);
+        verify(platformClient).queryConsumerBridgeChat(anyString(), requestCaptor.capture(), anyString());
+        JsonNode runtimeRequest = requestCaptor.getValue();
+        assertThat(runtimeRequest.path("query").asText()).isEqualTo("Show me snowboards");
+        assertThat(runtimeRequest.path("mode").asText()).isEqualTo("THINKER_DEEP");
+        assertThat(runtimeRequest.has("message")).isFalse();
+        assertThat(runtimeRequest.has("content")).isFalse();
+        assertThat(runtimeRequest.has("conversationMode")).isFalse();
+        assertThat(runtimeRequest.has("debugOnly")).isFalse();
+    }
+
+    @Test
     void queryNormalizesFlatProductContextForAssistantGrounding() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);
@@ -249,6 +283,41 @@ class ShopifyStorefrontChatServiceTest {
         assertThat(attachment.path("metadata").path("cartTotalPriceCents").asText()).isEqualTo("94900");
         assertThat(attachment.path("metadata").path("cartCurrency").asText()).isEqualTo("USD");
         assertThat(attachment.path("metadata").has("cart_id")).isFalse();
+    }
+
+    @Test
+    void queryContinuesWhenPersistedCredentialRefreshFails() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com"))
+            .thenThrow(new RuntimeException("stale persisted credential"));
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {"success":true,"conversationId":"conv-1","result":{"message":"Here is the policy."}}
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What is your shipping policy?",
+                  "mode":"thinker_deep",
+                  "context":{
+                    "pageType":"index",
+                    "shopifySurfaceEntry":"launcher",
+                    "shopifyPageModeGroup":"landing"
+                  }
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("conversationId").asText()).isEqualTo("conv-1");
+        verify(billingService).summarizeForShop("alpha.myshopify.com", null);
+        verify(platformClient).queryConsumerBridgeChat(anyString(), any(JsonNode.class), anyString());
     }
 
     @Test
@@ -581,11 +650,6 @@ class ShopifyStorefrontChatServiceTest {
             {
               "content":"Current page: Travel Pack",
               "maxSuggestions":4,
-              "context":{
-                "pageType":"product",
-                "pageTitle":"Travel Pack",
-                "product":{"handle":"travel-pack","title":"Travel Pack"}
-              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -610,6 +674,8 @@ class ShopifyStorefrontChatServiceTest {
                 {
                   "content":"Current page: Travel Pack",
                   "maxSuggestions":4,
+                  "conversationMode":"navigator",
+                  "debugOnly":"storefront-ui",
                   "context":{
                     "pageType":"product",
                     "pageTitle":"Travel Pack",
@@ -625,11 +691,6 @@ class ShopifyStorefrontChatServiceTest {
             {
               "content":"Current page: Travel Pack",
               "maxSuggestions":4,
-              "context":{
-                "pageType":"product",
-                "pageTitle":"Travel Pack",
-                "product":{"handle":"travel-pack","title":"Travel Pack"}
-              },
               "attachments":[
                 {
                   "source":"shopify-storefront-context",
@@ -645,6 +706,43 @@ class ShopifyStorefrontChatServiceTest {
               ]
             }
             """), "shopper-session-1");
+    }
+
+    @Test
+    void suggestionsMapsQueryFallbackAndDropsRuntimeUnexpectedFields() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(platformClient.suggestConsumerBridgeChat(anyString(), any(JsonNode.class), anyString())).thenReturn(objectMapper.readTree("""
+            {"success":true,"suggestions":["Show me snowboards"]}
+            """));
+
+        JsonNode response = service.suggestions(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Show me snowboards",
+                  "message":"Legacy message",
+                  "conversationMode":"thinker_deep",
+                  "context":{"pageType":"collection"},
+                  "debugOnly":"storefront-ui"
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("suggestions")).hasSize(1);
+        ArgumentCaptor<JsonNode> requestCaptor = ArgumentCaptor.forClass(JsonNode.class);
+        verify(platformClient).suggestConsumerBridgeChat(anyString(), requestCaptor.capture(), anyString());
+        JsonNode runtimeRequest = requestCaptor.getValue();
+        assertThat(runtimeRequest.path("content").asText()).isEqualTo("Show me snowboards");
+        assertThat(runtimeRequest.has("query")).isFalse();
+        assertThat(runtimeRequest.has("message")).isFalse();
+        assertThat(runtimeRequest.has("conversationMode")).isFalse();
+        assertThat(runtimeRequest.has("mode")).isFalse();
+        assertThat(runtimeRequest.has("context")).isFalse();
+        assertThat(runtimeRequest.has("debugOnly")).isFalse();
+        assertThat(runtimeRequest.path("attachments")).hasSize(1);
     }
 
     @Test

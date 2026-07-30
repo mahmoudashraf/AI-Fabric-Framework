@@ -1,6 +1,6 @@
 package com.ai.fabric.runtime.config;
 
-import com.ai.infrastructure.chat.spi.ChatSessionAccessControlPolicy;
+import ai.fabric.chat.spi.ChatSessionAccessControlPolicy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

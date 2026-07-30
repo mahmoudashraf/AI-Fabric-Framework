@@ -1,0 +1,646 @@
+---
+import {
+  Activity,
+  ArrowRight,
+  CircleCheckBig,
+  FileText,
+  LockKeyhole,
+  MessageSquare,
+  Shield,
+  ShoppingBag,
+  SlidersHorizontal,
+  UserRound,
+} from '@lucide/astro'
+import CallToAction from '../../components/CallToAction.astro'
+import FilterBar from '../../components/FilterBar.astro'
+import { experiments } from '../../data/content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+const defaultFeatureSlug = 'live-data-sync'
+const primaryExperimentSlugs = [
+  defaultFeatureSlug,
+  'account-resolver',
+  'privacy-shield',
+  'tenant-guard',
+  'ai-shopping-experience',
+] as const
+const primaryExperiments = primaryExperimentSlugs
+  .map((slug) => experiments.find((item) => item.slug === slug))
+  .filter((item) => item !== undefined)
+const compactExperimentSlugs = [
+  'ai-shopping-experience',
+  'account-resolver',
+  'tenant-guard',
+  'privacy-shield',
+  'behavior-signals',
+] as const
+const compactExperiments = compactExperimentSlugs
+  .map((slug) => experiments.find((item) => item.slug === slug))
+  .filter((item) => item !== undefined)
+const filters = [
+  { value: 'all', label: 'All' },
+  { value: 'data-retrieval', label: 'Data & Retrieval' },
+  { value: 'governed-actions', label: 'Governed Actions' },
+  { value: 'privacy-security', label: 'Privacy & Security' },
+  { value: 'tenant-access', label: 'Tenant & Access' },
+  { value: 'adaptive-experience', label: 'Adaptive Experience' },
+] as const
+---
+
+<BaseLayout
+  title="Live Experiments"
+  description="Runnable AI Fabric applications that test live data, grounded retrieval and governed actions in bounded scenarios."
+  canonicalPath="/experiments"
+>
+  <section class="experiments-hero">
+    <div class="loom-container experiments-hero__inner">
+      <div class="experiments-hero__copy">
+        <p class="loom-eyebrow">Deployed engineering prototypes</p>
+        <h1>Live Experiments</h1>
+        <p>
+          Explore runnable AI Fabric applications that test live data, grounded
+          retrieval and governed actions while keeping business logic inside the
+          application.
+        </p>
+        <div class="experiments-hero__actions">
+          <a class="loom-button loom-button--primary" href="#experiment-list">
+            Explore experiments
+          </a>
+          <a
+            class="experiments-text-link"
+            href="https://github.com/Loom-AI-Labs/ai-fabric-framework"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View framework source
+          </a>
+        </div>
+        <p class="experiments-hero__note">
+          Synthetic data <span>·</span> Bounded scenarios <span>·</span> Source-linked
+        </p>
+      </div>
+      <img
+        class="experiments-hero__visual"
+        src="/assets/reference/experiments-weave.png"
+        alt=""
+        width="650"
+        height="335"
+        fetchpriority="high"
+      />
+    </div>
+  </section>
+
+  <section class="experiment-showcase" id="experiment-list">
+    <div class="loom-container experiment-showcase__inner">
+      <FilterBar options={filters} itemLabel="experiments" />
+
+      {primaryExperiments.map((experiment) => {
+        const isDefault = experiment.slug === defaultFeatureSlug
+        const image = isDefault
+          ? {
+              src: '/assets/reference/live-data-proof.png',
+              alt: 'Live Data Sync proof showing aligned source and vector revisions',
+              width: 835,
+              height: 245,
+            }
+          : {
+              ...experiment.screenshot,
+              width: 1280,
+              height: 800,
+            }
+
+        return (
+          <article
+            class="featured-experiment"
+            data-filter-item
+            data-filter-display="feature"
+            data-filter-default={isDefault ? 'true' : 'false'}
+            data-category={experiment.primaryCategory}
+            hidden={!isDefault}
+          >
+            <div class="featured-experiment__copy">
+              <div class="featured-experiment__badges">
+                <span class="live-badge"><i></i>Live</span>
+                <span>{experiment.categoryLabel}</span>
+              </div>
+              <h2>{isDefault ? 'AI Fabric Live Data Sync' : experiment.title}</h2>
+              <p>{experiment.scenario}</p>
+              <ul class="featured-experiment__tags" aria-label="Capabilities">
+                {experiment.capabilityTags.slice(0, 3).map((tag) => <li>{tag}</li>)}
+              </ul>
+              <p class="featured-experiment__proof">
+                <Shield size={18} stroke-width={1.6} aria-hidden="true" />
+                Observable proof: {experiment.observableProof[0]}
+              </p>
+              <div class="featured-experiment__actions">
+                <a
+                  class="loom-button loom-button--primary"
+                  href={experiment.links.launch.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Launch experiment
+                </a>
+                <a
+                  class="loom-button loom-button--secondary"
+                  href={`/experiments/${experiment.slug}`}
+                >
+                  About the architecture
+                </a>
+              </div>
+            </div>
+            <div class="featured-experiment__visual">
+              <img
+                class:list={{ 'featured-experiment__screenshot': !isDefault }}
+                src={image.src}
+                alt={image.alt}
+                width={image.width}
+                height={image.height}
+                loading={isDefault ? 'eager' : 'lazy'}
+              />
+            </div>
+          </article>
+        )
+      })}
+
+      <div class="experiment-card-grid">
+        {compactExperiments.map((experiment) => (
+          <article
+            class="compact-experiment"
+            data-filter-item
+            data-filter-display="compact"
+            data-filter-promoted={primaryExperimentSlugs.includes(experiment.slug as typeof primaryExperimentSlugs[number]) ? 'true' : 'false'}
+            data-category={experiment.primaryCategory}
+          >
+            <div class="compact-experiment__badges">
+              <span class="live-badge"><i></i>Live</span>
+              <span>{experiment.categoryLabel}</span>
+            </div>
+            <div class="compact-experiment__layout">
+              <div>
+                <h2>{experiment.title}</h2>
+                <p>{experiment.summary}</p>
+              </div>
+              <span class="compact-experiment__icon" aria-hidden="true">
+                {experiment.slug === 'ai-shopping-experience' ? (
+                  <ShoppingBag size={39} stroke-width={1.55} />
+                ) : experiment.slug === 'account-resolver' ? (
+                  <UserRound size={39} stroke-width={1.55} />
+                ) : experiment.slug === 'tenant-guard' ? (
+                  <Shield size={39} stroke-width={1.55} />
+                ) : experiment.slug === 'privacy-shield' ? (
+                  <LockKeyhole size={39} stroke-width={1.55} />
+                ) : (
+                  <Activity size={39} stroke-width={1.55} />
+                )}
+              </span>
+            </div>
+            <div class="compact-experiment__actions">
+              <a href={experiment.links.launch.href} target="_blank" rel="noreferrer">
+                Launch <ArrowRight size={15} aria-hidden="true" />
+              </a>
+              <a href={`/experiments/${experiment.slug}`}>About</a>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <ol class="experiment-method" aria-label="Experiment evaluation method">
+        <li>
+          <FileText size={31} stroke-width={1.55} aria-hidden="true" />
+          <span><strong>Scenario</strong><small>Define a bounded scenario.</small></span>
+          <ArrowRight size={20} aria-hidden="true" />
+        </li>
+        <li>
+          <MessageSquare size={31} stroke-width={1.55} aria-hidden="true" />
+          <span><strong>AI interaction</strong><small>Invoke AI through the application.</small></span>
+          <ArrowRight size={20} aria-hidden="true" />
+        </li>
+        <li>
+          <SlidersHorizontal size={31} stroke-width={1.55} aria-hidden="true" />
+          <span><strong>Application control</strong><small>Apply policies and orchestrate actions.</small></span>
+          <ArrowRight size={20} aria-hidden="true" />
+        </li>
+        <li>
+          <CircleCheckBig size={31} stroke-width={1.55} aria-hidden="true" />
+          <span><strong>Observable evidence</strong><small>Verify outcomes with source-linked proof.</small></span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <CallToAction
+    eyebrow="Contribute"
+    title="Turn a technical question into inspectable proof."
+    body="Open an issue with a bounded scenario, source data posture, observable result and known limitation."
+    primaryLabel="View example source"
+    primaryHref="https://github.com/Loom-AI-Labs/ai-fabric-framework/tree/main/examples/real-apps"
+    secondaryLabel="Read applied research"
+    secondaryHref="/research"
+  />
+</BaseLayout>
+
+<style>
+  .experiments-hero {
+    min-height: 20.5rem;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .experiments-hero::after {
+    background-image:
+      linear-gradient(rgb(20 108 255 / 3.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(20 108 255 / 3.5%) 1px, transparent 1px);
+    background-size: 48px 48px;
+    content: "";
+    inset: 0;
+    mask-image: linear-gradient(90deg, transparent 48%, #000);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .experiments-hero__inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 20.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .experiments-hero__copy {
+    align-self: center;
+    padding-bottom: 0.3rem;
+    transform: translateY(-0.5rem);
+  }
+
+  .experiments-hero h1 {
+    font-size: clamp(3.4rem, 4.45vw, 4.25rem);
+    margin-bottom: 0.7rem;
+  }
+
+  .experiments-hero__copy > p:not(.loom-eyebrow, .experiments-hero__note) {
+    font-size: 1.1rem;
+    line-height: 1.5;
+    margin-bottom: 0.7rem;
+    max-width: 41rem;
+  }
+
+  .experiments-hero__actions {
+    align-items: center;
+    display: flex;
+    gap: 2.4rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .experiments-hero__actions .loom-button {
+    min-height: 2.75rem;
+    min-width: 11.5rem;
+  }
+
+  .experiments-text-link {
+    border-bottom: 1px solid var(--loom-blue-vivid);
+    color: var(--loom-blue-vivid);
+    padding-block: 0.45rem;
+    text-decoration: none;
+  }
+
+  .experiments-hero__note {
+    color: var(--loom-text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+  }
+
+  .experiments-hero__note span {
+    margin-inline: 0.25rem;
+  }
+
+  .experiments-hero__visual {
+    align-self: center;
+    height: auto;
+    justify-self: end;
+    max-width: none;
+    position: relative;
+    right: -0.4rem;
+    width: min(44vw, 39.8rem);
+  }
+
+  .experiment-showcase {
+    padding-bottom: 1.4rem;
+  }
+
+  .experiment-showcase__inner :global(.filter-bar) {
+    border: 0;
+    margin-bottom: 0.75rem;
+    padding-block: 0;
+  }
+
+  .experiment-showcase__inner :global(.filter-button) {
+    border-radius: 0.55rem;
+    min-height: 2.25rem;
+    padding-inline: 1.35rem;
+  }
+
+  .experiment-showcase__inner :global(.filter-button[aria-pressed="true"]) {
+    background: #fff;
+    border-color: var(--loom-blue-vivid);
+    color: var(--loom-blue-vivid);
+  }
+
+  .featured-experiment {
+    background: rgb(255 255 255 / 82%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    grid-template-columns: 39% 61%;
+    min-height: 16.8rem;
+    overflow: hidden;
+    padding: 0.55rem 1.25rem 0.55rem 1.75rem;
+  }
+
+  .featured-experiment__copy {
+    align-self: center;
+    min-width: 0;
+    padding-right: 1.25rem;
+  }
+
+  .featured-experiment__badges,
+  .compact-experiment__badges {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: flex;
+    font-size: 0.67rem;
+    font-weight: 700;
+    gap: 0.9rem;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.65rem;
+    text-transform: uppercase;
+  }
+
+  .live-badge {
+    align-items: center;
+    background: #f1fbf5;
+    border: 1px solid #aadac0;
+    border-radius: 0.35rem;
+    color: #0c7a42;
+    display: inline-flex;
+    gap: 0.4rem;
+    padding: 0.2rem 0.55rem;
+  }
+
+  .live-badge i {
+    background: currentcolor;
+    border-radius: 50%;
+    height: 0.4rem;
+    width: 0.4rem;
+  }
+
+  .featured-experiment h2 {
+    font-size: 1.8rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .featured-experiment__copy > p:not(.featured-experiment__proof) {
+    font-size: 0.94rem;
+    line-height: 1.45;
+    margin-bottom: 0.55rem;
+    max-width: 39rem;
+  }
+
+  .featured-experiment__tags {
+    display: flex;
+    gap: 0.65rem;
+    list-style: none;
+    margin: 0 0 0.55rem;
+    padding: 0;
+  }
+
+  .featured-experiment__tags li {
+    background: #f4f6ff;
+    border: 1px solid #becbff;
+    border-radius: 0.35rem;
+    color: var(--loom-blue-600);
+    font-size: 0.74rem;
+    padding: 0.16rem 0.55rem;
+  }
+
+  .featured-experiment__proof {
+    align-items: center;
+    color: var(--loom-text-muted);
+    display: flex;
+    font-size: 0.8rem;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .featured-experiment__actions {
+    display: flex;
+    gap: 1.25rem;
+  }
+
+  .featured-experiment__actions .loom-button {
+    min-height: 2.35rem;
+    min-width: 10rem;
+    padding-inline: 1rem;
+  }
+
+  .featured-experiment__visual {
+    align-self: center;
+  }
+
+  .featured-experiment__visual img {
+    height: auto;
+    width: 100%;
+  }
+
+  .featured-experiment__visual .featured-experiment__screenshot {
+    aspect-ratio: 835 / 245;
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.55rem;
+    object-fit: cover;
+    object-position: top;
+  }
+
+  .experiment-card-grid {
+    display: grid;
+    gap: 1.4rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 1rem;
+  }
+
+  .compact-experiment {
+    background: rgb(255 255 255 / 82%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 10rem;
+    padding: 0.75rem;
+  }
+
+  .compact-experiment__badges {
+    font-size: 0.56rem;
+    gap: 0.7rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .compact-experiment__badges .live-badge {
+    padding: 0.1rem 0.38rem;
+  }
+
+  .compact-experiment__layout {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .compact-experiment h2 {
+    font-size: 1.12rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .compact-experiment p {
+    display: -webkit-box;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    margin: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .compact-experiment__icon {
+    align-items: center;
+    border: 1px dashed var(--loom-border-accent);
+    border-radius: 0.65rem;
+    color: var(--loom-indigo-500);
+    display: inline-flex;
+    height: 4.5rem;
+    justify-content: center;
+    width: 4.5rem;
+  }
+
+  .compact-experiment__actions {
+    display: flex;
+    gap: 2rem;
+    margin-top: auto;
+    padding-top: 0.45rem;
+  }
+
+  .compact-experiment__actions a {
+    align-items: center;
+    color: var(--loom-blue-vivid);
+    display: inline-flex;
+    font-size: 0.72rem;
+    gap: 0.35rem;
+    text-decoration: none;
+  }
+
+  .experiment-method {
+    background: rgb(255 255 255 / 78%);
+    border: 1px solid var(--loom-border-default);
+    border-radius: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0.8rem 1.6rem;
+  }
+
+  .experiment-method li {
+    align-items: center;
+    display: grid;
+    gap: 0.85rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-width: 0;
+  }
+
+  .experiment-method li > svg {
+    color: var(--loom-indigo-500);
+  }
+
+  .experiment-method li:last-child {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .experiment-method strong,
+  .experiment-method small {
+    display: block;
+  }
+
+  .experiment-method strong {
+    font-size: 0.92rem;
+  }
+
+  .experiment-method small {
+    color: var(--loom-text-secondary);
+    font-size: 0.7rem;
+  }
+
+  @media (max-width: 74rem) {
+    .experiment-card-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .experiment-method {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      row-gap: 1.5rem;
+    }
+
+    .experiment-method li:nth-child(2) > svg:last-child {
+      display: none;
+    }
+
+  }
+
+  @media (max-width: 63.99rem) {
+    .experiments-hero__inner {
+      grid-template-columns: 1fr;
+      padding-top: 3rem;
+    }
+
+    .experiments-hero__visual {
+      justify-self: center;
+      right: auto;
+      width: min(40rem, 100%);
+    }
+
+    .featured-experiment {
+      grid-template-columns: 1fr;
+    }
+
+    .featured-experiment__copy {
+      padding: 1rem 0 1.5rem;
+    }
+  }
+
+  @media (max-width: 47.99rem) {
+    .experiments-hero h1 {
+      font-size: clamp(2.9rem, 13vw, 3.7rem);
+    }
+
+    .experiments-hero__actions {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .experiment-card-grid,
+    .experiment-method {
+      grid-template-columns: 1fr;
+    }
+
+    .experiment-method li {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .experiment-method li > svg:last-child {
+      display: none;
+    }
+
+    .featured-experiment__actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+  }
+</style>

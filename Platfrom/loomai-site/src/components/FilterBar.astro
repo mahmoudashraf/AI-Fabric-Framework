@@ -1,0 +1,99 @@
+---
+type Option = {
+  value: string
+  label: string
+}
+
+type Props = {
+  options: readonly Option[]
+  parameter?: string
+  itemLabel: string
+}
+
+const { options, parameter = 'category', itemLabel } = Astro.props
+---
+
+<div class="filter-bar" role="group" aria-label={`Filter ${itemLabel}`} data-filter-bar data-parameter={parameter}>
+  {options.map((option, index) => (
+    <button
+      class="filter-button"
+      type="button"
+      data-filter={option.value}
+      aria-pressed={index === 0 ? 'true' : 'false'}
+    >
+      {option.label}
+    </button>
+  ))}
+</div>
+<p class="empty-filter" data-filter-empty hidden>No {itemLabel} match this filter.</p>
+<p class="visually-hidden" aria-live="polite" data-filter-status></p>
+
+<script>
+  const bars = document.querySelectorAll<HTMLElement>('[data-filter-bar]')
+
+  for (const bar of bars) {
+    const parameter = bar.dataset.parameter || 'category'
+    const scope = bar.parentElement
+    const buttons = Array.from(bar.querySelectorAll<HTMLButtonElement>('[data-filter]'))
+    const items = Array.from(scope?.querySelectorAll<HTMLElement>('[data-filter-item]') || [])
+    const empty = scope?.querySelector<HTMLElement>('[data-filter-empty]')
+    const status = scope?.querySelector<HTMLElement>('[data-filter-status]')
+
+    const applyFilter = (value: string, updateUrl = true) => {
+      let visible = 0
+      for (const item of items) {
+        const categoryMatches = item.dataset.category === value
+        const display = item.dataset.filterDisplay
+        let matches = value === 'all' || categoryMatches
+
+        if (display === 'feature') {
+          matches = value === 'all'
+            ? item.dataset.filterDefault === 'true'
+            : categoryMatches
+        } else if (display === 'compact') {
+          matches = value === 'all'
+            ? item.dataset.filterAllVisible !== 'false'
+            : categoryMatches && item.dataset.filterPromoted !== 'true'
+        }
+
+        item.hidden = !matches
+        if (matches) visible += 1
+      }
+
+      const activeButton = buttons.find((button) => button.dataset.filter === value)
+      for (const button of buttons) {
+        button.setAttribute('aria-pressed', String(button === activeButton))
+      }
+
+      if (activeButton) {
+        const centeredLeft =
+          activeButton.offsetLeft - (bar.clientWidth - activeButton.offsetWidth) / 2
+        bar.scrollTo({
+          left: Math.max(0, centeredLeft),
+          behavior: updateUrl ? 'smooth' : 'auto',
+        })
+      }
+
+      if (empty) empty.hidden = visible > 0
+      if (status) status.textContent = `${visible} item${visible === 1 ? '' : 's'} shown.`
+
+      if (updateUrl) {
+        const url = new URL(window.location.href)
+        if (value === 'all') {
+          url.searchParams.delete(parameter)
+        } else {
+          url.searchParams.set(parameter, value)
+        }
+        window.history.replaceState({}, '', url)
+      }
+    }
+
+    for (const button of buttons) {
+      button.addEventListener('click', () => applyFilter(button.dataset.filter || 'all'))
+    }
+
+    const initial = new URL(window.location.href).searchParams.get(parameter) || 'all'
+    const validInitial = buttons.some((button) => button.dataset.filter === initial) ? initial : 'all'
+    applyFilter(validInitial, false)
+  }
+</script>

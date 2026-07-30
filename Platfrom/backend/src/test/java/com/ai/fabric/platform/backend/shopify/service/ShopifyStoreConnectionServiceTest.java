@@ -994,7 +994,109 @@ class ShopifyStoreConnectionServiceTest {
     }
 
     @Test
-    void getConnectionMarksReadinessBlockedWhenGovernedSupportIsNotReady() {
+    void getConnectionKeepsStorefrontReadyWhenNewerPromotionFailedAfterVerifiedRelease() {
+        ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
+        PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
+        PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentReleaseRepository deploymentReleaseRepository = mock(DeploymentReleaseRepository.class);
+        PlatformConsumerRepository consumerRepository = mock(PlatformConsumerRepository.class);
+        PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
+
+        PlatformManagedProductServiceEntity service = new PlatformManagedProductServiceEntity();
+        service.setId("psv-123");
+        service.setServiceRef("shopify-bridge-prod");
+        service.setDisplayName("Shopify Bridge Service");
+        service.setProductFamily("SHOPIFY");
+        service.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+        service.setStatus("ACTIVE");
+
+        ShopifyStoreConnectionEntity entity = new ShopifyStoreConnectionEntity();
+        entity.setId("shp-123");
+        entity.setShopDomain("demo.myshopify.com");
+        entity.setDisplayName("Demo Shop");
+        entity.setProductServiceId("psv-123");
+        entity.setCustomerId("cus-123");
+        entity.setDeploymentId("dep-123");
+        entity.setConsumerId("consumer-demo");
+        entity.setInstallStatus("INSTALLED");
+        entity.setSyncStatus("SYNCED");
+        entity.setSourceReadinessStatus("READY");
+        entity.setWidgetStatus("ENABLED");
+        entity.setOnboardingStatus("LIVE");
+        entity.setProductsEnabled(true);
+        entity.setCollectionsEnabled(true);
+        entity.setPagesEnabled(true);
+        entity.setPoliciesEnabled(true);
+        entity.setDetailsJson("""
+            {"credentials":{"status":"READY","accessTokenSecretRef":"secret/access","checkedAt":"2026-04-18T11:59:00Z"}}
+            """);
+        entity.setCreatedAt(Instant.parse("2026-04-18T11:00:00Z"));
+        entity.setUpdatedAt(Instant.parse("2026-04-18T11:05:00Z"));
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Shopify Companion");
+        deployment.setStatus("ACTIVE");
+        deployment.setCustomerId("cus-123");
+
+        DeploymentReleaseEntity failedPromotion = new DeploymentReleaseEntity();
+        failedPromotion.setId("rel-failed");
+        failedPromotion.setDeploymentId("dep-123");
+        failedPromotion.setDeploymentVersionId("ver-new");
+        failedPromotion.setStatus("FAILED");
+        failedPromotion.setVerificationStatus("SKIPPED");
+        failedPromotion.setErrorMessage("Provider conflict.");
+        failedPromotion.setCreatedAt(Instant.parse("2026-04-18T13:00:00Z"));
+        failedPromotion.setUpdatedAt(Instant.parse("2026-04-18T13:01:00Z"));
+
+        DeploymentReleaseEntity verifiedLive = new DeploymentReleaseEntity();
+        verifiedLive.setId("rel-live");
+        verifiedLive.setDeploymentId("dep-123");
+        verifiedLive.setDeploymentVersionId("ver-live");
+        verifiedLive.setStatus("APPLIED_VERIFIED");
+        verifiedLive.setVerificationStatus("PASSED");
+        verifiedLive.setProvisioningStatus("SUCCEEDED");
+        verifiedLive.setProvisioningTarget("COOLIFY");
+        verifiedLive.setCreatedAt(Instant.parse("2026-04-18T12:00:00Z"));
+        verifiedLive.setAppliedAt(Instant.parse("2026-04-18T12:01:00Z"));
+        verifiedLive.setUpdatedAt(Instant.parse("2026-04-18T12:02:00Z"));
+
+        when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
+        when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
+        when(customerRepository.findById("cus-123")).thenReturn(Optional.empty());
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of());
+        when(deploymentReleaseRepository.findByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of(failedPromotion, verifiedLive));
+        when(consumerRepository.findByConsumerIdIgnoreCase("consumer-demo")).thenReturn(Optional.empty());
+
+        ShopifyStoreConnectionService connectionService = new ShopifyStoreConnectionService(
+            repository,
+            productServiceService,
+            customerRepository,
+            deploymentRepository,
+            deploymentVersionRepository,
+            deploymentReleaseRepository,
+            consumerRepository,
+            platformAuditService,
+            new ShopifyStoreSourcePreflightSupport(new com.fasterxml.jackson.databind.ObjectMapper()),
+            new ShopifyStoreReadinessEvaluator()
+        );
+
+        ShopifyStoreConnectionSummary summary = connectionService.getConnection("demo.myshopify.com");
+
+        assertThat(summary.latestRelease()).isNotNull();
+        assertThat(summary.latestRelease().id()).isEqualTo("rel-failed");
+        assertThat(summary.readiness()).isNotNull();
+        assertThat(summary.readiness().storefrontReady()).isTrue();
+        assertThat(summary.readiness().storefrontBlockingReasons()).isEmpty();
+    }
+
+    @Test
+    void getConnectionMarksGoLiveBlockedWhenGovernedSupportIsNotReady() {
         ShopifyStoreConnectionRepository repository = mock(ShopifyStoreConnectionRepository.class);
         PlatformManagedProductServiceService productServiceService = mock(PlatformManagedProductServiceService.class);
         PlatformCustomerRepository customerRepository = mock(PlatformCustomerRepository.class);
@@ -1047,9 +1149,19 @@ class ShopifyStoreConnectionServiceTest {
         release.setAppliedAt(Instant.parse("2026-04-18T12:01:00Z"));
         release.setUpdatedAt(Instant.parse("2026-04-18T12:02:00Z"));
 
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-123");
+        deployment.setName("Shopify Companion");
+        deployment.setStatus("ACTIVE");
+        deployment.setCustomerId("cus-123");
+
         when(repository.findByShopDomainIgnoreCase("demo.myshopify.com")).thenReturn(Optional.of(entity));
         when(productServiceService.requireServiceById("psv-123")).thenReturn(service);
-        when(deploymentReleaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc("dep-123")).thenReturn(Optional.of(release));
+        when(deploymentRepository.findById("dep-123")).thenReturn(Optional.of(deployment));
+        when(deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of());
+        when(deploymentReleaseRepository.findByDeploymentIdOrderByCreatedAtDesc("dep-123"))
+            .thenReturn(java.util.List.of(release));
         when(storeSupportReadinessClient.getStoreSupportReadiness("shopify-bridge-prod", "demo.myshopify.com"))
             .thenReturn(new PlatformManagedProductServiceStoreSupportReadinessSummary(
                 "demo.myshopify.com",
@@ -1108,7 +1220,8 @@ class ShopifyStoreConnectionServiceTest {
 
         assertThat(summary.readiness()).isNotNull();
         assertThat(summary.readiness().goLiveEligible()).isFalse();
-        assertThat(summary.readiness().storefrontReady()).isFalse();
+        assertThat(summary.readiness().storefrontReady()).isTrue();
+        assertThat(summary.readiness().storefrontBlockingReasons()).isEmpty();
         assertThat(summary.readiness().goLiveBlockingReasons())
             .contains("Customer-safe order lookup is waiting for Shopify order-read scope approval on this store.");
         assertThat(summary.readiness().goLiveBlockingReasons())

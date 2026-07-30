@@ -7,6 +7,7 @@ import com.ai.fabric.vectorization.adapter.source.VectorizationSourceAdapter;
 import com.ai.fabric.vectorization.mapping.VectorizationRecordMapper;
 import com.ai.fabric.vectorization.runner.service.VectorizationSourceAdapterRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,6 +15,12 @@ import java.util.List;
 
 @Configuration
 public class VectorizationRunnerConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(ObjectMapper.class)
+    public ObjectMapper jackson2ObjectMapper() {
+        return new ObjectMapper();
+    }
 
     @Bean
     public VectorizationRecordMapper vectorizationRecordMapper(ObjectMapper objectMapper) {

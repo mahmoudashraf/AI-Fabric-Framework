@@ -4,6 +4,11 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+  flyway:
+    # V121-V124 are production Coolify target-profile tuning migrations that
+    # rely on PostgreSQL JSONB operators. They do not change the application
+    # schema, and production has already applied them on PostgreSQL.
+    target: "120"
 
 platform:
   bootstrap:

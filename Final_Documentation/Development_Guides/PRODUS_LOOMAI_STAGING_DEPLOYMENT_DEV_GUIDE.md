@@ -1,6 +1,6 @@
 # ProdUS LoomAI Staging Deployment Dev Guide
 
-Status: current staging guide, last verified 2026-05-25.
+Status: current staging guide, last updated 2026-06-01.
 
 This guide records the commands, tools, scripts, and operational checks used to create, configure, redeploy, and verify the ProdUS LoomAI staging deployment.
 
@@ -17,8 +17,10 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 | Stable consumer/customer id | `produs-staging` |
 | Runtime base URL | `http://dep-7706fafb.46.224.145.148.sslip.io` |
 | Runtime template | `dev-openai-qdrant` |
-| Active version | `ver-f9069ce5` |
-| Latest applied release | `rel-623c91a0` |
+| Runtime curated module | `default` |
+| Runtime supported modes | `thinker` for analysis/read-only help, `executor` for governed actions |
+| Active version | `ver-e55296b1` |
+| Latest applied release | `rel-2d0807c7` |
 | Runtime Coolify app | `runtime-dep-7706fafb` / `m14c2kdq3qsc2hnofr84wge2` |
 | Connector Coolify app | `rest-connector-dep-7706fafb` / `f8v02rd1luusupszsnbrny7i` |
 | Vectorization runner Coolify app | `vectorization-runner-dep-7706fafb` / `fm2pdlbk55tjx6gmh4xqo9t7` |
@@ -29,9 +31,44 @@ The current raw ProdUS staging auth material is recorded only in `Final_Document
 
 Runtime direct private path is verified. ProdUS MCP API-key auth is enabled on staging; unauthenticated `/mcp` calls fail closed and authenticated calls return the LoomAI productization tools. The read-only ProdUS MCP Marketplace action bundle and the confirmed `produs.productization_project.create` action bundle are published, installed, applied, and visible in runtime actions overview.
 
+Catalog export update on 2026-06-01:
+
+- ProdUS MCP discovery for `produs-staging` returned `ready=true` with 19 tools after ProdUS added `produs.catalog.export`.
+- LoomAI imported and published `mkp-action-produs-productization-read-mcp@0.1.1`.
+- Deployment install `mpi-6a4605e4` was updated from `0.1.0` to `0.1.1`.
+- Deployment version `ver-37ca6cc2` / label `v10` was published and applied through release `rel-68c38e15`.
+- Verification `vrf-55a0bfc1` passed with `28 passed, 0 failed, 1 skipped`.
+- Runtime action catalog now has 10 ProdUS actions and includes `produs_catalog_export`.
+- Explicit runtime smoke through `/api/chat/me/query-once` with `mode=thinker` executed `produs_catalog_export` and returned a grounded answer.
+
+Stable private-runtime audience update on 2026-06-01:
+
+- Deployment version `ver-e55296b1` / label `v11` was published and applied through release `rel-2d0807c7`.
+- Release `rel-2d0807c7` finished `APPLIED_VERIFIED`; latest verification `vrf-7b9ffb3d` passed.
+- Runtime assignment discovery now returns `privateRuntimeIssuer=produs-staging-backend`, `privateRuntimeAudience=produs-staging`, `privateRuntimeAudienceMode=CONSUMER_ID`, and `externalIntegrationReady=true`.
+- ProdUS should sign private runtime assertions with `aud=produs-staging`. Keep `deploymentId=dep-7706fafb` in the assertion payload as audit/debug metadata.
+- Runtime still accepts `dep-7706fafb` as a transition audience so existing staging clients are not broken during rollout, but new ProdUS integration code should not depend on the deployment id for `aud`.
+- Live smoke verified `GET /api/chat/me/auth-context` and `POST /api/chat/me/query-once` using issuer `produs-staging-backend` and audience `produs-staging`.
+
+Active runtime assignment discovery:
+
+- ProdUS backend can discover the currently assigned runtime with `GET /api/public/consumers/produs-staging/runtime-assignment`.
+- Use returned `endpoints.chatQueryUrl`, `endpoints.queryOnceUrl`, `endpoints.suggestionsUrl`, `endpoints.authContextUrl`, and `cacheTtlSeconds` instead of hardcoding the runtime URL in application code.
+- Treat `deploymentId` as audit metadata, not as the route source of truth.
+- Current assignment returns `privateRuntimeAudience=produs-staging` and `externalIntegrationReady=true`; sign direct private runtime assertions with `aud=produs-staging`.
+
 Managed ProdUS safe-knowledge vectorization is also live. The runtime prompt artifact sets `ragSimilarityThreshold=0.2`, `ragMaxDocumentsUsedForContext=8`, and `ragMaxContextChars=7000` for this deployment so retrieved ProdUS catalog records ground answers reliably.
 
+Default curated runtime pack status on 2026-05-31:
+
+- Deployment version `ver-b0c54807` was published and applied through release `rel-37d07c7c`.
+- Release `rel-37d07c7c` finished `APPLIED_VERIFIED` with verification `PASSED` on target profile `dtp-coolify-staging`.
+- Live smoke confirmed `/api/chat/me/query` and `/api/chat/me/query-once` both accept `mode=thinker` and echo `mode=thinker`.
+- Live smoke confirmed `/api/chat/me/query` still runs retrieval and returned a `rag-*` provider request id.
+
 Runtime code deployment `jz8ntc2b03kmllnpfn43esa7` deployed commit `22fa7fb48` on 2026-05-22 for the implementation smoke. Follow-up deployment `kpx28b02ryukztitqvem2399` deployed commit `969f87dfb` after the status documentation update. Live smoke verified `/api/chat/me/query-once` returns a one-time answer without creating a conversation record, while `/api/chat/me/query` still creates the expected persisted conversation.
+
+Transient provider file URL input support is implemented in LoomAI runtime/core/provider modules. ProdUS project creation should send owner-approved selected documents as `context.documents[].temporaryAccessUrl` to `/api/chat/me/query-once`; runtime redacts the URL, does not persist or index file content, and requires `documentUsage` evidence from the selected provider. See `Final_Documentation/Development_Guides/RUNTIME_TRANSIENT_PROVIDER_FILE_URL_INPUTS_GUIDE.md`.
 
 Confirmed project creation action status on 2026-05-25:
 
@@ -67,6 +104,7 @@ scripts/run-platform-deployment-verification.sh
 scripts/verify-vector-deployment.sh
 Final_Documentation/Development_Guides/COOLIFY_HETZNER_ADMINISTRATION_GUIDE.md
 Final_Documentation/Development_Guides/PRIVATE_RUNTIME_CUSTOMER_INTEGRATION_GUIDE.md
+Final_Documentation/Development_Guides/RUNTIME_TRANSIENT_PROVIDER_FILE_URL_INPUTS_GUIDE.md
 doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_5_LOOMAI_CANONICAL_RUNTIME_BRIDGE_CONTRACT_STANDARDIZATION_PLAN.md
 /Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/LOOMAI_STAGING_DEPLOYMENT_HANDOVER.md
 /Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/planning/Scanners-AI-integration/LOOMAI_STAGING_DIRECT_RUNTIME_REQUEST.md
@@ -99,7 +137,7 @@ curl -fsS \
     "name": "ProdUS AI Enablement Staging",
     "environment": "staging",
     "templateId": "dev-openai-qdrant",
-    "curatedModuleId": null,
+    "curatedModuleId": "default",
     "vectorProvisioningMode": "MANAGED_CLOUD_CLUSTER",
     "customerId": "produs-staging"
   }'
@@ -174,7 +212,7 @@ curl -fsS \
 Expected relevant runtime row:
 
 ```text
-m14c2kdq3qsc2hnofr84wge2  runtime-dep-7706fafb  http://dep-7706fafb.46.224.145.148.sslip.io  Platform-V9  running:healthy
+m14c2kdq3qsc2hnofr84wge2  runtime-dep-7706fafb  http://dep-7706fafb.46.224.145.148.sslip.io  Platform-V10  running:healthy
 ```
 
 ## 5. Runtime Env Configuration
@@ -193,32 +231,37 @@ printf '%s' "${env_json}" | jq -r '
   [.[] | select((.key=="AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY"
     or .key=="AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"
     or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS"
-    or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES") and (.is_preview|not)) |
+    or .key=="AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES"
+    or .key=="AI_FABRIC_RUNTIME_TRANSIENT_FILE_URL_ALLOWED_HOSTS") and (.is_preview|not)) |
     {
       key,
       length: ((.value // "")|length),
       valuePresent: ((.value // "")|length > 0),
       hasProdusIssuer: ((.value // "")|contains("produs-staging-backend")),
-      hasProdusAudience: ((.value // "")|contains("dep-7706fafb"))
+      hasStableProdusAudience: ((.value // "")|contains("produs-staging")),
+      hasTransitionDeploymentAudience: ((.value // "")|contains("dep-7706fafb"))
     }
   ]'
 ```
 
-Patch non-secret runtime env rows while preserving existing issuer/audience values:
+Patch non-secret runtime env rows. For the ProdUS deployment, keep `produs-staging-backend` as the external integration issuer and avoid reintroducing `platform-consumer-bridge` as an accepted issuer, because assignment discovery chooses the preferred issuer from this runtime configuration.
 
 ```bash
 patch_json="$(printf '%s' "${env_json}" | jq -c '
   def envmap: map({(.key): (.value // "")}) | add;
   def csv_add($raw; $item):
     (($raw // "") | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)) + [$item] | unique | join(","));
+  def csv_remove($raw; $item):
+    (($raw // "") | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0 and . != $item)) | unique | join(","));
   envmap as $e |
   {data: [
     {key:"AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", value:"VERIFIED_CONTEXT_REQUIRED", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER", value:"X-AIFABRIC-RUNTIME-API-KEY", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_PRIVATE_AUTHORIZATION_HEADER", value:"X-AIFABRIC-RUNTIME-AUTHORIZATION", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
     {key:"AI_FABRIC_RUNTIME_PRIVATE_TOKEN_SCHEME", value:"Bearer", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
-    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS; "produs-staging-backend"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
-    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", value:csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES; "dep-7706fafb"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false}
+    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS", value:csv_add(csv_remove($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS; "platform-consumer-bridge"); "produs-staging-backend"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", value:csv_add(csv_add($e.AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES; "produs-staging"); "dep-7706fafb"), is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false},
+    {key:"AI_FABRIC_RUNTIME_TRANSIENT_FILE_URL_ALLOWED_HOSTS", value:"produs-api-staging.46.224.145.148.sslip.io", is_preview:false, is_literal:true, is_multiline:false, is_shown_once:false}
   ]}
 ')"
 
@@ -321,7 +364,7 @@ payload = {
     "customerId": "produs-staging",
     "tenantId": "produs-smoke-tenant",
     "iss": "produs-staging-backend",
-    "aud": "dep-7706fafb",
+    "aud": "produs-staging",
     "exp": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat().replace("+00:00", "Z"),
     "scopes": ["chat:query", "chat:suggestions", "chat:conversations"],
 }
@@ -366,7 +409,7 @@ curl -fsS \
   --data '{
     "query": "What can you help me with for productization?",
     "conversationId": "produs-direct-runtime-smoke",
-    "mode": "support_assistant",
+    "mode": "thinker",
     "position": "productization",
     "context": {
       "pageType": "owner-product-workspace",
@@ -391,7 +434,7 @@ curl -fsS \
   --data '{
     "query": "Which package template is appropriate for launch readiness?",
     "conversationId": "produs-direct-runtime-query-once-smoke",
-    "mode": "support_assistant",
+    "mode": "thinker",
     "position": "productization",
     "context": {
       "pageType": "owner-product-workspace",
@@ -432,7 +475,9 @@ Expected: `401`.
 
 Chat query:
 
-- `mode=support_assistant` is accepted and echoed back.
+- `mode=thinker` is the default read-only/analysis path and should be echoed back after the deployment is applied with the `default` curated module.
+- `mode=executor` is available for governed action execution. Use it only when the UX is intentionally action-capable.
+- Do not use `support_assistant`, `support_deep`, or `support_operator` for ProdUS. Those modes belong to the support curated pack and are not the default-pack contract.
 - `position=productization` is accepted and echoed back; it is useful as a routing/context signal.
 - Use `/api/chat/me/query` for chat panels with stable conversation history.
 - Use `/api/chat/me/query-once` for one-time answers. Runtime treats `conversationId` as correlation only on this endpoint, skips persisted chat-memory loading, and skips conversation turn recording. Do not send a `persistConversation` flag; choose the endpoint by UX intent.
@@ -699,12 +744,12 @@ ProdUS service:
 
 Marketplace/read-action deployment:
 
-- Marketplace MCP discovery for `produs-staging`: `ready=true`, 18 tools.
-- Published plugin: `mkp-action-produs-productization-read-mcp@0.1.0`.
+- Marketplace MCP discovery for `produs-staging`: `ready=true`, 19 tools.
+- Published plugin: `mkp-action-produs-productization-read-mcp@0.1.1`.
 - Installed on deployment `dep-7706fafb` as an enabled `ACTION` plugin with `READY` readiness and active entitlement.
-- Published deployment version: `v3`.
-- Applied release: `rel-dcd6fd36`, status `APPLIED_VERIFIED`.
-- Runtime `/api/admin/actions/overview`: 8 ProdUS read actions loaded.
+- Published deployment version: `ver-37ca6cc2` / `v10`.
+- Applied release: `rel-68c38e15`, status `APPLIED_VERIFIED`.
+- Runtime `/api/admin/actions/overview`: 9 ProdUS read actions loaded, including `produs_catalog_export`.
 - Runtime `POST /api/chat/me/query`: passed after apply with canonical response and `providerRequestId`.
 - Runtime `POST /api/chat/me/suggestions`: passed after apply with four suggestions.
 
@@ -912,6 +957,47 @@ ProdUS safe knowledge sync must use canonical `trace + operations`; do not send 
 ```
 
 Known operational follow-up: Platform apply can overwrite manually added accepted private assertion issuers. After this apply, Coolify runtime env was patched back to include `produs-staging-backend` and `platform-produs-data-plugin-smoke`, then the runtime was redeployed and health returned `UP`. This should be hardened in Platform env rendering so future applies preserve registered private runtime issuers.
+
+## 12.5 2026-06-10 `dep-53f9ca56` Vector Store Recovery
+
+ProdUS staging is now routed to `dep-53f9ca56`; older references to `dep-7706fafb` are historical and should not be used for current staging verification.
+
+Incident root cause: `dep-53f9ca56` pointed at a stale Qdrant endpoint that returned `404 page not found` for collection APIs. The runtime app was healthy, but vector upserts failed because the configured vector backend was no longer usable.
+
+Recovery performed:
+
+- Moved `dep-53f9ca56` to the healthy Qdrant cluster with collection prefix `cus_3b201f0d__ten_c134590e__`.
+- Applied Platform version `ver-908e3888`; latest successful recovery release was `rel-962bcdea`.
+- Verified direct ProdUS-style `rpa1` private runtime auth against runtime auth/admin endpoints.
+- Verified the ProdUS safe DATA plugin sources and all expected vector spaces are installed and READY.
+- Ran managed vectorization bootstrap `vrn-8c8e870d` and reindex `vrn-35109ab3`; both processed 190 records with 190 successes and 0 failures.
+- Added missing Qdrant keyword payload indexes on ProdUS prefixed collections for common source/filter fields.
+
+Current runtime vector counts:
+
+```text
+totalVectors=195
+service-module=90
+service-category=10
+service-dependency=23
+package-template=15
+milestone-template=15
+case-pattern=15
+scanner-tool-description=10
+ai-capability-contract=7
+evidence-template=2
+acceptance-criteria-template=1
+team-profile=1
+solo-expert-profile=1
+faq-article=3
+support-policy=2
+```
+
+Direct Qdrant proof: service-module vector search returns `service-module:api-security-review`, `service-module:security-fix-sprint`, `service-module:security-readiness-review`, `service-module:security-patching`, and `service-module:dependency-security-review`.
+
+Remaining caveat: `/api/chat/me/query` retrieval still does not surface the expected ProdUS `service-module` sources for the smoke query `API security review`. Live runtime retrieval returned either the seeded help-center FAQ or zero sources even though direct Qdrant search returns the correct service modules. Treat this as a framework/runtime shared-index retrieval or orchestration follow-up, not an active vector-store outage.
+
+Secondary caveat: Platform vectorization overview still reports `OUT_OF_DATE` / `INDEXED_OUTPUT_DRIFT` after successful runs because the active config hash and last successful indexed-output hash differ. Live vector counts and Qdrant records are correct.
 
 ## 13. Rollback
 

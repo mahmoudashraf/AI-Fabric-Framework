@@ -15,6 +15,8 @@ import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeRecordWidge
 import com.ai.fabric.product.shopify.bridge.store.model.ShopifyBridgeStoreSummary;
 import com.ai.fabric.product.shopify.bridge.store.service.ShopifyProductReviewSignals;
 import com.ai.fabric.product.shopify.bridge.storefront.model.ShopifyStorefrontBootstrapResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
@@ -30,6 +32,7 @@ import java.util.Set;
 @Service
 public class ShopifyStorefrontBootstrapService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShopifyStorefrontBootstrapService.class);
     private static final String DEFAULT_LAUNCHER_LABEL = "Ask the store assistant";
     private static final String DEFAULT_WELCOME_MESSAGE =
         "Shopping Assistant is ready. Ask about products, policies, or collections.";
@@ -108,6 +111,7 @@ public class ShopifyStorefrontBootstrapService {
 
         PlatformPublicConsumerDeploymentCredentialsResponse credentials =
             platformShopifyStoreClient.getConsumerCredentials(store.consumerId());
+        platformShopifyStoreClient.warmConsumerRuntimeAssignment(store.consumerId());
         ShopifyBridgeStoreSummary updated = platformShopifyStoreClient.recordWidgetStatus(
             store.shopDomain(),
             new ShopifyBridgeRecordWidgetStatusRequest(
@@ -124,8 +128,7 @@ public class ShopifyStorefrontBootstrapService {
             ? null
             : credentials.integration().posture().runtimeAuthMode();
         String guidance = credentials.integration() == null ? null : credentials.integration().guidance();
-        ShopifyBridgeCredentialAcquisition credentialAcquisition =
-            installCredentialService.resolvePersistedMaterial(updated.shopDomain()).orElse(null);
+        ShopifyBridgeCredentialAcquisition credentialAcquisition = resolveCredentialAcquisition(updated.shopDomain());
         String storefrontAccessToken = credentialAcquisition == null
             ? null
             : credentialAcquisition.tokenExchangeMaterial().accessToken();
@@ -552,6 +555,20 @@ public class ShopifyStorefrontBootstrapService {
         return billingSummary != null && billingSummary.chatFallbackEnabled()
             ? THINKER_CONVERSATION_MODE
             : BASE_NAVIGATOR_CONVERSATION_MODE;
+    }
+
+    private ShopifyBridgeCredentialAcquisition resolveCredentialAcquisition(String shopDomain) {
+        try {
+            return installCredentialService.resolvePersistedMaterial(shopDomain).orElse(null);
+        } catch (RuntimeException ex) {
+            log.warn(
+                "Shopify storefront bootstrap continuing without refreshed credential material for shop={}. "
+                    + "Token-backed capabilities remain gated until the app is reconnected. cause={}",
+                shopDomain,
+                ex.toString()
+            );
+            return null;
+        }
     }
 
     private String pageModeKey(String rawPageType) {

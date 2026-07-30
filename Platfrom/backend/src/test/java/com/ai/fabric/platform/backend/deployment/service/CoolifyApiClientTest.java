@@ -159,6 +159,51 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void createPostgresDatabaseSendsCoolifyDatabaseShape() throws Exception {
+        AtomicReference<String> observedBody = new AtomicReference<>();
+        HttpServer server = createPostgresDatabaseServer(observedBody);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            String uuid = client.createPostgresDatabase(
+                connection(server),
+                new CoolifyCreatePostgresDatabaseRequest(
+                    "project-uuid",
+                    "server-uuid",
+                    "production",
+                    "environment-uuid",
+                    "destination-uuid",
+                    "ai-fabric-runtime-postgres-dep-123",
+                    "Durable runtime chat database",
+                    "postgres:16-alpine",
+                    "runtime_user",
+                    "pg-password",
+                    "runtime_chat",
+                    false,
+                    false
+                )
+            );
+
+            JsonNode body = objectMapper.readTree(observedBody.get());
+            assertThat(uuid).isEqualTo("database-uuid");
+            assertThat(body.path("project_uuid").asText()).isEqualTo("project-uuid");
+            assertThat(body.path("server_uuid").asText()).isEqualTo("server-uuid");
+            assertThat(body.path("environment_name").asText()).isEqualTo("production");
+            assertThat(body.path("environment_uuid").asText()).isEqualTo("environment-uuid");
+            assertThat(body.path("destination_uuid").asText()).isEqualTo("destination-uuid");
+            assertThat(body.path("name").asText()).isEqualTo("ai-fabric-runtime-postgres-dep-123");
+            assertThat(body.path("image").asText()).isEqualTo("postgres:16-alpine");
+            assertThat(body.path("postgres_user").asText()).isEqualTo("runtime_user");
+            assertThat(body.path("postgres_password").asText()).isEqualTo("pg-password");
+            assertThat(body.path("postgres_db").asText()).isEqualTo("runtime_chat");
+            assertThat(body.path("is_public").asBoolean()).isFalse();
+            assertThat(body.path("instant_deploy").asBoolean()).isFalse();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void projectAndEnvironmentEndpointsUseCoolifyApiShape() throws Exception {
         AtomicReference<String> observedProjectBody = new AtomicReference<>();
         AtomicReference<String> observedEnvironmentBody = new AtomicReference<>();
@@ -338,6 +383,21 @@ class CoolifyApiClientTest {
             }
             observedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             sendJson(exchange, 201, "{\"uuid\":\"app-uuid\"}");
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer createPostgresDatabaseServer(AtomicReference<String> observedBody) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/databases/postgresql", exchange -> {
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            observedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            sendJson(exchange, 201, "{\"uuid\":\"database-uuid\"}");
         });
         server.start();
         return server;

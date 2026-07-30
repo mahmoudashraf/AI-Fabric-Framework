@@ -239,7 +239,7 @@ For provider token rotation:
 For Coolify-hosted Platform-managed product-service reconciliation:
 
 - `PLATFORM_DEPLOY_REPOSITORY` must be the GitHub `owner/repo` slug or `github.com` URL for the repo Coolify should build.
-- `PLATFORM_DEPLOY_BRANCH` must be the staging branch, currently `Platform-V8`.
+- `PLATFORM_DEPLOY_BRANCH` must be the staging branch, currently `Platform-V10`.
 - `PLATFORM_PROVISIONING_MODE=COOLIFY` must be present when staging product services are managed through Coolify.
 - On the Coolify Platform backend app, these must be normal non-preview env vars. Preview-only values are ignored by the live staging Platform process and make product-service reconcile fall back to invalid defaults.
 

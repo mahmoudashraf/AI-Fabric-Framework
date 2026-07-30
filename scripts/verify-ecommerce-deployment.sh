@@ -680,23 +680,12 @@ if not (result_data.get("answer") or result.get("answer") or result.get("message
     errors.append("response did not include an answer")
 if not docs:
     errors.append("response did not include retrieved documents")
-if "shared-index" not in adapter_types:
-    errors.append(f"shared-index adapter missing; adapters={sorted(adapter_types)}")
-if "shared-marketplace-refund-policy" not in source_ids:
-    errors.append(f"shared-marketplace-refund-policy source missing; sources={sorted(source_ids)}")
-if active_probe:
-    matched_sources = expected_source_ids & source_ids
-    if len(matched_sources) < 2:
-        errors.append(
-            f"active probe expected at least two configured sources; matched={sorted(matched_sources)} expected={sorted(expected_source_ids)}"
-        )
-else:
-    if expected_source_ids and not (expected_source_ids & source_ids):
-        errors.append(f"no configured source matched; expected={sorted(expected_source_ids)} actual={sorted(source_ids)}")
-    if expected_adapter_types and not (expected_adapter_types & adapter_types):
-        errors.append(
-            f"no configured adapter matched; expected={sorted(expected_adapter_types)} actual={sorted(adapter_types)}"
-        )
+if expected_source_ids and not (expected_source_ids & source_ids):
+    errors.append(f"no configured source matched; expected={sorted(expected_source_ids)} actual={sorted(source_ids)}")
+if expected_adapter_types and not (expected_adapter_types & adapter_types):
+    errors.append(
+        f"no configured adapter matched; expected={sorted(expected_adapter_types)} actual={sorted(adapter_types)}"
+    )
 
 if errors:
     action = result_data.get("action") if isinstance(result_data, dict) else None
@@ -726,7 +715,7 @@ PY
     rm -f "${tmp}" "${output}"
     return 0
   fi
-  echo "WARN: ${label} did not return required shared-index evidence."
+  echo "WARN: ${label} did not return required marketplace source evidence."
   cat "${output}"
   rm -f "${tmp}" "${output}"
   return "${rc}"
@@ -737,8 +726,8 @@ run_marketplace_smoke_query_until_grounded() {
   local expected_adapter_types_json="$2"
   local queries=(
     "${MARKETPLACE_SMOKE_QUERY}"
-    "Use only retrieved marketplace knowledge sources. Summarize the shared marketplace refund policy and include the return window."
-    "Find shared-marketplace-refund-policy in the marketplace knowledge base and summarize the refund and return rules."
+    "Use only retrieved marketplace knowledge sources. Summarize the refund policy and include the return window."
+    "Find the marketplace policy knowledge and summarize the refund and return rules."
   )
   local query attempt conversation_id last_status
   attempt=1
@@ -766,7 +755,7 @@ run_marketplace_smoke_query_until_grounded() {
   echo "HTTP ${last_status}"
   echo "${HTTP_BODY}"
   echo "----------------------------------------"
-  fail "marketplace runtime smoke query did not return required shared-index marketplace evidence"
+  fail "marketplace runtime smoke query did not return required configured marketplace evidence"
 }
 
 RUNTIME_PUBLIC_AUTHORIZATION=""
@@ -825,6 +814,18 @@ for part in raw.split(","):
     if value and value not in items:
         items.append(value)
 print(json.dumps(items))
+PY
+}
+
+csv_text_contains() {
+  local csv_text="${1:-}"
+  local needle="${2:-}"
+  CSV_TEXT="${csv_text}" NEEDLE="${needle}" python3 - <<'PY'
+import os
+
+needle = os.environ.get("NEEDLE", "").strip()
+items = {part.strip() for part in os.environ.get("CSV_TEXT", "").split(",") if part.strip()}
+print("true" if needle and needle in items else "false")
 PY
 }
 
@@ -1206,9 +1207,12 @@ PY
   json_assert "marketplace authenticated shell config" $'assert (data or {}).get("success") is True\nprint("ok")'
   assert_marketplace_shell_config "marketplace authenticated shell config payload" "${HTTP_BODY}"
 
-  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+  if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" \
+    && "$(csv_text_contains "${EXPECT_MARKETPLACE_KNOWLEDGE_SOURCE_ADAPTER_TYPES:-}" "shared-index")" == "true" ]]; then
     trap cleanup_marketplace_shared_sentinel EXIT
     seed_marketplace_shared_sentinel
+  elif [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
+    echo "Marketplace shared-source write probe is disabled because no shared-index source is configured."
   else
     echo "Marketplace shared-source write probe is disabled in read-only mode."
   fi
@@ -1223,9 +1227,9 @@ PY
   assert_marketplace_runtime_overview "marketplace runtime admin overview (post-query)" "${HTTP_BODY}"
   assert_marketplace_inference_profile "marketplace runtime inference profile (post-query)" "${HTTP_BODY}"
   if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then
-    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") == "SUCCEEDED", entry\nshared_hits = [entry for entry in sources if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\nassert shared_hits, sources\nif any(entry.get("lastResultsCount") is not None for entry in shared_hits):\n  assert any(int(entry.get("lastResultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nprint("ok")'
+    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nexpected_adapter_types = set('"${expected_adapter_types_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") == "SUCCEEDED", entry\nif "shared-index" in expected_adapter_types:\n  shared_hits = [entry for entry in sources if isinstance(entry, dict) and entry.get("adapterType") == "shared-index"]\n  assert shared_hits, sources\n  if any(entry.get("lastResultsCount") is not None for entry in shared_hits):\n    assert any(int(entry.get("lastResultsCount") or 0) >= 1 for entry in shared_hits), shared_hits\nprint("ok")'
   else
-    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") in {"SUCCEEDED", "SKIPPED"}, entry\nshared = source_map.get("shared-marketplace-refund-policy")\nassert shared is not None, source_map\nassert (shared.get("lastStatus") or "") == "SUCCEEDED", shared\nassert (shared.get("adapterType") or "") == "shared-index", shared\nassert bool(shared.get("handleRefConfigured")) is True, shared\nif shared.get("lastResultsCount") is not None:\n  assert int(shared.get("lastResultsCount") or 0) >= 1, shared\nprint("ok")'
+    json_assert "marketplace runtime search-source diagnostics post-query" $'expected_source_ids = set('"${expected_source_ids_json}"')\nsearch_diag = (data or {}).get("searchSourceDiagnostics") or {}\nassert int(search_diag.get("recordedSearchExecutions") or 0) >= 1, search_diag\nsources = (search_diag.get("sources") or [])\nassert isinstance(sources, list) and sources, search_diag\nsource_map = {entry.get("sourceId"): entry for entry in sources if isinstance(entry, dict) and entry.get("sourceId")}\nassert expected_source_ids.issubset(source_map.keys()), {"expected": sorted(expected_source_ids), "actual": sorted(source_map.keys())}\nfor source_id in expected_source_ids:\n  entry = source_map[source_id]\n  assert (entry.get("lastStatus") or "") in {"SUCCEEDED", "SKIPPED"}, entry\nprint("ok")'
   fi
   assert_marketplace_provider_connectivity
   if [[ "${VERIFY_MARKETPLACE_RUNTIME_ACTIVE}" == "true" ]]; then

@@ -1,0 +1,362 @@
+---
+import { ExternalLink } from '@lucide/astro'
+import Breadcrumbs from '../../components/Breadcrumbs.astro'
+import CallToAction from '../../components/CallToAction.astro'
+import ExperimentCard from '../../components/ExperimentCard.astro'
+import { getExperiment, products, research } from '../../data/content'
+import type { ResearchArtifact } from '../../data/types'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+
+export function getStaticPaths() {
+  return research.map((item) => ({
+    params: { slug: item.slug },
+    props: { item },
+  }))
+}
+
+type Props = {
+  item: ResearchArtifact
+}
+
+const { item } = Astro.props
+const linkedExperiments = item.linkedExperimentSlugs
+  .map((slug) => getExperiment(slug))
+  .filter((entry) => entry !== undefined)
+const linkedProducts = products.filter((product) => item.linkedProductSlugs.includes(product.slug))
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  headline: item.title,
+  description: item.abstract,
+  dateModified: item.updatedAt,
+  author: {
+    '@type': 'Organization',
+    name: 'Loom AI Labs',
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Loom AI Labs',
+  },
+  mainEntityOfPage: `https://loomai.pro/research/${item.slug}`,
+  about: item.themeLabel,
+  proficiencyLevel: 'Expert',
+}
+---
+
+<BaseLayout
+  title={item.title}
+  description={item.abstract}
+  canonicalPath={`/research/${item.slug}`}
+  type="article"
+  jsonLd={jsonLd}
+>
+  <section class="research-detail-hero">
+    <div class="loom-container">
+      <Breadcrumbs items={[
+        { label: 'Home', href: '/' },
+        { label: 'Research', href: '/research' },
+        { label: item.title },
+      ]} />
+      <div class="research-detail-hero__grid">
+        <div>
+          <div class="card-meta">
+            <span>{item.artifactType}</span>
+            <span>{item.evidenceLabel}</span>
+          </div>
+          <h1>{item.title}</h1>
+          <p class="research-detail-hero__abstract">{item.abstract}</p>
+        </div>
+        <div class="research-wave" aria-hidden="true">
+          {Array.from({ length: 22 }).map(() => <span></span>)}
+        </div>
+      </div>
+      <dl class="detail-meta-grid">
+        <div><dt>Status</dt><dd>{item.maturityLabel}</dd></div>
+        <div><dt>Contributor</dt><dd>{item.authorsOrContributors.join(', ')}</dd></div>
+        <div><dt>Updated</dt><dd>{item.updatedAt}</dd></div>
+        <div><dt>Reading time</dt><dd>{item.readingTime}</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section section--white">
+    <div class="loom-container article-shell">
+      <article class="article-content">
+        <section id="abstract">
+          <p class="loom-eyebrow">Abstract</p>
+          <h2>Research question</h2>
+          <p class="lead-question">{item.researchQuestion}</p>
+        </section>
+
+        <section id="context">
+          <h2>Context</h2>
+          <p>{item.context}</p>
+        </section>
+
+        <section id="approach">
+          <h2>Proposed approach</h2>
+          <ul class="plain-list">
+            {item.proposedApproach.map((entry) => <li>{entry}</li>)}
+          </ul>
+        </section>
+
+        <section id="implementation">
+          <h2>Implementation</h2>
+          <ul class="check-list">
+            {item.implementation.map((entry) => <li>{entry}</li>)}
+          </ul>
+        </section>
+
+        <section id="observations">
+          <h2>Observations</h2>
+          <ol class="observation-list">
+            {item.keyObservations.map((entry, index) => (
+              <li>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <p>{entry}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section id="limitations">
+          <h2>Limitations</h2>
+          <div class="notice notice--warning">
+            This work reports an implementation-linked investigation. It is not a
+            peer-reviewed paper, certification or customer case study.
+          </div>
+          <ul class="plain-list">
+            {item.limitations.map((entry) => <li>{entry}</li>)}
+          </ul>
+        </section>
+
+        <section id="reproduce">
+          <h2>Reproduce or inspect</h2>
+          <div class="artifact-links">
+            {item.implementationArtifacts.map((artifact) => (
+              <a
+                class="artifact-link"
+                href={artifact.href}
+                target={artifact.external ? '_blank' : undefined}
+                rel={artifact.external ? 'noreferrer' : undefined}
+              >
+                <span>{artifact.label}</span>
+                <ExternalLink size={17} aria-hidden="true" />
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section id="related">
+          <h2>Related products</h2>
+          <ul class="related-link-list">
+            {linkedProducts.map((product) => (
+              <li>
+                <a href={`/products/${product.slug}`}>{product.name}</a>
+                <span>v{product.version} · {product.layerLabel}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="revision">
+          <h2>Revision note and next questions</h2>
+          <p>
+            Last revised {item.updatedAt} against AI Fabric {item.frameworkVersion}
+            and the linked public artifacts.
+          </p>
+          <ul class="plain-list">
+            {item.nextQuestions.map((entry) => <li>{entry}</li>)}
+          </ul>
+        </section>
+      </article>
+
+      <aside class="article-aside">
+        <h2>On this page</h2>
+        <nav aria-label="Research sections">
+          <a href="#abstract">Research question</a>
+          <a href="#context">Context</a>
+          <a href="#approach">Approach</a>
+          <a href="#implementation">Implementation</a>
+          <a href="#observations">Observations</a>
+          <a href="#limitations">Limitations</a>
+          <a href="#reproduce">Reproduce</a>
+          <a href="#related">Related work</a>
+          <a href="#revision">Next questions</a>
+        </nav>
+      </aside>
+    </div>
+  </section>
+
+  {linkedExperiments.length > 0 && (
+    <section class="section section--soft">
+      <div class="loom-container">
+        <p class="loom-eyebrow">Linked live proof</p>
+        <h2 class="related-heading">Inspect the running scenario.</h2>
+        <div class="experiment-grid">
+          {linkedExperiments.map((experiment) => <ExperimentCard experiment={experiment} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <CallToAction
+    eyebrow="Continue"
+    title="Read the evidence, then challenge the boundary."
+    body="Use the linked implementation and experiment to reproduce the observation or open a focused counterexample."
+    primaryLabel="Browse all research"
+    primaryHref="/research"
+    secondaryLabel="Explore products"
+    secondaryHref="/products"
+  />
+</BaseLayout>
+
+<style>
+  .research-detail-hero {
+    background:
+      linear-gradient(110deg, rgb(255 255 255 / 96%), rgb(244 247 255 / 92%)),
+      repeating-linear-gradient(90deg, transparent 0 79px, rgb(20 108 255 / 4%) 80px);
+    border-bottom: 1px solid var(--loom-border-default);
+    padding-block: clamp(3.5rem, 7vw, 6.5rem);
+  }
+
+  .research-detail-hero__grid {
+    align-items: center;
+    display: grid;
+    gap: 4rem;
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+
+  .research-detail-hero h1 {
+    margin-bottom: 1.5rem;
+  }
+
+  .research-detail-hero__abstract {
+    font-size: var(--loom-text-body-lg);
+    max-width: 66ch;
+  }
+
+  .research-wave {
+    align-items: center;
+    display: flex;
+    gap: 0.45rem;
+    height: 16rem;
+    justify-content: center;
+  }
+
+  .research-wave span {
+    background: var(--loom-gradient-brand);
+    border-radius: 999px;
+    height: 30%;
+    opacity: 0.72;
+    width: 0.42rem;
+  }
+
+  .research-wave span:nth-child(2),
+  .research-wave span:nth-child(21) { height: 42%; }
+  .research-wave span:nth-child(3),
+  .research-wave span:nth-child(20) { height: 58%; }
+  .research-wave span:nth-child(4),
+  .research-wave span:nth-child(19) { height: 76%; }
+  .research-wave span:nth-child(5),
+  .research-wave span:nth-child(18) { height: 92%; }
+  .research-wave span:nth-child(6),
+  .research-wave span:nth-child(17) { height: 68%; }
+  .research-wave span:nth-child(7),
+  .research-wave span:nth-child(16) { height: 50%; }
+  .research-wave span:nth-child(8),
+  .research-wave span:nth-child(15) { height: 36%; }
+  .research-wave span:nth-child(9),
+  .research-wave span:nth-child(14) { height: 54%; }
+  .research-wave span:nth-child(10),
+  .research-wave span:nth-child(13) { height: 78%; }
+  .research-wave span:nth-child(11),
+  .research-wave span:nth-child(12) { height: 100%; }
+
+  .lead-question {
+    color: var(--loom-text-primary);
+    font-size: clamp(1.25rem, 2.2vw, 1.7rem);
+    font-weight: 620;
+    line-height: 1.45;
+  }
+
+  .observation-list {
+    display: grid;
+    gap: 0;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .observation-list li {
+    border-top: 1px solid var(--loom-border-default);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 2.25rem 1fr;
+    padding-block: 1.15rem;
+  }
+
+  .observation-list span {
+    color: var(--loom-blue-600);
+    font-family: var(--loom-font-mono);
+    font-size: 0.75rem;
+  }
+
+  .observation-list p {
+    margin: 0;
+  }
+
+  .artifact-links,
+  .related-link-list {
+    display: grid;
+    gap: 0.75rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .artifact-link,
+  .related-link-list li {
+    align-items: center;
+    background: var(--loom-surface-soft);
+    border: 1px solid var(--loom-border-default);
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem;
+    text-decoration: none;
+  }
+
+  .artifact-link:hover {
+    border-color: var(--loom-blue-600);
+  }
+
+  .related-link-list li {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .related-link-list a {
+    color: var(--loom-blue-600);
+    font-weight: 680;
+    text-decoration: none;
+  }
+
+  .related-link-list span {
+    color: var(--loom-text-muted);
+    font-size: 0.8rem;
+  }
+
+  .related-heading {
+    margin-bottom: 2.5rem;
+  }
+
+  @media (max-width: 59.99rem) {
+    .research-detail-hero__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .research-wave {
+      height: 9rem;
+    }
+  }
+</style>

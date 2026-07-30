@@ -536,6 +536,49 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanKeepsDeploymentIdInExplicitPrivateRuntimeAudiences() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml?expires=2016230400&sig=test-actions",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml?expires=2016230400&sig=test-entities",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml?expires=2016230400&sig=test-routing",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json?expires=2016230400&sig=test-prompts",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json?expires=2016230400&sig=test-manifest"
+            )
+        );
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            platformSecretService,
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity version = version();
+        version.setSecurityConfigJson("""
+            {
+              "privateRuntimeAcceptedAudiences": "produs-staging"
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", "produs-staging,dep-123");
+    }
+
+    @Test
     void buildPlanAddsRuntimePublicTokenValidationEnvWhenSecretExists() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
@@ -684,7 +727,7 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
-    void buildPlanAddsCuratedPackEnvWhenProviderConfigSpecifiesPack() {
+    void buildPlanAddsCuratedPackEnvFromCuratedModuleFallback() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
             new DeploymentArtifactBundleSummary(
@@ -714,8 +757,7 @@ class RailwayProvisioningPlanServiceTest {
             {
               "llmProvider": "openai",
               "embeddingProvider": "openai",
-              "curatedModuleId": "commerce",
-              "curatedPackId": "commerce"
+              "curatedModuleId": "commerce"
             }
             """);
 
@@ -1497,7 +1539,14 @@ class RailwayProvisioningPlanServiceTest {
                   "adapterType": "mcp-tool",
                   "execution": {
                     "adapterType": "mcp-tool",
-                    "mcp": {"serverRef": "shopify-storefront", "toolName": "search_catalog"}
+                    "mcp": {
+                      "serverRef": "shopify-storefront",
+                      "toolName": "search_catalog",
+                      "auth": {
+                        "mode": "API_KEY_HEADER_SECRET",
+                        "secretRef": "MCP_SECRET_PRODUS_STAGING_MCP_API_KEY"
+                      }
+                    }
                   }
                 }
               ]
@@ -1510,7 +1559,8 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_BASE_URL", "https://mcp-gateway.example")
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY", "${secret:MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY}")
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY")
-            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute");
+            .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute")
+            .containsEntry("MCP_SECRET_PRODUS_STAGING_MCP_API_KEY", "${secret:MCP_SECRET_PRODUS_STAGING_MCP_API_KEY}");
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

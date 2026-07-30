@@ -29,13 +29,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -47,15 +51,22 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private static final String RESOURCE_KIND_APPLICATION = "APPLICATION";
     private static final String RESOURCE_KIND_CONNECTOR_APPLICATION = "CONNECTOR_APPLICATION";
     private static final String RESOURCE_KIND_VECTORIZATION_RUNNER_APPLICATION = "VECTORIZATION_RUNNER_APPLICATION";
+    private static final String RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE = "RUNTIME_POSTGRES_DATABASE";
     private static final String SERVICE_ROLE_RUNTIME = "runtime";
     private static final String SERVICE_ROLE_CONNECTOR = "connector";
     private static final String SERVICE_ROLE_VECTORIZATION_RUNNER = "vectorization-runner";
+    private static final String DEFAULT_RUNTIME_PORT = "8097";
+    private static final String DEFAULT_CONNECTOR_PORT = "8082";
+    private static final String DEFAULT_VECTORIZATION_RUNNER_PORT = "8099";
+    private static final String DEFAULT_SERVICE_HEALTH_CHECK_PATH = "/actuator/health/liveness";
+    private static final String RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES = "COOLIFY_POSTGRES";
     private static final String DEFAULT_SERVICE_NAME = "ai-fabric-runtime";
     private static final String DEFAULT_PROMOTION_CHANNEL = "staging";
     private static final Duration DEFAULT_DEPLOY_SETTLE_TIMEOUT = Duration.ofMinutes(6);
     private static final Duration DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL = Duration.ofSeconds(10);
     private static final Duration DEFAULT_STALE_DELETE_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration DEFAULT_STALE_DELETE_POLL_INTERVAL = Duration.ofSeconds(5);
+    private static final SecureRandom SECRET_RANDOM = new SecureRandom();
 
     private final DeploymentTargetProfileRepository targetProfileRepository;
     private final DeploymentProviderResourceHandleRepository resourceHandleRepository;
@@ -69,6 +80,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final PlatformCustomerRepository platformCustomerRepository;
     private final ObjectMapper objectMapper;
     private VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
+    private PlatformManagedProductProvisioningService platformManagedProductProvisioningService;
 
     @Autowired
     public CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -98,6 +110,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Autowired(required = false)
     void setVectorizationRunnerProvisioningService(VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService) {
         this.vectorizationRunnerProvisioningService = vectorizationRunnerProvisioningService;
+    }
+
+    @Autowired(required = false)
+    void setPlatformManagedProductProvisioningService(PlatformManagedProductProvisioningService platformManagedProductProvisioningService) {
+        this.platformManagedProductProvisioningService = platformManagedProductProvisioningService;
     }
 
     CoolifyDeploymentProvider(DeploymentTargetProfileRepository targetProfileRepository,
@@ -191,7 +208,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             "Verify Coolify target profile credentials before application reconciliation.",
             () -> {
                 CoolifyConnection resolved = targetProfileResolver.requireConnection(profile);
-                coolifyApiClient.health(resolved);
+                coolifyApiClient.version(resolved);
                 return resolved;
             }
         );
@@ -202,6 +219,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             release,
             progressTracker
         );
+        ensureManagedProductDependencies(profile, version, progressTracker);
         CoolifyProvisioningSource source = tracked(
             progressTracker,
             "resolve_coolify_source",
@@ -233,10 +251,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             vectorizationRunnerProvisioningService.clearManagedRegistrationSecret(deployment.getId());
         }
 
-        String portsExposes = text(resourceDefaults, "portsExposes", connection.config().defaultPortsExposes());
-        String healthCheckPath = text(resourceDefaults, "healthCheckPath", connection.config().defaultHealthCheckPath());
-        String healthCheckPort = text(resourceDefaults, "healthCheckPort", connection.config().defaultHealthCheckPort());
-        boolean healthCheckEnabled = booleanValue(resourceDefaults, "healthCheckEnabled", StringUtils.hasText(healthCheckPath));
+        String runtimePortsExposes = servicePortsExposes(resourceDefaults, connection.config(), SERVICE_ROLE_RUNTIME);
+        String runtimeHealthCheckPath = serviceHealthCheckPath(resourceDefaults, connection.config(), SERVICE_ROLE_RUNTIME);
+        String runtimeHealthCheckPort = serviceHealthCheckPort(resourceDefaults, connection.config(), SERVICE_ROLE_RUNTIME);
+        String connectorPortsExposes = servicePortsExposes(resourceDefaults, connection.config(), SERVICE_ROLE_CONNECTOR);
+        String connectorHealthCheckPath = serviceHealthCheckPath(resourceDefaults, connection.config(), SERVICE_ROLE_CONNECTOR);
+        String connectorHealthCheckPort = serviceHealthCheckPort(resourceDefaults, connection.config(), SERVICE_ROLE_CONNECTOR);
+        String vectorizationRunnerPortsExposes = servicePortsExposes(
+            resourceDefaults,
+            connection.config(),
+            SERVICE_ROLE_VECTORIZATION_RUNNER
+        );
+        String vectorizationRunnerHealthCheckPath = serviceHealthCheckPath(
+            resourceDefaults,
+            connection.config(),
+            SERVICE_ROLE_VECTORIZATION_RUNNER
+        );
+        String vectorizationRunnerHealthCheckPort = serviceHealthCheckPort(
+            resourceDefaults,
+            connection.config(),
+            SERVICE_ROLE_VECTORIZATION_RUNNER
+        );
+        boolean healthCheckEnabled = booleanValue(resourceDefaults, "healthCheckEnabled", StringUtils.hasText(runtimeHealthCheckPath));
         boolean autogenerateDomain = booleanValue(resourceDefaults, "autogenerateDomain", connection.config().autogenerateDomain());
         String runtimeAppName = resolveApplicationName(deployment, resourceDefaults, source, source.runtimePlan(), SERVICE_ROLE_RUNTIME);
         String runtimeDomain = resolveDomain(deployment, resourceDefaults, connection.config(), autogenerateDomain, SERVICE_ROLE_RUNTIME);
@@ -258,10 +294,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 source.runtimePlan(),
                 source.baseDirectory(),
                 source.dockerfileLocation(),
-                portsExposes,
+                runtimePortsExposes,
                 healthCheckEnabled,
-                healthCheckPath,
-                healthCheckPort,
+                runtimeHealthCheckPath,
+                runtimeHealthCheckPort,
                 autogenerateDomain,
                 runtimeDomain
             )
@@ -300,10 +336,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     source.connectorPlan(),
                     connectorBaseDirectory,
                     connectorDockerfileLocation,
-                    portsExposes,
+                    connectorPortsExposes,
                     healthCheckEnabled,
-                    healthCheckPath,
-                    healthCheckPort,
+                    connectorHealthCheckPath,
+                    connectorHealthCheckPort,
                     autogenerateDomain,
                     connectorDomain
                 )
@@ -351,10 +387,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     vectorizationRunnerPlan,
                     runnerBaseDirectory,
                     runnerDockerfileLocation,
-                    portsExposes,
+                    vectorizationRunnerPortsExposes,
                     healthCheckEnabled,
-                    healthCheckPath,
-                    healthCheckPort,
+                    vectorizationRunnerHealthCheckPath,
+                    vectorizationRunnerHealthCheckPort,
                     autogenerateDomain,
                     runnerDomain
                 )
@@ -365,6 +401,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         String connectorBaseUrl = connectorApplication == null
             ? runtimeBaseUrl
             : normalizeRuntimeBaseUrl(connectorApplication.fqdn());
+        CoolifyRuntimeDatabaseBinding runtimeDatabaseBinding = tracked(
+            progressTracker,
+            "reconcile_coolify_runtime_database",
+            "Create or reuse the profile-managed runtime PostgreSQL database when production profile requires durable chat storage.",
+            () -> reconcileRuntimeDatabaseBinding(connection, resourceScope, deployment, profile, resourceDefaults)
+        );
 
         int runtimeEnvCount = tracked(
             progressTracker,
@@ -383,7 +425,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     source.runtimePlan(),
                     SERVICE_ROLE_RUNTIME,
                     runtimeBaseUrl,
-                    connectorBaseUrl
+                    connectorBaseUrl,
+                    runtimeDatabaseBinding
                 )
             )
         );
@@ -408,7 +451,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                         source.connectorPlan(),
                         SERVICE_ROLE_CONNECTOR,
                         runtimeBaseUrl,
-                        connectorBaseUrl
+                        connectorBaseUrl,
+                        null
                     )
                 )
             );
@@ -434,7 +478,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                         vectorizationRunnerPlan,
                         SERVICE_ROLE_VECTORIZATION_RUNNER,
                         runtimeBaseUrl,
-                        connectorBaseUrl
+                        connectorBaseUrl,
+                        null
                     )
                 )
             );
@@ -570,9 +615,23 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 runtimeDeployResponse
             )
         );
+        DeploymentProviderResourceHandleEntity runtimeDatabaseHandle = runtimeDatabaseBinding == null ? null : tracked(
+            progressTracker,
+            "record_coolify_runtime_database_handle",
+            "Persist Coolify runtime database resource handle for operator actions.",
+            () -> upsertDatabaseHandle(
+                deployment,
+                release,
+                profile,
+                resourceScope,
+                connection.config(),
+                runtimeDatabaseBinding
+            )
+        );
         String details = buildProvisioningDetails(
             profile,
             runtimeHandle,
+            runtimeDatabaseHandle,
             connectorHandle,
             observedRuntime,
             finalObservedConnector,
@@ -586,6 +645,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             runtimeDeployResponse,
             finalConnectorDeployResponse,
             finalVectorizationRunnerDeployResponse,
+            runtimeDatabaseBinding,
             managedVectorProvisioningResult
         );
         progressTracker.mergeDetails(details);
@@ -602,6 +662,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceActionSummary start(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
+        if (isRuntimePostgresDatabase(handle)) {
+            CoolifyActionResponse response = coolifyApiClient.startDatabase(connection, handle.getProviderResourceUuid());
+            return actionSummary(handle, "START", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
+        }
         CoolifyActionResponse response = coolifyApiClient.start(connection, handle.getProviderResourceUuid(), false, true);
         return actionSummary(handle, "START", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
     }
@@ -609,6 +673,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceActionSummary stop(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
+        if (isRuntimePostgresDatabase(handle)) {
+            CoolifyActionResponse response = coolifyApiClient.stopDatabase(connection, handle.getProviderResourceUuid());
+            return actionSummary(handle, "STOP", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
+        }
         CoolifyActionResponse response = coolifyApiClient.stop(connection, handle.getProviderResourceUuid(), true);
         return actionSummary(handle, "STOP", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
     }
@@ -616,6 +684,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceActionSummary restart(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
+        if (isRuntimePostgresDatabase(handle)) {
+            CoolifyActionResponse response = coolifyApiClient.restartDatabase(connection, handle.getProviderResourceUuid());
+            return actionSummary(handle, "RESTART", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
+        }
         CoolifyActionResponse response = coolifyApiClient.restart(connection, handle.getProviderResourceUuid());
         return actionSummary(handle, "RESTART", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
     }
@@ -624,14 +696,33 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     public DeploymentProviderResourceActionSummary delete(DeploymentProviderResourceHandleEntity handle, String reason) {
         CoolifyConnection connection = connectionForHandle(handle);
         try {
+            if (isRuntimePostgresDatabase(handle)) {
+                CoolifyActionResponse response = coolifyApiClient.deleteDatabase(connection, handle.getProviderResourceUuid(), true, true, true, true);
+                clearRuntimeDatabaseSecret(handle, reason);
+                return actionSummary(handle, "DELETE", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
+            }
             CoolifyActionResponse response = coolifyApiClient.delete(connection, handle.getProviderResourceUuid(), true, false, true, true);
             return actionSummary(handle, "DELETE", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
         } catch (CoolifyApiException ex) {
             if (ex.statusCode() == 404) {
+                if (isRuntimePostgresDatabase(handle)) {
+                    clearRuntimeDatabaseSecret(handle, reason);
+                }
                 ObjectNode details = objectMapper.createObjectNode();
-                details.put("message", "Coolify application was already absent.");
+                details.put("message", isRuntimePostgresDatabase(handle)
+                    ? "Coolify database was already absent."
+                    : "Coolify application was already absent.");
                 details.put("path", ex.path());
-                return actionSummary(handle, "DELETE", "COMPLETED", "Coolify application was already absent.", null, details);
+                return actionSummary(
+                    handle,
+                    "DELETE",
+                    "COMPLETED",
+                    isRuntimePostgresDatabase(handle)
+                        ? "Coolify database was already absent."
+                        : "Coolify application was already absent.",
+                    null,
+                    details
+                );
             }
             throw ex;
         }
@@ -640,6 +731,23 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     @Override
     public DeploymentProviderResourceStatusSummary status(DeploymentProviderResourceHandleEntity handle) {
         CoolifyConnection connection = connectionForHandle(handle);
+        if (isRuntimePostgresDatabase(handle)) {
+            CoolifyDatabaseSummary database = coolifyApiClient.getDatabase(connection, handle.getProviderResourceUuid())
+                .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Coolify database not found: " + handle.getProviderResourceUuid()
+                ));
+            return new DeploymentProviderResourceStatusSummary(
+                handle.getId(),
+                handle.getProviderType(),
+                handle.getProviderResourceUuid(),
+                normalizeStatus(database.status(), "OBSERVED"),
+                database.status(),
+                null,
+                safeDatabaseDetails(database),
+                Instant.now()
+            );
+        }
         CoolifyApplicationSummary application = coolifyApiClient.getApplication(connection, handle.getProviderResourceUuid())
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
@@ -666,8 +774,33 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             handle.getProviderType(),
             handle.getProviderResourceUuid(),
             normalizedLines,
-            coolifyApiClient.logs(connection, handle.getProviderResourceUuid(), normalizedLines),
+            isRuntimePostgresDatabase(handle)
+                ? coolifyApiClient.databaseLogs(connection, handle.getProviderResourceUuid(), normalizedLines)
+                : coolifyApiClient.logs(connection, handle.getProviderResourceUuid(), normalizedLines),
             Instant.now()
+        );
+    }
+
+    private boolean isRuntimePostgresDatabase(DeploymentProviderResourceHandleEntity handle) {
+        return handle != null && RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE.equals(handle.getResourceKind());
+    }
+
+    private void clearRuntimeDatabaseSecret(DeploymentProviderResourceHandleEntity handle, String reason) {
+        if (platformSecretService == null) {
+            return;
+        }
+        String secretName = text(readJson(handle.getMetadataJson()), "passwordSecretName", null);
+        if (!StringUtils.hasText(secretName) || !platformSecretService.isManagedSecretName(secretName)) {
+            return;
+        }
+        platformSecretService.clearManagedSecret(
+            secretName,
+            Map.of(
+                "deploymentId", handle.getDeploymentId(),
+                "targetProfileId", handle.getTargetProfileId(),
+                "reason", StringUtils.hasText(reason) ? reason : "provider_resource_delete",
+                "action", "DELETE_RUNTIME_POSTGRES_DATABASE"
+            )
         );
     }
 
@@ -837,6 +970,216 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     .put("git_repository", request.gitRepository())
                     .put("git_branch", request.gitBranch())
             ));
+    }
+
+    private CoolifyRuntimeDatabaseBinding reconcileRuntimeDatabaseBinding(CoolifyConnection connection,
+                                                                          CoolifyResourceScope scope,
+                                                                          DeploymentEntity deployment,
+                                                                          DeploymentTargetProfileEntity profile,
+                                                                          JsonNode resourceDefaults) {
+        String mode = text(resourceDefaults, "runtimeDatabaseMode", null);
+        if (!RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES.equalsIgnoreCase(mode)) {
+            return null;
+        }
+        if (platformSecretService == null) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Platform secret service is required for managed runtime Postgres provisioning."
+            );
+        }
+        CoolifyCreatePostgresDatabaseRequest request = runtimePostgresDatabaseRequest(
+            connection,
+            scope,
+            deployment,
+            profile,
+            resourceDefaults
+        );
+        CoolifyDatabaseSummary database = reconcilePostgresDatabase(connection, scope, deployment, profile, request);
+        String passwordSecretName = runtimePostgresPasswordSecretName(deployment.getId(), profile.getId());
+        String password = platformSecretService.resolveSecret(passwordSecretName);
+        if (!StringUtils.hasText(password)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Managed runtime Postgres password secret disappeared during provisioning."
+            );
+        }
+        String internalHost = text(
+            resourceDefaults,
+            "runtimeDatabaseInternalHost",
+            resolveRuntimeDatabaseInternalHost(database)
+        );
+        String port = text(resourceDefaults, "runtimeDatabasePort", "5432");
+        String jdbcDatabaseName = StringUtils.hasText(database.postgresDatabase())
+            ? database.postgresDatabase()
+            : request.postgresDatabase();
+        String jdbcUrl = text(
+            resourceDefaults,
+            "runtimeDatabaseJdbcUrl",
+            "jdbc:postgresql://" + internalHost + ":" + port + "/" + jdbcDatabaseName
+        );
+        return new CoolifyRuntimeDatabaseBinding(
+            RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES,
+            database,
+            jdbcUrl,
+            request.postgresUser(),
+            password,
+            passwordSecretName
+        );
+    }
+
+    private String resolveRuntimeDatabaseInternalHost(CoolifyDatabaseSummary database) {
+        String internalDbUrl = textFirst(database.raw(), "internal_db_url", "internalDbUrl");
+        if (StringUtils.hasText(internalDbUrl)) {
+            try {
+                URI uri = URI.create(internalDbUrl);
+                if (StringUtils.hasText(uri.getHost())) {
+                    return uri.getHost();
+                }
+            } catch (RuntimeException ignored) {
+                // Fall back to Coolify identifiers below; do not propagate or log URL credentials.
+            }
+        }
+        if (StringUtils.hasText(database.uuid())) {
+            return database.uuid();
+        }
+        return database.name();
+    }
+
+    private CoolifyDatabaseSummary reconcilePostgresDatabase(CoolifyConnection connection,
+                                                             CoolifyResourceScope scope,
+                                                             DeploymentEntity deployment,
+                                                             DeploymentTargetProfileEntity profile,
+                                                             CoolifyCreatePostgresDatabaseRequest request) {
+        Optional<DeploymentProviderResourceHandleEntity> existingHandle =
+            resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+                deployment.getId(),
+                profile.getId(),
+                RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE
+            );
+        if (existingHandle.isPresent() && handleMatchesScope(existingHandle.get(), scope)) {
+            String uuid = existingHandle.get().getProviderResourceUuid();
+            Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, uuid);
+            if (observed.isPresent()) {
+                coolifyApiClient.updatePostgresDatabase(connection, uuid, request);
+                return coolifyApiClient.getDatabase(connection, uuid).orElse(observed.get());
+            }
+        }
+
+        CoolifyDatabaseSummary namedDatabase = coolifyApiClient.listDatabases(connection).stream()
+            .filter(database -> request.name().equals(database.name()))
+            .filter(database -> databaseMatchesScope(database, scope))
+            .findFirst()
+            .orElse(null);
+        if (namedDatabase != null) {
+            coolifyApiClient.updatePostgresDatabase(connection, namedDatabase.uuid(), request);
+            return coolifyApiClient.getDatabase(connection, namedDatabase.uuid()).orElse(namedDatabase);
+        }
+
+        try {
+            String uuid = coolifyApiClient.createPostgresDatabase(connection, request);
+            CoolifyDatabaseSummary database = coolifyApiClient.getDatabase(connection, uuid)
+                .orElse(new CoolifyDatabaseSummary(
+                    uuid,
+                    request.name(),
+                    "CREATED",
+                    "postgresql",
+                    request.postgresUser(),
+                    request.postgresDatabase(),
+                    objectMapper.createObjectNode()
+                        .put("uuid", uuid)
+                        .put("name", request.name())
+                        .put("postgres_user", request.postgresUser())
+                        .put("postgres_db", request.postgresDatabase())
+                ));
+            coolifyApiClient.startDatabase(connection, uuid);
+            return database;
+        } catch (CoolifyApiException ex) {
+            if (ex.statusCode() != 409) {
+                throw ex;
+            }
+            return coolifyApiClient.listDatabases(connection).stream()
+                .filter(database -> request.name().equals(database.name()))
+                .filter(database -> databaseMatchesScope(database, scope))
+                .findFirst()
+                .orElseThrow(() -> ex);
+        }
+    }
+
+    private CoolifyCreatePostgresDatabaseRequest runtimePostgresDatabaseRequest(CoolifyConnection connection,
+                                                                                CoolifyResourceScope scope,
+                                                                                DeploymentEntity deployment,
+                                                                                DeploymentTargetProfileEntity profile,
+                                                                                JsonNode resourceDefaults) {
+        String databaseName = normalizeDatabaseIdentifier(text(resourceDefaults, "runtimeDatabaseName", "runtime_chat"));
+        String username = normalizeDatabaseIdentifier(text(resourceDefaults, "runtimeDatabaseUsername", "runtime_user"));
+        String passwordSecretName = runtimePostgresPasswordSecretName(deployment.getId(), profile.getId());
+        String password = platformSecretService.resolveSecret(passwordSecretName);
+        if (!StringUtils.hasText(password)) {
+            password = generateSecretValue();
+            platformSecretService.upsertManagedSecret(
+                passwordSecretName,
+                password,
+                Map.of(
+                    "deploymentId", deployment.getId(),
+                    "targetProfileId", profile.getId(),
+                    "purpose", "RUNTIME_POSTGRES_PASSWORD"
+                )
+            );
+        }
+        String prefix = text(resourceDefaults, "runtimeDatabaseNamePrefix", "ai-fabric-runtime-postgres");
+        String resourceName = normalizeName(prefix + "-" + deployment.getId());
+        return new CoolifyCreatePostgresDatabaseRequest(
+            scope.projectUuid(),
+            connection.config().serverUuid(),
+            scope.environmentName(),
+            scope.environmentUuid(),
+            connection.config().destinationUuid(),
+            resourceName,
+            "Durable runtime chat database for AI Fabric deployment " + deployment.getId(),
+            text(resourceDefaults, "runtimeDatabaseImage", "postgres:16-alpine"),
+            username,
+            password,
+            databaseName,
+            booleanValue(resourceDefaults, "runtimeDatabasePublic", false),
+            false
+        );
+    }
+
+    private DeploymentProviderResourceHandleEntity upsertDatabaseHandle(DeploymentEntity deployment,
+                                                                        DeploymentReleaseEntity release,
+                                                                        DeploymentTargetProfileEntity profile,
+                                                                        CoolifyResourceScope scope,
+                                                                        CoolifyTargetProfileConfig config,
+                                                                        CoolifyRuntimeDatabaseBinding binding) {
+        Instant now = Instant.now();
+        DeploymentProviderResourceHandleEntity handle = resourceHandleRepository
+            .findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+                deployment.getId(),
+                profile.getId(),
+                RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE
+            )
+            .orElseGet(() -> {
+                DeploymentProviderResourceHandleEntity created = new DeploymentProviderResourceHandleEntity();
+                created.setId("dprh-" + UUID.randomUUID().toString().substring(0, 8));
+                created.setCreatedAt(now);
+                return created;
+            });
+        handle.setDeploymentId(deployment.getId());
+        handle.setReleaseId(release.getId());
+        handle.setTargetProfileId(profile.getId());
+        handle.setProviderType(DeploymentProviderType.COOLIFY);
+        handle.setResourceKind(RESOURCE_KIND_RUNTIME_POSTGRES_DATABASE);
+        handle.setProviderResourceUuid(binding.database().uuid());
+        handle.setProviderProjectUuid(scope.projectUuid());
+        handle.setProviderEnvironmentUuid(scope.environmentUuid());
+        handle.setProviderServerUuid(config.serverUuid());
+        handle.setFqdn(null);
+        handle.setStatus(databaseReady(binding.database()) ? "ACTIVE" : "PROVISIONED");
+        handle.setLastObservedStatus(binding.database().status());
+        handle.setLastObservedAt(now);
+        handle.setMetadataJson(databaseHandleMetadata(binding, scope));
+        handle.setUpdatedAt(now);
+        return resourceHandleRepository.save(handle);
     }
 
     private CoolifyCreateDockerImageApplicationRequest dockerImageApplicationRequest(CoolifyConnection connection,
@@ -1135,6 +1478,50 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return result;
     }
 
+    private void ensureManagedProductDependencies(DeploymentTargetProfileEntity profile,
+                                                  DeploymentVersionEntity version,
+                                                  ProvisioningProgressTracker progressTracker) {
+        if (!hasMcpToolActions(readJson(version.getActionsConfigJson()))) {
+            return;
+        }
+        if (platformManagedProductProvisioningService == null) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "MCP tool actions require managed product dependency reconciliation support."
+            );
+        }
+        tracked(
+            progressTracker,
+            "ensure_managed_product_dependencies",
+            "Reconcile managed product service dependencies required by runtime actions.",
+            () -> {
+                platformManagedProductProvisioningService.reconcile("mcp-execution-gateway", profile.getId());
+                return true;
+            }
+        );
+    }
+
+    private boolean hasMcpToolActions(JsonNode actionsConfig) {
+        JsonNode actions = actionsConfig == null ? null : actionsConfig.path("actions");
+        if (actions == null || !actions.isArray()) {
+            return false;
+        }
+        for (JsonNode action : actions) {
+            String adapterType = text(action, "adapterType", null);
+            if ("mcp-tool".equalsIgnoreCase(adapterType)) {
+                return true;
+            }
+            JsonNode execution = action.path("execution");
+            if (execution.isObject()) {
+                String executionAdapterType = text(execution, "adapterType", null);
+                if ("mcp-tool".equalsIgnoreCase(executionAdapterType) || execution.path("mcp").isObject()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private CoolifyProvisioningSource resolveProvisioningSource(DeploymentTargetProfileEntity profile,
                                                                JsonNode resourceDefaults,
                                                                DeploymentEntity deployment,
@@ -1262,7 +1649,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                  RailwayServicePlanSummary servicePlan,
                                                  String serviceRole,
                                                  String runtimeBaseUrl,
-                                                 String connectorBaseUrl) {
+                                                 String connectorBaseUrl,
+                                                 CoolifyRuntimeDatabaseBinding runtimeDatabaseBinding) {
         LinkedHashMap<String, CoolifyEnvVar> env = new LinkedHashMap<>();
         if (servicePlan != null && servicePlan.env() != null) {
             for (RailwayEnvVarSummary serviceEnv : servicePlan.env()) {
@@ -1293,6 +1681,15 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             putEnv(env, "PLATFORM_DOCKERFILE_LOCATION", servicePlan != null
                 ? normalizeDockerfileLocation(servicePlan.dockerfilePath())
                 : source.dockerfileLocation());
+        }
+        if (SERVICE_ROLE_RUNTIME.equals(serviceRole) && runtimeDatabaseBinding != null) {
+            putEnv(env, "SPRING_DATASOURCE_URL", runtimeDatabaseBinding.jdbcUrl());
+            putEnv(env, "SPRING_DATASOURCE_DRIVER_CLASS_NAME", "org.postgresql.Driver");
+            putEnv(env, "SPRING_DATASOURCE_USERNAME", runtimeDatabaseBinding.username(), true);
+            putEnv(env, "SPRING_DATASOURCE_PASSWORD", runtimeDatabaseBinding.password(), true);
+            putEnv(env, "PLATFORM_RUNTIME_DATABASE_MODE", runtimeDatabaseBinding.mode());
+            putEnv(env, "PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
+            putEnv(env, "PLATFORM_RUNTIME_DATABASE_PASSWORD_SECRET", runtimeDatabaseBinding.passwordSecretName(), true);
         }
         putEnv(env, "PLATFORM_ENVIRONMENT_NAME", profile.getEnvironmentName());
         return withPreviewEnvironment(new ArrayList<>(env.values()));
@@ -1394,6 +1791,73 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return normalizeName("ai-fabric-" + serviceRole + "-" + deployment.getId());
     }
 
+    private String servicePortsExposes(JsonNode resourceDefaults,
+                                       CoolifyTargetProfileConfig config,
+                                       String serviceRole) {
+        String configured = SERVICE_ROLE_CONNECTOR.equals(serviceRole)
+            ? text(resourceDefaults, "connectorPortsExposes", null)
+            : SERVICE_ROLE_VECTORIZATION_RUNNER.equals(serviceRole)
+                ? text(resourceDefaults, "vectorizationRunnerPortsExposes", null)
+                : SERVICE_ROLE_RUNTIME.equals(serviceRole)
+                    ? text(resourceDefaults, "runtimePortsExposes", null)
+                    : text(resourceDefaults, "portsExposes", null);
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        String defaultPort = defaultServicePort(serviceRole);
+        return StringUtils.hasText(defaultPort) ? defaultPort : config.defaultPortsExposes();
+    }
+
+    private String serviceHealthCheckPort(JsonNode resourceDefaults,
+                                          CoolifyTargetProfileConfig config,
+                                          String serviceRole) {
+        String configured = SERVICE_ROLE_CONNECTOR.equals(serviceRole)
+            ? text(resourceDefaults, "connectorHealthCheckPort", null)
+            : SERVICE_ROLE_VECTORIZATION_RUNNER.equals(serviceRole)
+                ? text(resourceDefaults, "vectorizationRunnerHealthCheckPort", null)
+                : SERVICE_ROLE_RUNTIME.equals(serviceRole)
+                    ? text(resourceDefaults, "runtimeHealthCheckPort", null)
+                    : text(resourceDefaults, "healthCheckPort", null);
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        String defaultPort = defaultServicePort(serviceRole);
+        return StringUtils.hasText(defaultPort) ? defaultPort : config.defaultHealthCheckPort();
+    }
+
+    private String serviceHealthCheckPath(JsonNode resourceDefaults,
+                                          CoolifyTargetProfileConfig config,
+                                          String serviceRole) {
+        String configured = SERVICE_ROLE_CONNECTOR.equals(serviceRole)
+            ? text(resourceDefaults, "connectorHealthCheckPath", null)
+            : SERVICE_ROLE_VECTORIZATION_RUNNER.equals(serviceRole)
+                ? text(resourceDefaults, "vectorizationRunnerHealthCheckPath", null)
+                : SERVICE_ROLE_RUNTIME.equals(serviceRole)
+                    ? text(resourceDefaults, "runtimeHealthCheckPath", null)
+                    : text(resourceDefaults, "healthCheckPath", null);
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        return defaultServiceHealthCheckPath(serviceRole, config);
+    }
+
+    private String defaultServiceHealthCheckPath(String serviceRole, CoolifyTargetProfileConfig config) {
+        return switch (serviceRole) {
+            case SERVICE_ROLE_RUNTIME, SERVICE_ROLE_CONNECTOR, SERVICE_ROLE_VECTORIZATION_RUNNER ->
+                DEFAULT_SERVICE_HEALTH_CHECK_PATH;
+            default -> config.defaultHealthCheckPath();
+        };
+    }
+
+    private String defaultServicePort(String serviceRole) {
+        return switch (serviceRole) {
+            case SERVICE_ROLE_RUNTIME -> DEFAULT_RUNTIME_PORT;
+            case SERVICE_ROLE_CONNECTOR -> DEFAULT_CONNECTOR_PORT;
+            case SERVICE_ROLE_VECTORIZATION_RUNNER -> DEFAULT_VECTORIZATION_RUNNER_PORT;
+            default -> null;
+        };
+    }
+
     private boolean handleMatchesScope(DeploymentProviderResourceHandleEntity handle, CoolifyResourceScope scope) {
         if (!sameText(handle.getProviderProjectUuid(), scope.projectUuid())) {
             return false;
@@ -1460,11 +1924,40 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return !StringUtils.hasText(environmentName) || sameText(environmentName, scope.environmentName());
     }
 
+    private boolean databaseMatchesScope(CoolifyDatabaseSummary database, CoolifyResourceScope scope) {
+        if (!scope.customerGrouped()) {
+            return true;
+        }
+        JsonNode raw = database.raw();
+        String projectUuid = textFirst(raw, "project_uuid", "projectUuid");
+        if (!StringUtils.hasText(projectUuid)) {
+            projectUuid = raw.path("project").path("uuid").asText(null);
+        }
+        if (!sameText(projectUuid, scope.projectUuid())) {
+            return false;
+        }
+        String environmentUuid = textFirst(raw, "environment_uuid", "environmentUuid");
+        if (!StringUtils.hasText(environmentUuid)) {
+            environmentUuid = raw.path("environment").path("uuid").asText(null);
+        }
+        if (StringUtils.hasText(scope.environmentUuid()) && StringUtils.hasText(environmentUuid)) {
+            return sameText(environmentUuid, scope.environmentUuid());
+        }
+        String environmentName = textFirst(raw, "environment_name", "environmentName");
+        if (!StringUtils.hasText(environmentName)) {
+            environmentName = raw.path("environment").path("name").asText(null);
+        }
+        return !StringUtils.hasText(environmentName) || sameText(environmentName, scope.environmentName());
+    }
+
     private CoolifyApplicationSummary waitForApplicationReady(CoolifyConnection connection,
                                                               String applicationUuid,
                                                               JsonNode resourceDefaults,
                                                               CoolifyApplicationSummary fallback,
                                                               CoolifyActionResponse deployResponse) {
+        if (applicationReady(fallback)) {
+            return fallback;
+        }
         Duration timeout = durationSeconds(
             resourceDefaults,
             "deploySettleTimeoutSeconds",
@@ -1476,7 +1969,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             positiveDurationSeconds(connection.config().deploymentPollIntervalSeconds(), DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL)
         );
         Instant deadline = Instant.now().plus(timeout);
-        CoolifyApplicationSummary latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(fallback);
+        CoolifyApplicationSummary latest = observeCoolifyApplication(connection, applicationUuid).orElse(fallback);
         String deploymentUuid = deployResponse == null ? null : deployResponse.deploymentUuid();
         CoolifyDeploymentSummary deployment = observeCoolifyDeployment(connection, deploymentUuid);
         while (!coolifyDeploymentReady(deployment, deploymentUuid) && Instant.now().isBefore(deadline)) {
@@ -1486,7 +1979,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 Thread.currentThread().interrupt();
                 return latest;
             }
-            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+            latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
             deployment = observeCoolifyDeployment(connection, deploymentUuid);
         }
         if (!coolifyDeploymentReady(deployment, deploymentUuid)) {
@@ -1508,16 +2001,38 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 Thread.currentThread().interrupt();
                 return latest;
             }
-            latest = coolifyApiClient.getApplication(connection, applicationUuid).orElse(latest);
+            latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
         }
         return latest;
+    }
+
+    private Optional<CoolifyApplicationSummary> observeCoolifyApplication(CoolifyConnection connection, String applicationUuid) {
+        try {
+            return coolifyApiClient.getApplication(connection, applicationUuid);
+        } catch (CoolifyApiException ex) {
+            if (isTransientCoolifyObservationFailure(ex)) {
+                return Optional.empty();
+            }
+            throw ex;
+        }
     }
 
     private CoolifyDeploymentSummary observeCoolifyDeployment(CoolifyConnection connection, String deploymentUuid) {
         if (!StringUtils.hasText(deploymentUuid)) {
             return null;
         }
-        return coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+        try {
+            return coolifyApiClient.getDeployment(connection, deploymentUuid).orElse(null);
+        } catch (CoolifyApiException ex) {
+            if (isTransientCoolifyObservationFailure(ex)) {
+                return null;
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isTransientCoolifyObservationFailure(CoolifyApiException ex) {
+        return ex != null && ex.statusCode() == 502;
     }
 
     private boolean coolifyDeploymentReady(CoolifyDeploymentSummary deployment, String deploymentUuid) {
@@ -1573,6 +2088,17 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return normalized.startsWith("RUNNING") && !normalized.contains("UNHEALTHY");
     }
 
+    private boolean databaseReady(CoolifyDatabaseSummary database) {
+        if (database == null || !StringUtils.hasText(database.status())) {
+            return false;
+        }
+        String normalized = normalizeStatus(database.status(), "");
+        return normalized.startsWith("RUNNING")
+            || normalized.equals("HEALTHY")
+            || normalized.equals("STARTED")
+            || normalized.equals("ACTIVE");
+    }
+
     private boolean applicationsReady(CoolifyApplicationSummary runtimeApplication,
                                       CoolifyApplicationSummary connectorApplication,
                                       CoolifyApplicationSummary vectorizationRunnerApplication) {
@@ -1598,6 +2124,39 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return normalized.length() > maxLength
             ? normalized.substring(0, maxLength).replaceAll("-+$", "")
             : normalized;
+    }
+
+    private String normalizeDatabaseIdentifier(String value) {
+        String normalized = value == null ? "runtime" : value.toLowerCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[^a-z0-9_]+", "_").replaceAll("_{2,}", "_");
+        normalized = normalized.replaceAll("^_+", "").replaceAll("_+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            normalized = "runtime";
+        }
+        if (!Character.isLetter(normalized.charAt(0))) {
+            normalized = "r_" + normalized;
+        }
+        return normalized.length() > 48 ? normalized.substring(0, 48).replaceAll("_+$", "") : normalized;
+    }
+
+    private String runtimePostgresPasswordSecretName(String deploymentId, String profileId) {
+        return "MANAGED_RUNTIME_POSTGRES_PASSWORD_DEP_"
+            + secretToken(deploymentId)
+            + "_PROFILE_"
+            + secretToken(profileId);
+    }
+
+    private String secretToken(String value) {
+        String normalized = value == null ? "UNKNOWN" : value.toUpperCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[^A-Z0-9]+", "_").replaceAll("_{2,}", "_");
+        normalized = normalized.replaceAll("^_+", "").replaceAll("_+$", "");
+        return StringUtils.hasText(normalized) ? normalized : "UNKNOWN";
+    }
+
+    private String generateSecretValue() {
+        byte[] bytes = new byte[36];
+        SECRET_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private String resolveDomain(DeploymentEntity deployment,
@@ -1712,6 +2271,27 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return details;
     }
 
+    private JsonNode safeDatabaseDetails(CoolifyDatabaseSummary database) {
+        ObjectNode details = objectMapper.createObjectNode();
+        putIfText(details, "uuid", database.uuid());
+        putIfText(details, "name", database.name());
+        putIfText(details, "status", database.status());
+        putIfText(details, "databaseType", database.databaseType());
+        putIfText(details, "postgresUser", database.postgresUser());
+        putIfText(details, "postgresDatabase", database.postgresDatabase());
+        JsonNode raw = database.raw();
+        copyText(raw, details, "project_uuid");
+        copyText(raw, details, "environment_uuid");
+        copyText(raw, details, "environment_name");
+        copyText(raw, details, "created_at");
+        copyText(raw, details, "updated_at");
+        putIfText(details, "projectName", raw.path("project").path("name").asText(null));
+        putIfText(details, "projectUuid", raw.path("project").path("uuid").asText(null));
+        putIfText(details, "environmentName", raw.path("environment").path("name").asText(null));
+        putIfText(details, "environmentUuid", raw.path("environment").path("uuid").asText(null));
+        return details;
+    }
+
     private JsonNode safeActionDetails(JsonNode raw) {
         ObjectNode details = objectMapper.createObjectNode();
         if (raw == null || raw.isMissingNode() || raw.isNull()) {
@@ -1726,6 +2306,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
     private String buildProvisioningDetails(DeploymentTargetProfileEntity profile,
                                             DeploymentProviderResourceHandleEntity runtimeHandle,
+                                            DeploymentProviderResourceHandleEntity runtimeDatabaseHandle,
                                             DeploymentProviderResourceHandleEntity connectorHandle,
                                             CoolifyApplicationSummary runtimeApplication,
                                             CoolifyApplicationSummary connectorApplication,
@@ -1739,6 +2320,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                             CoolifyActionResponse runtimeDeployResponse,
                                             CoolifyActionResponse connectorDeployResponse,
                                             CoolifyActionResponse vectorizationRunnerDeployResponse,
+                                            CoolifyRuntimeDatabaseBinding runtimeDatabaseBinding,
                                             ManagedVectorProvisioningResult managedVectorProvisioningResult) {
         ObjectNode details = objectMapper.createObjectNode();
         details.put("provider", "COOLIFY");
@@ -1759,6 +2341,23 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         details.put("runtimeApplicationUuid", runtimeApplication.uuid());
         details.put("runtimeFqdn", runtimeApplication.fqdn());
         details.put("runtimeStatus", runtimeApplication.status());
+        if (runtimeDatabaseHandle != null && runtimeDatabaseBinding != null) {
+            details.put("runtimeDatabaseProviderResourceHandleId", runtimeDatabaseHandle.getId());
+            details.put("runtimeDatabaseUuid", runtimeDatabaseBinding.database().uuid());
+            details.put("runtimeDatabaseName", runtimeDatabaseBinding.database().name());
+            details.put("runtimeDatabaseMode", runtimeDatabaseBinding.mode());
+            details.put("runtimeDatabaseStatus", runtimeDatabaseBinding.database().status());
+            details.put("runtimeDatabasePasswordSecret", runtimeDatabaseBinding.passwordSecretName());
+            ObjectNode services = objectNode(objectNode(details, "coolify"), "services");
+            ObjectNode database = objectNode(services, "runtimeDatabase");
+            database.put("serviceId", runtimeDatabaseBinding.database().uuid());
+            database.put("serviceName", runtimeDatabaseBinding.database().name());
+            database.put("databaseMode", runtimeDatabaseBinding.mode());
+            database.put("databaseName", runtimeDatabaseBinding.database().postgresDatabase());
+            database.put("username", runtimeDatabaseBinding.database().postgresUser());
+            database.put("status", runtimeDatabaseBinding.database().status());
+            database.put("passwordSecret", runtimeDatabaseBinding.passwordSecretName());
+        }
         if (connectorHandle != null && connectorApplication != null) {
             details.put("connectorProviderResourceHandleId", connectorHandle.getId());
             details.put("connectorApplicationUuid", connectorApplication.uuid());
@@ -1815,6 +2414,19 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             metadata.put("deploymentUuid", deployResponse.deploymentUuid());
             metadata.put("statusMessage", deployResponse.message());
         }
+        return metadata.toPrettyString();
+    }
+
+    private String databaseHandleMetadata(CoolifyRuntimeDatabaseBinding binding,
+                                          CoolifyResourceScope scope) {
+        ObjectNode metadata = objectMapper.createObjectNode();
+        metadata.put("databaseName", binding.database().name());
+        metadata.put("serviceRole", SERVICE_ROLE_RUNTIME);
+        metadata.put("databaseMode", binding.mode());
+        metadata.put("postgresDatabase", binding.database().postgresDatabase());
+        metadata.put("postgresUser", binding.database().postgresUser());
+        metadata.put("passwordSecretName", binding.passwordSecretName());
+        writeScopeDetails(metadata, scope);
         return metadata.toPrettyString();
     }
 

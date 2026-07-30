@@ -1,7 +1,7 @@
 package com.ai.fabric.runtime.config;
 
-import com.ai.infrastructure.rag.source.KnowledgeSourceAdapterType;
-import com.ai.infrastructure.rag.source.ResolvedKnowledgeSource;
+import ai.fabric.rag.source.KnowledgeSourceAdapterType;
+import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;

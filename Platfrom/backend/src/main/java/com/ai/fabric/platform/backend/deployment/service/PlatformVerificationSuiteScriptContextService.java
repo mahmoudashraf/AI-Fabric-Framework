@@ -37,8 +37,7 @@ public class PlatformVerificationSuiteScriptContextService {
     private static final String MCP_GATEWAY_API_KEY_SECRET_NAME = "MANAGED_PRODUCT_MCP_EXECUTION_GATEWAY_API_KEY";
     private static final String MCP_GATEWAY_PRODUCT_SERVICE_REF = "mcp-execution-gateway";
     private static final List<String> RELEASE_BLOCKING_PROVIDER_SECRET_NAMES = List.of(
-        "QDRANT_CLOUD_MANAGEMENT_API_KEY",
-        "QDRANT_API_KEY"
+        "ZILLIZ_CLOUD_API_KEY"
     );
     private static final List<String> SHOPIFY_OPTIONAL_SECRET_NAMES = List.of(
         SHOPIFY_BRIDGE_ADMIN_API_KEY_SECRET_NAME,
@@ -110,6 +109,8 @@ public class PlatformVerificationSuiteScriptContextService {
         Map<String, String> environment = basePlatformEnvironment();
         environment.put("PLATFORM_UI_BASE_URL", platformUiBaseUrl);
         environment.put("ADMIN_TARGET_DEPLOYMENT_ID", adminTargetDeploymentId);
+        environment.put("VERIFY_ASYNC_DELETE_SMOKE", "false");
+        environment.put("VERIFY_DEPLOYMENT_OVERRIDE_SMOKE", "false");
         environment.put("VERIFY_CANONICAL_ROLLOUT_MUTATION", "false");
         environment.put("VERIFY_INFERENCE_SERVICE_ADMIN_MUTATION", "false");
         environment.put("INFERENCE_SERVICE_REF", PlatformVerificationSuiteCatalog.SHARED_INFERENCE_SERVICE_REF);
@@ -124,12 +125,12 @@ public class PlatformVerificationSuiteScriptContextService {
     private PlatformVerificationScriptContextSummary buildManagedProviderVerification() {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("RUN_PINECONE", "false");
-        environment.put("RUN_QDRANT", "true");
-        environment.put("RUN_ZILLIZ", "false");
+        environment.put("RUN_QDRANT", "false");
+        environment.put("RUN_ZILLIZ", "true");
         environment.put("RUN_WEAVIATE", "false");
-        environment.put("QDRANT_EXISTING_CLUSTER_NAME", "cluster");
         environment.put("QDRANT_CREATE_EPHEMERAL_DB_KEY", "false");
         environment.put("QDRANT_CREATE_EPHEMERAL_CLUSTER", "false");
+        environment.put("ZILLIZ_CREATE_EPHEMERAL_CLUSTER", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>();
         for (String secretName : RELEASE_BLOCKING_PROVIDER_SECRET_NAMES) {
@@ -180,6 +181,11 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("SHOPIFY_COMPANION_ENSURE_BILLING_STATE", "true");
         environment.put("EXPECT_BILLING_TIER", "STARTER");
         environment.put("EXPECT_BILLING_STATUS", "ACTIVE");
+        environment.put("STOREFRONT_QUERY_RETRY_ATTEMPTS", "1");
+        environment.put("SHOPIFY_COMPANION_CURL_MAX_TIME_SECONDS", "45");
+        environment.put("SHOPIFY_VERIFY_MERCHANT_SESSION", "false");
+        environment.put("EXPECT_ENABLED_SURFACES", "ai-search");
+        environment.put("EXPECT_MAX_WIDGET_SURFACE", "false");
 
         Map<String, String> secretEnvironment = new LinkedHashMap<>(basePlatformSecretEnvironment());
         for (String secretName : SHOPIFY_OPTIONAL_SECRET_NAMES) {
@@ -248,6 +254,11 @@ public class PlatformVerificationSuiteScriptContextService {
         environment.put("SHOPIFY_BRIDGE_BASE_URL", bridgeBaseUrl);
         environment.put("SHOP_DOMAIN", shopDomain);
         environment.put("READINESS_AUDIT_LOCAL_GATES", "false");
+        environment.put("READINESS_AUDIT_REQUIRED_BILLING_TIER", "STARTER");
+        environment.put("STOREFRONT_QUERY_RETRY_ATTEMPTS", "1");
+        environment.put("SHOPIFY_VERIFY_MERCHANT_SESSION", "false");
+        environment.put("EXPECT_ENABLED_SURFACES", "ai-search");
+        environment.put("EXPECT_MAX_WIDGET_SURFACE", "false");
         if (suiteProperties.shopifyProductServiceRef() != null && !suiteProperties.shopifyProductServiceRef().isBlank()) {
             environment.put("PRODUCT_SERVICE_REF", suiteProperties.shopifyProductServiceRef());
         }

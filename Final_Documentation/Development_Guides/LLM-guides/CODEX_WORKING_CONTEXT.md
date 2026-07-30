@@ -1259,3 +1259,718 @@ Critical fixes that made the gate pass:
 - Confirmed action properties: `WRITE_ONLY`, `sideEffectLevel=MUTATING`, `confirmationRequired=false`, `groundingEligible=false`, `readActionResolutionEligible=false`, schema hash `sha256:6a64c636165a0e6c92e7fefd41fad8e53132f411f2aa7d107a992c6e517867c0`.
 - Negative live execution-path proof through MCP Gateway reached the ProdUS MCP tool, matched schema hash, returned schema drift `OK`, and failed closed with `Project creation intent not found` for an intentionally invalid creation intent. This proves LoomAI config/routing/guard behavior without creating data.
 - Positive creation proof still requires a real owner-approved ProdUS `runtimeActionPayload` from `POST /api/products/ai-assisted/analyze`; do not claim project creation success until that payload is executed live.
+
+## 2026-05-25 Platform-V10 Staging Rollout And Release Gate
+
+- The active repo branch is now `Platform-V10`. Branch defaults were aligned in `scripts/verify-coolify-provider.sh`, `MANAGED_PRODUCT_SERVICES_AUTH_GUIDE.md`, and `PRODUS_LOOMAI_STAGING_DEPLOYMENT_DEV_GUIDE.md`; commit `726a24980` was pushed to `origin/Platform-V10`.
+- All Coolify staging AI-Fabric app Git sources that still pointed at `Platform-V9` were updated to `Platform-V10`; readback showed `updated_platform_v10_count=23` and `remaining_platform_v9_count=0`.
+- Platform backend deployment env was updated to `PLATFORM_DEPLOY_BRANCH=Platform-V10` for normal and preview env entries so Platform-created deployments default to the new branch.
+- Redeployed branch-critical staging services on Platform-V10: Platform backend, Platform UI, Partner UI, landing site, ecommerce store, shared runtime, MCP Gateway, Shopify Bridge staging, Shopify runtime/rest/vectorization services for `dep-8c3e7259`, and ProdUS runtime/rest/vectorization services for `dep-7706fafb`. Final Coolify deployment status table is in `/tmp/platform-v10-coolify-update/deployment-status-final.tsv`; all 14 deployments finished.
+- Health checks after the Platform-V10 redeploy returned `UP` for Platform backend, Shopify Bridge, MCP Gateway, shared runtime, Shopify runtime `dep-8c3e7259`, and ProdUS runtime `dep-7706fafb`.
+- The short-lived Partner Supabase JWT had expired again and was refreshed from private operator material without printing token data. Platform secret `PARTNER_SUPABASE_JWT` was updated successfully before running the hosted gate.
+- First Platform-V10 hosted full release gate run `vsr-9eb12613` failed at `marketplace-hosted-verification` because `loomai-ecommerce-store` returned zero sample products. Root cause was Coolify env `APP_DEMO_SEED_DATA=false` on the shared demo store. This is not Shopify storefront data; it is the canonical ecommerce verification fixture used by Marketplace hosted verification.
+- Remediation: set `APP_DEMO_SEED_DATA=true` for normal and preview env on `loomai-ecommerce-store`, redeployed it as Coolify deployment `xvwn4s5fru71prxlx1fksi10`, and verified `/api/products/count` returned `2` with distinct `SKU-0001` and `SKU-0002`.
+- Final Platform-V10 hosted full release gate passed: run `vsr-bde04505`, status `PASSED`, completed `2026-05-25T22:28:09.424629Z`. `/api/verification-suites/release-gate` returned `ready=true`, `status=READY`, expiring `2026-05-26T10:28:09.424629Z`.
+- Final hosted Platform-V10 stage summaries: Marketplace hosted verification `hvr-6068a29d` passed with 42 passes / 2 warnings; Ecommerce hosted verification `hvr-60477a69` passed with 43 passes / 2 warnings; Qdrant hosted verification `hvr-ee549d06` passed with 25 passes / 2 warnings.
+- Evidence directory for this branch rollout and release gate: `/tmp/platform-v10-release-gate-20260525T222058Z`. The earlier failed run evidence is kept at `/tmp/platform-v10-release-gate-20260525T215119Z`.
+
+## 2026-05-26 Shopify Admin To Partner Portal Transition Slice
+
+- Created and implemented `010_10_SHOPIFY_ADMIN_TO_PARTNER_PORTAL_TRANSITION_PLAN.md`. The plan keeps Shopify Admin as the merchant-owned surface for install/reinstall, Shopify scope and protected-data approval, billing approval, theme embed activation where merchant action is required, domains, and native Shopify content. Partner Portal is the operating surface after merchant approval; Platform operator surfaces remain responsible for secrets, Coolify/provider internals, forced remediation, and deployment target internals.
+- Platform partner APIs now expose partner-safe Shopify operations summaries and mutations for vectorization/source sync, source preflight, reconcile, full index, full reindex, selected reindex, live update policy, event replay, and failed live-update retry.
+- The Partner Portal store workspace now has a `Shopify operations` tab with install/widget/knowledge/readiness/billing state tiles, vectorization runner and plan posture, plugin/category visibility, live update policy editing, source preflight, storefront activation guidance, merchant-owned Shopify action handoffs, usage/package value signals, provisioning/support posture, webhook posture, recent governed action audit, and partner-safe knowledge operation controls.
+- The Shopify embedded admin app now disables duplicate migrated operations after approved/active Partner Portal management exists. Merchant-owned operations stay available there: install/reinstall/session recovery, Shopify billing approval, theme activation links, and partner access approve/deny/revoke/invite.
+- The partner-safe response models deliberately omit raw deployment IDs, vectorization runner IDs, source connection IDs, provider IDs, webhook IDs, plan IDs, and secret/provider internals. Partner UI still calls Platform APIs only.
+- Operation authorization is capability based: `KNOWLEDGE_SYNC_TRIGGER` for sync/reindex/replay/retry and `KNOWLEDGE_SOURCE_CONTROL` for reconcile/policy/source preflight updates. `updateProductSupportProfile` requires `PARTNER_WRITE_ACCESS` because it is a write operation.
+- Local verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=PartnerEnablementServiceAuthorizationTest,PartnerEnablementIntegrationTest test`, `mvn -f Platfrom/backend/pom.xml -q -Dtest=ShopifyStoreVectorizationServiceTest test`, `mvn -f Platfrom/backend/pom.xml -q test`, `npm --prefix Platfrom/partner-ui run build`, `npm --prefix Platfrom/partner-ui run smoke`, `npm --prefix product-services/shopify-bridge-service/ui run build`, and `git diff --check`.
+- Commit `9b7bbfbc9` was pushed to `origin/Platform-V10`, then deployed on Coolify staging: Platform backend deployment `jbbed0negxmjurd6f0tvoasb`, Partner UI deployment `ieqhlnni9ek8i92eesiacs33`, and Shopify Bridge staging deployment `vx90tkepschlm0dvisjv74x4`; all finished.
+- Live health checks passed for Platform backend, Partner UI, and Shopify Bridge. The Partner Supabase test JWT was refreshed from private local material without printing token data.
+- The staging merchant approval flow was re-approved for `shopping-companion-test.myshopify.com`, leaving partner assignment `psa-fbe3b4f7-5cda-4747-8773-82dd45bb0e93` active so the Partner Portal can be the management surface for the store.
+- Live Partner API proof passed: `GET /api/partners/stores/{storeId}/shopify-operations` returned HTTP `200`; `POST /api/partners/stores/{storeId}/shopify-operations/source-preflight` returned HTTP `200`; the response exposed activation, billing, usage, provisioning, support readiness, webhook posture, vectorization posture, capabilities, and recent action summary fields without raw secrets/provider internals.
+- Deployed UI bundle proof passed: the Partner UI bundle contains the `Shopify operations` tab/source preflight/knowledge sync controls, and the Shopify embedded admin bundle contains the Partner Portal management banner plus duplicate-operation disable guard.
+- `scripts/verify-partner-enablement-live.sh` passed in non-strict live mode against the active staging assignment, covering Partner UI assets, partner store detail, product controls, Partner Max widget, support-profile write/restore, activity feed, verification/evidence bundles, launch readiness, templates, notes, members, and support escalation.
+- The live verifier was stabilized after repeated hosted runs: approval proof now comes from active approved store detail, while the recent activity feed assertion only requires workflow events generated during the current run. Final hosted non-strict proof on staging passed with verification run `pvr-a42711f6-5e8b-46bc-847d-40cc7a1732c8` and launch evidence bundle `peb-54e98feb-9126-4cdd-965a-62aea06361fc`.
+- `010_ADMIN_TO_PARTNER_TRANSITION_READY` is passed for staging. Production promotion was intentionally not run; the broader Shopify production release gate still owns production-promotion, rollback/deactivation, and public-claim proofs.
+
+## 2026-05-26 Partner Portal Transition Post-Cleanup Verification
+
+- Follow-up cleanup commit `44d4e5fa6` (`Disable migrated Shopify admin operations`) was pushed to `origin/Platform-V10` and deployed to Shopify Bridge staging on Coolify as deployment `c16liuc4l4weipwqjmijoouy`; Coolify readback showed commit `44d4e5fa68e7e4272c6ab94bcefaf7a8040b4c53`, status `finished`, and app status `running:healthy`.
+- Shopify Bridge staging health returned `UP` on both Bridge hostnames. Storefront bootstrap for `shopping-companion-test.myshopify.com` still resolved successfully with debug enabled.
+- Shopify embedded admin bundle proof after redeploy: the built JS contains the Partner Portal handoff text and no longer contains the migrated active-control labels `Run source preflight`, `Reindex all`, or `Sync now`.
+- Re-ran `scripts/verify-partner-enablement-live.sh` in hosted non-strict staging mode after the Bridge cleanup; it passed end to end, including Partner UI/runtime assets, active partner store access, product controls, Max widget smoke, support-profile write/restore, activity, verification/evidence, launch readiness, templates, notes, members, and support escalation.
+- Focused Partner Portal transition replay passed after refreshing the short-lived partner JWT from private local material: product-control reads, widget/source/support no-op saves, Shopify operations overview, source preflight, knowledge reconcile, policy no-op save, selected reindex, index-all, reindex-all, failed-auto-run retry fail-closed `409`, invalid event replay fail-closed `400`, and final vectorization run status `COMPLETED`. Evidence directory: `/tmp/partner-portal-transition-live-post-bridge-20260526T065406Z`.
+- Local verification for the cleanup remains: `mvn -f product-services/shopify-bridge-service/pom.xml -q -Dtest=ShopifyMerchantControllerTest test`, `mvn -f product-services/shopify-bridge-service/pom.xml -q test`, `npm --prefix product-services/shopify-bridge-service/ui run build`, and `git diff --check` all passed.
+- Transition conclusion: Partner Portal is verified as the active Shopify operations surface for staging, and the embedded Shopify admin app no longer presents duplicate migrated operations. Shopify Admin remains only for merchant-owned install/session recovery, billing consent, scope/protected-data consent, theme activation, domains, and native Shopify content.
+
+## 2026-05-28 Production Coolify Readiness Execution
+
+- Production target profile is `dtp-coolify-production` on Hetzner/Coolify host `46.225.162.106` with SSH user `loomops`; private production handoff is gitignored at `Final_Documentation/Development_Guides/LLM-guides/PRODUCTION_HETZNER_COOLIFY_HANDOFF_PRIVATE.md` and mode `600`.
+- Production firewall posture was tightened: Coolify API/dashboard `8000/tcp` is allowed only from staging Platform `46.224.145.148` and production self `46.225.162.106` in Hetzner Cloud firewall and host UFW; stale broad/stale source `52.52.45.183` was removed.
+- Fresh production Coolify backup/restore rehearsal passed at `/var/backups/loom-coolify/production-20260528T093631Z`.
+- Added provider-neutral Dockerfiles for Platform backend/UI/Partner UI and managed vectorization/embedding/Ollama services; migration `V118__provider_neutral_coolify_runtime_defaults.sql` moves runtime defaults away from Railway paths. Commits pushed: `a46b0b36c`, `8f18f0a2e`, `812c72e9b`.
+- Staging Platform backend was redeployed after V118 as Coolify deployment `h7fs17pdlc2q4jbene72bbcy`; `dtp-coolify-staging` and `dtp-coolify-production` target-profile readback showed provider-neutral runtime Dockerfile paths and production preflight still passed.
+- Production Coolify app records were moved to `Platform-V10` and provider-neutral Dockerfiles where applicable. Production redeploys finished: backend `kw5k9p2s9umbkis9w9jjsqfn`, Platform UI `vgblizcy0c27dda7lt8535af`, Partner UI `j67mfpmyk14soqpml7rcs1em`, Runtime `qsc8e27ktjrqimgf5kh8ekit`, Shopify Bridge prod `lxj6cj4nbkbmm2q883mggamq`, Ecommerce store `skudb39rx880pe8bd2pzbd6k`.
+- Production health after redeploy returned HTTP `200`/`UP` for Platform backend, Platform UI, Partner UI, Runtime, Shopify Bridge prod, and Ecommerce store. Platform preflight for `dtp-coolify-production` after redeploy returned `PASSED`.
+- Evidence directory for this production readiness execution: `/tmp/loomai-production-readiness-20260528T091943Z`. Raw Coolify app JSON evidence was replaced with sanitized summaries to avoid retaining webhook/secret fields in local evidence.
+- Updated `010_12_PRODUCTION_DEPLOYMENT_EXECUTION_PLAN.md` with the production app source/redeploy evidence and current remaining blockers.
+- Gate 4 secret/config readiness passed for controlled proof: Platform secret catalog reported 41 definitions, 36 present, and no required missing secrets. Production Coolify env drift was cleaned: backend `PLATFORM_DEPLOY_BRANCH` now uses `Platform-V10`; ecommerce old Railway indexing env was disabled/blanked; post-cleanup audit found zero suspicious staging/Railway/V8 references across the inspected production apps. Backend cleanup redeploy `x12bvu1lmorp1prodvc0gil9` and ecommerce cleanup redeploy `lkb7h8z1m3rjs4v1g95jvxzp` finished; production health remained `UP`.
+- Gate 5 migration/data readiness passed for controlled proof: production Platform DB backup `/var/backups/loom-platform-db/platform-production-20260528T135304Z.sql.gz` was created on the production host with mode `600`; Flyway history shows migration `118 provider neutral coolify runtime defaults` applied successfully with checksum `121501073`; `mvn -f Platfrom/backend/pom.xml -q test` passed; `mvn -f ai-infrastructure-module/pom.xml -q -pl ai-infrastructure-core,ai-fabric-runtime -am test` passed.
+- Status before the 2026-05-29 production proof: production infrastructure could deploy `Platform-V10`, and Gates 4/5 were complete for controlled proof readiness. Gate 6/Gate 9 execution is recorded in the next section.
+
+## 2026-05-29 Shopify Companion Controlled Production Proof
+
+- Evidence directory: `/tmp/loomai-production-readiness-20260528T174005Z`.
+- Production target profile `dtp-coolify-production` was corrected for in-container Platform access to Coolify by using internal base URL `http://coolify:8080`; external operator URL remains `http://46.225.162.106:8000`. Preflight passed after the correction.
+- Controlled production apply passed: deployment `dep-8c3e7259`, version `ver-1b77bfba` (`v10`), release `rel-ec590e44`, target profile `dtp-coolify-production`, final state `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`.
+- Production consumer credentials now resolve production runtime `http://dep-8c3e7259.46.225.162.106.sslip.io`. Production runtime health returned `UP`; production Bridge bootstrap returned `available=true`, `consumerId=shopify-shopping-companion-test`, and `runtimeAuthMode=PRIVATE_RUNTIME_SIGNED_ASSERTION`.
+- Production Bridge stale persisted Shopify credential refresh failures were made non-fatal for bootstrap/action capability/chat paths in commits `4c3e86b86`, `61ab231c0`, and `9421f96f4`. Production Bridge redeploy `i2h4tqzs4xmx5q68twhnvjc7` finished; health/bootstrap remained green; production chat smoke returned HTTP `200`.
+- Production product service `shopify-bridge-prod` was corrected from stale staging metadata to production environment scope, production Bridge URL, and production Coolify app UUID.
+- Production vectorization/RAG proof passed after fixing the vectorization source connection from old Railway/staging state to production Bridge source endpoints and using the dedicated production Shopify Admin source token for vectorization-source reads. Managed reindex run `vrn-2d5921b5` completed with `81` processed, `81` succeeded, `0` failed; preview/source counts were `product=77`, `support-policy=4`.
+- Production RAG smoke for `summarize high performance laptops for gaming` returned canonical `ragResponse.documents` and `sources` with grounded product evidence.
+- Rollback-by-reapply proof passed: applied previous version `ver-1d4b7a13` (`v9`) through production target profile as release `rel-baf3d84e`; final state `APPLIED_VERIFIED`, verification `PASSED`.
+- Forward restore proof passed: re-applied current version `ver-1b77bfba` as release `rel-9bfd761f`; final state `APPLIED_VERIFIED`, verification `PASSED`; production health/bootstrap/RAG smoke stayed green.
+- Staging isolation proof passed for rollback-forward: staging Bridge bootstrap fields `deploymentId`, `consumerId`, `runtimeBaseUrl`, `runtimeAuthMode`, `billingTier`, and `billingStatus` stayed unchanged before/after.
+- Failed-promotion validation proof passed: applying a non-existent version with `targetProfileId=dtp-coolify-production` returned HTTP `404`, latest production release remained `rel-9bfd761f`, and staging bootstrap stayed unchanged. A provider-level failed-deployment rehearsal still needs a first-class safe failure harness before public self-service launch.
+- Current release status: named controlled production beta is technically viable after release-owner review of support/business posture. Public Shopify/App Store/self-service launch remains blocked by production DNS/TLS off `sslip.io`, provider-level failed-deployment rehearsal, public Customer Account/Checkout claim proof, durable owned-resource/customer auth posture if claimed, and final pricing/onboarding/support/App Store packaging.
+
+## 2026-06-02 ProdUS Export/Import Lift-Shift And Scoped Assignment Key
+
+- Previous rollout context `rollout-2026-05-03T08-24-49-019decb9-bf8e-7150-b458-2c074d8835a9.jsonl` was titled `Fix SMTP email delivery`, but the latest task had shifted to ProdUS export/import lift-shift and runtime assignment auth.
+- Fixed deployment clone private-runtime audience rewriting in commit `7205ae87` (`Rewrite private runtime audiences on deployment clone`), pushed to `origin/Platform-V10`, and deployed Platform backend to staging/prod on Coolify. This prevents imported/cloned ProdUS runtimes from keeping source deployment-only private audiences.
+- Deleted the flawed production clone `dep-a59688ec`, then reimported the sealed ProdUS bundle through the fixed backend. New production-server staging clone is `dep-53f9ca56`, draft `drf-58cefb6a`, version `ver-a9f46201`, release `rel-7aa6f229`, verification `PASSED`, provisioning `ACTIVE`.
+- Stable consumer `produs-staging` is bound to `dep-53f9ca56`. Runtime assignment returns `runtimeBaseUrl=http://dep-53f9ca56.46.225.162.106.sslip.io`, issuer `produs-staging-backend`, audience `produs-staging`, `privateRuntimeAudienceMode=CONSUMER_ID`, `externalIntegrationReady=true`, `cacheTtlSeconds=300`.
+- Direct private-runtime smoke passed for `dep-53f9ca56`: `/api/chat/me/auth-context` accepted issuer `produs-staging-backend` and audience `produs-staging`; `/api/chat/me/query-once` returned success with a grounded ProdUS answer.
+- Implemented scoped consumer assignment auth in commits `ac1f2c848` (`Scope consumer runtime assignment key`) and `b067fe303` (`Catalog LoomAI assignment secret`), pushed to `origin/Platform-V10`.
+- Production Platform backend `loomai-platform-backend` / Coolify app `adkvp3aqatl1yyrmd58v2yv6` deployed `b067fe3033895eebf82c2edd60b043165c7b869e` as Coolify deployment `p6c7rz6dois4tiiy0yqaq4fy`; running container `adkvp3aqatl1yyrmd58v2yv6-214722061306` is healthy and `/actuator/health` is `UP`.
+- Platform production env now enables assignment auth only for `produs-staging` with header `X-LOOMAI-ASSIGNMENT-API-KEY` and secret name `LOOMAI_ASSIGNMENT_API_KEY`. The raw key is stored in Platform production secret DB and a private local file only; do not print or commit it.
+- Live assignment auth proof: anonymous request `401`, wrong key `401`, correct key for `produs-staging/runtime-assignment` `200`, correct key for another consumer `401`, correct key for `produs-staging/credentials` `401`.
+- Runtime/connector/vectorization-runner health for `dep-53f9ca56` all returned `UP`.
+- Updated private handoff `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md` and ProdUS handover `/Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/LOOMAI_STAGING_DEPLOYMENT_HANDOVER.md` with the non-secret contract. ProdUS should set backend-only `LOOMAI_ASSIGNMENT_URL=https://loomai-platform-backend.46.225.162.106.sslip.io/api/public/consumers/produs-staging/runtime-assignment`, `LOOMAI_ASSIGNMENT_API_KEY_HEADER_NAME=X-LOOMAI-ASSIGNMENT-API-KEY`, and the assignment key through a secure secret channel.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=PublicProvisioningApiIntegrationTest test`; focused assignment-key integration test; `mvn -f Platfrom/backend/pom.xml -q -Dtest=PlatformSecretServiceTest,PlatformSecurityIntegrationTest test`; `mvn -f Platfrom/backend/pom.xml -q -DskipTests compile`; `git diff --check`.
+
+## 2026-06-02 Backfilled ProdUS Runtime Context Since 2026-05-29
+
+- Old rollout/context review found two relevant ProdUS milestones between the 2026-05-29 Shopify production proof and the 2026-06-02 production lift-shift/key work.
+- 2026-05-31 default curated runtime pack: deployment `dep-7706fafb` version `ver-b0c54807` applied as release `rel-37d07c7c`; release finished `APPLIED_VERIFIED` with verification `PASSED` on `dtp-coolify-staging`; `/api/chat/me/query` and `/api/chat/me/query-once` accepted and echoed `mode=thinker`.
+- Query behavior proof from 2026-05-31: `/api/chat/me/query-once` remained non-persistent, while normal `/api/chat/me/query` still persisted conversation history.
+- 2026-06-01 ProdUS catalog export update: LoomAI rediscovered the ProdUS staging MCP server, imported `produs.catalog.export`, and published/applied `mkp-action-produs-productization-read-mcp@0.1.1`; version `ver-37ca6cc2` / release `rel-68c38e15`; verification `vrf-55a0bfc1` passed with `28` passed, `0` failed, and `1` skipped.
+- Runtime action catalog after the 2026-06-01 update contained 10 ProdUS actions and included `produs_catalog_export`; explicit `/api/chat/me/query-once` with `mode=thinker` executed the export action and returned a grounded ProdUS catalog answer.
+- 2026-06-01 stable private-runtime audience update: version `ver-e55296b1` / release `rel-2d0807c7`; verification `vrf-7b9ffb3d` passed; assignment discovery reports issuer `produs-staging-backend`, audience `produs-staging`, audience mode `CONSUMER_ID`, and `externalIntegrationReady=true`.
+- ProdUS direct runtime guidance since 2026-06-01: sign private runtime assertions with `aud=produs-staging`; keep `deploymentId` as audit/debug metadata only. Source staging runtime still accepts `dep-7706fafb` as a transition audience, but new integration code should not depend on deployment id as audience.
+- Canonical detailed docs checked for this backfill: `Final_Documentation/Development_Guides/PRODUS_LOOMAI_STAGING_DEPLOYMENT_DEV_GUIDE.md` and `/Users/mahmoudashraf/Downloads/Projects/ProdUS/docs/LOOMAI_STAGING_DEPLOYMENT_HANDOVER.md`.
+
+## 2026-06-03 Practical Dev/Staging/Production Promotion Model
+
+- Implemented `010_16_PRACTICAL_DEV_STAGING_PRODUCTION_DEPLOYMENT_MODEL.md` in Platform control-plane code; no live deployment, provider mutation, production apply, import/export, or Coolify delete was executed.
+- Added Flyway `V120__practical_promotion_release_bound_consumers.sql`: `platform_consumers` now supports `bound_release_id` and `bound_target_profile_id`; the old unique constraint on `bound_deployment_id` is removed so environment-intent consumers can share a deployment lineage; `dtp-coolify-prod-staging` is seeded as an active non-default Coolify customer-staging profile on the production Coolify credential with customer project grouping and Postgres runtime defaults.
+- Public consumer resolution now fail-closes release-bound assignments unless the release belongs to the deployment and is `APPLIED_VERIFIED`/`PASSED`; public runtime assignment and Bridge chat use the bound release runtime URL instead of the deployment's latest runtime when a release binding exists.
+- Added practical promotion API: `/api/deployments/{deploymentId}/practical-promotion/plan`, `/production-apply`, `/activate-production-consumer`, `/rollback-production-consumer`, and `/orphan-resources`. Promotion requires a verified customer-staging release and queues production apply; activation only binds the production consumer after the production release is verified.
+- Added provider resource lifecycle marking endpoint `/api/deployment-provider/resources/{handleId}/lifecycle-status` for `ACTIVE`, `SUPERSEDED`, `ROLLBACK_RESERVED`, `FAILED_DIAGNOSTIC_HOLD`, `ORPHANED`, `RETIRED`, and `DELETED` without performing provider stop/delete.
+- UI/API updates: Platform API types/functions for practical promotion/lifecycle, Revisions target-profile labels now show Dev/demo / Customer staging / Production intent, and Customers page shows bound release/profile details.
+- `010_15_CLONE_BASED_PRODUCTION_PROMOTION_AND_ASSIGNMENT_PLAN.md` is now documented as alternate clone/backup/DR/migration flow, not the normal day-to-day production promotion path.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=DeploymentPracticalPromotionServiceTest,PublicProvisioningApiServiceTest test`; `mvn -f Platfrom/backend/pom.xml -DskipTests compile`; `npm --prefix Platfrom/ui run build`; `git diff --check`.
+
+## 2026-06-03 Practical Promotion Live E2E Proof
+
+- Production Platform backend was redeployed on Coolify from `Platform-V10` to include practical-promotion commits through `2fd83540c`.
+- Added and pushed follow-up migrations: `V121__prod_staging_coolify_internal_connection.sql` fixes `dtp-coolify-prod-staging` to reuse the production in-container Coolify base URL `http://coolify:8080`; `V122__prod_staging_temporary_sslip_domain.sql` and `V123__prod_staging_sslip_domain_jsonb_match.sql` switch the customer-staging generated runtime suffix to temporary `46.225.162.106.sslip.io` until `runtime-staging.loomai.pro` DNS exists.
+- Live preflight for both `dtp-coolify-prod-staging` and `dtp-coolify-production` reached Coolify and returned `WARNING` only because live Coolify is `4.1.1` while the profile pin remains `4.0.0`; no credential/network failure remained.
+- Disposable live proof succeeded on production Platform/Coolify: deployment `dep-0f3d99cc`, version `ver-4d6e7b92`, customer-staging release `rel-54d2b3de`, production release `rel-6696c852`.
+- Customer-staging apply reached `APPLIED_VERIFIED` with verification `PASSED`; practical promotion plan returned `READY`; production apply reached `APPLIED_VERIFIED` with verification `PASSED`.
+- Temporary consumer `codex-practical-e2e-20260603003939` was activated through `/practical-promotion/activate-production-consumer` with `markStagingSuperseded=true`; runtime assignment resolved `http://dep-0f3d99cc.46.225.162.106.sslip.io`.
+- Supported decommission/delete flow was exercised: staging handles `dprh-924eacfe` (Postgres), `dprh-627972a4` (runtime app), and `dprh-7edea993` (connector app) were deleted through provider resource DELETE; provider absence checks returned `404`; lifecycle was marked `DELETED`.
+- Because the proof deployment was disposable, production handles `dprh-15a804d9`, `dprh-196b6d8e`, and `dprh-621a36fa` were also deleted and lifecycle-marked `DELETED`; the temporary consumer was unbound/deleted.
+- Hard-delete cleanup operation `del-2beb29fd` completed with `SUCCEEDED`; `GET /api/deployments?includeArchived=true` no longer contains `dep-0f3d99cc`.
+- Verification for follow-up migrations passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyTargetProfileResolverTest,DeploymentPracticalPromotionServiceTest test`; `git diff --check`.
+
+## 2026-06-03 Coolify Production Profile Pin Follow-Up
+
+- Fixed the remaining Coolify preflight warning by adding `V124__coolify_production_profiles_pin_4_1_1.sql`, which updates `apiVersionPinned` from `4.0.0` to verified live Coolify `4.1.1` for `dtp-coolify-production` and `dtp-coolify-prod-staging`.
+- Commit `99a3a07cf` was pushed to `origin/Platform-V10` and production Platform backend was redeployed through Coolify app `adkvp3aqatl1yyrmd58v2yv6`.
+- Live preflight now returns `PASSED` for both `dtp-coolify-prod-staging` and `dtp-coolify-production`, each with version `4.1.1`.
+- Verification passed: `mvn -f Platfrom/backend/pom.xml -q -Dtest=CoolifyTargetProfileResolverTest,DeploymentPracticalPromotionServiceTest test`; `git diff --check`.
+
+## 2026-06-03 ProdUS Assignment Key Private Handoff Completion
+
+- Resolved the ProdUS blocker where the public/private handoff still exposed `LOOMAI_ASSIGNMENT_API_KEY=<provided-through-secure-channel>` as a placeholder.
+- The real backend-only assignment key was copied only into private/ignored local files: `/Users/mahmoudashraf/Downloads/Projects/ProdUS/.env.private.local` and `Final_Documentation/Development_Guides/LLM-guides/PLATFORM_NEXT_LLM_SESSION_HANDOFF_PRIVATE.md`; both were set to mode `600`. Do not print or commit the key.
+- Live verification from the ProdUS private env file passed: wrong assignment key returned `401`; the configured key returned `200` for `produs-staging/runtime-assignment`.
+- Verified assignment response: `consumerId=produs-staging`, `deploymentId=dep-53f9ca56`, `runtimeBaseUrl=http://dep-53f9ca56.46.225.162.106.sslip.io`, `privateRuntimeIssuer=produs-staging-backend`, `privateRuntimeAudience=produs-staging`, `externalIntegrationReady=true`.
+- Next ProdUS action is operational only: load the values from `.env.private.local` into the ProdUS backend Coolify env, redeploy the backend, then run assignment discovery plus AI analysis/chat smoke against the production-hosted LoomAI runtime.
+
+## 2026-06-03 Grounded Read-Action Post-Generation Fallback
+
+- Kept the development UI/widget rendering behavior unchanged; the fix is runtime-side.
+- `IntentHandlingStep` now mirrors post-action generated text into `data.answer` as well as `summary`, so canonical clients that prefer `answer`/`safeSummary` can show the generated response while retaining raw action evidence under action metadata.
+- Forced grounding-eligible READ actions now include the action result payload itself as `actionResultData` in post-action generation facts. This is the current simple contract: generate from the action result, not from connector-side business-key inference.
+- If post-action LLM generation fails or returns empty content and the facts contain answerable action-result evidence, the runtime returns a short deterministic fallback summary instead of falling back to generic `Action executed`/raw action-result presentation.
+- Removed the connector-side generic MCP JSON object list projection that walked arbitrary JSON fields and exposed named lists like `categories`/`packageTemplates`; future production shaping should use explicit marketplace `llmFacts` instead.
+- Added roadmap plan `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_17_GROUNDING_ELIGIBLE_READ_ACTION_POST_ACTION_GENERATION_AND_LLM_FACTS_PLAN.md`.
+- Verification passed: `mvn -pl ai-infrastructure-core,ai-infrastructure-actions-connector -am -Dtest=IntentHandlingStepPostActionGenerationTest,ConnectorAIActionHandlerTest -Dsurefire.failIfNoSpecifiedTests=false test`; `mvn -pl ai-infrastructure-core -Dtest=IntentHandlingStepReadActionPolicyToleranceTest test`; `git diff --check`.
+
+## 2026-06-04 Thinker-Gated Grounding-Eligible Read Action Generation
+
+- Changed the forced grounding-eligible READ action post-generation behavior from unconditional to mode-configurable.
+- Added `ai.orchestration.modes.<mode>.force-grounding-eligible-read-action-post-generation`; the default curated `thinker` mode enables it, while ordinary/default policy remains disabled.
+- Runtime condition is now: read-action-resolution policy explicitly allows the action, or the action is `READ + groundingEligible` and the active mode capability enables forced post-action generation.
+- Updated `010_17_GROUNDING_ELIGIBLE_READ_ACTION_POST_ACTION_GENERATION_AND_LLM_FACTS_PLAN.md` and the orchestration optimization guide with the mode capability.
+
+## 2026-06-05 LoomAI Production Custom Domains
+
+- User created Namecheap DNS records for `api.loomai.pro`, `console.loomai.pro`, `partners.loomai.pro`, and `shopify-bridge.loomai.pro`, all pointing to production Coolify host `46.225.162.106`.
+- Recreated local Coolify production token files from the private handoff without printing token values: `/tmp/coolify_production_api_token.secret` and `/tmp/coolify_api_tokens.env`, both mode `600`.
+- Added Coolify production custom domains while preserving existing `sslip.io` domains:
+  - `loomai-platform-backend` / `adkvp3aqatl1yyrmd58v2yv6`: `https://api.loomai.pro`.
+  - `loomai-platform-ui` / `kl2c28ku13y7qr8n3doe4mlb`: `https://console.loomai.pro`.
+  - `loomai-partner-ui` / `o2ljhx3ynme1t5igepshn97m`: `https://partners.loomai.pro`.
+  - `loomai-shopify-bridge-prod` / `wurlsp7d3bdsedy1lmn33sdc`: `https://shopify-bridge.loomai.pro`.
+- Triggered Coolify refresh/deploy for the four apps so Traefik picked up the new routes; deployment UUIDs observed: backend `hnsf9gthmnn5d7dtazcvfi85`, platform UI `h2e6klr4ruh676ro366c5f04`, partner UI `mlodwcm8n3wk3fuy6kjrbxls`, bridge `vb8oupe2pt4zdslxlbglwczj`.
+- Live HTTPS verification passed with trusted certs: `https://api.loomai.pro/actuator/health`, `https://console.loomai.pro/health` (verified with explicit DNS resolve due local resolver cache), `https://partners.loomai.pro/health`, and `https://shopify-bridge.loomai.pro/actuator/health` all returned `200`; original `sslip.io` URLs still returned `200`.
+
+## 2026-06-05 Console Domain CORS/API Base Fix
+
+- Browser CORS failure from `https://console.loomai.pro` happened because the Platform UI still used old backend base URL `https://loomai-platform-backend.46.225.162.106.sslip.io`, while backend CORS allowed origins did not include the new console/partner domains.
+- Updated Coolify production envs without printing secrets: backend `PLATFORM_CORS_ALLOWED_ORIGINS` now includes `https://console.loomai.pro`, `https://partners.loomai.pro`, and `https://api.loomai.pro`; backend `PLATFORM_PUBLIC_BASE_URL` is `https://api.loomai.pro`; backend `PLATFORM_PARTNER_APP_URL` is `https://partners.loomai.pro`.
+- Updated frontend runtime envs: `loomai-platform-ui` `PLATFORM_UI_API_BASE_URL=https://api.loomai.pro`; `loomai-partner-ui` `PARTNER_UI_PLATFORM_API_BASE_URL=https://api.loomai.pro`.
+- Redeployed/refreshed backend, Platform UI, and Partner UI through Coolify; observed deployment UUIDs: backend `fbdjwxacrd4arnk6tqi9mwq9`, Platform UI `afkel8p80jdv7sq1isol5888`, Partner UI `icq8zo137i46ewfg2cwkjlvt`.
+- Verification passed: `GET https://api.loomai.pro/api/platform/auth/session` with origin `https://console.loomai.pro` returned `200` plus `Access-Control-Allow-Origin: https://console.loomai.pro` and `Access-Control-Allow-Credentials: true`; console runtime config now returns `apiBaseUrl: "https://api.loomai.pro"`.
+
+## 2026-06-05 Shopify Production Domain Switch
+
+- Updated Coolify production Bridge envs for `loomai-shopify-bridge-prod` / `wurlsp7d3bdsedy1lmn33sdc`: `SHOPIFY_BRIDGE_PUBLIC_BASE_URL=https://shopify-bridge.loomai.pro` and `SHOPIFY_BRIDGE_PLATFORM_BASE_URL=https://api.loomai.pro` in both normal and preview rows.
+- Redeployed the production Bridge through Coolify; deployment UUID observed: `l1onmzbtaso6c9ph1fu9u1ly`.
+- Recreated `/tmp/shopify_cli_partners_token.secret` from the private handoff without printing the token, then verified Shopify CLI app context non-interactively with the full Loom Companion scope set and production Bridge URL overrides.
+- Updated tracked Shopify app configs and all Companion theme-extension `bridge_base_url` defaults from the old staging `sslip.io` Bridge URL to `https://shopify-bridge.loomai.pro`.
+- Updated the ignored local Shopify CLI env file `product-services/shopify-bridge-service/deploy/shopify/.env.shopify` public URL fields to the production Bridge domain so future local renders do not reintroduce the old callback.
+- Deployed the Shopify app config/theme extension through Shopify CLI; new version released to users: `loom-companion-55` (`https://dev.shopify.com/dashboard/214691471/apps/349401186305/versions/998732464129`).
+- Shopify theme check still prints the known `AssetSizeAppBlockJavaScript` warnings for `companion-app-embed.js` exceeding the configured `10000 B` threshold, but Shopify CLI released the version successfully.
+- Verification passed: `https://shopify-bridge.loomai.pro/actuator/health` and `/` returned `200`; install flow for `shopping-companion-test.myshopify.com` now redirects with `redirect_uri=https://shopify-bridge.loomai.pro/auth/shopify/callback`; no old Bridge production/staging/Railway host remains in `product-services/shopify-bridge-service`.
+
+## 2026-06-05 Shopify Companion Production Release Readiness Plan
+
+- Created `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md` for controlled/private Loom Companion release readiness versus public Shopify App Store readiness.
+- Safe live checks passed for production Bridge health/root, Platform API health, console CORS, Shopify OAuth production callback, old-host scan, and known runtime `dep-8c3e7259` health.
+- Storefront bootstrap for `shopping-companion-test.myshopify.com` is still blocked: Bridge returns `503` with `Runtime assignment is not ready for external backend-mediated traffic.`
+- Production Coolify temp token `/tmp/coolify_production_api_token.secret` works and read back non-secret Bridge env rows; the private handoff Coolify token copy is stale and returned `401`.
+- Production Bridge env readback confirms production domains, `SHOPIFY_BRIDGE_PLATFORM_ADMIN_API_KEY` configured, `SHOPIFY_BRIDGE_BILLING_MODE=SHOPIFY_APP_SUBSCRIPTION`, and `SHOPIFY_BRIDGE_BILLING_TEST=true`; no visible `SHOPIFY_BRIDGE_RUNTIME_TRUSTED_BACKEND_API_KEY` or `SHOPIFY_BRIDGE_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY` rows were found.
+- Platform store mapping for `shopping-companion-test.myshopify.com` is live on `consumerId=shopify-shopping-companion-test`, `deploymentId=dep-8c3e7259`, `storefrontReady=true`, but `goLiveEligible=false` due `APP_SCOPES_UPDATE` webhook and Shopify MCP readiness blockers.
+- Assignment diagnosis: `/api/public/consumers/shopify-shopping-companion-test/credentials` with admin auth shows trusted-backend access configured, but runtime assignment reports `externalIntegrationReady=false` because `PublicProvisioningApiService` requires the latest published security config to explicitly include issuer `platform-consumer-bridge` and consumer audience `shopify-shopping-companion-test`; draft defaults alone are not enough.
+- Do not weaken assignment readiness. Supported remediation is to refresh Shopify runtime security defaults, publish/apply the corrected version, confirm Bridge runtime private-auth secrets, then rerun storefront bootstrap/chat/suggestions and full Shopify Companion live verification.
+- Added secret-safe Bridge diagnostics for runtime private auth material: `ShopifyBridgeOverviewResponse` now includes `runtimeTrustedBackendApiKeyConfigured` and `runtimePrivateAssertionSigningKeyConfigured`; `ShopifyBridgeDiagnosticsService` advertises `runtime-private-auth-readiness`.
+- Verification passed: `mvn -f product-services/shopify-bridge-service/pom.xml -Dtest=ShopifyBridgeDiagnosticsServiceTest,ShopifyBridgeAdminControllerTest test`; `git diff --check` on changed plan/diagnostics files passed.
+
+## 2026-06-05 Shopify Companion Controlled Production Release Unblocked
+
+- Cleared the controlled-production storefront blockers for `shopping-companion-test.myshopify.com` on production domains.
+- Commit `00cf72c98` (`Normalize Shopify storefront runtime chat requests`) fixed Bridge storefront request-shape issues: query now maps legacy/widget `message` to runtime `query`, maps `conversationMode` to runtime `mode`, strips unsupported fields, and suggestions maps query/message to runtime `content`.
+- Bridge production deploy after `00cf72c98`: Coolify deployment `wglbp9vr48rvor6okhhfk32f`; live smoke moved from runtime HTTP 500 to action execution.
+- Commit `d6f47fda3` (`Prune unsupported Shopify companion legacy actions`) removed unsupported legacy connector aliases from Shopify Companion runtime artifacts when they are not real MCP-tool actions.
+- Platform backend production deploy after `d6f47fda3`: Coolify deployment `zosvv1hbwmlfdy4psr09ul1w`; supported go-live release `rel-70270f95`, version `ver-623292c1`, verification run `vrf-d9b16146`, reached `APPLIED_VERIFIED` / `PASSED`.
+- Artifact proof after action pruning showed no standalone legacy actions/routes for `list_products`, `search_products`, `get_product_details`, `check_availability`, `get_policy`, `view_cart`, `add_product_to_cart`, `add_to_cart`, or `update_cart_quantity`; supported MCP actions remained: `shopify_search_catalog`, `shopify_search_policies`, `shopify_get_product_details`.
+- The live query then successfully reached `shopify_search_catalog` but returned raw MCP catalog JSON as the answer, exposing a commerce-mode post-action generation config gap.
+- Commit `3bc8dbfcd` (`Force commerce read action answer generation`) enabled `force-grounding-eligible-read-action-post-generation: true` across commerce storefront modes and removed stale legacy read-action aliases from commerce mode allowlists.
+- Verification passed for the commerce generation fix: `mvn -f ai-infrastructure-module/ai-infrastructure-core/pom.xml -Dtest=IntentHandlingStepPostActionGenerationTest,OrchestrationPolicyResolutionStepTest test`; `mvn -f ai-infrastructure-module/pom.xml -pl curated/ai-curated-commerce -am -Dtest=CommerceCuratedPackTest -Dsurefire.failIfNoSpecifiedTests=false test`; `git diff --check`.
+- Supported go-live after `3bc8dbfcd`: release `rel-4286bee2`, version `ver-d6dd23c3`, verification run `vrf-143e2e82`; final state `APPLIED_VERIFIED`, verification `PASSED`, provisioning `ACTIVE`.
+- Final production store status: `deploymentStatus=ACTIVE`, `sourceReadinessStatus=READY`, `syncStatus=SYNCED`, `widgetStatus=ENABLED`, `goLiveEligible=true`, `storefrontReady=true`, no go-live or storefront blockers.
+- Final production smoke against `https://shopify-bridge.loomai.pro` passed: health `200 UP`; bootstrap `200 available=true consumer=shopify-shopping-companion-test deployment=dep-8c3e7259 billing=ACTIVE`; suggestions `200 success=true count=5`; query `200 success=true type=ACTION_EXECUTED` with generated shopper-facing snowboard answer and `answerStartsWithJson=false`.
+- Evidence directories: `/tmp/shopify_companion_golive_after_commerce_generation_20260605T170536Z`, `/tmp/shopify_companion_artifact_check_after_commerce_generation_20260605T171641Z`, `/tmp/shopify_companion_live_after_commerce_generation_20260605T171656Z`.
+- Updated `010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md`. Controlled/private production release is technically viable after owner review; public Shopify App Store/self-service launch remains blocked by production billing test mode, reviewer/listing package, protected-data/order-scope posture, and final support/onboarding claims.
+
+## 2026-06-05 Shopify Companion Blocker Operator Playbook
+
+- Added a step-by-step blocker playbook to `010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md`.
+- The playbook separates what the owner/operator should provide from what Codex can safely execute afterward.
+- Covered blockers: durable production Coolify operator token, public billing/test-mode decision, protected customer data and `read_orders` scope posture, public App Store listing/reviewer package, full public release verification, and controlled-release owner approval.
+- Official Shopify launch docs were rechecked on 2026-06-05 before writing the steps; public launch remains gated by Shopify billing, scope/protected-data posture, app reliability/reviewer package, and support/onboarding evidence.
+
+## 2026-06-08 AI Fabric Framework GitHub Packages Release Path
+
+- Selected the first framework-only release route: GitHub Packages for Maven artifacts plus a GitHub Release source asset.
+- Added GitHub Packages `distributionManagement` and SCM metadata to `ai-infrastructure-module/pom.xml`.
+- Fixed stale dependency-management artifact names before release: provider/vector modules and relationship-query now match their actual module artifact IDs.
+- Added `.github/workflows/ai-fabric-framework-github-packages-release.yml`; it publishes the framework Maven reactor, excludes `integration-Testing/*`, validates `ai-fabric-framework-v<version>` tag/version alignment, and uploads `ai-fabric-framework-source-<version>.tar.gz` plus checksum as a framework-only source release asset.
+- Added `ai-infrastructure-module/docs/GITHUB_PACKAGES_RELEASE_GUIDE.md` with versioning, verification, tagging, GitHub Release, consumer Maven, and boundary instructions.
+- This release path is for the reusable framework only. It does not release Platform, Shopify Bridge, Partner UI, Coolify deployments, ProdUS, or production runtime services.
+- Added `doc/Productization/future-work/AI_FABRIC_FRAMEWORK_PUBLIC_REPO_SEPARATION_AND_RELEASE_PLAN.md` as the detailed execution plan for creating a separate public framework repo, cleaning license/docs, running exposure scans, releasing `0.1.0-preview`, and keeping private products near through Maven/sibling-repo development.
+
+## 2026-06-09 Private Repo Framework Source Removal
+
+- Public framework repo is now the sibling repo `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework` and GitHub repo `Loom-AI-Labs/ai-fabric-framework`.
+- Removed reusable framework library source and framework example apps from this private repo. `Real_Apps` remains removed; `ai-infrastructure-module` was later restored only as the private product-services container for deployable runtime/connector services.
+- Removed framework-only private CI/release helpers: framework GitHub Packages release workflow, parent framework verify workflow, provider/integration workflows, Coolify framework image workflow, framework path gate workflow, provider-registry scripts, and `.github/actions/configure-providers`.
+- Private product Maven consumer `ai-fabric-product/ai-fabric-embedding-worker` now depends on framework artifacts through `ai-fabric.version=0.1.0-preview`; local development expects the sibling public framework repo to be installed into `~/.m2`.
+- Private CI and embedding-worker Dockerfiles install the public framework repo into the local Maven repository before building private product code, instead of copying private framework source.
+- Platform backend Dockerfiles no longer copy `ai-infrastructure-module` into the backend image.
+- Root README was replaced with a private-repo boundary README pointing framework work to the public repo.
+- Verification passed locally: `mvn -f ai-fabric-product/pom.xml -DskipTests compile`, `mvn -f Platfrom/backend/pom.xml -DskipTests compile`, `mvn -f product-services/shopify-bridge-service/pom.xml -DskipTests compile`, and `mvn -f product-services/mcp-execution-gateway-service/pom.xml -DskipTests compile`.
+- Remaining follow-up: deployment-source planning still needs a clean per-service source strategy or published framework image/package strategy. Deployable runtime/connector source belongs in this private repo; reusable framework source belongs in the public sibling repo.
+
+## 2026-06-10 ProdUS Staging Vector Store Recovery
+
+- Confirmed ProdUS staging is intentionally assigned to runtime `dep-53f9ca56`; older `dep-7706fafb` is not the current assignment target.
+- Root cause for the all-record `VECTOR_STORE_FAILED` incident was stale Qdrant storage on `dep-53f9ca56`: Platform/runtime config pointed at Qdrant endpoint `3fb39e12-7d36-4bfa-98aa-3f73d68bc622...`, which returned `404 page not found` for collection APIs and was not present in the Qdrant Cloud inventory.
+- Recovered `dep-53f9ca56` onto the healthy Qdrant cluster `8ad5ab4f-a514-49ec-b599-742922b34a3a...` with shared collection prefix `cus_3b201f0d__ten_c134590e__`, external-existing vector provisioning, and runtime-managed tenant-prefixed collection creation.
+- Applied/passed Platform release `rel-962bcdea` on version `ver-908e3888`; runtime, connector, and vectorization runner reported healthy.
+- ProdUS-style direct runtime auth now works with `rpa1` private runtime assertions for issuer `produs-staging-backend`, audience `produs-staging`, deployment `dep-53f9ca56`.
+- Runtime admin overview shows all ProdUS safe DATA plugin sources installed and READY, including `service-category`, `service-module`, `service-dependency`, `package-template`, `ai-capability-contract`, `milestone-template`, `acceptance-criteria-template`, `evidence-template`, `scanner-tool-description`, `case-pattern`, `team-profile`, and `solo-expert-profile`.
+- Managed vectorization bootstrap run `vrn-8c8e870d` and follow-up reindex run `vrn-35109ab3` both completed with `processedRecords=190`, `succeededRecords=190`, `failedRecords=0`.
+- Runtime indexing overview now reports `totalVectors=195`: ProdUS counts match the failed sync report (`service-module=90`, `service-category=10`, `service-dependency=23`, `package-template=15`, `milestone-template=15`, `case-pattern=15`, `scanner-tool-description=10`, `ai-capability-contract=7`, `evidence-template=2`, `acceptance-criteria-template=1`, `team-profile=1`, `solo-expert-profile=1`) plus default `faq-article=3` and `support-policy=2`.
+- Added Qdrant keyword payload indexes across ProdUS prefixed collections for `knowledgeSourceId`, `entityType`, `vectorSpace`, `id`, `datasetId`, `_dataSyncSourceRecordId`, and `knowledgeSourceDatasetRef`; `knowledgeSourceHandleRef` was already indexed. Direct Qdrant filter probes now return service-module records.
+- Direct Qdrant vector search against the service-module collection returns expected security modules, including `service-module:api-security-review`, proving the storage, embeddings, filters, and vectors are present.
+- Remaining caveat: runtime chat retrieval still does not surface ProdUS service-module sources for the smoke query. `API security review` still returns a seeded help-center FAQ (`rag-ace938a1-612b-4c93-84ab-3d37cd34b1d5`), and the framed service-module query returns zero sources (`rag-7fd05c32-8122-4459-854e-c1fa85eb0048`) even though direct Qdrant search returns the expected modules. Follow-up may span the public framework retrieval core and the private runtime service orchestration wrapper.
+- Secondary caveat: Platform vectorization overview still reports `OUT_OF_DATE` / `INDEXED_OUTPUT_DRIFT` because `activeIndexedOutputHash` and `lastSuccessfulIndexedOutputHash` disagree after successful runs, while live counts and Qdrant records are correct. Treat this as control-plane bookkeeping until fixed.
+
+## 2026-06-10 ProdUS Staging Retrieval Orchestration Diagnosis
+
+- Confirmed the post-indexing failure is not a Qdrant/vector-count problem. Fresh dep-53 runtime probes returned `ACTION_EXECUTED` / `MCP tool result` or empty `Search completed` responses with `sources=0` and `documents=0`, while direct Qdrant search returned the expected `service-module:api-security-review` data.
+- Confirmed the user hint about staging/production drift was relevant: production-hosted `dep-53f9ca56` resolved the bare `DEFAULT` orchestration policy with `mode=null`, `actionsEnabled=true`, and `forceGroundingEligibleReadActionPostGeneration=false`; older staging-hosted `dep-7706fafb` resolved a curated production/support policy.
+- Root cause found in Platform provisioning: the default curated module had no runtime curated pack, and `RailwayProvisioningPlanService` only emitted `AI_CURATED_PACK` when `providerConfig.curatedPackId` was explicitly present. The dep-53 provider config had `curatedModuleId=default` / `promptPresetId=default`, so the runtime started without the default curated pack and did not get thinker-mode retrieval/action-generation defaults.
+- Platform fix applied locally in the private repo: default curated module now maps to runtime pack `default`, provisioning falls back from `curatedModuleId` to `AI_CURATED_PACK` for known packs (`default`, `commerce`, `support`), and unit coverage was added for the catalog/provisioning behavior.
+- Secondary framework issue found: runtime request `context.vectorSpace`, `context.entityType`, and `context.preferredVectorSpaces` were only preserved under request metadata; `VectorSpaceResolutionStep` did not honor those hints, so explicit ProdUS service-module/package-template hints could be ignored or overwritten by LLM/router output such as `faq`.
+- Framework fix applied locally in the public sibling repo `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework`: `ChatRuntimeController` promotes sanitized vector-space hints into orchestration metadata, `VectorSpaceResolutionStep` prefers valid request-context hints over invalid extracted/router vector spaces, and `ai-fabric-runtime` explicitly depends on `ai-curated-default`.
+- Verification passed: public framework targeted tests `VectorSpaceResolutionStepTest` and `ChatRuntimeControllerPromptPreviewTest`; private Platform `RailwayProvisioningPlanServiceTest`, `DeploymentCuratedModuleCatalogServiceTest`, `mvn -f Platfrom/backend/pom.xml -DskipTests compile`, and `git diff --check` in both repos.
+- Integration test caveat: `DeploymentCuratedModuleIntegrationTest` is currently blocked by unrelated H2/Flyway migration incompatibility in `V121__prod_staging_coolify_internal_connection.sql` (`jsonb_build_object` missing in H2). Do not interpret that as a failure of the curated-pack fix.
+- Live deployment caveat: dep-53 will still behave the old way until the Platform backend change is deployed and dep-53 is reapplied/redeployed with `AI_CURATED_PACK=default`, and until the runtime build path consumes the updated public framework code for vector-space hint handling.
+
+## 2026-06-10 Runtime/Connector Code Residency Correction
+
+- Corrected the framework separation boundary: deployable `ai-fabric-runtime` and `ai-infrastructure-generic-rest-connector` are private LoomAI product services, not public framework deliverables.
+- Restored those services to the private repo at the existing deployment paths `ai-infrastructure-module/ai-fabric-runtime` and `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`, because Platform provisioning defaults and target profiles still point there.
+- Added a private `ai-fabric-product-services-parent` Maven parent for only those two services. The parent intentionally has different coordinates from the public `ai-fabric-bom` so local installs do not overwrite the public framework BOM in `~/.m2`.
+- Removed the two deployable service modules from the public framework repo reactor and GitHub Packages workflow; reusable framework libraries remain public and are consumed by the private services through Maven artifacts/local snapshot.
+- Keep `ai-infrastructure-actions-connector` public: despite the name, it is a reusable framework library. The private deployable connector service is `ai-infrastructure-generic-rest-connector`.
+- Do not delete private `ai-infrastructure-module` wholesale. It is now the private product-services container for runtime and generic REST connector only.
+
+## 2026-06-10 Runtime/Connector Docker Framework Bootstrap
+
+- Updated private runtime and generic REST connector Dockerfiles, including Railway variants, to clone `https://github.com/Loom-AI-Labs/ai-fabric-framework.git` at `AI_FABRIC_FRAMEWORK_REF=main` by default.
+- Docker build stages now install the public framework into the build container local Maven repository before packaging the private service module.
+- This mirrors the local development flow while avoiding copied reusable framework source in the private repo. Later preview/stable releases can override `AI_FABRIC_FRAMEWORK_REF` with a tag when the framework preview is frozen.
+
+## 2026-06-11 Platform Core Service Operations Control
+
+- Added a Platform-admin core service operations surface so production operators can inspect and request deploy/restart for the production Coolify-managed Platform backend, Platform Console, and Partner Portal from inside the Platform UI.
+- Backend endpoint: `/api/platform/core-services` with `GET`, `GET /{serviceRef}`, `POST /{serviceRef}/deploy`, and `POST /{serviceRef}/restart`; access is restricted to `PLATFORM_ADMIN`.
+- The backend uses the configured Coolify target profile, defaulting to `dtp-coolify-production`, and resolves Coolify credentials through the existing secret-backed `CoolifyTargetProfileResolver`. No Coolify token or application env values are exposed in responses.
+- Default core-service mappings are `loomai-platform-backend` (`adkvp3aqatl1yyrmd58v2yv6`, `https://api.loomai.pro/actuator/health`), `loomai-platform-ui` (`kl2c28ku13y7qr8n3doe4mlb`, `https://console.loomai.pro/health`), and `loomai-partner-ui` (`o2ljhx3ynme1t5igepshn97m`, `https://partners.loomai.pro/health`).
+- Shopify Bridge is intentionally not duplicated as a raw Platform core service because it is already a managed Product Service. Platform Diagnostics now surfaces the Bridge row through the existing product-services lifecycle (`reconcile`/`restart`) and discovers the live service by `loomai-shopify-bridge-prod`, production Bridge URL, or `SHOPIFY_BRIDGE_SERVICE`.
+- Local verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=PlatformCoreServiceOperationsServiceTest test`, `mvn -f Platfrom/backend/pom.xml -DskipTests compile`, and `npm --prefix Platfrom/ui run build`.
+
+## 2026-06-11 ProdUS Shared-Index Retrieval Repair
+
+- Resolved the remaining ProdUS `dep-53f9ca56` retrieval issue after the vector store recovery. The runtime and Qdrant were healthy, but the active vectorization revision still wrote stale imported `knowledgeSourceHandleRef` tenant metadata from the source deployment (`ten-fc38b890`) while the live runtime artifact filtered on the current target tenant handles (`ten-c134590e`).
+- Live repair created active vectorization revision `vpr-369439cd` / revision `3` for plan `vpl-ba1524c9`, then reindexed run `vrn-230bdde3` with no failure buckets.
+- Post-repair runtime indexing overview reported `totalVectors=195`, including `service-module=90` and `package-template=15`.
+- Live smoke through `dep-53f9ca56` POC widget query with explicit `service-module` hints returned a grounded `API Security Review` answer with `sourcesCount=9`; provider request id `rag-4c85daf3-05f6-46e7-bbfc-29ed88f4d891`; top source id `service-module:api-security-review`.
+- Permanent Platform backend fix: `DeploymentBundleExportImportService` now rewrites vectorization `metadataStaticValuesByTargetEntityType` from the target draft's current knowledge-source config during import/restore. It updates `knowledgeSourceHandleRef`, `knowledgeSourceId`, and `knowledgeSourceDatasetRef` by target entity type with source-id fallback, preserving strict shared-index filtering instead of loosening runtime isolation.
+- Regression coverage added in `DeploymentBundleExportImportServiceTest` proves imported vectorization mappings replace source tenant handles with target tenant handles.
+- Focused verification passed: `mvn -f Platfrom/backend/pom.xml -Dtest=DeploymentBundleExportImportServiceTest clean test`.
+- The older caveat that direct Qdrant search worked while runtime chat returned zero sources is now superseded for service-module retrieval on `dep-53f9ca56`.
+
+## 2026-06-28 Platform Upgrade To AI Fabric Framework 0.3.1
+
+- Upgraded private product services to released public framework `0.3.1` (`ai-fabric-framework-v0.3.1`, commit `4fe2a77`) using `io.github.loom-ai-labs:ai-fabric-bom:0.3.1`.
+- Changed private dependency wiring from old copied/framework-era `com.ai.fabric` dependency-management entries to released `io.github.loom-ai-labs` artifacts. Runtime/connector product services still keep their private version `0.1.0-preview`.
+- Runtime now depends on consolidated `ai-fabric-provider-spring-ai`, `ai-fabric-onnx-starter`, `ai-fabric-rag`, curated packs, vector modules, chat session, data sync, actions connector, and retrieval connector from the public framework release.
+- Dockerfiles and Platform regression workflow now clone/install public framework tag `ai-fabric-framework-v0.3.1` instead of `main`; integration-test modules are excluded from the framework bootstrap install.
+- Spring Boot moved to `4.1.0` through the framework/BOM alignment. Product-owned services that still inject Jackson 2 `com.fasterxml.jackson.databind.ObjectMapper` now declare `jackson-databind` where used and provide `@ConditionalOnMissingBean` compatibility mapper beans for runtime, generic REST connector, and vectorization runner.
+- Boot 4 MVC tests now use `spring-boot-starter-webmvc-test` and `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`.
+- Runtime packaging coverage was updated for the 0.3.1 provider shape: `SpringAiProviderAutoConfiguration`, `ONNXAutoConfiguration`, Lucene, Qdrant, memory, Milvus, Pinecone, and Weaviate vector auto-configurations.
+- Verification passed with fresh Maven repo `/tmp/loomai-platform-031-m2`: `mvn -f ai-infrastructure-module/pom.xml test` (143 tests across generic REST connector/runtime), `mvn -f ai-fabric-product/pom.xml test` (19 tests), `mvn -f ai-infrastructure-module/pom.xml -DskipTests clean package`, and `mvn -f ai-fabric-product/pom.xml -DskipTests clean package`.
+- Non-blocking warnings observed: third-party `org.apache.yetus:audience-annotations:0.5.0` effective-model warning, javac annotation-processing warning, Mockito dynamic-agent warning, and existing deprecation/unchecked compile warnings.
+
+## 2026-06-28 ProdUS Runtime Reapply On Framework 0.3.1 Pin
+
+- Confirmed private runtime source wiring uses released framework `0.3.1`: `ai-infrastructure-module/pom.xml` reports `ai-fabric.framework.version=0.3.1`, and the `ai-fabric-runtime` dependency tree resolves all `io.github.loom-ai-labs` framework modules at `0.3.1`.
+- Confirmed deploy source provenance: local branch `Platform-V10` and `origin/Platform-V10` both point at commit `265064faf4a18ac6c2e39d028dfcbb5b6d1706df`, and runtime/connector/vectorization Dockerfiles pin `AI_FABRIC_FRAMEWORK_REF=ai-fabric-framework-v0.3.1`.
+- Reapplied ProdUS active runtime deployment `dep-53f9ca56` using explicit production target `targetProfileId=dtp-coolify-production`; release `rel-4ed2ffc9` finished `APPLIED_VERIFIED`, `provisioningStatus=ACTIVE`, `verificationStatus=PASSED`.
+- Platform apply completed connector, vectorization runner, runtime deploy, post-deploy verification, and marketplace dataset sync. Public health checks returned HTTP `200` / `UP` for runtime, connector, and vectorization runner.
+- ProdUS service-module retrieval smoke through Platform POC widget proxy passed after redeploy: provider request id `rag-eed1aff1-e670-45b8-a7e6-f8230cc59a05`, `sourcesCount=1`, `documentsCount=1`, top source `service-module:api-security-review`; temporary POC conversation was deleted with HTTP `204`.
+- Operational gotcha: a first apply attempt without explicit `targetProfileId` created `rel-4600b8d9` against staging and failed before runtime deploy at `wait_for_coolify_connector`. Future dep-53 production applies should always include `targetProfileId=dtp-coolify-production`.
+- `git diff --check` passed after the deployment. Remaining local dirty files were pre-existing/unrelated: `.DS_Store` and `Final_Documentation/User_Guides/LOOMAI_PROVIDER_CAPABILITIES_USER_GUIDE.md`.
+
+## 2026-06-28 Qdrant Demotion And ProdUS Managed Vector Migration Plan
+
+- Added roadmap plan `010_19_QDRANT_DEMOTION_AND_MANAGED_VECTOR_MIGRATION_PLAN.md` to demote Qdrant from default/release-blocking status while keeping it as an advanced provider. The plan chooses Pinecone as the first non-Qdrant managed target, with Weaviate and Zilliz/Milvus as fallbacks based on provider connectivity. It requires explicit staging and production Coolify AI Fabric release upgrade verification, Platform config-only and sealed deployment config backups for ProdUS `dep-53f9ca56`, import preview, baseline retrieval evidence, clone/import migration, reindex, ProdUS retrieval smoke, assignment cutover, rollback reservation, and delayed Qdrant resource retirement. It does not require backing up Coolify itself for this migration. No live migration, backup/export, provider mutation, or assignment change was executed when creating the plan.
+
+## 2026-06-28 ProdUS Managed Zilliz/Milvus Cutover And Qdrant Demotion
+
+- Executed the ProdUS managed-vector migration plan. Current `produs-staging` assignment is now deployment `dep-f6abfa06`, release `rel-86dbe0ab`, version `ver-269b9769`, target profile `dtp-coolify-production`.
+- Old Qdrant-backed deployment `dep-53f9ca56` / release `rel-4ed2ffc9` was not deleted and should remain rollback-reserved until owner-approved soak/cleanup is complete.
+- Pre-cutover Platform deployment backups completed for `dep-53f9ca56`: config-only export `dexp-cadcc013` / bundle `dxb-7a4c6b46`, and sealed export `dexp-a16daf03` / bundle `dxb-59417c44`. Import previews passed. Do not expose sealed payloads or secret material.
+- Pinecone provider connectivity reached `READY`, but managed index creation failed upstream with HTTP `400`, so the allowed fallback was used: Zilliz/Milvus serverless, Platform-managed dedicated storage, project `proj-a58a34b87ccfe2c80d6ec2`.
+- New deployment `dep-f6abfa06` passed production-staging release `rel-8d8f12fc` and production release `rel-86dbe0ab` with provisioning `ACTIVE` and verification `PASSED`.
+- Vectorization bootstrap run `vrn-f459d3ff` completed with `processed=198`, `succeeded=198`, `failed=0`; overview is `IN_SYNC`.
+- Production retrieval smokes passed after cutover:
+  - `rag-8c8b788b-2aac-409b-a2b4-bfdcf00c5b3b`: service-module smoke, `sourcesCount=5`, top source `service-module:api-security-review`.
+  - `rag-156ae1be-96ca-4e73-ac73-0d76fe9bd8bf`: package-template smoke, `sourcesCount=3`, top source `package-template:security-hardening`.
+- Platform Qdrant release-gate demotion was committed and pushed as `34af74717` (`Demote Qdrant from release-blocking vector checks`) and deployed to production Platform backend. Live suite definitions keep Qdrant hosted verification optional/non-blocking and keep managed-vector provider verification as the blocking vector gate.
+- Remaining caveats: direct authenticated ProdUS backend owner-session smoke was not available from this shell; `dep-f6abfa06` aggregate runtime `/actuator/health` reports readiness `DOWN` while liveness is `UP`; public consumer bridge returns Thinker-disabled and is not the ProdUS backend-mediated integration path; `api.loomai.pro` assignment URL returned `401` while the existing backend-only sslip handoff URL worked.
+- Temporary Hetzner firewall access for local IP `38.126.93.124/32` was removed from production firewall objects after the deployment work.
+
+## 2026-06-28 ProdUS Runtime Aggregate Health Caveat Resolved
+
+- Investigated `dep-f6abfa06` runtime aggregate `/actuator/health` returning HTTP `503` while `/actuator/health/liveness` and `/actuator/health/readiness` returned HTTP `200` / `UP`.
+- Root cause: aggregate health included the framework vector-provider actuator contributor. Zilliz/Milvus was operational and indexed, but the framework strict readiness verdict treated non-efficient scan-backed entity-type counts as not ready; readiness/liveness groups intentionally excluded that contributor, so Coolify gates passed.
+- First runtime commit `d7e7f6b50` added a tolerant runtime vector health indicator. Release `rel-05d65cdb` deployed and passed, but aggregate health still returned 503, so the runtime aggregate path was corrected explicitly.
+- Final runtime commit `f73178c47` makes strict vector provider actuator health opt-in for deployable runtimes (`MANAGEMENT_HEALTH_AI_FABRIC_VECTOR_ENABLED=false` by default) while keeping vector diagnostics available through private admin overview/indexing endpoints.
+- Production release `rel-5780caf6` for `dep-f6abfa06` finished `APPLIED_VERIFIED` / `PASSED` on `dtp-coolify-production`.
+- Final live health proof after release: runtime aggregate `/actuator/health`, `/actuator/health/liveness`, and `/actuator/health/readiness` all returned HTTP `200` / `UP`.
+- Post-fix Platform POC smokes passed: service-module request `rag-b135b3f7-116b-45f5-9313-31328ca539a4` returned `sourcesCount=5` with top source `service-module:api-security-review`; package-template request `rag-015efdce-016c-4fa0-bc93-f8e6878aaa1b` returned `sourcesCount=2` with top source `package-template:security-hardening`.
+- Verification commands passed locally before deploy: `mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -Dtest=RuntimeVectorHealthConfigurationTest test`, `mvn -f ai-infrastructure-module/pom.xml -pl ai-fabric-runtime -DskipTests package`, and `git diff --check`.
+- Temporary Hetzner firewall access for local IP `38.126.93.124/32` was removed again from firewalls `10915120` and `10918233`; direct local Coolify API check timed out afterward, confirming the closed posture.
+
+## 2026-06-29 ProdUS Assignment Custom Domain Check
+
+- Rechecked ProdUS assignment discovery with the backend-only scoped assignment key. Both the legacy sslip handoff URL and `https://api.loomai.pro/api/public/consumers/produs-staging/runtime-assignment` returned HTTP `200`.
+- Current live assignment remains `consumerId=produs-staging`, `deploymentId=dep-f6abfa06`, `runtimeBaseUrl=http://dep-f6abfa06.46.225.162.106.sslip.io`, `externalIntegrationReady=true`, `privateRuntimeIssuer=produs-staging-backend`, `privateRuntimeAudience=produs-staging`, `privateRuntimeAudienceMode=CONSUMER_ID`, `cacheTtlSeconds=300`.
+- The older `api.loomai.pro returned 401` note is resolved/stale. ProdUS may use either assignment host from the backend, but should keep the browser out of assignment discovery and should not hardcode the deployment id.
+
+## 2026-06-29 Full Platform Release Gate Rerun
+
+- Dispatched a fresh production Platform `full-platform-release-readiness` suite run from the Platform verification API with control-plane repair enabled.
+- Run `vsr-9c82546b` started at `2026-06-29T10:45:00Z` and completed at `2026-06-29T10:45:15Z` with status `FAILED`.
+- Passed stages before stop: `shared-inference-health` and `platform-admin-live-regression`.
+- Blocking failure remains `canonical-rollout-inventory`, not the Qdrant hosted verification demotion: canonical `Marketplace Runtime Verification` deployment `dep-f772d1a4` is `APPLY_FAILED`, latest release status `FAILED`, latest verification status `SKIPPED`, runtime base URL `https://runtime-dep-f772d1a4-dev.up.railway.app`.
+- The release-gate endpoint now points at this run and returns `ready=false` / `status=FAILED`; later stages are blocked by the marketplace canonical inventory failure. `qdrant-hosted-verification` remains non-blocking but was not reached because the suite stops after the earlier blocking failure.
+- Evidence snapshots are under `/private/tmp/produs-vector-migration-20260628.DCiz8u/evidence/`, including `full-platform-release-readiness-vsr-9c82546b-latest.clean.json` and the matching release-gate snapshot.
+
+## 2026-07-01 AI Fabric Chat Capabilities Demo Staging Deploy
+
+- Deployed `Real_Apps/chat-capabilities-demo` from `mahmoudashraf/AI-Fabric-Framework.git`, branch `claude/review-pr-llm-guides-u1l3d`, resolved commit `5fab35fc60e4832f7ef0108e49cf4b9f834b386f`, to Coolify staging.
+- Coolify app: `ai-fabric-chat-capabilities-demo`, UUID `otyh3h5y5gyvjx4epa8ywbau`, URL `https://ai-fabric-chat-capabilities-demo.46.224.145.148.sslip.io`, exposed port `8097`, health path `/actuator/health`.
+- Runtime env uses default/non-smoke profile with `OPENAI_ENABLED=true`, `OPENAI_MODEL=gpt-4o-mini`, `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`, and `OPENAI_EMBEDDING_DIMENSIONS=512`. Do not print the OpenAI or admin keys; the initially tested key from `/Users/mahmoudashraf/Downloads/Projects/envs/env.prod` was rejected by OpenAI, so the valid key from the private Platform handoff was applied in Coolify.
+- Persistent storage was added through Coolify API: volume `otyh3h5y5gyvjx4epa8ywbau-ai-fabric-chat-data` mounted at `/app/data` for H2 and Lucene data.
+- Deployment history: initial deployment `k10td0aw4a81jgdk4rd4exqy` built and became healthy but used the invalid key; redeploy `vh0dm9gakh9g4gfsoblfh00g` failed during rolling update because the new container could not start cleanly while the old H2-backed container still held `/app/data`; fresh downtime start `jj1da9p39x2wfi35zm3xowcv` finished and left the app `running:healthy`. Stuck queued restart `xvig81ol0no7q6hd1d62ck2r` had no worker attached and is just deployment-history noise.
+- Verification passed after the fresh start: public `/actuator/health` returned `UP`; Swagger UI returned HTTP `200`; admin clear returned HTTP `200`; product creates returned HTTP `201`; `/api/products/count` returned `totalProducts=2`; `/api/products/search?q=wireless%20headphones` returned the seeded headphones and keyboard products with headphones first.
+- Real AI smoke passed: `/api/chat/query` returned HTTP `200` / `success=true` and generated a catalog-grounded answer recommending `SKU-0001 Premium Wireless Headphones` at `$199.99` under the `$250` budget. Final app log tail showed successful OpenAI chat and embedding calls with no invalid-key or exception messages.
+- Local Docker verification was not available from this shell because the Docker daemon was not reachable at `unix:///Users/mahmoudashraf/.docker/run/docker.sock`; remote Coolify build logs served as the deployment build proof.
+
+## 2026-07-02 AI Fabric Chat Capabilities Demo Corrected Dockerfile Redeploy
+
+- The 2026-07-01 deployment used the old branch Dockerfile that copied and installed `ai-infrastructure-module`. Owner clarified the intended Dockerfile is the public-framework example Dockerfile at `examples/real-apps/chat-capabilities-demo/Dockerfile`.
+- Reconfigured the same Coolify staging app `ai-fabric-chat-capabilities-demo` / UUID `otyh3h5y5gyvjx4epa8ywbau` to `Loom-AI-Labs/ai-fabric-framework.git`, branch `main`, base directory `/examples/real-apps`, Dockerfile `/chat-capabilities-demo/Dockerfile`, port `8097`.
+- Corrected source revision in local public repo: `109aae9` (`add more realapps and remove relay`). The Dockerfile builds only the examples reactor and resolves released AI Fabric `0.3.1`; it does not copy/install `ai-infrastructure-module`.
+- Local Maven proof passed before redeploy: `mvn -B -V --no-transfer-progress -Dai-fabric.version=0.3.1 -DskipTests -pl chat-capabilities-demo -am package` from `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework/examples/real-apps`.
+- Coolify deployment `td73hmobbpcyomvzg09v3xq3` failed because the API patch used a full GitHub URL and Coolify prepended `https://github.com/`; repository was corrected to shorthand `Loom-AI-Labs/ai-fabric-framework.git`.
+- Final Coolify deployment `g12ncm26r7iuh27tsz039n5f` finished and left the app `running:healthy`; public `/actuator/health` returned `UP` and Swagger UI returned HTTP `200`.
+- Verification seeded unique products `SKU-CODEX-PUBLIC-H1-20260702002720` and `SKU-CODEX-PUBLIC-K1-20260702002720`; product creates returned HTTP `201`, search for corrected-Dockerfile wireless headphones returned HTTP `200` with the new headphones product first, and `/api/chat/query` returned HTTP `200` / `success=true` with a catalog-grounded answer recommending the corrected public-framework headphones at `$189.99`.
+- Final log tail had no invalid OpenAI key or exception messages. The generated admin key from the previous temporary deploy was not retained locally after secret cleanup, so this verification used non-destructive unique seed records instead of admin reset.
+
+## 2026-07-02 Chat Capabilities Demo Admin Key Rotation
+
+- Owner requested the staging demo `APP_ADMIN_API_KEY` be set to `test`.
+- Updated private auth handoff `PRODUCTION_HETZNER_COOLIFY_HANDOFF_PRIVATE.md` with the staging-only admin key and applied the same value to Coolify app `ai-fabric-chat-capabilities-demo` / UUID `otyh3h5y5gyvjx4epa8ywbau`.
+- Restarted through downtime stop/start to avoid H2 volume lock; Coolify deployment `w3bfvsh65imajl1zg0vu6t2p` finished and the app returned `running:healthy`.
+- Non-destructive auth verification passed: wrong `X-ADMIN-API-KEY` returned HTTP `401`; `X-ADMIN-API-KEY: test` reached controller validation and returned HTTP `400` with `confirm=true is required to clear demo data`; `/actuator/health` remained `UP`.
+
+## 2026-07-02 AI Fabric Account Resolver Staging Deploy
+
+- Deployed `examples/real-apps/ai-fabric-account-resolver` from `Loom-AI-Labs/ai-fabric-framework.git`, branch `main`, commit `507d9be815904728ea19e41eb5d3d2246a5c0830`, to Coolify staging.
+- Coolify app: `ai-fabric-account-resolver`, UUID `prjnwmfsk6bva2r2lxnq6lwh`, URL `https://ai-fabric-account-resolver.46.224.145.148.sslip.io`, base directory `/examples/real-apps`, Dockerfile `/ai-fabric-account-resolver/Dockerfile`, exposed port `8081`, health path `/actuator/health`.
+- Runtime env uses `PORT=8081`, `OPENAI_ENABLED=true`, `OPENAI_MODEL=gpt-4o-mini`, `CORS_ALLOWED_ORIGINS=https://ai-fabric.dev`, and `JAVA_OPTS=-Xms256m -Xmx768m`; the valid OpenAI key from the private Platform handoff is stored in Coolify as a secret. The app uses simple deterministic embeddings and Lucene by default.
+- Persistent storage was added through Coolify API: volume `prjnwmfsk6bva2r2lxnq6lwh-ai-fabric-account-resolver-data` mounted at `/app/data` for H2 and Lucene data.
+- Local Maven proof passed before deploy: `mvn -B -V --no-transfer-progress -Dai-fabric.version=0.3.1 -DskipTests -pl ai-fabric-account-resolver -am package` from `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework/examples/real-apps`.
+- Coolify deployment `h3b5nefm34alywlhc53pya5i` finished and left the app `running:healthy`. Public `/actuator/health` returned `UP`; `/api/account-resolver/policies` and `/api/account-resolver/scenarios` returned HTTP `200` with four entries each.
+- Verification passed: demo persona seed returned HTTP `200`; user `92` readiness showed `PAYMENT_METHOD_MISSING` and recommended `update_payment_method`; manual `inspect_account_readiness` read action returned HTTP `200` / `success=true`; plan reindex returned HTTP `200`; vector plan search returned HTTP `200` with three matches and `Pro Plan` first; manual confirmed `update_payment_method` returned HTTP `200` / success and made user `92` ready, then demo seed was run again to restore the documented missing-payment starting state.
+- Caveat: natural-language `/api/subscriptions/query` currently returns HTTP `200` with `type=ERROR`, `success=false`, message `Pipeline step failed: AccessControl`, even for a read-only resolver query. Manual action endpoints and deterministic resolver endpoints are healthy; the NL orchestration access-control policy should be investigated separately if this app needs the natural-language path live.
+
+## 2026-07-02 Behavior Churn Signals Staging Deploy
+
+- Deployed `examples/real-apps/behavior-churn-signals` from `Loom-AI-Labs/ai-fabric-framework.git`, branch `main`, commit `15372614191a58eee64adcda34a55af5fe01d8f4`, to Coolify staging.
+- Coolify app: `behavior-churn-signals`, UUID `n1070wzco189zbacg1perldn`, URL `https://behavior-churn-signals.46.224.145.148.sslip.io`, base directory `/examples/real-apps`, Dockerfile `/behavior-churn-signals/Dockerfile`, exposed port `8097`, health path `/actuator/health`.
+- Runtime env uses `PORT=8097`, `CORS_ALLOWED_ORIGINS=https://ai-fabric.dev`, and `JAVA_OPTS=-Xms256m -Xmx768m`. This demo is intentionally offline/deterministic: behavior-local AI mode, H2 in-memory data, no OpenAI key, no vector database, and no persistent volume required.
+- Local Maven proof passed before deploy: `mvn -B -V --no-transfer-progress -Dai-fabric.version=0.3.1 -DskipTests -pl behavior-churn-signals -am package` from `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework/examples/real-apps`.
+- Coolify deployment `re7v16xjbfe20dcbhftwzw40` finished and left the app `running:healthy`; final log check found no `ERROR` or `Exception` entries.
+- Verification passed: public `/actuator/health` returned `UP`; `/api/behavior-demo/dashboard` returned HTTP `200`; `/api/behavior-demo/seed-and-analyze` returned HTTP `200` with three scenarios and three insights; `/api/behavior/insights` returned three insights; `/api/behavior/analytics/rapid-decline` returned user `user-1001`; `/api/behavior-demo/scenarios/user-1001/signals` returned HTTP `200`; retention-offer preview and confirmed execution both returned HTTP `200`.
+- Verified behavior evidence: user `user-1001` / `Acme Finance` was classified as `segment=at_risk`, `sentiment=CHURNING`, `churnRisk=0.967`, `trend=RAPIDLY_DECLINING`, model `behavior-local`.
+- Operational note: because the app uses in-memory H2 by design, demo state resets on restart; run `/api/behavior-demo/seed-and-analyze` after restart to restore the sample scenarios.
+
+## 2026-07-02 AI Fabric Tenant Guard Staging Deploy
+
+- Deployed `examples/real-apps/tenant-knowledge-portal` from `Loom-AI-Labs/ai-fabric-framework.git`, branch `main`, commit `396b1410b913ab28ae10950cf564148aaf74f9ff`, to Coolify staging.
+- Coolify app: `ai-fabric-tenant-guard`, UUID `vjxzie88egcafmhiuxisvcdc`, URL `https://ai-fabric-tenant-guard.46.224.145.148.sslip.io`, base directory `/examples/real-apps`, Dockerfile `/tenant-knowledge-portal/Dockerfile`, exposed port `8101`, health path `/actuator/health`.
+- Runtime env uses `PORT=8101`, `CORS_ALLOWED_ORIGINS=https://ai-fabric.dev`, and `JAVA_OPTS=-Xms256m -Xmx768m`. This demo is intentionally offline/deterministic: smoke/local AI providers, H2 in-memory fixtures, memory vector DB, no OpenAI key, and no persistent volume required.
+- Local Maven proof passed before deploy: `mvn -B -V --no-transfer-progress -Dai-fabric.version=0.3.1 -DskipTests -pl tenant-knowledge-portal -am package` from `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework/examples/real-apps`.
+- Coolify deployment `u11rq5xvg2cfs7wzr4q92d7x` finished and left the app `running:healthy`; final log check found no `ERROR` or `Exception` entries.
+- Verification passed: public `/actuator/health` returned `UP`; `/api/tenant-guard-demo/dashboard`, `/api/tenant-guard-demo/reset`, and `/api/tenant-guard-demo/compare?q=VPN` returned HTTP `200`; compare returned one VPN document for `tenant-a`, one VPN document for `tenant-b`, and two VPN documents for platform admin.
+- Tenant boundary/action proof passed: cross-tenant archive from `tenant-a` to `doc-b` returned `success=false` / `CROSS_TENANT_DENIED`; same-tenant admin archive without confirmation returned `confirmationRequired=true`; confirmed same-tenant admin archive returned `success=true`.
+- Tenant deletion proof passed: platform admin delete for `tenant-b` returned `deletedDocuments=2` with ids `doc-b` and `doc-b-keys`; the demo was reset afterward, and final compare again showed both tenant A and tenant B VPN records.
+- Operational note: because the app uses in-memory H2 by design, demo state resets on restart; run `/api/tenant-guard-demo/reset` after restart or destructive demo flows to restore the sample scenarios.
+
+## 2026-07-03 Account Resolver Main Auto-Deploy Setup
+
+- Enabled Coolify auto-deploy for staging app `ai-fabric-account-resolver` / UUID `prjnwmfsk6bva2r2lxnq6lwh`, still pinned to `Loom-AI-Labs/ai-fabric-framework.git`, branch `main`, base directory `/examples/real-apps`, Dockerfile `/ai-fabric-account-resolver/Dockerfile`.
+- Verified the Coolify GitHub manual-webhook path with a signed synthetic `push` payload for `refs/heads/main`; it queued deployment `rro7w4s3hlwm7mw819jrwsaw` at commit `b3557d9e50c49a138f04533e570ca4508b42c884` (`Fix account resolver access policy for NL demo`). The first auto-triggered deploy failed after build because rolling deploy started the new container while the old container still held the persistent H2 file `/app/data/subscriptiondb.mv.db`; the old app stayed `running:healthy`.
+- Adjusted staging runtime env for rolling auto-deploy compatibility: `SPRING_DATASOURCE_URL=jdbc:h2:mem:subscriptiondb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE`, `AI_VECTOR_DB_TYPE=lucene`, `AI_VECTOR_DB_LUCENE_INDEX_PATH=/tmp/ai-fabric-account-resolver-lucene-index`, and `VECTOR_INDEX_PATH=/tmp/ai-fabric-account-resolver-lucene-index`. The old persistent Coolify volume remains attached but should no longer be part of runtime state.
+- Final signed main-branch webhook deploy `e49ny5ydl34rv3laajjntb0q` finished with app status `running:healthy` on commit `b3557d9e50c49a138f04533e570ca4508b42c884`.
+- Final smoke passed: public `/actuator/health` returned `UP`; policies count `4`; scenarios count `4`; demo seed returned HTTP `200`; user `92` readiness still shows `PAYMENT_METHOD_MISSING`; plan reindex processed `3`; Lucene plan search returned `3` matches with `Pro Plan` first; NL resolver query returned `ACTION_EXECUTED` / `success=true` with message `Account has blockers that need resolution`; manual `inspect_account_readiness` action returned `success=true`.
+- Follow-up for true GitHub-origin auto deploy: ensure the GitHub repo has a push webhook to Coolify's manual GitHub webhook endpoint (`/webhooks/source/github/events/manual`) using the app's GitHub manual webhook secret from Coolify. This shell had no `gh` CLI/token and the available GitHub connector did not expose repository webhook management, so repo webhook installation was not verified here.
+- 2026-07-03 follow-up attempt: loaded the GitHub PAT from the private session handoff and verified it can list hooks for `Loom-AI-Labs/ai-fabric-framework`, but the repo currently has `0` hooks and GitHub rejected webhook create with HTTP `403` / `Resource not accessible by personal access token`. A replacement token must have repo webhook/admin write permission before Codex can install the real GitHub -> Coolify push webhook.
+- 2026-07-03 final follow-up: owner updated the GitHub token. Created GitHub repository webhook id `648913868` for `Loom-AI-Labs/ai-fabric-framework`, active on `push`, pointing to staging Coolify's manual GitHub webhook endpoint. GitHub ping returned HTTP `204`, and hook readback reported `last_response.code=200`, `status=active`, `message=OK`. Future pushes to `main` should now reach Coolify; Coolify will deploy `ai-fabric-account-resolver` because that app has auto deploy enabled and its webhook secret matches. Other apps on the same repo/branch may show invalid-signature entries in the shared webhook response unless they are configured with the same secret or separate endpoints, but this does not block Account Resolver.
+
+## 2026-07-03 AI Fabric Demo Apps Main Auto-Deploy Rollout
+
+- Enabled main-branch Coolify auto-deploy for the remaining AI Fabric staging real apps on `Loom-AI-Labs/ai-fabric-framework.git`, branch `main`, base directory `/examples/real-apps`: `ai-fabric-chat-capabilities-demo` / UUID `otyh3h5y5gyvjx4epa8ywbau`, `behavior-churn-signals` / UUID `n1070wzco189zbacg1perldn`, and `ai-fabric-tenant-guard` / UUID `vjxzie88egcafmhiuxisvcdc`. `ai-fabric-account-resolver` / UUID `prjnwmfsk6bva2r2lxnq6lwh` was already enabled.
+- Aligned all four apps to the same Coolify GitHub manual webhook secret used by GitHub repository webhook id `648913868`, so a normal GitHub push to `main` can trigger all four staging apps through the single Coolify manual GitHub webhook endpoint. Do not print the shared webhook secret.
+- Sent a signed synthetic `refs/heads/main` push event for commit `edea0bbf37bc7780cbb979a9d9472f38d8fe65d9`; Coolify queued all four deployments: chat `k4ht8q81oh8b29mi6j5taayc`, account resolver `zwxl0tpbepvod9vskktmx0lk`, behavior `nfbq212tr0u2mt1m8nubwaql`, and tenant guard `n136fft26t4sedv9bzuymw6j`.
+- Account resolver, behavior churn signals, and tenant guard finished successfully and remained `running:healthy` on commit `edea0bbf37bc7780cbb979a9d9472f38d8fe65d9`.
+- Chat deployment `k4ht8q81oh8b29mi6j5taayc` initially failed after build during rolling replacement because both old and new containers tried to use the same file-backed H2 database at `/app/data/chat-capabilities.db.mv.db`. The old container stayed `running:healthy`, so there was no public outage.
+- Fixed chat staging runtime config for rolling auto-deploy compatibility: `SPRING_DATASOURCE_URL=jdbc:h2:mem:chat_capabilities_demo;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE` and `AI_VECTOR_DB_LUCENE_INDEX_PATH=/tmp/chat-capabilities-lucene-index-${OPENAI_EMBEDDING_DIMENSIONS:512}`. The old Coolify volume remains attached but should no longer be used for the chat demo's H2/Lucene runtime state.
+- Follow-up chat deployment `tehp2lwsv30g2ejwdg7162yi` finished successfully on commit `edea0bbf37bc7780cbb979a9d9472f38d8fe65d9` and left the app `running:healthy`.
+- Final post-autodeploy smoke passed across all four public staging apps: all `/actuator/health` endpoints returned HTTP `200` / `UP`; account resolver demo seed and policy endpoints returned HTTP `200` with four policies; behavior dashboard and `seed-and-analyze` returned HTTP `200` with three scenarios; tenant guard dashboard and `compare?q=VPN` returned HTTP `200`; chat product create returned HTTP `201`, product search found the created headphones product, and `/api/chat/query` returned HTTP `200` / `success=true` with an action-backed answer.
+- Operational note: future pushes to `Loom-AI-Labs/ai-fabric-framework` `main` should auto-deploy all four staging real apps. If another app is added later, set its repository/branch/base directory, enable Coolify auto-deploy, and align its GitHub manual webhook secret or add a separate GitHub webhook.
+
+## 2026-07-25 Loom AI Labs Public Site Production Deployment
+
+- Added a new static-first Astro site at `Platfrom/loomai-site`, based on the
+  supplied `/Users/mahmoudashraf/Downloads/loom-ai-labs-ui` design brief,
+  implementation specification, tokens, content models, and five reference
+  screens. The site follows the same light editorial, deep-navy, cyan/blue/
+  violet visual language without reusing the references as page screenshots.
+- The public information architecture includes Home, Products, Experiments,
+  Research, About, Connect, product/experiment/research details, a real 404,
+  sitemap, robots, and research RSS feed. AI Fabric Framework and AI Fabric
+  Chat UI are presented as equal open-source products. Experiments link to six
+  running demos and use captured live proof rather than placeholder screens.
+- Production source commits are `598e32b0a` (site) and `a0a5177d4` (RSS media
+  type correction), pushed to `mahmoudashraf/AI-Fabric-Framework.git` branch
+  `Platform-V10`.
+- Created production Coolify application `loomai-public-site`, UUID
+  `t3r7unm08sh3tfatpadz7qky`, under project/environment
+  `loomai-platform/production`. It uses repository-root build context,
+  `/Platfrom/loomai-site/Dockerfile`, port `3000`, `/health`, a `512m` memory
+  limit, and a site-only watch path.
+- Live validation URL:
+  `https://loomai-public-site.46.225.162.106.sslip.io`. Final deployment
+  `n7sfc9qpedjrc8te8798tfhh` finished on full commit
+  `a0a5177d46d531c0b3e9cc3d282c34e2e20c08b5`; Coolify reports
+  `running:healthy`, and `/health` reports `UP` with the same commit.
+- Verification passed: Astro diagnostics with zero findings, 20-page build,
+  typed content graph, 19-route static smoke, 1,117-byte total gzip JavaScript
+  payload, Playwright/Axe checks, desktop/mobile overflow and navigation
+  checks, Docker build, production HTTP/security-header/404 checks, all 19
+  content routes at desktop and mobile widths, 20 discovered internal links,
+  and visual inspection of production desktop/mobile screenshots.
+- `loomai.pro` and `www.loomai.pro` had no authoritative `A`, `AAAA`, or CNAME
+  answer at completion. The app remains on the sslip validation host until the
+  owner adds the Coolify custom domains and Namecheap apex/`www` records.
+  Existing `api`, `console`, `partners`, and `shopify-bridge` services were not
+  changed.
+- GitHub push auto-deploy is not currently wired for this application because
+  production Coolify's manual webhook endpoint is behind the intentionally
+  restricted port `8000` control plane. Use an explicit Coolify deploy after a
+  verified push unless a separately secured public webhook ingress is added.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP absence was verified and
+  local Coolify API access returned timeout/HTTP `000`, confirming the closed
+  posture.
+
+## 2026-07-25 Loom AI Labs Public Site Reference-Matched Redesign
+
+- Rebuilt the public site around the supplied final reference screens in
+  `/Users/mahmoudashraf/Downloads/loom-ai-labs-ui`. The homepage,
+  `/products/ai-fabric-chat-ui`, `/experiments`, and `/research` now reproduce
+  the reference composition, typography, density, card hierarchy, diagrams,
+  product previews, filters, and first-viewport content. Remaining routes use
+  the same shared shell and light visual system.
+- Preserved page content, controls, links, filters, headings, and responsive
+  behavior as semantic HTML. Only the intricate supplied weave, product-preview,
+  and proof illustrations were extracted as bounded visual assets; the pages
+  are not flattened screenshots.
+- Updated the shared header to the supplied Loom AI Labs lockup, exact desktop
+  navigation labels, active-route treatment, and GitHub action. Replaced the
+  old dark footer with the required light-only footer treatment.
+- Source commit
+  `ce2f53974119e389916955b994f50be1ad20aa44`
+  (`Match public site to supplied Loom AI Labs references`) was pushed to
+  `Platform-V10`.
+- Local release gates passed: zero Astro diagnostics, 20-page static build,
+  typed content graph, 19-route static smoke, five responsive browser
+  viewports, filter and mobile-navigation behavior, blocking Axe checks, visual
+  screenshot inspection, `git diff --check`, production Docker build, hardened
+  header smoke, nested-route smoke, and healthy container healthcheck.
+- Production Coolify deployment `alj891hv4zk8xjzbzki8a4bf` finished on the
+  full source commit above. Application `loomai-public-site` remains
+  `running:healthy`; live `/health` reports `UP` and the same commit.
+- Live release verification passed for all 19 content routes at both
+  `1536x1024` and `390x844`, including one-H1 checks, horizontal-overflow
+  checks, blocking Axe checks on the principal routes, security headers, nested
+  Chat UI rendering, and real 404 behavior.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
+  the local production Coolify API probe returned timeout/HTTP `000`.
+- Validation URL remains
+  `https://loomai-public-site.46.225.162.106.sslip.io`. Apex `loomai.pro` and
+  `www.loomai.pro` still require the owner-controlled Coolify domain and
+  Namecheap DNS steps recorded in the private production handoff.
+
+## 2026-07-25 Public Site Rich Index Consistency Follow-Up
+
+- Replaced the older generic `/products` cards with the same
+  `LabProductShowcase` component used by the homepage's "Products from the lab"
+  section. The two pages now share the same product composition, artwork,
+  responsive behavior, and "Built to work together" relationship rail.
+- Made rich experiment panels data-driven for every populated category:
+  Live Data Sync for `data-retrieval`, Account Resolver for
+  `governed-actions`, Privacy Shield for `privacy-security`, Tenant Guard for
+  `tenant-access`, and AI Shopping Experience for `adaptive-experience`.
+  Behavior Signals remains a compact secondary item under Adaptive Experience.
+- Made rich research panels data-driven for every populated theme:
+  Application Data and AI Evidence Alignment for `data-consistency`, Explicit
+  Application Context for `context-grounding`, Governed AI-Proposed Actions for
+  `actions-governance`, and Tenant Identity as Orchestration Context for
+  `privacy-identity`. Privacy-Aware RAG remains a compact secondary item under
+  Privacy and Identity.
+- The empty `developer-experience` research filter is no longer presented.
+  No placeholder investigation was fabricated; add the filter back when a real
+  implementation-linked research artifact exists.
+- Extended the shared filter behavior with explicit feature/compact roles,
+  duplicate suppression for selected filters, query-string deep-link support,
+  and active-chip centering on narrow screens. The behavior is driven by data
+  attributes rather than title or domain text matching.
+- Source commit
+  `8b8ecdd4d14ae1f25428bb1983a152699615984d`
+  (`Unify rich product and filtered index views`) was pushed to
+  `Platform-V10`.
+- Local release gates passed: zero Astro diagnostics, 20-page build, typed
+  content graph, 19-route static smoke, full Playwright/Axe browser suite,
+  visual desktop/mobile inspection, all nine populated filter states at
+  `1440x1000` and `390x844`, horizontal-overflow checks, and production Docker
+  build plus container health.
+- Production Coolify deployment `euvp84mqtdpo070wa84fow5u` finished on the
+  full source commit above. Public `/health` reports `UP` and the same commit.
+  Live desktop/mobile checks passed for `/products` and every populated
+  experiment/research filter with zero serious or critical Axe findings.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
+  the local production Coolify API probe returned timeout/HTTP `000`.
+
+## 2026-07-25 AI Fabric Framework Product Page Redesign
+
+- Replaced the generic AI Fabric Framework product hero at
+  `/products/ai-fabric-framework` with a bespoke, reference-led product
+  experience matching the quality and visual authorship of the Chat UI page.
+- The new first viewport includes the owner-proposed headline and hierarchy,
+  current `0.4.0` `@AICapable` / `@AIProcess` lifecycle example, live-demo and
+  GitHub actions, a semantic application-authority architecture map, visible
+  entity-sync and governed-action lifecycles, four capability summaries, and
+  an application-to-provider authority rail.
+- Added the two owner-supplied `1600x1000` architecture diagrams as real
+  product assets:
+  `ai-fabric-architecture-overview-light.png` and
+  `ai-fabric-orchestration-pipeline-light.png`. Desktop/tablet display them at
+  the available width; mobile uses a contained, keyboard-focusable horizontal
+  inspection region so diagram text remains readable without page overflow.
+- Removed the old generic capability-pillar and narrow architecture-flow
+  sections from the Framework route because the new product-specific surfaces
+  replace them. The Chat UI route and its existing bespoke presentation were
+  left unchanged.
+- Source commit
+  `cf43561cf588d0ad498d702ad18cb1d6c2bea3de`
+  (`Redesign AI Fabric Framework product page`) was pushed to `Platform-V10`.
+- Local release gates passed: zero Astro diagnostics, 20-page build, typed
+  content graph, 19-route static smoke, full Playwright/Axe browser suite,
+  desktop/tablet/mobile visual inspection, one-H1 and overflow checks, full
+  diagram natural-dimension checks, production Docker build, container health,
+  and container route/asset content-type checks. JavaScript remained at 1,117
+  gzip bytes.
+- Production Coolify deployment `a12olmusrs8ogp8rnw3khuyb` finished on the
+  full source commit above. Public `/health` reports `UP` and the same commit.
+  Live desktop/tablet/mobile checks confirmed both diagrams at `1600x1000`, the
+  semantic architecture map, no page overflow, and zero serious or critical
+  Axe findings. The live Chat UI route regression check remained HTTP `200`.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233` after deployment. Exact-IP counts returned zero and
+  the local production Coolify API probe returned timeout/HTTP `000`.
+
+## 2026-07-25 Public Homepage Assistant Weave Follow-Up
+
+- Replaced the homepage's original abstract weave hero with the owner-supplied
+  assistant-centered weave artwork from
+  `/Users/mahmoudashraf/Downloads/ChatGPT Image Jul 25, 2026, 09_50_37 PM.png`.
+  The composition and small orbital markers remain intact at the existing hero
+  footprint.
+- Optimized the source to a `1440x840` WebP at approximately `141 KB`, preserving
+  two-times desktop rendering resolution while avoiding the original `1.7 MB`
+  first-view payload.
+- Source commit
+  `43e5142a6f27c74ec53c30e9bbab8e5758b67aeb`
+  (`Use assistant weave on public homepage`) was pushed to `Platform-V10`.
+- Local verification passed with Node `22.17.0`: zero Astro diagnostics,
+  20-page build, typed content graph, 19-route static smoke, full
+  Playwright/Axe browser smoke, five responsive homepage screenshots, no
+  horizontal overflow, and visual desktop/mobile inspection.
+- Production Coolify deployment `f8xlf1ny5lphlge4w420udab` finished on the
+  full source commit above. Application `loomai-public-site` reports
+  `running:healthy`; public `/health` reports `UP` and the same commit.
+- Live browser proof at `1440x1000` and `390x844` confirmed HTTP `200`, the
+  `1440x840` hero asset, zero horizontal overflow, and a visible hint of
+  "Products from the lab" in the first mobile viewport.
+- Temporary operator access was removed from Hetzner firewalls `10915120` and
+  `10918233` after deployment. Exact-IP counts returned zero and the local
+  production Coolify API probe returned timeout/HTTP `000`.
+
+## 2026-07-25 Public Homepage Transparency And Domain Attachment
+
+- Reworked the owner-supplied assistant weave as a transparent hero asset using
+  the built-in image editing flow, a removable chroma background, and the
+  image-generation alpha helper. The final `1440x840` WebP preserves the woven
+  form, assistant, small orbital lines and dots, sparkles, and floating shadow;
+  all four corners are transparent so the site canvas and grid remain visible.
+- Source commit
+  `ae90c80fdf5a4f3ae9ff9023cadad6349ffbbe17`
+  (`Blend homepage weave into site canvas`) was pushed to `Platform-V10`.
+- Local verification passed with Node `22.17.0`: zero Astro diagnostics,
+  20-page build, typed content graph, 19-route static smoke, full
+  Playwright/Axe browser smoke, five responsive homepage screenshots, no
+  horizontal overflow, alpha/corner checks, and visual desktop/mobile
+  inspection.
+- Production Coolify deployment `eoxceu8eeolsdui8v9vdd5uv` finished on the
+  exact source commit above. Application `loomai-public-site` reports
+  `running:healthy`; public `/health` reports `UP` and the same commit.
+- Configured the production Coolify application domains as
+  `https://loomai-public-site.46.225.162.106.sslip.io,https://loomai.pro,https://www.loomai.pro`
+  with redirect policy `non-www`. A conflict scan found no other application
+  using the apex or `www` domains.
+- Pre-DNS routing proof passed over HTTPS using explicit local resolution:
+  apex `/health` returned HTTP `200`/`UP` on the deployed commit and `www`
+  returned HTTP `302` to `https://loomai.pro/`. The sslip validation route
+  remains healthy.
+- Namecheap remains the only owner action: publish `A @ -> 46.225.162.106` and
+  `CNAME www -> loomai.pro`. Public DNS had no answer at completion, so the
+  apex still served Traefik's default certificate. Recheck certificate issuance
+  and the pre-DNS plain-HTTP timeout after DNS propagation.
+- Temporary operator access was removed from Hetzner firewalls `10915120` and
+  `10918233`; exact-IP counts returned zero and the local production Coolify
+  API probe returned timeout/HTTP `000`.
+
+## 2026-07-26 Public Domain DNS And Certificate Completion
+
+- Owner-supplied Namecheap Advanced DNS records were confirmed through Google
+  and Cloudflare DNS-over-HTTPS. Apex, `api`, `console`, `partners`, and
+  `shopify-bridge` resolve to production Coolify IPv4 `46.225.162.106`;
+  service subdomains retain IPv6 `2a01:4f8:1c18:c04::1`; `www` is a CNAME to
+  `loomai.pro`; and the apex intentionally has no IPv6 record.
+- The operator machine's traditional port-53 DNS path returned stale Heroku
+  IPv4 `18.204.152.241` and synthetic `::` responses even for explicitly named
+  resolvers. DNS-over-HTTPS is the reliable verification path from this
+  network; do not rewrite correct Namecheap records based on the local
+  port-53 result.
+- Reapplied the unchanged Coolify public-site domains and completed targeted
+  restart deployment `s13u536skt6jbliyrhn65i06` on commit
+  `a3e00b1efd1266ada4a1a285a1e4eb6ef87c646c`. The trusted apex certificate is
+  active. Apex health, sitemap, and Framework product routes returned HTTP
+  `200`; `www` returned HTTP `302` to `https://loomai.pro/`.
+- Reapplied the unchanged Partner Portal domain mapping and completed targeted
+  restart deployment `i12ebbaesy9lhevp3vamugce` on the same commit. Its sslip
+  health route returned HTTP `200`, and independent external HTTP and HTTPS
+  checks for `partners.loomai.pro/health` returned `UP`. Local direct SNI
+  requests still time out because of the operator network path.
+- Existing branded service checks remained healthy: Platform API, Console, and
+  Shopify Bridge returned HTTP `200`. An independent external plain-HTTP fetch
+  reached the Loom AI Labs homepage, while direct local port-80 requests timed
+  out; treat that as the same operator-network limitation.
+- Temporary operator IP `38.126.95.167/32` was removed from Hetzner firewalls
+  `10915120` and `10918233`. Exact-IP counts are zero and the production
+  Coolify API again times out locally with HTTP `000`.

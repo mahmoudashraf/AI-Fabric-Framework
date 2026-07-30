@@ -1,0 +1,57 @@
+---
+import { ArrowUpRight, GitFork, Mail, Rss } from '@lucide/astro'
+import { navigation, site } from '../data/content'
+import LoomWordmark from './LoomWordmark.astro'
+
+const year = new Date().getUTCFullYear()
+---
+
+<footer class="site-footer">
+  <div class="loom-container site-footer__grid">
+    <div class="site-footer__identity">
+      <a href="/" aria-label="Loom AI Labs home"><LoomWordmark compact /></a>
+      <p>
+        Open-source products and implementation-linked research for dependable
+        AI-enabled applications.
+      </p>
+    </div>
+
+    <div class="site-footer__links">
+      <p class="site-footer__label">Explore</p>
+      {navigation.map((item) => <a href={item.href}>{item.label}</a>)}
+      <a href="/connect">Connect</a>
+    </div>
+
+    <div class="site-footer__links">
+      <p class="site-footer__label">Open source</p>
+      <a href="https://github.com/Loom-AI-Labs" target="_blank" rel="noreferrer">
+        GitHub
+        <ArrowUpRight size={14} aria-hidden="true" />
+      </a>
+      <a href="https://ai-fabric.dev" target="_blank" rel="noreferrer">
+        AI Fabric docs
+        <ArrowUpRight size={14} aria-hidden="true" />
+      </a>
+      <a href="/research/feed.xml">
+        Research feed
+        <Rss size={14} aria-hidden="true" />
+      </a>
+    </div>
+
+    <div class="site-footer__contact">
+      <p class="site-footer__label">Get in touch</p>
+      <a href={`mailto:${site.email}`}>
+        <Mail size={17} aria-hidden="true" />
+        {site.email}
+      </a>
+      <a href="https://github.com/Loom-AI-Labs" target="_blank" rel="noreferrer">
+        <GitFork size={17} aria-hidden="true" />
+        Loom-AI-Labs
+      </a>
+    </div>
+  </div>
+  <div class="loom-container site-footer__legal">
+    <span>© {year} Loom AI Labs</span>
+    <span>Independent open-source engineering</span>
+  </div>
+</footer>
