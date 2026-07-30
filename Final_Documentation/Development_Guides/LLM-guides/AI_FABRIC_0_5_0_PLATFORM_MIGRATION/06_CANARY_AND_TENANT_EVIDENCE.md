@@ -1,6 +1,7 @@
 # Gate A Canary And Tenant Evidence
 
-Status: **GATE A PASSED; AI FABRIC 0.5.0 SPECIALIST CANARY PENDING**
+Status: **GATE A PASSED; LOCAL PATCHED SPECIALIST CANARY PASSED; HOSTED
+SPECIALIST DEPLOYMENT BLOCKED**
 
 Evidence date: 2026-07-30
 Safe canary tenant: `ten-gate-a`
@@ -110,7 +111,22 @@ assertion. The browser/request body did not own those values.
 ## 5. Gate Decision
 
 The packaged tenant canary and live Gate A release gate are green. Specialist
-execution remains disabled in the live baseline. The next canary must exercise
-the separately packaged AI Fabric `0.5.0`
-`deployment-knowledge-specialist@1` while repeating the tenant, auth,
-retrieval, provider-failure, and existing-chat regressions.
+execution remains disabled in the live baseline.
+
+A separate local packaged canary now proves the
+`deployment-knowledge-specialist@1` implementation with real OpenAI,
+two-tenant retrieval, update/delete, hostile evidence, missing-memory,
+missing-scope, missing-boundary, and provider-disabled cases. That proof
+requires the framework correction now reviewed as `7055dda`.
+
+Released `0.5.0` omitted trusted tenant/deployment/scope propagation from the
+execution gateway into RAG metadata. The unpatched canary leaked a Tenant B
+document into Tenant A evidence. No hosted specialist deployment may proceed
+until the correction is merged, published in a new immutable framework
+release, consumed through Maven, and the complete hosted canary is repeated.
+
+Detailed evidence and the release sequence are in:
+
+```text
+08_SPECIALIST_SECURITY_CANARY_AND_FRAMEWORK_BLOCKER.md
+```
