@@ -128,6 +128,19 @@ Required migration proof:
 - publishing a migrated draft creates a separately versioned `0.4` artifact;
 - export/import preserves contract metadata and artifact bytes.
 
+Implemented database migrations:
+
+- `V127` adds typed entity-contract/framework metadata and deterministic draft
+  migration ownership;
+- `V128` upgrades the five known first-party marketplace DATA manifests; and
+- `V129` discovers and upgrades legacy entity entries in every persisted
+  marketplace plugin version, including customer-installed and historical
+  plugin IDs that cannot be known at build time.
+
+`V129` preserves dynamic entity-type keys, leaves already-valid V04 entries
+unchanged, and is idempotent. A PostgreSQL 16 Testcontainers regression covers
+the live failure shape with `service-module` and `package-template`.
+
 ## 4. Indexed-Output Hash Semantics
 
 Primary owner:

@@ -1,6 +1,6 @@
 # AI Fabric 0.5.0 Runtime Configuration Matrix
 
-Status: **TEMPLATE PREPARED - LIVE VALUES NOT YET READ BACK**
+Status: **STAGING PLATFORM METADATA PARTIALLY READ BACK; SPECIALIST VALUES PENDING**
 
 This matrix records ownership, sensitivity, restart/data impact, and proof for
 the first LoomAI runtime specialist. It intentionally contains no credential
@@ -12,7 +12,7 @@ values.
 | --- | --- | --- |
 | Local development | Developer environment or ignored local file | Pending after implementation |
 | Automated tests | Test-scoped properties and deterministic fixtures | Pending after implementation |
-| Staging | Coolify environment and secret storage | Live readback pending |
+| Staging | Coolify environment and secret storage | Platform app source and relevant build/runtime flags read back; specialist values pending |
 | Isolated canary | Separate Coolify application/environment | Provisioning pending |
 | Production | Coolify environment and secret storage | Live readback pending |
 
@@ -127,6 +127,17 @@ conversation binding, actions, or asynchronous execution to the first proof.
 | Build commit/time | Deployment environment dependent | Exact product source readback | No | `/actuator/info` or safe health |
 | Framework version | Not currently first-class live evidence | Report exact resolved version | No | Safe health/build endpoint |
 | Entity artifact hash | Platform release evidence | Report exact active hash | No | Admin/release readback |
+| `PLATFORM_DB_PASSWORD` | Coolify runtime environment | Runtime-only; never a Docker build argument | Yes | Coolify metadata readback plus redacted build-log audit |
+| `PLATFORM_DEPLOY_BRANCH` | Coolify application metadata | Match the deployed source branch | No | Coolify application/environment readback |
+
+Staging correction on 2026-07-30:
+
+- `PLATFORM_DB_PASSWORD` was changed from build-and-runtime scope to
+  runtime-only without changing its value;
+- `PLATFORM_DEPLOY_BRANCH` was aligned to `Platform-V11`; and
+- both non-preview keys were confirmed to have exactly one Coolify record.
+
+No secret value was printed or copied into the evidence set.
 
 ## 7. Required Live Readback
 

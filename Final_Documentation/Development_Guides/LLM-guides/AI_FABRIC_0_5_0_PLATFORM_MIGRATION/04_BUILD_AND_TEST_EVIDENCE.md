@@ -18,6 +18,8 @@ No secret values are recorded in this report.
 - Flyway `V127` adds contract/version and migration-audit ownership.
 - Flyway `V128` converts the five production marketplace DATA manifests to the
   explicit `0.4` contract.
+- Flyway `V129` dynamically converts legacy entity entries for every persisted
+  marketplace plugin version, including customer-installed plugin IDs.
 - Draft migration is deterministic, idempotent, dry-runnable, and auditable.
 - Immutable historical version payloads remain unchanged.
 - Export/import preserves entity contract, framework version, artifact bytes,
@@ -52,13 +54,14 @@ code, not the immutable framework release.
 | --- | --- |
 | AI Fabric product reactor | 31 tests, 0 failures/errors |
 | AI Fabric infrastructure reactor | 187 tests, 0 failures/errors |
-| Platform backend clean verify | 716 tests, 0 failures/errors |
+| Platform backend clean verify | 717 tests, 0 failures/errors |
 | Platform UI production build | Passed |
 | Runtime search-source regression | 10 tests, 0 failures/errors |
 | Vectorization durable-work/failure tests | 18 tests, 0 failures/errors |
 | Platform retry/checkpoint tests | 3 tests, 0 failures/errors |
 | Both dependency trees | AI Fabric `0.4.0` only |
 | PostgreSQL 16 Flyway `V128` validation | Passed |
+| PostgreSQL 16 dynamic marketplace `V129` migration | 1 test, 0 failures/errors; included in the 717-test backend total |
 
 Focused commands:
 
@@ -78,9 +81,30 @@ mvn -B --no-transfer-progress \
 mvn -B --no-transfer-progress \
   -f Platfrom/backend/pom.xml \
   -Dtest=VectorizationServiceTest test
+
+mvn -B --no-transfer-progress \
+  -f Platfrom/backend/pom.xml \
+  -Dtest=MarketplaceLegacyEntityContractMigrationPostgresTest test
+
+mvn -B --no-transfer-progress \
+  -f Platfrom/backend/pom.xml \
+  clean verify
 ```
 
-## 4. Residual Build Notes
+## 4. Staging Startup Defect Closed In Source
+
+The first external backend deployment reached Flyway but failed strict V04
+startup validation for customer-installed plugin
+`mkp-data-produs-safe-knowledge@0.1.0`. Its dynamic entity types were not among
+the five first-party IDs hardcoded in `V128`.
+
+`V129` removes that closed-world assumption. It discovers the
+`contributions.entityConfig.ai-entities` object in every persisted marketplace
+version, rewrites only entries containing legacy keys, preserves each dynamic
+entity-type key, leaves already-valid V04 entries byte-equivalent at the JSON
+tree level, and produces the same result when run again.
+
+## 5. Residual Build Notes
 
 - The UI build reports six npm audit findings and a roughly 1.668 MB main
   chunk. Neither changed the Gate A runtime contract, but both remain release

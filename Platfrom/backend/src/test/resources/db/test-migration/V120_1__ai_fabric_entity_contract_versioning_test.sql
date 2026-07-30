@@ -1,5 +1,5 @@
 -- H2 test-schema mirror of production V127. Production continues to execute
--- V121-V128 in order on PostgreSQL; this lets the H2 application-context suite
+-- V121-V129 in order on PostgreSQL; this lets the H2 application-context suite
 -- validate the current JPA schema without running PostgreSQL-only JSONB updates.
 ALTER TABLE platform_deployment_drafts
     ADD COLUMN entity_config_contract_version VARCHAR(64) NOT NULL DEFAULT 'AI_ENTITY_CONFIG_V0_3';
