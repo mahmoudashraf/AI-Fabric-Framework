@@ -82,6 +82,8 @@ class DeploymentPocImportServiceTest {
 
             DeploymentEntity deployment = new DeploymentEntity();
             deployment.setId("dep-123");
+            deployment.setCustomerId("cus-123");
+            deployment.setTenantId("ten-123");
             deployment.setRuntimeBaseUrl("http://localhost:" + server.getAddress().getPort());
             deployment.setConnectorBaseUrl("http://localhost:" + server.getAddress().getPort());
 
@@ -112,7 +114,12 @@ class DeploymentPocImportServiceTest {
                             "SKU-1",
                             "Premium trail shoes.",
                             null,
-                            java.util.Map.of("category", "Footwear")
+                            java.util.Map.of(
+                                "category", "Footwear",
+                                "customerId", "untrusted-customer",
+                                "deploymentId", "untrusted-deployment",
+                                "tenantId", "untrusted-tenant"
+                            )
                         ),
                         new DeploymentPocImportRecordRequest(
                             "SKU-2",
@@ -130,6 +137,14 @@ class DeploymentPocImportServiceTest {
             assertThat(requestBody.path("operations")).hasSize(2);
             assertThat(requestBody.path("operations").get(0).path("type").asText()).isEqualTo("UPSERT");
             assertThat(requestBody.path("operations").get(0).path("vectorSpace").asText()).isEqualTo("product");
+            assertThat(requestBody.path("operations").get(0).path("metadata").path("category").asText())
+                .isEqualTo("Footwear");
+            assertThat(requestBody.path("operations").get(0).path("metadata").path("customerId").asText())
+                .isEqualTo("cus-123");
+            assertThat(requestBody.path("operations").get(0).path("metadata").path("deploymentId").asText())
+                .isEqualTo("dep-123");
+            assertThat(requestBody.path("operations").get(0).path("metadata").path("tenantId").asText())
+                .isEqualTo("ten-123");
             assertThat(requestBody.path("trace").path("metadata").path("datasetLabel").asText()).isEqualTo("Catalog smoke");
             assertThat(requestBody.path("trace").path("metadata").path("deploymentId").asText()).isEqualTo("dep-123");
             assertThat(requestBody.path("trace").path("metadata").path("transportSurface").asText()).isEqualTo("runtime");
@@ -147,6 +162,10 @@ class DeploymentPocImportServiceTest {
                 .startsWith("platform-poc-import-session-");
             assertThat(requestBody.path("trace").path("authContext").path("deploymentId").asText())
                 .isEqualTo("dep-123");
+            assertThat(requestBody.path("trace").path("authContext").path("customerId").asText())
+                .isEqualTo("cus-123");
+            assertThat(requestBody.path("trace").path("authContext").path("tenantId").asText())
+                .isEqualTo("ten-123");
 
             assertThat(summary.status()).isEqualTo("SUCCEEDED");
             assertThat(summary.importedCount()).isEqualTo(2);

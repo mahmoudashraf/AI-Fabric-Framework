@@ -1,13 +1,15 @@
 package com.ai.fabric.runtime.search;
 
-import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
 import ai.fabric.core.AISearchService;
+import ai.fabric.dto.AIAccessSubjectContext;
 import ai.fabric.dto.RAGRequest;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.rag.source.KnowledgeSourceAdapterType;
 import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import ai.fabric.rag.source.SearchSource;
 import ai.fabric.rag.source.SearchSourceRegistry;
+import com.ai.fabric.runtime.auth.RuntimeScopeCatalog;
+import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -19,6 +21,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,22 +97,34 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
 
     @Override
     public List<SearchSource> resolveSearchSources(RAGRequest request) {
+        Map<String, Object> trustedBoundaryFilters = trustedBoundaryFilters(request);
+        boolean deploymentKnowledgeRequest = !trustedBoundaryFilters.isEmpty();
         List<SearchSource> resolved = new ArrayList<>();
         ResolvedKnowledgeSource configuredDefaultPrivateSource = configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
             .filter(source -> !StringUtils.hasText(source.getHandleRef()))
             .findFirst()
             .orElse(defaultPrivateSource(request));
-        resolved.add(new DeploymentPrivateVectorSearchSource(configuredDefaultPrivateSource, searchService, vectorDatabaseService));
+        resolved.add(new DeploymentPrivateVectorSearchSource(
+            withTrustedBoundary(configuredDefaultPrivateSource, trustedBoundaryFilters),
+            searchService,
+            vectorDatabaseService
+        ));
         configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
             .filter(source -> StringUtils.hasText(source.getHandleRef()))
-            .map(source -> new DeploymentPrivateVectorSearchSource(source, searchService, vectorDatabaseService))
+            .map(source -> new DeploymentPrivateVectorSearchSource(
+                withTrustedBoundary(source, trustedBoundaryFilters),
+                searchService,
+                vectorDatabaseService
+            ))
             .forEach(resolved::add);
-        configuredSources.stream()
-            .filter(source -> KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType()))
-            .map(source -> new SharedIndexSearchSource(source, searchService, vectorDatabaseService))
-            .forEach(resolved::add);
+        if (!deploymentKnowledgeRequest) {
+            configuredSources.stream()
+                .filter(source -> KnowledgeSourceAdapterType.SHARED_INDEX.wireValue().equals(source.getAdapterType()))
+                .map(source -> new SharedIndexSearchSource(source, searchService, vectorDatabaseService))
+                .forEach(resolved::add);
+        }
         return List.copyOf(resolved);
     }
 
@@ -192,6 +207,75 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             .entityType(StringUtils.hasText(entityType) ? entityType : null)
             .filters(Map.of())
             .enabled(true)
+            .build();
+    }
+
+    private Map<String, Object> trustedBoundaryFilters(RAGRequest request) {
+        AIAccessSubjectContext authContext = request != null
+            ? request.getAuthContext()
+            : null;
+        List<String> grantedScopes = authContext != null
+            && authContext.getGrantedScopes() != null
+            ? authContext.getGrantedScopes()
+            : List.of();
+        if (!grantedScopes.contains(RuntimeScopeCatalog.DEPLOYMENT_KNOWLEDGE_SPECIALIST)) {
+            return Map.of();
+        }
+
+        String tenantId = authContext != null
+            ? textValue(authContext.getTenantId())
+            : null;
+        String deploymentId = authContext != null
+            ? textValue(authContext.getDeploymentId())
+            : null;
+        if (!StringUtils.hasText(tenantId) || !StringUtils.hasText(deploymentId)) {
+            throw new IllegalStateException(
+                "Deployment knowledge retrieval requires trusted tenant and deployment boundaries."
+            );
+        }
+        if (!"TRUSTED_APPLICATION".equalsIgnoreCase(textValue(authContext.getAuthMode()))
+            || !"SERVICE".equalsIgnoreCase(textValue(authContext.getCallerType()))
+            || !"deployment".equalsIgnoreCase(textValue(authContext.getSubjectType()))
+            || !deploymentId.equals(textValue(authContext.getSubjectId()))) {
+            throw new IllegalStateException(
+                "Deployment knowledge retrieval requires a trusted application service identity bound to the deployment."
+            );
+        }
+        if (!vectorDatabaseService.supportsSearchMetadataFiltering()) {
+            throw new IllegalStateException(
+                "Deployment knowledge retrieval requires metadata-filtered vector search."
+            );
+        }
+        return Map.of(
+            "tenantId", tenantId,
+            "deploymentId", deploymentId
+        );
+    }
+
+    private ResolvedKnowledgeSource withTrustedBoundary(
+        ResolvedKnowledgeSource source,
+        Map<String, Object> trustedBoundaryFilters
+    ) {
+        if (trustedBoundaryFilters == null || trustedBoundaryFilters.isEmpty()) {
+            return source;
+        }
+        Map<String, Object> mergedFilters = new LinkedHashMap<>();
+        if (source.getFilters() != null) {
+            mergedFilters.putAll(source.getFilters());
+        }
+        trustedBoundaryFilters.forEach((key, trustedValue) -> {
+            Object configuredValue = mergedFilters.get(key);
+            if (configuredValue != null
+                && !Objects.equals(configuredValue, trustedValue)) {
+                throw new IllegalStateException(
+                    "Deployment knowledge source '" + source.getId()
+                        + "' conflicts with trusted " + key + "."
+                );
+            }
+            mergedFilters.put(key, trustedValue);
+        });
+        return source.toBuilder()
+            .filters(Map.copyOf(mergedFilters))
             .build();
     }
 

@@ -183,8 +183,15 @@ public class DeploymentPocImportService {
             if (record.entity() != null && !record.entity().isEmpty()) {
                 operation.set("entity", objectMapper.valueToTree(record.entity()));
             }
-            if (record.metadata() != null && !record.metadata().isEmpty()) {
-                operation.set("metadata", objectMapper.valueToTree(record.metadata()));
+            Map<String, Object> verifiedMetadata = verifiedRecordMetadata(
+                deployment,
+                record.metadata()
+            );
+            if (!verifiedMetadata.isEmpty()) {
+                operation.set(
+                    "metadata",
+                    objectMapper.valueToTree(verifiedMetadata)
+                );
             }
         }
 
@@ -376,8 +383,49 @@ public class DeploymentPocImportService {
         return authContext;
     }
 
+    private Map<String, Object> verifiedRecordMetadata(
+        DeploymentEntity deployment,
+        Map<String, Object> suppliedMetadata
+    ) {
+        Map<String, Object> verifiedMetadata = new LinkedHashMap<>();
+        if (suppliedMetadata != null) {
+            verifiedMetadata.putAll(suppliedMetadata);
+        }
+        if (deployment != null) {
+            putIfText(
+                verifiedMetadata,
+                "deploymentId",
+                deployment.getId()
+            );
+            putIfText(
+                verifiedMetadata,
+                "customerId",
+                deployment.getCustomerId()
+            );
+            putIfText(
+                verifiedMetadata,
+                "tenantId",
+                deployment.getTenantId()
+            );
+        }
+        return Map.copyOf(verifiedMetadata);
+    }
+
     private void putIfText(ObjectNode target, String key, String value) {
         if (target == null || !StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+            return;
+        }
+        target.put(key.trim(), value.trim());
+    }
+
+    private void putIfText(
+        Map<String, Object> target,
+        String key,
+        String value
+    ) {
+        if (target == null
+            || !StringUtils.hasText(key)
+            || !StringUtils.hasText(value)) {
             return;
         }
         target.put(key.trim(), value.trim());

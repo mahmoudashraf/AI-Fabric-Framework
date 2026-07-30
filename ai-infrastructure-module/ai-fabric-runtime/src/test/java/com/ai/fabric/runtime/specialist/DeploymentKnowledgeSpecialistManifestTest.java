@@ -3,6 +3,7 @@ package com.ai.fabric.runtime.specialist;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ai.fabric.config.AIEntityConfigurationLoader;
 import ai.fabric.execution.context.ExecutionPrincipal;
 import ai.fabric.execution.context.ExecutionPrincipalType;
 import ai.fabric.execution.context.ExecutionSource;
@@ -52,6 +53,9 @@ class DeploymentKnowledgeSpecialistManifestTest {
 
     @Autowired
     private DeploymentKnowledgeSpecialistHealthIndicator healthIndicator;
+
+    @Autowired
+    private AIEntityConfigurationLoader entityConfigurationLoader;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -106,6 +110,27 @@ class DeploymentKnowledgeSpecialistManifestTest {
         assertThatThrownBy(() ->
             definition.outputAdapter().validate(output)
         ).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void packagedDocumentConfigRequiresTrustedRetrievalBoundaries() {
+        var documentConfig = entityConfigurationLoader.getEntityConfig(
+            "document"
+        );
+
+        assertThat(documentConfig).isNotNull();
+        assertThat(documentConfig.getMetadataFields())
+            .filteredOn(field ->
+                "tenantId".equals(field.getName())
+                    || "deploymentId".equals(field.getName())
+            )
+            .hasSize(2)
+            .allSatisfy(field -> {
+                assertThat(field.getRequired()).isTrue();
+                assertThat(field.getDestinations())
+                    .extracting(Enum::name)
+                    .contains("VECTOR_METADATA");
+            });
     }
 
     @Test

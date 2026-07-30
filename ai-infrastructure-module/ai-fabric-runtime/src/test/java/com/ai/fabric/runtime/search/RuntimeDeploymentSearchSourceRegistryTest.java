@@ -2,6 +2,7 @@ package com.ai.fabric.runtime.search;
 
 import ai.fabric.core.AISearchService;
 import ai.fabric.dto.AIAccessSubjectContext;
+import ai.fabric.dto.AISearchRequest;
 import ai.fabric.dto.AISearchResponse;
 import ai.fabric.dto.RAGRequest;
 import ai.fabric.rag.VectorDatabaseService;
@@ -9,6 +10,7 @@ import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -17,10 +19,16 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class RuntimeDeploymentSearchSourceRegistryTest {
+
+    private static final String DEPLOYMENT_KNOWLEDGE_SPECIALIST_SCOPE =
+        "specialist:deployment-knowledge-specialist@1";
 
     @Mock
     private RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService;
@@ -60,6 +68,176 @@ class RuntimeDeploymentSearchSourceRegistryTest {
                 .build()))
             .extracting(source -> source.source().getId())
             .containsExactly("deployment-private-vector", "shared-catalog");
+    }
+
+    @Test
+    void deploymentKnowledgeSpecialistUsesOnlyTrustedDeploymentPrivateSources() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("deployment-documents")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .attributionLabel("Deployment documents")
+                .entityType("document")
+                .enabled(true)
+                .build(),
+            ResolvedKnowledgeSource.builder()
+                .id("shared-documents")
+                .type("shared-vector")
+                .adapterType("shared-index")
+                .attributionLabel("Shared documents")
+                .entityType("document")
+                .handleRef("marketplace/shared-documents")
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", true));
+        when(vectorDatabaseService.supportsSearchMetadataFiltering()).thenReturn(true);
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        assertThat(registry.resolveSearchSources(deploymentKnowledgeRequest("tenant-a", "dep-a")))
+            .singleElement()
+            .satisfies(source -> {
+                assertThat(source.source().getId()).isEqualTo("deployment-documents");
+                assertThat(source.source().getFilters())
+                    .containsEntry("tenantId", "tenant-a")
+                    .containsEntry("deploymentId", "dep-a");
+            });
+    }
+
+    @Test
+    void deploymentKnowledgeSpecialistRejectsMissingTrustedBoundary() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of());
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        assertThatThrownBy(() -> registry.resolveSearchSources(
+            deploymentKnowledgeRequest(null, "dep-a")
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("trusted tenant and deployment");
+    }
+
+    @Test
+    void deploymentKnowledgeSpecialistRejectsConflictingSourceBoundary() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of(
+            ResolvedKnowledgeSource.builder()
+                .id("deployment-documents")
+                .type("deployment-private-vector")
+                .adapterType("deployment-private-vector")
+                .attributionLabel("Deployment documents")
+                .entityType("document")
+                .filters(Map.of("tenantId", "tenant-b"))
+                .enabled(true)
+                .build()
+        ));
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+        when(vectorDatabaseService.supportsSearchMetadataFiltering()).thenReturn(true);
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        assertThatThrownBy(() -> registry.resolveSearchSources(
+            deploymentKnowledgeRequest("tenant-a", "dep-a")
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("conflicts with trusted tenantId");
+    }
+
+    @Test
+    void deploymentKnowledgeSpecialistRequiresProviderMetadataFiltering() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of());
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+        when(vectorDatabaseService.supportsSearchMetadataFiltering()).thenReturn(false);
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+
+        assertThatThrownBy(() -> registry.resolveSearchSources(
+            deploymentKnowledgeRequest("tenant-a", "dep-a")
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("metadata-filtered vector search");
+    }
+
+    @Test
+    void deploymentKnowledgeSearchFiltersAtProviderAndPostVerifiesHits() {
+        when(knowledgeSourceConfigService.currentSources()).thenReturn(List.of());
+        when(vectorDatabaseService.adminDiagnostics()).thenReturn(Map.of("sharedStorage", false));
+        when(vectorDatabaseService.supportsSearchMetadataFiltering()).thenReturn(true);
+        when(searchService.search(anyList(), any(AISearchRequest.class)))
+            .thenReturn(AISearchResponse.builder()
+                .results(List.of(
+                    Map.of(
+                        "id", "tenant-a-document",
+                        "score", 0.95,
+                        "metadata", Map.of(
+                            "tenantId", "tenant-a",
+                            "deploymentId", "dep-a"
+                        )
+                    ),
+                    Map.of(
+                        "id", "tenant-b-document",
+                        "score", 0.94,
+                        "metadata", Map.of(
+                            "tenantId", "tenant-b",
+                            "deploymentId", "dep-b"
+                        )
+                    )
+                ))
+                .totalResults(2)
+                .maxScore(0.95)
+                .query("deployment release")
+                .build());
+
+        RuntimeDeploymentSearchSourceRegistry registry = new RuntimeDeploymentSearchSourceRegistry(
+            knowledgeSourceConfigService,
+            searchService,
+            vectorDatabaseService
+        );
+        registry.validateAndLoad();
+        RAGRequest request = deploymentKnowledgeRequest("tenant-a", "dep-a");
+        var source = registry.resolveSearchSources(request).getFirst();
+
+        AISearchResponse response = source.search(
+            List.of(0.1, 0.2),
+            request,
+            AISearchRequest.builder()
+                .query("deployment release")
+                .entityType("document")
+                .limit(5)
+                .build()
+        );
+
+        ArgumentCaptor<AISearchRequest> searchRequest =
+            ArgumentCaptor.forClass(AISearchRequest.class);
+        verify(searchService).search(anyList(), searchRequest.capture());
+        assertThat(searchRequest.getValue().getMetadata())
+            .containsEntry("tenantId", "tenant-a")
+            .containsEntry("deploymentId", "dep-a");
+        assertThat(response.getResults())
+            .extracting(result -> result.get("id"))
+            .containsExactly("tenant-a-document");
     }
 
     @Test
@@ -481,5 +659,29 @@ class RuntimeDeploymentSearchSourceRegistryTest {
         assertThatThrownBy(registry::validateAndLoad)
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("requires handleRef");
+    }
+
+    private RAGRequest deploymentKnowledgeRequest(
+        String tenantId,
+        String deploymentId
+    ) {
+        return RAGRequest.builder()
+            .query("What changed in this deployment?")
+            .entityType("document")
+            .authContext(
+                AIAccessSubjectContext.builder()
+                    .subjectId(deploymentId)
+                    .subjectType("deployment")
+                    .authMode("TRUSTED_APPLICATION")
+                    .callerType("SERVICE")
+                    .tenantId(tenantId)
+                    .deploymentId(deploymentId)
+                    .grantedScopes(List.of(
+                        DEPLOYMENT_KNOWLEDGE_SPECIALIST_SCOPE,
+                        "vector:document"
+                    ))
+                    .build()
+            )
+            .build();
     }
 }

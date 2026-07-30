@@ -12,3 +12,19 @@ ai-entities:
         preprocessing: CLEAN
         priority: 100
         required: true
+    metadata-fields:
+      - name: tenantId
+        data-type: ID
+        destinations: [VECTOR_METADATA]
+        priority: 100
+        required: true
+      - name: deploymentId
+        data-type: ID
+        destinations: [VECTOR_METADATA]
+        priority: 100
+        required: true
+      - name: title
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+        required: false

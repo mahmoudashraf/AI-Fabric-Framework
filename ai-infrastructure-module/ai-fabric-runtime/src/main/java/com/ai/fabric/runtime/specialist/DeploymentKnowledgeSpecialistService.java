@@ -15,6 +15,7 @@ import ai.fabric.execution.specialist.client.SpecialistClientFactory;
 import ai.fabric.execution.specialist.client.SpecialistInvocation;
 import com.ai.fabric.runtime.auth.RuntimeAuthContext;
 import com.ai.fabric.runtime.auth.RuntimeResolvedIdentity;
+import com.ai.fabric.runtime.auth.RuntimeScopeCatalog;
 import com.ai.fabric.runtime.web.dto.DeploymentKnowledgeEvidenceResponse;
 import com.ai.fabric.runtime.web.dto.DeploymentKnowledgeQueryResponse;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -49,8 +50,8 @@ public class DeploymentKnowledgeSpecialistService {
         "deployment-knowledge-specialist";
     public static final String SPECIALIST_VERSION = "1";
     public static final String SPECIALIST_SCOPE =
-        "specialist:deployment-knowledge-specialist@1";
-    public static final String VECTOR_SCOPE = "vector:document";
+        RuntimeScopeCatalog.DEPLOYMENT_KNOWLEDGE_SPECIALIST;
+    public static final String VECTOR_SCOPE = RuntimeScopeCatalog.DOCUMENT_VECTOR;
 
     private static final SpecialistId SPECIALIST_ID = SpecialistId.parse(
         SPECIALIST_NAME + "@" + SPECIALIST_VERSION
