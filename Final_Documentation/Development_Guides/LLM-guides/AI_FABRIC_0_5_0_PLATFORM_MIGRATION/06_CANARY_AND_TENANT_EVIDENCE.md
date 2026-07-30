@@ -1,6 +1,6 @@
 # Gate A Canary And Tenant Evidence
 
-Status: **PACKAGED CANARY PASSED; EXTERNAL STAGING PENDING**
+Status: **PACKAGED CANARY PASSED; PLATFORM DEPLOYED; EXTERNAL RUNTIME CANARY PENDING**
 
 Evidence date: 2026-07-30
 Safe canary tenant: `ten-gate-a`
@@ -83,6 +83,8 @@ assertion. The browser/request body did not own those values.
 
 ## 5. Gate Decision
 
-The packaged tenant canary is green. Gate A still requires the same checks on
-an isolated external staging deployment before specialist execution is
-enabled.
+The packaged tenant canary is green, and the Platform backend/UI now run the
+Gate A control-plane code on isolated staging. Gate A still requires the same
+tenant/auth/retrieval checks against an externally deployed runtime after the
+canonical V04 cutover and fresh Platform release gate pass. Specialist
+execution remains disabled.

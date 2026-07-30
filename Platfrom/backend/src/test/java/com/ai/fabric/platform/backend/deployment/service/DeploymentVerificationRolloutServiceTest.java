@@ -14,10 +14,15 @@ import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequ
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigMigrationReport;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentEntityConfigMigrationSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpsertDeploymentAssignmentRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentAssignmentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.security.entity.PlatformUserEntity;
 import com.ai.fabric.platform.backend.security.repository.PlatformUserRepository;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -417,6 +422,19 @@ class DeploymentVerificationRolloutServiceTest {
             .allSatisfy(update -> {
                 assertThat(update.promptConfig().path("ragSimilarityThreshold").asDouble(-1.0d)).isEqualTo(0.1d);
                 assertThat(update.promptConfig().path("smartSuggestionsEnabled").asBoolean(true)).isFalse();
+                update.entityConfig().path("ai-entities").forEach(entity -> {
+                    JsonNode tenantMetadata = java.util.stream.StreamSupport.stream(
+                            entity.path("metadata-fields").spliterator(),
+                            false
+                        )
+                        .filter(field -> "tenantId".equals(field.path("name").asText()))
+                        .findFirst()
+                        .orElseThrow();
+                    assertThat(tenantMetadata.path("required").asBoolean()).isTrue();
+                    assertThat(tenantMetadata.path("destinations"))
+                        .extracting(JsonNode::asText)
+                        .contains("VECTOR_METADATA");
+                });
                 JsonNode interceptors = update.actionsConfig().path("confirmationInterceptors");
                 assertThat(interceptors.isArray()).isTrue();
                 assertThat(java.util.stream.StreamSupport.stream(interceptors.spliterator(), false)
@@ -729,6 +747,238 @@ class DeploymentVerificationRolloutServiceTest {
                 assertThat(item.latestVerificationStatus()).isEqualTo("FAILED");
                 assertThat(item.readinessMessage()).contains("not in a verified ready state");
             });
+    }
+
+    @Test
+    void listRolloutsMarksLegacyActiveVersionAsMigrationRequired() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentReleaseRecoveryService recoveryService = mock(DeploymentReleaseRecoveryService.class);
+        DeploymentAssignmentRepository assignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService assignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository userRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService vectorizationService =
+            mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceRepository =
+            mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository =
+            mock(VectorizationPlanRevisionRepository.class);
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-c5b5fe23");
+        deployment.setName("Ecommerce Verification");
+        deployment.setEnvironmentName("dev");
+        deployment.setStatus("ACTIVE");
+        deployment.setActiveVersionId("ver-v03");
+        deployment.setRuntimeBaseUrl("https://runtime.example");
+        deployment.setConnectorBaseUrl("https://connector.example");
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-v03");
+        release.setStatus("APPLIED_VERIFIED");
+        release.setProvisioningStatus("ACTIVE");
+        release.setVerificationStatus("PASSED");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-v03");
+        version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_3");
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.of(release));
+        when(versionRepository.findById("ver-v03")).thenReturn(Optional.of(version));
+        when(secretService.isSecretPresent(anyString())).thenReturn(true);
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            deploymentService,
+            null,
+            recoveryService,
+            assignmentRepository,
+            assignmentService,
+            userRepository,
+            secretService,
+            vectorizationService,
+            sourceRepository,
+            planRepository,
+            revisionRepository,
+            new com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties(
+                null, null, null, null, null, null, 0, 0, 0,
+                null, "https://weaviate.example", null, null, null, null, null
+            ),
+            "https://ecommerce.example",
+            new ObjectMapper(),
+            new DefaultResourceLoader(),
+            Runnable::run
+        );
+
+        DeploymentVerificationRolloutSummary summary = service.listRollouts();
+
+        assertThat(summary.items())
+            .filteredOn(item -> "ecommerce".equals(item.key()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.verificationReady()).isFalse();
+                assertThat(item.repairRecommended()).isTrue();
+                assertThat(item.repairReasons())
+                    .containsExactly("ENTITY_CONFIG_CONTRACT_MIGRATION_REQUIRED");
+                assertThat(item.readinessMessage())
+                    .contains("AI_ENTITY_CONFIG_V0_3")
+                    .contains("AI_ENTITY_CONFIG_V0_4");
+            });
+        verify(vectorizationService, never()).build(eq(deployment), any());
+    }
+
+    @Test
+    void recreateRolloutAuditsLegacyDraftMigrationBeforePublishingCanonicalV04Config() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentVersionRepository versionRepository = mock(DeploymentVersionRepository.class);
+        DeploymentService deploymentService = mock(DeploymentService.class);
+        DeploymentEntityConfigMigrationService migrationService =
+            mock(DeploymentEntityConfigMigrationService.class);
+        DeploymentReleaseRecoveryService recoveryService = mock(DeploymentReleaseRecoveryService.class);
+        DeploymentAssignmentRepository assignmentRepository = mock(DeploymentAssignmentRepository.class);
+        DeploymentAssignmentService assignmentService = mock(DeploymentAssignmentService.class);
+        PlatformUserRepository userRepository = mock(PlatformUserRepository.class);
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVectorizationVerificationService vectorizationService =
+            mock(DeploymentVectorizationVerificationService.class);
+        VectorizationSourceConnectionRepository sourceRepository =
+            mock(VectorizationSourceConnectionRepository.class);
+        VectorizationPlanRepository planRepository = mock(VectorizationPlanRepository.class);
+        VectorizationPlanRevisionRepository revisionRepository =
+            mock(VectorizationPlanRevisionRepository.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-c5b5fe23");
+        deployment.setName("Ecommerce Verification");
+        deployment.setEnvironmentName("dev");
+        deployment.setStatus("ACTIVE");
+        deployment.setActiveVersionId("ver-v03");
+        deployment.setRuntimeBaseUrl("https://runtime.example");
+        deployment.setConnectorBaseUrl("https://connector.example");
+
+        DeploymentDraftResponse draft = new DeploymentDraftResponse(
+            "drf-74d30047",
+            deployment.getId(),
+            4,
+            "DRAFT",
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            objectMapper.createObjectNode(),
+            Instant.now(),
+            Instant.now(),
+            EntityConfigContractService.CONTRACT_VERSION_V03
+        );
+        EntityConfigMigrationReport migrationReport = new EntityConfigMigrationReport(
+            EntityConfigContractService.CONTRACT_VERSION_V03,
+            EntityConfigContractService.CONTRACT_VERSION_V04,
+            true,
+            false,
+            "before",
+            "after",
+            List.of("product", "policy", "review"),
+            List.of(),
+            List.of(),
+            List.of(),
+            true
+        );
+
+        when(deploymentRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(deployment));
+        when(deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
+        when(releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deployment.getId()))
+            .thenReturn(Optional.empty());
+        when(versionRepository.findById("ver-v03")).thenReturn(Optional.empty());
+        when(assignmentRepository.findByDeploymentIdOrderByCreatedAtAsc(deployment.getId()))
+            .thenReturn(List.of());
+        when(userRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+        when(secretService.isSecretPresent(anyString())).thenReturn(true);
+        when(sourceRepository.findByDeploymentId(deployment.getId())).thenReturn(Optional.empty());
+        when(planRepository.findByDeploymentId(deployment.getId())).thenReturn(Optional.empty());
+        when(sourceRepository.save(any(VectorizationSourceConnectionEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(planRepository.save(any(VectorizationPlanEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(revisionRepository.save(any(VectorizationPlanRevisionEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentService.getActiveDraftForDeploymentInternal(deployment.getId())).thenReturn(draft);
+        when(migrationService.applyForCanonicalRolloutInternal(draft.id())).thenReturn(
+            new DeploymentEntityConfigMigrationSummary(
+                deployment.getId(),
+                draft.id(),
+                EntityConfigContractService.CONTRACT_VERSION_V04,
+                true,
+                migrationReport,
+                objectMapper.createObjectNode(),
+                Instant.now()
+            )
+        );
+        when(deploymentService.validateDraftInternal(draft.id())).thenReturn(new DraftValidationResponse(
+            draft.id(),
+            deployment.getId(),
+            true,
+            0,
+            0,
+            Instant.now(),
+            List.of()
+        ));
+        when(deploymentService.publishDraftInternal(draft.id(), true)).thenReturn(new DeploymentVersionSummary(
+            "ver-v04",
+            deployment.getId(),
+            draft.id(),
+            "v5",
+            "PUBLISHED",
+            "hash",
+            false,
+            Instant.now()
+        ));
+
+        DeploymentVerificationRolloutService service = new DeploymentVerificationRolloutService(
+            deploymentRepository,
+            releaseRepository,
+            versionRepository,
+            deploymentService,
+            migrationService,
+            recoveryService,
+            assignmentRepository,
+            assignmentService,
+            userRepository,
+            secretService,
+            vectorizationService,
+            sourceRepository,
+            planRepository,
+            revisionRepository,
+            new com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties(
+                null, null, null, null, null, null, 0, 0, 0,
+                null, "https://weaviate.example", null, null, null, null, null
+            ),
+            "https://ecommerce.example",
+            objectMapper,
+            new DefaultResourceLoader(),
+            Runnable::run
+        );
+
+        service.recreateRollouts(List.of("ecommerce"));
+
+        InOrder order = inOrder(deploymentService, migrationService);
+        order.verify(deploymentService).updateDraftInternal(eq(draft.id()), any(UpdateDeploymentDraftRequest.class));
+        order.verify(migrationService).applyForCanonicalRolloutInternal(draft.id());
+        order.verify(deploymentService).validateDraftInternal(draft.id());
+        order.verify(deploymentService).publishDraftInternal(draft.id(), true);
     }
 
     @Test

@@ -33,6 +33,11 @@ ai-entities:
         priority: 60
         required: true
     metadata-fields:
+      - name: tenantId
+        data-type: ID
+        destinations: [VECTOR_METADATA]
+        priority: 100
+        required: true
       - name: sku
         data-type: ID
         destinations: [VECTOR_METADATA, API_RESPONSE]
@@ -78,6 +83,11 @@ ai-entities:
         preprocessing: NORMALIZE
         priority: 70
     metadata-fields:
+      - name: tenantId
+        data-type: ID
+        destinations: [VECTOR_METADATA]
+        priority: 100
+        required: true
       - name: classification
         data-type: STRING
         destinations: [VECTOR_METADATA]
@@ -110,6 +120,11 @@ ai-entities:
         preprocessing: NORMALIZE
         priority: 60
     metadata-fields:
+      - name: tenantId
+        data-type: ID
+        destinations: [VECTOR_METADATA]
+        priority: 100
+        required: true
       - name: sku
         data-type: ID
         destinations: [VECTOR_METADATA]

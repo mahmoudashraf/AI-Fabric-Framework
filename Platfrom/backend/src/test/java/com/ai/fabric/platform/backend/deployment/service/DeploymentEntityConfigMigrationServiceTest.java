@@ -133,6 +133,36 @@ class DeploymentEntityConfigMigrationServiceTest {
     }
 
     @Test
+    void canonicalRepairAdvancesLegacyLabelOnNormalizedV04ConfigWithoutRequestAccess() throws Exception {
+        DeploymentEntity deployment = deployment("drf-active");
+        var normalized = migrator.preview(objectMapper.readTree(validLegacyConfig())).migratedConfig();
+        DeploymentDraftEntity draft = draft(
+            "drf-active",
+            "MODIFIED",
+            objectMapper.writeValueAsString(normalized)
+        );
+        stubInternalTarget(deployment, draft);
+        when(draftRepository.save(any(DeploymentDraftEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(auditRepository.save(any(EntityConfigMigrationAuditEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.applyForCanonicalRolloutInternal(draft.getId());
+
+        assertThat(result.applied()).isTrue();
+        assertThat(result.report().migrationRequired()).isFalse();
+        assertThat(result.currentContractVersion())
+            .isEqualTo(EntityConfigContractService.CONTRACT_VERSION_V04);
+        verify(deploymentAccessService, never()).requireDeploymentEditorAccess(any());
+        ArgumentCaptor<EntityConfigMigrationAuditEntity> auditCaptor =
+            ArgumentCaptor.forClass(EntityConfigMigrationAuditEntity.class);
+        verify(auditRepository).save(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().getStatus()).isEqualTo("APPLIED");
+        assertThat(auditCaptor.getValue().getBeforeHash())
+            .isEqualTo(auditCaptor.getValue().getAfterHash());
+    }
+
+    @Test
     void refusesNonActiveOrPublishedDraftsBeforeMutation() {
         DeploymentEntity deployment = deployment("drf-other");
         DeploymentDraftEntity nonActive = draft("drf-active", "DRAFT", validLegacyConfig());
@@ -156,9 +186,13 @@ class DeploymentEntityConfigMigrationServiceTest {
     }
 
     private void stubTarget(DeploymentEntity deployment, DeploymentDraftEntity draft) {
+        stubInternalTarget(deployment, draft);
+        when(deploymentAccessService.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
+    }
+
+    private void stubInternalTarget(DeploymentEntity deployment, DeploymentDraftEntity draft) {
         when(draftRepository.findById(draft.getId())).thenReturn(Optional.of(draft));
         when(deploymentRepository.findById(deployment.getId())).thenReturn(Optional.of(deployment));
-        when(deploymentAccessService.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
     }
 
     private static DeploymentEntity deployment(String activeDraftId) {

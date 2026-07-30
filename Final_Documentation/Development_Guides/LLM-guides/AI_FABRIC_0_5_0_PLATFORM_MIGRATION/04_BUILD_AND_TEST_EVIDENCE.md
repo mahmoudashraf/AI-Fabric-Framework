@@ -54,14 +54,15 @@ code, not the immutable framework release.
 | --- | --- |
 | AI Fabric product reactor | 31 tests, 0 failures/errors |
 | AI Fabric infrastructure reactor | 187 tests, 0 failures/errors |
-| Platform backend clean verify | 717 tests, 0 failures/errors |
+| Platform backend clean verify | 721 tests, 0 failures/errors/skips |
 | Platform UI production build | Passed |
 | Runtime search-source regression | 10 tests, 0 failures/errors |
 | Vectorization durable-work/failure tests | 18 tests, 0 failures/errors |
 | Platform retry/checkpoint tests | 3 tests, 0 failures/errors |
 | Both dependency trees | AI Fabric `0.4.0` only |
 | PostgreSQL 16 Flyway `V128` validation | Passed |
-| PostgreSQL 16 dynamic marketplace `V129` migration | 1 test, 0 failures/errors; included in the 717-test backend total |
+| PostgreSQL 16 dynamic marketplace `V129` migration | 1 test, 0 failures/errors; included in the 721-test backend total |
+| Legacy active-version and canonical audited-repair regressions | 3 focused tests added; complete focused service set 25 tests, 0 failures/errors |
 
 Focused commands:
 
@@ -104,7 +105,29 @@ version, rewrites only entries containing legacy keys, preserves each dynamic
 entity-type key, leaves already-valid V04 entries byte-equivalent at the JSON
 tree level, and produces the same result when run again.
 
-## 5. Residual Build Notes
+## 5. Release-Gate Migration-State Correction
+
+Fresh run `vsr-807a8010` proved that the canonical active versions were still
+V03. The release gate attempted to compute a strict V04 indexed-output hash
+and stopped before its first live script.
+
+The corrected source:
+
+- keeps the V04 hasher strict;
+- reports a legacy active version as `MIGRATION_REQUIRED`;
+- marks canonical rollout readiness as repairable instead of throwing;
+- writes required tenant vector metadata into the authoritative canonical
+  entity config; and
+- invokes the existing audited migration service after canonical config update
+  and before validation/publication/apply.
+
+The repair regression proves the important transitional case: canonical JSON
+can already be normalized V04 while its persisted draft label is V03. The
+internal canonical repair advances the label, records an `APPLIED` migration
+audit with equal before/after semantic hashes, and does not require a
+request-scoped user. Public customer migration remains access-controlled.
+
+## 6. Residual Build Notes
 
 - The UI build reports six npm audit findings and a roughly 1.668 MB main
   chunk. Neither changed the Gate A runtime contract, but both remain release

@@ -33,6 +33,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -123,6 +124,48 @@ class VectorizationServiceTest {
         assertThat(preview.entityScope().isArray()).isTrue();
         assertThat(jsonSupport.readStringList(jsonSupport.write(preview.entityScope())))
             .containsExactly("policy", "product", "review");
+    }
+
+    @Test
+    void overviewReportsLegacyActiveVersionAsMigrationRequiredWithoutComputingV04Hash() {
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-legacy");
+        deployment.setCustomerId("cust-1");
+        deployment.setTenantId("ten-1");
+        deployment.setActiveVersionId("ver-legacy");
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-legacy");
+        version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_3");
+
+        VectorizationPlanEntity plan = new VectorizationPlanEntity();
+        plan.setId("vpl-legacy");
+        plan.setDeploymentId("dep-legacy");
+        plan.setRunnerMode("PLATFORM_MANAGED_AUTO");
+        plan.setSyncState("IN_SYNC");
+        plan.setSyncReasonCodesJson("[]");
+        plan.setSyncReasonDetailsJson("{}");
+        plan.setLastSuccessfulIndexedOutputHash("legacy-hash");
+
+        when(deploymentRepository.findById("dep-legacy")).thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentEditorAccess(deployment)).thenReturn(deployment);
+        when(deploymentVersionRepository.findById("ver-legacy")).thenReturn(Optional.of(version));
+        when(planRepository.findByDeploymentId("dep-legacy")).thenReturn(Optional.of(plan));
+        when(connectionRepository.findByDeploymentId("dep-legacy")).thenReturn(Optional.empty());
+        when(runRepository.findByDeploymentIdOrderByCreatedAtDesc("dep-legacy")).thenReturn(List.of());
+        when(runtimeCoverageClient.fetchCounts(deployment)).thenReturn(objectMapper.createObjectNode());
+
+        var overview = service().getOverview("dep-legacy");
+
+        assertThat(overview.plan().syncState()).isEqualTo("MIGRATION_REQUIRED");
+        assertThat(overview.plan().syncReasonCodes())
+            .containsExactly("ENTITY_CONFIG_CONTRACT_MIGRATION_REQUIRED");
+        assertThat(overview.plan().syncReasonDetails().path("activeEntityConfigContractVersion").asText())
+            .isEqualTo("AI_ENTITY_CONFIG_V0_3");
+        assertThat(overview.plan().syncReasonDetails().path("requiredEntityConfigContractVersion").asText())
+            .isEqualTo("AI_ENTITY_CONFIG_V0_4");
+        assertThat(overview.plan().activeIndexedOutputHash()).isNull();
+        verify(hashService, never()).compute(version);
     }
 
     @Test

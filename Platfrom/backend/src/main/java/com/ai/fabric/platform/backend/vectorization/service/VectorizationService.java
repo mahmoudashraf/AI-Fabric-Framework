@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentAccessService;
@@ -741,7 +742,13 @@ public class VectorizationService {
         if (plan == null) {
             return new Evaluation(null);
         }
-        String activeIndexedOutputHash = hashService.compute(activeVersion);
+        boolean entityContractMigrationRequired = activeVersion != null
+            && !EntityConfigContractService.CONTRACT_VERSION_V04.equals(
+                activeVersion.getEntityConfigContractVersion()
+            );
+        String activeIndexedOutputHash = entityContractMigrationRequired
+            ? null
+            : hashService.compute(activeVersion);
         plan.setActiveIndexedOutputHash(activeIndexedOutputHash);
 
         ObjectNode reasonDetails = jsonSupport.objectNode();
@@ -757,6 +764,21 @@ public class VectorizationService {
         }
         if (plan.getLastSuccessfulIndexedOutputHash() != null) {
             reasonDetails.put("lastSuccessfulIndexedOutputHash", plan.getLastSuccessfulIndexedOutputHash());
+        }
+        if (entityContractMigrationRequired) {
+            reasonCodes.add("ENTITY_CONFIG_CONTRACT_MIGRATION_REQUIRED");
+            reasonDetails.put(
+                "activeEntityConfigContractVersion",
+                activeVersion.getEntityConfigContractVersion()
+            );
+            reasonDetails.put(
+                "requiredEntityConfigContractVersion",
+                EntityConfigContractService.CONTRACT_VERSION_V04
+            );
+            plan.setSyncState("MIGRATION_REQUIRED");
+            plan.setSyncReasonCodesJson(jsonSupport.write(reasonCodes));
+            plan.setSyncReasonDetailsJson(jsonSupport.write(reasonDetails));
+            return new Evaluation(plan);
         }
 
         String syncState;

@@ -1,6 +1,6 @@
 # Platform-V11 AI Fabric 0.5.0 Migration
 
-Status: **GATE B PASSED; GATE A PACKAGED PROOF PASSED, STAGING PENDING**
+Status: **GATE B PASSED; GATE A PLATFORM DEPLOYED, CANONICAL CUTOVER PENDING**
 
 This folder is the working evidence set for migrating LoomAI Platform-V11 from
 AI Fabric `0.3.1` through the mandatory `0.4.0` lifecycle baseline and then to

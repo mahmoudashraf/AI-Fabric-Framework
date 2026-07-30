@@ -60,7 +60,15 @@ public class DeploymentEntityConfigMigrationService {
 
     @Transactional
     public DeploymentEntityConfigMigrationSummary apply(String draftId) {
-        MigrationTarget target = target(draftId);
+        return apply(target(draftId));
+    }
+
+    @Transactional
+    DeploymentEntityConfigMigrationSummary applyForCanonicalRolloutInternal(String draftId) {
+        return apply(targetInternal(draftId));
+    }
+
+    private DeploymentEntityConfigMigrationSummary apply(MigrationTarget target) {
         assertActiveMutableDraft(target.deployment(), target.draft());
         String beforeConfigJson = target.draft().getEntityConfigJson();
         EntityConfigMigrationResult result = evaluate(target.draft());
@@ -102,11 +110,16 @@ public class DeploymentEntityConfigMigrationService {
     }
 
     private MigrationTarget target(String draftId) {
+        MigrationTarget target = targetInternal(draftId);
+        deploymentAccessService.requireDeploymentEditorAccess(target.deployment());
+        return target;
+    }
+
+    private MigrationTarget targetInternal(String draftId) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
         DeploymentEntity deployment = deploymentRepository.findById(draft.getDeploymentId())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()));
-        deploymentAccessService.requireDeploymentEditorAccess(deployment);
         return new MigrationTarget(deployment, draft);
     }
 

@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentAssignmentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
@@ -96,6 +97,7 @@ public class DeploymentVerificationRolloutService {
     private final DeploymentReleaseRepository releaseRepository;
     private final DeploymentVersionRepository deploymentVersionRepository;
     private final DeploymentService deploymentService;
+    private final DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService;
     private final DeploymentReleaseRecoveryService deploymentReleaseRecoveryService;
     private final DeploymentAssignmentRepository deploymentAssignmentRepository;
     private final DeploymentAssignmentService deploymentAssignmentService;
@@ -116,6 +118,7 @@ public class DeploymentVerificationRolloutService {
                                                 DeploymentReleaseRepository releaseRepository,
                                                 DeploymentVersionRepository deploymentVersionRepository,
                                                 DeploymentService deploymentService,
+                                                DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService,
                                                 DeploymentReleaseRecoveryService deploymentReleaseRecoveryService,
                                                 DeploymentAssignmentRepository deploymentAssignmentRepository,
                                                 DeploymentAssignmentService deploymentAssignmentService,
@@ -134,6 +137,7 @@ public class DeploymentVerificationRolloutService {
         this.releaseRepository = releaseRepository;
         this.deploymentVersionRepository = deploymentVersionRepository;
         this.deploymentService = deploymentService;
+        this.deploymentEntityConfigMigrationService = deploymentEntityConfigMigrationService;
         this.deploymentReleaseRecoveryService = deploymentReleaseRecoveryService;
         this.deploymentAssignmentRepository = deploymentAssignmentRepository;
         this.deploymentAssignmentService = deploymentAssignmentService;
@@ -170,6 +174,7 @@ public class DeploymentVerificationRolloutService {
             releaseRepository,
             null,
             deploymentService,
+            null,
             deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
@@ -206,6 +211,7 @@ public class DeploymentVerificationRolloutService {
             releaseRepository,
             null,
             deploymentService,
+            null,
             deploymentReleaseRecoveryService,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
@@ -241,6 +247,7 @@ public class DeploymentVerificationRolloutService {
             releaseRepository,
             null,
             deploymentService,
+            null,
             null,
             deploymentAssignmentRepository,
             deploymentAssignmentService,
@@ -444,6 +451,28 @@ public class DeploymentVerificationRolloutService {
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentInternal(deploymentId);
         UpdateDeploymentDraftRequest request = definition.updateDraft(draft);
         deploymentService.updateDraftInternal(draft.id(), request);
+        if (draft.entityConfigContractVersion() != null
+            && !draft.entityConfigContractVersion().isBlank()
+            && !EntityConfigContractService.CONTRACT_VERSION_V04.equals(draft.entityConfigContractVersion())) {
+            if (deploymentEntityConfigMigrationService == null) {
+                throw new ResponseStatusException(
+                    BAD_REQUEST,
+                    "Canonical verification rollout '" + definition.displayName()
+                        + "' requires an audited entity-contract migration."
+                );
+            }
+            var migration = deploymentEntityConfigMigrationService.applyForCanonicalRolloutInternal(draft.id());
+            if (migration.report().blocked()
+                || !EntityConfigContractService.CONTRACT_VERSION_V04.equals(
+                    migration.currentContractVersion()
+                )) {
+                throw new ResponseStatusException(
+                    BAD_REQUEST,
+                    "Canonical verification rollout '" + definition.displayName()
+                        + "' entity-contract migration is blocked."
+                );
+            }
+        }
         seedCanonicalVectorization(deploymentId);
 
         DraftValidationResponse validation = deploymentService.validateDraftInternal(draft.id());
@@ -672,6 +701,20 @@ public class DeploymentVerificationRolloutService {
                     + ", verification="
                     + firstNonBlank(latestRelease.getVerificationStatus(), "UNKNOWN")
                     + "). Resolve the latest rollout failure before using this canonical deployment as verification-ready."
+            );
+        }
+        if (deploymentVersionRepository != null
+            && activeVersion != null
+            && !EntityConfigContractService.CONTRACT_VERSION_V04.equals(
+                activeVersion.getEntityConfigContractVersion()
+            )) {
+            return RolloutReadiness.repairable(
+                "Canonical rollout uses legacy entity contract "
+                    + firstNonBlank(activeVersion.getEntityConfigContractVersion(), "UNKNOWN")
+                    + ". Migrate the active draft and publish/apply a new "
+                    + EntityConfigContractService.CONTRACT_VERSION_V04
+                    + " version.",
+                List.of("ENTITY_CONFIG_CONTRACT_MIGRATION_REQUIRED")
             );
         }
         List<String> configDriftReasons = canonicalConfigDriftReasons(definition, deployment, activeVersion);

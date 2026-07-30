@@ -282,10 +282,14 @@ a mutually compatible point.
 | Product Docker builds use published artifacts, not source clones | Passed for source audit and runtime image; remaining image-family builds are deployment-gate checks |
 | Clean build and focused integration tests pass | Passed |
 | Isolated packaged-runtime canary passes | Passed |
-| Isolated external staging canary passes | Pending |
+| Platform backend/UI deploy on isolated external staging | Passed at immutable commit `196aaf921c0dfbe7d7f0468b53fae1c2abacacf0` |
+| Canonical deployment drafts/active versions use audited V04 contract | Pending cutover; config-only backups completed |
+| Fresh full Platform release gate passes | Pending rerun after canonical V04 cutover; first fresh run `vsr-807a8010` correctly exposed the legacy active versions |
+| Isolated external runtime canary passes | Pending |
 | Backup and rollback drill are evidenced | Passed for packaged runtime; external deployment rollback remains pending |
 
 Detailed command and canary evidence is recorded in files `04` through `07`.
-Gate A remains **BLOCKED** only on the external staging deployment and its
-deployment-level rollback proof. A local Docker canary is strong package
-evidence, but it is not relabeled as a live Coolify deployment.
+Gate A remains **BLOCKED** on the audited canonical V04 cutover, fresh green
+full release gate, external runtime canary, and deployment-level rollback
+proof. The Platform backend/UI deployment itself is now green; that control
+plane proof is not relabeled as a customer-runtime canary.

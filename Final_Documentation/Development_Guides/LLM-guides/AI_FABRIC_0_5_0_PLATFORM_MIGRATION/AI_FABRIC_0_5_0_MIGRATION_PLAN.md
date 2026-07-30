@@ -720,13 +720,44 @@ gate. Never mark a skipped or blocked check as passed.
   deployment-level rollback proof. Local packaged-runtime evidence is not
   represented as a Coolify deployment.
 
+### 2026-07-30 - Gate A Platform staging and canonical migration finding
+
+- Deployed Platform backend and UI successfully on staging from immutable
+  commit `196aaf921c0dfbe7d7f0468b53fae1c2abacacf0`.
+- Proved dynamic customer Marketplace entity manifests migrated to V04 without
+  removing the ProdUS safe-knowledge plugin or its ten entity types.
+- Captured config-only, zero-secret exports and private draft/version snapshots
+  for the canonical Marketplace and Ecommerce deployments before mutation.
+- Ran a fresh full release gate with repair disabled. Run `vsr-807a8010`
+  stopped before its first live script because preserved canonical active
+  versions still declared V03 and the strict V04 indexed-output hash rejected
+  them.
+- Kept historical V03 releases immutable and added migration-aware read state:
+  legacy active versions now report `MIGRATION_REQUIRED`, never a false
+  `IN_SYNC` result.
+- Added explicit required `tenantId` vector metadata to the canonical
+  shared-vector entity config.
+- Connected canonical rollout repair to the existing audited draft migration
+  service before validation/publication/apply. This internal repair applies
+  only to Platform-owned canonical verification rollouts; customer draft
+  migration remains explicit and admin-controlled.
+- Passed the final clean Platform backend verification with 721 tests and zero
+  failures, errors, or skips.
+- No missing AI Fabric endpoint or framework defect was found. Gate A remains
+  **BLOCKED** until the correction is deployed, new canonical V04 versions are
+  applied, a fresh full release gate passes, and external canary/rollback
+  evidence is complete.
+
 ## 12. Immediate Next Actions
 
-1. Re-audit the current Platform branch before editing.
-2. Execute Gate A and establish the immutable `0.4.0` lifecycle baseline.
-3. Revalidate Gate B from a new Maven repository immediately before dependency
+1. Deploy the migration-aware canonical repair correction.
+2. Publish/apply backed-up Marketplace and Ecommerce canonical drafts as new
+   V04 versions through the audited repair path.
+3. Run the fresh full release gate to green, then complete external runtime
+   canary and rollback proof.
+4. Revalidate Gate B from a new Maven repository immediately before dependency
    edits.
-4. Move the complete runtime process to one AI Fabric version, `0.5.0`.
-5. Add `ai-fabric-execution` only to `ai-fabric-runtime`.
-6. Implement and prove `deployment-knowledge-specialist@1` through the gated
+5. Move the complete runtime process to one AI Fabric version, `0.5.0`.
+6. Add `ai-fabric-execution` only to `ai-fabric-runtime`.
+7. Implement and prove `deployment-knowledge-specialist@1` through the gated
    phases in this plan.
