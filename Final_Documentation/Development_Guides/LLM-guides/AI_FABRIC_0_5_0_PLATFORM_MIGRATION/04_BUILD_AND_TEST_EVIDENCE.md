@@ -35,7 +35,7 @@ Verification:
 | Platform deployment-version focused set | 50 tests, 0 failures/errors/skips |
 | Full private infrastructure reactor | 187 tests, 0 failures/errors/skips |
 | Full private product reactor | 32 tests, 0 failures/errors/skips |
-| Platform backend `clean verify` | 725 tests, 0 failures/errors/skips; executable JAR produced |
+| Platform backend `clean verify` | 726 tests, 0 failures/errors/skips; executable JAR produced |
 | Runtime dependency graph | All `io.github.loom-ai-labs` artifacts resolve to `0.5.0` |
 | Embedding-worker dependency graph | All `io.github.loom-ai-labs` artifacts resolve to `0.5.0` |
 | Product Maven package/install | All five modules packaged successfully; tests were intentionally skipped only for this post-test graph setup |

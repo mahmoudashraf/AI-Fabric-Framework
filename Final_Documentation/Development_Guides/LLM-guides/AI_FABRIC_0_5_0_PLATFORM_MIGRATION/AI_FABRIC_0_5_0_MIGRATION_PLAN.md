@@ -813,7 +813,7 @@ gate. Never mark a skipped or blocked check as passed.
 - Passed the private infrastructure reactor: 187 tests, zero failures or
   errors.
 - Passed the private product reactor: 32 tests, zero failures or errors.
-- Passed Platform backend `clean verify`: 725 tests, zero failures, errors, or
+- Passed Platform backend `clean verify`: 726 tests, zero failures, errors, or
   skips, with executable JAR packaging.
 - Passed focused Platform deployment-version checks: 50 tests, zero failures
   or errors.
