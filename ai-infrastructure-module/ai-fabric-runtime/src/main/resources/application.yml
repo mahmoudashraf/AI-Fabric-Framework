@@ -23,6 +23,8 @@ ai:
   # Demos/tests can opt in to allow-all policy hooks (do not use in production).
   fabric:
     runtime:
+      indexing:
+        rebuild-incompatible-generated-state: ${AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE:false}
       auth:
         ingress:
           mode: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE:VERIFIED_CONTEXT_REQUIRED}
