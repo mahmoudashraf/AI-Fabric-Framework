@@ -51,6 +51,7 @@ import com.ai.fabric.platform.backend.vectorization.repository.VectorizationSour
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -65,6 +66,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -325,6 +327,66 @@ class DeploymentBundleExportImportServiceTest {
         verify(platformSecretRepository).save(secretCaptor.capture());
         assertThat(secretCaptor.getValue().getDeploymentId()).isEqualTo(deployment.getId());
         assertThat(secretCaptor.getValue().getSecretValue()).isEqualTo("super-secret-value");
+    }
+
+    @Test
+    void restoreInPlaceFlushesVectorizationDeletesBeforeSavingReplacements() {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity deployment = deployment();
+        DeploymentDraftEntity draft = draft(deployment.getId());
+        stubExportState(deployment, draft);
+        VectorizationSourceConnectionEntity sourceConnection =
+            vectorizationSourceConnection(deployment.getId(), "MANAGED_VECTOR_SOURCE_TOKEN");
+        VectorizationPlanEntity sourcePlan = vectorizationPlan(deployment.getId(), sourceConnection.getId());
+        VectorizationPlanRevisionEntity sourceRevision =
+            vectorizationRevision(deployment.getId(), sourcePlan.getId(), sourceConnection.getId());
+        sourcePlan.setActiveRevisionId(sourceRevision.getId());
+        when(vectorizationSourceConnectionRepository.findByDeploymentId(deployment.getId()))
+            .thenReturn(Optional.of(sourceConnection));
+        when(vectorizationPlanRepository.findByDeploymentId(deployment.getId()))
+            .thenReturn(Optional.of(sourcePlan));
+        when(vectorizationPlanRevisionRepository.findByPlanIdOrderByRevisionNumberDesc(sourcePlan.getId()))
+            .thenReturn(List.of(sourceRevision));
+        var export = service.exportDeployment(
+            deployment.getId(),
+            new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "restore vectorization smoke", null, true, true)
+        );
+        when(draftRepository.findTopByDeploymentIdOrderByRevisionNumberDesc(deployment.getId()))
+            .thenReturn(Optional.of(draft));
+        when(draftRepository.save(any(DeploymentDraftEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(deploymentRepository.save(any(DeploymentEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(vectorizationSourceConnectionRepository.save(any(VectorizationSourceConnectionEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(vectorizationPlanRevisionRepository.save(any(VectorizationPlanRevisionEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(vectorizationPlanRepository.save(any(VectorizationPlanEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.importDeployment(new DeploymentImportRequest(
+            export.bundle(),
+            ImportMode.RESTORE_IN_PLACE,
+            deployment.getId(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "restore vectorization in place"
+        ));
+
+        InOrder replacementOrder = inOrder(
+            vectorizationPlanRevisionRepository,
+            vectorizationSourceConnectionRepository
+        );
+        replacementOrder.verify(vectorizationPlanRevisionRepository).deleteByDeploymentId(deployment.getId());
+        replacementOrder.verify(vectorizationSourceConnectionRepository).deleteByDeploymentId(deployment.getId());
+        replacementOrder.verify(vectorizationPlanRevisionRepository).flush();
+        replacementOrder.verify(vectorizationSourceConnectionRepository).flush();
+        replacementOrder.verify(vectorizationSourceConnectionRepository)
+            .save(any(VectorizationSourceConnectionEntity.class));
     }
 
     @Test

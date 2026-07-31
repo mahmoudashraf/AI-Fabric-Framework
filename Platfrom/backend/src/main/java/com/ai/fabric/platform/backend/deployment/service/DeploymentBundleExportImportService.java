@@ -1794,6 +1794,8 @@ public class DeploymentBundleExportImportService {
             : readJson(targetDraft.getKnowledgeSourceConfigJson());
         vectorizationPlanRevisionRepository.deleteByDeploymentId(deploymentId);
         vectorizationSourceConnectionRepository.deleteByDeploymentId(deploymentId);
+        vectorizationPlanRevisionRepository.flush();
+        vectorizationSourceConnectionRepository.flush();
 
         Instant now = Instant.now();
         String oldSourceConnectionId = vectorization.path("sourceConnection").path("id").asText(null);
