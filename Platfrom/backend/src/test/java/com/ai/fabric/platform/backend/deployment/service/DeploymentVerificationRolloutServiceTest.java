@@ -456,6 +456,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(ecommerce.providerConfig().path("generationModel").asText()).isEqualTo("gpt-5.4-mini");
         assertThat(ecommerce.providerConfig().path("generationMaxTokens").asInt()).isEqualTo(800);
         assertThat(ecommerce.entityConfig().path("ai-entities").isObject()).isTrue();
+        assertThat(ecommerce.entityConfig().path("ai-entities").has("document")).isTrue();
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("header").asText()).isEqualTo("Authorization");
         assertThat(ecommerce.routingConfig().path("connector").path("upstream").path("auth").path("value").asText()).isEmpty();
@@ -513,6 +514,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(marketplace.providerConfig().path("openaiEmbeddingModel").asText()).isEqualTo("text-embedding-3-small");
         assertThat(marketplace.providerConfig().path("openaiEmbeddingDimensions").asInt()).isEqualTo(1536);
         assertThat(marketplace.entityConfig().path("ai-config").path("vector-dimensions").asInt()).isEqualTo(1536);
+        assertThat(marketplace.entityConfig().path("ai-entities").has("document")).isTrue();
         assertThat(marketplace.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
         assertThat(marketplace.securityConfig().has("authzBaseUrl")).isFalse();
         assertThat(marketplace.shellConfig().path("contractVersion").asText()).isEqualTo("SHELL_CONFIG_V1");
@@ -533,6 +535,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(qdrant.entityConfig().path("ai-entities").has("product")).isTrue();
         assertThat(qdrant.entityConfig().path("ai-entities").has("policy")).isTrue();
         assertThat(qdrant.entityConfig().path("ai-entities").has("review")).isTrue();
+        assertThat(qdrant.entityConfig().path("ai-entities").has("document")).isTrue();
         assertThat(qdrant.actionsConfig().path("actions")).isNotEmpty();
         assertThat(qdrant.routingConfig().path("actions")).isNotEmpty();
         assertThat(qdrant.routingConfig().path("connector").path("upstream").path("auth").path("type").asText()).isEqualTo("NONE");
@@ -552,6 +555,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(pinecone.entityConfig().path("ai-entities").has("product")).isTrue();
         assertThat(pinecone.entityConfig().path("ai-entities").has("policy")).isTrue();
         assertThat(pinecone.entityConfig().path("ai-entities").has("review")).isTrue();
+        assertThat(pinecone.entityConfig().path("ai-entities").has("document")).isTrue();
 
         UpdateDeploymentDraftRequest milvus = updates.get(4);
         assertThat(milvus.providerConfig().path("zillizCloudProjectId").asText()).isEqualTo("proj-a58a34b87ccfe2c80d6ec2");
@@ -563,6 +567,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(milvus.entityConfig().path("ai-entities").has("product")).isTrue();
         assertThat(milvus.entityConfig().path("ai-entities").has("policy")).isTrue();
         assertThat(milvus.entityConfig().path("ai-entities").has("review")).isTrue();
+        assertThat(milvus.entityConfig().path("ai-entities").has("document")).isTrue();
         assertThat(milvus.actionsConfig().path("actions")).isNotEmpty();
         assertThat(milvus.routingConfig().path("actions")).isNotEmpty();
         assertThat(milvus.securityConfig().path("authzMode").asText()).isEqualTo("ALLOW_VERIFIED");
@@ -575,6 +580,7 @@ class DeploymentVerificationRolloutServiceTest {
         assertThat(weaviate.entityConfig().path("ai-entities").has("product")).isTrue();
         assertThat(weaviate.entityConfig().path("ai-entities").has("policy")).isTrue();
         assertThat(weaviate.entityConfig().path("ai-entities").has("review")).isTrue();
+        assertThat(weaviate.entityConfig().path("ai-entities").has("document")).isTrue();
 
         ArgumentCaptor<VectorizationSourceConnectionEntity> connectionCaptor = ArgumentCaptor.forClass(VectorizationSourceConnectionEntity.class);
         verify(sourceConnectionRepository, times(6)).save(connectionCaptor.capture());

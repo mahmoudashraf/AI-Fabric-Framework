@@ -83,6 +83,7 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
                 "reject_retention_offer"
             );
         assertThat(draft.entityConfig().path("ai-entities").fieldNames().hasNext()).isTrue();
+        assertThat(draft.entityConfig().path("ai-entities").has("document")).isTrue();
         assertThat(draft.routingConfig().path("actions").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().toString()).contains("trace.authContext.subjectId");
         assertThat(draft.routingConfig().toString()).doesNotContain("trace.userId");
