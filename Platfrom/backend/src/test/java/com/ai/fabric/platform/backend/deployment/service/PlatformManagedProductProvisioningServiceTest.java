@@ -592,7 +592,6 @@ class PlatformManagedProductProvisioningServiceTest {
     @Test
     void reconcileCoolifyMcpGatewayCanUseExplicitProductionPlatformServiceProfile() {
         PlatformManagedProductServiceEntity service = mcpGatewayService();
-        service.setEnvironmentScope("production");
         service.setBaseUrl(null);
         service.setDetailsJson("""
             {
@@ -649,9 +648,13 @@ class PlatformManagedProductProvisioningServiceTest {
             targetProfileRepository
         );
 
-        PlatformManagedProductServiceSummary result = provisioningService.reconcile("mcp-execution-gateway");
+        PlatformManagedProductServiceSummary result = provisioningService.reconcile(
+            "mcp-execution-gateway",
+            "dtp-coolify-production"
+        );
 
         assertThat(result.serviceRef()).isEqualTo("mcp-execution-gateway");
+        assertThat(service.getEnvironmentScope()).isEqualTo("production");
         assertThat(service.getDetailsJson()).contains("dtp-coolify-production");
         ArgumentCaptor<CoolifyCreatePublicApplicationRequest> request =
             ArgumentCaptor.forClass(CoolifyCreatePublicApplicationRequest.class);
