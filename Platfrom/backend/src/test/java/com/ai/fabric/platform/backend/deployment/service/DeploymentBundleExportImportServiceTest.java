@@ -330,7 +330,7 @@ class DeploymentBundleExportImportServiceTest {
     }
 
     @Test
-    void restoreInPlaceFlushesVectorizationDeletesBeforeSavingReplacements() {
+    void restoreInPlacePreservesVectorizationHistoryAndAppendsRestoredRevision() {
         DeploymentBundleExportImportService service = service();
         DeploymentEntity deployment = deployment();
         DeploymentDraftEntity draft = draft(deployment.getId());
@@ -347,6 +347,8 @@ class DeploymentBundleExportImportServiceTest {
             .thenReturn(Optional.of(sourcePlan));
         when(vectorizationPlanRevisionRepository.findByPlanIdOrderByRevisionNumberDesc(sourcePlan.getId()))
             .thenReturn(List.of(sourceRevision));
+        when(vectorizationPlanRevisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(sourcePlan.getId()))
+            .thenReturn(Optional.of(sourceRevision));
         var export = service.exportDeployment(
             deployment.getId(),
             new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "restore vectorization smoke", null, true, true)
@@ -377,16 +379,18 @@ class DeploymentBundleExportImportServiceTest {
             "restore vectorization in place"
         ));
 
-        InOrder replacementOrder = inOrder(
-            vectorizationPlanRevisionRepository,
-            vectorizationSourceConnectionRepository
-        );
-        replacementOrder.verify(vectorizationPlanRevisionRepository).deleteByDeploymentId(deployment.getId());
-        replacementOrder.verify(vectorizationSourceConnectionRepository).deleteByDeploymentId(deployment.getId());
-        replacementOrder.verify(vectorizationPlanRevisionRepository).flush();
-        replacementOrder.verify(vectorizationSourceConnectionRepository).flush();
-        replacementOrder.verify(vectorizationSourceConnectionRepository)
-            .save(any(VectorizationSourceConnectionEntity.class));
+        verify(vectorizationPlanRevisionRepository, never()).deleteByDeploymentId(deployment.getId());
+        verify(vectorizationSourceConnectionRepository, never()).deleteByDeploymentId(deployment.getId());
+        ArgumentCaptor<VectorizationSourceConnectionEntity> sourceCaptor =
+            ArgumentCaptor.forClass(VectorizationSourceConnectionEntity.class);
+        verify(vectorizationSourceConnectionRepository).save(sourceCaptor.capture());
+        assertThat(sourceCaptor.getValue().getId()).isEqualTo(sourceConnection.getId());
+        ArgumentCaptor<VectorizationPlanRevisionEntity> revisionCaptor =
+            ArgumentCaptor.forClass(VectorizationPlanRevisionEntity.class);
+        verify(vectorizationPlanRevisionRepository).save(revisionCaptor.capture());
+        assertThat(revisionCaptor.getValue().getRevisionNumber())
+            .isEqualTo(sourceRevision.getRevisionNumber() + 1);
+        assertThat(revisionCaptor.getValue().getId()).isNotEqualTo(sourceRevision.getId());
     }
 
     @Test
@@ -617,6 +621,18 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(sourceCaptor.getValue().getSecretReferencesJson()).contains(sourceToken.getName());
 
         verify(vectorizationPlanRepository, never()).deleteByDeploymentId(importedDeployment.getId());
+        InOrder replacementOrder = inOrder(
+            vectorizationPlanRevisionRepository,
+            vectorizationSourceConnectionRepository
+        );
+        replacementOrder.verify(vectorizationPlanRevisionRepository)
+            .deleteByDeploymentId(importedDeployment.getId());
+        replacementOrder.verify(vectorizationSourceConnectionRepository)
+            .deleteByDeploymentId(importedDeployment.getId());
+        replacementOrder.verify(vectorizationPlanRevisionRepository).flush();
+        replacementOrder.verify(vectorizationSourceConnectionRepository).flush();
+        replacementOrder.verify(vectorizationSourceConnectionRepository)
+            .save(any(VectorizationSourceConnectionEntity.class));
         ArgumentCaptor<VectorizationPlanRevisionEntity> revisionCaptor = ArgumentCaptor.forClass(VectorizationPlanRevisionEntity.class);
         verify(vectorizationPlanRevisionRepository).save(revisionCaptor.capture());
         assertThat(revisionCaptor.getValue().getDeploymentId()).isEqualTo(importedDeployment.getId());

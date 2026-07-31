@@ -1271,7 +1271,7 @@ public class DeploymentBundleExportImportService {
             restoreSecrets(createdDeployment.getId(), decryptedSecrets);
         }
         restoreManagedProductServiceDependencies(createdDeployment, bundle, request == null ? null : request.targetProfileId());
-        restoreVectorizationControlPlane(createdDeployment, bundle, draft);
+        restoreVectorizationControlPlane(createdDeployment, bundle, draft, false);
         return new RestoreResult(createdDeployment.getId(), draft.getId());
     }
 
@@ -1303,7 +1303,7 @@ public class DeploymentBundleExportImportService {
             restoreSecrets(deployment.getId(), decryptedSecrets);
         }
         restoreManagedProductServiceDependencies(deployment, bundle, request == null ? null : request.targetProfileId());
-        restoreVectorizationControlPlane(deployment, bundle, restoredDraft);
+        restoreVectorizationControlPlane(deployment, bundle, restoredDraft, true);
         return new RestoreResult(deployment.getId(), restoredDraft.getId());
     }
 
@@ -1776,7 +1776,10 @@ public class DeploymentBundleExportImportService {
         }
     }
 
-    private void restoreVectorizationControlPlane(DeploymentEntity deployment, JsonNode bundle, DeploymentDraftEntity targetDraft) {
+    private void restoreVectorizationControlPlane(DeploymentEntity deployment,
+                                                  JsonNode bundle,
+                                                  DeploymentDraftEntity targetDraft,
+                                                  boolean preserveOperationalHistory) {
         JsonNode vectorization = bundle.path("manifest").path("vectorizationControlPlane");
         if (!vectorization.isObject()) {
             return;
@@ -1792,18 +1795,27 @@ public class DeploymentBundleExportImportService {
         JsonNode targetKnowledgeSourceConfig = targetDraft == null
             ? objectMapper.createObjectNode()
             : readJson(targetDraft.getKnowledgeSourceConfigJson());
-        vectorizationPlanRevisionRepository.deleteByDeploymentId(deploymentId);
-        vectorizationSourceConnectionRepository.deleteByDeploymentId(deploymentId);
-        vectorizationPlanRevisionRepository.flush();
-        vectorizationSourceConnectionRepository.flush();
+        if (!preserveOperationalHistory) {
+            vectorizationPlanRevisionRepository.deleteByDeploymentId(deploymentId);
+            vectorizationSourceConnectionRepository.deleteByDeploymentId(deploymentId);
+            vectorizationPlanRevisionRepository.flush();
+            vectorizationSourceConnectionRepository.flush();
+        }
 
         Instant now = Instant.now();
         String oldSourceConnectionId = vectorization.path("sourceConnection").path("id").asText(null);
-        String newSourceConnectionId = null;
+        VectorizationSourceConnectionEntity existingConnection = preserveOperationalHistory
+            ? vectorizationSourceConnectionRepository.findByDeploymentId(deploymentId).orElse(null)
+            : null;
+        String newSourceConnectionId = existingConnection == null ? null : existingConnection.getId();
         if (vectorization.path("sourceConnection").isObject()) {
-            newSourceConnectionId = generateId("vcn");
-            VectorizationSourceConnectionEntity connection = new VectorizationSourceConnectionEntity();
+            VectorizationSourceConnectionEntity connection = existingConnection == null
+                ? new VectorizationSourceConnectionEntity()
+                : existingConnection;
             JsonNode source = vectorization.path("sourceConnection");
+            if (!StringUtils.hasText(newSourceConnectionId)) {
+                newSourceConnectionId = generateId("vcn");
+            }
             connection.setId(newSourceConnectionId);
             connection.setDeploymentId(deploymentId);
             connection.setCustomerId(importedOwnerValue(deployment.getCustomerId(), source.path("customerId").asText(null), "customer"));
@@ -1815,7 +1827,9 @@ public class DeploymentBundleExportImportService {
             connection.setConnectionConfigJson(writeJson(source.path("connectionConfig")));
             connection.setSecretReferencesJson(writeJson(source.path("secretReferences")));
             connection.setDiscoverySummaryJson(writeJson(source.path("discoverySummary")));
-            connection.setCreatedAt(now);
+            if (connection.getCreatedAt() == null) {
+                connection.setCreatedAt(now);
+            }
             connection.setUpdatedAt(now);
             vectorizationSourceConnectionRepository.save(connection);
         }
@@ -1829,6 +1843,7 @@ public class DeploymentBundleExportImportService {
         VectorizationPlanEntity plan = vectorizationPlanRepository.findByDeploymentId(deploymentId)
             .orElseGet(VectorizationPlanEntity::new);
         String newPlanId = StringUtils.hasText(plan.getId()) ? plan.getId() : generateId("vpl");
+        String preservedActiveRevisionId = preserveOperationalHistory ? plan.getActiveRevisionId() : null;
         String newActiveRevisionId = null;
         String lastImportedRevisionId = null;
 
@@ -1867,40 +1882,63 @@ public class DeploymentBundleExportImportService {
         vectorizationPlanRepository.save(plan);
 
         JsonNode revisions = vectorization.path("revisions");
+        List<JsonNode> revisionsToRestore = new ArrayList<>();
         if (revisions.isArray()) {
+            JsonNode selectedRevision = null;
             for (JsonNode revisionNode : revisions) {
                 if (!revisionNode.isObject()) {
                     continue;
                 }
-                String newRevisionId = generateId("vpr");
-                if (StringUtils.hasText(oldActiveRevisionId)
+                selectedRevision = revisionNode;
+                if (preserveOperationalHistory
+                    && StringUtils.hasText(oldActiveRevisionId)
                     && oldActiveRevisionId.equals(revisionNode.path("id").asText(null))) {
-                    newActiveRevisionId = newRevisionId;
+                    break;
                 }
-                lastImportedRevisionId = newRevisionId;
-                VectorizationPlanRevisionEntity revision = new VectorizationPlanRevisionEntity();
-                revision.setId(newRevisionId);
-                revision.setPlanId(newPlanId);
-                revision.setDeploymentId(deploymentId);
-                revision.setRevisionNumber(revisionNode.path("revisionNumber").asInt(1));
-                revision.setStatus(revisionNode.path("status").asText("ACTIVE"));
-                revision.setSourceConnectionId(remapId(revisionNode.path("sourceConnectionId").asText(null), oldSourceConnectionId, newSourceConnectionId));
-                revision.setEntityScopeJson(writeJson(revisionNode.path("entityScope")));
-                revision.setMappingConfigJson(writeJson(rewriteVectorizationMappingConfig(
-                    revisionNode.path("mappingConfig"),
-                    targetKnowledgeSourceConfig
-                )));
-                revision.setExecutionConfigJson(writeJson(revisionNode.path("executionConfig")));
-                revision.setIndexedOutputHash(null);
-                revision.setCreatedByActorId(PlatformSecurityContext.actorIdOrSystem());
-                revision.setCreatedAt(now);
-                revision.setUpdatedAt(now);
-                vectorizationPlanRevisionRepository.save(revision);
+                if (!preserveOperationalHistory) {
+                    revisionsToRestore.add(revisionNode);
+                }
             }
+            if (preserveOperationalHistory && selectedRevision != null) {
+                revisionsToRestore.add(selectedRevision);
+            }
+        }
+        int nextRevisionNumber = preserveOperationalHistory
+            ? vectorizationPlanRevisionRepository.findTopByPlanIdOrderByRevisionNumberDesc(newPlanId)
+                .map(VectorizationPlanRevisionEntity::getRevisionNumber)
+                .orElse(0) + 1
+            : 1;
+        for (JsonNode revisionNode : revisionsToRestore) {
+            String newRevisionId = generateId("vpr");
+            if (StringUtils.hasText(oldActiveRevisionId)
+                && oldActiveRevisionId.equals(revisionNode.path("id").asText(null))) {
+                newActiveRevisionId = newRevisionId;
+            }
+            lastImportedRevisionId = newRevisionId;
+            VectorizationPlanRevisionEntity revision = new VectorizationPlanRevisionEntity();
+            revision.setId(newRevisionId);
+            revision.setPlanId(newPlanId);
+            revision.setDeploymentId(deploymentId);
+            revision.setRevisionNumber(preserveOperationalHistory
+                ? nextRevisionNumber++
+                : revisionNode.path("revisionNumber").asInt(1));
+            revision.setStatus(revisionNode.path("status").asText("ACTIVE"));
+            revision.setSourceConnectionId(remapId(revisionNode.path("sourceConnectionId").asText(null), oldSourceConnectionId, newSourceConnectionId));
+            revision.setEntityScopeJson(writeJson(revisionNode.path("entityScope")));
+            revision.setMappingConfigJson(writeJson(rewriteVectorizationMappingConfig(
+                revisionNode.path("mappingConfig"),
+                targetKnowledgeSourceConfig
+            )));
+            revision.setExecutionConfigJson(writeJson(revisionNode.path("executionConfig")));
+            revision.setIndexedOutputHash(null);
+            revision.setCreatedByActorId(PlatformSecurityContext.actorIdOrSystem());
+            revision.setCreatedAt(now);
+            revision.setUpdatedAt(now);
+            vectorizationPlanRevisionRepository.save(revision);
         }
 
         if (!StringUtils.hasText(newActiveRevisionId)) {
-            newActiveRevisionId = lastImportedRevisionId;
+            newActiveRevisionId = firstNonBlank(lastImportedRevisionId, preservedActiveRevisionId);
         }
 
         plan.setActiveRevisionId(newActiveRevisionId);
