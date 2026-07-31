@@ -885,6 +885,9 @@ public class PlatformManagedProductProvisioningService {
         if (!profile.isActive() || !profile.isPlatformServicesAllowed()) {
             throw new ResponseStatusException(CONFLICT, "Coolify target profile is not active for platform services: " + profile.getId());
         }
+        if (hasText(profile.getEnvironmentName())) {
+            service.setEnvironmentScope(profile.getEnvironmentName().trim());
+        }
         return new CoolifyBinding(profile, coolifyTargetProfileResolver.requireConnection(profile));
     }
 
