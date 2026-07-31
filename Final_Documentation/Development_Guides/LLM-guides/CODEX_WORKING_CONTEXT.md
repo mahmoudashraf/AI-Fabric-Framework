@@ -1990,7 +1990,7 @@ Critical fixes that made the gate pass:
   historical deployment/migration records remain untouched.
 - Verification passed: infrastructure 187 tests, product 32 tests, focused
   Platform deployment checks 50 tests, and Platform backend `clean verify`
-  725 tests; runtime and embedding-worker dependency graphs contain only
+  726 tests; runtime and embedding-worker dependency graphs contain only
   `0.5.0`.
 - Production-shaped private runtime image
   `sha256:ab5ecfb50b3db331539bb25944299c7b8738f178f6e88cd1a302065342242117`
@@ -2008,6 +2008,33 @@ Critical fixes that made the gate pass:
   `IN_SYNC`; full suite `vsr-ad5b4532` passed all 13 required stages and the
   release gate returned `READY`. Optional Qdrant remains non-blocking
   `MIGRATION_REQUIRED`.
+
+## 2026-07-30 AI Fabric 0.5.1 Consumer Preparation
+
+- Adopted the public `IndexingWorkQuery` and `IndexingWorkStatus` contract for
+  private runtime per-work Data Sync reconciliation. Removed direct use of
+  `IndexingQueueService` and `IndexingQueueEntry` from the private status
+  route while preserving authentication, bounded response projection, and
+  terminal-state semantics.
+- Kept aggregate queue diagnostics on `IndexingQueueRepository` because the
+  candidate provides no public queue-summary contract. Do not remove that
+  operator functionality or invent a duplicate framework API.
+- Updated active private consumer, deployment compiler, deployment-version,
+  and runtime metadata defaults to `0.5.1` with no dual-version or fallback
+  path.
+- The local framework candidate passed 752 focused core/indexing tests.
+- Final consumer gates passed from a new Maven repository after Central
+  publication: private infrastructure `206/206`, private product `32/32`, and
+  Platform backend clean verification `728/728`.
+- Runtime and embedding-worker dependency graphs contain only AI Fabric
+  `0.5.1`; active private source/config contains no prior framework consumer
+  release reference.
+- Git tag and GitHub release `ai-fabric-framework-v0.5.1` exist at
+  `4c9221b`, published at `2026-07-30T22:09:51Z`. Framework CI and the signed
+  Maven Central workflow passed; the public BOM now returns HTTP `200`.
+- Released `0.5.1` also does not contain the trusted-retrieval correction
+  required by the specialist. That correction must ship as immutable `0.5.2`
+  or later; never move or recreate the `0.5.1` tag.
 
 ## 2026-07-30 Specialist Trusted-Retrieval Security Gate
 
@@ -2036,3 +2063,18 @@ Critical fixes that made the gate pass:
 - No staging or production deployment was changed. Resume hosted migration
   only after immutable Maven publication, then repeat the full canary and
   release gate.
+
+## 2026-07-31 AI Fabric 0.5.2 Publication And Adoption
+
+- Framework release `ai-fabric-framework-v0.5.2` resolves to `ada4580` and
+  contains trusted-retrieval security fix `7055dda`.
+- The GitHub release is public; BOM, core, and execution artifacts return
+  HTTP `200` from Maven Central.
+- Active private BOMs, deployment compiler/defaults, runtime metadata, and
+  tests now target only `0.5.2`, with no compatibility fallback.
+- Central-only empty-cache gates passed: infrastructure `206/206`, private
+  product `32/32`, and Platform backend `728/728`. Runtime and worker
+  dependency graphs resolve only `0.5.2`; the packaged runtime contains
+  `ai-fabric-execution-0.5.2.jar`.
+- Hosted specialist isolation and full release-gate evidence are tracked in
+  `AI_FABRIC_0_5_2_PLATFORM_MIGRATION/01_BUILD_AND_RELEASE_GATE_EVIDENCE.md`.

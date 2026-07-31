@@ -41,12 +41,14 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-Current private product integration consumes public framework release `0.5.0`
-through the AI Fabric BOM:
+The current private product source target is AI Fabric `0.5.2` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.5.0`
-- Git tag `ai-fabric-framework-v0.5.0`
-- Release commit `a49138c6bff39c66bf48c3885cb911e8d7b78d84`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.5.2`
+- Git tag `ai-fabric-framework-v0.5.2`
+
+The immutable tag, GitHub release, framework CI, signed publication workflow,
+and Maven Central artifacts exist and match release commit `ada4580`.
+The release contains trusted-retrieval security fix `7055dda`.
 
 The private runtime and embedding worker must each resolve one AI Fabric
 version. Docker/CI builds consume released Maven artifacts and must not clone
@@ -54,19 +56,25 @@ mutable framework source. A local framework install is allowed only for
 explicit unreleased-framework development and is not publication or release
 evidence.
 
-Platform uses the V04 entity lifecycle contract. The `0.5.0` base migration
-is greenfield and one-way: do not add dual readers, compatibility shims, or
-version fallbacks. Preserve immutable historical deployment records as
-evidence. After base parity is green, add `ai-fabric-execution` only to the
-private runtime for the bounded, additive
+Platform uses the V04 entity lifecycle contract. The migration is greenfield
+and one-way: do not add dual readers, compatibility shims, or version
+fallbacks. Preserve immutable historical deployment records as evidence.
+Add `ai-fabric-execution` only to the private runtime for the bounded, additive
 `deployment-knowledge-specialist@1`; preserve existing chat behavior.
 
-Known framework blocker: the private runtime indexing admin facade currently
-uses framework queue internals to provide durable Data Sync work status and
-queue summaries because released `0.5.0` has no stable public query contract
-for them. Keep that functionality. When a public release supplies the
-contract, replace the internal imports in one change and do not retain both
-paths. This does not block the read-only specialist.
+The private runtime indexing admin facade uses `IndexingWorkQuery` and
+`IndexingWorkStatus` for durable per-work Data Sync reconciliation. Keep the
+private HTTP route, admin authorization, tenant/deployment checks, polling
+policy, and response projection in LoomAI. Aggregate queue diagnostics still
+use the framework's internal queue repository contract because `0.5.2` does
+not expose a public
+queue-summary contract; preserve that diagnostic behavior and raise a
+framework contract request before removing or duplicating it.
+
+Before promotion, rebuild from an empty Central-only Maven cache, verify the
+packaged execution JAR is `0.5.2`, and repeat the hosted two-tenant,
+two-deployment, and missing-boundary specialist canaries. The full release gate
+must run only after those checks pass.
 
 Framework debugging and contract escalation:
 

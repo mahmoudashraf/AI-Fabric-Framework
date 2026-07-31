@@ -4,9 +4,9 @@ import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import ai.fabric.config.AIEntityConfigurationLoader;
 import ai.fabric.dto.VectorScanPage;
 import ai.fabric.dto.VectorScanRequest;
-import ai.fabric.entity.IndexingQueueEntry;
 import ai.fabric.indexing.IndexingStatus;
-import ai.fabric.indexing.queue.IndexingQueueService;
+import ai.fabric.indexing.api.IndexingWorkQuery;
+import ai.fabric.indexing.api.IndexingWorkStatus;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.repository.IndexingQueueRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,7 +35,7 @@ public class VectorIndexAdminController {
     private final VectorDatabaseService vectorDatabaseService;
     private final AIEntityConfigurationLoader entityConfigurationLoader;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
-    private final ObjectProvider<IndexingQueueService> indexingQueueServiceProvider;
+    private final ObjectProvider<IndexingWorkQuery> indexingWorkQueryProvider;
     private final ObjectProvider<IndexingQueueRepository> indexingQueueRepositoryProvider;
 
     /**
@@ -86,23 +86,9 @@ public class VectorIndexAdminController {
             surface
         );
 
-        long numericWorkId;
-        try {
-            numericWorkId = Long.parseLong(workId);
-            if (numericWorkId <= 0) {
-                throw new NumberFormatException("workId must be positive");
-            }
-        } catch (NumberFormatException ignored) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                "success", false,
-                "errorCode", "INVALID_INDEXING_WORK_ID",
-                "message", "workId must be a positive integer."
-            ));
-        }
-
-        IndexingQueueService queueService =
-            indexingQueueServiceProvider.getIfAvailable();
-        if (queueService == null) {
+        IndexingWorkQuery workQuery =
+            indexingWorkQueryProvider.getIfAvailable();
+        if (workQuery == null) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
                 Map.of(
                     "success", false,
@@ -112,10 +98,17 @@ public class VectorIndexAdminController {
             );
         }
 
-        IndexingQueueEntry entry;
+        IndexingWorkStatus work;
         try {
-            entry = queueService.requireEntry(numericWorkId);
+            work = workQuery.findByWorkId(workId).orElse(null);
         } catch (IllegalArgumentException ignored) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "success", false,
+                "errorCode", "INVALID_INDEXING_WORK_ID",
+                "message", "workId is invalid."
+            ));
+        }
+        if (work == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                 "success", false,
                 "errorCode", "INDEXING_WORK_NOT_FOUND",
@@ -123,46 +116,40 @@ public class VectorIndexAdminController {
             ));
         }
 
-        IndexingStatus status = entry.getStatus();
-        boolean successfulTerminal = status == IndexingStatus.COMPLETED
-            || status == IndexingStatus.SUPERSEDED;
-        boolean terminal = successfulTerminal
-            || status == IndexingStatus.DEAD_LETTER;
-
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
-        body.put("workId", String.valueOf(entry.getId()));
-        body.put("status", status == null ? null : status.name());
-        body.put("terminal", terminal);
-        body.put("successfulTerminal", successfulTerminal);
-        body.put("requiresOperatorReview", status == IndexingStatus.DEAD_LETTER);
-        body.put("entityType", safeText(entry.getEntityType()));
-        body.put("entityId", safeText(entry.getEntityId()));
+        body.put("workId", work.workId());
+        body.put("status", work.status().name());
+        body.put("terminal", work.isTerminal());
+        body.put("successfulTerminal", work.isSuccessfulTerminal());
+        body.put("requiresOperatorReview", work.requiresOperatorReview());
+        body.put("entityType", safeText(work.entityType()));
+        body.put("entityId", safeText(work.entityId()));
         body.put(
             "workType",
-            entry.getWorkType() == null ? null : entry.getWorkType().name()
+            work.workType() == null ? null : work.workType().name()
         );
         body.put(
             "sourceOperation",
-            entry.getSourceOperation() == null
+            work.sourceOperation() == null
                 ? null
-                : entry.getSourceOperation().name()
+                : work.sourceOperation().name()
         );
         body.put(
             "strategy",
-            entry.getStrategy() == null ? null : entry.getStrategy().name()
+            work.strategy() == null ? null : work.strategy().name()
         );
-        body.put("retryCount", entry.getRetryCount());
-        body.put("maxRetries", entry.getMaxRetries());
-        body.put("errorCode", safeText(entry.getErrorCode()));
-        body.put("deadLetterReason", safeText(entry.getDeadLetterReason()));
-        body.put("correlationId", safeText(entry.getCorrelationId()));
-        body.put("requestedAt", stringValue(entry.getRequestedAt()));
-        body.put("scheduledFor", stringValue(entry.getScheduledFor()));
-        body.put("startedAt", stringValue(entry.getStartedAt()));
-        body.put("completedAt", stringValue(entry.getCompletedAt()));
-        body.put("lastErrorAt", stringValue(entry.getLastErrorAt()));
-        body.put("updatedAt", stringValue(entry.getUpdatedAt()));
+        body.put("retryCount", work.retryCount());
+        body.put("maxRetries", work.maxRetries());
+        body.put("errorCode", safeText(work.errorCode()));
+        body.put("deadLetterReason", safeText(work.deadLetterReason()));
+        body.put("correlationId", safeText(work.correlationId()));
+        body.put("requestedAt", stringValue(work.requestedAt()));
+        body.put("scheduledFor", stringValue(work.scheduledFor()));
+        body.put("startedAt", stringValue(work.startedAt()));
+        body.put("completedAt", stringValue(work.completedAt()));
+        body.put("lastErrorAt", stringValue(work.lastErrorAt()));
+        body.put("updatedAt", stringValue(work.updatedAt()));
         return ResponseEntity.ok(body);
     }
 

@@ -127,7 +127,7 @@ class RuntimeAdminOverviewControllerTest {
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "promptConfigLocation", "https://platform.example/prompts");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "knowledgeSourceConfigLocation", "https://platform.example/knowledge-sources");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "shellConfigLocation", "https://platform.example/shell");
-        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredAiFabricFrameworkVersion", "0.5.0");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredAiFabricFrameworkVersion", "0.5.2");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigHash", "entity-hash-123");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentVersionId", "ver-123");
@@ -142,8 +142,8 @@ class RuntimeAdminOverviewControllerTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) response.getBody();
         assertThat(body).containsEntry("success", true);
-        assertThat(body).containsEntry("aiFabricFrameworkVersion", "0.5.0");
-        assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.5.0");
+        assertThat(body).containsEntry("aiFabricFrameworkVersion", "0.5.2");
+        assertThat(body).containsEntry("configuredAiFabricFrameworkVersion", "0.5.2");
         assertThat(body).containsEntry("entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         assertThat(body).containsEntry("entityConfigHash", "entity-hash-123");
         assertThat(body).containsEntry("deploymentVersionId", "ver-123");
