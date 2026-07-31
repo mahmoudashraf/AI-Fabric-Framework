@@ -2085,7 +2085,66 @@ Critical fixes that made the gate pass:
   backend suite passed `729/729`.
 - Canonical ecommerce now serves `0.5.2` from private commit `da615464d` as
   version `ver-6bb580e9`; fresh verification `vrf-f76796dd` passed 28 checks
-  with no failures. Continue the second deployment and specialist isolation
-  canaries only after deploying the release-wait correction.
+  with no failures. This intermediate version was superseded by the completed
+  canonical reapply below.
 - Hosted specialist isolation and full release-gate evidence are tracked in
   `AI_FABRIC_0_5_2_PLATFORM_MIGRATION/01_BUILD_AND_RELEASE_GATE_EVIDENCE.md`.
+
+## 2026-07-31 AI Fabric 0.5.2 Hosted Staging Completion
+
+- Deployed the release-wait correction, enabled the generic `document`
+  evidence space in the canonical managed profile, and reapplied both hosted
+  staging deployments:
+  - ecommerce: `dep-c5b5fe23`, `ver-0fb5b1ff`, `rel-f38d9ec8`;
+  - marketplace: `dep-d99b3252`, `ver-ac71cb67`, `rel-2a62a6a7`.
+- Both releases reached `APPLIED_VERIFIED`, report framework `0.5.2`, and
+  expose `document`, `policy`, `product`, and `review` vector spaces.
+- Two-deployment specialist canaries passed. Each runtime retrieved its own
+  unique evidence; cross-deployment requests returned
+  `INSUFFICIENT_EVIDENCE`; missing assertion, scope, or tenant failed closed
+  with `401` or `403`. Targeted cleanup removed both canary records.
+- Fixed vectorization convergence in private commit `eb47df423`: a queued run
+  now persists the active deployment's indexed-output hash. Full Platform
+  backend verification passed `730/730`.
+- Staging Platform backend deployed exact commit
+  `eb47df4235c1af9c751b489768d5c7271d58fea0`. Fresh ecommerce and marketplace
+  reindexes completed and both plans are `IN_SYNC`.
+- Final `full-platform-release-readiness` run `vsr-4dc6c08f` passed all 13
+  blocking stages. The release gate returned `READY`, expiring
+  `2026-07-31T15:47:59.848341Z`.
+- Optional legacy Qdrant verification remains non-blocking
+  `MIGRATION_REQUIRED` for `dep-d24b9a5d`; it is not an active canonical or
+  ProdUS runtime.
+
+## 2026-07-31 AI Fabric 0.5.2 Production And ProdUS Completion
+
+- Completed the backed-up ProdUS restore/promotion exercise using config-only
+  export `dexp-96e0c996` / bundle `dxb-d77a3642` and import `dimp-9bbf3ef1`.
+  No Coolify-wide backup or destructive provider reset was used.
+- ProdUS deployment `dep-f6abfa06` is live on V04 version `ver-aaec416e`, AI
+  Fabric `0.5.2`, release `rel-3b4a8338`, and verification `vrf-a1675b36`.
+  Release status is `APPLIED_VERIFIED`; verification is `PASSED`.
+- ProdUS runtime, connector, vectorization runner, and runtime PostgreSQL are
+  healthy. Runtime liveness, readiness, and aggregate health all return HTTP
+  `200` / `UP`. The managed Milvus index has 203 vectors in 14 spaces, and
+  live `service-module` plus `package-template` retrieval smokes passed.
+- Scoped assignment still resolves `produs-staging` to `dep-f6abfa06` with
+  `externalIntegrationReady=true`, issuer `produs-staging-backend`, audience
+  `produs-staging`, and a 300-second cache TTL.
+- Production Platform source is `Platform-V11` commit `de7bd045`. Coolify
+  deployment `g11gyn0pmxwr5gbessqomsxm` finished from that commit and health
+  is `UP`.
+- Fixed managed-product target drift: explicit Coolify reconcile now aligns
+  `environmentScope` with the selected target profile. Clean Platform backend
+  verification passed `733/733`. MCP gateway reconciliation now reports
+  `production`, `READY`, and `NO_DRIFT` with an HTTP `200` health probe.
+- The release-gate Partner fixture had an expired Supabase JWT. Only that
+  dedicated test user's credential was refreshed through private secret
+  handling; standalone run `vsr-49aeefa6` passed.
+- Final production full gate `vsr-e18452e5` passed all 13 blocking stages.
+  Marketplace hosted verification passed 41 checks, ecommerce passed 43, and
+  `/api/verification-suites/release-gate` is `READY` until
+  `2026-08-01T01:10:50.094128Z`.
+- Optional legacy Qdrant remains non-blocking `MIGRATION_REQUIRED`. Temporary
+  local-workstation sources were removed from Hetzner firewalls `10915120`
+  and `10918233`; required server and public web rules remain.
