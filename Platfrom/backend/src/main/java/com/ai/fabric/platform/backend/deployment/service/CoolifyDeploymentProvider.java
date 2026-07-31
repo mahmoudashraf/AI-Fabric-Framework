@@ -1955,9 +1955,6 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                               JsonNode resourceDefaults,
                                                               CoolifyApplicationSummary fallback,
                                                               CoolifyActionResponse deployResponse) {
-        if (applicationReady(fallback)) {
-            return fallback;
-        }
         Duration timeout = durationSeconds(
             resourceDefaults,
             "deploySettleTimeoutSeconds",
@@ -1977,7 +1974,11 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 Thread.sleep(pollInterval.toMillis());
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                return latest;
+                throw new IllegalStateException(
+                    "Interrupted while waiting for Coolify deployment "
+                        + deploymentUuid + " to finish.",
+                    ex
+                );
             }
             latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
             deployment = observeCoolifyDeployment(connection, deploymentUuid);
@@ -1994,14 +1995,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     + ", status=" + deployment.status() + ")."
             );
         }
+        latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
         while (!applicationReady(latest) && Instant.now().isBefore(deadline)) {
             try {
                 Thread.sleep(pollInterval.toMillis());
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                return latest;
+                throw new IllegalStateException(
+                    "Interrupted while waiting for Coolify application "
+                        + applicationUuid + " to become ready.",
+                    ex
+                );
             }
             latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
+        }
+        if (!applicationReady(latest)) {
+            throw new IllegalStateException(
+                "Timed out waiting for Coolify application " + applicationUuid + " to become ready."
+            );
         }
         return latest;
     }

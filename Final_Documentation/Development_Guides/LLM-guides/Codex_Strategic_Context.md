@@ -164,8 +164,14 @@ Current P0 cleanup items:
 - 2026-07-31: AI Fabric `0.5.2` is the current one-way private consumer
   target. Immutable release `ada4580` contains trusted-retrieval fix
   `7055dda`; BOM, core, and execution artifacts are public on Maven Central.
-  Central-only private builds passed `966/966` tests, all resolved framework
+  Central-only private builds passed `967/967` tests, all resolved framework
   dependencies are `0.5.2`, and the runtime archive contains
   `ai-fabric-execution-0.5.2.jar`. Promotion still requires hosted
   two-tenant/two-deployment isolation, missing-boundary failures, and the full
   Platform release gate.
+- 2026-07-31: Coolify release completion is deployment-bound, not
+  application-status-bound. A previously healthy container must never satisfy
+  the wait for a newly queued deployment UUID. Likewise, `PRE_APPLY`
+  verification is not eligible evidence for late post-deploy release recovery.
+  Poll the new deployment to terminal success and require `POST_APPLY` or
+  `MANUAL_RERUN` proof before activation.

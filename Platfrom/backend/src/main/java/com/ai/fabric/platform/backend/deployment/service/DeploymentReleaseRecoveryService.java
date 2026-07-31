@@ -112,6 +112,7 @@ public class DeploymentReleaseRecoveryService {
             .stream()
             .filter(run -> release.getDeploymentVersionId().equals(run.getDeploymentVersionId()))
             .filter(run -> "PASSED".equalsIgnoreCase(run.getStatus()))
+            .filter(this::isPostApplyVerification)
             .findFirst()
             .orElse(null);
         if (latestPassedRun == null) {
@@ -133,6 +134,14 @@ public class DeploymentReleaseRecoveryService {
         deployment.setUpdatedAt(now);
         deploymentRepository.save(deployment);
         return true;
+    }
+
+    private boolean isPostApplyVerification(DeploymentVerificationRunEntity run) {
+        if (run == null || !StringUtils.hasText(run.getVerificationType())) {
+            return false;
+        }
+        return "POST_APPLY".equalsIgnoreCase(run.getVerificationType())
+            || "MANUAL_RERUN".equalsIgnoreCase(run.getVerificationType());
     }
 
     @Transactional

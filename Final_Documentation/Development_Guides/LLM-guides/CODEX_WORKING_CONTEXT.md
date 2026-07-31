@@ -2073,8 +2073,19 @@ Critical fixes that made the gate pass:
 - Active private BOMs, deployment compiler/defaults, runtime metadata, and
   tests now target only `0.5.2`, with no compatibility fallback.
 - Central-only empty-cache gates passed: infrastructure `206/206`, private
-  product `32/32`, and Platform backend `728/728`. Runtime and worker
+  product `32/32`, and Platform backend `729/729`. Runtime and worker
   dependency graphs resolve only `0.5.2`; the packaged runtime contains
   `ai-fabric-execution-0.5.2.jar`.
+- The first hosted staging apply exposed a Platform premature-success defect:
+  Coolify application health from the previous container bypassed polling the
+  new deployment UUID, and release recovery accepted a passed `PRE_APPLY`
+  verification after post-apply verification failed. The fail-closed
+  correction polls the deployment UUID and only accepts `POST_APPLY` or
+  `MANUAL_RERUN` evidence. Focused tests passed `24/24`; the full Platform
+  backend suite passed `729/729`.
+- Canonical ecommerce now serves `0.5.2` from private commit `da615464d` as
+  version `ver-6bb580e9`; fresh verification `vrf-f76796dd` passed 28 checks
+  with no failures. Continue the second deployment and specialist isolation
+  canaries only after deploying the release-wait correction.
 - Hosted specialist isolation and full release-gate evidence are tracked in
   `AI_FABRIC_0_5_2_PLATFORM_MIGRATION/01_BUILD_AND_RELEASE_GATE_EVIDENCE.md`.

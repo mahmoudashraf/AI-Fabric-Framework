@@ -76,6 +76,12 @@ packaged execution JAR is `0.5.2`, and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 
+For Coolify applies, a healthy pre-existing application is not deployment
+completion evidence. When Coolify returns a deployment UUID, poll that exact
+deployment to terminal success and then refresh application readiness before
+post-apply verification. Late-success release recovery may use only
+`POST_APPLY` or `MANUAL_RERUN` verification; never use `PRE_APPLY` evidence.
+
 Framework debugging and contract escalation:
 
 - Use `/Users/mahmoudashraf/Downloads/Projects/ai-fabric-framework` as the

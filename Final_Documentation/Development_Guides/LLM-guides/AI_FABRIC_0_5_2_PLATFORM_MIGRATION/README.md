@@ -1,6 +1,6 @@
 # Platform AI Fabric 0.5.2 Migration
 
-Status: **LOCAL CONSUMER GATES PASSED; HOSTED GATES ACTIVE**
+Status: **LOCAL CONSUMER AND RELEASE-WAIT GATES PASSED; HOSTED GATES ACTIVE**
 
 This is the current one-way Platform consumer migration. It preserves the V04
 entity lifecycle and existing runtime behavior without compatibility readers,
@@ -24,10 +24,11 @@ duplicate framework contracts, or version fallbacks.
 | Immutable framework publication | Passed | Tag, release, CI, and Central resolve to `ada4580` |
 | Security-fix ancestry | Passed | Release contains `7055dda` |
 | Private source migration | Passed | Active defaults and tests target only `0.5.2` |
-| Empty-cache private builds | Passed | 966 tests passed across infrastructure, product, and Platform |
+| Empty-cache private builds | Passed | 967 tests passed across infrastructure, product, and Platform |
 | Dependency convergence | Passed | Runtime and worker resolve only `0.5.2` |
 | Packaged execution JAR | Passed | Runtime contains `ai-fabric-execution-0.5.2.jar` |
-| Hosted specialist canary | Pending | Two-tenant, two-deployment, and fail-closed proof |
+| Coolify deployment completion | Passed locally | Poll the new deployment UUID; never trust the old healthy container |
+| Hosted specialist canary | Running | First isolated runtime is on `0.5.2`; isolation and negatives remain |
 | Full Platform release gate | Pending | Fresh successful hosted run and `READY` result |
 
 See `01_BUILD_AND_RELEASE_GATE_EVIDENCE.md` for commands and final results.
