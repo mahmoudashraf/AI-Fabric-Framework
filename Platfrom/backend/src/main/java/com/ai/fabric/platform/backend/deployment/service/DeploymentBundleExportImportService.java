@@ -43,6 +43,7 @@ import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketpla
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginDatasetRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplaceManifestService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.entity.DeploymentProviderSecretBindingEntity;
@@ -127,6 +128,7 @@ public class DeploymentBundleExportImportService {
     private final MarketplacePluginRepository marketplacePluginRepository;
     private final MarketplacePluginVersionRepository marketplacePluginVersionRepository;
     private final MarketplacePluginDatasetRepository marketplacePluginDatasetRepository;
+    private final MarketplaceManifestService marketplaceManifestService;
     private final DeploymentProviderSecretBindingRepository secretBindingRepository;
     private final PlatformSecretRepository platformSecretRepository;
     private final PublicApiDeploymentRepository publicApiDeploymentRepository;
@@ -152,6 +154,7 @@ public class DeploymentBundleExportImportService {
                                                MarketplacePluginRepository marketplacePluginRepository,
                                                MarketplacePluginVersionRepository marketplacePluginVersionRepository,
                                                MarketplacePluginDatasetRepository marketplacePluginDatasetRepository,
+                                               MarketplaceManifestService marketplaceManifestService,
                                                DeploymentProviderSecretBindingRepository secretBindingRepository,
                                                PlatformSecretRepository platformSecretRepository,
                                                PublicApiDeploymentRepository publicApiDeploymentRepository,
@@ -176,6 +179,7 @@ public class DeploymentBundleExportImportService {
         this.marketplacePluginRepository = marketplacePluginRepository;
         this.marketplacePluginVersionRepository = marketplacePluginVersionRepository;
         this.marketplacePluginDatasetRepository = marketplacePluginDatasetRepository;
+        this.marketplaceManifestService = marketplaceManifestService;
         this.secretBindingRepository = secretBindingRepository;
         this.platformSecretRepository = platformSecretRepository;
         this.publicApiDeploymentRepository = publicApiDeploymentRepository;
@@ -1145,11 +1149,12 @@ public class DeploymentBundleExportImportService {
     private void validateMarketplaceCatalogAvailability(JsonNode manifest,
                                                         List<String> blocking,
                                                         List<String> warnings) {
+        JsonNode catalog = manifest.path("marketplaceCatalog");
+        validateBundledMarketplaceManifests(catalog, blocking);
         JsonNode installs = manifest.path("marketplaceInstalls");
         if (!installs.isArray() || installs.isEmpty()) {
             return;
         }
-        JsonNode catalog = manifest.path("marketplaceCatalog");
         Set<String> bundledPluginIds = catalog.path("plugins").isArray()
             ? idsIn(catalog.path("plugins"))
             : Set.of();
@@ -1197,6 +1202,53 @@ public class DeploymentBundleExportImportService {
         if (catalog.isMissingNode() || !catalog.isObject()) {
             warnings.add("Bundle does not include portable Marketplace catalog rows; target must already have referenced plugins.");
         }
+    }
+
+    private void validateBundledMarketplaceManifests(JsonNode catalog, List<String> blocking) {
+        if (!catalog.isObject() || !catalog.path("plugins").isArray() || !catalog.path("versions").isArray()) {
+            return;
+        }
+
+        Map<String, JsonNode> pluginsById = new LinkedHashMap<>();
+        catalog.path("plugins").forEach(plugin -> {
+            String pluginId = text(plugin, "id");
+            if (StringUtils.hasText(pluginId)) {
+                pluginsById.put(pluginId, plugin);
+            }
+        });
+
+        catalog.path("versions").forEach(versionNode -> {
+            String pluginId = text(versionNode, "pluginId");
+            String versionLabel = text(versionNode, "version");
+            JsonNode pluginNode = pluginsById.get(pluginId);
+            if (pluginNode == null || !StringUtils.hasText(versionLabel)) {
+                return;
+            }
+
+            MarketplacePluginEntity plugin = new MarketplacePluginEntity();
+            plugin.setId(pluginId);
+            plugin.setPluginType(text(pluginNode, "pluginType"));
+
+            MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
+            version.setId(text(versionNode, "id"));
+            version.setPluginId(pluginId);
+            version.setVersion(versionLabel);
+            version.setManifestJson(writeJson(versionNode.path("manifest")));
+
+            try {
+                marketplaceManifestService.parseAndValidate(plugin, version);
+            } catch (ResponseStatusException ex) {
+                String reason = StringUtils.hasText(ex.getReason()) ? ex.getReason() : ex.getMessage();
+                blocking.add(
+                    "MARKETPLACE_PLUGIN_MANIFEST_INVALID: "
+                        + pluginId
+                        + "@"
+                        + versionLabel
+                        + ": "
+                        + reason
+                );
+            }
+        });
     }
 
     private Map<String, String> marketplaceInstallVersionIds(JsonNode installs) {

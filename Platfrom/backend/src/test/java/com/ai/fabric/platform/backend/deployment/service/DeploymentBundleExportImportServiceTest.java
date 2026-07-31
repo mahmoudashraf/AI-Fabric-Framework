@@ -34,6 +34,7 @@ import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketpla
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginDatasetRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginRepository;
 import com.ai.fabric.platform.backend.marketplace.repository.MarketplacePluginVersionRepository;
+import com.ai.fabric.platform.backend.marketplace.service.MarketplaceManifestService;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
 import com.ai.fabric.platform.backend.secret.entity.PlatformSecretCleanupPolicy;
@@ -85,6 +86,7 @@ class DeploymentBundleExportImportServiceTest {
     private final MarketplacePluginRepository marketplacePluginRepository = mock(MarketplacePluginRepository.class);
     private final MarketplacePluginVersionRepository marketplacePluginVersionRepository = mock(MarketplacePluginVersionRepository.class);
     private final MarketplacePluginDatasetRepository marketplacePluginDatasetRepository = mock(MarketplacePluginDatasetRepository.class);
+    private final MarketplaceManifestService marketplaceManifestService = new MarketplaceManifestService(objectMapper);
     private final DeploymentProviderSecretBindingRepository secretBindingRepository = mock(DeploymentProviderSecretBindingRepository.class);
     private final PlatformSecretRepository platformSecretRepository = mock(PlatformSecretRepository.class);
     private final PublicApiDeploymentRepository publicApiDeploymentRepository = mock(PublicApiDeploymentRepository.class);
@@ -852,7 +854,8 @@ class DeploymentBundleExportImportServiceTest {
         MarketplacePluginVersionEntity dataVersion = marketplaceVersion(
             "mkv-safe-knowledge-v1",
             dataPlugin.getId(),
-            "1.0.0"
+            "1.0.0",
+            validDataMarketplaceManifest()
         );
         MarketplacePluginDatasetEntity dataDataset = marketplaceDataset(
             "mpd-safe-service-category",
@@ -869,7 +872,8 @@ class DeploymentBundleExportImportServiceTest {
         MarketplacePluginVersionEntity actionVersion = marketplaceVersion(
             "mkv-action-read-v1",
             actionPlugin.getId(),
-            "1.0.0"
+            "1.0.0",
+            validActionMarketplaceManifest()
         );
         stubExportState(sourceDeployment, sourceDraft);
         when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(sourceDeployment.getId()))
@@ -1115,6 +1119,62 @@ class DeploymentBundleExportImportServiceTest {
             .contains("Bundle does not include portable Marketplace catalog rows; target must already have referenced plugins.");
     }
 
+    @Test
+    void importPreviewBlocksBundledMarketplaceManifestOutsideV04Contract() {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity sourceDeployment = deployment();
+        DeploymentDraftEntity sourceDraft = draft(sourceDeployment.getId());
+        DeploymentMarketplacePluginInstallEntity install = marketplaceInstall(
+            "mpi-source-data",
+            sourceDeployment.getId(),
+            "mkp-data-produs-safe-knowledge",
+            "mkv-safe-knowledge-v1",
+            "ENABLED"
+        );
+        MarketplacePluginEntity plugin = marketplacePlugin(
+            "mkp-data-produs-safe-knowledge",
+            "produs-safe-knowledge",
+            "DATA"
+        );
+        MarketplacePluginVersionEntity version = marketplaceVersion(
+            "mkv-safe-knowledge-v1",
+            plugin.getId(),
+            "1.0.0",
+            legacyDataMarketplaceManifest()
+        );
+        stubExportState(sourceDeployment, sourceDraft);
+        when(marketplacePluginInstallRepository.findByDeploymentIdOrderByUpdatedAtDesc(sourceDeployment.getId()))
+            .thenReturn(List.of(install));
+        when(marketplacePluginRepository.findById(plugin.getId())).thenReturn(Optional.of(plugin));
+        when(marketplacePluginVersionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(marketplacePluginDatasetRepository.findByPluginVersionIdOrderByDatasetIdAsc(version.getId()))
+            .thenReturn(List.of());
+
+        var export = service.exportDeployment(
+            sourceDeployment.getId(),
+            new DeploymentExportRequest(ExportMode.CONFIG_ONLY, "invalid marketplace manifest", null, true, true)
+        );
+        var preview = service.previewImport(new DeploymentImportPreviewRequest(
+            export.bundle(),
+            ImportMode.CONFIG_ONLY_CLONE,
+            null,
+            "Imported Deployment",
+            "production-staging",
+            "dtp-coolify-production",
+            "cust-imported",
+            "ten-imported",
+            null,
+            "preview invalid marketplace manifest"
+        ));
+
+        assertThat(preview.blockingIssues())
+            .anyMatch(issue -> issue.startsWith(
+                "MARKETPLACE_PLUGIN_MANIFEST_INVALID: mkp-data-produs-safe-knowledge@1.0.0:"
+            ))
+            .anyMatch(issue -> issue.contains("AI_ENTITY_CONFIG_V0_4"))
+            .anyMatch(issue -> issue.contains("LEGACY_ENTITY_PROPERTY_REMOVED"));
+    }
+
     private DeploymentBundleExportImportService service() {
         return new DeploymentBundleExportImportService(
             objectMapper,
@@ -1129,6 +1189,7 @@ class DeploymentBundleExportImportServiceTest {
             marketplacePluginRepository,
             marketplacePluginVersionRepository,
             marketplacePluginDatasetRepository,
+            marketplaceManifestService,
             secretBindingRepository,
             platformSecretRepository,
             publicApiDeploymentRepository,
@@ -1371,7 +1432,123 @@ class DeploymentBundleExportImportServiceTest {
         return plugin;
     }
 
-    private static MarketplacePluginVersionEntity marketplaceVersion(String id, String pluginId, String versionLabel) {
+    private static String validDataMarketplaceManifest() {
+        return dataMarketplaceManifest("""
+            {
+              "indexing": {"enabled": true, "max-characters": 8000},
+              "analysis": {"enabled": false, "after": []},
+              "searchable-fields": [
+                {
+                  "name": "content",
+                  "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                  "preprocessing": "CLEAN",
+                  "max-length": 8000,
+                  "priority": 100,
+                  "required": true
+                }
+              ],
+              "metadata-fields": [
+                {
+                  "name": "tenantId",
+                  "data-type": "ID",
+                  "destinations": ["VECTOR_METADATA"],
+                  "priority": 100,
+                  "required": true,
+                  "sanitize-pii": false
+                }
+              ]
+            }
+            """);
+    }
+
+    private static String legacyDataMarketplaceManifest() {
+        return dataMarketplaceManifest("""
+            {
+              "entity-type": "service-category",
+              "description": "Legacy service category knowledge.",
+              "features": ["embedding", "search"],
+              "auto-embedding": true,
+              "enable-search": true,
+              "indexable": true
+            }
+            """);
+    }
+
+    private static String dataMarketplaceManifest(String entityConfig) {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "DATA",
+              "compatibility": {"requiredCapabilities": ["knowledgeSources"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {
+                "contributesKnowledgeSources": true,
+                "requiresSharedDatasetAccess": true
+              },
+              "contributions": {
+                "entityConfig": {
+                  "ai-entities": {
+                    "service-category": %s
+                  }
+                },
+                "datasets": [
+                  {
+                    "datasetId": "produs-safe-service-category",
+                    "entityType": "service-category",
+                    "storageScope": "PLUGIN_SCOPED",
+                    "sharingScope": "TENANT_SHARED",
+                    "ingestionMode": "PACKAGED_SEED",
+                    "updateStrategy": "UPSERT_BY_ID",
+                    "seedDatasetRef": "classpath:marketplace/produs-safe-service-category.jsonl"
+                  }
+                ],
+                "knowledgeSources": [
+                  {
+                    "sourceType": "shared-index",
+                    "sourceKey": "produs-safe-service-category",
+                    "datasetRef": "produs-safe-service-category",
+                    "entityType": "service-category",
+                    "attributionLabel": "ProdUS service categories"
+                  }
+                ]
+              }
+            }
+            """.formatted(entityConfig);
+    }
+
+    private static String validActionMarketplaceManifest() {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "actions": [
+                  {
+                    "actionId": "produs_catalog_export",
+                    "adapterType": "mcp-tool",
+                    "description": "Export the ProdUS catalog.",
+                    "readOnly": true,
+                    "execution": {
+                      "adapterType": "mcp-tool",
+                      "mcp": {
+                        "serverRef": "produs",
+                        "toolName": "produs_catalog_export"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+    }
+
+    private static MarketplacePluginVersionEntity marketplaceVersion(String id,
+                                                                     String pluginId,
+                                                                     String versionLabel,
+                                                                     String manifestJson) {
         Instant now = Instant.now();
         MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
         version.setId(id);
@@ -1379,7 +1556,7 @@ class DeploymentBundleExportImportServiceTest {
         version.setVersion(versionLabel);
         version.setReleaseChannel("stable");
         version.setStatus("PUBLISHED");
-        version.setManifestJson("{}");
+        version.setManifestJson(manifestJson);
         version.setCreatedAt(now);
         version.setPublishedAt(now);
         return version;

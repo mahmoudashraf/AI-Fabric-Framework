@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MarketplaceLegacyEntityContractMigrationPostgresTest {
 
     private static final String MIGRATION_RESOURCE =
-        "db/migration/V129__migrate_legacy_marketplace_entity_contracts_v04.sql";
+        "db/migration/V130__normalize_restored_marketplace_entity_contracts_v04.sql";
     private static final Set<String> LEGACY_FIELDS = Set.of(
         "entity-type",
         "features",
