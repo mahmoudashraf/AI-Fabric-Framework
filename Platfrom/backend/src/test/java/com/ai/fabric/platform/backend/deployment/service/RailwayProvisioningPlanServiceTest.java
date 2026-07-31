@@ -222,7 +222,9 @@ class RailwayProvisioningPlanServiceTest {
             new ObjectMapper()
         );
 
-        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version());
+        DeploymentVersionEntity version = version();
+        version.setReindexRequired(true);
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
 
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
@@ -240,6 +242,7 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
             .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.5.2")
+            .containsEntry("AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE", "true")
             .containsEntry("AI_ENTITY_CONFIG_CONTRACT_VERSION", "AI_ENTITY_CONFIG_V0_4")
             .containsEntry("AI_ENTITY_CONFIG_HASH", "entity-hash-123")
             .containsEntry("PLATFORM_DEPLOYMENT_VERSION_ID", "ver-123")

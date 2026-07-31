@@ -271,6 +271,10 @@ public class RailwayProvisioningPlanService {
             aiFabricFrameworkVersion
         ));
         runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE",
+            Boolean.toString(version.isReindexRequired())
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_ENTITY_CONFIG_CONTRACT_VERSION",
             entityConfigContractVersion
         ));
