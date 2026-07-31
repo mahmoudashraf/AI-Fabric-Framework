@@ -14,6 +14,7 @@ import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunEntit
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerRegistrationEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationRunnerSessionEntity;
 import com.ai.fabric.platform.backend.vectorization.entity.VectorizationSourceConnectionEntity;
+import com.ai.fabric.platform.backend.vectorization.model.CreateVectorizationRunRequest;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationPreviewSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunnerSummary;
 import com.ai.fabric.platform.backend.vectorization.repository.VectorizationCheckpointRepository;
@@ -166,6 +167,45 @@ class VectorizationServiceTest {
             .isEqualTo("AI_ENTITY_CONFIG_V0_4");
         assertThat(overview.plan().activeIndexedOutputHash()).isNull();
         verify(hashService, never()).compute(version);
+    }
+
+    @Test
+    void createRunSnapshotsCurrentIndexedOutputHashForCompletion() {
+        DeploymentEntity deployment = new DeploymentEntity();
+        deployment.setId("dep-1");
+        deployment.setCustomerId("cust-1");
+        deployment.setTenantId("ten-1");
+        deployment.setActiveVersionId("ver-2");
+
+        DeploymentVersionEntity activeVersion = new DeploymentVersionEntity();
+        activeVersion.setId("ver-2");
+
+        VectorizationPlanEntity plan = new VectorizationPlanEntity();
+        plan.setId("vpl-1");
+        plan.setDeploymentId("dep-1");
+        plan.setActiveRevisionId("vpr-1");
+        plan.setActiveIndexedOutputHash("old-indexed-output-hash");
+        plan.setRunnerMode("PLATFORM_MANAGED_AUTO");
+
+        VectorizationPlanRevisionEntity revision = new VectorizationPlanRevisionEntity();
+        revision.setId("vpr-1");
+        revision.setPlanId("vpl-1");
+        revision.setEntityScopeJson("[\"product\"]");
+
+        when(deploymentRepository.findById("dep-1")).thenReturn(Optional.of(deployment));
+        when(deploymentAccessService.requireDeploymentOperatorAccess(deployment)).thenReturn(deployment);
+        when(deploymentVersionRepository.findById("ver-2")).thenReturn(Optional.of(activeVersion));
+        when(planRepository.findByDeploymentId("dep-1")).thenReturn(Optional.of(plan));
+        when(revisionRepository.findById("vpr-1")).thenReturn(Optional.of(revision));
+        when(hashService.compute(activeVersion)).thenReturn("current-indexed-output-hash");
+
+        service().createRun(
+            "dep-1",
+            new CreateVectorizationRunRequest("REINDEX", null, "Refresh indexed output", null)
+        );
+
+        assertThat(plan.getActiveIndexedOutputHash()).isEqualTo("current-indexed-output-hash");
+        verify(planRepository).save(plan);
     }
 
     @Test

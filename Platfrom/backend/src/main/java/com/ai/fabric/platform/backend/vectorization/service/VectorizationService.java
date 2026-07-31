@@ -359,6 +359,8 @@ public class VectorizationService {
         if (revision == null) {
             throw new ResponseStatusException(BAD_REQUEST, "Vectorization plan has no active revision.");
         }
+        DeploymentVersionEntity activeVersion = activeVersion(deployment);
+        plan.setActiveIndexedOutputHash(hashService.compute(activeVersion));
         String reason = normalizeReason(request.reason());
         Instant now = Instant.now();
         VectorizationRunEntity run = new VectorizationRunEntity();
