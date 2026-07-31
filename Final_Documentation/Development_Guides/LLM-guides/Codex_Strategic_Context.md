@@ -166,12 +166,37 @@ Current P0 cleanup items:
   `7055dda`; BOM, core, and execution artifacts are public on Maven Central.
   Central-only private builds passed `967/967` tests, all resolved framework
   dependencies are `0.5.2`, and the runtime archive contains
-  `ai-fabric-execution-0.5.2.jar`. Promotion still requires hosted
-  two-tenant/two-deployment isolation, missing-boundary failures, and the full
-  Platform release gate.
+  `ai-fabric-execution-0.5.2.jar`. Hosted two-tenant/two-deployment isolation,
+  missing-boundary failures, canonical reindex convergence, and the full
+  Platform release gate have passed. Production Platform and ProdUS proof have
+  also passed; `0.5.2` is approved for the active Platform deployment path.
 - 2026-07-31: Coolify release completion is deployment-bound, not
   application-status-bound. A previously healthy container must never satisfy
   the wait for a newly queued deployment UUID. Likewise, `PRE_APPLY`
   verification is not eligible evidence for late post-deploy release recovery.
   Poll the new deployment to terminal success and require `POST_APPLY` or
   `MANUAL_RERUN` proof before activation.
+- 2026-07-31: The deployment-knowledge specialist uses a generic `document`
+  evidence space in managed profiles. Product-specific spaces remain valid,
+  but specialist enablement must not depend on a customer's domain taxonomy.
+- 2026-07-31: A vectorization run must snapshot the active deployment
+  version's indexed-output hash when it is queued. Read-only overview
+  computation is insufficient because completion reconciliation must compare
+  against a persisted target. Successful runs may be marked `IN_SYNC` only
+  when current, last-success, and revision hashes agree.
+- 2026-07-31: Optional legacy Qdrant verification may remain non-blocking
+  `MIGRATION_REQUIRED` for an inactive V03 rollout. It must not be presented as
+  a failure of the active `0.5.2` release path, and it must not weaken the
+  required blocking gates.
+- 2026-07-31: Managed product service environment scope is derived from the
+  authoritative Coolify target profile during reconciliation. Changing a
+  target profile while retaining a stale service scope is configuration drift
+  and must fail release verification until reconciled.
+- 2026-07-31: On the current four-core staging host, canonical Maven image
+  builds run serially for release repair. Parallel product builds can saturate
+  CPU and fail the remote build command without a Maven compilation error;
+  that capacity failure must not be diagnosed as source failure.
+- 2026-07-31: Short-lived Partner JWTs are release proof material, not durable
+  application credentials. Refresh only the dedicated active gate fixture,
+  store it through private Platform secret handling, and prove the standalone
+  Partner suite before launching the full gate.
