@@ -1,0 +1,52 @@
+ai-entities:
+  subscription-plan:
+    entity-type: "subscription-plan"
+    auto-embedding: true
+    indexable: true
+    enable-search: true
+    enable-recommendations: true
+    indexing-strategy: ASYNC
+    searchable-fields:
+      - name: "name"
+        weight: 2.0
+      - name: "description"
+        weight: 1.5
+    metadata-fields:
+      - name: "price"
+        context-key: "price"
+        data-type: "decimal"
+      - name: "annualPrice"
+        context-key: "annualPrice"
+        data-type: "decimal"
+      - name: "tier"
+        context-key: "tier"
+      - name: "features"
+        context-key: "features"
+      - name: "maxUsers"
+        context-key: "maxUsers"
+      - name: "storageGB"
+        context-key: "storageGB"
+  
+  subscription:
+    entity-type: "subscription"
+    auto-embedding: false
+    indexable: true
+    enable-search: false
+    indexing-strategy: ASYNC
+    metadata-fields:
+      - name: "status"
+        context-key: "status"
+      - name: "startDate"
+        context-key: "startDate"
+        data-type: "datetime"
+      - name: "endDate"
+        context-key: "endDate"
+        data-type: "datetime"
+      - name: "billingCycle"
+        context-key: "billingCycle"
+      - name: "churnRisk"
+        context-key: "churnRisk"
+        data-type: "decimal"
+      - name: "lastActivityDate"
+        context-key: "lastActivityDate"
+        data-type: "datetime"
