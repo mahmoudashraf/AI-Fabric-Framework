@@ -2148,3 +2148,82 @@ Critical fixes that made the gate pass:
 - Optional legacy Qdrant remains non-blocking `MIGRATION_REQUIRED`. Temporary
   local-workstation sources were removed from Hetzner firewalls `10915120`
   and `10918233`; required server and public web rules remain.
+
+## 2026-08-01 AI Fabric-Backed LoomAI Product Portfolio Plan
+
+- Created
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_20_AI_FABRIC_0_5_2_BACKED_LOOMAI_PRODUCT_PORTFOLIO_AND_PRODUCTIZATION_PLAN.md`.
+- The product direction is a shared LoomAI Product Kernel plus versioned,
+  opinionated Product Profiles. AI Fabric provides reusable contracts;
+  private runtime, Platform, UI, product packs, deployment, verification, and
+  customer/domain adapters turn those contracts into products.
+- `010.20` is portfolio input, not the final product taxonomy. Its original
+  vertical-first ordering of Grounded Knowledge, documents, and bounded
+  specialists is superseded by the behavior-first correction in canonical
+  `010.21` described below.
+- AI Fabric `0.5.2` supports exact-version bounded specialists, not
+  unrestricted autonomous multi-agent claims. Identity, tenant, deployment,
+  scopes, topology, tools, domain validation, and final side effects remain
+  backend/application-owned.
+- Every product claim must map to an official LoomAI capability code, a real
+  AI Fabric module or explicitly owned LoomAI component, and named release
+  evidence. Framework real apps are executable capability proof, not finished
+  LoomAI products.
+
+## 2026-08-01 Consolidated LoomAI AI Enablement Architecture
+
+- Reviewed public framework proposal
+  `ai-fabric-framework/docs/planning/0018-loomai-ai-enablement-product-and-deployment-template-proposal.md`
+  against current Platform code, Marketplace/MCP implementation, AI Fabric
+  `0.5.2`, hosted release evidence, and roadmap `010.20`.
+- Created canonical consolidated plan
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_21_CONSOLIDATED_LOOMAI_AI_ENABLEMENT_PRODUCT_PROFILE_AND_DEPLOYMENT_ARCHITECTURE.md`.
+  `010.20` remains portfolio input and now points to `010.21` where the plans
+  overlap.
+- Canonical composition is one immutable Behavior Product Template plus an
+  optional solution pack, allowed execution extensions, capability/channel
+  bindings, package/tier, curated runtime behavior, inference/vector profiles,
+  deployment topology template, target profile, and verification pack inside
+  a Product Profile Version. It compiles into the existing immutable V04
+  version/release/assignment lifecycle. Do not create a parallel template
+  control plane.
+- Corrected the framework proposal's MCP maturity: outbound MCP already uses
+  the managed MCP Execution Gateway with Marketplace discovery/import,
+  config-driven `mcp-tool` compilation, schema drift checks, generic
+  non-Shopify execution, managed lifecycle, and hosted evidence. A future
+  inbound authoring/deployment MCP server is a separate product and trust
+  boundary.
+- Public AI Fabric `SpringAiMcpActionExecutor` currently falls back to another
+  client exposing the same tool when a declared `serverRef` has no matching
+  client. LoomAI production remains on exact binding through the managed
+  Gateway. Direct framework-executor use requires a public fail-closed fix,
+  tests, immutable release, consumer upgrade, and canary; it does not block
+  the existing Gateway path.
+- Claude is an optional inference provider and possible future MCP client
+  channel. Product Profile compilation, Platform UI/API, identity, authority,
+  verification, and deployment must remain provider/client neutral.
+
+## 2026-08-03 Behavior-First LoomAI Product Taxonomy Correction
+
+- Corrected canonical `010.21` so LoomAI products are reusable activation and
+  coordination behaviors, not vertical tasks, data types, or UI surfaces.
+- The three primary products are `loomai-conversational-assistant@1`,
+  `loomai-agentic-specialist-team@1`, and `loomai-smart-brain@1`.
+  Conversational Assistant is user-query driven; Agentic Specialist Team uses
+  an exact bounded conversation manager and/or fixed read-only specialists;
+  Smart Brain runs proactive read-only analysis from trusted application,
+  event, scheduled, API, or durable-job activation without a fabricated chat
+  turn.
+- Resolver and Human Review are compatible execution extensions. Shopify,
+  ProdUS, support, incident, churn, commerce, and similar domains are solution
+  packs/reference deployments. RAG, Data Sync, vectorization, MCP, documents,
+  relationship query, behavior signals, privacy, structured output, and UI are
+  capabilities, managed services, or channels.
+- AI Fabric 0.5.2 supports durable exact-specialist read jobs and separately
+  supports process-local fixed sequential/parallel read plans. It does not
+  provide a durable multi-step graph or event/scheduled writes. Smart Brain
+  claims and Platform validation must preserve those boundaries.
+- Conversational behavior is LoomAI hosted-proven through Shopify and ProdUS.
+  Exact specialist isolation is hosted-proven, but the reusable Agentic
+  Specialist Team and Smart Brain Product Profiles still require Platform
+  packaging and hosted behavior-specific canaries before ready-template claims.

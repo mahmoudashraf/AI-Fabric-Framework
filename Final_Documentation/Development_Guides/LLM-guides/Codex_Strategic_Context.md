@@ -200,3 +200,28 @@ Current P0 cleanup items:
   application credentials. Refresh only the dedicated active gate fixture,
   store it through private Platform secret handling, and prove the standalone
   Partner suite before launching the full gate.
+- 2026-08-01: Productize the AI Fabric `0.5.2` foundation through one shared
+  LoomAI Product Kernel and versioned, opinionated Product Profiles rather
+  than parallel bespoke runtimes. Framework examples prove primitives, not
+  product readiness, and bounded specialists must not be marketed as
+  unrestricted autonomous multi-agent systems. The behavior-first product
+  taxonomy was finalized in the 2026-08-03 correction below.
+- 2026-08-01: `010.21` is the canonical consolidated AI enablement product
+  architecture. Product Profile is a product-intent layer above existing
+  curated modules, Marketplace packs, inference/vector/package profiles,
+  deployment topology templates, target profiles, verification packs, and
+  the immutable V04 version/release/assignment lifecycle; none of those
+  existing sources of truth should be replaced by a parallel template system.
+  Existing outbound MCP Gateway capability and future inbound Platform
+  authoring MCP are separate services and trust boundaries. Claude remains an
+  optional provider/client, not a product dependency or security authority.
+- 2026-08-03: Canonical LoomAI products are behavior templates, not vertical
+  tasks: Conversational Assistant, Agentic Specialist Team, and Smart Brain.
+  Product Profiles select exactly one behavior and compose approved solution,
+  capability, extension, channel, provider, topology, and verification
+  bindings. Shopify, ProdUS, support, incident, churn, and commerce are
+  solution packs/reference deployments; RAG, MCP, vectorization, documents,
+  privacy, relationship/behavior analysis, and UI are capabilities/services/
+  channels. Resolver and Human Review are extensions. AI Fabric 0.5.2 permits
+  durable exact-specialist read jobs and process-local fixed plans, not a
+  durable multi-step autonomous graph or event/scheduled writes.
