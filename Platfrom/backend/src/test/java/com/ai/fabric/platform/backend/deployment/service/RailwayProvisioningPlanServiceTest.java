@@ -241,7 +241,9 @@ class RailwayProvisioningPlanServiceTest {
         assertThat(runtimeEnv)
             .containsEntry("OPENAI_ENABLED", "true")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
-            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.5.2")
+            .containsEntry("AI_FABRIC_FRAMEWORK_VERSION", "0.6.1")
+            .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "1")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
             .containsEntry("AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE", "true")
             .containsEntry("AI_ENTITY_CONFIG_CONTRACT_VERSION", "AI_ENTITY_CONFIG_V0_4")
             .containsEntry("AI_ENTITY_CONFIG_HASH", "entity-hash-123")
@@ -1624,7 +1626,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setVersionLabel("v1");
         version.setStatus("PUBLISHED");
         version.setConfigHash("hash-123");
-        version.setAiFabricFrameworkVersion("0.5.2");
+        version.setAiFabricFrameworkVersion("0.6.1");
         version.setEntityConfigContractVersion("AI_ENTITY_CONFIG_V0_4");
         version.setReindexRequired(false);
         version.setActionsConfigJson("{\"actions\":[]}");
@@ -1637,7 +1639,7 @@ class RailwayProvisioningPlanServiceTest {
         version.setRoutingArtifactYaml("actions: {}");
         version.setManifestJson("""
             {
-              "aiFabricFrameworkVersion": "0.5.2",
+              "aiFabricFrameworkVersion": "0.6.1",
               "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
               "entityConfigHash": "entity-hash-123"
             }

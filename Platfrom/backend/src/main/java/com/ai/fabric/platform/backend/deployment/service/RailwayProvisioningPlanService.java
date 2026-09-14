@@ -271,6 +271,14 @@ public class RailwayProvisioningPlanService {
             aiFabricFrameworkVersion
         ));
         runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS",
+            "1"
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_EXECUTION_SPECIALIST_CHAINS_ENABLED",
+            "false"
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE",
             Boolean.toString(version.isReindexRequired())
         ));

@@ -41,14 +41,16 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.5.2` through:
+The current private product source target is AI Fabric `0.6.1` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.5.2`
-- Git tag `ai-fabric-framework-v0.5.2`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.6.1`
+- Git tag `ai-fabric-framework-v0.6.1`
 
 The immutable tag, GitHub release, framework CI, signed publication workflow,
-and Maven Central artifacts exist and match release commit `ada4580`.
-The release contains trusted-retrieval security fix `7055dda`.
+and Maven Central artifacts exist and match release commit
+`bf6d19eed5ed0a8d8085db7cc02e0505e9973e65`. The release includes the
+trusted-retrieval security correction and the bounded multi-specialist chain
+contracts inherited through the direct `0.5.2 -> 0.6.1` upgrade.
 
 The private runtime and embedding worker must each resolve one AI Fabric
 version. Docker/CI builds consume released Maven artifacts and must not clone
@@ -59,20 +61,25 @@ evidence.
 Platform uses the V04 entity lifecycle contract. The migration is greenfield
 and one-way: do not add dual readers, compatibility shims, or version
 fallbacks. Preserve immutable historical deployment records as evidence.
-Add `ai-fabric-execution` only to the private runtime for the bounded, additive
-`deployment-knowledge-specialist@1`; preserve existing chat behavior.
+Keep `ai-fabric-execution` in the private runtime. The required `0.6.1` base
+rollout preserves existing behavior with
+`ai.execution.output-finalization.max-attempts=1` and
+`ai.execution.specialist-chains.enabled=false`. Do not add chain tables,
+secrets, endpoints, or product claims as part of the dependency upgrade.
+Optional chain adoption is a separate reviewed productization and rollout
+decision.
 
 The private runtime indexing admin facade uses `IndexingWorkQuery` and
 `IndexingWorkStatus` for durable per-work Data Sync reconciliation. Keep the
 private HTTP route, admin authorization, tenant/deployment checks, polling
 policy, and response projection in LoomAI. Aggregate queue diagnostics still
-use the framework's internal queue repository contract because `0.5.2` does
+use the framework's internal queue repository contract because `0.6.1` does
 not expose a public
 queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR is `0.5.2`, and repeat the hosted two-tenant,
+packaged execution JAR is `0.6.1`, and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 
@@ -100,23 +107,22 @@ Framework debugging and contract escalation:
   endpoint should exist. Confirm ownership and the intended public contract
   from framework evidence first.
 
-Active specialist release blocker:
+Resolved specialist boundary and current release posture:
 
-- Released AI Fabric `0.5.0` does not preserve trusted tenant, deployment, and
-  scope values from `TrustedExecutionContext` into the RAG authorization
-  metadata used by `SearchSource`.
-- An unpatched real-provider two-tenant canary attached Tenant B evidence to a
-  Tenant A result.
-- Framework correction `7055dda` on
-  `codex/specialist-trusted-retrieval-context` passed 1,056 relevant framework
-  tests on top of released `0.5.1`; the equivalent pre-rebase patch passed the
-  packaged LoomAI canary.
-- Released `0.5.1` does not contain this correction. Merge it and publish
-  immutable `0.5.2` or later before any hosted specialist deployment. Never
-  move or recreate the `0.5.1` tag.
-- Keep LoomAI's native provider filter and fail-closed post-filter as defense
-  in depth. Do not replace the framework fix with a private execution gateway
-  or loosen the product boundary.
+- The historical trusted-retrieval blocker is resolved in the immutable
+  release lineage consumed by `0.6.1`; keep LoomAI's native provider filter
+  and fail-closed post-filter as defense in depth.
+- `0.6.1` also tightens exact MCP server binding, nested backend-owned read
+  parameters, Lucene reader leases, and specialist grounding from approved
+  read actions. Do not add product-side compatibility workarounds for the old
+  behavior.
+- Manifest identity now includes resolved prompt, input schema, and output
+  schema. Drain or cancel non-terminal manifest-backed work before replacing a
+  runtime; never rewrite stored hashes to make old work resume under changed
+  behavior.
+- Multi-specialist chains remain disabled during the base rollout. They may be
+  enabled only after durable state, stable private secrets, exact-version
+  read-only topology, security/restart canaries, and explicit owner approval.
 
 Framework responsibilities:
 

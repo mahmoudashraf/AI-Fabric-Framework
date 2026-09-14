@@ -114,6 +114,10 @@ ai:
 
   execution:
     enabled: ${AI_EXECUTION_ENABLED:true}
+    output-finalization:
+      max-attempts: ${AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS:1}
+    specialist-chains:
+      enabled: ${AI_EXECUTION_SPECIALIST_CHAINS_ENABLED:false}
     manifests:
       enabled: ${AI_EXECUTION_MANIFESTS_ENABLED:true}
       fail-fast: true

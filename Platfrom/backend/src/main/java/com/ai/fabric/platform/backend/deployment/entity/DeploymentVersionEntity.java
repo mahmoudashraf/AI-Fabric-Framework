@@ -49,7 +49,7 @@ public class DeploymentVersionEntity {
     private String entityConfigContractVersion = "AI_ENTITY_CONFIG_V0_4";
 
     @Column(nullable = false)
-    private String aiFabricFrameworkVersion = "0.5.2";
+    private String aiFabricFrameworkVersion = "0.6.1";
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String routingConfigJson;

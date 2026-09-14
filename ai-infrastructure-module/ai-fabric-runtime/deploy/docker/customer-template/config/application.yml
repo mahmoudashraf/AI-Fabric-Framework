@@ -57,6 +57,12 @@ ai:
   data-sync:
     enabled: true
 
+  execution:
+    output-finalization:
+      max-attempts: ${AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS:1}
+    specialist-chains:
+      enabled: ${AI_EXECUTION_SPECIALIST_CHAINS_ENABLED:false}
+
   retrieval:
     connector:
       enabled: false
