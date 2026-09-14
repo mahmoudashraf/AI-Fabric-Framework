@@ -33,6 +33,7 @@ final class ShopifyCompanionActionCatalog {
         "shopify_get_product_details",
         "shopify_search_policies",
         "shopify_get_cart",
+        "shopify_create_cart",
         "shopify_update_cart"
     );
 

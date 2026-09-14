@@ -9,6 +9,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -19,20 +21,33 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class McpActionExecutionGateway {
 
+    private static final Logger log = LoggerFactory.getLogger(McpActionExecutionGateway.class);
     private static final List<String> STOREFRONT_STANDARD_EXPECTED_TOOLS = List.of(
+        "search_shop_policies_and_faqs"
+    );
+    private static final List<String> STOREFRONT_UCP_EXPECTED_TOOLS = List.of(
         "search_catalog",
-        "search_shop_policies_and_faqs",
+        "lookup_catalog",
+        "get_product",
         "get_cart",
         "update_cart",
-        "get_product_details"
+        "create_cart",
+        "cancel_cart"
     );
+    private static final String STOREFRONT_UCP_PROFILE_REF = "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE";
+    private static final String SHOPIFY_GET_CART_ACTION_ID = "shopify_get_cart";
+    private static final String SHOPIFY_CREATE_CART_ACTION_ID = "shopify_create_cart";
+    private static final String SHOPIFY_UPDATE_CART_ACTION_ID = "shopify_update_cart";
 
     private final McpExecutionGatewayProperties properties;
     private final ShopifyMcpExternalAuthProperties externalAuthProperties;
@@ -105,35 +120,443 @@ public class McpActionExecutionGateway {
             return externalAuthGate;
         }
         try {
-            Map<String, Object> trace = new LinkedHashMap<>(request.trace() == null ? Map.of() : request.trace());
-            trace.put("shopDomain", shopDomain);
-            addCustomerAccessTokenIfPresent(trace, shopDomain, request);
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("actionId", request.actionId());
-            body.put("params", request.params() == null ? Map.of() : request.params());
-            body.put("idempotencyKey", request.idempotencyKey());
-            body.put("trace", trace);
-            JsonNode actionConfig = objectMapper.valueToTree(trace.get("actionConfig"));
-            if (actionConfig != null && actionConfig.isObject()) {
-                body.put("actionConfig", objectMapper.convertValue(actionConfig, new TypeReference<Map<String, Object>>() {
-                }));
+            UcpCartAdaptation adaptation = adaptUcpCartRequest(shopDomain, request, mcp);
+            if (adaptation.failure() != null) {
+                return adaptation.failure();
             }
-            JsonNode response = restClient.post()
-                .uri(gatewayUrl(properties.executePath()))
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .header(properties.apiKeyHeader(), properties.apiKey())
-                .body(body)
-                .retrieve()
-                .body(JsonNode.class);
-            return toBridgeResult(response, request);
+            ShopifyBridgeActionExecuteRequest effectiveRequest = adaptation.request();
+            JsonNode response = invokeGateway(shopDomain, effectiveRequest);
+            return toBridgeResult(response, effectiveRequest);
         } catch (RestClientResponseException ex) {
             return ShopifyBridgeActionResult.failure(
                 "MCP_GATEWAY_REQUEST_FAILED",
                 "MCP execution gateway returned HTTP " + ex.getStatusCode().value() + "."
             );
         } catch (Exception ex) {
+            log.debug(
+                "MCP execution gateway request failed for action {}: {}",
+                request == null ? null : request.actionId(),
+                ex.getMessage(),
+                ex
+            );
             return ShopifyBridgeActionResult.failure("MCP_GATEWAY_REQUEST_FAILED", "MCP execution gateway request failed.");
+        }
+    }
+
+    private JsonNode invokeGateway(String shopDomain, ShopifyBridgeActionExecuteRequest request) {
+        Map<String, Object> trace = new LinkedHashMap<>(request.trace() == null ? Map.of() : request.trace());
+        trace.put("shopDomain", shopDomain);
+        addCustomerAccessTokenIfPresent(trace, shopDomain, request);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("actionId", request.actionId());
+        body.put("params", request.params() == null ? Map.of() : request.params());
+        body.put("idempotencyKey", request.idempotencyKey());
+        body.put("trace", trace);
+        JsonNode actionConfig = objectMapper.valueToTree(trace.get("actionConfig"));
+        if (actionConfig != null && actionConfig.isObject()) {
+            body.put("actionConfig", objectMapper.convertValue(actionConfig, new TypeReference<Map<String, Object>>() {
+            }));
+        }
+        return restClient.post()
+            .uri(gatewayUrl(properties.executePath()))
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(properties.apiKeyHeader(), properties.apiKey())
+            .body(body)
+            .retrieve()
+            .body(JsonNode.class);
+    }
+
+    private UcpCartAdaptation adaptUcpCartRequest(String shopDomain,
+                                                   ShopifyBridgeActionExecuteRequest request,
+                                                   JsonNode mcp) {
+        if (request == null || !"UCP_CART".equals(normalized(text(mcp, "endpointKind")))) {
+            return UcpCartAdaptation.success(request);
+        }
+        String actionId = request.actionId() == null ? "" : request.actionId().trim();
+        if (!SHOPIFY_CREATE_CART_ACTION_ID.equals(actionId) && !SHOPIFY_UPDATE_CART_ACTION_ID.equals(actionId)) {
+            return UcpCartAdaptation.success(request);
+        }
+        Map<String, Object> params = new LinkedHashMap<>(request.params() == null ? Map.of() : request.params());
+        if (hasLineItems(params.get("line_items"))) {
+            return UcpCartAdaptation.success(request);
+        }
+        if (SHOPIFY_CREATE_CART_ACTION_ID.equals(actionId)) {
+            List<Map<String, Object>> lineItems = addedLineItems(params.get("add_items"));
+            if (lineItems.isEmpty()) {
+                return UcpCartAdaptation.failure(
+                    "INVALID_REQUEST",
+                    "Creating a Shopify cart requires at least one trusted product variant."
+                );
+            }
+            params.put("line_items", lineItems);
+            return UcpCartAdaptation.success(withParams(request, params));
+        }
+
+        String cartId = firstText(params, "cart_id", "cartId", "id");
+        if (!StringUtils.hasText(cartId)) {
+            return UcpCartAdaptation.failure(
+                "INVALID_REQUEST",
+                "Updating a Shopify cart requires a cart handle from trusted storefront context."
+            );
+        }
+        if (!hasCartChanges(params)) {
+            return UcpCartAdaptation.failure(
+                "INVALID_REQUEST",
+                "Updating a Shopify cart requires an addition, quantity update, or removal."
+            );
+        }
+        CartState cartState = readCurrentUcpCart(shopDomain, cartId, request.trace());
+        if (!cartState.available()) {
+            return UcpCartAdaptation.failure("CART_STATE_READ_FAILED", cartState.message());
+        }
+        List<Map<String, Object>> lineItems = mergeCartChanges(
+            cartState.lineItems(),
+            params.get("add_items"),
+            params.get("update_items"),
+            params.get("remove_line_ids")
+        );
+        params.put("line_items", lineItems);
+        return UcpCartAdaptation.success(withParams(request, params));
+    }
+
+    private CartState readCurrentUcpCart(String shopDomain,
+                                         String cartId,
+                                         Map<String, Object> sourceTrace) {
+        Map<String, Object> trace = new LinkedHashMap<>(sourceTrace == null ? Map.of() : sourceTrace);
+        trace.put("actionConfig", Map.of(
+            "adapterType", "mcp-tool",
+            "execution", Map.of(
+                "adapterType", "mcp-tool",
+                "mcp", Map.of(
+                    "serverRef", "shopify-storefront-ucp",
+                    "endpointKind", "UCP_CART",
+                    "toolName", "get_cart",
+                    "argumentTemplate", Map.of(
+                        "meta", Map.of(
+                            "ucp-agent", Map.of("profileRef", STOREFRONT_UCP_PROFILE_REF)
+                        ),
+                        "id", "{{params.cart_id}}"
+                    )
+                )
+            )
+        ));
+        ShopifyBridgeActionExecuteRequest readRequest = new ShopifyBridgeActionExecuteRequest(
+            SHOPIFY_GET_CART_ACTION_ID,
+            Map.of("cart_id", cartId),
+            null,
+            trace
+        );
+        JsonNode response = invokeGateway(shopDomain, readRequest);
+        ShopifyBridgeActionResult readResult = toBridgeResult(response, readRequest);
+        if (!readResult.success()) {
+            return CartState.unavailable(
+                StringUtils.hasText(readResult.message())
+                    ? readResult.message()
+                    : "The current Shopify cart could not be read before applying the update."
+            );
+        }
+        JsonNode cart = findCartNode(response == null ? MissingNode.getInstance() : response.path("data").path("toolResult"));
+        if (!cart.isObject()) {
+            return CartState.unavailable("The current Shopify cart response did not contain cart line items.");
+        }
+        JsonNode rawLineItems = firstArray(cart.path("line_items"), cart.path("lineItems"));
+        List<Map<String, Object>> lineItems = new ArrayList<>();
+        if (rawLineItems.isArray()) {
+            for (JsonNode item : rawLineItems) {
+                Map<String, Object> normalized = normalizeExistingLineItem(item);
+                if (!normalized.isEmpty()) {
+                    lineItems.add(normalized);
+                }
+            }
+        }
+        return CartState.available(lineItems);
+    }
+
+    private JsonNode findCartNode(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return MissingNode.getInstance();
+        }
+        if (node.isObject()) {
+            if (node.path("line_items").isArray() || node.path("lineItems").isArray()) {
+                return node;
+            }
+            JsonNode structured = node.path("structuredContent");
+            JsonNode found = findCartNode(structured);
+            if (found.isObject()) {
+                return found;
+            }
+            JsonNode cart = node.path("cart");
+            found = findCartNode(cart);
+            if (found.isObject()) {
+                return found;
+            }
+            JsonNode content = node.path("content");
+            if (content.isArray()) {
+                for (JsonNode item : content) {
+                    String rawText = text(item, "text");
+                    if (StringUtils.hasText(rawText)) {
+                        try {
+                            found = findCartNode(objectMapper.readTree(rawText));
+                            if (found.isObject()) {
+                                return found;
+                            }
+                        } catch (Exception ignored) {
+                            // Non-JSON text is valid MCP content and is not cart state.
+                        }
+                    }
+                }
+            }
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                found = findCartNode(fields.next().getValue());
+                if (found.isObject()) {
+                    return found;
+                }
+            }
+        } else if (node.isArray()) {
+            for (JsonNode child : node) {
+                JsonNode found = findCartNode(child);
+                if (found.isObject()) {
+                    return found;
+                }
+            }
+        }
+        return MissingNode.getInstance();
+    }
+
+    private Map<String, Object> normalizeExistingLineItem(JsonNode item) {
+        if (item == null || !item.isObject()) {
+            return Map.of();
+        }
+        String lineId = firstText(item, "id", "line_id", "lineId");
+        String productVariantId = firstText(
+            item.path("item"),
+            "id",
+            "product_variant_id",
+            "productVariantId",
+            "merchandiseId"
+        );
+        if (!StringUtils.hasText(productVariantId)) {
+            productVariantId = firstText(item, "product_variant_id", "productVariantId", "merchandiseId");
+        }
+        Long quantity = positiveQuantity(item.path("quantity"));
+        if (!StringUtils.hasText(productVariantId) || quantity == null) {
+            return Map.of();
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        if (StringUtils.hasText(lineId)) {
+            normalized.put("id", lineId);
+        }
+        normalized.put("item", Map.of("id", productVariantId));
+        normalized.put("quantity", quantity);
+        return normalized;
+    }
+
+    private List<Map<String, Object>> mergeCartChanges(List<Map<String, Object>> current,
+                                                       Object rawAddItems,
+                                                       Object rawUpdateItems,
+                                                       Object rawRemoveLineIds) {
+        List<Map<String, Object>> merged = new ArrayList<>();
+        if (current != null) {
+            current.forEach(item -> merged.add(new LinkedHashMap<>(item)));
+        }
+        Set<String> removeIds = textValues(rawRemoveLineIds);
+        if (!removeIds.isEmpty()) {
+            merged.removeIf(item -> removeIds.contains(firstText(item, "id", "line_id", "lineId")));
+        }
+        for (Map<String, Object> update : objectMaps(rawUpdateItems)) {
+            String lineId = firstText(update, "line_id", "lineId", "id");
+            Long quantity = nonNegativeQuantity(update.get("quantity"));
+            if (!StringUtils.hasText(lineId) || quantity == null) {
+                continue;
+            }
+            if (quantity == 0) {
+                merged.removeIf(item -> lineId.equals(firstText(item, "id", "line_id", "lineId")));
+                continue;
+            }
+            for (Map<String, Object> item : merged) {
+                if (lineId.equals(firstText(item, "id", "line_id", "lineId"))) {
+                    item.put("quantity", quantity);
+                    break;
+                }
+            }
+        }
+        for (Map<String, Object> addition : addedLineItems(rawAddItems)) {
+            String variantId = nestedText(addition, "item", "id");
+            Long quantity = nonNegativeQuantity(addition.get("quantity"));
+            if (!StringUtils.hasText(variantId) || quantity == null || quantity == 0) {
+                continue;
+            }
+            Map<String, Object> existing = merged.stream()
+                .filter(item -> variantId.equals(nestedText(item, "item", "id")))
+                .findFirst()
+                .orElse(null);
+            if (existing == null) {
+                merged.add(new LinkedHashMap<>(addition));
+            } else {
+                Long existingQuantity = nonNegativeQuantity(existing.get("quantity"));
+                existing.put("quantity", (existingQuantity == null ? 0L : existingQuantity) + quantity);
+            }
+        }
+        return List.copyOf(merged);
+    }
+
+    private List<Map<String, Object>> addedLineItems(Object rawItems) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> item : objectMaps(rawItems)) {
+            String variantId = firstText(item, "product_variant_id", "productVariantId", "variant_id", "variantId");
+            Long quantity = positiveQuantity(objectMapper.valueToTree(item.get("quantity")));
+            if (!StringUtils.hasText(variantId) || quantity == null) {
+                continue;
+            }
+            out.add(Map.of(
+                "item", Map.of("id", variantId),
+                "quantity", quantity
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private List<Map<String, Object>> objectMaps(Object raw) {
+        if (!(raw instanceof Collection<?> values)) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object value : values) {
+            if (value instanceof Map<?, ?> map) {
+                Map<String, Object> normalized = new LinkedHashMap<>();
+                map.forEach((key, item) -> {
+                    if (key != null) {
+                        normalized.put(key.toString(), item);
+                    }
+                });
+                out.add(normalized);
+            }
+        }
+        return out;
+    }
+
+    private Set<String> textValues(Object raw) {
+        if (!(raw instanceof Collection<?> values)) {
+            return Set.of();
+        }
+        Set<String> out = new LinkedHashSet<>();
+        for (Object value : values) {
+            if (value != null && StringUtils.hasText(value.toString())) {
+                out.add(value.toString().trim());
+            }
+        }
+        return Set.copyOf(out);
+    }
+
+    private boolean hasLineItems(Object raw) {
+        return raw instanceof Collection<?> collection && !collection.isEmpty();
+    }
+
+    private boolean hasCartChanges(Map<String, Object> params) {
+        return params != null && (
+            hasLineItems(params.get("add_items"))
+                || hasLineItems(params.get("update_items"))
+                || hasLineItems(params.get("remove_line_ids"))
+        );
+    }
+
+    private ShopifyBridgeActionExecuteRequest withParams(ShopifyBridgeActionExecuteRequest request,
+                                                         Map<String, Object> params) {
+        return new ShopifyBridgeActionExecuteRequest(
+            request.actionId(),
+            params,
+            request.idempotencyKey(),
+            request.trace()
+        );
+    }
+
+    private Long positiveQuantity(JsonNode value) {
+        Long quantity = value != null && value.isNumber()
+            ? value.asLong()
+            : value != null && value.isTextual() ? parseLong(value.asText()) : null;
+        return quantity != null && quantity > 0 ? quantity : null;
+    }
+
+    private Long nonNegativeQuantity(Object value) {
+        Long quantity = value instanceof Number number ? number.longValue() : parseLong(value);
+        return quantity != null && quantity >= 0 ? quantity : null;
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null || !StringUtils.hasText(value.toString())) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value.toString().trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private String nestedText(Map<String, Object> values, String objectKey, String valueKey) {
+        Object nested = values == null ? null : values.get(objectKey);
+        return nested instanceof Map<?, ?> map ? firstText(map, valueKey) : null;
+    }
+
+    private String firstText(Map<?, ?> values, String... keys) {
+        if (values == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = values.get(key);
+            if (value != null && StringUtils.hasText(value.toString())) {
+                return value.toString().trim();
+            }
+        }
+        return null;
+    }
+
+    private String firstText(JsonNode values, String... keys) {
+        if (values == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String value = values.path(key).asText(null);
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private JsonNode firstArray(JsonNode... candidates) {
+        if (candidates != null) {
+            for (JsonNode candidate : candidates) {
+                if (candidate != null && candidate.isArray()) {
+                    return candidate;
+                }
+            }
+        }
+        return MissingNode.getInstance();
+    }
+
+    private record UcpCartAdaptation(
+        ShopifyBridgeActionExecuteRequest request,
+        ShopifyBridgeActionResult failure
+    ) {
+        static UcpCartAdaptation success(ShopifyBridgeActionExecuteRequest request) {
+            return new UcpCartAdaptation(request, null);
+        }
+
+        static UcpCartAdaptation failure(String errorCode, String message) {
+            return new UcpCartAdaptation(null, ShopifyBridgeActionResult.failure(errorCode, message));
+        }
+    }
+
+    private record CartState(boolean available, List<Map<String, Object>> lineItems, String message) {
+        static CartState available(List<Map<String, Object>> lineItems) {
+            return new CartState(true, List.copyOf(lineItems == null ? List.of() : lineItems), null);
+        }
+
+        static CartState unavailable(String message) {
+            return new CartState(false, List.of(), message);
         }
     }
 
@@ -154,7 +577,15 @@ public class McpActionExecutionGateway {
                     "shopify-storefront",
                     "https://" + normalizedShopDomain + "/api/mcp",
                     normalizedShopDomain,
-                    STOREFRONT_STANDARD_EXPECTED_TOOLS
+                    STOREFRONT_STANDARD_EXPECTED_TOOLS,
+                    null
+                ),
+                toolsReadiness(
+                    "shopify-storefront-ucp",
+                    "https://" + normalizedShopDomain + "/api/ucp/mcp",
+                    normalizedShopDomain,
+                    STOREFRONT_UCP_EXPECTED_TOOLS,
+                    STOREFRONT_UCP_PROFILE_REF
                 )
             );
             boolean ready = serverSummaries.stream().allMatch(summary -> Boolean.TRUE.equals(summary.get("ready")));
@@ -178,11 +609,17 @@ public class McpActionExecutionGateway {
     private Map<String, Object> toolsReadiness(String serverRef,
                                                String endpoint,
                                                String shopDomain,
-                                               List<String> expectedTools) {
+                                               List<String> expectedTools,
+                                               String profileRef) {
         Map<String, Object> server = new LinkedHashMap<>();
         server.put("transport", "STREAMABLE_HTTP");
         server.put("endpointUrl", endpoint);
         server.put("auth", Map.of("mode", "NONE"));
+        if (StringUtils.hasText(profileRef)) {
+            server.put("toolsListArguments", Map.of(
+                "meta", Map.of("ucp-agent", Map.of("profileRef", profileRef))
+            ));
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("serverRef", serverRef);
         body.put("server", server);

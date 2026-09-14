@@ -163,8 +163,8 @@ public class ShopifyBridgeActionExecutionService {
         return summarizeMcpRead(
             shopDomain,
             "shopify_get_cart",
-            "shopify-storefront",
-            "STOREFRONT_STANDARD",
+            "shopify-storefront-ucp",
+            "UCP_CART",
             null,
             "get_cart",
             Map.of("cart_id", cartId.trim()),
@@ -250,6 +250,14 @@ public class ShopifyBridgeActionExecutionService {
             mcp.put("requiredCustomerScopes", List.of("customer-account-mcp-api:full"));
         }
         mcp.put("toolName", toolName);
+        if ("UCP_CART".equalsIgnoreCase(endpointKind) && "get_cart".equalsIgnoreCase(toolName)) {
+            mcp.put("argumentTemplate", Map.of(
+                "meta", Map.of("ucp-agent", Map.of(
+                    "profileRef", "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"
+                )),
+                "id", "{{params.cart_id}}"
+            ));
+        }
         out.put("actionConfig", Map.of(
             "adapterType", "mcp-tool",
             "execution", Map.of(

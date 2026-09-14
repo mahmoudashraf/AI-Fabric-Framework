@@ -72,10 +72,15 @@ class ShopifyBridgeInstallCredentialServiceTest {
 
     @Test
     void resolvePersistedMaterialRefreshesExpiredExpiringToken() {
+        Instant now = Instant.now();
+        Instant expiredAccessToken = now.minusSeconds(3_600);
+        Instant activeRefreshToken = now.plusSeconds(90L * 24 * 60 * 60);
+        Instant rotatedAccessToken = now.plusSeconds(24L * 60 * 60);
+        Instant rotatedRefreshToken = now.plusSeconds(180L * 24 * 60 * 60);
         ShopifyBridgeStoreSummary store = store();
         ShopifyBridgeStoreSummary refreshedStore = storeWithCredentialTimes(
-            Instant.parse("2026-04-19T12:00:00Z"),
-            Instant.parse("2026-07-18T12:00:00Z")
+            rotatedAccessToken,
+            rotatedRefreshToken
         );
         when(platformClient.getStore("alpha.myshopify.com"))
             .thenReturn(store)
@@ -84,8 +89,8 @@ class ShopifyBridgeInstallCredentialServiceTest {
             new ShopifyBridgeResolvedStoreCredentials(
                 "shpat_expired",
                 "shprt_refresh",
-                Instant.parse("2026-04-18T00:00:00Z"),
-                Instant.parse("2026-07-18T00:00:00Z"),
+                expiredAccessToken,
+                activeRefreshToken,
                 "read_products,read_content,read_legal_policies",
                 true
             )
@@ -94,8 +99,8 @@ class ShopifyBridgeInstallCredentialServiceTest {
             new ShopifyTokenExchangeMaterial(
                 "shpat_rotated",
                 "shprt_rotated",
-                Instant.parse("2026-04-19T12:00:00Z"),
-                Instant.parse("2026-07-18T12:00:00Z"),
+                rotatedAccessToken,
+                rotatedRefreshToken,
                 "read_products,read_content,read_legal_policies",
                 true
             )

@@ -25,7 +25,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -89,6 +91,8 @@ class MarketplaceIntegrationTest {
     private PlatformManagedInferenceEndpointRepository platformManagedInferenceEndpointRepository;
 
     @Test
+    @Sql("classpath:db/migration/V131__shopify_storefront_current_ucp_actions.sql")
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void catalogEndpointsExposeSeededMarketplacePluginsAndVersions() throws Exception {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins")))
             .andExpect(status().isOk())
@@ -156,6 +160,7 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-storefront-read-mcp")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-storefront-read-mcp")))
+            .andExpect(jsonPath("$.versions[0].version", is("1.1.0")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_search_catalog")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_product_details")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_search_policies")));
@@ -163,7 +168,9 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-cart-mcp")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-cart-mcp")))
+            .andExpect(jsonPath("$.versions[0].version", is("2.0.0")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_cart")))
+            .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_create_cart")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_update_cart")));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-customer-account-mcp")))

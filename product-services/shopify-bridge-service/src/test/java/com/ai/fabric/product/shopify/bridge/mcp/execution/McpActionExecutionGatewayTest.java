@@ -94,15 +94,57 @@ class McpActionExecutionGatewayTest {
         server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/servers/tools/list"))
             .andExpect(method(HttpMethod.POST))
             .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andExpect(content().json("""
+                {
+                  "serverRef": "shopify-storefront",
+                  "server": {
+                    "transport": "STREAMABLE_HTTP",
+                    "endpointUrl": "https://alpha.myshopify.com/api/mcp",
+                    "auth": {"mode": "NONE"}
+                  },
+                  "trace": {"shopDomain": "alpha.myshopify.com"}
+                }
+                """))
+            .andRespond(withSuccess("""
+                {
+                  "success": true,
+                  "result": [
+                    {"name": "search_shop_policies_and_faqs"}
+                  ]
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/servers/tools/list"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-MCP-GATEWAY-API-KEY", "secret"))
+            .andExpect(content().json("""
+                {
+                  "serverRef": "shopify-storefront-ucp",
+                  "server": {
+                    "transport": "STREAMABLE_HTTP",
+                    "endpointUrl": "https://alpha.myshopify.com/api/ucp/mcp",
+                    "auth": {"mode": "NONE"},
+                    "toolsListArguments": {
+                      "meta": {
+                        "ucp-agent": {
+                          "profileRef": "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"
+                        }
+                      }
+                    }
+                  },
+                  "trace": {"shopDomain": "alpha.myshopify.com"}
+                }
+                """))
             .andRespond(withSuccess("""
                 {
                   "success": true,
                   "result": [
                     {"name": "search_catalog"},
-                    {"name": "search_shop_policies_and_faqs"},
+                    {"name": "lookup_catalog"},
+                    {"name": "get_product"},
                     {"name": "get_cart"},
                     {"name": "update_cart"},
-                    {"name": "get_product_details"}
+                    {"name": "create_cart"},
+                    {"name": "cancel_cart"}
                   ]
                 }
                 """, MediaType.APPLICATION_JSON));
@@ -112,11 +154,14 @@ class McpActionExecutionGatewayTest {
         assertThat(readiness).containsEntry("ready", true);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> servers = (List<Map<String, Object>>) readiness.get("servers");
-        assertThat(servers).hasSize(1);
+        assertThat(servers).hasSize(2);
         assertThat(servers).extracting(serverSummary -> serverSummary.get("serverRef"))
-            .containsExactly("shopify-storefront");
+            .containsExactly("shopify-storefront", "shopify-storefront-ucp");
         assertThat(servers).extracting(serverSummary -> serverSummary.get("endpointUrl"))
-            .containsExactly("https://alpha.myshopify.com/api/mcp");
+            .containsExactly(
+                "https://alpha.myshopify.com/api/mcp",
+                "https://alpha.myshopify.com/api/ucp/mcp"
+            );
         assertThat(servers).allMatch(serverSummary -> Boolean.TRUE.equals(serverSummary.get("ready")));
         server.verify();
     }
@@ -440,6 +485,145 @@ class McpActionExecutionGatewayTest {
     }
 
     @Test
+    void createCartAdaptsTrustedVariantItemsToCurrentUcpShape() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            objectMapper,
+            builder
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().json("""
+                {
+                  "actionId": "shopify_create_cart",
+                  "params": {
+                    "add_items": [
+                      {
+                        "product_variant_id": "gid://shopify/ProductVariant/1",
+                        "quantity": 2
+                      }
+                    ],
+                    "line_items": [
+                      {
+                        "item": {"id": "gid://shopify/ProductVariant/1"},
+                        "quantity": 2
+                      }
+                    ]
+                  }
+                }
+                """))
+            .andRespond(withSuccess("""
+                {"success": true, "message": "cart created", "data": {"cartId": "gid://shopify/Cart/1"}}
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            ucpCartRequest(
+                "shopify_create_cart",
+                "create_cart",
+                Map.of("add_items", List.of(Map.of(
+                    "product_variant_id", "gid://shopify/ProductVariant/1",
+                    "quantity", 2
+                )))
+            )
+        );
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo("cart created");
+        server.verify();
+    }
+
+    @Test
+    void updateCartReadsCurrentStateAndSendsFullUcpLineItemReplacement() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        McpActionExecutionGateway gateway = new McpActionExecutionGateway(
+            properties("https://mcp-gateway.internal", "secret"),
+            objectMapper,
+            builder
+        );
+
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().json("""
+                {
+                  "actionId": "shopify_get_cart",
+                  "params": {"cart_id": "gid://shopify/Cart/1"}
+                }
+                """))
+            .andRespond(withSuccess("""
+                {
+                  "success": true,
+                  "message": "MCP tool result",
+                  "data": {
+                    "toolResult": {
+                      "structuredContent": {
+                        "cart": {
+                          "id": "gid://shopify/Cart/1",
+                          "line_items": [
+                            {
+                              "id": "line-1",
+                              "quantity": 1,
+                              "item": {"id": "gid://shopify/ProductVariant/1"}
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+                """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://mcp-gateway.internal/api/internal/mcp/actions/execute"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().json("""
+                {
+                  "actionId": "shopify_update_cart",
+                  "params": {
+                    "cart_id": "gid://shopify/Cart/1",
+                    "add_items": [
+                      {
+                        "product_variant_id": "gid://shopify/ProductVariant/1",
+                        "quantity": 2
+                      }
+                    ],
+                    "line_items": [
+                      {
+                        "id": "line-1",
+                        "item": {"id": "gid://shopify/ProductVariant/1"},
+                        "quantity": 3
+                      }
+                    ]
+                  }
+                }
+                """))
+            .andRespond(withSuccess("""
+                {"success": true, "message": "cart updated", "data": {"cartId": "gid://shopify/Cart/1"}}
+                """, MediaType.APPLICATION_JSON));
+
+        ShopifyBridgeActionResult result = gateway.execute(
+            "alpha.myshopify.com",
+            ucpCartRequest(
+                "shopify_update_cart",
+                "update_cart",
+                Map.of(
+                    "cart_id", "gid://shopify/Cart/1",
+                    "add_items", List.of(Map.of(
+                        "product_variant_id", "gid://shopify/ProductVariant/1",
+                        "quantity", 2
+                    ))
+                )
+            )
+        );
+
+        server.verify();
+        assertThat(result.success()).as(result.toString()).isTrue();
+        assertThat(result.message()).isEqualTo("cart updated");
+    }
+
+    @Test
     void checkoutMcpFailsClosedUntilClientCredentialsAreConfigured() {
         McpActionExecutionGateway gateway = new McpActionExecutionGateway(
             properties("https://mcp-gateway.internal", "secret"),
@@ -483,6 +667,29 @@ class McpActionExecutionGatewayTest {
             "/api/internal/mcp/actions/execute",
             Duration.ofSeconds(1),
             Duration.ofSeconds(5)
+        );
+    }
+
+    private ShopifyBridgeActionExecuteRequest ucpCartRequest(String actionId,
+                                                             String toolName,
+                                                             Map<String, Object> params) {
+        return new ShopifyBridgeActionExecuteRequest(
+            actionId,
+            params,
+            "idem-ucp-cart",
+            Map.of("actionConfig", Map.of(
+                "execution", Map.of("mcp", Map.of(
+                    "serverRef", "shopify-storefront-ucp",
+                    "endpointKind", "UCP_CART",
+                    "toolName", toolName,
+                    "argumentTemplate", Map.of(
+                        "meta", Map.of(
+                            "ucp-agent", Map.of("profileRef", "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE")
+                        ),
+                        "cart", Map.of("line_items", "{{params.line_items}}")
+                    )
+                ))
+            ))
         );
     }
 

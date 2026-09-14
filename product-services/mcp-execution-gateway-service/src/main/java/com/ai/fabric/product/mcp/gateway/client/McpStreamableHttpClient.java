@@ -96,9 +96,17 @@ public class McpStreamableHttpClient {
     }
 
     public JsonNode toolsList(McpSession session, McpRequestOptions options) {
+        return toolsList(session, null, options);
+    }
+
+    public JsonNode toolsList(McpSession session, JsonNode arguments, McpRequestOptions options) {
+        ObjectNode params = objectMapper.createObjectNode();
+        if (arguments != null && arguments.isObject() && !arguments.isEmpty()) {
+            params.set("arguments", arguments);
+        }
         McpHttpResponse response = postJsonRpc(
             session.endpoint(),
-            jsonRpcRequest("tools/list", objectMapper.createObjectNode()),
+            jsonRpcRequest("tools/list", params),
             session,
             false,
             options == null ? McpRequestOptions.none(session.protocolVersion()) : options

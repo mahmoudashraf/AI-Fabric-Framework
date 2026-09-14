@@ -154,7 +154,7 @@ import json
 import sys
 
 kind = sys.argv[1]
-if kind == "server":
+if kind == "server-standard":
     shop = sys.argv[2]
     print(json.dumps({
         "serverRef": "shopify-storefront",
@@ -165,15 +165,34 @@ if kind == "server":
         },
         "trace": {"shopDomain": shop}
     }, separators=(",", ":")))
+elif kind == "server-ucp":
+    shop = sys.argv[2]
+    profile_ref = sys.argv[3]
+    print(json.dumps({
+        "serverRef": "shopify-storefront-ucp",
+        "server": {
+            "transport": "STREAMABLE_HTTP",
+            "endpointUrl": f"https://{shop}/api/ucp/mcp",
+            "auth": {"mode": "NONE"},
+            "toolsListArguments": {
+                "meta": {"ucp-agent": {"profileRef": profile_ref}}
+            }
+        },
+        "trace": {"shopDomain": shop}
+    }, separators=(",", ":")))
 elif kind == "marketplace-discovery":
     shop = sys.argv[2]
     gateway_ref = sys.argv[3]
+    profile_ref = sys.argv[4]
     print(json.dumps({
         "serverRef": "shopify-storefront-release-gate",
         "server": {
             "transport": "STREAMABLE_HTTP",
-            "endpointUrl": f"https://{shop}/api/mcp",
-            "auth": {"mode": "NONE"}
+            "endpointUrl": f"https://{shop}/api/ucp/mcp",
+            "auth": {"mode": "NONE"},
+            "toolsListArguments": {
+                "meta": {"ucp-agent": {"profileRef": profile_ref}}
+            }
         },
         "trace": {"shopDomain": shop, "releaseGate": "shopify-mcp-gateway"},
         "allowedTools": ["search_catalog"],
@@ -181,6 +200,7 @@ elif kind == "marketplace-discovery":
     }, separators=(",", ":")))
 elif kind == "action":
     shop = sys.argv[2]
+    profile_ref = sys.argv[3]
     print(json.dumps({
         "actionId": "shopify_search_catalog",
         "params": {
@@ -196,10 +216,13 @@ elif kind == "action":
                 "execution": {
                     "adapterType": "mcp-tool",
                     "mcp": {
-                        "serverRef": "shopify-storefront",
-                        "endpointKind": "STOREFRONT_STANDARD",
+                        "serverRef": "shopify-storefront-ucp",
+                        "endpointKind": "UCP_CATALOG",
                         "toolName": "search_catalog",
                         "argumentTemplate": {
+                            "meta": {
+                                "ucp-agent": {"profileRef": profile_ref}
+                            },
                             "catalog": {
                                 "query": "{{params.query}}",
                                 "context": {
@@ -229,6 +252,7 @@ MCP_GATEWAY_PRODUCT_SERVICE_REF="${MCP_GATEWAY_PRODUCT_SERVICE_REF:-mcp-executio
 PLATFORM_API_KEY_HEADER="${PLATFORM_API_KEY_HEADER:-X-PLATFORM-API-KEY}"
 MCP_GATEWAY_API_KEY_HEADER="${MCP_GATEWAY_API_KEY_HEADER:-X-MCP-GATEWAY-API-KEY}"
 SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER="${SHOPIFY_BRIDGE_ADMIN_API_KEY_HEADER:-X-BRIDGE-API-KEY}"
+SHOPIFY_UCP_AGENT_PROFILE_REF="${SHOPIFY_UCP_AGENT_PROFILE_REF:-SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE}"
 
 require_env PLATFORM_BASE_URL
 require_env SHOPIFY_BRIDGE_BASE_URL
@@ -337,7 +361,7 @@ for expected in ["mcp.initialize", "mcp.tools.list", "mcp.tools.call", "marketpl
 '
 
 echo "== Marketplace MCP discovery through gateway =="
-discovery_payload="$(json_body marketplace-discovery "${SHOP_DOMAIN}" "${MCP_GATEWAY_PRODUCT_SERVICE_REF}")"
+discovery_payload="$(json_body marketplace-discovery "${SHOP_DOMAIN}" "${MCP_GATEWAY_PRODUCT_SERVICE_REF}" "${SHOPIFY_UCP_AGENT_PROFILE_REF}")"
 platform_request POST "/api/marketplace/mcp/discover" "${discovery_payload}"
 [[ "${HTTP_STATUS}" == "200" ]] || fail "Marketplace MCP discovery returned HTTP ${HTTP_STATUS}."
 json_check "${HTTP_BODY}" "marketplace mcp discovery" '
@@ -348,19 +372,31 @@ assert tool is not None, tools
 assert str(tool.get("schemaHash") or "").startswith("sha256:"), tool
 '
 
-echo "== MCP Gateway tools/list =="
-server_payload="$(json_body server "${SHOP_DOMAIN}")"
+echo "== MCP Gateway standard tools/list =="
+server_payload="$(json_body server-standard "${SHOP_DOMAIN}")"
 http_request POST "${MCP_GATEWAY_BASE_URL}/api/internal/mcp/servers/tools/list" "${server_payload}" "${MCP_GATEWAY_API_KEY_HEADER}: ${MCP_GATEWAY_API_KEY}"
-[[ "${HTTP_STATUS}" == "200" ]] || fail "MCP Gateway tools/list returned HTTP ${HTTP_STATUS}."
-json_check "${HTTP_BODY}" "mcp gateway tools/list" '
+[[ "${HTTP_STATUS}" == "200" ]] || fail "MCP Gateway standard tools/list returned HTTP ${HTTP_STATUS}."
+json_check "${HTTP_BODY}" "mcp gateway standard tools/list" '
 assert data.get("success") is True, data
 tools = data.get("result") or []
 names = {item.get("name") for item in tools if isinstance(item, dict)}
-assert "search_catalog" in names, names
+assert "search_shop_policies_and_faqs" in names, names
+'
+
+echo "== MCP Gateway UCP tools/list =="
+server_payload="$(json_body server-ucp "${SHOP_DOMAIN}" "${SHOPIFY_UCP_AGENT_PROFILE_REF}")"
+http_request POST "${MCP_GATEWAY_BASE_URL}/api/internal/mcp/servers/tools/list" "${server_payload}" "${MCP_GATEWAY_API_KEY_HEADER}: ${MCP_GATEWAY_API_KEY}"
+[[ "${HTTP_STATUS}" == "200" ]] || fail "MCP Gateway UCP tools/list returned HTTP ${HTTP_STATUS}."
+json_check "${HTTP_BODY}" "mcp gateway UCP tools/list" '
+assert data.get("success") is True, data
+tools = data.get("result") or []
+names = {item.get("name") for item in tools if isinstance(item, dict)}
+for expected in ["search_catalog", "lookup_catalog", "get_product", "get_cart", "create_cart", "update_cart"]:
+    assert expected in names, names
 '
 
 echo "== MCP Gateway action execution =="
-action_payload="$(json_body action "${SHOP_DOMAIN}")"
+action_payload="$(json_body action "${SHOP_DOMAIN}" "${SHOPIFY_UCP_AGENT_PROFILE_REF}")"
 http_request POST "${MCP_GATEWAY_BASE_URL}/api/internal/mcp/actions/execute" "${action_payload}" "${MCP_GATEWAY_API_KEY_HEADER}: ${MCP_GATEWAY_API_KEY}"
 [[ "${HTTP_STATUS}" == "200" ]] || fail "MCP Gateway action execution returned HTTP ${HTTP_STATUS}."
 json_check "${HTTP_BODY}" "mcp gateway action evidence" '
@@ -380,13 +416,18 @@ assert data.get("ready") is True, data
 servers = data.get("servers") or []
 assert len(servers) >= 1, data
 by_ref = {server.get("serverRef"): server for server in servers if isinstance(server, dict)}
-server = by_ref.get("shopify-storefront")
-assert server is not None, by_ref
-assert server.get("ready") is True, server
-missing = server.get("missingTools") or []
-assert not missing, missing
-tools = set(server.get("presentTools") or [])
-assert "search_catalog" in tools, tools
+standard = by_ref.get("shopify-storefront")
+assert standard is not None, by_ref
+assert standard.get("ready") is True, standard
+assert not (standard.get("missingTools") or []), standard
+assert "search_shop_policies_and_faqs" in set(standard.get("presentTools") or []), standard
+ucp = by_ref.get("shopify-storefront-ucp")
+assert ucp is not None, by_ref
+assert ucp.get("ready") is True, ucp
+assert not (ucp.get("missingTools") or []), ucp
+tools = set(ucp.get("presentTools") or [])
+for expected in ["search_catalog", "lookup_catalog", "get_product", "get_cart", "create_cart", "update_cart"]:
+    assert expected in tools, tools
 '
 
 echo "== Shopify Bridge delegated MCP action =="

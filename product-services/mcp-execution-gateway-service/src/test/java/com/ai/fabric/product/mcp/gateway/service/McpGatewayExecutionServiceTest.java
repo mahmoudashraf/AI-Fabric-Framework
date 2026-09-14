@@ -170,6 +170,62 @@ class McpGatewayExecutionServiceTest {
     }
 
     @Test
+    void discoveryResolvesProfileReferencesForProviderSpecificToolsListArguments() throws Exception {
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty(
+                "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE",
+                "https://shopify.dev/ucp/agent-profiles/examples/current.json"
+            );
+        McpGatewayExecutionService service = new McpGatewayExecutionService(
+            client,
+            objectMapper,
+            properties,
+            environment
+        );
+        McpStreamableHttpClient.McpSession session = new McpStreamableHttpClient.McpSession(
+            URI.create("https://example.com/ucp/mcp"),
+            "2025-11-25",
+            null,
+            objectMapper.createObjectNode()
+        );
+        ArgumentCaptor<JsonNode> listArguments = ArgumentCaptor.forClass(JsonNode.class);
+        when(client.initialize(eq(URI.create("https://example.com/ucp/mcp")), any())).thenReturn(session);
+        when(client.toolsList(eq(session), listArguments.capture(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "tools": [
+                {"name": "search_catalog", "inputSchema": {"type": "object"}}
+              ]
+            }
+            """));
+
+        DiscoveryResponse response = service.discover(new DiscoveryRequest(
+            "shopify-storefront-ucp",
+            Map.of(
+                "endpointUrl", "https://example.com/ucp/mcp",
+                "auth", Map.of("mode", "NONE"),
+                "toolsListArguments", Map.of(
+                    "meta", Map.of(
+                        "ucp-agent", Map.of(
+                            "profileRef", "SHOPIFY_BRIDGE_MCP_UCP_AGENT_PROFILE"
+                        )
+                    )
+                )
+            ),
+            Map.of(),
+            List.of("search_catalog")
+        ));
+
+        assertThat(response.ready()).isTrue();
+        assertThat(listArguments.getValue()
+            .path("meta")
+            .path("ucp-agent")
+            .path("profile")
+            .asText())
+            .isEqualTo("https://shopify.dev/ucp/agent-profiles/examples/current.json");
+    }
+
+    @Test
     void discoveryRejectsNonPublicMcpEndpointBeforeOutboundRequest() {
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         McpGatewayExecutionService service = new McpGatewayExecutionService(client, objectMapper, properties);

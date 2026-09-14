@@ -1410,7 +1410,7 @@ public class PlatformManagedProductProvisioningService {
     }
 
     private String defaultShopifyUcpAgentProfile() {
-        return "https://shopify.dev/ucp/agent-profiles/examples/2026-04-08/cart-and-checkout.json";
+        return "https://shopify.dev/ucp/agent-profiles/examples/2026-08-25/valid-with-capabilities.json";
     }
 
     private boolean checkoutMcpCredentialsConfigured() {

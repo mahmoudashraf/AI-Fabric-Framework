@@ -135,7 +135,10 @@ public class McpGatewayExecutionService {
             McpStreamableHttpClient.McpRequestOptions options =
                 McpStreamableHttpClient.McpRequestOptions.withHeaders(properties.protocolVersion(), headers);
             McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
-            JsonNode result = mcpClient.toolsList(session, options);
+            JsonNode listArguments = resolveToolsListArguments(trace, server);
+            JsonNode result = listArguments.isEmpty()
+                ? mcpClient.toolsList(session, options)
+                : mcpClient.toolsList(session, listArguments, options);
             List<McpToolSummary> tools = summarizeTools(result, request.allowedTools());
             return new DiscoveryResponse(
                 true,
@@ -314,7 +317,7 @@ public class McpGatewayExecutionService {
                 result = mcpClient.toolsCall(endpoint, toolName, arguments, options);
             } else {
                 McpStreamableHttpClient.McpSession session = mcpClient.initialize(endpoint, options);
-                drift = verifyActionToolSchema(session, options, serverRef, toolName, mcp);
+                drift = verifyActionToolSchema(session, options, serverRef, toolName, mcp, serverBinding, trace);
                 if (drift != null && (!drift.present() || !drift.schemaMatches()) && schemaDriftBlocks(drift.schemaDriftPolicy())) {
                     return failure(
                         "MCP_SCHEMA_DRIFT",
@@ -422,12 +425,17 @@ public class McpGatewayExecutionService {
                                                           McpStreamableHttpClient.McpRequestOptions options,
                                                           String serverRef,
                                                           String toolName,
-                                                          JsonNode mcp) {
+                                                          JsonNode mcp,
+                                                          JsonNode serverBinding,
+                                                          JsonNode trace) {
         String expectedHash = text(mcp, "toolSchemaHash");
         if (!StringUtils.hasText(expectedHash)) {
             return null;
         }
-        JsonNode toolsResult = mcpClient.toolsList(session, options);
+        JsonNode listArguments = resolveToolsListArguments(trace, mcp, serverBinding);
+        JsonNode toolsResult = listArguments.isEmpty()
+            ? mcpClient.toolsList(session, options)
+            : mcpClient.toolsList(session, listArguments, options);
         List<McpToolSummary> tools = summarizeTools(toolsResult, List.of(toolName));
         McpToolSummary actual = tools.stream()
             .filter(tool -> toolName.equals(tool.name()))
@@ -1040,6 +1048,30 @@ public class McpGatewayExecutionService {
         return pruned != null && pruned.isObject() ? pruned : objectMapper.createObjectNode();
     }
 
+    private JsonNode resolveToolsListArguments(JsonNode trace, JsonNode... configurations) {
+        if (configurations == null) {
+            return objectMapper.createObjectNode();
+        }
+        for (JsonNode configuration : configurations) {
+            if (configuration == null || !configuration.isObject()) {
+                continue;
+            }
+            JsonNode configured = firstObject(
+                configuration.path("toolsListArguments"),
+                configuration.path("discoveryArguments")
+            );
+            if (!configured.isObject()) {
+                continue;
+            }
+            JsonNode resolved = resolveProfileRefs(configured, trace);
+            JsonNode pruned = pruneEmptyArgumentValues(resolved);
+            if (pruned != null && pruned.isObject()) {
+                return pruned;
+            }
+        }
+        return objectMapper.createObjectNode();
+    }
+
     private String endpointForKind(String endpointKind, Object request, JsonNode trace) {
         String kind = normalizedEnum(endpointKind);
         if (!StringUtils.hasText(kind)) {
@@ -1052,7 +1084,7 @@ public class McpGatewayExecutionService {
         return switch (kind) {
             case "STOREFRONT_STANDARD", "SHOPIFY_STOREFRONT_STANDARD" ->
                 "https://" + shopDomain + "/api/mcp";
-            case "UCP_CATALOG", "CHECKOUT_UCP", "SHOPIFY_UCP", "SHOPIFY_UCP_CATALOG" ->
+            case "UCP_CATALOG", "UCP_CART", "CHECKOUT_UCP", "SHOPIFY_UCP", "SHOPIFY_UCP_CATALOG" ->
                 "https://" + shopDomain + "/api/ucp/mcp";
             case "CUSTOMER_ACCOUNT", "SHOPIFY_CUSTOMER_ACCOUNT" -> discoverCustomerAccountMcpEndpoint(shopDomain);
             default -> throw new IllegalArgumentException("Unsupported MCP endpointKind: " + kind);

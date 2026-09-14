@@ -1,6 +1,7 @@
 package com.ai.fabric.product.mcp.gateway.client;
 
 import com.ai.fabric.product.mcp.gateway.config.McpGatewayProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -104,6 +107,45 @@ class McpStreamableHttpClientTest {
         }
     }
 
+    @Test
+    void toolsListIncludesProviderDiscoveryArguments() throws Exception {
+        AtomicReference<JsonNode> toolsListRequest = new AtomicReference<>();
+        HttpServer server = toolsListMcpServer(toolsListRequest);
+        try {
+            McpStreamableHttpClient client = new McpStreamableHttpClient(
+                RestClient.builder(),
+                objectMapper,
+                properties(Duration.ofMillis(500), Duration.ofMillis(500))
+            );
+            McpStreamableHttpClient.McpRequestOptions options =
+                McpStreamableHttpClient.McpRequestOptions.none("2025-11-25");
+            McpStreamableHttpClient.McpSession session = client.initialize(endpoint(server), options);
+
+            client.toolsList(session, objectMapper.readTree("""
+                {
+                  "meta": {
+                    "ucp-agent": {
+                      "profile": "https://shopify.dev/ucp/agent-profiles/examples/current.json"
+                    }
+                  }
+                }
+                """), options);
+
+            assertThat(toolsListRequest.get()).isNotNull();
+            assertThat(toolsListRequest.get().path("method").asText()).isEqualTo("tools/list");
+            assertThat(toolsListRequest.get()
+                .path("params")
+                .path("arguments")
+                .path("meta")
+                .path("ucp-agent")
+                .path("profile")
+                .asText())
+                .isEqualTo("https://shopify.dev/ucp/agent-profiles/examples/current.json");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private HttpServer slowMcpServer(Duration delay) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/mcp", exchange -> {
@@ -152,6 +194,44 @@ class McpStreamableHttpClientTest {
             exchange.getResponseHeaders().add("Location", "/password");
             exchange.sendResponseHeaders(302, -1);
             exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer toolsListMcpServer(AtomicReference<JsonNode> toolsListRequest) throws IOException {
+        AtomicInteger requests = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/mcp", exchange -> {
+            try {
+                JsonNode request = objectMapper.readTree(exchange.getRequestBody());
+                boolean initialize = requests.getAndIncrement() == 0;
+                if (!initialize) {
+                    toolsListRequest.set(request);
+                }
+                byte[] response = (initialize ? """
+                    {
+                      "jsonrpc": "2.0",
+                      "id": 1,
+                      "result": {
+                        "protocolVersion": "2025-11-25",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "tools-list-test", "version": "1.0.0"}
+                      }
+                    }
+                    """ : """
+                    {
+                      "jsonrpc": "2.0",
+                      "id": 2,
+                      "result": {"tools": [{"name": "search_catalog", "inputSchema": {"type": "object"}}]}
+                    }
+                    """).getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, response.length);
+                exchange.getResponseBody().write(response);
+            } finally {
+                exchange.close();
+            }
         });
         server.start();
         return server;
