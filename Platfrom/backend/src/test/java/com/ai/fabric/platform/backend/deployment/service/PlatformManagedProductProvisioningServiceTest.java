@@ -592,7 +592,7 @@ class PlatformManagedProductProvisioningServiceTest {
     @Test
     void reconcileCoolifyMcpGatewayCanUseExplicitProductionPlatformServiceProfile() {
         PlatformManagedProductServiceEntity service = mcpGatewayService();
-        service.setBaseUrl(null);
+        service.setBaseUrl("https://mcp-execution-gateway.46.224.145.148.sslip.io");
         service.setDetailsJson("""
             {
               "providerType": "COOLIFY",

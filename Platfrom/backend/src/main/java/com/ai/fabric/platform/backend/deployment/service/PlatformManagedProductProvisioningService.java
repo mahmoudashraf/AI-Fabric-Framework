@@ -180,6 +180,7 @@ public class PlatformManagedProductProvisioningService {
         String normalizedTargetProfileId = trimToNull(targetProfileId);
         if (hasText(normalizedTargetProfileId)) {
             ObjectNode details = mutableDetails(service);
+            alignCoolifyDomainWithTargetProfile(service, details, normalizedTargetProfileId);
             details.put("providerType", "COOLIFY");
             details.put("targetProfileId", normalizedTargetProfileId);
             service.setDetailsJson(details.toPrettyString());
@@ -187,6 +188,46 @@ public class PlatformManagedProductProvisioningService {
             serviceRepository.save(service);
         }
         return reconcile(serviceRef);
+    }
+
+    private void alignCoolifyDomainWithTargetProfile(PlatformManagedProductServiceEntity service,
+                                                      ObjectNode details,
+                                                      String targetProfileId) {
+        if (targetProfileRepository == null || coolifyTargetProfileResolver == null) {
+            return;
+        }
+        DeploymentTargetProfileEntity profile = targetProfileRepository.findById(targetProfileId)
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Coolify target profile not found: " + targetProfileId));
+        CoolifyTargetProfileConfig config = coolifyTargetProfileResolver.requireConnection(profile).config();
+        String previousTargetProfileId = trimToNull(details.path("targetProfileId").asText(null));
+        boolean targetChanged = hasText(previousTargetProfileId)
+            && !previousTargetProfileId.equals(targetProfileId);
+        boolean domainOutsideTarget = hasText(service.getBaseUrl())
+            && !coolifyDomainMatchesProfile(service.getBaseUrl(), config);
+        if (!targetChanged && !domainOutsideTarget) {
+            return;
+        }
+        service.setBaseUrl(null);
+        service.setPrivateNetworkUrl(null);
+        details.remove("coolifyFqdn");
+    }
+
+    private boolean coolifyDomainMatchesProfile(String domains, CoolifyTargetProfileConfig config) {
+        String suffix = trimToNull(config.defaultPublicDomainSuffix());
+        if (!hasText(suffix)) {
+            return true;
+        }
+        String normalizedSuffix = suffix.startsWith(".") ? suffix.substring(1) : suffix;
+        String lowerSuffix = normalizedSuffix.toLowerCase(Locale.ROOT);
+        for (String domain : domains.split(",")) {
+            String host = normalizedUrlHost(domain);
+            if (hasText(host)
+                && (host.equalsIgnoreCase(normalizedSuffix)
+                || host.toLowerCase(Locale.ROOT).endsWith("." + lowerSuffix))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Transactional
