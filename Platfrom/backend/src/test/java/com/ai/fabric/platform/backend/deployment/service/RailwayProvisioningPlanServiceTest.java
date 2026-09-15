@@ -1572,6 +1572,51 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY")
             .containsEntry("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute")
             .containsEntry("MCP_SECRET_PRODUS_STAGING_MCP_API_KEY", "${secret:MCP_SECRET_PRODUS_STAGING_MCP_API_KEY}");
+
+        ShopifyStoreConnectionRepository storeRepository = mock(ShopifyStoreConnectionRepository.class);
+        ShopifyStoreConnectionEntity store = new ShopifyStoreConnectionEntity();
+        store.setDeploymentId("dep-123");
+        store.setProductServiceId("psv-shopify-bridge");
+        PlatformManagedProductServiceEntity bridge = new PlatformManagedProductServiceEntity();
+        bridge.setId("psv-shopify-bridge");
+        bridge.setServiceKind("SHOPIFY_BRIDGE_SERVICE");
+        bridge.setSecretName("MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY");
+        when(storeRepository.findByDeploymentId("dep-123")).thenReturn(Optional.of(store));
+        when(productServiceRepository.findById("psv-shopify-bridge")).thenReturn(Optional.of(bridge));
+        ReflectionTestUtils.setField(service, "shopifyStoreConnectionRepository", storeRepository);
+
+        mcpVersion.setActionsConfigJson("""
+            {
+              "actions": [
+                {
+                  "name": "shopify_get_orders",
+                  "adapterType": "mcp-tool",
+                  "execution": {
+                    "mcp": {
+                      "auth": {
+                        "mode": "CUSTOMER_OAUTH_PKCE",
+                        "tokenBroker": {
+                          "apiKeySecretRef": "MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+
+        var shopifyServices = service.buildPlan(deployment(), mcpVersion).services();
+        assertThat(envMap(shopifyServices.runtime().env()))
+            .containsEntry(
+                "MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY",
+                "${secret:MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY}"
+            );
+        assertThat(envMap(shopifyServices.restConnector().env()))
+            .containsEntry(
+                "SHOPIFY_BRIDGE_SHARED_SECRET",
+                "${secret:MANAGED_PRODUCT_SHOPIFY_BRIDGE_STAGING_API_KEY}"
+            );
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

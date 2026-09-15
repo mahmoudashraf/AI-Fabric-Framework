@@ -44,6 +44,8 @@ public class RailwayProvisioningPlanService {
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
     private static final String CONNECTOR_ADMIN_SECRET = "APP_ADMIN_API_KEY";
     private static final String SHOPIFY_BRIDGE_SHARED_SECRET_ENV = "SHOPIFY_BRIDGE_SHARED_SECRET";
+    private static final String SHOPIFY_BRIDGE_TOKEN_BROKER_SECRET_REF =
+        "MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY";
     private static final Pattern MCP_SECRET_REF_PATTERN = Pattern.compile("^MCP_SECRET_[A-Z0-9_]+$");
 
     private final PlatformProvisioningProperties provisioningProperties;
@@ -304,7 +306,7 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
-        addRuntimeMcpGatewayEnv(runtimeEnv, actionsConfig);
+        addRuntimeMcpGatewayEnv(runtimeEnv, deployment, actionsConfig);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
@@ -475,28 +477,38 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addShopifyBridgeConnectorEnv(List<RailwayEnvVarSummary> connectorEnv, DeploymentEntity deployment) {
-        if (connectorEnv == null
-            || deployment == null
-            || shopifyStoreConnectionRepository == null
-            || platformManagedProductServiceRepository == null) {
+        if (connectorEnv == null) {
             return;
         }
-        ShopifyStoreConnectionEntity store = shopifyStoreConnectionRepository.findByDeploymentId(deployment.getId()).orElse(null);
-        if (store == null || !hasText(store.getProductServiceId())) {
-            return;
-        }
-        PlatformManagedProductServiceEntity productService =
-            platformManagedProductServiceRepository.findById(store.getProductServiceId()).orElse(null);
-        if (productService == null || !hasText(productService.getSecretName())) {
-            return;
-        }
-        if (!"SHOPIFY_BRIDGE_SERVICE".equalsIgnoreCase(productService.getServiceKind())) {
+        String bridgeSecretName = resolveShopifyBridgeSecretName(deployment);
+        if (!hasText(bridgeSecretName)) {
             return;
         }
         connectorEnv.add(new RailwayEnvVarSummary(
             SHOPIFY_BRIDGE_SHARED_SECRET_ENV,
-            "${secret:" + productService.getSecretName() + "}"
+            "${secret:" + bridgeSecretName + "}"
         ));
+    }
+
+    private String resolveShopifyBridgeSecretName(DeploymentEntity deployment) {
+        if (deployment == null
+            || shopifyStoreConnectionRepository == null
+            || platformManagedProductServiceRepository == null) {
+            return null;
+        }
+        ShopifyStoreConnectionEntity store = shopifyStoreConnectionRepository.findByDeploymentId(deployment.getId()).orElse(null);
+        if (store == null || !hasText(store.getProductServiceId())) {
+            return null;
+        }
+        PlatformManagedProductServiceEntity productService =
+            platformManagedProductServiceRepository.findById(store.getProductServiceId()).orElse(null);
+        if (productService == null || !hasText(productService.getSecretName())) {
+            return null;
+        }
+        if (!"SHOPIFY_BRIDGE_SERVICE".equalsIgnoreCase(productService.getServiceKind())) {
+            return null;
+        }
+        return productService.getSecretName().trim();
     }
 
     private void addRuntimeProviderEnv(List<RailwayEnvVarSummary> runtimeEnv,
@@ -1061,7 +1073,9 @@ public class RailwayProvisioningPlanService {
         }
     }
 
-    private void addRuntimeMcpGatewayEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode actionsConfig) {
+    private void addRuntimeMcpGatewayEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                         DeploymentEntity deployment,
+                                         JsonNode actionsConfig) {
         if (!hasMcpToolActions(actionsConfig)) {
             return;
         }
@@ -1084,8 +1098,19 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_API_KEY_HEADER", "X-MCP-GATEWAY-API-KEY"));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_MCP_GATEWAY_EXECUTE_PATH", "/api/internal/mcp/actions/execute"));
         for (String secretRef : collectMcpSecretRefs(actionsConfig)) {
-            runtimeEnv.add(new RailwayEnvVarSummary(secretRef, "${secret:" + secretRef + "}"));
+            String sourceSecretName = resolveMcpSecretSourceName(deployment, secretRef);
+            runtimeEnv.add(new RailwayEnvVarSummary(secretRef, "${secret:" + sourceSecretName + "}"));
         }
+    }
+
+    private String resolveMcpSecretSourceName(DeploymentEntity deployment, String secretRef) {
+        if (SHOPIFY_BRIDGE_TOKEN_BROKER_SECRET_REF.equals(secretRef)) {
+            String bridgeSecretName = resolveShopifyBridgeSecretName(deployment);
+            if (hasText(bridgeSecretName)) {
+                return bridgeSecretName;
+            }
+        }
+        return secretRef;
     }
 
     private boolean hasMcpToolActions(JsonNode actionsConfig) {
