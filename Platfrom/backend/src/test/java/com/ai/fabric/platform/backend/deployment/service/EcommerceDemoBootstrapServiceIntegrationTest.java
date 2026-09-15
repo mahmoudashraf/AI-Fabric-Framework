@@ -84,6 +84,16 @@ class EcommerceDemoBootstrapServiceIntegrationTest {
             );
         assertThat(draft.entityConfig().path("ai-entities").fieldNames().hasNext()).isTrue();
         assertThat(draft.entityConfig().path("ai-entities").has("document")).isTrue();
+        assertThat(java.util.List.of("document", "product", "policy", "review"))
+            .allSatisfy(entityType -> assertThat(
+                java.util.stream.StreamSupport.stream(
+                        draft.entityConfig().path("ai-entities").path(entityType).path("metadata-fields").spliterator(),
+                        false
+                    )
+                    .map(field -> field.path("name").asText())
+                    .toList()
+            ).as("trusted retrieval boundary metadata for %s", entityType)
+                .contains("tenantId", "deploymentId"));
         assertThat(draft.routingConfig().path("actions").fieldNames().hasNext()).isTrue();
         assertThat(draft.routingConfig().toString()).contains("trace.authContext.subjectId");
         assertThat(draft.routingConfig().toString()).doesNotContain("trace.userId");
