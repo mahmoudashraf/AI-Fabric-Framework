@@ -257,3 +257,11 @@ Current P0 cleanup items:
   incorrect authoritative DNS. Namecheap must point the LoomAI apex and
   production hostnames at the production IPv4/IPv6 addresses before public
   custom-domain TLS is considered operational.
+- 2026-09-15: `010.22` is the implementation companion to canonical `010.21`
+  for productizing AI Fabric `0.6.1`. Delivery proceeds through one Product
+  Kernel and three behavior products rather than one product per framework
+  module. Capability maturity must progress through framework availability,
+  private runtime packaging, Platform selection, hosted proof, and market
+  readiness. Start with a generic Conversational Assistant profile, then a
+  bounded Agentic Specialist Team. Smart Brain remains subject to the existing
+  Shopify commercial-signal gate or an explicit superseding strategy decision.

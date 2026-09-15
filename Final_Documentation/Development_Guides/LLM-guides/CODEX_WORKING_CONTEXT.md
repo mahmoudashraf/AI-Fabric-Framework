@@ -2302,3 +2302,22 @@ Critical fixes that made the gate pass:
 - Hetzner firewall `10915120` exactly matches its saved pre-rollout rules in
   `/private/tmp/hcloud-firewall-10915120-before-061-final-upgrade.json`; no
   temporary rollout rule remains.
+
+## 2026-09-15 AI Fabric 0.6.1 Productization Implementation Plan
+
+- Created canonical execution companion
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_22_AI_FABRIC_0_6_1_LOOMAI_PLATFORM_PRODUCTIZATION_IMPLEMENTATION_PLAN.md`.
+- `010.21` remains the product and deployment architecture source of truth;
+  `010.22` defines the implementation sequence, Platform data model, private
+  runtime bundles, deployment-local data-plane contracts, verification gates,
+  rollout policy, and completion criteria.
+- The implementation order is Product Kernel, generic Conversational
+  Assistant, Agentic Specialist Team, controlled Resolver/Human Review and
+  capability packs. Smart Brain remains behind its existing Shopify commercial
+  signal or an explicit superseding strategy decision.
+- The plan introduces a five-state capability maturity model:
+  `FRAMEWORK_AVAILABLE`, `RUNTIME_PACKAGED`, `PLATFORM_SELECTABLE`,
+  `HOSTED_PROVEN`, and `MARKET_READY`. Framework demos or runtime flags alone
+  do not establish a LoomAI product claim.
+- This change is documentation and planning only. No Platform schema, runtime
+  capability, deployment, assignment, or production behavior changed.
