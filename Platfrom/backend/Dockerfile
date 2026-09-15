@@ -5,6 +5,9 @@ FROM maven:3.9.6-eclipse-temurin-21 AS build
 
 WORKDIR /workspace
 
+# Keep source compilation from starving colocated workloads on small build hosts.
+ENV MAVEN_OPTS="-Xms128m -Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC -Djava.awt.headless=true"
+
 COPY Platfrom/backend Platfrom/backend
 
 RUN mvn -f Platfrom/backend/pom.xml -DskipTests package
