@@ -2227,3 +2227,78 @@ Critical fixes that made the gate pass:
   Exact specialist isolation is hosted-proven, but the reusable Agentic
   Specialist Team and Smart Brain Product Profiles still require Platform
   packaging and hosted behavior-specific canaries before ready-template claims.
+
+## 2026-08-04 Smart Brain Deployment-Local Integration Correction
+
+- Corrected canonical `010.21`: Platform is Smart Brain control plane and
+  assignment-discovery authority, not a mandatory event/result data-plane
+  gateway.
+- Every Smart Brain deployment must be self-contained and advertise its own
+  trigger submission, operation status/result, and cancellation endpoints in
+  consumer runtime assignment metadata, alongside the existing runtime URL and
+  trusted-backend/private-assertion contract.
+- After resolving and caching assignment, customer backends send events
+  directly to the assigned runtime. Each deployment owns durable job state,
+  workers, result storage, delivery outbox, callback retries/dead-letter state,
+  and operational endpoints. Platform must not proxy all events/results or
+  maintain a central Smart Brain operation registry.
+- Callback destinations and secrets are compiled deployment configuration,
+  never caller event fields. Polling and optional signed webhook delivery occur
+  directly against/from the deployment.
+- The universal V1 transport is CloudEvents `1.0` structured JSON over HTTPS.
+  Spring Boot deployment endpoints accept events, AI Fabric JDBC execution plus
+  PostgreSQL provide durable operation state, direct polling is mandatory, and
+  a deployment-local transactional outbox sends optional signed CloudEvents
+  HTTPS result webhooks with retry/dead-letter state.
+- LoomAI-managed schedules use deployment-local Quartz with a PostgreSQL JDBC
+  job store. A schedule firing enters the same canonical activation service and
+  idempotency rules as HTTP ingress; it is not a parallel Smart Brain path or a
+  central Platform scheduler.
+- No Marketplace adapter is needed for customers that can call HTTPS. Optional
+  Kafka, RabbitMQ, SQS/EventBridge, Service Bus/Event Grid, Pub/Sub, NATS, or
+  vendor transport bridges run inside/alongside each deployment and convert to
+  the same canonical event/result contract. The current Marketplace plugin
+  types do not model this; add a governed `INTEGRATION` type with exact
+  `EVENT_SOURCE_ADAPTER` and `RESULT_SINK_ADAPTER` contributions only when the
+  first non-HTTP adapter is productized. Never disguise these as `DATA` or
+  `ACTION` plugins or allow arbitrary executable adapter payloads.
+- Promotion changes assignment for new work. Accepted work remains pinned to
+  its original runtime and absolute operation URL; the previous deployment
+  remains available through assignment-cache grace and drains jobs and outbound
+  deliveries before decommissioning.
+
+## 2026-09-15 AI Fabric 0.6.1 Supported Fleet Completion
+
+- Completed the direct private Platform migration to immutable AI Fabric
+  `0.6.1` release commit `bf6d19eed5ed0a8d8085db7cc02e0505e9973e65`.
+  Final pushed private source is `Platform-V11` commit
+  `d9edc5816696a2b35ff727c49eecc004e11a6820`; the complete Platform backend
+  suite passed `737/737`.
+- Staging marketplace/ecommerce/Shopify and production
+  ProdUS/marketplace/ecommerce/Shopify all run `0.6.1` with verified V04
+  releases. Relevant staging and production Platform backend/UI services,
+  public site, Shopify Bridge, and MCP Gateway are deployed on their latest
+  applicable source. Fifteen supported health surfaces returned HTTP `200`.
+- ProdUS assignment resolves `produs-staging` to `dep-f6abfa06`. Config-only
+  export `dexp-ccae58f7` / bundle `dxb-30c88471` preceded the change; rollback
+  deployment `dep-53f9ca56` remains untouched. Corrected managed projection
+  reindex `vrn-d9d6ec7a` completed `198/198`, and grounded request
+  `rag-1b354b6b-270d-430d-8eda-dab87472a016` returned
+  `service-module:api-security-review` with exact tenant/deployment metadata.
+- Final canonical hosted, Platform admin, Marketplace install, Partner, and
+  Thinker suites passed in both environments. Aggregate full-gate runs
+  `vsr-605c9b21` (staging) and `vsr-ddb39f72` (production) are intentionally
+  still `FAILED` only at the owner-deferred Shopify first-product retrieval
+  quality stage. Never describe those aggregate runs as green; the exception
+  permits the version rollout but does not weaken isolation or rewrite proof.
+- All ten public framework-consuming demos report `0.6.1` and the immutable
+  framework release commit. Optional historical Qdrant remains non-blocking
+  `MIGRATION_REQUIRED` and outside the active supported path.
+- Coolify custom domains are configured, but Namecheap authoritative DNS still
+  maps the apex and `api`, `console`, `partners`, and `shopify-bridge` to
+  parking address `18.204.152.241` and placeholder AAAA `::`. Owner action is
+  required to point them to production A `46.225.162.106` and AAAA
+  `2a01:4f8:1c18:c04::1` and remove conflicting parking/redirect records.
+- Hetzner firewall `10915120` exactly matches its saved pre-rollout rules in
+  `/private/tmp/hcloud-firewall-10915120-before-061-final-upgrade.json`; no
+  temporary rollout rule remains.

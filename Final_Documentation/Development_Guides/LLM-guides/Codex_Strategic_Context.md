@@ -225,3 +225,35 @@ Current P0 cleanup items:
   channels. Resolver and Human Review are extensions. AI Fabric 0.5.2 permits
   durable exact-specialist read jobs and process-local fixed plans, not a
   durable multi-step autonomous graph or event/scheduled writes.
+- 2026-08-04: Smart Brain follows LoomAI's deployment-local data-plane rule.
+  Platform publishes control-plane assignment and endpoint metadata but does
+  not proxy all event or result traffic. Customer/application adapters call the
+  assigned deployment directly; that deployment owns ingress, durable jobs,
+  status/results, cancellation, output delivery, and delivery recovery.
+  Promotion routes new work through a revised assignment while the old runtime
+  drains accepted operations and callbacks before decommissioning.
+  The unified V1 wire contract is CloudEvents `1.0` structured JSON over HTTPS;
+  direct polling is mandatory and deployment-owned signed HTTPS webhooks are
+  the optional push result path. Non-HTTP broker adapters are optional,
+  deployment-local Marketplace `INTEGRATION` contributions introduced only
+  with an allowlisted implementation/compiler contract; existing `DATA` and
+  `ACTION` types must not be overloaded. Managed schedules use deployment-local
+  Quartz/PostgreSQL and enter the same activation contract, not a central
+  scheduler or alternate execution path.
+- 2026-09-15: AI Fabric `0.6.1` is the active supported fleet baseline.
+  Staging marketplace/ecommerce/Shopify and production
+  ProdUS/marketplace/ecommerce/Shopify use verified V04 `0.6.1` releases;
+  Platform control-plane services are deployed from final private source
+  `d9edc5816`. ProdUS strict tenant/deployment retrieval is live on
+  `dep-f6abfa06` after an authority-injected metadata projection and `198/198`
+  reindex. Do not weaken those filters or trust source-owned boundaries.
+- 2026-09-15: Release evidence keeps aggregate truth separate from an owner
+  exception. Canonical Platform, marketplace, ecommerce, Partner, and Thinker
+  checks are green in staging and production. Full aggregate runs still fail
+  only the deferred Shopify first-product retrieval-quality stage, so they
+  must not be relabeled green even though the `0.6.1` version rollout is
+  accepted. Optional historical Qdrant remains outside the supported path.
+- 2026-09-15: Coolify custom-domain configuration does not compensate for
+  incorrect authoritative DNS. Namecheap must point the LoomAI apex and
+  production hostnames at the production IPv4/IPv6 addresses before public
+  custom-domain TLS is considered operational.

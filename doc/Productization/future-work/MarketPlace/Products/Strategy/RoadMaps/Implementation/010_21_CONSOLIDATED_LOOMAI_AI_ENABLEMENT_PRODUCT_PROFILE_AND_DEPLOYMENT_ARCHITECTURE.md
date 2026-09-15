@@ -1,6 +1,6 @@
 # 010.21 Consolidated LoomAI Behavior Product, Product Profile, And Deployment Architecture
 
-Status: canonical consolidated plan created on 2026-08-01 and corrected to the behavior-first product model on 2026-08-03. Existing framework and hosted capabilities are recorded as evidence; new generic Product Profile contracts, authoring flows, and behavior templates remain planned until implemented and verified.
+Status: canonical consolidated plan created on 2026-08-01, corrected to the behavior-first product model on 2026-08-03, and corrected to deployment-local Smart Brain integration on 2026-08-04. Existing framework and hosted capabilities are recorded as evidence; new generic Product Profile contracts, authoring flows, and behavior templates remain planned until implemented and verified.
 
 This document consolidates and judges:
 
@@ -43,10 +43,10 @@ LoomAI should introduce one generic, versioned **Product Profile** above its exi
 The three primary LoomAI behavior products are:
 
 1. **Conversational Assistant**: reactive, user-query-driven assistance using one bounded orchestration path per turn.
-2. **Agentic Specialist Team**: interactive or application-invoked coordination of exact-version specialists through a bounded conversation manager or fixed read-only plan.
+2. **Agentic Specialist Team**: interactive or application-invoked coordination of exact-version specialists through a bounded conversation manager, bounded multi-specialist chain, or fixed read-only plan.
 3. **Smart Brain**: proactive read-only analysis initiated by a trusted application event, scheduler, API, or durable job queue without fabricating a user chat turn.
 
-`Governed Resolver` and `Human Review` are execution extensions, not separate vertical products. They may be enabled only for behavior templates and activation sources whose released runtime contracts support them. In AI Fabric 0.5.2, event/scheduled durable work is read-only; do not attach automatic writes to Smart Brain deployments.
+`Governed Resolver` and `Human Review` are execution extensions, not separate vertical products. They may be enabled only for behavior templates and activation sources whose released runtime contracts support them. In AI Fabric 0.6.1, specialist-chain workers and event/scheduled durable work are read-only; do not attach automatic writes to Smart Brain deployments.
 
 The canonical composition is:
 
@@ -84,6 +84,8 @@ Core decisions:
 - The existing Shopify package profile is the first vertical proof of package/runtime/vector/verification mapping. It should inform a generic product-profile model, not become the generic model itself.
 - Provider choice is represented by a governed inference profile and deployment provider configuration, not a free-form provider overlay supplied by a browser or model.
 - A channel binding selects an approved invocation and UI surface. It never grants identity, specialist, action, tenant, deployment, or provider authority.
+- Platform is the control plane and assignment-discovery authority; it is not the mandatory Smart Brain data plane. After resolving an assignment, an authorized customer backend sends events directly to that deployment's advertised runtime endpoint.
+- Every Smart Brain deployment is self-contained for event ingress, durable execution state, operation status/result access, cancellation, and configured outbound delivery. Platform must not proxy all event or result traffic through `api.loomai.pro` or maintain a central Smart Brain operation registry.
 - V04 compiled versions, releases, verification, promotion, assignment, export/import, and managed-service reconciliation remain the only operational path.
 - Shopify Companion and ProdUS remain hosted reference solution deployments of the Conversational Assistant behavior.
 - `deployment-knowledge-specialist@1` is an important internal hosted reference and security canary. It is not the first new customer product because it is already implemented and because operator knowledge is not the strongest general market wedge.
@@ -129,7 +131,7 @@ Core decisions:
 | The deployment-knowledge specialist should be P0 implementation proof | Its 0.5.2 hosted, tenant/deployment-isolated proof is already complete. Keep it as a regression fixture and internal product reference |
 | Start by defining another template package shape | LoomAI already has Marketplace plugins, deployment templates, target profiles, curated modules, V04 versions, releases, export/import, and verification. Add Product Profile above them instead of replacing them |
 | Claude Code authoring is close to an end-to-end capability | Claude Code can consume MCP, but LoomAI does not yet expose an inbound authoring/deployment MCP server. That remains a separate future product track |
-| Direct AI Fabric Spring AI MCP execution is suitable after general hardening | The current public executor does not fail closed when a declared `serverRef` has no matching client; it can fall back to another client exposing the tool name. LoomAI's managed Gateway is the current production boundary. Direct executor use requires a framework correction and release |
+| Direct AI Fabric Spring AI MCP execution is suitable after general hardening | AI Fabric 0.6.1 now binds a declared `serverRef` to the exact remote server name/title and rejects oversized results before projection/model context. LoomAI's managed Gateway remains the hosted production boundary; direct executor adoption still requires a LoomAI integration and security canary, not another framework fix |
 | All proposed templates are product catalogue peers | Only a distinct activation and coordination behavior defines a top-level LoomAI product. Domain proposals are solution packs; RAG, MCP, documents, UI, privacy, and similar functions are capabilities, services, extensions, or channels |
 
 ### 3.4 Defer or reject
@@ -147,14 +149,14 @@ Core decisions:
 
 Maturity labels used throughout this document:
 
-- `AI_FABRIC_AVAILABLE`: shipped public 0.5.2 contract with code/test evidence.
+- `AI_FABRIC_AVAILABLE`: shipped public 0.6.1 contract with code/test evidence.
 - `LOOMAI_HOSTED_PROVEN`: deployed LoomAI path has passed hosted verification.
 - `LOOMAI_IMPLEMENTED`: code and local/live evidence exist, but reusable product packaging or broad production proof may still be incomplete.
 - `PRODUCTIZATION_REQUIRED`: supporting pieces exist, but the managed customer product is not complete.
 - `FUTURE`: proposal only; no current end-to-end LoomAI product contract.
 - `BLOCKED`: required contract or gate is absent or failing.
 
-### 4.1 AI Fabric 0.5.2 foundation
+### 4.1 AI Fabric 0.6.1 foundation
 
 | Capability | Public module/contract | Current limit | Maturity |
 | --- | --- | --- | --- |
@@ -166,15 +168,16 @@ Maturity labels used throughout this document:
 | External document retrieval | `ai-fabric-retrieval-connector` | Documents-only evidence; generated external answers are not trusted evidence | `AI_FABRIC_AVAILABLE` |
 | Chat sessions | `ai-fabric-chat-session` | Product owns authenticated conversation API, retention, and cross-owner policy | `AI_FABRIC_AVAILABLE` |
 | Actions and confirmations | core actions plus connector/registry modules | Final authorization and side effects remain application-owned | `AI_FABRIC_AVAILABLE` |
-| Bounded specialists and conversation manager | `ai-fabric-execution` exact versions, schemas, trusted context, manager, plans, waits, delegation/handoff | Input waits and manager/plan state are process-local; no dynamic graph or hot-reload registry | `AI_FABRIC_AVAILABLE` |
-| Durable proactive read execution | `ai-fabric-execution` JDBC read jobs for trusted application/event/scheduled sources | Exact read-only specialist per durable job; at-least-once provider execution; no durable multi-step plan or event/scheduled write | `AI_FABRIC_AVAILABLE` |
+| Direct specialists, conversation managers, and fixed plans | `ai-fabric-execution` exact versions, schemas, trusted context, manager, plans, waits, delegation/handoff | Input waits and legacy manager/fixed-plan state are process-local; no dynamic registry or hot reload | `AI_FABRIC_AVAILABLE` |
+| Bounded multi-specialist chains | `ai-fabric-execution` closed manager target catalogue, typed mappers/projectors, sequential/independent-parallel worker selection, synthesis/handoff, sync/async gateway, JDBC checkpoints and replay | Read-only leaf workers; no cycles, recursion, dynamic discovery, write workers, or exactly-once provider invocation | `AI_FABRIC_AVAILABLE`; LoomAI product adoption is disabled pending canary |
+| Durable proactive read execution | `ai-fabric-execution` JDBC read jobs and optional bounded chain execution for trusted application/event/scheduled sources | Exact read-only specialist or approved bounded chain; at-least-once provider execution; no event/scheduled write or open-ended graph | `AI_FABRIC_AVAILABLE` |
 | Governed receipts and human review | `ai-fabric-execution` proposal receipts, review tasks/delivery, replay, reconciliation contracts | Application owns reviewer authorization, transaction, system-of-record reconciliation, and migrations | `AI_FABRIC_AVAILABLE` |
 | PII | `ai-fabric-pii` | Product defines legal/policy posture, encryption, retention, and claims | `AI_FABRIC_AVAILABLE` |
 | Governance | `ai-fabric-governance` | Does not replace product-specific authorization or compliance review | `AI_FABRIC_AVAILABLE` |
 | Relationship query | `ai-fabric-relationship-query` | Requires approved domain schema and object authorization | `AI_FABRIC_AVAILABLE` |
 | Behavior insights | `ai-fabric-behavior` | Signals are inference, not fact or automatic action authority | `AI_FABRIC_AVAILABLE` |
 | Migration/backfill | `ai-fabric-migration-core` | Product owns source truth, checkpoints, and operator workflow | `AI_FABRIC_AVAILABLE` |
-| Spring AI-managed MCP client execution | `ai-fabric-actions-connector` | Strict declared-server resolution requires a public framework correction before direct production use | `BLOCKED` for direct LoomAI trust-boundary use |
+| Spring AI-managed MCP client execution | `ai-fabric-actions-connector` | Exact declared-server name/title binding and bounded result size are enforced; each LoomAI product still owns auth and live integration proof | `AI_FABRIC_AVAILABLE` |
 | Anthropic generation | Spring AI provider integration | Anthropic is generation-only in the current AI Fabric provider path; RAG needs a separate embedding provider | `AI_FABRIC_AVAILABLE` |
 
 ### 4.2 Current LoomAI product and Platform foundation
@@ -195,7 +198,7 @@ Maturity labels used throughout this document:
 | Product verification | Canonical suites, hosted product checks, release gate, source identity, optional/non-blocking legacy checks | `LOOMAI_HOSTED_PROVEN` |
 | Conversational behavior | Shopify and ProdUS backend-mediated query/chat deployments, grounding, assignment, and verification | `LOOMAI_HOSTED_PROVEN` |
 | Deployment knowledge specialist | Exact `deployment-knowledge-specialist@1`, trusted scope, hosted two-tenant/two-deployment canaries | `LOOMAI_HOSTED_PROVEN` |
-| Agentic Specialist Team template | Exact specialist runtime is hosted; generic manager, multi-specialist plan, packaging, and product verification are not yet a reusable profile | `PRODUCTIZATION_REQUIRED` |
+| Agentic Specialist Team template | Exact specialist runtime is hosted; AI Fabric provides bounded chain contracts, but LoomAI keeps chains disabled until generic authoring, durable configuration, packaging, and hosted product verification exist | `PRODUCTIZATION_REQUIRED` |
 | Smart Brain template | Framework contracts and executable demos exist; managed triggers, durable worker operations, output routing, and Platform profile proof are not yet complete | `PRODUCTIZATION_REQUIRED` |
 | Embedded UI | Max widget, docked composer concept, inline/result-card patterns, backend-mediated chat | `PRODUCTIZATION_REQUIRED` as a stable reusable package |
 | Behavior Product Template catalogue | No generic Platform source-of-truth contract for the three behavior products yet | `FUTURE` until implemented |
@@ -213,12 +216,16 @@ Maturity labels used throughout this document:
 
 These facts prove the foundation. They do not make every product profile in this document generally available.
 
+The private source migration target is now AI Fabric `0.6.1`; the production
+facts above remain the authoritative pre-rollout baseline until a production
+deployment and fresh release gate prove otherwise.
+
 ## 5. Canonical LoomAI Vocabulary And Sources Of Truth
 
 | Concept | Meaning | Canonical owner/source |
 | --- | --- | --- |
 | Behavior Product Template | Market-facing reusable behavior: Conversational Assistant, Agentic Specialist Team, or Smart Brain | LoomAI behavior-template catalogue and immutable versions |
-| Solution Pack | Domain-specific semantics, adapters, schemas, prompts, fixtures, and UI mappings such as Shopify commerce, ProdUS project knowledge, support resolution, or churn signals | Marketplace plus product-owned versioned solution artifacts |
+| Solution Pack | Domain-specific semantics, domain adapters, event/data schemas, prompts, fixtures, and UI mappings such as Shopify commerce, ProdUS project knowledge, support resolution, or churn signals | Marketplace plus product-owned versioned solution artifacts |
 | Execution Extension | Optional governed behavior such as Resolver or Human Review, enabled only where the selected activation/runtime contract supports it | Product Profile version plus AI Fabric/application contracts |
 | Product Profile | Versioned deployment composition selecting exactly one Behavior Product Template plus optional solution, capability, extension, channel, provider, topology, quality, and package bindings | New generic Platform Product Profile catalogue |
 | Product Profile Version | Immutable semantic definition and compiled-input hash | Platform Product Profile version store |
@@ -232,6 +239,7 @@ These facts prove the foundation. They do not make every product profile in this
 | Deployment Template | Runtime/connector/provider/vector topology preset | Existing Platform deployment template catalogue |
 | Target Profile | Hosting provider, environment, region, credentials, network, resources, placement | Existing `DeploymentTargetProfile` |
 | Channel Binding | Approved invocation and UI surface | Product Profile version and integration config |
+| Integration Adapter Pack | Optional deployment-local transport bridge that converts an external event source or result sink to/from canonical CloudEvents without changing behavior or authority | Future governed Marketplace `INTEGRATION` plugin plus allowlisted runtime/sidecar implementation; built-in HTTPS needs no pack |
 | Verification Pack | Deterministic, provider, security, product quality, UI, and deployment checks | Platform verification catalogue plus product fixtures |
 | Managed Product Service | Restartable shared/private service such as MCP Gateway or Shopify Bridge | Platform Product Services |
 | V04 Deployment Version | Immutable compiled runtime desired state | Existing Platform deployment compiler/version repository |
@@ -282,6 +290,15 @@ name: LoomAI Smart Brain
 activation:
   allowedSources: [application, event, scheduled]
   publicInteractiveInput: false
+integration:
+  assignmentDiscovery: platform-control-plane
+  dataPlane: deployment-local
+  canonicalEventFormat: cloudevents-1.0-structured-json
+  mandatoryIngressTransport: https
+  mandatoryResultTransport: direct-polling
+  optionalResultTransports: [signed-https-webhook]
+  requiredRuntimeEndpointClasses: [trigger-submit, operation-status-result, operation-cancel]
+  platformDataPlaneProxyRequired: false
 coordination:
   durableJob:
     enabled: true
@@ -298,6 +315,8 @@ authority:
   eventOrScheduledWritesAllowed: false
 outputs:
   allowedClasses: [typed-result, persisted-insight, notification, application-review-request]
+  deliveryOwner: deployment
+  destinationSource: compiled-product-profile
 requiredAiFabricModules:
   - ai-fabric-execution
 allowedExecutionExtensions: []
@@ -368,7 +387,7 @@ Rules:
 - Exactly one published `behaviorProductTemplate.code@version` is required.
 - Activation sources and coordination mode come from that template and cannot be widened by a solution pack, browser, model, or deployment request.
 - A Conversational Assistant profile accepts authenticated interactive turns. An Agentic Specialist Team profile uses exact specialists and bounded coordination. A Smart Brain profile accepts only trusted application, event, or scheduled activation declared by its template.
-- In AI Fabric 0.5.2, durable queued execution is an exact read-only specialist job. Fixed sequential/parallel plans are process-local. A profile cannot claim durable multi-step plans or event/scheduled writes.
+- AI Fabric 0.6.1 supports an exact durable read-only specialist job and an opt-in bounded durable multi-specialist chain. Fixed sequential/parallel plans remain process-local. A profile cannot claim an open-ended durable graph or event/scheduled writes.
 - Only official codes from `loomai-provider-capabilities-v1` are accepted.
 - Required AI Fabric modules are compiler requirements, not browser choices.
 - A Product Profile can narrow available Marketplace capabilities; it cannot grant capabilities absent from installed/published inventory.
@@ -427,7 +446,7 @@ Platform must validate at least:
 
 - exactly one published Behavior Product Template exists at the declared version;
 - activation source, coordination mode, channel, extension, durability, and solution-pack bindings are compatible with that template;
-- Smart Brain durable jobs are read-only and fixed plans are not represented as durable multi-step work;
+- Smart Brain durable jobs and bounded chain workers are read-only; fixed plans are not represented as durable work;
 - package/tier permits requested surfaces, actions, provider cost, and support posture;
 - curated module and prompt pack exist;
 - one compatible inference profile is active;
@@ -450,17 +469,17 @@ Platform must maintain immutable versions of these three primary behavior produc
 | Template code | Customer-visible behavior | Allowed activation | Coordination contract | Current evidence and status |
 | --- | --- | --- | --- | --- |
 | `loomai-conversational-assistant@1` | User asks; LoomAI answers or requests a governed next step | Authenticated interactive backend request | One bounded orchestration turn with optional backend-owned conversation state | Shopify and ProdUS hosted paths prove the behavior; generic Product Profile packaging remains required |
-| `loomai-agentic-specialist-team@1` | A bounded manager coordinates approved specialists for a larger user/application task | Authenticated interactive or application request declared by the profile | Exact-version specialists; manager may ask, invoke one approved read worker, or complete; optional fixed sequential/parallel read-only plan and one-level delegation/handoff | AI Fabric 0.5.2 and the Agentic Action Resolver prove the contracts; LoomAI has hosted exact-specialist proof, while a reusable multi-specialist template still requires hosted product verification |
-| `loomai-smart-brain@1` | LoomAI proactively analyzes trusted system facts without waiting for a chat message | Trusted `APPLICATION`, `EVENT`, or `SCHEDULED` adapter; optional durable read-job submission | One exact read-only specialist per durable job, or a bounded process-local fixed read-only plan | AI Fabric 0.5.2 durable event execution and behavior demos prove the pattern; LoomAI trigger, queue, output, operations, and verification packaging remain required |
+| `loomai-agentic-specialist-team@1` | A bounded manager coordinates approved specialists for a larger user/application task | Authenticated interactive or application request declared by the profile | Exact-version read-only workers; manager may complete, ask once, invoke one worker, invoke an explicitly independent group, choose a second worker from approved projections, synthesize, or use one terminal handoff | AI Fabric 0.6.1 proves the bounded chain contract; LoomAI has hosted exact-specialist proof, while a reusable chain-backed template still requires hosted product verification |
+| `loomai-smart-brain@1` | LoomAI proactively analyzes trusted system facts without waiting for a chat message | Trusted `APPLICATION`, `EVENT`, or `SCHEDULED` adapter; optional durable read-job submission | One exact read-only specialist, an approved bounded read-only chain, or a process-local fixed read-only plan | AI Fabric 0.6.1 durable execution and behavior demos prove the primitives; LoomAI trigger, queue, output, operations, and verification packaging remain required |
 
 Template rules:
 
 - The template owns activation and coordination semantics; a solution pack supplies only domain meaning.
-- `Conversational Assistant` is the continuation of the AI Fabric 0.3 query-driven behavior and remains available in 0.5.2.
+- `Conversational Assistant` is the continuation of the AI Fabric 0.3 query-driven behavior and remains available in 0.6.1.
 - `Agentic Specialist Team` is bounded agentic behavior. It is never described as unrestricted autonomous multi-agent execution.
 - `Smart Brain` is proactive but not self-authoring. A trusted application decides which event/schedule maps to which exact specialist or fixed plan.
 - A durable queue means explicit persisted jobs, bounded leases, recovery, status, cancellation, replay, and typed terminal results. It does not mean an endlessly self-directed agent.
-- AI Fabric 0.5.2 does not provide a durable multi-step graph. Durable single-specialist reads and process-local fixed plans must remain separate claims.
+- AI Fabric 0.6.1 provides a deliberately bounded durable multi-specialist chain, not an open-ended graph. Durable single-specialist jobs, bounded chains, and process-local fixed plans must remain separate claims.
 
 ### 7.2 Product Profile catalogue and compiler
 
@@ -519,9 +538,9 @@ The backend owns conversation ID authorization, prior turns, pending work, activ
 - Immutable artifact or mounted configuration.
 - New deployment version for semantic changes.
 - Read-only specialist first.
-- Add input waits, fixed plans, durable jobs, writes, or review only for a concrete product requirement.
+- Add input waits, fixed plans, bounded chains, durable jobs, writes, or review only for a concrete product requirement.
 
-AI Fabric 0.5.2 does not provide a dynamic specialist database or safe hot reload. Platform authoring therefore compiles manifests into a new deployment version; it does not mutate the running registry.
+AI Fabric 0.6.1 does not provide a dynamic specialist database or safe hot reload. Platform authoring therefore compiles manifests into a new deployment version; it does not mutate the running registry. Resolved prompt and input/output schemas participate in manifest identity, so prompt-only and schema-only changes also require a new version and cannot resume protected work under the old hash.
 
 ### 7.6 Governed action lifecycle
 
@@ -587,7 +606,8 @@ The market catalogue is organized by **how LoomAI behaves**, not by the customer
 | Execution Extension | Optional governed behavior attached to a compatible template | Resolver, Human Review |
 | Solution Pack | What the behavior understands and delivers for one domain | Shopify commerce, ProdUS project intelligence, support resolution, churn intelligence |
 | Capability Pack | Reusable technical or AI capability | RAG, Data Sync, MCP, vectorization, relationship query, PII, structured output |
-| Channel Binding | How an authorized caller activates or experiences the behavior | Backend API, docked composer, Max Mode, inline panel, event adapter, scheduler adapter |
+| Channel Binding | How an authorized caller activates or experiences the behavior | Backend API, docked composer, Max Mode, inline panel, deployment-local event endpoint, scheduler |
+| Integration Adapter Pack | Optional transport bridge around the canonical deployment endpoint/result contract | Kafka, SQS/EventBridge, Service Bus/Event Grid, Pub/Sub, NATS, vendor webhook |
 | Deployment/Operations | How LoomAI hosts, verifies, assigns, promotes, and supports it | V04 version/release, target profile, managed vector/provider services, verification pack |
 
 Only Behavior Product Templates are marketed as the primary LoomAI products. Other layers are described as included capabilities, solution packs, channels, or managed services.
@@ -643,34 +663,38 @@ Activation and behavior:
 
 ```text
 authenticated user or application request
-  -> exact-version conversation manager or fixed coordinator
-  -> ASK_USER, INVOKE_ONE_APPROVED_READ_SPECIALIST, or COMPLETE
-  -> optional fixed sequential/parallel read-only plan
-  -> deterministic aggregation and safe public result
+  -> exact-version bounded chain manager or fixed coordinator
+  -> COMPLETE, ASK_USER, one worker, independent parallel group,
+     approved second worker, synthesis, or terminal handoff
+  -> typed projections, structural attribution, and safe public result
 ```
 
-Supported AI Fabric 0.5.2 composition:
+Supported AI Fabric 0.6.1 composition:
 
 - exact `name@version` specialists and typed schemas;
-- backend-owned conversation manager;
+- backend-owned conversation manager with a closed target catalogue;
+- typed worker input mappers and bounded safe result projectors;
+- bounded sequential and explicitly independent parallel worker use;
+- optional JDBC checkpoints, leases, recovery, cancellation, retention, and exact replay;
 - bounded input waits;
 - fixed sequential and opt-in `ALL_REQUIRED` parallel read-only plans;
 - one-level closed delegation or handoff;
 - required grounding and safe evidence references;
-- deterministic application aggregation.
+- structurally attributed synthesis and deterministic application aggregation.
 
 Product boundaries:
 
 - no model-generated graph, arbitrary specialist discovery, recursion, unrestricted tools, or authority expansion;
-- fixed plan state is process-local in 0.5.2 and cannot be sold as a durable workflow graph;
-- write-capable composed plans are unsupported;
+- fixed plan state remains process-local and cannot be sold as durable chain state;
+- chain workers and composed plans are read-only; writes continue through governed proposal/confirmation/review state machines outside the chain;
+- durable chain mode requires an application-owned database migration and stable private encryption/fingerprint secrets;
 - the application owns identity, specialist selection boundary, domain validation, and public projection.
 
 Maturity:
 
 - Framework contracts and executable Agentic Action Resolver proof: `AI_FABRIC_AVAILABLE`.
 - Exact LoomAI specialist deployment and tenant/deployment isolation: `LOOMAI_HOSTED_PROVEN` for `deployment-knowledge-specialist@1`.
-- Generic manager plus multi-specialist behavior template: `PRODUCTIZATION_REQUIRED` until compiled, deployed, and hosted-canary verified as one reusable Product Profile.
+- Generic bounded chain plus multi-specialist behavior template: `PRODUCTIZATION_REQUIRED`; the `0.6.1` base rollout keeps chains disabled until compiled, deployed, and hosted-canary verified as one reusable Product Profile.
 
 ### 8.4 Product C: LoomAI Smart Brain
 
@@ -687,27 +711,55 @@ Activation and behavior:
 
 ```text
 trusted application event / schedule / internal API / durable job submission
-  -> backend maps facts to exact specialist and trusted execution context
+  -> resolve/cache consumer runtime assignment through Platform control plane
+  -> call the assigned deployment's Smart Brain endpoint directly
+  -> deployment maps facts to exact specialist and trusted execution context
   -> read-only analysis over approved current state, evidence, or read actions
   -> typed terminal result
-  -> persist, notify, display, or route to authorized human review
+  -> deployment persists, returns, notifies, or routes to authorized human review
 ```
 
-Supported AI Fabric 0.5.2 composition:
+Deployment-local integration contract:
+
+- Platform assignment discovery publishes the active deployment ID, runtime base URL, assignment revision/TTL, trusted-backend assertion contract, and Smart Brain endpoint templates.
+- The customer backend caches that assignment and sends event/application traffic directly to the selected runtime. `api.loomai.pro` is not a required proxy for event submissions or results.
+- Each deployment exposes its own equivalent of `POST {runtimeBaseUrl}/api/smart-brain/triggers/{triggerCode}`, `GET {runtimeBaseUrl}/api/smart-brain/operations/{operationId}`, and `DELETE {runtimeBaseUrl}/api/smart-brain/operations/{operationId}`. Exact routes become immutable only when the runtime contract is implemented and released.
+- Submission returns a deployment-local operation handle and absolute status/result URL. Identical redelivery uses the same idempotency key; changed facts under that key fail with a visible conflict.
+- Each deployment owns its durable job database, workers, leases, recovery, result store, delivery outbox, callback retry/dead-letter state, and operational endpoints.
+- Polling reads the result directly from the deployment. Optional callbacks/notifications are sent directly by that deployment to a destination compiled from the Product Profile or deployment configuration; an event body cannot provide or override the destination.
+- A customer-owned broker/outbox adapter posts to the assigned deployment. A LoomAI-managed broker or scheduler adapter, when offered, is deployed with or alongside that deployment and does not route every customer's traffic through the central Platform backend.
+- New work follows the latest assignment. Accepted work remains pinned to its original deployment and operation URL; promotion keeps the previous deployment available long enough to exhaust assignment-cache grace, drain non-terminal jobs, and finish outbound deliveries before decommissioning it.
+
+Technology baseline and adapter model:
+
+- The mandatory universal ingress is HTTPS using CloudEvents `1.0` structured JSON (`Content-Type: application/cloudevents+json`) and a versioned trigger-specific `data` schema. Use the official CloudEvents Java SDK for parsing/serialization instead of a custom envelope parser.
+- The deployment exposes the ingress and operation APIs through Spring Boot controllers and publishes their exact OpenAPI contract through runtime-assignment endpoint metadata.
+- The runtime authenticates the existing trusted-backend API key/private assertion, validates the CloudEvent and trigger schema, derives payload-checked idempotency from the trusted source, event ID, trigger contract version, and canonical facts, then submits an AI Fabric JDBC durable read job before returning `202 Accepted`.
+- PostgreSQL/JDBC is the deployment-local durability boundary for accepted operations, AI Fabric execution state, and outbound-delivery records. No central LoomAI broker or operation database is required.
+- Direct polling is the mandatory result transport. Signed HTTPS webhook delivery is the standard optional push transport, backed by a deployment-local transactional outbox, bounded retry/backoff, terminal failed/dead-letter state, and operator retry. The existing runtime action-webhook worker is a reusable implementation pattern but is currently action-specific; Smart Brain needs a generic typed-result delivery contract rather than copied special-case code.
+- A CloudEvents terminal-result envelope is used for webhook delivery. Its destination, signing secret reference, timeout, retry, and retention policy come from compiled deployment configuration, never from the triggering event.
+- Customer schedulers, outboxes, and services need no LoomAI adapter when they can send HTTPS CloudEvents. LoomAI-managed schedules use Quartz through `spring-boot-starter-quartz` with a PostgreSQL JDBC job store inside that deployment; each firing creates the same canonical activation request and idempotency contract as HTTP ingress rather than a second execution path.
+- Kafka, RabbitMQ, AWS SQS/EventBridge, Azure Service Bus/Event Grid, Google Pub/Sub, NATS, and vendor-webhook support are optional transport adapters. Each adapter runs inside or alongside the target deployment and converts only between its transport and the same canonical CloudEvents ingress/result contracts.
+- Domain event types, JSON schemas, and deterministic trigger-to-specialist mappings belong to the Solution Pack/Product Profile. Transport adapters are domain-neutral and cannot select identity, tenant, deployment, specialist, provider, scopes, or output authority.
+- The current Marketplace supports only `TEMPLATE`, `ACTION`, `DATA`, and `INFERENCE_PROFILE`; do not misclassify event adapters as `DATA` or `ACTION`. When the first non-HTTP adapter is productized, add a governed `INTEGRATION` plugin type with exact `EVENT_SOURCE_ADAPTER` and `RESULT_SINK_ADAPTER` contributions, allowlisted implementation references, config schemas, secret references, topology requirements, and verification packs.
+
+Supported AI Fabric 0.6.1 composition:
 
 - `APPLICATION`, `EVENT`, and `SCHEDULED` service/system execution sources;
 - durable read jobs persisted before dispatch;
 - bounded leases, startup recovery, scoped status/cancel/replay, encrypted request/result state, and typed terminal snapshots;
 - stable idempotency binding for duplicate event delivery;
+- optional bounded multi-specialist read-only chains with exact-version targets, typed projections, JDBC checkpoints, and structural attribution;
 - process-local fixed sequential/parallel read-only plans for a single running invocation;
 - behavior-event and relationship analysis capability packs where selected.
 
 Product boundaries:
 
-- the customer application or managed LoomAI adapter owns the event broker, scheduler, trigger mapping, and output destination;
+- the customer application or deployment-local managed LoomAI adapter owns the event broker/scheduler integration; immutable deployment configuration owns trigger mapping and output destinations;
+- Platform owns assignment, release, verification, and endpoint publication but is not the centralized Smart Brain event/result transport;
 - durable execution is at-least-once read execution, not exactly-once provider invocation;
-- durable single-specialist jobs and process-local fixed plans are separate supported postures;
-- no durable multi-step graph, fabricated user message, automatic write, event-triggered write, or self-selected ongoing objective;
+- durable single-specialist jobs, bounded durable chains, and process-local fixed plans are separate supported postures;
+- no open-ended graph, cycle, recursive worker transition, fabricated user message, automatic write, event-triggered write, or self-selected ongoing objective;
 - “any analysis” means any published specialist/solution contract with approved evidence and typed output, not arbitrary runtime self-programming.
 
 Evidence and maturity:
@@ -725,7 +777,7 @@ Adds one registered write proposal, application validation, explicit confirmatio
 
 Primary official capability bindings: `loomai_governed_action_execution`, `loomai_safety_governance`, and `loomai_structured_outputs`.
 
-It may extend compatible Conversational Assistant or Agentic Specialist Team profiles. AI Fabric 0.5.2 does not support event/scheduled durable write jobs, so it must not turn Smart Brain into an automatic mutation engine.
+It may extend compatible Conversational Assistant or Agentic Specialist Team profiles. AI Fabric 0.6.1 does not support write-capable chain workers or event/scheduled durable write jobs, so it must not turn Smart Brain into an automatic mutation engine.
 
 #### Human Review
 
@@ -773,10 +825,10 @@ Grounding, vectorization, external retrieval, MCP, actions, privacy, relationshi
 | Behavior product | Supported claim now | Claim requiring additional productization |
 | --- | --- | --- |
 | Conversational Assistant | LoomAI has hosted, verified conversational deployments and can deliver managed scoped deployments | Generic self-service/reusable `@1` Product Profile and broad package catalogue |
-| Agentic Specialist Team | AI Fabric 0.5.2 supports bounded specialists; LoomAI has hosted exact-specialist security proof | A ready reusable team template requires hosted conversation-manager, multi-specialist plan, failure, and promotion canaries |
-| Smart Brain | AI Fabric 0.5.2 supports trusted proactive read execution and durable jobs; executable behavior demos exist | A ready LoomAI template requires managed trigger binding, durable store/worker, output routing, monitoring, recovery, and hosted release proof |
+| Agentic Specialist Team | AI Fabric 0.6.1 supports bounded multi-specialist chains; LoomAI has hosted exact-specialist security proof | A ready reusable team template requires hosted chain manager/worker, persistence, replay, failure, and promotion canaries |
+| Smart Brain | AI Fabric 0.6.1 supports trusted proactive read execution, durable jobs, and bounded read-only chains; executable behavior demos exist | A ready LoomAI template requires managed trigger binding, durable store/worker or chain, output routing, monitoring, recovery, and hosted release proof |
 
-External copy must say `governed`, `bounded`, `approved`, or `configured` where relevant. Do not claim unrestricted agents, continuous self-directed goals, arbitrary analysis, automatic high-impact decisions, exactly-once model calls, or durable multi-step workflows.
+External copy must say `governed`, `bounded`, `approved`, or `configured` where relevant. Do not claim unrestricted agents, continuous self-directed goals, arbitrary analysis, automatic high-impact decisions, exactly-once model calls, or open-ended/dynamic/recursive workflows. Claim bounded durable multi-specialist execution only after the exact LoomAI profile passes hosted durability and security gates.
 
 ### 8.9 Private Enterprise Product Factory
 
@@ -795,9 +847,10 @@ These are compiler requirements selected by Behavior Product Templates. They are
 | Read-only grounded | Any behavior | RAG + generation + vector/retrieval provider | Vector/source lifecycle as selected | Evidence must be scoped, sanitized, and quality-tested |
 | Interactive conversation | Conversational Assistant | Ordinary orchestration + chat session | Configured session storage | Backend owns conversation identity, history, pending work, and reset |
 | Interactive specialist | Agentic Specialist Team | Read specialist + conversation manager + typed wait | Chat session as selected | Input waits and manager state are process-local; avoid restart-survival claims |
+| Bounded specialist chain | Agentic Specialist Team or Smart Brain | Closed exact-version read-only worker catalogue + manager directives + typed mappers/projectors | Optional `ai_specialist_chain_execution`, stable encryption/fingerprint secrets, leases and retention | No recursion, cycles, dynamic targets, write workers, or exactly-once provider claim |
 | Governed write | Conversational Assistant or Agentic Specialist Team extension | Specialist/action proposal + confirmation | `ai_action_proposal_receipt`, stable secrets, application transaction | Side effect remains application-owned |
 | Human review | Compatible behavior extension | Review task + delivery + governed receipt | `ai_review_task`, `ai_review_dispatch`, receipt storage | Reviewer authorization and assignment are product/application-owned |
-| Durable event read | Smart Brain | Trusted event/schedule adapter + exact specialist execution worker | `ai_specialist_execution`, stable encryption/fingerprint secrets | At-least-once read execution, not exactly-once provider calls or event writes |
+| Durable event read | Smart Brain | Deployment-local event/schedule endpoint + exact specialist job or bounded specialist chain | `ai_specialist_execution` or `ai_specialist_chain_execution`, stable encryption/fingerprint secrets, local result/delivery outbox | Direct deployment data plane; at-least-once read execution, not exactly-once provider calls or event writes |
 | Process-local fixed plan | Agentic Specialist Team or Smart Brain | Fixed sequential/parallel read-only plan | Bounded in-process checkpoints | Exact-version, deterministic topology; not a durable graph |
 | Live data RAG | Any retrieval-enabled behavior | Data Sync + indexing worker + vector provider | Indexing queue/work plus vector storage | Query work status; do not infer completion from vector presence |
 | Tenant-isolated SaaS | Any multi-tenant behavior | Trusted auth + scoped retrieval/actions + canaries | Customer identity source and scoped data | Missing boundary must fail before retrieval/action |
@@ -868,24 +921,29 @@ AI Fabric owns action orchestration, parameter/result contracts, confirmation po
 
 Product Bridges own host-specific session, billing, consent, account token, and object authorization that generic protocol code cannot infer.
 
-### 11.2 Direct framework MCP executor follow-up
+### 11.2 Direct framework MCP executor in AI Fabric 0.6.1
 
-Current public `SpringAiMcpActionExecutor.findClient(...)` behavior:
+AI Fabric `0.6.1` inherited the required MCP boundary correction:
 
-- tries to match a declared server reference;
-- if no matching server client is found, keeps all clients as candidates;
-- may choose another client exposing the same tool name.
-
-That is not acceptable for a declared production server binding.
+- a declared `serverRef` must match the exact remote server name or title;
+- no exact match fails closed instead of searching unrelated clients exposing
+  the same tool name;
+- oversized results are rejected before projection or model context; and
+- nested backend-owned read parameters are resolved before required-parameter
+  validation.
 
 Decision:
 
-- LoomAI production continues to use the managed Gateway exact binding.
-- If direct Spring AI-managed MCP client execution is required, raise a public framework change: declared `serverRef` with no exact matching client must fail closed.
-- Add regression tests with two clients exposing the same tool name.
-- Release immutably and upgrade through Maven Central before enabling that path.
+- LoomAI production continues to use the managed Gateway because that is the
+  currently hosted and operationally governed execution plane.
+- Direct Spring AI-managed MCP execution is no longer framework-blocked by
+  ambiguous server selection, but each adopting Product Profile still needs
+  exact-server, duplicate-tool-name, auth, result-size, outage, and tenant
+  security canaries.
+- Do not retain or add a private workaround for the pre-`0.6.1` fallback.
 
-This is not a blocker for the current managed Gateway path.
+This correction expands a possible future deployment-local MCP posture; it
+does not require replacing the managed Gateway.
 
 ### 11.3 Future inbound LoomAI authoring MCP server
 
@@ -1000,7 +1058,10 @@ Platform UI and ordinary APIs remain first-class authoring channels. The MCP aut
 17. Rollback stops new invocations while preserving unresolved durable work for authorized recovery.
 18. High-impact decisions remain human/application authority.
 19. Public event payloads contain domain facts only. They cannot select identity, tenant, deployment, specialist, scopes, provider, vector space, action, or output authority.
-20. Smart Brain event/scheduled work remains read-only in AI Fabric 0.5.2; process-local fixed plans cannot be represented as durable workflow state.
+20. Smart Brain event/scheduled work and specialist-chain workers remain read-only in AI Fabric 0.6.1; process-local fixed plans cannot be represented as durable chain state.
+21. Smart Brain customer traffic goes directly to the assigned deployment endpoint after control-plane assignment discovery. Platform must not become a mandatory proxy, centralized job store, or result relay.
+22. Callback destinations, signing secrets, retry policy, and retention compile into deployment-owned configuration; the request body cannot supply them.
+23. Promotion preserves accepted operation URLs and keeps the old deployment available until assignment-cache grace, jobs, and outbound deliveries are drained.
 
 ## 14. Verification Architecture
 
@@ -1010,7 +1071,7 @@ Every Behavior Product Template Version has a baseline behavior verification pac
 | --- | --- |
 | Behavior static validation | Exact behavior-template version, activation sources, coordination mode, extension compatibility, durability, and unsupported-claim policy |
 | Profile static validation | Exactly one behavior template; official capability codes; solution/package/runtime/vector/channel/topology compatibility |
-| Framework dependency | Central-only build resolves exactly AI Fabric 0.5.2 and intended optional modules |
+| Framework dependency | Central-only build resolves exactly AI Fabric 0.6.1 and intended optional modules |
 | Compilation | Marketplace packs, curated behavior, V04 entities, actions, vector spaces, specialists, schemas, and secrets-by-ref compile |
 | Unit | Adapters, validators, projectors, parameter/result policy, and failure projection |
 | Integration | Only modules used by profile: retrieval, sessions, actions, receipts, review, behavior, relationship, indexing, storage |
@@ -1020,9 +1081,10 @@ Every Behavior Product Template Version has a baseline behavior verification pac
 | RAG quality | Golden queries, expected sources, no-evidence correctness, citations, forbidden claims |
 | Security | Cross-principal, subject, tenant, deployment, scope, evidence, action, receipt, and review denial |
 | Session | Owner-scoped history/pending work, reset, expiry, replay, cross-owner denial |
-| Agentic team | Exact manager/workers, `ASK_USER`/worker/complete bounds, independent worker authority, fixed-plan mappings, deterministic aggregation, process-local limit |
-| Smart Brain activation | Trusted event/application/scheduled mapping, no fabricated chat, service identity, read-only enforcement, output destination authorization |
-| Smart Brain durability | Persist-before-dispatch, duplicate replay, changed-facts conflict, lease recovery, restart, status/cancel, encryption, retention, typed terminal result |
+| Agentic team | Exact manager/workers, no-worker/clarification/one-worker/sequential/independent-parallel/synthesis/handoff bounds, typed projections, independent worker authority, replay/restart where durable, fixed-plan mappings, and deterministic aggregation |
+| Smart Brain activation | Assignment advertises deployment-local OpenAPI endpoints; CloudEvents structured JSON and trigger-data schema validation; direct event/application/scheduled mapping; no Platform data-plane proxy; no fabricated chat; service identity; read-only enforcement; output destination authorization |
+| Smart Brain durability | Deployment-local PostgreSQL/JDBC persist-before-dispatch, duplicate replay, changed-facts conflict, lease recovery, restart, direct status/result/cancel, encryption, retention, typed terminal result, signed-webhook outbox retry/dead letter |
+| Integration adapter | Exact allowlisted implementation/version, canonical CloudEvents parity, deployment-local topology, secret isolation, broker redelivery/idempotency, outage/backpressure, result-sink delivery, and no authority widening |
 | Specialist | Exact version/hash, typed I/O, capability intersection, grounding, waits/jobs as selected |
 | MCP | Exact server/tool binding, live auth, schema drift, arguments, output sanitation, unavailable server, tool failure |
 | Write/review | Dry-run, confirmation/rejection, immutable receipt, restart, idempotent replay, reconciliation |
@@ -1036,8 +1098,8 @@ Every Behavior Product Template Version has a baseline behavior verification pac
 Behavior and pack proof examples:
 
 - Conversational Assistant: an authenticated user query returns an answer, clarification, structured result, or governed next step without leaking raw internal envelopes.
-- Agentic Specialist Team: the manager selects only one declared read worker or completes/asks; fixed branches return typed evidence and aggregate deterministically; restart-sensitive state is not claimed durable.
-- Smart Brain: a trusted event produces no chat turn, creates one scoped read job, survives restart where promised, replays identical delivery, rejects changed facts, and cannot write.
+- Agentic Specialist Team: the manager stays inside a closed exact-version target catalogue and may complete, ask once, invoke one worker, invoke an explicitly independent group, choose an approved second worker, synthesize, or terminate through one allowed handoff; durable claims require exact replay/restart proof.
+- Smart Brain: assignment discovery is used only to locate/authenticate the runtime; a trusted event and its result travel directly between customer and deployment, create no chat turn, survive restart where promised, replay identical delivery, reject changed facts, and cannot write.
 - Grounded Company Knowledge pack: a known evidence ID must be top-k and appear in generated answer citations; update/delete changes evidence only after work reaches successful terminal state.
 - Resolver extension: confirmation survives restart where promised, executes once, and reconciles.
 - MCP pack: discovered schema hash matches installed binding or execution fails before `tools/call`.
@@ -1062,30 +1124,35 @@ Exit:
 
 ### P1: Agentic Specialist Team
 
-1. Add Platform authoring/validation for exact specialist manifests, schemas, prompts, registered actions/vector spaces, and ceilings.
-2. Compile an immutable conversation manager plus at least two exact read-only specialists into a V04 deployment version.
-3. Prove `ASK_USER`, one approved worker invocation, `COMPLETE`, failure, denial, and replay behavior.
-4. Add one fixed sequential and one bounded parallel read-only plan with deterministic aggregation.
-5. Deploy one hosted Agentic Specialist Team profile and repeat two-tenant/two-deployment, missing-boundary, provider-failure, and promotion canaries.
+1. Keep specialist chains disabled through the `0.6.1` base dependency rollout and complete all existing-capability regression first.
+2. Add Platform authoring/validation for one exact chain manager, exact specialist manifests, schemas, prompts, registered actions/vector spaces, closed target catalogue, and ceilings.
+3. Compile one immutable `SpecialistChainDefinition` plus at least two exact read-only workers into a V04 deployment version; do not invent a parallel LoomAI chain YAML format.
+4. Provision the application-owned JDBC chain migration and two distinct stable private encryption/fingerprint secrets for the canary deployment.
+5. Prove no-worker, clarification, one-worker, sequential, explicitly independent parallel, invented-target denial, required-branch failure, synthesis attribution, terminal handoff, exact replay, changed-payload conflict, restart, cancellation/deadline, current-authorization recovery, retention, and bounded structured correction.
+6. Keep one fixed sequential/parallel plan only where deterministic static topology is the better product contract; do not present it as chain state.
+7. Deploy one hosted Agentic Specialist Team profile and repeat two-tenant/two-deployment, missing-boundary, provider-failure, rollback-with-chains-off, and promotion canaries.
 
 Exit:
 
-- the reusable team template is hosted-proven without dynamic topology, arbitrary specialist selection, shared hidden conversations, or write-capable plans;
-- process-local manager/plan limits are visible in product claims and operations.
+- the reusable team template is hosted-proven without dynamic topology, arbitrary specialist selection, shared hidden conversations, recursive workers, or write-capable chains/plans;
+- durable chain limits and process-local fixed-plan limits are separately visible in product claims and operations.
 
 ### P2: Smart Brain
 
-1. Define trusted `APPLICATION`, `EVENT`, and `SCHEDULED` channel bindings and event-contract versioning.
-2. Map each trigger deterministically to one exact read-only specialist, trusted subject/tenant/deployment context, scopes, and output contract.
-3. Provision durable execution storage, stable encryption/fingerprint secrets, workers, leases, recovery, status, cancellation, replay, retention, and cleanup.
-4. Add output sinks for persisted insight, application callback/notification, and authorized human-review routing without automatic mutation.
-5. Prove duplicate delivery, changed-facts conflict, restart recovery, lease expiry, provider failure, cross-tenant denial, and terminal result projection.
-6. Add a process-local fixed analysis plan only after the durable single-specialist path is green; do not describe it as a durable plan.
-7. Productize one Behavior/Churn or Incident Intelligence solution pack on the Smart Brain behavior.
+1. Define OpenAPI contracts for deployment-local submit, status/result, and cancellation endpoints. Standardize `APPLICATION`, `EVENT`, and `SCHEDULED` ingress on CloudEvents `1.0` structured JSON with versioned trigger-specific data schemas.
+2. Extend consumer runtime assignment metadata with the Smart Brain endpoint templates and required trusted-backend/private-assertion posture; keep Platform out of the event and result data path.
+3. Map each trigger inside immutable deployment configuration to one exact read-only specialist, trusted subject/tenant/deployment context, scopes, and output contract.
+4. Provision each deployment's durable execution storage, stable encryption/fingerprint secrets, workers, leases, recovery, status, cancellation, replay, retention, and cleanup.
+5. Add deployment-owned result storage, mandatory direct polling, and a transactional delivery outbox for signed CloudEvents HTTPS callbacks/notifications and authorized human-review routing without automatic mutation.
+6. Define promotion draining: new assignments receive new submissions, accepted operation URLs remain valid on their original runtime, and the previous deployment remains available through assignment-cache grace and terminal delivery.
+7. Prove direct operation with Platform unavailable after assignment resolution, duplicate delivery, changed-facts conflict, restart recovery, lease expiry, provider failure, cross-tenant denial, callback retry/dead letter, promotion draining, and terminal result projection.
+8. After the durable single-specialist path is green, choose deliberately between a process-local fixed analysis plan and a bounded durable read-only specialist chain; do not describe either as an open-ended graph.
+9. If a bounded chain is selected, reuse the reviewed chain migration/secrets and run the full chain matrix under event/scheduled trusted context before enabling that trigger.
+10. Productize one Behavior/Churn or Incident Intelligence solution pack on the Smart Brain behavior.
 
 Exit:
 
-- one event/scheduled Product Profile runs without a chat turn, survives restart where promised, exposes one typed terminal result, and passes release/promotion/operations gates;
+- one event/scheduled Product Profile accepts and returns work directly through its deployment URL without a Platform data-plane hop, runs without a chat turn, survives restart where promised, exposes one typed terminal result, and passes release/promotion/operations gates;
 - no event or scheduled path can propose or execute a write.
 
 ### P3: Governed Resolver and Human Review extensions
@@ -1137,6 +1204,7 @@ Exit:
 3. Add more reviewed MCP solution packs with per-pack auth, drift, read/write, outage, and quality proof.
 4. Raise the strict-server public framework fix only if direct Spring AI executor use is required.
 5. Add quotas, cost controls, alerts, backup/restore, retention, support, and offboarding per behavior template.
+6. After the built-in HTTPS contract is hosted-proven, add a governed Marketplace `INTEGRATION` plugin type and the first deployment-local broker adapter. Do not overload `DATA` or `ACTION`, and do not accept arbitrary adapter code/images.
 
 Exit:
 
@@ -1207,12 +1275,13 @@ Exit:
 
 ### Workstream E: Smart Brain activation and durable operations
 
-- trusted application/event/scheduled adapter contracts;
+- assignment-advertised, deployment-local application/event/scheduled endpoint contracts;
 - deterministic trigger-to-specialist/plan mapping;
 - event-contract versions, idempotency, service identity, and scope policy;
 - durable execution database, encryption/fingerprint secrets, workers, leases, recovery, status, cancellation, replay, retention, and cleanup;
-- persisted insight/callback/notification/review output sinks;
-- no-chat-turn, no-event-write, restart, duplicate-delivery, and cross-tenant canaries.
+- deployment-owned result store, delivery outbox, and persisted insight/callback/notification/review output sinks;
+- assignment-cache grace, old-deployment draining, and accepted-operation URL continuity;
+- direct-data-plane, Platform-outage, no-chat-turn, no-event-write, restart, duplicate-delivery, callback-retry, and cross-tenant canaries.
 
 ### Workstream F: Specialist, Resolver, and Human Review operations
 
@@ -1249,12 +1318,11 @@ Exit:
 
 ### Confirmed framework follow-up
 
-`AF-MCP-STRICT-SERVER-REF`:
-
-- Scope: public `ai-fabric-actions-connector` direct Spring AI MCP executor.
-- Expected: when `execution.mcp.serverRef` is declared, only an exact matching client is eligible; no match returns explicit unavailable/invalid configuration.
-- Evidence: current `findClient` falls back to all clients when the server-filter result is empty.
-- Impact: blocks direct executor use as LoomAI production trust boundary, but does not block the managed MCP Gateway.
+No framework blocker is currently confirmed for the base `0.6.1` migration.
+The historical `AF-MCP-STRICT-SERVER-REF` issue is resolved by the immutable
+release's exact remote server name/title binding and bounded result handling.
+Any new framework gap must still be reproduced against `0.6.1` before LoomAI
+adds a product-side workaround.
 
 ### LoomAI product gaps, not framework blockers
 
@@ -1262,8 +1330,8 @@ Exit:
 - generic Product Profile catalogue/version/compiler;
 - generic Conversational Assistant Product Profile independent of Shopify-specific packaging;
 - generic package/runtime/vector/verification mapping beyond Shopify;
-- hosted reusable conversation-manager/multi-specialist team profile;
-- Smart Brain trusted trigger bindings, durable worker operations, output routing, and hosted profile proof;
+- hosted reusable bounded-chain/multi-specialist team profile;
+- Smart Brain deployment-local trigger/status/result endpoints, assignment endpoint publication, durable worker operations, direct output delivery, promotion draining, and hosted profile proof;
 - reusable embedded assistant package;
 - knowledge/document operator UX;
 - specialist authoring/deployment UI;
@@ -1299,12 +1367,13 @@ The consolidated architecture succeeds when:
 7. A capability absent from deployment inventory cannot be invented by a model, client, profile, solution pack, or Marketplace discovery result.
 8. Cross-user, tenant, deployment, activation-source, specialist, and output-destination canaries fail closed.
 9. Knowledge changes converge and quality tests detect stale or missing evidence.
-10. A Smart Brain job survives and replays only where promised, exposes one typed terminal result, and never fabricates a chat turn or executes a write.
+10. A Smart Brain job reaches the assigned deployment directly, survives and replays only where promised, exposes its typed terminal result from that deployment, and never fabricates a chat turn or executes a write.
 11. A confirmed write executes under application authority and replays safely where durability is promised.
 12. A live MCP tool is bound and governed like a registered action.
 13. Provider, MCP, retrieval, indexing, policy, validation, persistence, trigger, queue, and deployment failures remain visible.
 14. Behavior/profile version and hash, deployment version/release, specialist hash, source commit, framework version, provider posture, and verification evidence are observable.
-15. A second solution pack launches on an existing behavior and a second behavior template launches without forking the private runtime or creating a new deployment workflow.
+15. Smart Brain event and result traffic continues against a cached healthy assignment when Platform is temporarily unavailable; Platform is not a mandatory data-plane hop.
+16. A second solution pack launches on an existing behavior and a second behavior template launches without forking the private runtime or creating a new deployment workflow.
 
 Business/product measures:
 
@@ -1341,7 +1410,7 @@ A Product Profile built from that template is releasable only when:
 - all promised UI, failure, denial, no-evidence, confirmation, and review states exist;
 - intended live providers and integrations pass quality/security gates;
 - tenant/deployment isolation and missing-boundary behavior are proved;
-- event/scheduled profiles prove trusted trigger mapping, durable-state posture, output routing, and no-write boundaries where applicable;
+- event/scheduled profiles prove assignment-advertised deployment endpoints, direct trusted trigger mapping, deployment-local durable state/result delivery, promotion draining, and no-write boundaries where applicable;
 - support, billing, privacy, incident, rollback, and offboarding ownership exists;
 - external claims match the exact live package/tier/profile and do not rely only on framework demos.
 
@@ -1362,8 +1431,8 @@ A Product Profile built from that template is releasable only when:
 
 - Deploy a generic Conversational Assistant design-partner profile using a Grounded Company Knowledge solution pack.
 - Build and host-canary `loomai-agentic-specialist-team@1` with one manager and at least two exact read-only specialists.
-- Build and host-canary `loomai-smart-brain@1` with a trusted event, durable read job, restart recovery, and typed output sink.
-- Freeze conversational, manager, event/scheduled, status, cancellation, replay, and output channel contracts.
+- Build and host-canary `loomai-smart-brain@1` with assignment-advertised deployment-local endpoints, a trusted event, durable read job, restart recovery, direct status/result access, and a deployment-owned typed output sink.
+- Freeze conversational and manager contracts plus Smart Brain CloudEvents/OpenAPI ingress, direct polling, cancellation/replay, and deployment-owned signed-webhook output contracts.
 - Add Product Profile selection and source-of-truth views in Platform UI.
 
 ### Later gated items
@@ -1381,7 +1450,7 @@ Proceed with Behavior Product Templates plus Product Profiles, built as a produc
 
 The final positioning is:
 
-> LoomAI delivers three reusable governed AI behaviors: a Conversational Assistant that responds to people, an Agentic Specialist Team that coordinates bounded expertise, and a Smart Brain that reacts proactively to trusted application events and scheduled work. Solution and capability packs adapt those behaviors to commerce, project intelligence, support, operations, knowledge, behavior signals, and other domains. AI Fabric supplies reusable runtime contracts. LoomAI supplies behavior templates, product profiles, managed infrastructure, provider and storage binding, channels, verification, assignment, promotion, and lifecycle. The customer application remains the authority.
+> LoomAI delivers three reusable governed AI behaviors: a Conversational Assistant that responds to people, an Agentic Specialist Team that coordinates bounded expertise, and a Smart Brain that reacts proactively to trusted application events and scheduled work. Solution and capability packs adapt those behaviors to commerce, project intelligence, support, operations, knowledge, behavior signals, and other domains. AI Fabric supplies reusable runtime contracts. LoomAI supplies behavior templates, product profiles, self-contained deployment data planes, managed infrastructure, provider and storage binding, channels, verification, assignment, promotion, and lifecycle. The customer application remains the authority.
 
 Treat:
 
@@ -1395,7 +1464,8 @@ Treat:
 - MCP as a governed connectivity plane;
 - Claude as an optional provider and future client channel;
 - Platform as the deterministic product control plane;
+- each deployment as the self-contained runtime data plane for its chat, indexing, Smart Brain ingress, operation state/results, and outbound delivery;
 - Shopify and ProdUS as current Conversational Assistant reference proofs;
-- exact specialists, fixed plans, and conversation managers as the bounded foundation of Agentic Specialist Team;
-- trusted event/schedule adapters and durable read jobs as the bounded foundation of Smart Brain;
+- exact specialists, bounded multi-specialist chains, fixed plans, and conversation managers as the bounded foundation of Agentic Specialist Team;
+- trusted event/schedule adapters plus exact durable read jobs or bounded read-only chains as the bounded foundation of Smart Brain;
 - Resolver and Human Review as controlled extensions, not autonomous authority.
