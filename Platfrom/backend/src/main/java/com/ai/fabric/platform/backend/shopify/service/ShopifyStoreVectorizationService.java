@@ -440,6 +440,7 @@ public class ShopifyStoreVectorizationService {
         productMapping.put("recordIdField", "id");
         productMapping.put("recordVersionField", "updatedAt");
         ObjectNode productFields = productMapping.putObject("entityFieldMappings");
+        productFields.put("content", "content");
         productFields.put("name", "title");
         productFields.put("description", "content");
         productFields.put("category", "sourceCategory");
@@ -447,6 +448,8 @@ public class ShopifyStoreVectorizationService {
         productFields.put("imageUrl", "imageUrl");
         productFields.put("imageAltText", "imageAltText");
         ObjectNode productMetadata = productMapping.putObject("metadataFieldMappings");
+        productMetadata.put("title", "title");
+        productMetadata.put("scope", "sourceCategory");
         productMetadata.put("sourceCategory", "sourceCategory");
         productMetadata.put("documentType", "documentType");
         productMetadata.put("storefrontUrl", "storefrontUrl");
@@ -471,10 +474,13 @@ public class ShopifyStoreVectorizationService {
         supportPolicyMapping.put("recordIdField", "id");
         supportPolicyMapping.put("recordVersionField", "updatedAt");
         ObjectNode supportPolicyFields = supportPolicyMapping.putObject("entityFieldMappings");
+        supportPolicyFields.put("content", "content");
         supportPolicyFields.put("name", "title");
         supportPolicyFields.put("description", "content");
         supportPolicyFields.put("category", "sourceCategory");
         ObjectNode supportPolicyMetadata = supportPolicyMapping.putObject("metadataFieldMappings");
+        supportPolicyMetadata.put("title", "title");
+        supportPolicyMetadata.put("scope", "sourceCategory");
         supportPolicyMetadata.put("sourceCategory", "sourceCategory");
         supportPolicyMetadata.put("documentType", "documentType");
         supportPolicyMetadata.put("policyType", "policyType");

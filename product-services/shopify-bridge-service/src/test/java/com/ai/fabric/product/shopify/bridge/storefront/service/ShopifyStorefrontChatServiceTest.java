@@ -130,7 +130,7 @@ class ShopifyStorefrontChatServiceTest {
         verify(platformClient).queryConsumerBridgeChat(anyString(), requestCaptor.capture(), anyString());
         JsonNode runtimeRequest = requestCaptor.getValue();
         assertThat(runtimeRequest.path("query").asText()).isEqualTo("Show me snowboards");
-        assertThat(runtimeRequest.path("mode").asText()).isEqualTo("THINKER_DEEP");
+        assertThat(runtimeRequest.path("mode").asText()).isEqualTo("thinker");
         assertThat(runtimeRequest.has("message")).isFalse();
         assertThat(runtimeRequest.has("content")).isFalse();
         assertThat(runtimeRequest.has("conversationMode")).isFalse();
@@ -1186,7 +1186,7 @@ class ShopifyStorefrontChatServiceTest {
         when(platformClient.queryConsumerBridgeChat("consumer-alpha", objectMapper.readTree("""
             {
               "query":"Compare this product with similar items",
-              "mode":"THINKER_DEEP",
+              "mode":"thinker",
               "context":{
                 "pageType":"product",
                 "shopifySurfaceEntry":"launcher",

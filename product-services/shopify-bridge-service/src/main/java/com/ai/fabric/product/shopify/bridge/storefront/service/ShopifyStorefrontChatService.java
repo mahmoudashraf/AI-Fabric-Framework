@@ -83,7 +83,7 @@ public class ShopifyStorefrontChatService {
     );
     private static final String PRODUCT_CONTEXT_REQUIRED_MESSAGE =
         "Open a product page or select a product so I can answer about that item.";
-    private static final String THINKER_MODE = "THINKER_DEEP";
+    private static final String PLATFORM_THINKER_MODE = "thinker";
     private static final Set<String> CANONICAL_CONVERSATION_MODES = Set.of(
         "navigator",
         "navigator_deep",
@@ -692,7 +692,7 @@ public class ShopifyStorefrontChatService {
     }
 
     private String platformConversationMode(String normalizedMode) {
-        return "thinker_deep".equals(normalizedMode) ? THINKER_MODE : normalizedMode;
+        return "thinker_deep".equals(normalizedMode) ? PLATFORM_THINKER_MODE : normalizedMode;
     }
 
     private JsonNode policyStorefrontAnswer(String message) {
