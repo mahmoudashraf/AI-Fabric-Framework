@@ -8,18 +8,23 @@ import com.ai.fabric.platform.backend.deployment.service.CoolifyActionResponse;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileConfig;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.model.PlatformCoreServiceActionSummary;
+import com.ai.fabric.platform.backend.model.PlatformCoreServiceDeploymentSummary;
 import com.ai.fabric.platform.backend.model.PlatformCoreServiceSummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -100,6 +105,75 @@ class PlatformCoreServiceOperationsServiceTest {
             eq("loomai-platform-backend"),
             anyMap()
         );
+    }
+
+    @Test
+    void getDeploymentReturnsSafeStatusForConfiguredCoreService() {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        CoolifyTargetProfileResolver resolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        DeploymentTargetProfileEntity profile = targetProfile();
+        CoolifyConnection connection = connection();
+
+        when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
+        when(resolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.getDeployment(connection, "deploy-123")).thenReturn(Optional.of(
+            new CoolifyDeploymentSummary(
+                "deploy-123",
+                "loomai-platform-backend",
+                "app-123",
+                "finished",
+                "abc123",
+                "Deploy current platform",
+                "2026-09-15T10:00:00Z",
+                "2026-09-15T10:05:00Z",
+                "2026-09-15T10:05:00Z",
+                objectMapper.createObjectNode().put("logs", "must not be projected")
+            )
+        ));
+
+        PlatformCoreServiceOperationsService service = service(targetProfileRepository, resolver, coolifyApiClient, auditService, true);
+
+        PlatformCoreServiceDeploymentSummary summary = service.getDeployment("deploy-123");
+
+        assertThat(summary.serviceRef()).isEqualTo("loomai-platform-backend");
+        assertThat(summary.status()).isEqualTo("finished");
+        assertThat(summary.commit()).isEqualTo("abc123");
+        assertThat(summary.finishedAt()).isEqualTo("2026-09-15T10:05:00Z");
+    }
+
+    @Test
+    void getDeploymentDoesNotExposeNonCoreApplicationDeployments() {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        CoolifyTargetProfileResolver resolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        DeploymentTargetProfileEntity profile = targetProfile();
+        CoolifyConnection connection = connection();
+
+        when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
+        when(resolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.getDeployment(connection, "deploy-other")).thenReturn(Optional.of(
+            new CoolifyDeploymentSummary(
+                "deploy-other",
+                "customer-runtime",
+                "other-app",
+                "finished",
+                "abc123",
+                null,
+                null,
+                null,
+                null,
+                objectMapper.createObjectNode()
+            )
+        ));
+
+        PlatformCoreServiceOperationsService service = service(targetProfileRepository, resolver, coolifyApiClient, auditService, true);
+
+        assertThatThrownBy(() -> service.getDeployment("deploy-other"))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test

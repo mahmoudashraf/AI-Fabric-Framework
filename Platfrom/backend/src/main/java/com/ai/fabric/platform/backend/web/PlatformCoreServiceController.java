@@ -1,6 +1,7 @@
 package com.ai.fabric.platform.backend.web;
 
 import com.ai.fabric.platform.backend.model.PlatformCoreServiceActionSummary;
+import com.ai.fabric.platform.backend.model.PlatformCoreServiceDeploymentSummary;
 import com.ai.fabric.platform.backend.model.PlatformCoreServiceSummary;
 import com.ai.fabric.platform.backend.service.PlatformCoreServiceOperationsService;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +32,11 @@ public class PlatformCoreServiceController {
     @GetMapping("/{serviceRef}")
     public PlatformCoreServiceSummary get(@PathVariable String serviceRef) {
         return serviceOperationsService.getService(serviceRef);
+    }
+
+    @GetMapping("/deployments/{deploymentUuid}")
+    public PlatformCoreServiceDeploymentSummary getDeployment(@PathVariable String deploymentUuid) {
+        return serviceOperationsService.getDeployment(deploymentUuid);
     }
 
     @PostMapping("/{serviceRef}/deploy")

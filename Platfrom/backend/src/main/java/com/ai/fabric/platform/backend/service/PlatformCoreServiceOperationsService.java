@@ -8,8 +8,10 @@ import com.ai.fabric.platform.backend.deployment.service.CoolifyActionResponse;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApiClient;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyApplicationSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyConnection;
+import com.ai.fabric.platform.backend.deployment.service.CoolifyDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.service.CoolifyTargetProfileResolver;
 import com.ai.fabric.platform.backend.model.PlatformCoreServiceActionSummary;
+import com.ai.fabric.platform.backend.model.PlatformCoreServiceDeploymentSummary;
 import com.ai.fabric.platform.backend.model.PlatformCoreServiceSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +60,38 @@ public class PlatformCoreServiceOperationsService {
 
     public PlatformCoreServiceSummary getService(String serviceRef) {
         return inspect(requireService(serviceRef));
+    }
+
+    public PlatformCoreServiceDeploymentSummary getDeployment(String deploymentUuid) {
+        requireEnabled();
+        if (!StringUtils.hasText(deploymentUuid)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Core service deployment UUID is required.");
+        }
+
+        DeploymentTargetProfileEntity profile = requireTargetProfile();
+        CoolifyConnection connection = coolifyTargetProfileResolver.requireConnection(profile);
+        CoolifyDeploymentSummary deployment = coolifyApiClient.getDeployment(connection, deploymentUuid.trim())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Core service deployment was not found."));
+        PlatformCoreServicesProperties.CoreService coreService = properties.services().stream()
+            .filter(service -> StringUtils.hasText(service.providerResourceUuid()))
+            .filter(service -> service.providerResourceUuid().equals(deployment.applicationUuid()))
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Core service deployment was not found."));
+
+        return new PlatformCoreServiceDeploymentSummary(
+            coreService.serviceRef(),
+            deployment.deploymentUuid(),
+            deployment.applicationName(),
+            deployment.applicationUuid(),
+            deployment.status(),
+            deployment.commit(),
+            deployment.commitMessage(),
+            deployment.createdAt(),
+            deployment.updatedAt(),
+            deployment.finishedAt(),
+            profile.getId(),
+            Instant.now()
+        );
     }
 
     public PlatformCoreServiceActionSummary deploy(String serviceRef) {
