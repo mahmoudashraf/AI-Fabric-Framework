@@ -7,8 +7,10 @@ import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentDraftValidationService;
+import com.ai.fabric.platform.backend.deployment.service.DeploymentEntityConfigMigrationService;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
@@ -78,6 +80,7 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     private final DeploymentService deploymentService;
     private final DeploymentDraftValidationService deploymentDraftValidationService;
+    private final DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService;
     private final DeploymentRepository deploymentRepository;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
     private final MarketplaceCatalogService marketplaceCatalogService;
@@ -90,6 +93,7 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     public DeploymentMarketplaceDraftCompilerService(DeploymentService deploymentService,
                                                      DeploymentDraftValidationService deploymentDraftValidationService,
+                                                     DeploymentEntityConfigMigrationService deploymentEntityConfigMigrationService,
                                                      DeploymentRepository deploymentRepository,
                                                      DeploymentMarketplacePluginInstallRepository installRepository,
                                                      MarketplaceCatalogService marketplaceCatalogService,
@@ -101,6 +105,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                                                      ObjectMapper objectMapper) {
         this.deploymentService = deploymentService;
         this.deploymentDraftValidationService = deploymentDraftValidationService;
+        this.deploymentEntityConfigMigrationService = deploymentEntityConfigMigrationService;
         this.deploymentRepository = deploymentRepository;
         this.installRepository = installRepository;
         this.marketplaceCatalogService = marketplaceCatalogService;
@@ -213,6 +218,21 @@ public class DeploymentMarketplaceDraftCompilerService {
 
         synchronizeEntityVectorDimensions(entityRoot, providerRoot);
         boolean routingChanged = pruneRoutesWithoutActions(routingRoot, actionNames(actionsRoot.path("actions")));
+        if (!EntityConfigContractService.CONTRACT_VERSION_V04.equals(draft.entityConfigContractVersion())) {
+            if (trustedCaller) {
+                deploymentEntityConfigMigrationService.applyCanonicalConfigForMarketplaceCompilationForTrustedCaller(
+                    draft.id(),
+                    entityRoot,
+                    providerRoot
+                );
+            } else {
+                deploymentEntityConfigMigrationService.applyCanonicalConfigForMarketplaceCompilation(
+                    draft.id(),
+                    entityRoot,
+                    providerRoot
+                );
+            }
+        }
         UpdateDeploymentDraftRequest updateRequest = new UpdateDeploymentDraftRequest(
             actionsRoot,
             entityRoot,

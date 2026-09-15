@@ -73,7 +73,56 @@ public class DeploymentEntityConfigMigrationService {
         JsonNode canonicalEntityConfig,
         JsonNode canonicalProviderConfig
     ) {
-        MigrationTarget target = targetInternal(draftId);
+        return applyCanonicalConfig(
+            targetInternal(draftId),
+            canonicalEntityConfig,
+            canonicalProviderConfig,
+            "CANONICAL_ROLLOUT_CONFIG_ADOPTED",
+            "The Platform-owned canonical V0_4 entity configuration replaced the legacy verification draft."
+        );
+    }
+
+    @Transactional
+    public DeploymentEntityConfigMigrationSummary applyCanonicalConfigForMarketplaceCompilation(
+        String draftId,
+        JsonNode canonicalEntityConfig,
+        JsonNode canonicalProviderConfig
+    ) {
+        return applyCanonicalConfig(
+            target(draftId),
+            canonicalEntityConfig,
+            canonicalProviderConfig,
+            "CANONICAL_MARKETPLACE_CONFIG_ADOPTED",
+            "The validated marketplace compilation replaced legacy marketplace-managed entity configuration."
+        );
+    }
+
+    /**
+     * Applies a validated marketplace compilation after the caller has already authorized the deployment.
+     * Controller paths must use applyCanonicalConfigForMarketplaceCompilation so editor access is checked.
+     */
+    @Transactional
+    public DeploymentEntityConfigMigrationSummary applyCanonicalConfigForMarketplaceCompilationForTrustedCaller(
+        String draftId,
+        JsonNode canonicalEntityConfig,
+        JsonNode canonicalProviderConfig
+    ) {
+        return applyCanonicalConfig(
+            targetInternal(draftId),
+            canonicalEntityConfig,
+            canonicalProviderConfig,
+            "CANONICAL_MARKETPLACE_CONFIG_ADOPTED",
+            "The validated marketplace compilation replaced legacy marketplace-managed entity configuration."
+        );
+    }
+
+    private DeploymentEntityConfigMigrationSummary applyCanonicalConfig(
+        MigrationTarget target,
+        JsonNode canonicalEntityConfig,
+        JsonNode canonicalProviderConfig,
+        String adoptionCode,
+        String adoptionMessage
+    ) {
         assertActiveMutableDraft(target.deployment(), target.draft());
         String beforeConfigJson = target.draft().getEntityConfigJson();
         EntityConfigMigrationResult sourceResult = evaluate(target.draft());
@@ -91,9 +140,9 @@ public class DeploymentEntityConfigMigrationService {
             )
         ));
         warnings.add(new EntityConfigMigrationMessage(
-            "CANONICAL_ROLLOUT_CONFIG_ADOPTED",
+            adoptionCode,
             "$",
-            "The Platform-owned canonical V0_4 entity configuration replaced the legacy verification draft."
+            adoptionMessage
         ));
         List<EntityConfigMigrationMessage> blockers =
             new ArrayList<>(canonicalResult.report().blockers());

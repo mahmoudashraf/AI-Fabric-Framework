@@ -4,6 +4,9 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
+import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVersionRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.entity.PlatformManagedInferenceEndpointEntity;
@@ -77,6 +80,9 @@ class MarketplaceIntegrationTest {
 
     @Autowired
     private DeploymentVersionRepository deploymentVersionRepository;
+
+    @Autowired
+    private DeploymentDraftRepository deploymentDraftRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -565,6 +571,65 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.actionsConfig.actions[?(@.name=='shopify-order-read')]").isEmpty())
             .andExpect(jsonPath("$.shellConfig.modules[?(@.id=='actions')]").isEmpty());
+    }
+
+    @Test
+    void marketplaceResolveAdoptsCurrentEntityContractForLegacyManagedEntities() throws Exception {
+        DeploymentSummary deployment = runAsAdmin(() -> createSharedQdrantDeployment("Legacy Marketplace Entity Upgrade"));
+
+        String installResponse = mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs", deployment.id())
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginId", "mkp-data-shopify-catalog",
+                        "pluginVersion", "1.0.0",
+                        "config", java.util.Map.of(),
+                        "secretRefs", java.util.Map.of()
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.readinessStatus", is("READY")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String installId = objectMapper.readTree(installResponse).path("id").asText();
+
+        String activeDraftId = deploymentRepository.findById(deployment.id()).orElseThrow().getActiveDraftId();
+        DeploymentDraftEntity draft = deploymentDraftRepository.findById(activeDraftId).orElseThrow();
+        String originalHandle = objectMapper.readTree(draft.getKnowledgeSourceConfigJson())
+            .path("sources")
+            .get(0)
+            .path("handleRef")
+            .asText();
+        ObjectNode legacyEntityConfig = objectMapper.createObjectNode();
+        legacyEntityConfig.putObject("ai-config").put("vector-dimensions", 1536);
+        ObjectNode legacyProduct = legacyEntityConfig.putObject("ai-entities").putObject("product");
+        legacyProduct.putArray("features").add("embedding").add("search");
+        legacyProduct.put("auto-process", false);
+        legacyProduct.put("enable-search", true);
+        legacyProduct.put("auto-embedding", true);
+        legacyProduct.put("indexable", true);
+        legacyProduct.put("marketplaceManaged", true);
+        legacyProduct.put("marketplacePluginId", "mkp-data-shopify-catalog");
+        legacyProduct.put("marketplaceInstallId", installId);
+        legacyProduct.put("marketplacePluginVersion", "1.0.0");
+        draft.setEntityConfigJson(objectMapper.writeValueAsString(legacyEntityConfig));
+        draft.setEntityConfigContractVersion(EntityConfigContractService.CONTRACT_VERSION_V03);
+        deploymentDraftRepository.saveAndFlush(draft);
+
+        mockMvc.perform(asAdmin(
+                post("/api/deployments/{deploymentId}/marketplace-installs/{installId}/resolve", deployment.id(), installId)
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.install.id", is(installId)));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deployment.id())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.entityConfigContractVersion", is(EntityConfigContractService.CONTRACT_VERSION_V04)))
+            .andExpect(jsonPath("$.entityConfig['ai-entities'].product['searchable-fields'][0].name", is("content")))
+            .andExpect(jsonPath("$.entityConfig['ai-entities'].product['metadata-fields'][?(@.name=='tenantId')].required", is(List.of(true))))
+            .andExpect(jsonPath("$.entityConfig['ai-entities'].product.features").doesNotExist())
+            .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='shopify-catalog')].handleRef", is(List.of(originalHandle))));
     }
 
     @Test
