@@ -894,11 +894,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 deleteStaleApplication(connection, existingHandle);
             } else {
                 String uuid = existingHandle.getProviderResourceUuid();
-                coolifyApiClient.getApplication(connection, uuid).ifPresent(application -> {
+                Optional<CoolifyApplicationSummary> currentApplication = coolifyApiClient.getApplication(connection, uuid);
+                if (currentApplication.isPresent()) {
                     updater.accept(uuid);
-                });
-                return coolifyApiClient.getApplication(connection, uuid)
-                    .orElseGet(creator);
+                    return coolifyApiClient.getApplication(connection, uuid).orElse(currentApplication.get());
+                }
+
+                Optional<CoolifyApplicationSummary> recoveredApplication = recoverApplicationForStaleHandle(
+                    connection,
+                    existingHandle,
+                    scope,
+                    appName
+                );
+                if (recoveredApplication.isPresent()) {
+                    CoolifyApplicationSummary recovered = recoveredApplication.get();
+                    updater.accept(recovered.uuid());
+                    return coolifyApiClient.getApplication(connection, recovered.uuid()).orElse(recovered);
+                }
+                return creator.get();
             }
         }
 
@@ -912,6 +925,41 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             return coolifyApiClient.getApplication(connection, namedApplication.uuid()).orElse(namedApplication);
         }
         return createWithConflictCleanup(connection, scope, appName, creator);
+    }
+
+    private Optional<CoolifyApplicationSummary> recoverApplicationForStaleHandle(
+        CoolifyConnection connection,
+        DeploymentProviderResourceHandleEntity existingHandle,
+        CoolifyResourceScope scope,
+        String appName
+    ) {
+        String recordedApplicationName = text(readJson(existingHandle.getMetadataJson()), "applicationName", null);
+        if (!appName.equals(recordedApplicationName)) {
+            return Optional.empty();
+        }
+
+        List<CoolifyApplicationSummary> namedApplications = coolifyApiClient.listApplications(connection).stream()
+            .filter(application -> appName.equals(application.name()))
+            .filter(application -> StringUtils.hasText(application.uuid()))
+            .toList();
+        if (namedApplications.isEmpty()) {
+            return Optional.empty();
+        }
+        if (namedApplications.size() != 1) {
+            throw new IllegalStateException(
+                "Cannot safely recover stale Coolify handle for application '" + appName
+                    + "': expected one exact-name candidate but found " + namedApplications.size() + "."
+            );
+        }
+
+        CoolifyApplicationSummary candidate = namedApplications.getFirst();
+        if (applicationConflictsWithScope(candidate, scope)) {
+            throw new IllegalStateException(
+                "Cannot safely recover stale Coolify handle for application '" + appName
+                    + "': the exact-name candidate belongs to a different project or environment."
+            );
+        }
+        return Optional.of(candidate);
     }
 
     private CoolifyApplicationSummary createWithConflictCleanup(CoolifyConnection connection,
@@ -1922,6 +1970,36 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             environmentName = raw.path("environment").path("name").asText(null);
         }
         return !StringUtils.hasText(environmentName) || sameText(environmentName, scope.environmentName());
+    }
+
+    private boolean applicationConflictsWithScope(CoolifyApplicationSummary application, CoolifyResourceScope scope) {
+        if (!scope.customerGrouped()) {
+            return false;
+        }
+        JsonNode raw = application.raw();
+        String projectUuid = textFirst(raw, "project_uuid", "projectUuid");
+        if (!StringUtils.hasText(projectUuid)) {
+            projectUuid = raw.path("project").path("uuid").asText(null);
+        }
+        if (StringUtils.hasText(projectUuid) && !sameText(projectUuid, scope.projectUuid())) {
+            return true;
+        }
+
+        String environmentUuid = textFirst(raw, "environment_uuid", "environmentUuid");
+        if (!StringUtils.hasText(environmentUuid)) {
+            environmentUuid = raw.path("environment").path("uuid").asText(null);
+        }
+        if (StringUtils.hasText(scope.environmentUuid())
+            && StringUtils.hasText(environmentUuid)
+            && !sameText(environmentUuid, scope.environmentUuid())) {
+            return true;
+        }
+
+        String environmentName = textFirst(raw, "environment_name", "environmentName");
+        if (!StringUtils.hasText(environmentName)) {
+            environmentName = raw.path("environment").path("name").asText(null);
+        }
+        return StringUtils.hasText(environmentName) && !sameText(environmentName, scope.environmentName());
     }
 
     private boolean databaseMatchesScope(CoolifyDatabaseSummary database, CoolifyResourceScope scope) {
