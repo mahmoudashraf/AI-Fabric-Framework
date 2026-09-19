@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("133"))
+            .target(MigrationVersion.fromVersion("134"))
             .load();
 
         flyway.migrate();
@@ -74,7 +74,33 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
                 assertThat(result.next()).isTrue();
                 assertThat(result.getInt(1)).isEqualTo(5);
             }
+
+            try (ResultSet result = statement.executeQuery("""
+                select id, environment_name, source_strategy, resource_defaults_json
+                from deployment_target_profiles
+                where id in (
+                    'dtp-coolify-staging-behavior',
+                    'dtp-coolify-production-behavior'
+                )
+                order by id
+                """)) {
+                assertBehaviorRuntimeProfile(result, "dtp-coolify-production-behavior", "production");
+                assertBehaviorRuntimeProfile(result, "dtp-coolify-staging-behavior", "staging");
+                assertThat(result.next()).isFalse();
+            }
         }
+    }
+
+    private void assertBehaviorRuntimeProfile(ResultSet result,
+                                              String expectedId,
+                                              String expectedEnvironment) throws Exception {
+        assertThat(result.next()).isTrue();
+        assertThat(result.getString("id")).isEqualTo(expectedId);
+        assertThat(result.getString("environment_name")).isEqualTo(expectedEnvironment);
+        assertThat(result.getString("source_strategy")).isEqualTo("IMAGE_SOURCE");
+        assertThat(result.getString("resource_defaults_json"))
+            .contains("\"runtimeDatabaseMode\":\"COOLIFY_POSTGRES\"")
+            .contains("\"promotionChannel\":\"" + expectedEnvironment + "\"");
     }
 
     private boolean columnExists(Statement statement, String table, String column) throws Exception {
