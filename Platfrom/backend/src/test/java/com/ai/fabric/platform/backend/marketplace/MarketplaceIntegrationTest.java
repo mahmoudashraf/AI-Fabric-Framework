@@ -219,7 +219,7 @@ class MarketplaceIntegrationTest {
 
         mockMvc.perform(asAdmin(get("/api/marketplace/categories")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(5))))
+            .andExpect(jsonPath("$[?(@.id=='template')].pluginCount", is(List.of(8))))
             .andExpect(jsonPath("$[?(@.id=='action')].pluginCount", is(List.of(7))))
             .andExpect(jsonPath("$[?(@.id=='data')].pluginCount", is(List.of(5))))
             .andExpect(jsonPath("$[?(@.id=='inference-profile')].pluginCount", is(List.of(8))));
@@ -950,6 +950,97 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$[0].pluginId", is("mkp-template-commerce-shell")))
             .andExpect(jsonPath("$[0].status", is("BOOTSTRAPPED")))
             .andExpect(jsonPath("$[0].liveState", is("BOOTSTRAPPED")));
+    }
+
+    @Test
+    @Sql("classpath:db/migration/V133__behavior_marketplace_templates_and_specialists.sql")
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void behaviorTemplatesBootstrapExactSpecialistsAndPublishImmutableComposition() throws Exception {
+        String agenticResponse = mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-agentic-specialist-team")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Agentic Specialist Team Smoke",
+                        "environment", "dev",
+                        "templateId", "custom-start-from-scratch"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.behaviorType", is("AGENTIC_SPECIALIST_TEAM")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String agenticDeploymentId = objectMapper.readTree(agenticResponse).path("id").asText();
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", agenticDeploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.behaviorConfig.type", is("AGENTIC_SPECIALIST_TEAM")))
+            .andExpect(jsonPath("$.behaviorConfig.specialistBundles.length()", is(1)))
+            .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].bundleId", is("deployment-intelligence-team@1")))
+            .andExpect(jsonPath(
+                "$.behaviorConfig.specialistBundles[0].contentHash",
+                is("sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8")
+            ))
+            .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].marketplaceManaged", is(true)))
+            .andExpect(jsonPath(
+                "$.behaviorConfig.specialistBundles[0].marketplacePluginId",
+                is("mkp-specialist-deployment-intelligence")
+            ));
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", agenticDeploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()", is(2)))
+            .andExpect(jsonPath(
+                "$[?(@.pluginId=='mkp-template-agentic-specialist-team')].status",
+                is(List.of("BOOTSTRAPPED"))
+            ))
+            .andExpect(jsonPath(
+                "$[?(@.pluginId=='mkp-specialist-deployment-intelligence')].status",
+                is(List.of("ENABLED"))
+            ));
+
+        String agenticDraftId = runAsAdmin(
+            () -> deploymentService.getActiveDraftForDeployment(agenticDeploymentId).id()
+        );
+        String versionId = runAsAdmin(() -> deploymentService.publishDraft(agenticDraftId).id());
+        var version = deploymentVersionRepository.findById(versionId).orElseThrow();
+        var provenance = objectMapper.readTree(version.getCompositionProvenanceJson());
+        assertThat(provenance.path("deploymentBehaviorType").asText()).isEqualTo("AGENTIC_SPECIALIST_TEAM");
+        assertThat(provenance.path("compositionHash").asText()).hasSize(64);
+        assertThat(provenance.path("marketplaceInstalls")).hasSize(2);
+        assertThat(provenance.path("marketplaceInstalls").toString())
+            .contains("mkp-template-agentic-specialist-team")
+            .contains("mkp-specialist-deployment-intelligence")
+            .contains("deployment-intelligence-team@1")
+            .contains("manifestSha256");
+
+        String smartBrainResponse = mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-smart-brain")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Smart Brain Smoke",
+                        "environment", "dev",
+                        "templateId", "custom-start-from-scratch"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.behaviorType", is("SMART_BRAIN")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String smartBrainDeploymentId = objectMapper.readTree(smartBrainResponse).path("id").asText();
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", smartBrainDeploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.behaviorConfig.type", is("SMART_BRAIN")))
+            .andExpect(jsonPath("$.behaviorConfig.smartBrain.triggers[0].code", is("event-analysis")))
+            .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].bundleId", is("smart-brain-event-analysis@1")))
+            .andExpect(jsonPath(
+                "$.behaviorConfig.specialistBundles[0].contentHash",
+                is("sha256:1059173cfb1fe7e0794e971af43d373c4d047a02e9fb50b77c6fe0328094e61d")
+            ));
     }
 
     @Test

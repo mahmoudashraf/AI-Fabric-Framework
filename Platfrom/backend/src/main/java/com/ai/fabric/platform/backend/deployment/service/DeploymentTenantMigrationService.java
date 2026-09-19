@@ -106,6 +106,7 @@ public class DeploymentTenantMigrationService {
         migrated.setName(plan.proposedDeploymentName());
         migrated.setEnvironmentName(plan.proposedEnvironmentName());
         migrated.setTemplateId(plan.source().getTemplateId());
+        migrated.setBehaviorType(plan.source().getBehaviorType());
         migrated.setStatus("DRAFT");
         migrated.setCustomerId(resolvedBinding.customer().getId());
         migrated.setTenantId(resolvedBinding.tenant().getId());
@@ -226,6 +227,7 @@ public class DeploymentTenantMigrationService {
         clone.setKnowledgeSourceConfigJson(sourceDraft.getKnowledgeSourceConfigJson());
         clone.setShellConfigJson(sourceDraft.getShellConfigJson());
         clone.setMarketplaceDatasetConfigJson(sourceDraft.getMarketplaceDatasetConfigJson());
+        clone.setBehaviorConfigJson(sourceDraft.getBehaviorConfigJson());
         clone.setCreatedAt(now);
         clone.setUpdatedAt(now);
         return clone;

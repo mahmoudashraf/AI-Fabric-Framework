@@ -20,7 +20,8 @@ public record DeploymentDraftResponse(
     JsonNode marketplaceDatasetConfig,
     Instant createdAt,
     Instant updatedAt,
-    String entityConfigContractVersion
+    String entityConfigContractVersion,
+    JsonNode behaviorConfig
 ) {
     public DeploymentDraftResponse(String id,
                                    String deploymentId,
@@ -50,6 +51,7 @@ public record DeploymentDraftResponse(
             null,
             createdAt,
             updatedAt,
+            null,
             null
         );
     }
@@ -84,6 +86,7 @@ public record DeploymentDraftResponse(
             null,
             createdAt,
             updatedAt,
+            null,
             null
         );
     }
@@ -119,7 +122,29 @@ public record DeploymentDraftResponse(
             marketplaceDatasetConfig,
             createdAt,
             updatedAt,
+            null,
             null
         );
+    }
+
+    public DeploymentDraftResponse(String id,
+                                   String deploymentId,
+                                   int revisionNumber,
+                                   String status,
+                                   JsonNode actionsConfig,
+                                   JsonNode entityConfig,
+                                   JsonNode routingConfig,
+                                   JsonNode providerConfig,
+                                   JsonNode securityConfig,
+                                   JsonNode promptConfig,
+                                   JsonNode knowledgeSourceConfig,
+                                   JsonNode shellConfig,
+                                   JsonNode marketplaceDatasetConfig,
+                                   Instant createdAt,
+                                   Instant updatedAt,
+                                   String entityConfigContractVersion) {
+        this(id, deploymentId, revisionNumber, status, actionsConfig, entityConfig, routingConfig,
+            providerConfig, securityConfig, promptConfig, knowledgeSourceConfig, shellConfig,
+            marketplaceDatasetConfig, createdAt, updatedAt, entityConfigContractVersion, null);
     }
 }

@@ -3,6 +3,9 @@ import { usePlatformAuth } from './auth/PlatformAuthProvider'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './layout/AppShell'
 import { ActionsPage } from './pages/ActionsPage'
+import { BehaviorPage } from './pages/BehaviorPage'
+import { BehaviorOperationsPage } from './pages/BehaviorOperationsPage'
+import { HumanReviewPage } from './pages/HumanReviewPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { AccessPage } from './pages/AccessPage'
 import { ApprovalsPage } from './pages/ApprovalsPage'
@@ -20,6 +23,7 @@ import { PocPage } from './pages/PocPage'
 import { ProvidersPage } from './pages/ProvidersPage'
 import { PromptsPage } from './pages/PromptsPage'
 import { RevisionsPage } from './pages/RevisionsPage'
+import { RuntimeArtifactsPage } from './pages/RuntimeArtifactsPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { PlatformLoginPage } from './pages/PlatformLoginPage'
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage'
@@ -80,6 +84,9 @@ export default function App() {
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/actions" element={<ActionsPage />} />
+          <Route path="/behavior" element={<BehaviorPage />} />
+          <Route path="/behavior-operations" element={<BehaviorOperationsPage />} />
+          <Route path="/human-review" element={<HumanReviewPage />} />
           <Route path="/approvals" element={<ApprovalsPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/access" element={<AccessPage />} />
@@ -102,6 +109,7 @@ export default function App() {
           <Route path="/verification-ops" element={<VerificationOpsPage />} />
           <Route path="/vectorization" element={<VectorizationPage />} />
           <Route path="/revisions" element={<RevisionsPage />} />
+          <Route path="/runtime-artifacts" element={<RuntimeArtifactsPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/platform-diagnostics" element={<PlatformDiagnosticsPage />} />
           <Route path="/users" element={<UsersPage />} />

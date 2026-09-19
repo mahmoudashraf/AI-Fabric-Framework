@@ -6,11 +6,14 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
 import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentDraftRequest;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
 import com.ai.fabric.platform.backend.marketplace.entity.DeploymentMarketplacePluginInstallEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
 import com.ai.fabric.platform.backend.marketplace.model.CreateMarketplaceTemplateBootstrapRequest;
+import com.ai.fabric.platform.backend.marketplace.model.CreateDeploymentMarketplaceInstallRequest;
 import com.ai.fabric.platform.backend.marketplace.repository.DeploymentMarketplacePluginInstallRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,7 +37,9 @@ public class MarketplaceTemplateBootstrapService {
     private final MarketplaceCatalogService marketplaceCatalogService;
     private final MarketplaceManifestService marketplaceManifestService;
     private final DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService;
+    private final DeploymentMarketplaceInstallService deploymentMarketplaceInstallService;
     private final DeploymentMarketplacePluginInstallRepository installRepository;
+    private final DeploymentRepository deploymentRepository;
     private final DeploymentService deploymentService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
@@ -42,14 +47,18 @@ public class MarketplaceTemplateBootstrapService {
     public MarketplaceTemplateBootstrapService(MarketplaceCatalogService marketplaceCatalogService,
                                                MarketplaceManifestService marketplaceManifestService,
                                                DeploymentMarketplaceDraftCompilerService deploymentMarketplaceDraftCompilerService,
+                                               DeploymentMarketplaceInstallService deploymentMarketplaceInstallService,
                                                DeploymentMarketplacePluginInstallRepository installRepository,
+                                               DeploymentRepository deploymentRepository,
                                                DeploymentService deploymentService,
                                                PlatformAuditService platformAuditService,
                                                ObjectMapper objectMapper) {
         this.marketplaceCatalogService = marketplaceCatalogService;
         this.marketplaceManifestService = marketplaceManifestService;
         this.deploymentMarketplaceDraftCompilerService = deploymentMarketplaceDraftCompilerService;
+        this.deploymentMarketplaceInstallService = deploymentMarketplaceInstallService;
         this.installRepository = installRepository;
+        this.deploymentRepository = deploymentRepository;
         this.deploymentService = deploymentService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
@@ -82,6 +91,9 @@ public class MarketplaceTemplateBootstrapService {
         String curatedModuleId = StringUtils.hasText(templateContribution.path("curatedModuleId").asText(""))
             ? templateContribution.path("curatedModuleId").asText("").trim()
             : null;
+        String behaviorType = StringUtils.hasText(parsed.contributions().templateDeploymentBehaviorType())
+            ? parsed.contributions().templateDeploymentBehaviorType()
+            : "CONVERSATIONAL";
 
         DeploymentSummary deployment = deploymentService.createDeployment(
             new CreateDeploymentRequest(
@@ -91,16 +103,12 @@ public class MarketplaceTemplateBootstrapService {
                 curatedModuleId,
                 request.vectorProvisioningMode(),
                 request.customerId(),
-                request.tenantId()
+                request.tenantId(),
+                behaviorType
             )
         );
 
         DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeployment(deployment.id());
-        JsonNode shellConfig = deploymentMarketplaceDraftCompilerService.compileTemplateShellBaseline(
-            plugin,
-            version,
-            draft.shellConfig()
-        );
         JsonNode securityConfig = deploymentMarketplaceDraftCompilerService.compileTemplateSecurityBaseline(
             plugin,
             version,
@@ -116,11 +124,30 @@ public class MarketplaceTemplateBootstrapService {
                 securityConfig,
                 null,
                 null,
-                shellConfig
+                null,
+                null,
+                null
             )
         );
 
         createBootstrapInstallRecord(deployment.id(), plugin, version);
+        DeploymentEntity deploymentEntity = deploymentRepository.findById(deployment.id())
+            .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Bootstrapped deployment was not found."));
+        for (String requiredPluginRef : parsed.contributions().templateRequiredPluginRefs()) {
+            int separator = requiredPluginRef.lastIndexOf('@');
+            String requiredPluginId = requiredPluginRef.substring(0, separator);
+            String requiredVersion = requiredPluginRef.substring(separator + 1);
+            deploymentMarketplaceInstallService.createInstallForTrustedCallerWithoutDraftSync(
+                deploymentEntity,
+                new CreateDeploymentMarketplaceInstallRequest(
+                    requiredPluginId,
+                    requiredVersion,
+                    objectMapper.createObjectNode(),
+                    objectMapper.createObjectNode()
+                )
+            );
+        }
+        deploymentMarketplaceDraftCompilerService.syncDeploymentDraftForTrustedTemplateBootstrap(deployment.id());
         platformAuditService.record(
             "MARKETPLACE_TEMPLATE_BOOTSTRAPPED",
             "DEPLOYMENT",
@@ -129,6 +156,7 @@ public class MarketplaceTemplateBootstrapService {
                 "pluginId", plugin.getId(),
                 "pluginVersion", version.getVersion(),
                 "templateId", deploymentTemplateId,
+                "behaviorType", behaviorType,
                 "curatedModuleId", curatedModuleId == null ? "" : curatedModuleId
             )
         );

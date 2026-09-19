@@ -1,0 +1,71 @@
+apiVersion: ai.fabric/v1
+kind: SpecialistChain
+metadata:
+  name: deployment-intelligence-team
+  version: "1"
+  displayName: Deployment Intelligence Team
+  description: Coordinates approved deployment evidence and current runtime-state specialists.
+  labels:
+    domain: deployment-intelligence
+    owner: loomai-runtime
+spec:
+  input:
+    schemaRef: deployment-intelligence-chain-request@1
+    managerMessagePointer: /question
+  manager:
+    specialistRef: deployment-intelligence-manager@1
+  targets:
+    - specialistRef: deployment-knowledge-specialist@1
+      description: Answer from indexed, approved deployment knowledge and return evidence references.
+      input:
+        type: JSON_POINTER_MAP
+        fields:
+          - source: CHAIN_INPUT
+            sourcePointer: /knowledgeQuestion
+            targetField: question
+            required: true
+      result:
+        type: BOUNDED_FACT_PROJECTION
+        summaryPointer: /answer
+        facts:
+          - name: status
+            valuePointer: /status
+            required: true
+        evidenceReferences: ALL_APPROVED
+      transitions:
+        delegationAllowed: true
+        parallelEligible: true
+        handoffAllowed: false
+    - specialistRef: deployment-runtime-state-specialist@1
+      description: Answer from the server-owned snapshot of this running deployment.
+      input:
+        type: JSON_POINTER_MAP
+        fields:
+          - source: CHAIN_INPUT
+            sourcePointer: /runtimeStateQuestion
+            targetField: question
+            required: true
+          - source: CHAIN_INPUT
+            sourcePointer: /runtimeState
+            targetField: runtimeState
+            required: true
+      result:
+        type: BOUNDED_FACT_PROJECTION
+        summaryPointer: /answer
+        facts:
+          - name: status
+            valuePointer: /status
+            required: true
+        evidenceReferences: NONE
+      transitions:
+        delegationAllowed: true
+        parallelEligible: true
+        handoffAllowed: false
+  limits:
+    maxDuration: PT75S
+    maxManagerDecisions: 4
+    maxWorkerInvocations: 2
+    maxParallelWorkers: 2
+    maxInvocationsPerTarget: 1
+    maxProjectedResultCharacters: 8000
+  conversationPolicy: DISABLED

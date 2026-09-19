@@ -10,7 +10,7 @@ public final class DeploymentBundleModels {
     private DeploymentBundleModels() {
     }
 
-    public static final String SCHEMA_VERSION = "loomai.deployment-export.v1";
+    public static final String SCHEMA_VERSION = "loomai.deployment-export.v2";
 
     public enum ExportMode {
         CONFIG_ONLY,

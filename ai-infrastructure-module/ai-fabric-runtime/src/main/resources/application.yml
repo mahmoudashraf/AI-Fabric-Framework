@@ -16,6 +16,22 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/runtime-migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+  quartz:
+    auto-startup: ${LOOMAI_SMART_BRAIN_ENABLED:false}
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never
+    properties:
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.jobStore.isClustered: true
+      org.quartz.jobStore.clusterCheckinInterval: 20000
+      org.quartz.jobStore.misfireThreshold: 60000
 
 ai:
   enabled: true
@@ -118,25 +134,55 @@ ai:
       max-attempts: ${AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS:1}
     specialist-chains:
       enabled: ${AI_EXECUTION_SPECIALIST_CHAINS_ENABLED:false}
+      durable-enabled: ${AI_EXECUTION_SPECIALIST_CHAINS_DURABLE_ENABLED:false}
+      allow-ephemeral: false
+      initialize-schema: false
+      max-active: ${AI_EXECUTION_SPECIALIST_CHAINS_MAX_ACTIVE:250}
+      max-duration: ${AI_EXECUTION_SPECIALIST_CHAINS_MAX_DURATION:PT75S}
+      max-manager-decisions: ${AI_EXECUTION_SPECIALIST_CHAINS_MAX_MANAGER_DECISIONS:4}
+      max-worker-invocations: ${AI_EXECUTION_SPECIALIST_CHAINS_MAX_WORKER_INVOCATIONS:2}
+      max-parallel-workers: ${AI_EXECUTION_SPECIALIST_CHAINS_MAX_PARALLEL_WORKERS:2}
+      max-invocations-per-target: 1
+      max-projected-result-characters: 8000
+      max-directive-corrections: 1
+      lease-duration: PT2M
+      recovery-interval: PT30S
+      recovery-batch-size: 50
+      max-attempts: 3
+      cleanup-enabled: true
+      retention: P30D
+      encryption-secret: ${AI_SPECIALIST_CHAIN_ENCRYPTION_SECRET:}
+      fingerprint-secret: ${AI_SPECIALIST_CHAIN_FINGERPRINT_SECRET:}
     manifests:
       enabled: ${AI_EXECUTION_MANIFESTS_ENABLED:true}
       fail-fast: true
       max-manifest-bytes: 65536
       max-resource-bytes: 65536
-      locations:
-        - classpath*:ai-specialists/*.yml
-        - classpath*:ai-specialists/*.yaml
-        - classpath*:ai-specialists/*.json
+      locations: ${AI_EXECUTION_MANIFEST_LOCATIONS:classpath*:ai-specialists/*.yml,classpath*:ai-specialists/*.yaml,classpath*:ai-specialists/*.json}
     capabilities:
       registered-vector-spaces:
         - document
       allowed-actions: []
     async:
-      repository: IN_MEMORY
+      repository: ${AI_EXECUTION_ASYNC_REPOSITORY:IN_MEMORY}
+      initialize-schema: ${AI_EXECUTION_ASYNC_INITIALIZE_SCHEMA:false}
+      encryption-secret: ${AI_EXECUTION_ASYNC_ENCRYPTION_SECRET:}
+      fingerprint-secret: ${AI_EXECUTION_ASYNC_FINGERPRINT_SECRET:}
     receipts:
-      enabled: false
+      enabled: ${AI_EXECUTION_RECEIPTS_ENABLED:false}
+      repository: JDBC
+      initialize-schema: false
+      allow-in-production: true
+      ttl: ${AI_EXECUTION_RECEIPTS_TTL:PT25H}
+      encryption-secret: ${AI_ACTION_RECEIPT_ENCRYPTION_SECRET:}
+      fingerprint-secret: ${AI_ACTION_RECEIPT_FINGERPRINT_SECRET:}
     reviews:
-      enabled: false
+      enabled: ${AI_EXECUTION_REVIEWS_ENABLED:false}
+      repository: JDBC
+      initialize-schema: false
+      allow-in-production: true
+      encryption-secret: ${AI_REVIEW_ENCRYPTION_SECRET:}
+      fingerprint-secret: ${AI_REVIEW_FINGERPRINT_SECRET:}
     input-waits:
       enabled: false
     plans:
@@ -148,6 +194,12 @@ ai:
   orchestration:
     strict-mode-routing: true
     modes:
+      resolver:
+        actions-enabled: false
+        retrieval-enabled: false
+        retrieval-allowlist-required: false
+        vector-space-selection-required: false
+        information-mode: LLM_DRIVEN
       deployment_knowledge:
         actions-enabled: false
         retrieval-enabled: true
@@ -217,3 +269,16 @@ app:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:}
     # Example: CORS_ALLOW_CREDENTIALS=true (only if you need cookies/session auth from the browser)
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
+
+loomai:
+  deployment:
+    manifest-url: ${LOOMAI_DEPLOYMENT_MANIFEST_URL:}
+  smart-brain:
+    enabled: ${LOOMAI_SMART_BRAIN_ENABLED:false}
+    encryption-secret: ${LOOMAI_SMART_BRAIN_ENCRYPTION_SECRET:}
+    fingerprint-secret: ${LOOMAI_SMART_BRAIN_FINGERPRINT_SECRET:}
+    delivery-signing-secret: ${LOOMAI_SMART_BRAIN_DELIVERY_SIGNING_SECRET:}
+    accepted-runtime-url: ${LOOMAI_RUNTIME_PUBLIC_BASE_URL:}
+    operation-retention: ${LOOMAI_SMART_BRAIN_OPERATION_RETENTION:P30D}
+    processing-delay-ms: ${LOOMAI_SMART_BRAIN_PROCESSING_DELAY_MS:2000}
+    delivery-delay-ms: ${LOOMAI_SMART_BRAIN_DELIVERY_DELAY_MS:3000}

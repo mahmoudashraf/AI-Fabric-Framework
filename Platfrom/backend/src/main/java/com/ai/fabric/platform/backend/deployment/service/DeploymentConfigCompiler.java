@@ -36,18 +36,21 @@ public class DeploymentConfigCompiler {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final EntityConfigContractService entityConfigContractService;
+    private final DeploymentCompositionProvenanceService deploymentCompositionProvenanceService;
     private final String aiFabricFrameworkVersion;
 
     public DeploymentConfigCompiler(ObjectMapper objectMapper) {
-        this(objectMapper, new EntityConfigContractService(objectMapper), "0.7.0");
+        this(objectMapper, new EntityConfigContractService(objectMapper), null, "0.7.0");
     }
 
     @Autowired
     public DeploymentConfigCompiler(ObjectMapper objectMapper,
                                     EntityConfigContractService entityConfigContractService,
+                                    DeploymentCompositionProvenanceService deploymentCompositionProvenanceService,
                                     @Value("${platform.ai-fabric.framework-version:0.7.0}") String aiFabricFrameworkVersion) {
         this.objectMapper = objectMapper;
         this.entityConfigContractService = entityConfigContractService;
+        this.deploymentCompositionProvenanceService = deploymentCompositionProvenanceService;
         this.aiFabricFrameworkVersion = aiFabricFrameworkVersion;
         this.yamlMapper = new ObjectMapper(
             YAMLFactory.builder()
@@ -71,6 +74,7 @@ public class DeploymentConfigCompiler {
             JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
             JsonNode marketplaceDatasetNode = objectMapper.readTree(draft.getMarketplaceDatasetConfigJson());
+            JsonNode behaviorNode = objectMapper.readTree(draft.getBehaviorConfigJson());
             JsonNode effectiveRoutingNode = compileRoutingConfig(actionsNode, routingNode, securityNode);
             EntityConfigValidationContext entityContext = new EntityConfigValidationContext(
                 false,
@@ -93,6 +97,38 @@ public class DeploymentConfigCompiler {
             }
             String entityConfigHash = sha256(canonicalJson(runtimeEntityNode));
 
+            ObjectNode compositionProvenance = objectMapper.createObjectNode();
+            compositionProvenance.put("schemaVersion", "loomai-composition-provenance-v1");
+            compositionProvenance.put("deploymentBehaviorSchemaVersion", behaviorNode.path("schemaVersion").asText(""));
+            compositionProvenance.put("deploymentBehaviorType", behaviorNode.path("type").asText(""));
+            compositionProvenance.put("deploymentBehaviorContractVersion", behaviorNode.path("contractVersion").asInt(-1));
+            compositionProvenance.put("templateId", deployment.getTemplateId());
+            compositionProvenance.put("curatedModuleId", providerNode.path("curatedModuleId").asText("default"));
+            compositionProvenance.put("aiFabricFrameworkVersion", aiFabricFrameworkVersion);
+            ObjectNode sectionHashes = compositionProvenance.putObject("sectionHashes");
+            sectionHashes.put("actions", sha256(canonicalJson(actionsNode)));
+            sectionHashes.put("entities", entityConfigHash);
+            sectionHashes.put("routing", sha256(canonicalJson(effectiveRoutingNode)));
+            sectionHashes.put("providers", sha256(canonicalJson(providerNode)));
+            sectionHashes.put("security", sha256(canonicalJson(securityNode)));
+            sectionHashes.put("prompts", sha256(canonicalJson(promptNode)));
+            sectionHashes.put("knowledgeSources", sha256(canonicalJson(knowledgeSourceNode)));
+            sectionHashes.put("shell", sha256(canonicalJson(shellNode)));
+            sectionHashes.put("marketplaceDatasets", sha256(canonicalJson(marketplaceDatasetNode)));
+            sectionHashes.put("behavior", sha256(canonicalJson(behaviorNode)));
+            compositionProvenance.set(
+                "verificationPackIds",
+                behaviorNode.path("runtimeRequirements").path("verificationPackIds").deepCopy()
+            );
+            compositionProvenance.set(
+                "marketplaceInstalls",
+                deploymentCompositionProvenanceService == null
+                    ? objectMapper.createArrayNode()
+                    : deploymentCompositionProvenanceService.marketplaceInstalls(deployment.getId())
+            );
+            String compositionHash = sha256(canonicalJson(compositionProvenance));
+            compositionProvenance.put("compositionHash", compositionHash);
+
             Map<String, Object> manifest = new LinkedHashMap<>();
             manifest.put("deploymentId", deployment.getId());
             manifest.put("deploymentName", deployment.getName());
@@ -105,6 +141,9 @@ public class DeploymentConfigCompiler {
             manifest.put("aiFabricFrameworkVersion", aiFabricFrameworkVersion);
             manifest.put("entityConfigContractVersion", EntityConfigContractService.CONTRACT_VERSION_V04);
             manifest.put("entityConfigHash", entityConfigHash);
+            manifest.put("deploymentBehaviorType", behaviorNode.path("type").asText(""));
+            manifest.put("deploymentBehaviorSchemaVersion", behaviorNode.path("schemaVersion").asText(""));
+            manifest.put("compositionHash", compositionHash);
             manifest.put("actionsConfig", actionsNode);
             manifest.put("entityConfig", runtimeEntityNode);
             manifest.put("routingConfig", effectiveRoutingNode);
@@ -114,6 +153,8 @@ public class DeploymentConfigCompiler {
             manifest.put("knowledgeSourceConfig", knowledgeSourceNode);
             manifest.put("shellConfig", shellNode);
             manifest.put("marketplaceDatasetConfig", marketplaceDatasetNode);
+            manifest.put("behaviorConfig", behaviorNode);
+            manifest.put("compositionProvenance", compositionProvenance);
 
             Map<String, Object> configHashMaterial = new LinkedHashMap<>();
             configHashMaterial.put("aiFabricFrameworkVersion", aiFabricFrameworkVersion);
@@ -127,6 +168,8 @@ public class DeploymentConfigCompiler {
             configHashMaterial.put("knowledgeSourceConfig", canonicalize(knowledgeSourceNode));
             configHashMaterial.put("shellConfig", canonicalize(shellNode));
             configHashMaterial.put("marketplaceDatasetConfig", canonicalize(marketplaceDatasetNode));
+            configHashMaterial.put("behaviorConfig", canonicalize(behaviorNode));
+            configHashMaterial.put("compositionProvenance", canonicalize(compositionProvenance));
             String configHash = sha256(objectMapper.writeValueAsString(configHashMaterial));
             String manifestJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(manifest);
 
@@ -136,6 +179,7 @@ public class DeploymentConfigCompiler {
                 routingArtifactYaml,
                 objectMapper.writeValueAsString(knowledgeSourceNode),
                 objectMapper.writeValueAsString(shellNode),
+                objectMapper.writeValueAsString(compositionProvenance),
                 manifestJson,
                 configHash
             );
@@ -327,6 +371,32 @@ public class DeploymentConfigCompiler {
             }
             String expectedEntityHash = sha256(canonicalJson(expectedRuntimeConfig));
             requireManifestText(manifest, "entityConfigHash", expectedEntityHash, issues);
+            JsonNode persistedBehavior = objectMapper.readTree(version.getBehaviorConfigJson());
+            if (!canonicalJson(persistedBehavior).equals(canonicalJson(manifest.path("behaviorConfig")))) {
+                issues.add("Manifest behaviorConfig does not match the persisted behavior contract.");
+            }
+            JsonNode persistedProvenance = objectMapper.readTree(version.getCompositionProvenanceJson());
+            if (!canonicalJson(persistedProvenance).equals(canonicalJson(manifest.path("compositionProvenance")))) {
+                issues.add("Manifest composition provenance does not match the published version.");
+            }
+            requireManifestText(
+                manifest,
+                "deploymentBehaviorType",
+                persistedBehavior.path("type").asText(""),
+                issues
+            );
+            requireManifestText(
+                manifest,
+                "deploymentBehaviorSchemaVersion",
+                persistedBehavior.path("schemaVersion").asText(""),
+                issues
+            );
+            requireManifestText(
+                manifest,
+                "compositionHash",
+                persistedProvenance.path("compositionHash").asText(""),
+                issues
+            );
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -417,6 +487,7 @@ public class DeploymentConfigCompiler {
         String routingArtifactYaml,
         String knowledgeSourceArtifactJson,
         String shellArtifactJson,
+        String compositionProvenanceJson,
         String manifestJson,
         String configHash
     ) {
@@ -425,7 +496,7 @@ public class DeploymentConfigCompiler {
                                          String routingArtifactYaml,
                                          String manifestJson,
                                          String configHash) {
-            this(actionsArtifactYaml, entityArtifactYaml, routingArtifactYaml, "{}", "{}", manifestJson, configHash);
+            this(actionsArtifactYaml, entityArtifactYaml, routingArtifactYaml, "{}", "{}", "{}", manifestJson, configHash);
         }
     }
 }

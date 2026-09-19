@@ -421,6 +421,7 @@ class DeploymentBundleExportImportServiceTest {
             importedDeployment.getName(),
             importedDeployment.getEnvironmentName(),
             importedDeployment.getTemplateId(),
+            "CONVERSATIONAL",
             null,
             null,
             importedDeployment.getStatus(),
@@ -486,6 +487,7 @@ class DeploymentBundleExportImportServiceTest {
             importedDeployment.getName(),
             importedDeployment.getEnvironmentName(),
             importedDeployment.getTemplateId(),
+            "CONVERSATIONAL",
             null,
             null,
             importedDeployment.getStatus(),
@@ -577,6 +579,7 @@ class DeploymentBundleExportImportServiceTest {
             importedDeployment.getName(),
             importedDeployment.getEnvironmentName(),
             importedDeployment.getTemplateId(),
+            "CONVERSATIONAL",
             null,
             null,
             importedDeployment.getStatus(),
@@ -722,6 +725,7 @@ class DeploymentBundleExportImportServiceTest {
             importedDeployment.getName(),
             importedDeployment.getEnvironmentName(),
             importedDeployment.getTemplateId(),
+            "CONVERSATIONAL",
             null,
             null,
             importedDeployment.getStatus(),
@@ -950,6 +954,7 @@ class DeploymentBundleExportImportServiceTest {
             importedDeployment.getName(),
             importedDeployment.getEnvironmentName(),
             importedDeployment.getTemplateId(),
+            "CONVERSATIONAL",
             null,
             null,
             importedDeployment.getStatus(),
@@ -1235,6 +1240,7 @@ class DeploymentBundleExportImportServiceTest {
         deployment.setName("Test Deployment");
         deployment.setEnvironmentName("staging");
         deployment.setTemplateId("dev-openai-qdrant");
+        deployment.setBehaviorType("CONVERSATIONAL");
         deployment.setStatus("DRAFT");
         deployment.setCustomerId("cust-test");
         deployment.setTenantId("ten-test");

@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentDraftRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentPromptRevisionRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
@@ -61,6 +62,10 @@ class DeploymentServiceApplyGuardTest {
         PlatformCustomerConsumerService platformCustomerConsumerService = mock(PlatformCustomerConsumerService.class);
         PlatformAuditService platformAuditService = mock(PlatformAuditService.class);
 
+        ObjectMapper objectMapper = new ObjectMapper();
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        DeploymentSourceCapabilityManifestService capabilityManifestService =
+            new DeploymentSourceCapabilityManifestService(objectMapper);
         DeploymentService service = new DeploymentService(
             deploymentRepository,
             draftRepository,
@@ -92,8 +97,11 @@ class DeploymentServiceApplyGuardTest {
             platformCustomerConsumerService,
             provisioningProperties(),
             platformAuditService,
-            new com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService(new ObjectMapper()),
-            new ObjectMapper()
+            new com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService(objectMapper),
+            new DeploymentBehaviorCatalogService(objectMapper),
+            sourceArtifactService,
+            capabilityManifestService,
+            objectMapper
         );
 
         DeploymentEntity deployment = new DeploymentEntity();

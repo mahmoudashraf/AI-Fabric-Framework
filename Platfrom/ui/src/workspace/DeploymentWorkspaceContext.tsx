@@ -14,6 +14,9 @@ import type { DeploymentWorkspaceEditorBufferState } from './deploymentWorkspace
 
 export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/overview',
+  '/behavior',
+  '/behavior-operations',
+  '/human-review',
   '/activity',
   '/actions',
   '/approvals',

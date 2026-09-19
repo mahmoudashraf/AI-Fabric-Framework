@@ -470,6 +470,7 @@ export function OverviewPage() {
                   <Chip label={workspace.deployment.status} color="primary" />
                   <Chip label={`Active: ${workspace.deployment.activeVersion ?? 'draft'}`} variant="outlined" />
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
+                  <Chip label={`Behavior: ${workspace.deployment.behaviorType.replace(/_/g, ' ')}`} variant="outlined" />
                   {workspace.deployment.runtimeBaseUrl && integrationSummary ? (
                     <Chip
                       label={integrationModeLabel(integrationSummary)}

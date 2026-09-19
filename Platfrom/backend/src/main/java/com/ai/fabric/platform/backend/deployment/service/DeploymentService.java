@@ -2,10 +2,13 @@ package com.ai.fabric.platform.backend.deployment.service;
 
 import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorType;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentPromptRevisionEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
@@ -14,6 +17,8 @@ import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValida
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentExecutionExtensionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigReferenceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigSectionDiffSummary;
@@ -29,6 +34,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentProductionReadi
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentReleaseSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTemplateSummary;
@@ -124,6 +130,9 @@ public class DeploymentService {
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformAuditService platformAuditService;
     private final EntityConfigContractService entityConfigContractService;
+    private final DeploymentBehaviorCatalogService deploymentBehaviorCatalogService;
+    private final DeploymentSourceArtifactService deploymentSourceArtifactService;
+    private final DeploymentSourceCapabilityManifestService sourceCapabilityManifestService;
     private final ObjectMapper objectMapper;
     private VectorizationPlanRepository vectorizationPlanRepository;
 
@@ -264,6 +273,9 @@ public class DeploymentService {
                              PlatformProvisioningProperties provisioningProperties,
                              PlatformAuditService platformAuditService,
                              EntityConfigContractService entityConfigContractService,
+                             DeploymentBehaviorCatalogService deploymentBehaviorCatalogService,
+                             DeploymentSourceArtifactService deploymentSourceArtifactService,
+                             DeploymentSourceCapabilityManifestService sourceCapabilityManifestService,
                              ObjectMapper objectMapper) {
         this.deploymentRepository = deploymentRepository;
         this.draftRepository = draftRepository;
@@ -296,11 +308,71 @@ public class DeploymentService {
         this.provisioningProperties = provisioningProperties;
         this.platformAuditService = platformAuditService;
         this.entityConfigContractService = entityConfigContractService;
+        this.deploymentBehaviorCatalogService = deploymentBehaviorCatalogService;
+        this.deploymentSourceArtifactService = deploymentSourceArtifactService;
+        this.sourceCapabilityManifestService = sourceCapabilityManifestService;
         this.objectMapper = objectMapper;
     }
 
     public List<DeploymentTemplateSummary> listTemplates() {
         return templates;
+    }
+
+    public List<DeploymentBehaviorSummary> listDeploymentBehaviors() {
+        return deploymentBehaviorCatalogService.list();
+    }
+
+    public List<DeploymentExecutionExtensionSummary> listDeploymentExecutionExtensions() {
+        return deploymentBehaviorCatalogService.listExecutionExtensions();
+    }
+
+    public List<DeploymentSourceArtifactSummary> listCompatibleSourceArtifacts(String deploymentId, String versionId) {
+        DeploymentEntity deployment = getDeployment(deploymentId);
+        deploymentAccessService.requireDeploymentOperatorAccess(deployment);
+        DeploymentVersionEntity version = versionRepository.findById(versionId)
+            .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Version not found: " + versionId));
+        if (!deployment.getId().equals(version.getDeploymentId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
+        }
+        JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
+        DeploymentBehaviorCatalogService.Validation validation = deploymentBehaviorCatalogService.validate(
+            behaviorConfig,
+            deployment.getBehaviorType()
+        );
+        if (!validation.valid()) {
+            throw new ResponseStatusException(CONFLICT, validation.message());
+        }
+        DeploymentBehaviorCatalogService.RuntimeRequirements requirements =
+            deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig);
+        return deploymentSourceArtifactService.list(null).stream()
+            .filter(artifact -> artifact.promotedAt() != null)
+            .filter(artifact -> sourceArtifactSupports(artifact, version, requirements))
+            .toList();
+    }
+
+    private boolean sourceArtifactSupports(DeploymentSourceArtifactSummary artifact,
+                                           DeploymentVersionEntity version,
+                                           DeploymentBehaviorCatalogService.RuntimeRequirements requirements) {
+        try {
+            if (artifact.capabilityManifest() == null || artifact.capabilityManifest().isEmpty()) {
+                return !requirements.capabilityManifestRequired();
+            }
+            DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
+                sourceCapabilityManifestService.normalize(artifact.capabilityManifest());
+            if (!StringUtils.hasText(artifact.capabilityManifestHash())
+                || !artifact.capabilityManifestHash().equals(normalized.hash())) {
+                return false;
+            }
+            if (!version.getAiFabricFrameworkVersion().equals(
+                artifact.capabilityManifest().path("aiFabricVersion").asText("")
+            )) {
+                return false;
+            }
+            sourceCapabilityManifestService.requireSupports(artifact.capabilityManifest(), requirements);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private DeploymentTemplateSummary template(String id,
@@ -661,6 +733,7 @@ public class DeploymentService {
     @Transactional
     public DeploymentSummary createDeployment(CreateDeploymentRequest request) {
         requirePlatformAdminForExplicitBindingRequest(request.customerId(), request.tenantId());
+        DeploymentBehaviorType behaviorType = DeploymentBehaviorType.require(request.behaviorType());
         DeploymentTemplateSummary template = templates.stream()
             .filter(item -> item.id().equals(request.templateId()))
             .findFirst()
@@ -677,6 +750,7 @@ public class DeploymentService {
         deployment.setName(request.name().trim());
         deployment.setEnvironmentName(request.environment().trim());
         deployment.setTemplateId(template.id());
+        deployment.setBehaviorType(behaviorType.name());
         deployment.setStatus("DRAFT");
         PlatformCustomerTenantService.ResolvedDeploymentBinding binding = platformCustomerTenantService.resolveBindingForNewDeployment(
             deployment.getName(),
@@ -706,6 +780,7 @@ public class DeploymentService {
             deployment.getId(),
             Map.of(
                 "templateId", template.id(),
+                "behaviorType", behaviorType.name(),
                 "curatedModuleId", curatedModule.id(),
                 "vectorProvisioningMode", vectorProvisioningMode,
                 "environment", request.environment().trim(),
@@ -1109,6 +1184,16 @@ public class DeploymentService {
         if (request.marketplaceDatasetConfig() != null) {
             draft.setMarketplaceDatasetConfigJson(writeJson(request.marketplaceDatasetConfig()));
         }
+        if (request.behaviorConfig() != null) {
+            DeploymentBehaviorCatalogService.Validation behaviorValidation = deploymentBehaviorCatalogService.validate(
+                request.behaviorConfig(),
+                deployment.getBehaviorType()
+            );
+            if (!behaviorValidation.valid()) {
+                throw new ResponseStatusException(BAD_REQUEST, behaviorValidation.message());
+            }
+            draft.setBehaviorConfigJson(writeJson(behaviorValidation.normalizedConfig()));
+        }
 
         draft.setStatus("MODIFIED");
         draft.setUpdatedAt(Instant.now());
@@ -1180,13 +1265,14 @@ public class DeploymentService {
     private DraftValidationResponse validateDraftInternal(String draftId, boolean skipAccessCheck) {
         DeploymentDraftEntity draft = draftRepository.findById(draftId)
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Draft not found: " + draftId));
+        DeploymentEntity deployment;
         if (skipAccessCheck) {
-            deploymentRepository.findById(draft.getDeploymentId())
+            deployment = deploymentRepository.findById(draft.getDeploymentId())
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Deployment not found: " + draft.getDeploymentId()));
         } else {
-            getDeploymentForEditorAction(draft.getDeploymentId());
+            deployment = getDeploymentForEditorAction(draft.getDeploymentId());
         }
-        return deploymentDraftValidationService.validate(draft);
+        return deploymentDraftValidationService.validate(draft, deployment.getBehaviorType());
     }
 
     @Transactional
@@ -1225,8 +1311,15 @@ public class DeploymentService {
                 "Draft must be migrated to AI_ENTITY_CONFIG_V0_4 before publication."
             );
         }
+        DeploymentBehaviorCatalogService.Validation behaviorValidation = deploymentBehaviorCatalogService.validate(
+            readJson(draft.getBehaviorConfigJson()),
+            deployment.getBehaviorType()
+        );
+        if (!behaviorValidation.valid()) {
+            throw new ResponseStatusException(BAD_REQUEST, behaviorValidation.message());
+        }
         Instant now = Instant.now();
-        DraftValidationResponse validation = deploymentDraftValidationService.validate(draft);
+        DraftValidationResponse validation = deploymentDraftValidationService.validate(draft, deployment.getBehaviorType());
         if (!validation.publishReady()) {
             String message = validation.issues().stream()
                 .filter(issue -> "ERROR".equals(issue.severity()))
@@ -1272,6 +1365,8 @@ public class DeploymentService {
         version.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         version.setShellConfigJson(draft.getShellConfigJson());
         version.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());
+        version.setBehaviorConfigJson(draft.getBehaviorConfigJson());
+        version.setCompositionProvenanceJson(compiled.compositionProvenanceJson());
         version.setActionsArtifactYaml(compiled.actionsArtifactYaml());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setRoutingArtifactYaml(compiled.routingArtifactYaml());
@@ -1298,6 +1393,7 @@ public class DeploymentService {
         nextDraft.setKnowledgeSourceConfigJson(draft.getKnowledgeSourceConfigJson());
         nextDraft.setShellConfigJson(draft.getShellConfigJson());
         nextDraft.setMarketplaceDatasetConfigJson(draft.getMarketplaceDatasetConfigJson());
+        nextDraft.setBehaviorConfigJson(draft.getBehaviorConfigJson());
         nextDraft.setCreatedAt(now);
         nextDraft.setUpdatedAt(now);
         draftRepository.save(nextDraft);
@@ -1488,15 +1584,7 @@ public class DeploymentService {
         if (!deployment.getId().equals(version.getDeploymentId())) {
             throw new ResponseStatusException(BAD_REQUEST, "Version does not belong to deployment: " + deploymentId);
         }
-        deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
         deploymentReleaseRecoveryService.reconcileLatestInProgressRelease(deployment);
-        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
-            deployment,
-            DeploymentOperationApprovalService.APPLY_VERSION,
-            versionId,
-            deployment.isApprovalRequiredForApply(),
-            approvalId
-        );
         releaseRepository.findTopByDeploymentIdOrderByCreatedAtDesc(deploymentId)
             .filter(this::isReleaseInProgress)
             .ifPresent(release -> {
@@ -1505,6 +1593,16 @@ public class DeploymentService {
                     "Deployment already has an apply in progress: " + release.getId()
                 );
             });
+        deploymentConfigCompiler.requireRuntimeArtifactCompatible(version);
+        DeploymentTargetProfileEntity targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
+        requireBehaviorReleaseSupport(deployment, version, sourceArtifactId, targetProfile);
+        deploymentOperationApprovalService.consumeApprovedRequestIfRequired(
+            deployment,
+            DeploymentOperationApprovalService.APPLY_VERSION,
+            versionId,
+            deployment.isApprovalRequiredForApply(),
+            approvalId
+        );
 
         Instant now = Instant.now();
 
@@ -1515,7 +1613,6 @@ public class DeploymentService {
         release.setStatus("APPLY_REQUESTED");
         release.setVerificationStatus("PENDING");
         release.setProvisioningStatus("QUEUED");
-        var targetProfile = deploymentProvisioningService.selectedTargetProfile(targetProfileId);
         release.setProvisioningTarget(targetProfile.getProviderType().legacyTarget());
         release.setTargetProfileId(targetProfile.getId());
         release.setProviderType(targetProfile.getProviderType());
@@ -1547,6 +1644,112 @@ public class DeploymentService {
 
         scheduleApplyAfterCommit(deploymentId, versionId, release.getId());
         return toReleaseSummary(release);
+    }
+
+    private void requireBehaviorReleaseSupport(DeploymentEntity deployment,
+                                               DeploymentVersionEntity version,
+                                               String sourceArtifactId,
+                                               DeploymentTargetProfileEntity targetProfile) {
+        JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
+        DeploymentBehaviorCatalogService.Validation validation = deploymentBehaviorCatalogService.validate(
+            behaviorConfig,
+            deployment.getBehaviorType()
+        );
+        if (!validation.valid()) {
+            throw new ResponseStatusException(CONFLICT, validation.message());
+        }
+
+        DeploymentBehaviorType behaviorType = DeploymentBehaviorType.require(deployment.getBehaviorType());
+        DeploymentBehaviorCatalogService.RuntimeRequirements requirements =
+            deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig);
+        if (!requirements.capabilityManifestRequired()) {
+            if (!StringUtils.hasText(sourceArtifactId)) {
+                return;
+            }
+            var conversationalArtifact = deploymentSourceArtifactService.require(sourceArtifactId);
+            JsonNode conversationalManifest = sourceCapabilityManifestService.read(
+                conversationalArtifact.getCapabilityManifestJson()
+            );
+            if (conversationalManifest.isEmpty()) {
+                return;
+            }
+        }
+        if (!StringUtils.hasText(sourceArtifactId)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                behaviorType.name() + " apply requires an explicit reviewed sourceArtifactId."
+            );
+        }
+
+        String sourceStrategy = readJson(targetProfile.getResourceDefaultsJson())
+            .path("sourceStrategy")
+            .asText(targetProfile.getSourceStrategy());
+        if (targetProfile.getProviderType() != com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType.COOLIFY
+            || !"IMAGE_SOURCE".equalsIgnoreCase(sourceStrategy.replace('-', '_'))) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Capability-attested behaviors require a Coolify IMAGE_SOURCE target so the selected immutable artifact is the build that gets deployed."
+            );
+        }
+        String runtimeDatabaseMode = readJson(targetProfile.getResourceDefaultsJson())
+            .path("runtimeDatabaseMode")
+            .asText("");
+        if (!requirements.migrationIds().isEmpty()
+            && !"COOLIFY_POSTGRES".equalsIgnoreCase(runtimeDatabaseMode)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                behaviorType.name()
+                    + " requires deployment-local PostgreSQL because its runtime contract includes durable migrations."
+            );
+        }
+
+        var artifact = deploymentSourceArtifactService.require(sourceArtifactId);
+        if (artifact.getPromotedAt() == null || !StringUtils.hasText(artifact.getPromotionChannel())) {
+            throw new ResponseStatusException(CONFLICT, "Source artifact must be reviewed and promoted before apply.");
+        }
+        String expectedPromotionChannel = expectedPromotionChannel(targetProfile.getEnvironmentName());
+        if (expectedPromotionChannel != null
+            && !expectedPromotionChannel.equalsIgnoreCase(artifact.getPromotionChannel())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Source artifact promotion channel " + artifact.getPromotionChannel()
+                    + " does not match target environment " + targetProfile.getEnvironmentName() + "."
+            );
+        }
+        JsonNode manifest = sourceCapabilityManifestService.read(artifact.getCapabilityManifestJson());
+        DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
+            sourceCapabilityManifestService.normalize(manifest);
+        if (!StringUtils.hasText(artifact.getCapabilityManifestHash())
+            || !artifact.getCapabilityManifestHash().equals(normalized.hash())) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Source artifact capability manifest hash is missing or does not match its content."
+            );
+        }
+        if (!version.getAiFabricFrameworkVersion().equals(manifest.path("aiFabricVersion").asText(""))) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Source artifact AI Fabric version does not match the published deployment version."
+            );
+        }
+        sourceCapabilityManifestService.requireSupports(
+            manifest,
+            requirements
+        );
+    }
+
+    private String expectedPromotionChannel(String environmentName) {
+        if (!StringUtils.hasText(environmentName)) {
+            return null;
+        }
+        String normalized = environmentName.trim().toLowerCase(Locale.ROOT);
+        if (normalized.contains("prod")) {
+            return "production";
+        }
+        if (normalized.contains("stag")) {
+            return "staging";
+        }
+        return null;
     }
 
     public List<DeploymentReleaseSummary> listReleases(String deploymentId) {
@@ -1737,6 +1940,9 @@ public class DeploymentService {
         draft.setKnowledgeSourceConfigJson(writeJson(defaultKnowledgeSourceConfig()));
         draft.setShellConfigJson(writeJson(defaultShellConfig(curatedModuleId)));
         draft.setMarketplaceDatasetConfigJson(writeJson(defaultMarketplaceDatasetConfig()));
+        draft.setBehaviorConfigJson(writeJson(
+            deploymentBehaviorCatalogService.defaultConfig(deployment.getBehaviorType())
+        ));
         draft.setCreatedAt(now);
         draft.setUpdatedAt(now);
         return draft;
@@ -2267,6 +2473,7 @@ public class DeploymentService {
             deployment.getName(),
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
+            deployment.getBehaviorType(),
             binding,
             source,
             deployment.getStatus(),
@@ -2328,6 +2535,7 @@ public class DeploymentService {
             deployment.getName(),
             deployment.getEnvironmentName(),
             deployment.getTemplateId(),
+            deployment.getBehaviorType(),
             binding,
             source,
             deploymentAccessService.summarizeAccess(deployment),
@@ -2394,7 +2602,8 @@ public class DeploymentService {
                 objectMapper.readTree(draft.getMarketplaceDatasetConfigJson()),
                 draft.getCreatedAt(),
                 draft.getUpdatedAt(),
-                draft.getEntityConfigContractVersion()
+                draft.getEntityConfigContractVersion(),
+                objectMapper.readTree(draft.getBehaviorConfigJson())
             );
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read draft config", ex);
@@ -2521,7 +2730,9 @@ public class DeploymentService {
             && safeEquals(draft.getSecurityConfigJson(), version.getSecurityConfigJson())
             && safeEquals(draft.getPromptConfigJson(), version.getPromptConfigJson())
             && safeEquals(draft.getKnowledgeSourceConfigJson(), version.getKnowledgeSourceConfigJson())
-            && safeEquals(draft.getShellConfigJson(), version.getShellConfigJson());
+            && safeEquals(draft.getShellConfigJson(), version.getShellConfigJson())
+            && safeEquals(draft.getMarketplaceDatasetConfigJson(), version.getMarketplaceDatasetConfigJson())
+            && safeEquals(draft.getBehaviorConfigJson(), version.getBehaviorConfigJson());
     }
 
     private boolean safeEquals(String left, String right) {
@@ -2529,6 +2740,7 @@ public class DeploymentService {
     }
 
     private DeploymentVersionSummary toVersionSummary(DeploymentVersionEntity version) {
+        JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
         return new DeploymentVersionSummary(
             version.getId(),
             version.getDeploymentId(),
@@ -2539,7 +2751,10 @@ public class DeploymentService {
             version.isReindexRequired(),
             version.getPublishedAt(),
             version.getEntityConfigContractVersion(),
-            version.getAiFabricFrameworkVersion()
+            version.getAiFabricFrameworkVersion(),
+            behaviorConfig.path("type").asText(""),
+            Integer.toString(behaviorConfig.path("contractVersion").asInt(-1)),
+            deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig).capabilityManifestRequired()
         );
     }
 

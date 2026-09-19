@@ -7,6 +7,7 @@ public record DeploymentOverviewSummary(
     String name,
     String environment,
     String templateId,
+    String behaviorType,
     DeploymentTenantBindingSummary binding,
     DeploymentSourceSummary source,
     DeploymentWorkspaceAccessSummary access,

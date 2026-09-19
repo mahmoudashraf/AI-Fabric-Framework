@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVerificationRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivityProbeSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderConnectivitySummary;
@@ -65,6 +66,7 @@ public class DeploymentReleaseVerificationService {
     private final MarketplaceDatasetSyncRunRepository marketplaceDatasetSyncRunRepository;
     private final DeploymentTargetProfileService deploymentTargetProfileService;
     private final DeploymentProviderRegistry deploymentProviderRegistry;
+    private final DeploymentBehaviorCatalogService deploymentBehaviorCatalogService;
     private final HttpClient httpClient;
 
     DeploymentReleaseVerificationService(ObjectMapper objectMapper,
@@ -211,6 +213,7 @@ public class DeploymentReleaseVerificationService {
         this.marketplaceDatasetSyncRunRepository = marketplaceDatasetSyncRunRepository;
         this.deploymentTargetProfileService = deploymentTargetProfileService;
         this.deploymentProviderRegistry = deploymentProviderRegistry;
+        this.deploymentBehaviorCatalogService = new DeploymentBehaviorCatalogService(objectMapper);
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(verificationProperties.timeout())
             .build();
@@ -808,6 +811,9 @@ public class DeploymentReleaseVerificationService {
         JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
         JsonNode shellConfig = readJson(version.getShellConfigJson());
         JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
+        JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
+        JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
+        JsonNode provisioningDetails = readJson(release.getProvisioningDetailsJson());
         JsonNode routingConfig = deploymentConfigCompiler.compileRoutingConfig(actionsConfig, rawRoutingConfig, securityConfig);
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
@@ -881,6 +887,9 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actionsConfig.path("actions"), "postPolicies");
         Set<String> expectedWebhookTargetIds = textSet(actionsConfig.path("webhookTargets"), "id");
         int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actionsConfig.path("actions"));
+        Set<String> expectedRuntimeMigrationIds = Set.copyOf(
+            deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig).migrationIds()
+        );
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
@@ -917,6 +926,15 @@ public class DeploymentReleaseVerificationService {
             expectedConfirmationInterceptorNames,
             expectedEntityTypes,
             version.getId(),
+            behaviorConfig.path("type").asText(""),
+            behaviorConfig.path("schemaVersion").asText(""),
+            Integer.toString(behaviorConfig.path("contractVersion").asInt(-1)),
+            compositionProvenance.path("compositionHash").asText(""),
+            Set.of("AGENTIC_SPECIALIST_TEAM", "SMART_BRAIN")
+                .contains(behaviorConfig.path("type").asText("")),
+            expectedRuntimeMigrationIds,
+            provisioningDetails.path("sourceCapabilityManifestHash").asText(""),
+            provisioningDetails.path("sourceGitCommit").asText(""),
             expectedAiFabricFrameworkVersion,
             expectedEntityConfigContractVersion,
             expectedEntityConfigHash,
@@ -1042,6 +1060,27 @@ public class DeploymentReleaseVerificationService {
             "actualDeploymentVersionId",
             probe.body().path("deploymentVersionId").asText("")
         );
+        JsonNode runtimeBehavior = probe.body().path("deploymentBehavior");
+        details.put("expectedDeploymentBehaviorType", expectations.expectedDeploymentBehaviorType());
+        details.put("actualDeploymentBehaviorType", runtimeBehavior.path("type").asText(""));
+        details.put("expectedDeploymentBehaviorSchemaVersion", expectations.expectedDeploymentBehaviorSchemaVersion());
+        details.put("actualDeploymentBehaviorSchemaVersion", runtimeBehavior.path("schemaVersion").asText(""));
+        details.put("expectedDeploymentBehaviorContractVersion", expectations.expectedDeploymentBehaviorContractVersion());
+        details.put("actualDeploymentBehaviorContractVersion", runtimeBehavior.path("contractVersion").asText(""));
+        details.put("expectedDeploymentCompositionHash", expectations.expectedDeploymentCompositionHash());
+        details.put("actualDeploymentCompositionHash", runtimeBehavior.path("compositionHash").asText(""));
+        details.put("expectedSpecialistChainsEnabled", expectations.expectedSpecialistChainsEnabled());
+        details.put("actualSpecialistChainsEnabled", runtimeBehavior.path("specialistChainsEnabled").asBoolean(false));
+        details.put("actualSpecialistChainsReady", probe.body().path("specialistChains").path("ready").asBoolean(false));
+        details.set("expectedRuntimeMigrationIds", toArrayNode(expectations.expectedRuntimeMigrationIds()));
+        details.set(
+            "actualRuntimeMigrationIds",
+            toArrayNode(textSet(probe.body().path("runtimeMigrations").path("appliedMigrationIds")))
+        );
+        details.put("expectedRuntimeCapabilityManifestHash", expectations.expectedRuntimeCapabilityManifestHash());
+        details.put("actualRuntimeCapabilityManifestHash", probe.body().path("runtimeCapabilityManifestHash").asText(""));
+        details.put("expectedProductSourceCommit", expectations.expectedProductSourceCommit());
+        details.put("actualProductSourceCommit", probe.body().path("productSourceCommit").asText(""));
         details.put(
             "aiFabricEntityDiagnosticsAvailable",
             aiFabricEntities.path("available").asBoolean(false)
@@ -2280,6 +2319,32 @@ public class DeploymentReleaseVerificationService {
             && expectations.expectedDeploymentVersionId().equals(
                 probe.body().path("deploymentVersionId").asText("")
             )
+            && expectations.expectedDeploymentBehaviorType().equals(
+                probe.body().path("deploymentBehavior").path("type").asText("")
+            )
+            && expectations.expectedDeploymentBehaviorSchemaVersion().equals(
+                probe.body().path("deploymentBehavior").path("schemaVersion").asText("")
+            )
+            && expectations.expectedDeploymentBehaviorContractVersion().equals(
+                probe.body().path("deploymentBehavior").path("contractVersion").asText("")
+            )
+            && expectations.expectedDeploymentCompositionHash().equals(
+                probe.body().path("deploymentBehavior").path("compositionHash").asText("")
+            )
+            && expectations.expectedSpecialistChainsEnabled()
+                == probe.body().path("deploymentBehavior").path("specialistChainsEnabled").asBoolean(false)
+            && (!expectations.expectedSpecialistChainsEnabled()
+                || probe.body().path("specialistChains").path("ready").asBoolean(false))
+            && textSet(probe.body().path("runtimeMigrations").path("appliedMigrationIds"))
+                .containsAll(expectations.expectedRuntimeMigrationIds())
+            && optionalExpectedValueMatches(
+                expectations.expectedRuntimeCapabilityManifestHash(),
+                probe.body().path("runtimeCapabilityManifestHash").asText("")
+            )
+            && optionalExpectedValueMatches(
+                expectations.expectedProductSourceCommit(),
+                probe.body().path("productSourceCommit").asText("")
+            )
             && aiFabricEntities.path("available").asBoolean(false)
             && aiFabricEntities.path("queue").path("ready").asBoolean(false)
             && expectations.artifacts().entityArtifactUrl().equals(probe.body().path("entityConfigLocation").asText(""))
@@ -2819,6 +2884,10 @@ public class DeploymentReleaseVerificationService {
         return value == null ? "" : value.trim();
     }
 
+    private boolean optionalExpectedValueMatches(String expected, String actual) {
+        return !hasText(expected) || expected.trim().equals(trimToEmpty(actual));
+    }
+
     private ArrayNode toArrayNode(Set<String> values) {
         ArrayNode arrayNode = objectMapper.createArrayNode();
         values.forEach(arrayNode::add);
@@ -3001,6 +3070,14 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedConfirmationInterceptorNames,
         Set<String> expectedEntityTypes,
         String expectedDeploymentVersionId,
+        String expectedDeploymentBehaviorType,
+        String expectedDeploymentBehaviorSchemaVersion,
+        String expectedDeploymentBehaviorContractVersion,
+        String expectedDeploymentCompositionHash,
+        boolean expectedSpecialistChainsEnabled,
+        Set<String> expectedRuntimeMigrationIds,
+        String expectedRuntimeCapabilityManifestHash,
+        String expectedProductSourceCommit,
         String expectedAiFabricFrameworkVersion,
         String expectedEntityConfigContractVersion,
         String expectedEntityConfigHash,

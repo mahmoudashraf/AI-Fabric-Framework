@@ -10,6 +10,7 @@ public record DeploymentMarketplaceImpactSummary(
     int templatePluginCount,
     int automationPluginCount,
     int inferenceProfilePluginCount,
+    int specialistPluginCount,
     List<String> installedPluginIds,
     List<String> actionIds,
     List<String> knowledgeSourceIds,
@@ -18,6 +19,7 @@ public record DeploymentMarketplaceImpactSummary(
     List<String> automationWorkflowIds,
     List<String> inferenceProfileIds,
     List<String> inferenceEndpointProfileRefs,
+    List<String> specialistBundleIds,
     List<DeploymentMarketplaceInstallImpactSummary> installs,
     List<String> recommendedPluginIds,
     List<String> warnings

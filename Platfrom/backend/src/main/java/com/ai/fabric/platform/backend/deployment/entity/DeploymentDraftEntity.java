@@ -17,6 +17,17 @@ public class DeploymentDraftEntity {
         "{\"contractVersion\":\"SHELL_CONFIG_V1\",\"modules\":[],\"cards\":[]}";
     public static final String DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON =
         "{\"contractVersion\":\"MARKETPLACE_DATASET_CONFIG_V1\",\"datasets\":[]}";
+    public static final String DEFAULT_BEHAVIOR_CONFIG_JSON =
+        "{\"schemaVersion\":\"loomai-deployment-behavior-v1\",\"type\":\"CONVERSATIONAL\",\"contractVersion\":1," +
+            "\"activation\":{\"sources\":[\"AUTHENTICATED_INTERACTIVE\"]}," +
+            "\"channelBindings\":[\"BACKEND_API\",\"DOCKED_COMPOSER\",\"MAX_MODE\",\"INLINE_ASSISTANT\",\"QUERY_ONCE\"]," +
+            "\"executionExtensions\":[],\"durability\":{\"mode\":\"OPTIONAL_BACKEND_SESSION\"}," +
+            "\"runtimeRequirements\":{\"capabilities\":[\"ai-fabric-core\",\"ai-fabric-chat-session\"]," +
+            "\"endpointClasses\":[\"chat-query\",\"query-once\",\"session-management\"]," +
+            "\"migrationIds\":[]," +
+            "\"verificationPackIds\":[\"conversational-behavior-v1\"]}," +
+            "\"authority\":{\"trustedContextRequired\":true,\"requestMaySelectIdentityOrAuthority\":false," +
+            "\"automaticWritesAllowed\":false}}";
 
     @Id
     private String id;
@@ -59,6 +70,9 @@ public class DeploymentDraftEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String marketplaceDatasetConfigJson = DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String behaviorConfigJson = DEFAULT_BEHAVIOR_CONFIG_JSON;
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -182,6 +196,14 @@ public class DeploymentDraftEntity {
 
     public void setMarketplaceDatasetConfigJson(String marketplaceDatasetConfigJson) {
         this.marketplaceDatasetConfigJson = marketplaceDatasetConfigJson;
+    }
+
+    public String getBehaviorConfigJson() {
+        return behaviorConfigJson == null ? DEFAULT_BEHAVIOR_CONFIG_JSON : behaviorConfigJson;
+    }
+
+    public void setBehaviorConfigJson(String behaviorConfigJson) {
+        this.behaviorConfigJson = behaviorConfigJson;
     }
 
     public Instant getCreatedAt() {

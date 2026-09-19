@@ -9,6 +9,7 @@ import com.ai.fabric.runtime.auth.RuntimePrivateAssertionService;
 import com.ai.fabric.runtime.auth.RuntimeRequestAuthResolver;
 import com.ai.fabric.runtime.admin.RuntimeActionCatalogGateway;
 import com.ai.fabric.runtime.config.RuntimeAuthProperties;
+import com.ai.fabric.runtime.config.RuntimeCapabilityManifestService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
 import com.ai.fabric.runtime.web.admin.RuntimeAdminOverviewController;
@@ -35,9 +36,11 @@ import ai.fabric.intent.action.confirmation.ConfirmationInterceptorRule;
 import ai.fabric.intent.action.confirmation.ConfirmationInterceptorStackPolicy;
 import ai.fabric.intent.action.confirmation.ConfirmationInterceptorTrigger;
 import ai.fabric.indexing.observability.AIEntityIndexingEndpoint;
+import ai.fabric.execution.chain.manifest.SpecialistChainManifestRuntimeStatus;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.rag.source.SearchSourceRegistry;
 import ai.fabric.shell.BuiltInShellCatalog;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -45,6 +48,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.flywaydb.core.Flyway;
 
 import java.lang.reflect.Constructor;
 import java.time.Instant;
@@ -131,6 +135,11 @@ class RuntimeAdminOverviewControllerTest {
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "entityConfigHash", "entity-hash-123");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentVersionId", "ver-123");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentBehaviorType", "CONVERSATIONAL");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentBehaviorSchemaVersion", "loomai-deployment-behavior-v1");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentBehaviorContractVersion", "1");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "deploymentCompositionHash", "composition-hash-123");
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "specialistChainsEnabled", false);
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "productSourceCommit", "commit-123");
         org.springframework.test.util.ReflectionTestUtils.setField(controller, "productBuildTime", "2026-07-30T12:00:00Z");
 
@@ -147,6 +156,29 @@ class RuntimeAdminOverviewControllerTest {
         assertThat(body).containsEntry("entityConfigContractVersion", "AI_ENTITY_CONFIG_V0_4");
         assertThat(body).containsEntry("entityConfigHash", "entity-hash-123");
         assertThat(body).containsEntry("deploymentVersionId", "ver-123");
+        assertThat(body.get("deploymentBehavior")).isEqualTo(Map.of(
+            "type", "CONVERSATIONAL",
+            "schemaVersion", "loomai-deployment-behavior-v1",
+            "contractVersion", "1",
+            "compositionHash", "composition-hash-123",
+            "specialistChainsEnabled", false
+        ));
+        assertThat(body.get("runtimeCapabilityManifestHash")).isInstanceOf(String.class);
+        assertThat((String) body.get("runtimeCapabilityManifestHash")).hasSize(64);
+        assertThat(body.get("runtimeCapabilityManifest")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeCapabilityManifest =
+            (Map<String, Object>) body.get("runtimeCapabilityManifest");
+        assertThat(runtimeCapabilityManifest).containsEntry(
+            "schemaVersion",
+            "loomai-runtime-capabilities-v1"
+        );
+        assertThat(runtimeCapabilityManifest).containsEntry("aiFabricVersion", "0.7.0");
+        assertThat(runtimeCapabilityManifest.get("supportedBehaviorTypes")).isEqualTo(List.of(
+            "AGENTIC_SPECIALIST_TEAM",
+            "CONVERSATIONAL",
+            "SMART_BRAIN"
+        ));
         assertThat(body).containsEntry("productSourceCommit", "commit-123");
         assertThat(body).containsEntry("productBuildTime", "2026-07-30T12:00:00Z");
         assertThat(body).containsEntry("supportsVectorScan", true);
@@ -453,16 +485,25 @@ class RuntimeAdminOverviewControllerTest {
                 vectorDatabaseService,
                 authProperties,
                 runtimeRequestAuthResolver,
+                runtimeCapabilityManifestService(),
                 confirmationProvider,
                 webhookPolicyProvider,
                 knowledgeSourceProvider,
                 shellConfigProvider,
                 searchSourceRegistryProvider,
-                entityIndexingEndpointProvider()
+                entityIndexingEndpointProvider(),
+                emptyProvider(SpecialistChainManifestRuntimeStatus.class),
+                emptyProvider(Flyway.class)
             );
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private RuntimeCapabilityManifestService runtimeCapabilityManifestService() {
+        RuntimeCapabilityManifestService service = new RuntimeCapabilityManifestService(new ObjectMapper());
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "load");
+        return service;
     }
 
     private AIProviderConfig aiProviderConfig() {

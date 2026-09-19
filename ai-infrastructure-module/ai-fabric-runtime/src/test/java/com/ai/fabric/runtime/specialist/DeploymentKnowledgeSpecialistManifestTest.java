@@ -61,7 +61,7 @@ class DeploymentKnowledgeSpecialistManifestTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void compilesOneExactReadOnlyDocumentSpecialist() {
+    void compilesExactReadOnlyDocumentSpecialistWithinPackagedCatalog() {
         SpecialistDefinition<JsonNode, JsonNode> definition = definition();
         var registered = specialistRegistry.requireRegistered(SPECIALIST_ID);
 
@@ -89,7 +89,7 @@ class DeploymentKnowledgeSpecialistManifestTest {
             .isEqualTo(SpecialistInteractionCapability.NON_INTERACTIVE);
 
         assertThat(manifestStatus.ready()).isTrue();
-        assertThat(manifestStatus.manifestDefinitionCount()).isEqualTo(1);
+        assertThat(manifestStatus.manifestDefinitionCount()).isEqualTo(4);
         assertThat(healthIndicator.health().getStatus())
             .isEqualTo(Status.UP);
     }

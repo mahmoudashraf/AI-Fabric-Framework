@@ -1374,6 +1374,7 @@ class PartnerEnablementIntegrationTest {
         deployment.setName("Partner Max Widget Runtime");
         deployment.setEnvironmentName("test");
         deployment.setTemplateId("shopify-companion");
+        deployment.setBehaviorType("CONVERSATIONAL");
         deployment.setStatus("RUNNING");
         deployment.setCustomerId("customer-shopify-store-approved");
         deployment.setTenantId("tenant-shopify-store-approved");

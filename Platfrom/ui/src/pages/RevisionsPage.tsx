@@ -32,6 +32,7 @@ import {
   fetchDeploymentIntegrationSummary,
   fetchPlatformUserPreferences,
   fetchDeploymentReleases,
+  fetchCompatibleDeploymentSourceArtifacts,
   fetchDeploymentTargetProfiles,
   fetchDeploymentVersions,
   fetchDeploymentProvisioningPlan,
@@ -479,6 +480,7 @@ export function RevisionsPage() {
   const [releaseStatusFilter, setReleaseStatusFilter] = useState('ALL')
   const [reindexFilter, setReindexFilter] = useState('ALL')
   const [applyTargetProfileId, setApplyTargetProfileId] = useState('')
+  const [applySourceArtifactId, setApplySourceArtifactId] = useState('')
   const [bundleExportMode, setBundleExportMode] = useState<DeploymentBundleExportMode>('CONFIG_ONLY')
   const [bundleExportReason, setBundleExportReason] = useState('')
   const [bundleExportPublicKey, setBundleExportPublicKey] = useState('')
@@ -536,6 +538,12 @@ export function RevisionsPage() {
   })
 
   const versions = versionsQuery.data ?? []
+  const selectedVersionForApply = versions.find((version) => version.id === selectedVersionId) ?? null
+  const sourceArtifactsQuery = useQuery({
+    queryKey: ['compatible-deployment-source-artifacts', selectedDeploymentId, selectedVersionId],
+    queryFn: () => fetchCompatibleDeploymentSourceArtifacts(selectedDeploymentId, selectedVersionId),
+    enabled: selectedDeploymentId.length > 0 && selectedVersionId.length > 0,
+  })
   const activeTargetProfiles = useMemo(
     () => (targetProfilesQuery.data ?? []).filter((profile) => profile.active),
     [targetProfilesQuery.data],
@@ -548,6 +556,23 @@ export function RevisionsPage() {
     () => activeTargetProfiles.find((profile) => profile.defaultForRuntime) ?? null,
     [activeTargetProfiles],
   )
+  const sourceArtifacts = sourceArtifactsQuery.data ?? []
+  const behaviorRequiresSourceArtifact = selectedVersionForApply?.sourceCapabilityManifestRequired
+    ?? selectedDeployment?.behaviorType !== 'CONVERSATIONAL'
+  const compatibleSourceArtifacts = sourceArtifacts
+  const selectedSourceArtifact = useMemo(
+    () => sourceArtifacts.find((artifact) => artifact.id === applySourceArtifactId) ?? null,
+    [applySourceArtifactId, sourceArtifacts],
+  )
+
+  useEffect(() => {
+    if (!applySourceArtifactId) {
+      return
+    }
+    if (!compatibleSourceArtifacts.some((artifact) => artifact.id === applySourceArtifactId)) {
+      setApplySourceArtifactId('')
+    }
+  }, [applySourceArtifactId, compatibleSourceArtifacts])
 
   useEffect(() => {
     if (viewInitializedRef.current || !preferencesQuery.isSuccess) {
@@ -723,11 +748,13 @@ export function RevisionsPage() {
       deploymentId,
       versionId,
       targetProfileId,
+      sourceArtifactId,
     }: {
       deploymentId: string
       versionId: string
       targetProfileId?: string
-    }) => applyDeploymentVersion(deploymentId, versionId, targetProfileId),
+      sourceArtifactId?: string
+    }) => applyDeploymentVersion(deploymentId, versionId, targetProfileId, sourceArtifactId),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -1654,7 +1681,7 @@ export function RevisionsPage() {
                       </Alert>
                     ) : null}
                     <Grid container spacing={1.5} alignItems="flex-start">
-                      <Grid item xs={12} md={5}>
+                      <Grid item xs={12} md={4}>
                         <TextField
                           fullWidth
                           select
@@ -1680,11 +1707,38 @@ export function RevisionsPage() {
                           ))}
                         </TextField>
                       </Grid>
-                      <Grid item xs={12} md={7}>
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Runtime source artifact"
+                          value={applySourceArtifactId}
+                          onChange={(event) => setApplySourceArtifactId(event.target.value)}
+                          helperText={behaviorRequiresSourceArtifact
+                            ? 'Required. Only artifacts that declare this behavior are shown.'
+                            : 'Optional for the hosted Conversational source line.'}
+                          disabled={sourceArtifactsQuery.isLoading}
+                        >
+                          <MenuItem value="">
+                            {behaviorRequiresSourceArtifact ? 'Select reviewed artifact' : 'Use promoted channel default'}
+                          </MenuItem>
+                          {compatibleSourceArtifacts.map((artifact) => (
+                            <MenuItem key={artifact.id} value={artifact.id}>
+                              {artifact.serviceName} · {artifact.imageTag} · {artifact.id}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
                         <Alert severity={selectedApplyTargetProfile ? 'info' : 'success'}>
                           {selectedApplyTargetProfile
                             ? `Apply will explicitly target ${selectedApplyTargetProfile.id}.`
                             : 'Apply will use the active runtime default target profile.'}
+                          {selectedSourceArtifact
+                            ? ` Runtime source is fixed to ${selectedSourceArtifact.id}.`
+                            : behaviorRequiresSourceArtifact
+                              ? ' Select a reviewed runtime artifact before apply.'
+                              : ' Runtime source follows the promoted channel default.'}
                         </Alert>
                       </Grid>
                     </Grid>
@@ -1693,6 +1747,19 @@ export function RevisionsPage() {
                         {targetProfilesQuery.error instanceof Error
                           ? targetProfilesQuery.error.message
                           : 'Failed to load target profiles. Apply can still use the backend runtime default.'}
+                      </Alert>
+                    ) : null}
+                    {sourceArtifactsQuery.isError ? (
+                      <Alert severity={behaviorRequiresSourceArtifact ? 'error' : 'warning'}>
+                        {sourceArtifactsQuery.error instanceof Error
+                          ? sourceArtifactsQuery.error.message
+                          : 'Failed to load runtime source artifacts.'}
+                      </Alert>
+                    ) : null}
+                    {behaviorRequiresSourceArtifact && !sourceArtifactsQuery.isLoading && compatibleSourceArtifacts.length === 0 ? (
+                      <Alert severity="error">
+                        No promoted source artifact currently proves {selectedDeployment.behaviorType.replace(/_/g, ' ')}.
+                        Register and review its capability manifest before attempting apply.
                       </Alert>
                     ) : null}
                     <Grid container spacing={1.5}>
@@ -1810,7 +1877,12 @@ export function RevisionsPage() {
                               variant="outlined"
                               size="small"
                               startIcon={<RocketLaunchRoundedIcon />}
-                              disabled={!canOperate || applyMutation.isPending || Boolean(inProgressRelease)}
+                              disabled={
+                                !canOperate
+                                || applyMutation.isPending
+                                || Boolean(inProgressRelease)
+                                || (behaviorRequiresSourceArtifact && !applySourceArtifactId)
+                              }
                               onClick={(event) => {
                                 event.stopPropagation()
                                 if (!isPlatformAdmin && selectedDeployment.approvalRequiredForApply) {
@@ -1823,6 +1895,7 @@ export function RevisionsPage() {
                                   deploymentId: selectedDeployment.id,
                                   versionId: version.id,
                                   targetProfileId: applyTargetProfileId || undefined,
+                                  sourceArtifactId: applySourceArtifactId || undefined,
                                 })
                               }}
                             >

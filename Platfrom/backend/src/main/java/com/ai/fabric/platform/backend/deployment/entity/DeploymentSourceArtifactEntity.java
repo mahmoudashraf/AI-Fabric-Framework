@@ -42,6 +42,12 @@ public class DeploymentSourceArtifactEntity {
     @Column(name = "promotion_channel", length = 64)
     private String promotionChannel;
 
+    @Column(name = "capability_manifest_json", nullable = false, columnDefinition = "TEXT")
+    private String capabilityManifestJson = "{}";
+
+    @Column(name = "capability_manifest_hash", length = 128)
+    private String capabilityManifestHash;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -126,6 +132,22 @@ public class DeploymentSourceArtifactEntity {
 
     public void setPromotionChannel(String promotionChannel) {
         this.promotionChannel = promotionChannel;
+    }
+
+    public String getCapabilityManifestJson() {
+        return capabilityManifestJson == null ? "{}" : capabilityManifestJson;
+    }
+
+    public void setCapabilityManifestJson(String capabilityManifestJson) {
+        this.capabilityManifestJson = capabilityManifestJson;
+    }
+
+    public String getCapabilityManifestHash() {
+        return capabilityManifestHash;
+    }
+
+    public void setCapabilityManifestHash(String capabilityManifestHash) {
+        this.capabilityManifestHash = capabilityManifestHash;
     }
 
     public Instant getCreatedAt() {

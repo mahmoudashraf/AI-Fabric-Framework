@@ -18,6 +18,53 @@ class MarketplaceManifestServiceTest {
     private final MarketplaceManifestService service = new MarketplaceManifestService(objectMapper);
 
     @Test
+    void sourceAttestedAgenticSpecialistManifestIsAccepted() {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            specialistPlugin(),
+            specialistVersion(validAgenticSpecialistManifest())
+        );
+
+        assertThat(parsed.pluginType()).isEqualTo("SPECIALIST");
+        assertThat(parsed.contributions().specialistCompatibleBehaviorTypes())
+            .containsExactly("AGENTIC_SPECIALIST_TEAM");
+        assertThat(parsed.contributions().specialistBundleRefs())
+            .extracting(com.ai.fabric.platform.backend.marketplace.model.MarketplaceSpecialistBundleRefSummary::bundleId)
+            .containsExactly("deployment-intelligence-team@1");
+        assertThat(parsed.permissions().contributesSpecialists()).isTrue();
+    }
+
+    @Test
+    void specialistManifestRejectsInlineExecutableDefinitions() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validAgenticSpecialistManifest());
+        ((ObjectNode) manifest.path("contributions").path("specialist"))
+            .putArray("definitions")
+            .addObject()
+            .put("id", "unreviewed-worker@1");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            specialistPlugin(),
+            specialistVersion(objectMapper.writeValueAsString(manifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("unsupported field")
+            .hasMessageContaining("definitions");
+    }
+
+    @Test
+    void specialistManifestRejectsAlteredSourceBundleHash() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validAgenticSpecialistManifest());
+        ((ObjectNode) manifest.path("contributions").path("specialist").path("sourceBundleRefs").get(0))
+            .put("contentHash", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            specialistPlugin(),
+            specialistVersion(objectMapper.writeValueAsString(manifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("does not match the reviewed behavior contract");
+    }
+
+    @Test
     void mcpToolActionRequiresExecutionMcpServerRefAndToolName() {
         String manifest = """
             {
@@ -332,6 +379,16 @@ class MarketplaceManifestServiceTest {
         return plugin;
     }
 
+    private MarketplacePluginEntity specialistPlugin() {
+        MarketplacePluginEntity plugin = actionPlugin();
+        plugin.setId("mkp-specialist-test");
+        plugin.setSlug("specialist-test");
+        plugin.setDisplayName("Specialist Test");
+        plugin.setPluginType("SPECIALIST");
+        plugin.setShortDescription("Test specialist plugin.");
+        return plugin;
+    }
+
     private MarketplacePluginVersionEntity version(String manifestJson) {
         MarketplacePluginVersionEntity version = new MarketplacePluginVersionEntity();
         version.setId("mkv-action-test-v1");
@@ -350,6 +407,53 @@ class MarketplaceManifestServiceTest {
         version.setId("mkv-data-test-v1");
         version.setPluginId("mkp-data-test");
         return version;
+    }
+
+    private MarketplacePluginVersionEntity specialistVersion(String manifestJson) {
+        MarketplacePluginVersionEntity version = version(manifestJson);
+        version.setId("mkv-specialist-test-v1");
+        version.setPluginId("mkp-specialist-test");
+        return version;
+    }
+
+    private String validAgenticSpecialistManifest() {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "SPECIALIST",
+              "compatibility": {"requiredCapabilities": ["specialists"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesSpecialists": true},
+              "contributions": {
+                "specialist": {
+                  "contractVersion": "LOOMAI_SOURCE_ATTESTED_SPECIALIST_BUNDLE_V1",
+                  "compatibleBehaviorTypes": ["AGENTIC_SPECIALIST_TEAM"],
+                  "sourceBundleRefs": [
+                    {
+                      "bundleId": "deployment-intelligence-team@1",
+                      "contractVersion": "LOOMAI_SOURCE_ATTESTED_SPECIALIST_BUNDLE_V1",
+                      "contentHash": "sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8",
+                      "specialistRefs": [
+                        "deployment-intelligence-manager@1",
+                        "deployment-knowledge-specialist@1",
+                        "deployment-runtime-state-specialist@1"
+                      ],
+                      "chainRefs": ["deployment-intelligence-team@1"]
+                    }
+                  ],
+                  "requiredRuntimeCapabilityIds": [
+                    "ai-fabric-execution",
+                    "specialist-chains",
+                    "jdbc-specialist-chain-state"
+                  ],
+                  "requiredMigrationIds": ["ai-specialist-chain-execution-v1"],
+                  "requiredSecretNames": [],
+                  "verificationPackIds": ["agentic-specialist-team-v1"],
+                  "unsupportedClaims": ["No customer executable definitions."]
+                }
+              }
+            }
+            """;
     }
 
     private String validDataManifest() {

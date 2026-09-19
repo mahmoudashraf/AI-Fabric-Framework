@@ -11,6 +11,21 @@ public record MarketplacePluginContributionSummary(
     List<String> automationWorkflowIds,
     List<String> inferenceProfileIds,
     List<String> inferenceEndpointProfileRefs,
-    List<String> inferenceManagedServiceRefs
+    List<String> inferenceManagedServiceRefs,
+    String templateDeploymentBehaviorType,
+    Integer templateDeploymentBehaviorContractVersion,
+    List<String> templateRequiredRuntimeCapabilityIds,
+    List<String> templateAllowedExecutionExtensions,
+    List<String> templateAllowedChannelBindings,
+    List<String> templateVerificationPackIds,
+    List<String> templateRequiredPluginRefs,
+    String specialistContractVersion,
+    List<String> specialistCompatibleBehaviorTypes,
+    List<MarketplaceSpecialistBundleRefSummary> specialistBundleRefs,
+    List<String> specialistRequiredRuntimeCapabilityIds,
+    List<String> specialistRequiredMigrationIds,
+    List<String> specialistRequiredSecretNames,
+    List<String> specialistVerificationPackIds,
+    List<String> specialistUnsupportedClaims
 ) {
 }

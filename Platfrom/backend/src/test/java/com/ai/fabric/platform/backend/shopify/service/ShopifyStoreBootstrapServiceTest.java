@@ -841,6 +841,7 @@ class ShopifyStoreBootstrapServiceTest {
             name,
             environment,
             templateId,
+            "CONVERSATIONAL",
             new DeploymentTenantBindingSummary(
                 "cus-123",
                 "Shopify Store demo.myshopify.com",

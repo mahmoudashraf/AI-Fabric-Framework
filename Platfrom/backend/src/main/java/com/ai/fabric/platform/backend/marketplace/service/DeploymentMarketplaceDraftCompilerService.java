@@ -119,7 +119,7 @@ public class DeploymentMarketplaceDraftCompilerService {
 
     @Transactional
     public DeploymentDraftResponse syncDeploymentDraft(String deploymentId) {
-        return syncDeploymentDraft(deploymentId, false);
+        return syncDeploymentDraft(deploymentId, false, false);
     }
 
     /**
@@ -128,13 +128,28 @@ public class DeploymentMarketplaceDraftCompilerService {
      */
     @Transactional
     public DeploymentDraftResponse syncDeploymentDraftForTrustedCaller(String deploymentId) {
-        return syncDeploymentDraft(deploymentId, true);
+        return syncDeploymentDraft(deploymentId, true, false);
     }
 
-    private DeploymentDraftResponse syncDeploymentDraft(String deploymentId, boolean trustedCaller) {
+    /**
+     * Compiles an initial template composition while preserving validation errors already present in the
+     * selected base template. This lets setup-required provider drafts be created without allowing a
+     * template or one of its required plugins to introduce a new invalid contract.
+     */
+    @Transactional
+    public DeploymentDraftResponse syncDeploymentDraftForTrustedTemplateBootstrap(String deploymentId) {
+        return syncDeploymentDraft(deploymentId, true, true);
+    }
+
+    private DeploymentDraftResponse syncDeploymentDraft(String deploymentId,
+                                                         boolean trustedCaller,
+                                                         boolean tolerateBaselineErrors) {
         DeploymentDraftResponse draft = trustedCaller
             ? deploymentService.getActiveDraftForDeploymentForTrustedCaller(deploymentId)
             : deploymentService.getActiveDraftForDeployment(deploymentId);
+        Set<String> baselineErrors = tolerateBaselineErrors
+            ? blockingIssueKeys(deploymentDraftValidationService.validate(asDraftEntity(draft)))
+            : Set.of();
         ObjectNode actionsRoot = ensureObject(draft.actionsConfig());
         ObjectNode entityRoot = normalizeEntityRoot(draft.entityConfig());
         ObjectNode routingRoot = ensureObject(draft.routingConfig());
@@ -142,6 +157,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         ObjectNode shellRoot = normalizeShellRoot(draft.shellConfig());
         ObjectNode marketplaceDatasetRoot = normalizeMarketplaceDatasetRoot(draft.marketplaceDatasetConfig());
         ObjectNode providerRoot = normalizeProviderRoot(draft.providerConfig());
+        ObjectNode behaviorRoot = ensureObject(draft.behaviorConfig());
         DeploymentEntity deployment = deploymentRepository.findById(deploymentId)
             .orElseThrow(() -> new ResponseStatusException(CONFLICT, "Deployment not found: " + deploymentId));
 
@@ -155,10 +171,12 @@ public class DeploymentMarketplaceDraftCompilerService {
         stripMarketplaceManagedShell(shellRoot);
         stripMarketplaceManagedDatasets(marketplaceDatasetRoot);
         stripMarketplaceManagedInference(providerRoot);
+        stripMarketplaceManagedSpecialistBundles(behaviorRoot);
 
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
         Set<String> existingEntityTypes = entityTypes(entityRoot.path("ai-entities"));
         Set<String> existingKnowledgeSourceIds = knowledgeSourceIds(knowledgeSourceRoot.path("sources"));
+        Set<String> existingSpecialistBundleIds = specialistBundleIds(behaviorRoot.path("specialistBundles"));
         String activeInferencePluginId = null;
 
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
@@ -192,12 +210,15 @@ public class DeploymentMarketplaceDraftCompilerService {
                     existingEntityTypes,
                     existingKnowledgeSourceIds
                 );
-                case "TEMPLATE" -> applyTemplateShell(
-                    shellRoot,
-                    plugin,
-                    version,
-                    parsed.manifest().path("contributions").path("template").path("shell")
-                );
+                case "TEMPLATE" -> {
+                    applyTemplateShell(
+                        shellRoot,
+                        plugin,
+                        version,
+                        parsed.manifest().path("contributions").path("template").path("shell")
+                    );
+                    applyTemplateBehavior(behaviorRoot, plugin, parsed);
+                }
                 case "INFERENCE_PROFILE" -> {
                     if (activeInferencePluginId != null && !activeInferencePluginId.equals(plugin.getId())) {
                         throw new ResponseStatusException(
@@ -209,6 +230,14 @@ public class DeploymentMarketplaceDraftCompilerService {
                     activeInferencePluginId = plugin.getId();
                     applyInferenceProfile(providerRoot, deployment, install, plugin, version, parsed);
                 }
+                case "SPECIALIST" -> applySpecialistPlugin(
+                    behaviorRoot,
+                    install,
+                    plugin,
+                    version,
+                    parsed,
+                    existingSpecialistBundleIds
+                );
                 default -> throw new ResponseStatusException(
                     CONFLICT,
                     "Unsupported marketplace plugin type during draft compilation: " + parsed.pluginType()
@@ -242,19 +271,106 @@ public class DeploymentMarketplaceDraftCompilerService {
             null,
             knowledgeSourceRoot,
             shellRoot,
-            marketplaceDatasetRoot
+            marketplaceDatasetRoot,
+            behaviorRoot
         );
         DeploymentDraftResponse updated = trustedCaller
             ? deploymentService.updateDraftForTrustedCaller(draft.id(), updateRequest)
             : deploymentService.updateDraft(draft.id(), updateRequest);
         DraftValidationResponse validation = deploymentDraftValidationService.validate(asDraftEntity(updated));
-        if (!validation.publishReady()) {
+        Set<String> introducedErrors = blockingIssueKeys(validation);
+        introducedErrors.removeAll(baselineErrors);
+        if (!validation.publishReady() && (!tolerateBaselineErrors || !introducedErrors.isEmpty())) {
             throw new ResponseStatusException(
                 CONFLICT,
-                "Marketplace install compilation produced an invalid draft: " + summarizeIssues(validation.issues())
+                "Marketplace install compilation produced an invalid draft: "
+                    + summarizeIssues(
+                        tolerateBaselineErrors
+                            ? validation.issues().stream()
+                                .filter(issue -> introducedErrors.contains(blockingIssueKey(issue)))
+                                .toList()
+                            : validation.issues()
+                    )
             );
         }
         return updated;
+    }
+
+    private Set<String> blockingIssueKeys(DraftValidationResponse validation) {
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        if (validation == null || validation.issues() == null) {
+            return keys;
+        }
+        validation.issues().stream()
+            .filter(issue -> "ERROR".equalsIgnoreCase(issue.severity()))
+            .map(this::blockingIssueKey)
+            .forEach(keys::add);
+        return keys;
+    }
+
+    private String blockingIssueKey(DraftValidationIssue issue) {
+        return String.join(
+            "|",
+            Objects.toString(issue.section(), ""),
+            Objects.toString(issue.code(), ""),
+            Objects.toString(issue.path(), "")
+        );
+    }
+
+    private void applySpecialistPlugin(ObjectNode behaviorRoot,
+                                       DeploymentMarketplacePluginInstallEntity install,
+                                       MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       MarketplaceManifestService.ParsedMarketplaceManifest parsed,
+                                       Set<String> existingBundleIds) {
+        String behaviorType = behaviorRoot.path("type").asText("").trim();
+        if (!parsed.contributions().specialistCompatibleBehaviorTypes().contains(behaviorType)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Specialist plugin " + plugin.getId() + " is not compatible with deployment behavior " + behaviorType + "."
+            );
+        }
+        ArrayNode bundles = ensureArray(behaviorRoot, "specialistBundles");
+        for (var sourceBundle : parsed.contributions().specialistBundleRefs()) {
+            if (!existingBundleIds.add(sourceBundle.bundleId())) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Marketplace specialist bundle conflicts with an existing deployment bundle: "
+                        + sourceBundle.bundleId()
+                );
+            }
+            ObjectNode selected = objectMapper.createObjectNode();
+            selected.put("bundleId", sourceBundle.bundleId());
+            selected.put("contractVersion", sourceBundle.contractVersion());
+            selected.put("contentHash", sourceBundle.contentHash());
+            selected.set("specialistRefs", toStringArray(sourceBundle.specialistRefs()));
+            selected.set("chainRefs", toStringArray(sourceBundle.chainRefs()));
+            selected.put("marketplacePluginVersionId", version.getId());
+            applyMarketplaceProvenance(selected, install, plugin, version);
+            bundles.add(selected);
+        }
+        sortSpecialistBundles(bundles);
+    }
+
+    private void applyTemplateBehavior(ObjectNode behaviorRoot,
+                                       MarketplacePluginEntity plugin,
+                                       MarketplaceManifestService.ParsedMarketplaceManifest parsed) {
+        String templateBehavior = parsed.contributions().templateDeploymentBehaviorType();
+        if (!hasText(templateBehavior)) {
+            return;
+        }
+        String deploymentBehavior = behaviorRoot.path("type").asText("").trim();
+        if (!templateBehavior.equals(deploymentBehavior)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace template " + plugin.getId() + " targets behavior " + templateBehavior
+                    + " but the deployment uses " + deploymentBehavior + "."
+            );
+        }
+        behaviorRoot.set(
+            "channelBindings",
+            toStringArray(parsed.contributions().templateAllowedChannelBindings())
+        );
     }
 
     private void applyInferenceProfile(ObjectNode providerRoot,
@@ -1135,6 +1251,35 @@ public class DeploymentMarketplaceDraftCompilerService {
         providerRoot.remove(MARKETPLACE_INFERENCE_FIELD);
     }
 
+    private void stripMarketplaceManagedSpecialistBundles(ObjectNode behaviorRoot) {
+        removeMarketplaceManagedEntries(ensureArray(behaviorRoot, "specialistBundles"));
+    }
+
+    private Set<String> specialistBundleIds(JsonNode bundles) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        if (!bundles.isArray()) {
+            return ids;
+        }
+        for (JsonNode bundle : bundles) {
+            String bundleId = bundle.path("bundleId").asText("").trim();
+            if (hasText(bundleId) && !ids.add(bundleId)) {
+                throw new ResponseStatusException(
+                    CONFLICT,
+                    "Deployment behavior contains duplicate specialist bundle: " + bundleId
+                );
+            }
+        }
+        return ids;
+    }
+
+    private void sortSpecialistBundles(ArrayNode bundles) {
+        List<JsonNode> ordered = new ArrayList<>();
+        bundles.forEach(ordered::add);
+        ordered.sort(java.util.Comparator.comparing(node -> node.path("bundleId").asText("")));
+        bundles.removeAll();
+        ordered.forEach(bundles::add);
+    }
+
     private void removeMarketplaceManagedEntries(ArrayNode array) {
         for (int index = array.size() - 1; index >= 0; index--) {
             if (isMarketplaceManaged(array.get(index))) {
@@ -1779,6 +1924,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         entity.setKnowledgeSourceConfigJson(writeJson(draft.knowledgeSourceConfig()));
         entity.setShellConfigJson(writeJson(draft.shellConfig()));
         entity.setMarketplaceDatasetConfigJson(writeJson(draft.marketplaceDatasetConfig()));
+        entity.setBehaviorConfigJson(writeJson(draft.behaviorConfig()));
         entity.setCreatedAt(draft.createdAt());
         entity.setUpdatedAt(draft.updatedAt());
         return entity;

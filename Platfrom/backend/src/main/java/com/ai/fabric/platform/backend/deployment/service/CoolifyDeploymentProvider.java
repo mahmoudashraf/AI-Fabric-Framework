@@ -78,6 +78,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private final CoolifyApiClient coolifyApiClient;
     private final PlatformSecretService platformSecretService;
     private final PlatformCustomerRepository platformCustomerRepository;
+    private final DeploymentExecutionSecretService deploymentExecutionSecretService;
     private final ObjectMapper objectMapper;
     private VectorizationRunnerProvisioningService vectorizationRunnerProvisioningService;
     private PlatformManagedProductProvisioningService platformManagedProductProvisioningService;
@@ -93,6 +94,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                      CoolifyApiClient coolifyApiClient,
                                      PlatformSecretService platformSecretService,
                                      PlatformCustomerRepository platformCustomerRepository,
+                                     DeploymentExecutionSecretService deploymentExecutionSecretService,
                                      ObjectMapper objectMapper) {
         this.targetProfileRepository = targetProfileRepository;
         this.resourceHandleRepository = resourceHandleRepository;
@@ -104,6 +106,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         this.coolifyApiClient = coolifyApiClient;
         this.platformSecretService = platformSecretService;
         this.platformCustomerRepository = platformCustomerRepository;
+        this.deploymentExecutionSecretService = deploymentExecutionSecretService;
         this.objectMapper = objectMapper;
     }
 
@@ -135,6 +138,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             coolifyApiClient,
             null,
             null,
+            null,
             objectMapper
         );
     }
@@ -157,6 +161,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             targetProfileResolver,
             coolifyApiClient,
             platformSecretService,
+            null,
             null,
             objectMapper
         );
@@ -182,6 +187,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             coolifyApiClient,
             platformSecretService,
             platformCustomerRepository,
+            null,
             objectMapper
         );
     }
@@ -213,6 +219,17 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             }
         );
         JsonNode resourceDefaults = readJson(profile.getResourceDefaultsJson());
+        if (deploymentExecutionSecretService != null) {
+            tracked(
+                progressTracker,
+                "ensure_deployment_execution_secrets",
+                "Create or reuse stable deployment-scoped execution secrets required by the selected behavior.",
+                () -> {
+                    deploymentExecutionSecretService.ensureRequiredSecrets(deployment, version);
+                    return null;
+                }
+            );
+        }
         ManagedVectorProvisioningResult managedVectorProvisioningResult = ensureManagedVectorProvisioned(
             deployment,
             version,
@@ -1611,11 +1628,21 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
         if ("IMAGE_SOURCE".equals(sourceStrategy)) {
+            RailwayProvisioningPlanSummary plan = providerConfigOverride == null
+                ? railwayProvisioningPlanService.buildPlan(deployment, version)
+                : railwayProvisioningPlanService.buildPlan(deployment, version, providerConfigOverride);
+            RailwayServicePlanSummary runtime = plan.services() == null ? null : plan.services().runtime();
+            if (runtime == null) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Coolify image source requires a runtime environment plan."
+                );
+            }
             return new CoolifyProvisioningSource(
                 sourceStrategy,
                 resolveSourceArtifact(release, resourceDefaults),
-                null,
-                null,
+                plan,
+                runtime,
                 null,
                 null,
                 null,
@@ -1722,6 +1749,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         putEnv(env, "PLATFORM_SOURCE_STRATEGY", source.sourceStrategy());
         if (source.sourceArtifact() != null) {
             putEnv(env, "PLATFORM_SOURCE_ARTIFACT_ID", source.sourceArtifact().getId());
+            putEnv(env, "PLATFORM_SOURCE_ARTIFACT_DIGEST", source.sourceArtifact().getImageDigest());
+            putEnv(env, "PLATFORM_SOURCE_ARTIFACT_MANIFEST_HASH", source.sourceArtifact().getCapabilityManifestHash());
+            putEnv(env, "PLATFORM_SOURCE_COMMIT", source.sourceArtifact().getGitCommitSha());
+            putEnv(env, "APP_BUILD_COMMIT", source.sourceArtifact().getGitCommitSha());
         }
         if (source.gitSource()) {
             putEnv(env, "PLATFORM_SOURCE_REPOSITORY", source.gitRepository());
@@ -2525,6 +2556,9 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             target.put("sourceArtifactId", source.sourceArtifact().getId());
             target.put("imageRepository", source.sourceArtifact().getImageRepository());
             target.put("imageTag", source.sourceArtifact().getImageTag());
+            putIfText(target, "imageDigest", source.sourceArtifact().getImageDigest());
+            putIfText(target, "sourceGitCommit", source.sourceArtifact().getGitCommitSha());
+            putIfText(target, "sourceCapabilityManifestHash", source.sourceArtifact().getCapabilityManifestHash());
         }
         if (source.gitSource()) {
             target.put("gitRepository", source.gitRepository());

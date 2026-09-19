@@ -204,6 +204,8 @@ function pluginTypeColor(pluginType: string): 'primary' | 'secondary' | 'success
       return 'warning'
     case 'INFERENCE_PROFILE':
       return 'primary'
+    case 'SPECIALIST':
+      return 'secondary'
     default:
       return 'warning'
   }
@@ -221,6 +223,8 @@ function categoryLabel(plugin: MarketplacePluginSummary): string {
       return 'Automation'
     case 'INFERENCE_PROFILE':
       return 'Inference Profiles'
+    case 'SPECIALIST':
+      return 'Specialists'
     default:
       return plugin.pluginType
   }
@@ -338,7 +342,10 @@ export function MarketplacePage() {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [selectedType, setSelectedType] = useState<'ALL' | string>('ALL')
+  const [selectedType, setSelectedType] = useState<'ALL' | string>(() => {
+    const requestedCategory = new URLSearchParams(location.search).get('category')
+    return requestedCategory ? categoryToPluginType(requestedCategory) : 'ALL'
+  })
   const [searchText, setSearchText] = useState('')
   const [selectedPluginId, setSelectedPluginId] = useState('')
   const [selectedVersion, setSelectedVersion] = useState('')
@@ -1218,6 +1225,81 @@ export function MarketplacePage() {
                           </CardContent>
                         </Card>
                       </Grid>
+                      {selectedVersionSummary?.contributions.templateDeploymentBehaviorType ? (
+                        <Grid item xs={12}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Deployment behavior contract
+                                  </Typography>
+                                  <Chip
+                                    size="small"
+                                    label={selectedVersionSummary.contributions.templateDeploymentBehaviorType.replace(/_/g, ' ')}
+                                    color="primary"
+                                    variant="outlined"
+                                  />
+                                  <Chip
+                                    size="small"
+                                    label={`Contract v${selectedVersionSummary.contributions.templateDeploymentBehaviorContractVersion}`}
+                                    variant="outlined"
+                                  />
+                                </Stack>
+                                <Typography variant="body2">
+                                  Runtime capabilities: {contributionList(selectedVersionSummary.contributions.templateRequiredRuntimeCapabilityIds)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Channels: {contributionList(selectedVersionSummary.contributions.templateAllowedChannelBindings)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Execution extensions: {contributionList(selectedVersionSummary.contributions.templateAllowedExecutionExtensions)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Verification packs: {contributionList(selectedVersionSummary.contributions.templateVerificationPackIds)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Required plugins: {contributionList(selectedVersionSummary.contributions.templateRequiredPluginRefs)}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ) : null}
+                      {selectedVersionSummary?.contributions.specialistBundleRefs.length ? (
+                        <Grid item xs={12}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1.5}>
+                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                  <Typography variant="subtitle2" color="text.secondary">Source-attested specialist contract</Typography>
+                                  <Chip size="small" label={selectedVersionSummary.contributions.specialistContractVersion ?? 'Unknown contract'} variant="outlined" />
+                                  {selectedVersionSummary.contributions.specialistCompatibleBehaviorTypes.map((behaviorType) => (
+                                    <Chip key={behaviorType} size="small" label={behaviorType.replace(/_/g, ' ')} color="secondary" variant="outlined" />
+                                  ))}
+                                </Stack>
+                                {selectedVersionSummary.contributions.specialistBundleRefs.map((bundle) => (
+                                  <Box key={bundle.bundleId} sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 1 }}>
+                                    <Typography variant="subtitle2">{bundle.bundleId}</Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{bundle.contentHash}</Typography>
+                                    <Typography variant="body2" sx={{ mt: 0.5 }}>Specialists: {contributionList(bundle.specialistRefs)}</Typography>
+                                    <Typography variant="body2">Chains: {contributionList(bundle.chainRefs)}</Typography>
+                                  </Box>
+                                ))}
+                                <Typography variant="body2">
+                                  Runtime capabilities: {contributionList(selectedVersionSummary.contributions.specialistRequiredRuntimeCapabilityIds)}
+                                </Typography>
+                                <Typography variant="body2">
+                                  Migrations: {contributionList(selectedVersionSummary.contributions.specialistRequiredMigrationIds)}
+                                </Typography>
+                                <Alert severity="info">
+                                  {selectedVersionSummary.contributions.specialistUnsupportedClaims.join(' ')}
+                                </Alert>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      ) : null}
                       <Grid item xs={12} md={6}>
                         <Card variant="outlined">
                           <CardContent>
@@ -1465,8 +1547,13 @@ export function MarketplacePage() {
                       </Typography>
                     </Stack>
                     <Typography color="text.secondary">
-                      Action, data, and inference-profile plugins compile into the target deployment draft. Save, publish, and apply are still required before they affect the live runtime.
+                      Action, data, inference-profile, and specialist plugins compile into the target deployment draft. Publish and apply are still required before they affect the live runtime.
                     </Typography>
+                    {selectedPlugin?.pluginType === 'SPECIALIST' ? (
+                      <Alert severity="info">
+                        This installs exact references to specialists already packaged and verified in a promoted private runtime image. It does not upload executable specialist definitions.
+                      </Alert>
+                    ) : null}
                     {!targetDeploymentId ? (
                       <Alert severity="info">Choose a target deployment above to install or update this plugin.</Alert>
                     ) : !canEdit ? (
@@ -1836,6 +1923,7 @@ export function MarketplacePage() {
                             <Chip label={`${impactQuery.data.templatePluginCount} template plugins`} variant="outlined" />
                             <Chip label={`${impactQuery.data.automationPluginCount} automation plugins`} variant="outlined" />
                             <Chip label={`${impactQuery.data.inferenceProfilePluginCount} inference plugins`} variant="outlined" />
+                            <Chip label={`${impactQuery.data.specialistPluginCount} specialist plugins`} variant="outlined" />
                           </Stack>
                           <Grid container spacing={2}>
                             <Grid item xs={12} md={6}>
@@ -1906,6 +1994,18 @@ export function MarketplacePage() {
                                   </Typography>
                                   <Typography sx={{ mt: 0.75 }}>
                                     {contributionList(impactQuery.data.inferenceEndpointProfileRefs)}
+                                  </Typography>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <Typography variant="subtitle2" color="text.secondary">
+                                    Specialist bundles
+                                  </Typography>
+                                  <Typography sx={{ mt: 0.75 }}>
+                                    {contributionList(impactQuery.data.specialistBundleIds)}
                                   </Typography>
                                 </CardContent>
                               </Card>

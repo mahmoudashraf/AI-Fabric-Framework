@@ -312,6 +312,8 @@ class DeploymentConfigCompilerTest {
         version.setAiFabricFrameworkVersion(compiler.frameworkVersion());
         version.setEntityConfigJson(draft.getEntityConfigJson());
         version.setProviderConfigJson(draft.getProviderConfigJson());
+        version.setBehaviorConfigJson(draft.getBehaviorConfigJson());
+        version.setCompositionProvenanceJson(compiled.compositionProvenanceJson());
         version.setEntityArtifactYaml(compiled.entityArtifactYaml());
         version.setManifestJson(compiled.manifestJson());
         return version;
@@ -323,6 +325,7 @@ class DeploymentConfigCompilerTest {
         deployment.setName("Sample");
         deployment.setEnvironmentName("dev");
         deployment.setTemplateId("template");
+        deployment.setBehaviorType("CONVERSATIONAL");
         return deployment;
     }
 

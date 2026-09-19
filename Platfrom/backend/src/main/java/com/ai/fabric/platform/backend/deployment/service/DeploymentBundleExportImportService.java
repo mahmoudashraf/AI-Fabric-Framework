@@ -444,6 +444,7 @@ public class DeploymentBundleExportImportService {
         node.put("name", deployment.getName());
         node.put("environmentName", deployment.getEnvironmentName());
         node.put("templateId", deployment.getTemplateId());
+        node.put("behaviorType", deployment.getBehaviorType());
         node.put("customerId", deployment.getCustomerId());
         node.put("tenantId", deployment.getTenantId());
         node.put("sourceRepositoryOverride", deployment.getSourceRepositoryOverride());
@@ -472,6 +473,7 @@ public class DeploymentBundleExportImportService {
         configs.set("knowledgeSource", readJson(draft.getKnowledgeSourceConfigJson()));
         configs.set("shell", readJson(draft.getShellConfigJson()));
         configs.set("marketplaceDataset", readJson(draft.getMarketplaceDatasetConfigJson()));
+        configs.set("behavior", readJson(draft.getBehaviorConfigJson()));
         node.put("createdAt", stringTime(draft.getCreatedAt()));
         node.put("updatedAt", stringTime(draft.getUpdatedAt()));
         return node;
@@ -507,11 +509,13 @@ public class DeploymentBundleExportImportService {
         configs.set("knowledgeSource", readJson(version.getKnowledgeSourceConfigJson()));
         configs.set("shell", readJson(version.getShellConfigJson()));
         configs.set("marketplaceDataset", readJson(version.getMarketplaceDatasetConfigJson()));
+        configs.set("behavior", readJson(version.getBehaviorConfigJson()));
         ObjectNode artifacts = node.putObject("artifacts");
         artifacts.put("actionsYaml", version.getActionsArtifactYaml());
         artifacts.put("entityYaml", version.getEntityArtifactYaml());
         artifacts.put("routingYaml", version.getRoutingArtifactYaml());
         artifacts.set("manifest", readJson(version.getManifestJson()));
+        artifacts.set("compositionProvenance", readJson(version.getCompositionProvenanceJson()));
         node.put("publishedAt", stringTime(version.getPublishedAt()));
         return node;
     }
@@ -1142,6 +1146,12 @@ public class DeploymentBundleExportImportService {
         if (manifest.path("activeDraft").path("configs").isMissingNode()) {
             blocking.add("BUNDLE_ACTIVE_DRAFT_CONFIG_MISSING");
         }
+        if (!StringUtils.hasText(manifest.path("deployment").path("behaviorType").asText(null))) {
+            blocking.add("BUNDLE_DEPLOYMENT_BEHAVIOR_MISSING");
+        }
+        if (!manifest.path("activeDraft").path("configs").path("behavior").isObject()) {
+            blocking.add("BUNDLE_BEHAVIOR_CONFIG_MISSING");
+        }
         validateMarketplaceCatalogAvailability(manifest, blocking, warnings);
         return new ImportValidation(schemaValid, integrityValid, blocking, warnings);
     }
@@ -1312,7 +1322,8 @@ public class DeploymentBundleExportImportService {
             curatedModuleId(bundle),
             vectorProvisioningMode(bundle),
             customerId,
-            tenantId
+            tenantId,
+            deployment.path("behaviorType").asText()
         ));
         DeploymentEntity createdDeployment = deploymentRepository.findById(created.id())
             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Imported deployment was not created."));
@@ -1333,6 +1344,13 @@ public class DeploymentBundleExportImportService {
         MarketplaceCatalogRestore marketplaceCatalogRestore = restoreMarketplaceCatalog(bundle);
         String targetDeploymentId = request == null ? null : request.targetDeploymentId();
         DeploymentEntity deployment = requireDeploymentAdmin(targetDeploymentId);
+        String bundledBehaviorType = bundle.path("manifest").path("deployment").path("behaviorType").asText();
+        if (!deployment.getBehaviorType().equals(bundledBehaviorType)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Restore-in-place requires the bundle and target deployment to use the same behaviorType."
+            );
+        }
         DeploymentDraftEntity latestDraft = latestDraft(deployment.getId());
         Instant now = Instant.now();
         DeploymentDraftEntity restoredDraft = new DeploymentDraftEntity();
@@ -1387,6 +1405,7 @@ public class DeploymentBundleExportImportService {
         draft.setKnowledgeSourceConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "knowledgeSource"), rewrite)));
         draft.setShellConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "shell"), rewrite)));
         draft.setMarketplaceDatasetConfigJson(writeJson(rewrittenConfig(requiredConfig(configs, "marketplaceDataset"), rewrite)));
+        draft.setBehaviorConfigJson(writeJson(requiredConfig(configs, "behavior")));
     }
 
     private MarketplaceCatalogRestore restoreMarketplaceCatalog(JsonNode bundle) {

@@ -24,6 +24,9 @@ public class DeploymentEntity {
     private String templateId;
 
     @Column(nullable = false)
+    private String behaviorType;
+
+    @Column(nullable = false)
     private String status;
 
     @Column(nullable = false)
@@ -99,6 +102,14 @@ public class DeploymentEntity {
 
     public void setTemplateId(String templateId) {
         this.templateId = templateId;
+    }
+
+    public String getBehaviorType() {
+        return behaviorType;
+    }
+
+    public void setBehaviorType(String behaviorType) {
+        this.behaviorType = behaviorType;
     }
 
     public String getStatus() {

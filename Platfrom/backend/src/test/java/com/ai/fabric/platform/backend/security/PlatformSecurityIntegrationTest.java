@@ -76,7 +76,8 @@ class PlatformSecurityIntegrationTest {
                     {
                       "name": "Security Smoke",
                       "environment": "dev",
-                      "templateId": "dev-openai-lucene"
+                      "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL"
                     }
                     """))
             .andExpect(status().isCreated())
@@ -130,7 +131,8 @@ class PlatformSecurityIntegrationTest {
                     {
                       "name": "Artifact Access Smoke",
                       "environment": "dev",
-                      "templateId": "dev-openai-lucene"
+                      "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL"
                     }
                     """))
             .andExpect(status().isCreated())
@@ -241,7 +243,8 @@ class PlatformSecurityIntegrationTest {
                     {
                       "name": "Hosted Verification Security",
                       "environment": "dev",
-                      "templateId": "custom-start-from-scratch"
+                      "templateId": "custom-start-from-scratch",
+                      "behaviorType": "CONVERSATIONAL"
                     }
                     """))
             .andExpect(status().isCreated())
@@ -299,7 +302,8 @@ class PlatformSecurityIntegrationTest {
                     {
                       "name": "Vectorization Verification Security",
                       "environment": "dev",
-                      "templateId": "dev-openai-lucene"
+                      "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL"
                     }
                     """))
             .andExpect(status().isCreated())
@@ -401,6 +405,7 @@ class PlatformSecurityIntegrationTest {
                       "name": "Forbidden Bound Deployment",
                       "environment": "dev",
                       "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL",
                       "customerId": "%s"
                     }
                     """.formatted(customerId)))
@@ -414,6 +419,7 @@ class PlatformSecurityIntegrationTest {
                       "name": "Admin Bound Deployment",
                       "environment": "dev",
                       "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL",
                       "customerId": "%s",
                       "tenantId": "%s"
                     }
@@ -533,6 +539,7 @@ class PlatformSecurityIntegrationTest {
                       "name": "Vectorization Security",
                       "environment": "dev",
                       "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL",
                       "customerId": "%s",
                       "tenantId": "%s"
                     }
@@ -647,7 +654,8 @@ class PlatformSecurityIntegrationTest {
                     {
                       "name": "Hard Delete Security",
                       "environment": "dev",
-                      "templateId": "custom-start-from-scratch"
+                      "templateId": "custom-start-from-scratch",
+                      "behaviorType": "CONVERSATIONAL"
                     }
                     """))
             .andExpect(status().isCreated())

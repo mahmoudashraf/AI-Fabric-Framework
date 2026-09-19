@@ -4,6 +4,8 @@ import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContra
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractValidation;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigValidationContext;
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorSummary;
 import com.ai.fabric.platform.backend.deployment.service.ManagedDeploymentProfileCatalog;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
@@ -12,9 +14,11 @@ import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginContrib
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginInstallFieldSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPermissionsSummary;
 import com.ai.fabric.platform.backend.marketplace.model.MarketplacePluginPricingSummary;
+import com.ai.fabric.platform.backend.marketplace.model.MarketplaceSpecialistBundleRefSummary;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -37,7 +42,8 @@ public class MarketplaceManifestService {
         "knowledgesources",
         "shellconfig",
         "templates",
-        "providers"
+        "providers",
+        "specialists"
     );
     private static final Set<String> SUPPORTED_INSTALL_FIELD_TYPES = Set.of(
         "text",
@@ -124,14 +130,47 @@ public class MarketplaceManifestService {
     private static final Pattern MCP_SCHEMA_HASH_PATTERN = Pattern.compile("sha256:[a-fA-F0-9]{64}");
     private static final Pattern MCP_RESPONSE_MAPPING_PATH_PATTERN =
         Pattern.compile("\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[[0-9]+])*");
+    private static final Pattern PLUGIN_REF_PATTERN = Pattern.compile(
+        "[A-Za-z0-9][A-Za-z0-9._-]{1,127}@[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+    );
+    private static final Pattern SPECIALIST_REF_PATTERN = Pattern.compile(
+        "[a-z][a-z0-9-]{1,79}@[A-Za-z0-9][A-Za-z0-9._-]{0,39}"
+    );
+    private static final Pattern CONTENT_HASH_PATTERN = Pattern.compile("sha256:[a-f0-9]{64}");
+    private static final Pattern SECRET_NAME_PATTERN = Pattern.compile("[A-Z][A-Z0-9_]{2,127}");
+    private static final Set<String> SPECIALIST_CONTRIBUTION_FIELDS = Set.of(
+        "contractVersion",
+        "compatibleBehaviorTypes",
+        "sourceBundleRefs",
+        "requiredRuntimeCapabilityIds",
+        "requiredMigrationIds",
+        "requiredSecretNames",
+        "verificationPackIds",
+        "unsupportedClaims"
+    );
+    private static final Set<String> SPECIALIST_BUNDLE_REF_FIELDS = Set.of(
+        "bundleId",
+        "contractVersion",
+        "contentHash",
+        "specialistRefs",
+        "chainRefs"
+    );
 
     private final ObjectMapper objectMapper;
     private final EntityConfigContractService entityConfigContractService;
+    private final DeploymentBehaviorCatalogService deploymentBehaviorCatalogService;
 
     public MarketplaceManifestService(ObjectMapper objectMapper) {
+        this(objectMapper, new DeploymentBehaviorCatalogService(objectMapper));
+    }
+
+    @Autowired
+    public MarketplaceManifestService(ObjectMapper objectMapper,
+                                      DeploymentBehaviorCatalogService deploymentBehaviorCatalogService) {
         this.objectMapper = objectMapper;
         this.entityConfigContractService =
             new EntityConfigContractService(objectMapper);
+        this.deploymentBehaviorCatalogService = deploymentBehaviorCatalogService;
     }
 
     public ParsedMarketplaceManifest parseAndValidate(MarketplacePluginEntity plugin,
@@ -170,6 +209,7 @@ public class MarketplaceManifestService {
             case "ACTION" -> parseActionContribution(plugin, version, contributions);
             case "DATA" -> parseDataContribution(plugin, version, contributions, datasets);
             case "INFERENCE_PROFILE" -> parseInferenceContribution(plugin, version, contributions);
+            case "SPECIALIST" -> parseSpecialistContribution(plugin, version, contributions);
             default -> throw invalid(plugin, version, "unsupported pluginType: " + expectedType);
         };
         if ("INFERENCE_PROFILE".equals(expectedType)
@@ -211,6 +251,17 @@ public class MarketplaceManifestService {
         String curatedModuleId = template.path("curatedModuleId").asText("").trim();
         JsonNode shell = template.path("shell");
         validateTemplateSecurityContribution(plugin, version, template.path("security"));
+        TemplateBehaviorContribution behavior = parseTemplateBehaviorContribution(
+            plugin,
+            version,
+            template.path("deploymentBehavior")
+        );
+        List<String> requiredPluginRefs = readStringList(template.path("requiredPluginRefs"));
+        requiredPluginRefs.forEach(ref -> {
+            if (!PLUGIN_REF_PATTERN.matcher(ref).matches()) {
+                throw invalid(plugin, version, "template requiredPluginRefs must use exact pluginId@version references.");
+            }
+        });
         return new MarketplacePluginContributionSummary(
             StringUtils.hasText(curatedModuleId) ? curatedModuleId : null,
             List.of(),
@@ -220,8 +271,123 @@ public class MarketplaceManifestService {
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
+            behavior.type(),
+            behavior.contractVersion(),
+            behavior.requiredRuntimeCapabilityIds(),
+            behavior.allowedExecutionExtensions(),
+            behavior.allowedChannelBindings(),
+            behavior.verificationPackIds(),
+            requiredPluginRefs,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
             List.of()
         );
+    }
+
+    private TemplateBehaviorContribution parseTemplateBehaviorContribution(MarketplacePluginEntity plugin,
+                                                                            MarketplacePluginVersionEntity version,
+                                                                            JsonNode behavior) {
+        if (behavior.isMissingNode() || behavior.isNull()) {
+            return TemplateBehaviorContribution.empty();
+        }
+        if (!behavior.isObject()) {
+            throw invalid(plugin, version, "template deploymentBehavior must be an object when provided.");
+        }
+        String type = behavior.path("type").asText("").trim();
+        if (!StringUtils.hasText(type)) {
+            throw invalid(plugin, version, "template deploymentBehavior.type is required.");
+        }
+        DeploymentBehaviorSummary contract;
+        try {
+            contract = deploymentBehaviorCatalogService.requireSummary(type);
+        } catch (ResponseStatusException ex) {
+            throw invalid(plugin, version, ex.getReason());
+        }
+        int contractVersion = behavior.path("contractVersion").asInt(-1);
+        if (contractVersion != contract.contractVersion()) {
+            throw invalid(
+                plugin,
+                version,
+                "template deploymentBehavior.contractVersion must be " + contract.contractVersion() + "."
+            );
+        }
+        List<String> requiredCapabilities = resolvedExactTemplateValues(
+            plugin,
+            version,
+            behavior,
+            "requiredRuntimeCapabilityIds",
+            contract.requiredRuntimeCapabilities()
+        );
+        List<String> verificationPacks = resolvedExactTemplateValues(
+            plugin,
+            version,
+            behavior,
+            "verificationPackIds",
+            contract.baselineVerificationPackIds()
+        );
+        List<String> allowedExtensions = resolvedTemplateSubset(
+            plugin,
+            version,
+            behavior,
+            "allowedExecutionExtensions",
+            contract.allowedExecutionExtensions()
+        );
+        List<String> allowedChannels = resolvedTemplateSubset(
+            plugin,
+            version,
+            behavior,
+            "allowedChannelBindings",
+            contract.channelBindings()
+        );
+        return new TemplateBehaviorContribution(
+            contract.code(),
+            contract.contractVersion(),
+            requiredCapabilities,
+            allowedExtensions,
+            allowedChannels,
+            verificationPacks
+        );
+    }
+
+    private List<String> resolvedExactTemplateValues(MarketplacePluginEntity plugin,
+                                                     MarketplacePluginVersionEntity version,
+                                                     JsonNode behavior,
+                                                     String field,
+                                                     List<String> contractValues) {
+        if (!behavior.has(field)) {
+            return contractValues;
+        }
+        List<String> configured = readStringList(behavior, field);
+        if (!new LinkedHashSet<>(configured).equals(new LinkedHashSet<>(contractValues))) {
+            throw invalid(plugin, version, "template deploymentBehavior." + field + " must match the behavior contract.");
+        }
+        return configured;
+    }
+
+    private List<String> resolvedTemplateSubset(MarketplacePluginEntity plugin,
+                                                MarketplacePluginVersionEntity version,
+                                                JsonNode behavior,
+                                                String field,
+                                                List<String> contractValues) {
+        if (!behavior.has(field)) {
+            return contractValues;
+        }
+        List<String> configured = readStringList(behavior, field);
+        List<String> unsupported = configured.stream().filter(value -> !contractValues.contains(value)).toList();
+        if (!unsupported.isEmpty()) {
+            throw invalid(
+                plugin,
+                version,
+                "template deploymentBehavior." + field + " contains unsupported values: " + String.join(", ", unsupported)
+            );
+        }
+        return configured;
     }
 
     private void validateTemplateSecurityContribution(MarketplacePluginEntity plugin,
@@ -284,6 +450,21 @@ public class MarketplaceManifestService {
             List.of(),
             readStringList(shell, "moduleRefs", "enabledModuleIds"),
             readStringList(shell, "cardRefs", "enabledCardIds"),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
             List.of(),
             List.of(),
             List.of(),
@@ -713,6 +894,21 @@ public class MarketplaceManifestService {
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
             List.of()
         );
     }
@@ -748,8 +944,259 @@ public class MarketplaceManifestService {
             List.of(),
             List.of(profileId.trim()),
             List.copyOf(new LinkedHashSet<>(endpointRefs)),
-            List.copyOf(new LinkedHashSet<>(managedServiceRefs))
+            List.copyOf(new LinkedHashSet<>(managedServiceRefs)),
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of()
         );
+    }
+
+    private MarketplacePluginContributionSummary parseSpecialistContribution(
+        MarketplacePluginEntity plugin,
+        MarketplacePluginVersionEntity version,
+        JsonNode contributions
+    ) {
+        JsonNode specialist = contributions.path("specialist");
+        if (!specialist.isObject()) {
+            throw invalid(plugin, version, "specialist plugins must declare contributions.specialist.");
+        }
+        rejectUnknownFields(plugin, version, specialist, SPECIALIST_CONTRIBUTION_FIELDS, "specialist");
+        String contractVersion = specialist.path("contractVersion").asText("").trim();
+        if (!DeploymentBehaviorCatalogService.SPECIALIST_BUNDLE_CONTRACT_VERSION.equals(contractVersion)) {
+            throw invalid(
+                plugin,
+                version,
+                "specialist contractVersion must be "
+                    + DeploymentBehaviorCatalogService.SPECIALIST_BUNDLE_CONTRACT_VERSION + "."
+            );
+        }
+        List<String> compatibleBehaviors = readStringList(specialist.path("compatibleBehaviorTypes"));
+        if (compatibleBehaviors.isEmpty()) {
+            throw invalid(plugin, version, "specialist compatibleBehaviorTypes must not be empty.");
+        }
+        List<DeploymentBehaviorSummary> behaviorContracts = compatibleBehaviors.stream()
+            .map(value -> {
+                try {
+                    return deploymentBehaviorCatalogService.requireSummary(value);
+                } catch (ResponseStatusException exception) {
+                    throw invalid(plugin, version, exception.getReason());
+                }
+            })
+            .toList();
+
+        JsonNode bundleRefsNode = specialist.path("sourceBundleRefs");
+        if (!bundleRefsNode.isArray() || bundleRefsNode.isEmpty() || bundleRefsNode.size() > 8) {
+            throw invalid(plugin, version, "specialist sourceBundleRefs must contain between one and eight bundles.");
+        }
+        List<MarketplaceSpecialistBundleRefSummary> bundleRefs = new ArrayList<>();
+        Set<String> bundleIds = new LinkedHashSet<>();
+        for (JsonNode bundle : bundleRefsNode) {
+            if (!bundle.isObject()) {
+                throw invalid(plugin, version, "every specialist sourceBundleRefs entry must be an object.");
+            }
+            rejectUnknownFields(plugin, version, bundle, SPECIALIST_BUNDLE_REF_FIELDS, "specialist sourceBundleRef");
+            String bundleId = bundle.path("bundleId").asText("").trim();
+            String bundleContract = bundle.path("contractVersion").asText("").trim();
+            String contentHash = bundle.path("contentHash").asText("").trim();
+            if (!SPECIALIST_REF_PATTERN.matcher(bundleId).matches() || !bundleIds.add(bundleId)) {
+                throw invalid(plugin, version, "specialist sourceBundleRefs require unique stable bundleId values.");
+            }
+            if (!contractVersion.equals(bundleContract)) {
+                throw invalid(plugin, version, "specialist source bundle contractVersion must match the contribution contract.");
+            }
+            if (!CONTENT_HASH_PATTERN.matcher(contentHash).matches()) {
+                throw invalid(plugin, version, "specialist source bundle contentHash must be a lowercase sha256 hash.");
+            }
+            List<String> specialistRefs = readSpecialistRefs(
+                plugin,
+                version,
+                bundle.path("specialistRefs"),
+                "specialistRefs",
+                true
+            );
+            List<String> chainRefs = readSpecialistRefs(
+                plugin,
+                version,
+                bundle.path("chainRefs"),
+                "chainRefs",
+                false
+            );
+            bundleRefs.add(new MarketplaceSpecialistBundleRefSummary(
+                bundleId,
+                bundleContract,
+                contentHash,
+                specialistRefs,
+                chainRefs
+            ));
+        }
+
+        List<String> requiredCapabilities = readStringList(specialist.path("requiredRuntimeCapabilityIds"));
+        List<String> requiredMigrations = readStringList(specialist.path("requiredMigrationIds"));
+        List<String> requiredSecrets = readStringList(specialist.path("requiredSecretNames"));
+        requiredSecrets.forEach(secret -> {
+            if (!SECRET_NAME_PATTERN.matcher(secret).matches()) {
+                throw invalid(plugin, version, "specialist requiredSecretNames contains an invalid secret name.");
+            }
+        });
+        List<String> verificationPacks = readStringList(specialist.path("verificationPackIds"));
+        List<String> unsupportedClaims = readStringList(specialist.path("unsupportedClaims"));
+        if (unsupportedClaims.isEmpty()) {
+            throw invalid(plugin, version, "specialist unsupportedClaims must state at least one customer-safe boundary.");
+        }
+        for (DeploymentBehaviorSummary behavior : behaviorContracts) {
+            requireSubset(
+                plugin,
+                version,
+                requiredCapabilities,
+                behavior.requiredRuntimeCapabilities(),
+                "requiredRuntimeCapabilityIds",
+                behavior.code()
+            );
+            requireSubset(
+                plugin,
+                version,
+                requiredMigrations,
+                behavior.requiredRuntimeMigrationIds(),
+                "requiredMigrationIds",
+                behavior.code()
+            );
+            requireSubset(
+                plugin,
+                version,
+                verificationPacks,
+                behavior.baselineVerificationPackIds(),
+                "verificationPackIds",
+                behavior.code()
+            );
+            Set<String> expectedBundleIds = behavior.requiredSpecialistBundles().stream()
+                .map(com.ai.fabric.platform.backend.deployment.model.DeploymentSpecialistBundleSummary::bundleId)
+                .collect(java.util.stream.Collectors.toSet());
+            List<String> unsupportedBundles = bundleRefs.stream()
+                .map(MarketplaceSpecialistBundleRefSummary::bundleId)
+                .filter(bundleId -> !expectedBundleIds.contains(bundleId))
+                .toList();
+            if (!unsupportedBundles.isEmpty()) {
+                throw invalid(
+                    plugin,
+                    version,
+                    "specialist source bundles are not part of behavior " + behavior.code() + ": "
+                        + String.join(", ", unsupportedBundles)
+                );
+            }
+            Set<String> declaredBundleIds = bundleRefs.stream()
+                .map(MarketplaceSpecialistBundleRefSummary::bundleId)
+                .collect(java.util.stream.Collectors.toSet());
+            if (!declaredBundleIds.equals(expectedBundleIds)) {
+                throw invalid(
+                    plugin,
+                    version,
+                    "specialist source bundles must exactly satisfy behavior " + behavior.code() + "."
+                );
+            }
+            Map<String, com.ai.fabric.platform.backend.deployment.model.DeploymentSpecialistBundleSummary> expectedBundles =
+                behavior.requiredSpecialistBundles().stream().collect(java.util.stream.Collectors.toMap(
+                    com.ai.fabric.platform.backend.deployment.model.DeploymentSpecialistBundleSummary::bundleId,
+                    value -> value
+                ));
+            for (MarketplaceSpecialistBundleRefSummary declared : bundleRefs) {
+                var expectedBundle = expectedBundles.get(declared.bundleId());
+                if (expectedBundle == null
+                    || !expectedBundle.contractVersion().equals(declared.contractVersion())
+                    || !expectedBundle.contentHash().equals(declared.contentHash())
+                    || !expectedBundle.specialistRefs().equals(declared.specialistRefs())
+                    || !expectedBundle.chainRefs().equals(declared.chainRefs())) {
+                    throw invalid(
+                        plugin,
+                        version,
+                        "specialist source bundle does not match the reviewed behavior contract: " + declared.bundleId()
+                    );
+                }
+            }
+        }
+
+        return new MarketplacePluginContributionSummary(
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            contractVersion,
+            compatibleBehaviors,
+            List.copyOf(bundleRefs),
+            requiredCapabilities,
+            requiredMigrations,
+            requiredSecrets,
+            verificationPacks,
+            unsupportedClaims
+        );
+    }
+
+    private List<String> readSpecialistRefs(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode node,
+                                            String field,
+                                            boolean required) {
+        List<String> refs = readStringList(node);
+        if (required && refs.isEmpty()) {
+            throw invalid(plugin, version, "specialist " + field + " must not be empty.");
+        }
+        refs.forEach(ref -> {
+            if (!SPECIALIST_REF_PATTERN.matcher(ref).matches()) {
+                throw invalid(plugin, version, "specialist " + field + " contains an invalid exact resource reference.");
+            }
+        });
+        return refs;
+    }
+
+    private void requireSubset(MarketplacePluginEntity plugin,
+                               MarketplacePluginVersionEntity version,
+                               List<String> values,
+                               List<String> allowed,
+                               String field,
+                               String behaviorType) {
+        List<String> unsupported = values.stream().filter(value -> !allowed.contains(value)).toList();
+        if (!unsupported.isEmpty()) {
+            throw invalid(
+                plugin,
+                version,
+                "specialist " + field + " widens behavior " + behaviorType + ": " + String.join(", ", unsupported)
+            );
+        }
+    }
+
+    private void rejectUnknownFields(MarketplacePluginEntity plugin,
+                                     MarketplacePluginVersionEntity version,
+                                     JsonNode object,
+                                     Set<String> allowed,
+                                     String label) {
+        object.fieldNames().forEachRemaining(field -> {
+            if (!allowed.contains(field)) {
+                throw invalid(plugin, version, label + " contains unsupported field: " + field);
+            }
+        });
     }
 
     private void collectInferenceEndpointRef(JsonNode node,
@@ -775,6 +1222,19 @@ public class MarketplaceManifestService {
         }
         if (StringUtils.hasText(managedServiceRef)) {
             managedServiceRefs.add(managedServiceRef.trim());
+        }
+    }
+
+    private record TemplateBehaviorContribution(
+        String type,
+        Integer contractVersion,
+        List<String> requiredRuntimeCapabilityIds,
+        List<String> allowedExecutionExtensions,
+        List<String> allowedChannelBindings,
+        List<String> verificationPackIds
+    ) {
+        private static TemplateBehaviorContribution empty() {
+            return new TemplateBehaviorContribution(null, null, List.of(), List.of(), List.of(), List.of());
         }
     }
 
@@ -1038,6 +1498,7 @@ public class MarketplaceManifestService {
             permissionsNode.path("contributesActions").asBoolean("ACTION".equals(pluginType)),
             permissionsNode.path("contributesKnowledgeSources").asBoolean("DATA".equals(pluginType)),
             permissionsNode.path("contributesProviders").asBoolean("INFERENCE_PROFILE".equals(pluginType)),
+            permissionsNode.path("contributesSpecialists").asBoolean("SPECIALIST".equals(pluginType)),
             permissionsNode.path("contributesShellPresentation").asBoolean(hasShellPresentation),
             permissionsNode.path("requiresExternalHttpExecution").asBoolean(requiresExternalHttpExecution),
             permissionsNode.path("requiresSharedDatasetAccess").asBoolean(requiresSharedDatasetAccess),
@@ -1062,6 +1523,9 @@ public class MarketplaceManifestService {
         }
         if (!contributions.inferenceProfileIds().isEmpty() && !permissions.contributesProviders()) {
             throw invalid(plugin, version, "inference profile contributions require permissions.contributesProviders=true.");
+        }
+        if (!contributions.specialistBundleRefs().isEmpty() && !permissions.contributesSpecialists()) {
+            throw invalid(plugin, version, "specialist contributions require permissions.contributesSpecialists=true.");
         }
         if ((!contributions.shellModuleIds().isEmpty() || !contributions.shellCardIds().isEmpty())
             && !permissions.contributesShellPresentation()) {

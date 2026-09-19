@@ -119,6 +119,7 @@ class CustomerAdminAccessIntegrationTest {
                       "name": "Foreign Customer Deployment",
                       "environment": "dev",
                       "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL",
                       "customerId": "%s",
                       "tenantId": "%s"
                     }
@@ -134,7 +135,8 @@ class CustomerAdminAccessIntegrationTest {
                     {
                       "name": "Scoped Auto Tenant Deployment",
                       "environment": "dev",
-                      "templateId": "dev-openai-lucene"
+                      "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL"
                     }
                     """))
             .andExpect(status().isCreated())
@@ -148,6 +150,7 @@ class CustomerAdminAccessIntegrationTest {
                       "name": "Scoped Existing Tenant Deployment",
                       "environment": "stage",
                       "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL",
                       "customerId": "%s",
                       "tenantId": "%s"
                     }
@@ -164,6 +167,7 @@ class CustomerAdminAccessIntegrationTest {
                       "name": "Illegal Foreign Deployment",
                       "environment": "prod",
                       "templateId": "dev-openai-lucene",
+                      "behaviorType": "CONVERSATIONAL",
                       "customerId": "%s"
                     }
                     """.formatted(customerB)))

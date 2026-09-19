@@ -449,6 +449,7 @@ class ThinkerResolverIntegrationTest {
         deployment.setName("Thinker Resolver Test Deployment");
         deployment.setEnvironmentName("test");
         deployment.setTemplateId("shopify-companion");
+        deployment.setBehaviorType("CONVERSATIONAL");
         deployment.setStatus("RUNNING");
         deployment.setCustomerId("customer-thinker-resolver");
         deployment.setTenantId("tenant-thinker-resolver");

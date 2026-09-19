@@ -252,6 +252,21 @@ class ShopifyCompanionPackageProfileOptionsServiceTest {
             List.of(),
             inferenceProfileIds,
             List.of(),
+            List.of(),
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
             List.of()
         );
     }

@@ -90,6 +90,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -197,6 +198,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of(new CoolifyProjectSummary(
             "customer-project",
@@ -429,6 +431,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-production"),
@@ -589,6 +592,7 @@ class CoolifyDeploymentProviderTest {
             managedVectorResourceService,
             targetProfileResolver,
             coolifyApiClient,
+            null,
             null,
             null,
             objectMapper
@@ -801,6 +805,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of());
         when(coolifyApiClient.createProject(eq(connection), eq("customer-acme"), anyString()))
@@ -1257,6 +1262,7 @@ class CoolifyDeploymentProviderTest {
         deployment.setName("Demo");
         deployment.setEnvironmentName("staging");
         deployment.setTemplateId("template");
+        deployment.setBehaviorType("CONVERSATIONAL");
         deployment.setStatus("VERSION_PUBLISHED");
         deployment.setCustomerId("customer");
         deployment.setTenantId("tenant");

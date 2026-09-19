@@ -11,6 +11,9 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import UnarchiveRoundedIcon from '@mui/icons-material/UnarchiveRounded'
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded'
+import BoltRoundedIcon from '@mui/icons-material/BoltRounded'
+import ForumRoundedIcon from '@mui/icons-material/ForumRounded'
+import HubRoundedIcon from '@mui/icons-material/HubRounded'
 import {
   Alert,
   Box,
@@ -48,6 +51,7 @@ import {
   dispatchDeploymentHostedVerification,
   executeRailwayWorkspaceCleanup,
   fetchDeploymentCuratedModules,
+  fetchDeploymentBehaviors,
   fetchDeploymentOverviews,
   fetchDeploymentTemplates,
   fetchDeploymentVerificationRollouts,
@@ -66,6 +70,7 @@ import {
   type DeploymentTenantMigrationExecutionSummary,
   type DeploymentTenantMigrationPreviewSummary,
   type DeploymentCuratedModuleSummary,
+  type DeploymentBehaviorSummary,
   type DeploymentHostedVerificationDispatchSummary,
   type DeploymentDeletionOperationSummary,
   type DeploymentListViewPreferences,
@@ -84,6 +89,7 @@ const schema = z.object({
   vectorProvisioningMode: z.string().min(1, 'Choose how vector storage should be managed'),
   customerId: z.string().optional(),
   tenantId: z.string().optional(),
+  behaviorType: z.string().min(1, 'Choose a deployment behavior'),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -153,6 +159,25 @@ function bindingChangeColor(value: string): 'default' | 'info' | 'warning' | 'su
 
 function isCustomStarterPreset(templateId: string): boolean {
   return templateId === 'custom-start-from-scratch'
+}
+
+function behaviorIcon(code: string) {
+  switch (code) {
+    case 'AGENTIC_SPECIALIST_TEAM':
+      return <HubRoundedIcon fontSize="small" />
+    case 'SMART_BRAIN':
+      return <BoltRoundedIcon fontSize="small" />
+    default:
+      return <ForumRoundedIcon fontSize="small" />
+  }
+}
+
+function behaviorLabel(code: string): string {
+  return code
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function isVerifiedOpenAiStack(template: TemplateSelectionSummary): boolean {
@@ -537,6 +562,10 @@ export function DeploymentsPage() {
     queryKey: ['deployment-templates'],
     queryFn: fetchDeploymentTemplates,
   })
+  const behaviorsQuery = useQuery({
+    queryKey: ['deployment-behaviors'],
+    queryFn: fetchDeploymentBehaviors,
+  })
   const curatedModulesQuery = useQuery({
     queryKey: ['deployment-curated-modules'],
     queryFn: fetchDeploymentCuratedModules,
@@ -602,6 +631,7 @@ export function DeploymentsPage() {
       vectorProvisioningMode: '',
       customerId: '',
       tenantId: '',
+      behaviorType: 'CONVERSATIONAL',
     },
   })
 
@@ -627,6 +657,7 @@ export function DeploymentsPage() {
         vectorProvisioningMode: '',
         customerId: '',
         tenantId: '',
+        behaviorType: 'CONVERSATIONAL',
       })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['deployments'] }),
@@ -847,6 +878,7 @@ export function DeploymentsPage() {
   })
 
   const templates = templatesQuery.data ?? []
+  const behaviors = behaviorsQuery.data ?? []
   const customers = customersQuery.data ?? []
   const curatedModules = curatedModulesQuery.data ?? []
   const overviews = overviewsQuery.data ?? []
@@ -863,6 +895,7 @@ export function DeploymentsPage() {
     [templates],
   )
   const selectedTemplateId = form.watch('templateId')
+  const selectedBehaviorType = form.watch('behaviorType')
   const selectedCuratedModuleId = form.watch('curatedModuleId')
   const selectedVectorProvisioningMode = form.watch('vectorProvisioningMode')
   const selectedCustomerId = form.watch('customerId') ?? ''
@@ -870,6 +903,10 @@ export function DeploymentsPage() {
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [selectedTemplateId, templates],
+  )
+  const selectedBehavior = useMemo<DeploymentBehaviorSummary | null>(
+    () => behaviors.find((behavior) => behavior.code === selectedBehaviorType) ?? null,
+    [behaviors, selectedBehaviorType],
   )
   const selectedCuratedModule = useMemo<DeploymentCuratedModuleSummary | null>(
     () => curatedModules.find((module) => module.id === selectedCuratedModuleId) ?? null,
@@ -1557,7 +1594,87 @@ export function DeploymentsPage() {
                 </Box>
 
                 <Stack spacing={1.25}>
-                  <Typography variant="subtitle2">1. Choose starting stack</Typography>
+                  <Typography variant="subtitle2">1. Choose deployment behavior</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Behavior defines how the deployed runtime is activated and coordinated. It is fixed for the
+                    deployment so published versions, verification, and runtime identity cannot drift between modes.
+                  </Typography>
+                  {behaviorsQuery.isError ? (
+                    <Alert severity="error">
+                      {behaviorsQuery.error instanceof Error
+                        ? behaviorsQuery.error.message
+                        : 'Failed to load deployment behaviors.'}
+                    </Alert>
+                  ) : (
+                    <Grid container spacing={1.5}>
+                      {behaviors.map((behavior) => {
+                        const selected = selectedBehaviorType === behavior.code
+                        return (
+                          <Grid item xs={12} md={4} key={behavior.code}>
+                            <Card
+                              onClick={() => {
+                                if (behavior.authoringEnabled) {
+                                  form.setValue('behaviorType', behavior.code, { shouldValidate: true })
+                                }
+                              }}
+                              sx={{
+                                cursor: behavior.authoringEnabled ? 'pointer' : 'default',
+                                height: '100%',
+                                border: '1px solid',
+                                borderColor: selected ? 'primary.main' : 'divider',
+                                boxShadow: 'none',
+                                bgcolor: selected ? 'rgba(75, 156, 211, 0.08)' : 'background.paper',
+                                opacity: behavior.authoringEnabled ? 1 : 0.65,
+                              }}
+                            >
+                              <CardContent>
+                                <Stack spacing={1.25}>
+                                  <Stack direction="row" spacing={1} alignItems="center">
+                                    {behaviorIcon(behavior.code)}
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                                      {behavior.name}
+                                    </Typography>
+                                  </Stack>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {behavior.description}
+                                  </Typography>
+                                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                                    <Chip
+                                      size="small"
+                                      label={behavior.maturity.replace(/_/g, ' ')}
+                                      color={behavior.maturity === 'HOSTED_PROVEN' ? 'success' : 'warning'}
+                                      variant="outlined"
+                                    />
+                                    <Chip
+                                      size="small"
+                                      label={`Contract v${behavior.contractVersion}`}
+                                      variant="outlined"
+                                    />
+                                  </Stack>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {behavior.availabilityMessage}
+                                  </Typography>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        )
+                      })}
+                    </Grid>
+                  )}
+                  {selectedBehavior?.releaseRequiresCapabilityManifest ? (
+                    <Alert severity="warning">
+                      You can author and publish this behavior now. Apply remains fail-closed until an operator selects
+                      a reviewed source artifact whose capability manifest proves the required runtime endpoints,
+                      durability, and verification pack.
+                    </Alert>
+                  ) : selectedBehavior ? (
+                    <Alert severity="success">{selectedBehavior.availabilityMessage}</Alert>
+                  ) : null}
+                </Stack>
+
+                <Stack spacing={1.25}>
+                  <Typography variant="subtitle2">2. Choose starting stack</Typography>
                   <Alert severity="info">
                     The list prioritizes the OpenAI deployment stacks the platform has already verified across the vector backends we currently support. The full preset catalog stays available below.
                   </Alert>
@@ -1702,7 +1819,7 @@ export function DeploymentsPage() {
                 </Stack>
 
                 <Stack spacing={1.25}>
-                  <Typography variant="subtitle2">2. Choose curated module</Typography>
+                  <Typography variant="subtitle2">3. Choose curated module</Typography>
                   <Grid container spacing={1.5}>
                     {curatedModules.map((module) => {
                       const selected = selectedCuratedModuleId === module.id
@@ -1749,6 +1866,7 @@ export function DeploymentsPage() {
                     templateId: values.templateId,
                     curatedModuleId: values.curatedModuleId,
                     vectorProvisioningMode: values.vectorProvisioningMode,
+                    behaviorType: values.behaviorType,
                     ...(canManageCustomers && values.customerId?.trim()
                       ? { customerId: values.customerId.trim() }
                       : {}),
@@ -1759,7 +1877,7 @@ export function DeploymentsPage() {
                   noValidate
                 >
                   <Stack spacing={2}>
-                    <Typography variant="subtitle2">3. Choose vector management mode</Typography>
+                    <Typography variant="subtitle2">4. Choose vector management mode</Typography>
                     {selectedTemplate ? (
                       <Grid container spacing={1.5}>
                         {vectorProvisioningOptions.map((option) => {
@@ -1808,7 +1926,7 @@ export function DeploymentsPage() {
 
                     {canManageCustomers ? (
                       <Stack spacing={1.5}>
-                        <Typography variant="subtitle2">4. Bind customer and tenant</Typography>
+                        <Typography variant="subtitle2">5. Bind customer and tenant</Typography>
                         <Alert severity="info" icon={<ApartmentRoundedIcon fontSize="inherit" />}>
                           Customer and tenant binding is admin-controlled. Leave both fields empty to place the
                           deployment under the platform internal customer with an auto-created tenant. Select a
@@ -1868,7 +1986,7 @@ export function DeploymentsPage() {
                       </Stack>
                     ) : null}
 
-                    <Typography variant="subtitle2">{canManageCustomers ? '5. Name the environment' : '4. Name the environment'}</Typography>
+                    <Typography variant="subtitle2">{canManageCustomers ? '6. Name the environment' : '5. Name the environment'}</Typography>
                     <Controller
                       name="name"
                       control={form.control}
@@ -1929,6 +2047,12 @@ export function DeploymentsPage() {
                             {' '}The initial prompt bundle will be seeded from <strong>{selectedCuratedModule.name}</strong>.
                           </>
                         ) : null}
+                        {selectedBehavior ? (
+                          <>
+                            {' '}Behavior is fixed to <strong>{selectedBehavior.name}</strong> under{' '}
+                            <strong>{selectedBehavior.schemaVersion}</strong>.
+                          </>
+                        ) : null}
                       </Alert>
                     ) : null}
 
@@ -1944,9 +2068,9 @@ export function DeploymentsPage() {
                       type="submit"
                       variant="contained"
                       startIcon={<AddRoundedIcon />}
-                      disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading}
+                      disabled={createMutation.isPending || templatesQuery.isLoading || curatedModulesQuery.isLoading || behaviorsQuery.isLoading}
                     >
-                      {createMutation.isPending ? 'Creating…' : `${canManageCustomers ? '6' : '5'}. Create deployment`}
+                      {createMutation.isPending ? 'Creating…' : `${canManageCustomers ? '7' : '6'}. Create deployment`}
                     </Button>
                   </Stack>
                 </form>
@@ -2444,6 +2568,11 @@ export function DeploymentsPage() {
                               <Chip label={deployment.healthStatus} color={healthChipColor(deployment.healthStatus)} />
                               <Chip label={deployment.status} variant="outlined" />
                               <Chip
+                                icon={behaviorIcon(deployment.behaviorType)}
+                                label={behaviorLabel(deployment.behaviorType)}
+                                variant="outlined"
+                              />
+                              <Chip
                                 label={`Version: ${deployment.activeVersion ?? 'draft'}`}
                                 variant="outlined"
                               />
@@ -2757,6 +2886,11 @@ export function DeploymentsPage() {
                                     variant="outlined"
                                   />
                                   <Chip label="ARCHIVED" variant="outlined" />
+                                  <Chip
+                                    icon={behaviorIcon(deployment.behaviorType)}
+                                    label={behaviorLabel(deployment.behaviorType)}
+                                    variant="outlined"
+                                  />
                                   {deployment.deletion ? (
                                     <Chip
                                       label={`Deletion ${deployment.deletion.status}`}

@@ -1619,6 +1619,92 @@ class RailwayProvisioningPlanServiceTest {
             );
     }
 
+    @Test
+    void buildPlanMaterializesBehaviorSpecificExecutionAndReviewContracts() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+
+        DeploymentVersionEntity agentic = version();
+        agentic.setBehaviorConfigJson("""
+            {
+              "schemaVersion": "loomai-deployment-behavior-v1",
+              "type": "AGENTIC_SPECIALIST_TEAM",
+              "contractVersion": 1,
+              "executionExtensions": ["HUMAN_REVIEW"]
+            }
+            """);
+        Map<String, String> agenticEnv = envMap(service.buildPlan(deployment(), agentic).services().runtime().env());
+        assertThat(agenticEnv)
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "true")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_DURABLE_ENABLED", "true")
+            .containsEntry(
+                "AI_EXECUTION_MANIFEST_LOCATIONS",
+                "classpath:ai-specialists/deployment-intelligence-team.yml,"
+                    + "classpath:ai-specialists/deployment-knowledge-specialist.yml,"
+                    + "classpath:ai-chains/deployment-intelligence-team.yml"
+            )
+            .containsEntry("AI_EXECUTION_RECEIPTS_ENABLED", "true")
+            .containsEntry("AI_EXECUTION_REVIEWS_ENABLED", "true")
+            .containsEntry("LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE", "AGENTIC_SPECIALIST_TEAM")
+            .containsEntry("LOOMAI_DEPLOYMENT_COMPOSITION_HASH", "composition-hash-123")
+            .containsEntry(
+                "AI_SPECIALIST_CHAIN_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.chainEncryptionSecretName("dep-123") + "}"
+            )
+            .containsEntry(
+                "AI_REVIEW_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.reviewEncryptionSecretName("dep-123") + "}"
+            );
+
+        DeploymentVersionEntity smartBrain = version();
+        smartBrain.setBehaviorConfigJson("""
+            {
+              "schemaVersion": "loomai-deployment-behavior-v1",
+              "type": "SMART_BRAIN",
+              "contractVersion": 1,
+              "executionExtensions": []
+            }
+            """);
+        Map<String, String> smartBrainEnv = envMap(
+            service.buildPlan(deployment(), smartBrain).services().runtime().env()
+        );
+        assertThat(smartBrainEnv)
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
+            .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_DURABLE_ENABLED", "false")
+            .containsEntry(
+                "AI_EXECUTION_MANIFEST_LOCATIONS",
+                "classpath:ai-specialists/smart-brain-event-analyst.yml"
+            )
+            .containsEntry("LOOMAI_SMART_BRAIN_ENABLED", "true")
+            .containsEntry("AI_EXECUTION_ASYNC_REPOSITORY", "JDBC")
+            .containsEntry("AI_EXECUTION_ASYNC_INITIALIZE_SCHEMA", "false")
+            .containsEntry("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", "dep-123")
+            .containsEntry("AI_FABRIC_RUNTIME_TENANT_ID", "tenant-default")
+            .containsEntry("LOOMAI_DEPLOYMENT_MANIFEST_URL", "https://platform.example/manifest.json")
+            .containsEntry("LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE", "SMART_BRAIN");
+        assertThat(smartBrainEnv).doesNotContainKey("AI_SPECIALIST_CHAIN_ENCRYPTION_SECRET");
+    }
+
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
         return env.stream().collect(Collectors.toMap(RailwayEnvVarSummary::key, RailwayEnvVarSummary::value));
     }
@@ -1679,6 +1765,20 @@ class RailwayProvisioningPlanServiceTest {
         version.setRoutingConfigJson("{\"connector\":{},\"actions\":{}}");
         version.setProviderConfigJson("{\"llmProvider\":\"openai\",\"embeddingProvider\":\"openai\"}");
         version.setSecurityConfigJson("{\"authzMode\":\"REMOTE_HTTP\",\"authzBaseUrl\":\"https://customer.example\"}");
+        version.setBehaviorConfigJson("""
+            {
+              "schemaVersion": "loomai-deployment-behavior-v1",
+              "type": "CONVERSATIONAL",
+              "contractVersion": 1,
+              "executionExtensions": []
+            }
+            """);
+        version.setCompositionProvenanceJson("""
+            {
+              "schemaVersion": "loomai-composition-provenance-v1",
+              "compositionHash": "composition-hash-123"
+            }
+            """);
         version.setActionsArtifactYaml("actions: []");
         version.setEntityArtifactYaml("ai-entities: {}");
         version.setRoutingArtifactYaml("actions: {}");

@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentSourceArt
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactSummary;
 import com.ai.fabric.platform.backend.deployment.model.PromoteDeploymentSourceArtifactRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentSourceArtifactRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,19 +19,27 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class DeploymentSourceArtifactService {
 
     private static final String DEFAULT_PROMOTION_CHANNEL = "staging";
+    private static final Pattern IMAGE_DIGEST = Pattern.compile("sha256:[a-f0-9]{64}");
 
     private final DeploymentSourceArtifactRepository sourceArtifactRepository;
     private final PlatformAuditService platformAuditService;
+    private final ObjectMapper objectMapper;
+    private final DeploymentSourceCapabilityManifestService capabilityManifestService;
 
     public DeploymentSourceArtifactService(DeploymentSourceArtifactRepository sourceArtifactRepository,
-                                           PlatformAuditService platformAuditService) {
+                                           PlatformAuditService platformAuditService,
+                                           ObjectMapper objectMapper,
+                                           DeploymentSourceCapabilityManifestService capabilityManifestService) {
         this.sourceArtifactRepository = sourceArtifactRepository;
         this.platformAuditService = platformAuditService;
+        this.objectMapper = objectMapper;
+        this.capabilityManifestService = capabilityManifestService;
     }
 
     public List<DeploymentSourceArtifactSummary> list(String serviceName) {
@@ -80,14 +90,28 @@ public class DeploymentSourceArtifactService {
         artifact.setArtifactType(artifactType);
         artifact.setImageRepository(requireText(request.imageRepository(), "imageRepository"));
         artifact.setImageTag(requireText(request.imageTag(), "imageTag"));
-        artifact.setImageDigest(trimToNull(request.imageDigest()));
+        String imageDigest = trimToNull(request.imageDigest());
+        if (imageDigest != null && !IMAGE_DIGEST.matcher(imageDigest).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "imageDigest must be a lowercase sha256 digest.");
+        }
+        if (StringUtils.hasText(request.promotionChannel())) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Register the artifact first, then use the promote operation after review."
+            );
+        }
+        artifact.setImageDigest(imageDigest);
         artifact.setGitCommitSha(trimToNull(request.gitCommitSha()));
         artifact.setBuildRunId(trimToNull(request.buildRunId()));
         artifact.setSbomRef(trimToNull(request.sbomRef()));
-        artifact.setPromotionChannel(trimToNull(request.promotionChannel()));
+        artifact.setPromotionChannel(null);
+        DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest capabilityManifest =
+            capabilityManifestService.normalize(request.capabilityManifest());
+        artifact.setCapabilityManifestJson(writeJson(capabilityManifest.manifest()));
+        artifact.setCapabilityManifestHash(capabilityManifest.hash());
         Instant now = Instant.now();
         artifact.setCreatedAt(now);
-        artifact.setPromotedAt(StringUtils.hasText(artifact.getPromotionChannel()) ? now : null);
+        artifact.setPromotedAt(null);
         sourceArtifactRepository.save(artifact);
 
         platformAuditService.record(
@@ -106,6 +130,28 @@ public class DeploymentSourceArtifactService {
     @Transactional
     public DeploymentSourceArtifactSummary promote(String artifactId, PromoteDeploymentSourceArtifactRequest request) {
         DeploymentSourceArtifactEntity artifact = require(artifactId);
+        if (!StringUtils.hasText(artifact.getImageDigest())) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Source artifact promotion requires an immutable imageDigest."
+            );
+        }
+        JsonNode manifest = capabilityManifestService.read(artifact.getCapabilityManifestJson());
+        DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
+            capabilityManifestService.normalize(manifest);
+        if (!StringUtils.hasText(artifact.getCapabilityManifestHash())
+            || !artifact.getCapabilityManifestHash().equals(normalized.hash())) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Source artifact promotion requires a valid content-hashed capability manifest."
+            );
+        }
+        if (manifest.path("supportedBehaviorTypes").isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Source artifact promotion requires at least one supported behavior type."
+            );
+        }
         String promotionChannel = normalizePromotionChannel(request == null ? null : request.promotionChannel());
         artifact.setPromotionChannel(promotionChannel);
         artifact.setPromotedAt(Instant.now());
@@ -132,6 +178,8 @@ public class DeploymentSourceArtifactService {
             artifact.getBuildRunId(),
             artifact.getSbomRef(),
             artifact.getPromotionChannel(),
+            capabilityManifestService.read(artifact.getCapabilityManifestJson()),
+            artifact.getCapabilityManifestHash(),
             artifact.getCreatedAt(),
             artifact.getPromotedAt()
         );
@@ -162,5 +210,13 @@ public class DeploymentSourceArtifactService {
             return null;
         }
         return value.trim();
+    }
+
+    private String writeJson(com.fasterxml.jackson.databind.JsonNode value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to store source capability manifest.", ex);
+        }
     }
 }

@@ -14,6 +14,7 @@ public record DeploymentMarketplaceInstallImpactSummary(
     List<String> shellCardIds,
     List<String> automationWorkflowIds,
     List<String> inferenceProfileIds,
-    List<String> inferenceEndpointProfileRefs
+    List<String> inferenceEndpointProfileRefs,
+    List<String> specialistBundleIds
 ) {
 }

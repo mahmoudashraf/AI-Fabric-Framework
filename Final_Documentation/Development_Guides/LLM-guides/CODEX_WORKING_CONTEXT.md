@@ -2458,3 +2458,72 @@ Critical fixes that made the gate pass:
   tasks, and phased release sequence. This was documentation/planning only; no
   review migration, secret, endpoint, runtime flag, V04 version, or deployment
   was created.
+
+## 2026-09-19 Behavior-Aware Deployment Types Source Implementation
+
+- The later owner instruction to implement the complete backend and frontend
+  supersedes the earlier source-work stop after Gate A. It does not waive
+  hosted verification or make the new behaviors market-ready.
+- Platform now has server-owned `CONVERSATIONAL`,
+  `AGENTIC_SPECIALIST_TEAM`, and `SMART_BRAIN` behavior contracts; behavior is
+  persisted from deployment creation through draft/version/export/import;
+  immutable V04 versions include exact composition provenance; release/apply
+  fails closed on missing, changed, or incompatible source capability evidence.
+- Flyway `V132` adds behavior/config/provenance/source-capability storage and a
+  deterministic migration for existing deployments. `V133` publishes three
+  behavior-aware Marketplace templates plus source-attested Agentic and Smart
+  Brain `SPECIALIST` bundles. Template bootstrap installs exact dependencies
+  through the existing Marketplace/V04 compiler rather than a parallel
+  catalogue or release path.
+- The private runtime packages a real Agentic deployment-intelligence team via
+  the official AI Fabric `SpecialistChainGateway`. Its closed manager can call
+  exactly two distinct read-only workers: deployment knowledge and current
+  runtime state. Manifests, schemas, limits, lineage, durable chain state,
+  replay/cancel, and request-bound idempotency are deployment-local.
+- Smart Brain accepts trusted CloudEvents at the assigned runtime, validates a
+  registered trigger, persists operations locally, runs the exact event
+  specialist, supports status/result/cancel/exact replay, executes managed
+  Quartz schedules through the same trigger service, and delivers optional
+  signed CloudEvents webhooks through a transactional retry/dead-letter outbox.
+  It remains read-only and cannot invoke Resolver automatically.
+- Human Review is implemented only for AI Fabric
+  `ReviewSourceType.ACTION_PROPOSAL`. The runtime owns receipt/task/dispatch
+  migrations and safe proposal/inbox/detail/decision endpoints; the Platform
+  Review Inbox is a scoped client/proxy. Reviewer identity, role/scope,
+  separation of duty, and action authority remain customer/application-owned.
+- Durable data belongs to the deployment, not the central Platform database.
+  On managed Coolify, Platform creates or reuses an attached PostgreSQL
+  service, stores its generated credential through Platform secret handling,
+  binds it only to the runtime, and records its provider handle. The runtime
+  applies reviewed Flyway migrations for chain, Smart Brain, action receipt,
+  and review state. Customers do not manually supply storage on this path.
+- Platform UI now exposes behavior authoring, immutable runtime artifacts,
+  behavior operations, and Human Review. Behavior-specific assignment metadata
+  advertises only endpoints actually provided by the selected verified runtime.
+- Verification is green: private runtime `174/174`; focused Platform regression
+  set; PostgreSQL 16 migrations `V1..V133`; full Platform backend `757/757`;
+  Platform UI production build; and `git diff --check`. No normal test was
+  skipped.
+- Practical local integration proof is also green. All three behavior templates
+  bootstrap and publish through the real Marketplace/V04 path. A strict
+  Agentic runtime first failed closed without private assertion material, then
+  started healthy on PostgreSQL 16 with correct scoped assertion settings. Its
+  authenticated admin readback reported AI Fabric `0.7.0`, all eight runtime
+  migrations, one ready discovered declarative chain, no chain diagnostics,
+  exact source-attested bundle hashes, and the expected behavior/endpoint/
+  verification-pack inventory.
+- The canary exposed a Jackson 2/3 boundary in admin serialization: returning a
+  framework-side `JsonNode` directly caused implementation flags to be emitted
+  instead of the capability document. Runtime capability readback now projects
+  the manifest to ordinary map/list/scalar values before Spring Boot 4/Jackson
+  3 serialization, with focused regression coverage.
+- During regression repair, tenant lift/shift was corrected to preserve
+  behavior and behavior config; overlapping apply now fails before consuming
+  an approval; trusted template bootstrap may retain only validation errors
+  already present in the base draft and rejects every newly introduced error.
+- This implementation remains local source. No new immutable private commit,
+  image, V04 release, staging deployment, assignment, or production behavior
+  was created. The live fleet remains the verified Gate A `0.7.0`,
+  chain-disabled baseline. Next work is review/commit, Central-only packaging,
+  then separate Conversational, Agentic, Smart Brain, and Human Review staging
+  canaries with promotion/export/import/rollback/draining evidence.

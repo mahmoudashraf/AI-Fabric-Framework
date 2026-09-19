@@ -11,6 +11,15 @@ public record PublicRuntimeEndpointsSummary(
     String operationalBaseUrl,
     String healthUrl,
     String authContextUrl,
-    String authOverviewUrl
+    String authOverviewUrl,
+    String agenticExecuteUrl,
+    String agenticExecutionsUrl,
+    String agenticExecutionItemUrlTemplate,
+    String smartBrainTriggerUrlTemplate,
+    String smartBrainOperationUrlTemplate,
+    String reviewActionProposalUrlTemplate,
+    String reviewInboxUrl,
+    String reviewTaskUrlTemplate,
+    String reviewDecisionUrlTemplate
 ) {
 }

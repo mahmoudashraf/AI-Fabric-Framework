@@ -6,6 +6,7 @@ import com.ai.fabric.runtime.config.RuntimeAuthProperties;
 import com.ai.fabric.runtime.config.RuntimeAuthStartupValidator;
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigService;
+import com.ai.fabric.runtime.config.RuntimeCapabilityManifestService;
 import ai.fabric.config.AIProviderConfig;
 import ai.fabric.config.AIEntityConfigurationLoader;
 import ai.fabric.intent.action.AIActionMetaData;
@@ -13,6 +14,7 @@ import ai.fabric.intent.action.AIActionRegistry;
 import ai.fabric.intent.action.connector.ConnectorActionWebhookPolicyCatalog;
 import ai.fabric.intent.action.confirmation.ConfirmationInterceptorCatalogProvider;
 import ai.fabric.indexing.observability.AIEntityIndexingEndpoint;
+import ai.fabric.execution.chain.manifest.SpecialistChainManifestRuntimeStatus;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.rag.source.SearchSourceRegistry;
 import ai.fabric.shell.BuiltInShellCatalog;
@@ -25,6 +27,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.flywaydb.core.Flyway;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,12 +47,15 @@ public class RuntimeAdminOverviewController {
     private final VectorDatabaseService vectorDatabaseService;
     private final RuntimeAuthProperties runtimeAuthProperties;
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
+    private final RuntimeCapabilityManifestService runtimeCapabilityManifestService;
     private final ObjectProvider<ConfirmationInterceptorCatalogProvider> confirmationInterceptorCatalogProvider;
     private final ObjectProvider<ConnectorActionWebhookPolicyCatalog> webhookPolicyCatalogProvider;
     private final ObjectProvider<RuntimeDeploymentKnowledgeSourceConfigService> knowledgeSourceConfigServiceProvider;
     private final ObjectProvider<RuntimeDeploymentShellConfigService> shellConfigServiceProvider;
     private final ObjectProvider<SearchSourceRegistry> searchSourceRegistryProvider;
     private final ObjectProvider<AIEntityIndexingEndpoint> entityIndexingEndpointProvider;
+    private final ObjectProvider<SpecialistChainManifestRuntimeStatus> specialistChainStatusProvider;
+    private final ObjectProvider<Flyway> flywayProvider;
 
     @Value("${AI_CONFIG_DEFAULT_FILE:${spring.config.import:optional:classpath:ai-entity-config.yml}}")
     private String entityConfigLocation;
@@ -74,6 +80,21 @@ public class RuntimeAdminOverviewController {
 
     @Value("${PLATFORM_DEPLOYMENT_VERSION_ID:}")
     private String deploymentVersionId;
+
+    @Value("${LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE:}")
+    private String deploymentBehaviorType;
+
+    @Value("${LOOMAI_DEPLOYMENT_BEHAVIOR_SCHEMA_VERSION:}")
+    private String deploymentBehaviorSchemaVersion;
+
+    @Value("${LOOMAI_DEPLOYMENT_BEHAVIOR_CONTRACT_VERSION:}")
+    private String deploymentBehaviorContractVersion;
+
+    @Value("${LOOMAI_DEPLOYMENT_COMPOSITION_HASH:}")
+    private String deploymentCompositionHash;
+
+    @Value("${ai.execution.specialist-chains.enabled:false}")
+    private boolean specialistChainsEnabled;
 
     @Value("${APP_BUILD_COMMIT:${SOURCE_COMMIT:unknown}}")
     private String productSourceCommit;
@@ -152,6 +173,17 @@ public class RuntimeAdminOverviewController {
             "deploymentVersionId",
             blankToUnknown(deploymentVersionId)
         );
+        Map<String, Object> deploymentBehavior = new LinkedHashMap<>();
+        deploymentBehavior.put("type", blankToUnknown(deploymentBehaviorType));
+        deploymentBehavior.put("schemaVersion", blankToUnknown(deploymentBehaviorSchemaVersion));
+        deploymentBehavior.put("contractVersion", blankToUnknown(deploymentBehaviorContractVersion));
+        deploymentBehavior.put("compositionHash", blankToUnknown(deploymentCompositionHash));
+        deploymentBehavior.put("specialistChainsEnabled", specialistChainsEnabled);
+        body.put("deploymentBehavior", deploymentBehavior);
+        body.put("runtimeCapabilityManifestHash", runtimeCapabilityManifestService.manifestHash());
+        body.put("runtimeCapabilityManifest", runtimeCapabilityManifestService.manifestProjection());
+        body.put("specialistChains", specialistChainDiagnostics(specialistChainStatusProvider.getIfAvailable()));
+        body.put("runtimeMigrations", runtimeMigrationDiagnostics(flywayProvider.getIfAvailable()));
         body.put("productSourceCommit", blankToUnknown(productSourceCommit));
         body.put("productBuildTime", blankToUnknown(productBuildTime));
         body.put("entityConfigLocation", entityConfigLocation);
@@ -210,6 +242,85 @@ public class RuntimeAdminOverviewController {
         body.put("auth", authDiagnostics(runtimeAuthProperties));
         body.put("authWarnings", authWarnings(runtimeAuthProperties));
         return ResponseEntity.ok(body);
+    }
+
+    private Map<String, Object> specialistChainDiagnostics(SpecialistChainManifestRuntimeStatus status) {
+        if (status == null) {
+            return Map.of(
+                "available", false,
+                "enabled", false,
+                "ready", !specialistChainsEnabled
+            );
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("available", true);
+        result.put("manifestLoadingEnabled", status.manifestLoadingEnabled());
+        result.put("enabled", status.chainExecutionEnabled());
+        result.put("ready", status.ready());
+        result.put("javaDefinedCount", status.javaDefinedCount());
+        result.put("discoveredManifestCount", status.discoveredManifestCount());
+        result.put("inactiveManifestCount", status.inactiveManifestCount());
+        result.put("manifestDefinedCount", status.manifestDefinedCount());
+        result.put("totalRegisteredCount", status.totalRegisteredCount());
+        result.put("auditResourceAggregateHash", status.auditResourceAggregateHash());
+        result.put("declarativeSemanticsAggregateHash", status.declarativeSemanticsAggregateHash());
+        result.put("effectiveExecutionAggregateHash", status.effectiveExecutionAggregateHash());
+        result.put("diagnostics", status.diagnostics().stream().map(diagnostic -> Map.of(
+            "reason", diagnostic.reason(),
+            "message", diagnostic.message(),
+            "source", diagnostic.source()
+        )).toList());
+        return result;
+    }
+
+    private Map<String, Object> runtimeMigrationDiagnostics(Flyway flyway) {
+        if (flyway == null) {
+            return Map.of("available", false, "appliedMigrationIds", List.of());
+        }
+        try {
+            List<Map<String, String>> applied = java.util.Arrays.stream(flyway.info().applied())
+                .map(migration -> Map.of(
+                    "id", semanticMigrationId(
+                        migration.getDescription(),
+                        migration.getVersion() == null ? null : migration.getVersion().getVersion()
+                    ),
+                    "version", migration.getVersion() == null ? "" : migration.getVersion().getVersion(),
+                    "description", migration.getDescription(),
+                    "state", migration.getState().name()
+                ))
+                .toList();
+            return Map.of(
+                "available", true,
+                "appliedMigrationIds", applied.stream().map(item -> item.get("id")).toList(),
+                "applied", applied
+            );
+        } catch (RuntimeException exception) {
+            return Map.of(
+                "available", false,
+                "appliedMigrationIds", List.of(),
+                "errorCode", "RUNTIME_MIGRATION_DIAGNOSTICS_FAILED"
+            );
+        }
+    }
+
+    private String semanticMigrationId(String description, String version) {
+        if (!StringUtils.hasText(description) || !StringUtils.hasText(version)) {
+            return StringUtils.hasText(description) ? description : "unknown";
+        }
+        String slug = description.trim().toLowerCase(java.util.Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", "-")
+            .replaceAll("(^-|-$)", "");
+        return switch (slug) {
+            case "ai-specialist-chain-execution" -> "ai-specialist-chain-execution-v1";
+            case "ai-specialist-execution" -> "ai-specialist-execution-v1";
+            case "loomai-smart-brain-operation" -> "loomai-smart-brain-operation-v1";
+            case "loomai-smart-brain-delivery" -> "loomai-smart-brain-delivery-v1";
+            case "loomai-smart-brain-scheduler" -> "loomai-smart-brain-scheduler-v1";
+            case "ai-action-proposal-receipt" -> "ai-action-proposal-receipt-v1";
+            case "ai-review-task" -> "ai-review-task-v1";
+            case "ai-review-dispatch" -> "ai-review-dispatch-v1";
+            default -> slug + "-v" + version.trim();
+        };
     }
 
     private Map<String, Object> entityIndexingDiagnostics(

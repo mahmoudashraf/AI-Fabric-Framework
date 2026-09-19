@@ -236,6 +236,8 @@ public class RailwayProvisioningPlanService {
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
+        JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
+        JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
 
         var artifacts = artifactService.toBundleSummary(version);
         JsonNode manifest = readJson(version.getManifestJson());
@@ -276,9 +278,116 @@ public class RailwayProvisioningPlanService {
             "AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS",
             "1"
         ));
+        String deploymentBehaviorType = behaviorConfig.path("type").asText("");
+        boolean specialistChainsEnabled = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType);
+        boolean humanReviewEnabled = contains(behaviorConfig.path("executionExtensions"), "HUMAN_REVIEW");
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_SPECIALIST_CHAINS_ENABLED",
-            "false"
+            Boolean.toString(specialistChainsEnabled)
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_EXECUTION_SPECIALIST_CHAINS_DURABLE_ENABLED",
+            Boolean.toString(specialistChainsEnabled)
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_EXECUTION_MANIFEST_LOCATIONS",
+            executionManifestLocations(deploymentBehaviorType)
+        ));
+        if (specialistChainsEnabled) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_SPECIALIST_CHAIN_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.chainEncryptionSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_SPECIALIST_CHAIN_FINGERPRINT_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.chainFingerprintSecretName(deployment.getId()) + "}"
+            ));
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_SMART_BRAIN_ENABLED",
+            Boolean.toString("SMART_BRAIN".equals(deploymentBehaviorType))
+        ));
+        if ("SMART_BRAIN".equals(deploymentBehaviorType)) {
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", deployment.getId()));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_TENANT_ID", deployment.getTenantId()));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_RUNTIME_PUBLIC_BASE_URL", runtimeBaseUrl));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_ASYNC_REPOSITORY", "JDBC"));
+            runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_ASYNC_INITIALIZE_SCHEMA", "false"));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_EXECUTION_ASYNC_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.smartBrainJobEncryptionSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_EXECUTION_ASYNC_FINGERPRINT_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.smartBrainJobFingerprintSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_SMART_BRAIN_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.smartBrainEncryptionSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_SMART_BRAIN_FINGERPRINT_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.smartBrainFingerprintSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_SMART_BRAIN_DELIVERY_SIGNING_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.smartBrainDeliverySigningSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_DEPLOYMENT_MANIFEST_URL",
+                artifactUrls.manifest()
+            ));
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_EXECUTION_RECEIPTS_ENABLED",
+            Boolean.toString(humanReviewEnabled)
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_EXECUTION_REVIEWS_ENABLED",
+            Boolean.toString(humanReviewEnabled)
+        ));
+        if (humanReviewEnabled) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_EXECUTION_RECEIPTS_TTL",
+                "PT25H"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_ACTION_RECEIPT_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.actionReceiptEncryptionSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_ACTION_RECEIPT_FINGERPRINT_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.actionReceiptFingerprintSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_REVIEW_ENCRYPTION_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.reviewEncryptionSecretName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_REVIEW_FINGERPRINT_SECRET",
+                "${secret:" + DeploymentExecutionSecretService.reviewFingerprintSecretName(deployment.getId()) + "}"
+            ));
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE",
+            requireReleaseMetadata("deploymentBehaviorType", deploymentBehaviorType)
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_DEPLOYMENT_BEHAVIOR_SCHEMA_VERSION",
+            requireReleaseMetadata("deploymentBehaviorSchemaVersion", behaviorConfig.path("schemaVersion").asText(""))
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_DEPLOYMENT_BEHAVIOR_CONTRACT_VERSION",
+            requireReleaseMetadata(
+                "deploymentBehaviorContractVersion",
+                behaviorConfig.path("contractVersion").isInt()
+                    ? Integer.toString(behaviorConfig.path("contractVersion").asInt())
+                    : ""
+            )
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_DEPLOYMENT_COMPOSITION_HASH",
+            requireReleaseMetadata("compositionHash", compositionProvenance.path("compositionHash").asText(""))
         ));
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_REBUILD_INCOMPATIBLE_GENERATED_STATE",
@@ -1434,6 +1543,30 @@ public class RailwayProvisioningPlanService {
         if (value != null && !value.isBlank()) {
             env.add(new RailwayEnvVarSummary(key, value));
         }
+    }
+
+    private boolean contains(JsonNode values, String expected) {
+        if (values == null || !values.isArray()) {
+            return false;
+        }
+        for (JsonNode value : values) {
+            if (expected.equals(value.asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String executionManifestLocations(String behaviorType) {
+        return switch (behaviorType == null ? "" : behaviorType.trim()) {
+            case "AGENTIC_SPECIALIST_TEAM" -> String.join(",",
+                "classpath:ai-specialists/deployment-intelligence-team.yml",
+                "classpath:ai-specialists/deployment-knowledge-specialist.yml",
+                "classpath:ai-chains/deployment-intelligence-team.yml"
+            );
+            case "SMART_BRAIN" -> "classpath:ai-specialists/smart-brain-event-analyst.yml";
+            default -> "classpath:ai-specialists/deployment-knowledge-specialist.yml";
+        };
     }
 
     private String blankToFallback(String value, String fallback) {

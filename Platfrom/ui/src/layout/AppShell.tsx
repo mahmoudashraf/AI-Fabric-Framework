@@ -1,15 +1,18 @@
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded'
 import ApprovalRoundedIcon from '@mui/icons-material/ApprovalRounded'
+import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded'
+import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
 import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded'
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
-import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
 import HttpsRoundedIcon from '@mui/icons-material/HttpsRounded'
+import HubRoundedIcon from '@mui/icons-material/HubRounded'
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded'
+import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded'
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded'
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded'
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded'
@@ -50,6 +53,9 @@ const drawerWidth = 280
 const navItems = [
   { label: 'Deployments', path: '/deployments', icon: <RocketLaunchRoundedIcon /> },
   { label: 'Overview', path: '/overview', icon: <DashboardRoundedIcon /> },
+  { label: 'Behavior', path: '/behavior', icon: <AccountTreeRoundedIcon /> },
+  { label: 'Behavior Runs', path: '/behavior-operations', icon: <HubRoundedIcon />, behaviorOperationsOnly: true },
+  { label: 'Human Review', path: '/human-review', icon: <FactCheckRoundedIcon />, customerReviewerOnly: true },
   { label: 'Actions', path: '/actions', icon: <AutoAwesomeRoundedIcon /> },
   { label: 'Approvals', path: '/approvals', icon: <ApprovalRoundedIcon /> },
   { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
@@ -66,6 +72,7 @@ const navItems = [
   { label: 'POC', path: '/poc', icon: <SmartToyRoundedIcon /> },
   { label: 'Prompts', path: '/prompts', icon: <PsychologyAltRoundedIcon /> },
   { label: 'Providers', path: '/providers', icon: <LayersRoundedIcon /> },
+  { label: 'Runtime Artifacts', path: '/runtime-artifacts', icon: <Inventory2RoundedIcon />, platformAdminOnly: true },
   { label: 'Security', path: '/security', icon: <HttpsRoundedIcon /> },
   { label: 'Verification', path: '/verification', icon: <FactCheckRoundedIcon /> },
   { label: 'Verification Ops', path: '/verification-ops', icon: <ChecklistRoundedIcon />, platformAdminOnly: true },
@@ -90,6 +97,11 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
     && !workspace.deploymentsLoading
     && workspace.unresolvedRequestedDeploymentId != null
   const visibleNavItems = navItems.filter((item) => {
+    if (item.behaviorOperationsOnly) {
+      return ['AGENTIC_SPECIALIST_TEAM', 'SMART_BRAIN'].includes(
+        workspace.selectedDeploymentSummary?.behaviorType ?? '',
+      )
+    }
     if (item.platformAdminOnly) {
       return session?.enabled ? session.canManageUsers : true
     }
@@ -98,6 +110,9 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
     }
     if (item.userDirectory) {
       return session?.enabled ? session.canManageUserDirectory : true
+    }
+    if (item.customerReviewerOnly) {
+      return session?.role === 'CUSTOMER_ADMIN' && session.authenticationMode === 'SESSION'
     }
     return true
   })

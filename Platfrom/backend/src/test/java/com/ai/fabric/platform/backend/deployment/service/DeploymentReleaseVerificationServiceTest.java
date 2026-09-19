@@ -210,6 +210,16 @@ class DeploymentReleaseVerificationServiceTest {
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
+                          "deploymentBehavior": {
+                            "type": "CONVERSATIONAL",
+                            "schemaVersion": "loomai-deployment-behavior-v1",
+                            "contractVersion": 1,
+                            "compositionHash": "",
+                            "specialistChainsEnabled": false
+                          },
+                          "runtimeMigrations": {"appliedMigrationIds": []},
+                          "runtimeCapabilityManifestHash": "",
+                          "productSourceCommit": "",
                           "aifabricEntities": {
                             "available": true,
                             "queue": {"ready": true}
@@ -515,6 +525,16 @@ class DeploymentReleaseVerificationServiceTest {
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-old",
+                          "deploymentBehavior": {
+                            "type": "CONVERSATIONAL",
+                            "schemaVersion": "loomai-deployment-behavior-v1",
+                            "contractVersion": 1,
+                            "compositionHash": "",
+                            "specialistChainsEnabled": false
+                          },
+                          "runtimeMigrations": {"appliedMigrationIds": []},
+                          "runtimeCapabilityManifestHash": "",
+                          "productSourceCommit": "",
                           "aifabricEntities": {
                             "available": true,
                             "queue": {"ready": true}
@@ -576,6 +596,16 @@ class DeploymentReleaseVerificationServiceTest {
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
+                          "deploymentBehavior": {
+                            "type": "CONVERSATIONAL",
+                            "schemaVersion": "loomai-deployment-behavior-v1",
+                            "contractVersion": 1,
+                            "compositionHash": "",
+                            "specialistChainsEnabled": false
+                          },
+                          "runtimeMigrations": {"appliedMigrationIds": []},
+                          "runtimeCapabilityManifestHash": "",
+                          "productSourceCommit": "",
                           "aifabricEntities": {
                             "available": true,
                             "queue": {"ready": true}
@@ -2476,6 +2506,16 @@ class DeploymentReleaseVerificationServiceTest {
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",
+                      "deploymentBehavior": {
+                        "type": "CONVERSATIONAL",
+                        "schemaVersion": "loomai-deployment-behavior-v1",
+                        "contractVersion": 1,
+                        "compositionHash": "",
+                        "specialistChainsEnabled": false
+                      },
+                      "runtimeMigrations": {"appliedMigrationIds": []},
+                      "runtimeCapabilityManifestHash": "",
+                      "productSourceCommit": "",
                       "aifabricEntities": {
                         "available": true,
                         "queue": {"ready": true}

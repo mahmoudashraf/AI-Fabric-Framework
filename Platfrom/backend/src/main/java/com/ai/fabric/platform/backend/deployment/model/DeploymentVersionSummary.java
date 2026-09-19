@@ -12,8 +12,40 @@ public record DeploymentVersionSummary(
     boolean reindexRequired,
     Instant publishedAt,
     String entityConfigContractVersion,
-    String aiFabricFrameworkVersion
+    String aiFabricFrameworkVersion,
+    String behaviorType,
+    String behaviorContractVersion,
+    boolean sourceCapabilityManifestRequired
 ) {
+
+    public DeploymentVersionSummary(String id,
+                                    String deploymentId,
+                                    String sourceDraftId,
+                                    String versionLabel,
+                                    String status,
+                                    String configHash,
+                                    boolean reindexRequired,
+                                    Instant publishedAt,
+                                    String entityConfigContractVersion,
+                                    String aiFabricFrameworkVersion,
+                                    String behaviorType,
+                                    String behaviorContractVersion) {
+        this(
+            id,
+            deploymentId,
+            sourceDraftId,
+            versionLabel,
+            status,
+            configHash,
+            reindexRequired,
+            publishedAt,
+            entityConfigContractVersion,
+            aiFabricFrameworkVersion,
+            behaviorType,
+            behaviorContractVersion,
+            false
+        );
+    }
 
     public DeploymentVersionSummary(String id,
                                     String deploymentId,
@@ -33,7 +65,10 @@ public record DeploymentVersionSummary(
             reindexRequired,
             publishedAt,
             null,
-            null
+            null,
+            null,
+            null,
+            false
         );
     }
 }

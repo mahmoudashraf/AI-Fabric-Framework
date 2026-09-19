@@ -326,3 +326,19 @@ Current P0 cleanup items:
   may feed only a separate application-owned read-result review contract; it
   cannot call Resolver automatically. Never represent arbitrary model or chain
   results as framework-backed action review.
+- 2026-09-19: Full behavior-aware Platform source implementation now exists for
+  `CONVERSATIONAL`, `AGENTIC_SPECIALIST_TEAM`, and `SMART_BRAIN`, reusing the
+  existing Marketplace/V04 lifecycle. The owner explicitly superseded the
+  source-work hold, not the hosted evidence gates. `SPECIALIST` bundles are
+  reviewed, source-attested, non-executable resources; immutable V04 versions
+  own composition provenance; runtimes must match their capability manifest.
+  Agentic uses the official gateway with exactly two distinct read-only workers.
+  Smart Brain owns deployment-local CloudEvents, durable operations, schedules,
+  results, and delivery and remains unable to write. Human Review accepts only
+  governed `ACTION_PROPOSAL` sources and preserves customer-owned reviewer and
+  domain authority. Durable chain/job/review state lives in the PostgreSQL
+  resource attached to each deployment and is migrated by the private runtime,
+  never in the central Platform database. Local runtime `174/174`, Platform
+  backend `757/757`, PostgreSQL `V1..V133`, and UI build checks pass. Do not call
+  these behaviors hosted-proven or market-ready until immutable V04 staging
+  deployments pass their complete behavior-specific gates.

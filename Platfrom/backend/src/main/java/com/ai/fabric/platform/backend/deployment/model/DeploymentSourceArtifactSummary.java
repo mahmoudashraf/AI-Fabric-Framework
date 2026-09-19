@@ -1,5 +1,7 @@
 package com.ai.fabric.platform.backend.deployment.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.time.Instant;
 
 public record DeploymentSourceArtifactSummary(
@@ -14,6 +16,8 @@ public record DeploymentSourceArtifactSummary(
     String buildRunId,
     String sbomRef,
     String promotionChannel,
+    JsonNode capabilityManifest,
+    String capabilityManifestHash,
     Instant createdAt,
     Instant promotedAt
 ) {

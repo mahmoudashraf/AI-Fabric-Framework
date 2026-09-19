@@ -20,6 +20,140 @@ export type DeploymentCuratedModuleSummary = {
   promptPresetId: string
 }
 
+export type DeploymentBehaviorSummary = {
+  code: 'CONVERSATIONAL' | 'AGENTIC_SPECIALIST_TEAM' | 'SMART_BRAIN' | string
+  name: string
+  description: string
+  schemaVersion: string
+  contractVersion: number
+  maturity: string
+  authoringEnabled: boolean
+  releaseRequiresCapabilityManifest: boolean
+  availabilityMessage: string
+  activationSources: string[]
+  channelBindings: string[]
+  allowedExecutionExtensions: string[]
+  requiredRuntimeCapabilities: string[]
+  requiredRuntimeEndpointClasses: string[]
+  requiredRuntimeMigrationIds: string[]
+  baselineVerificationPackIds: string[]
+  requiredSpecialistBundles: DeploymentSpecialistBundleSummary[]
+  defaultConfig: unknown
+}
+
+export type DeploymentSpecialistBundleSummary = {
+  bundleId: string
+  contractVersion: string
+  contentHash: string
+  behaviorTypes: string[]
+  specialistRefs: string[]
+  chainRefs: string[]
+  resourceLocations: string[]
+}
+
+export type DeploymentExecutionExtensionSummary = {
+  code: string
+  name: string
+  description: string
+  maturity: string
+  availabilityMessage: string
+  compatibleBehaviorTypes: string[]
+  requiredRuntimeCapabilities: string[]
+  requiredRuntimeEndpointClasses: string[]
+  requiredRuntimeMigrationIds: string[]
+  verificationPackIds: string[]
+}
+
+export type DeploymentHumanReviewTask = {
+  taskId: string
+  policyId: { name: string; version: string }
+  type: string
+  title: string
+  summary: string
+  allowedDecisions: string[]
+  status: string
+  createdAt: string
+  expiresAt: string
+  version: number
+}
+
+export type DeploymentHumanReviewTaskDetail = {
+  task: DeploymentHumanReviewTask
+  requestedInformation: unknown | null
+  suppliedInformation: unknown | null
+  message: string | null
+  outcome: {
+    actionName: string
+    message: string
+    data: Record<string, unknown>
+  } | null
+  successorTaskId: string | null
+  failureReason: string | null
+}
+
+export type DeploymentHumanReviewDecisionResult = {
+  task: DeploymentHumanReviewTask | null
+  outcome: DeploymentHumanReviewTaskDetail['outcome']
+  successorTaskId: string | null
+  failure: {
+    reason: string
+    publicMessage: string
+    retryable: boolean
+  } | null
+}
+
+export type DeploymentAgenticExecution = {
+  executionId: string
+  idempotencyKey?: string
+  chain: string
+  status: string
+  replayed: boolean
+  durable: boolean
+  message: string | null
+  failure: { reason: string; message: string; retryable: boolean } | null
+  results: Array<{
+    specialist: string
+    summary: string
+    facts: Record<string, string>
+    evidenceReferenceIds: string[]
+  }>
+  steps: Array<{
+    decisionIndex: number
+    directiveType: string
+    reason: string
+    workers: Array<{
+      specialist: string
+      relationship: string
+      status: string
+      evidenceReferenceIds: string[]
+      failureReason: string | null
+    }>
+    startedAt: string | null
+    completedAt: string | null
+  }>
+  submittedAt: string | null
+  startedAt: string | null
+  updatedAt: string | null
+  completedAt: string | null
+  deadline: string | null
+}
+
+export type DeploymentSmartBrainOperation = {
+  operationId: string
+  triggerCode: string
+  cloudEventId: string
+  cloudEventType: string
+  status: string
+  operationUrl: string
+  result: unknown
+  failure: { code: string; message: string } | null
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+  expiresAt: string
+  replayed: boolean
+}
+
 export type DeploymentSourceSummary = {
   repository: string
   branch: string
@@ -51,6 +185,7 @@ export type DeploymentSummary = {
   name: string
   environment: string
   templateId: string
+  behaviorType: string
   binding: DeploymentTenantBindingSummary | null
   source: DeploymentSourceSummary
   status: string
@@ -397,6 +532,7 @@ export type DeploymentOverviewSummary = {
   name: string
   environment: string
   templateId: string
+  behaviorType: string
   binding: DeploymentTenantBindingSummary | null
   source: DeploymentSourceSummary
   access: DeploymentWorkspaceAccessSummary
@@ -519,6 +655,29 @@ export type MarketplacePluginContributionSummary = {
   inferenceProfileIds: string[]
   inferenceEndpointProfileRefs: string[]
   inferenceManagedServiceRefs: string[]
+  templateDeploymentBehaviorType: string | null
+  templateDeploymentBehaviorContractVersion: number | null
+  templateRequiredRuntimeCapabilityIds: string[]
+  templateAllowedExecutionExtensions: string[]
+  templateAllowedChannelBindings: string[]
+  templateVerificationPackIds: string[]
+  templateRequiredPluginRefs: string[]
+  specialistContractVersion: string | null
+  specialistCompatibleBehaviorTypes: string[]
+  specialistBundleRefs: MarketplaceSpecialistBundleRefSummary[]
+  specialistRequiredRuntimeCapabilityIds: string[]
+  specialistRequiredMigrationIds: string[]
+  specialistRequiredSecretNames: string[]
+  specialistVerificationPackIds: string[]
+  specialistUnsupportedClaims: string[]
+}
+
+export type MarketplaceSpecialistBundleRefSummary = {
+  bundleId: string
+  contractVersion: string
+  contentHash: string
+  specialistRefs: string[]
+  chainRefs: string[]
 }
 
 export type PlatformManagedInferenceEndpointSummary = {
@@ -1598,6 +1757,7 @@ export type MarketplacePluginVersionSummary = {
     contributesActions: boolean
     contributesKnowledgeSources: boolean
     contributesProviders: boolean
+    contributesSpecialists: boolean
     contributesShellPresentation: boolean
     requiresExternalHttpExecution: boolean
     requiresSharedDatasetAccess: boolean
@@ -1723,6 +1883,7 @@ export type DeploymentMarketplaceInstallImpactSummary = {
   automationWorkflowIds: string[]
   inferenceProfileIds: string[]
   inferenceEndpointProfileRefs: string[]
+  specialistBundleIds: string[]
 }
 
 export type DeploymentMarketplaceImpactSummary = {
@@ -1733,6 +1894,7 @@ export type DeploymentMarketplaceImpactSummary = {
   templatePluginCount: number
   automationPluginCount: number
   inferenceProfilePluginCount: number
+  specialistPluginCount: number
   installedPluginIds: string[]
   actionIds: string[]
   knowledgeSourceIds: string[]
@@ -1741,6 +1903,7 @@ export type DeploymentMarketplaceImpactSummary = {
   automationWorkflowIds: string[]
   inferenceProfileIds: string[]
   inferenceEndpointProfileRefs: string[]
+  specialistBundleIds: string[]
   installs: DeploymentMarketplaceInstallImpactSummary[]
   recommendedPluginIds: string[]
   warnings: string[]
@@ -2476,6 +2639,7 @@ export type DeploymentDraftResponse = {
   knowledgeSourceConfig: unknown
   shellConfig: unknown
   marketplaceDatasetConfig: unknown
+  behaviorConfig: unknown
   entityConfigContractVersion: string | null
   createdAt: string
   updatedAt: string
@@ -2825,6 +2989,42 @@ export type DeploymentVersionSummary = {
   configHash: string
   reindexRequired: boolean
   publishedAt: string
+  entityConfigContractVersion: string | null
+  aiFabricFrameworkVersion: string | null
+  behaviorType: string | null
+  behaviorContractVersion: string | null
+  sourceCapabilityManifestRequired: boolean
+}
+
+export type DeploymentSourceArtifactSummary = {
+  id: string
+  serviceName: string
+  artifactType: string
+  imageRepository: string
+  imageTag: string
+  imageDigest: string | null
+  imageReference: string
+  gitCommitSha: string | null
+  buildRunId: string | null
+  sbomRef: string | null
+  promotionChannel: string | null
+  capabilityManifest: unknown
+  capabilityManifestHash: string | null
+  createdAt: string
+  promotedAt: string | null
+}
+
+export type CreateDeploymentSourceArtifactRequest = {
+  serviceName: string
+  artifactType: 'DOCKER_IMAGE'
+  imageRepository: string
+  imageTag: string
+  imageDigest?: string
+  gitCommitSha?: string
+  buildRunId?: string
+  sbomRef?: string
+  promotionChannel?: string
+  capabilityManifest: unknown
 }
 
 export type DeploymentPlanEnvVarSummary = {
@@ -3659,6 +3859,7 @@ export type CreateDeploymentRequest = {
   vectorProvisioningMode: string
   customerId?: string
   tenantId?: string
+  behaviorType: string
 }
 
 export type UpdateDeploymentTenantBindingRequest = {
@@ -3738,6 +3939,10 @@ export type UpdateDeploymentDraftRequest = {
   providerConfig?: unknown
   securityConfig?: unknown
   promptConfig?: unknown
+  knowledgeSourceConfig?: unknown
+  shellConfig?: unknown
+  marketplaceDatasetConfig?: unknown
+  behaviorConfig?: unknown
 }
 
 export type UpdateDeploymentCuratedModuleRequest = {
@@ -3889,6 +4094,14 @@ export function fetchDeploymentTemplates() {
   return request<DeploymentTemplateSummary[]>('/api/deployment-templates')
 }
 
+export function fetchDeploymentBehaviors() {
+  return request<DeploymentBehaviorSummary[]>('/api/deployment-behaviors')
+}
+
+export function fetchDeploymentExecutionExtensions() {
+  return request<DeploymentExecutionExtensionSummary[]>('/api/deployment-execution-extensions')
+}
+
 export function fetchDeploymentCuratedModules() {
   return request<DeploymentCuratedModuleSummary[]>('/api/deployment-curated-modules')
 }
@@ -4025,6 +4238,97 @@ export function retryDeploymentWebhookDelivery(deploymentId: string, deliveryId:
     {
       method: 'POST',
     },
+  )
+}
+
+export function fetchDeploymentHumanReviewInbox(deploymentId: string, limit = 100) {
+  return request<DeploymentHumanReviewTask[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews?limit=${limit}`,
+  )
+}
+
+export function fetchDeploymentHumanReviewDetail(deploymentId: string, taskId: string) {
+  return request<DeploymentHumanReviewTaskDetail>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews/${encodeURIComponent(taskId)}`,
+  )
+}
+
+export function decideDeploymentHumanReview(
+  deploymentId: string,
+  taskId: string,
+  payload: { decision: 'APPROVE' | 'REJECT'; expectedVersion: number; decisionId: string },
+) {
+  return request<DeploymentHumanReviewDecisionResult>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/human-reviews/${encodeURIComponent(taskId)}/decisions`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function submitDeploymentAgenticExecution(
+  deploymentId: string,
+  payload: { question: string; idempotencyKey?: string },
+) {
+  return request<DeploymentAgenticExecution>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/agentic/executions`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchDeploymentAgenticExecution(deploymentId: string, executionId: string) {
+  return request<DeploymentAgenticExecution>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/agentic/executions/${encodeURIComponent(executionId)}`,
+  )
+}
+
+export function cancelDeploymentAgenticExecution(deploymentId: string, executionId: string) {
+  return request<DeploymentAgenticExecution>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/agentic/executions/${encodeURIComponent(executionId)}/cancel`,
+    { method: 'POST' },
+  )
+}
+
+export function replayDeploymentAgenticExecution(
+  deploymentId: string,
+  executionId: string,
+  payload: { question: string; idempotencyKey?: string },
+) {
+  return request<DeploymentAgenticExecution>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/agentic/executions/${encodeURIComponent(executionId)}/replay`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function triggerDeploymentSmartBrain(
+  deploymentId: string,
+  triggerCode: string,
+  payload: { idempotencyKey?: string; cloudEvent: unknown },
+) {
+  return request<DeploymentSmartBrainOperation>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/smart-brain/triggers/${encodeURIComponent(triggerCode)}`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchDeploymentSmartBrainOperation(deploymentId: string, operationId: string) {
+  return request<DeploymentSmartBrainOperation>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/smart-brain/operations/${encodeURIComponent(operationId)}`,
+  )
+}
+
+export function cancelDeploymentSmartBrainOperation(deploymentId: string, operationId: string) {
+  return request<DeploymentSmartBrainOperation>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/smart-brain/operations/${encodeURIComponent(operationId)}/cancel`,
+    { method: 'POST' },
+  )
+}
+
+export function replayDeploymentSmartBrainOperation(deploymentId: string, operationId: string) {
+  return request<DeploymentSmartBrainOperation>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-operations/smart-brain/operations/${encodeURIComponent(operationId)}/replay`,
+    { method: 'POST' },
   )
 }
 
@@ -4662,6 +4966,34 @@ export function fetchDeploymentProviderConnectivity(deploymentId: string) {
 export function fetchDeploymentTargetProfiles(providerType?: DeploymentProviderType) {
   const suffix = providerType ? `?providerType=${encodeURIComponent(providerType)}` : ''
   return request<DeploymentTargetProfileSummary[]>(`/api/deployment-provider/target-profiles${suffix}`)
+}
+
+export function fetchDeploymentSourceArtifacts(serviceName?: string) {
+  const suffix = serviceName ? `?serviceName=${encodeURIComponent(serviceName)}` : ''
+  return request<DeploymentSourceArtifactSummary[]>(`/api/deployment-provider/source-artifacts${suffix}`)
+}
+
+export function fetchCompatibleDeploymentSourceArtifacts(deploymentId: string, versionId: string) {
+  return request<DeploymentSourceArtifactSummary[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/versions/${encodeURIComponent(versionId)}/compatible-source-artifacts`,
+  )
+}
+
+export function createDeploymentSourceArtifact(payload: CreateDeploymentSourceArtifactRequest) {
+  return request<DeploymentSourceArtifactSummary>('/api/deployment-provider/source-artifacts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function promoteDeploymentSourceArtifact(artifactId: string, promotionChannel = 'staging') {
+  return request<DeploymentSourceArtifactSummary>(
+    `/api/deployment-provider/source-artifacts/${encodeURIComponent(artifactId)}/promote`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ promotionChannel }),
+    },
+  )
 }
 
 export function patchDeploymentTargetProfile(targetProfileId: string, payload: PatchDeploymentTargetProfileRequest) {
@@ -5743,8 +6075,20 @@ export function clearDeploymentProviderSecretBinding(deploymentId: string, secre
   })
 }
 
-export function applyDeploymentVersion(deploymentId: string, versionId: string, targetProfileId?: string) {
-  const suffix = targetProfileId ? `?targetProfileId=${encodeURIComponent(targetProfileId)}` : ''
+export function applyDeploymentVersion(
+  deploymentId: string,
+  versionId: string,
+  targetProfileId?: string,
+  sourceArtifactId?: string,
+) {
+  const params = new URLSearchParams()
+  if (targetProfileId) {
+    params.set('targetProfileId', targetProfileId)
+  }
+  if (sourceArtifactId) {
+    params.set('sourceArtifactId', sourceArtifactId)
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ''
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {
     method: 'POST',
   })
@@ -5755,6 +6099,7 @@ export function applyDeploymentVersionWithApproval(
   versionId: string,
   approvalId?: string,
   targetProfileId?: string,
+  sourceArtifactId?: string,
 ) {
   const params = new URLSearchParams()
   if (approvalId) {
@@ -5762,6 +6107,9 @@ export function applyDeploymentVersionWithApproval(
   }
   if (targetProfileId) {
     params.set('targetProfileId', targetProfileId)
+  }
+  if (sourceArtifactId) {
+    params.set('sourceArtifactId', sourceArtifactId)
   }
   const suffix = params.toString() ? `?${params.toString()}` : ''
   return request<DeploymentReleaseSummary>(`/api/deployments/${deploymentId}/apply/${versionId}${suffix}`, {

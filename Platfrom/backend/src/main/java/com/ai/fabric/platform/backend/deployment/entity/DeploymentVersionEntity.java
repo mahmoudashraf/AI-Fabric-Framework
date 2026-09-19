@@ -17,6 +17,7 @@ public class DeploymentVersionEntity {
         "{\"contractVersion\":\"SHELL_CONFIG_V1\",\"modules\":[],\"cards\":[]}";
     public static final String DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON =
         "{\"contractVersion\":\"MARKETPLACE_DATASET_CONFIG_V1\",\"datasets\":[]}";
+    public static final String DEFAULT_BEHAVIOR_CONFIG_JSON = DeploymentDraftEntity.DEFAULT_BEHAVIOR_CONFIG_JSON;
 
     @Id
     private String id;
@@ -71,6 +72,12 @@ public class DeploymentVersionEntity {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String marketplaceDatasetConfigJson = DEFAULT_MARKETPLACE_DATASET_CONFIG_JSON;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String behaviorConfigJson = DEFAULT_BEHAVIOR_CONFIG_JSON;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String compositionProvenanceJson = "{}";
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String actionsArtifactYaml;
@@ -235,6 +242,22 @@ public class DeploymentVersionEntity {
 
     public void setMarketplaceDatasetConfigJson(String marketplaceDatasetConfigJson) {
         this.marketplaceDatasetConfigJson = marketplaceDatasetConfigJson;
+    }
+
+    public String getBehaviorConfigJson() {
+        return behaviorConfigJson == null ? DEFAULT_BEHAVIOR_CONFIG_JSON : behaviorConfigJson;
+    }
+
+    public void setBehaviorConfigJson(String behaviorConfigJson) {
+        this.behaviorConfigJson = behaviorConfigJson;
+    }
+
+    public String getCompositionProvenanceJson() {
+        return compositionProvenanceJson == null ? "{}" : compositionProvenanceJson;
+    }
+
+    public void setCompositionProvenanceJson(String compositionProvenanceJson) {
+        this.compositionProvenanceJson = compositionProvenanceJson;
     }
 
     public String getActionsArtifactYaml() {

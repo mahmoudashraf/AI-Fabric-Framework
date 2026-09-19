@@ -9,17 +9,18 @@ public record CreateDeploymentRequest(
     String curatedModuleId,
     String vectorProvisioningMode,
     String customerId,
-    String tenantId
+    String tenantId,
+    @NotBlank String behaviorType
 ) {
     public CreateDeploymentRequest(String name, String environment, String templateId) {
-        this(name, environment, templateId, null, null, null, null);
+        this(name, environment, templateId, null, null, null, null, "CONVERSATIONAL");
     }
 
     public CreateDeploymentRequest(String name,
                                    String environment,
                                    String templateId,
                                    String curatedModuleId) {
-        this(name, environment, templateId, curatedModuleId, null, null, null);
+        this(name, environment, templateId, curatedModuleId, null, null, null, "CONVERSATIONAL");
     }
 
     public CreateDeploymentRequest(String name,
@@ -27,6 +28,16 @@ public record CreateDeploymentRequest(
                                    String templateId,
                                    String curatedModuleId,
                                    String vectorProvisioningMode) {
-        this(name, environment, templateId, curatedModuleId, vectorProvisioningMode, null, null);
+        this(name, environment, templateId, curatedModuleId, vectorProvisioningMode, null, null, "CONVERSATIONAL");
+    }
+
+    public CreateDeploymentRequest(String name,
+                                   String environment,
+                                   String templateId,
+                                   String curatedModuleId,
+                                   String vectorProvisioningMode,
+                                   String customerId,
+                                   String tenantId) {
+        this(name, environment, templateId, curatedModuleId, vectorProvisioningMode, customerId, tenantId, "CONVERSATIONAL");
     }
 }

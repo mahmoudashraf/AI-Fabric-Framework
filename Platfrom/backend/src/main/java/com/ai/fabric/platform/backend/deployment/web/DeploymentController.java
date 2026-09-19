@@ -6,6 +6,8 @@ import com.ai.fabric.platform.backend.deployment.model.BulkDeploymentActionRespo
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.CreateDeploymentPromptRevisionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentCuratedModuleSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentExecutionExtensionSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentConfigDiffCenterSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeleteDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentDeletionOperationSummary;
@@ -53,6 +55,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentServiceNavigati
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecretUsageSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSecurityGovernanceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceOfTruthSummary;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentVerificationRolloutSelectionRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentWorkspaceSummary;
 import com.ai.fabric.platform.backend.deployment.model.DraftValidationResponse;
@@ -172,6 +175,16 @@ public class DeploymentController {
     @GetMapping("/deployment-templates")
     public List<DeploymentTemplateSummary> listTemplates() {
         return deploymentService.listTemplates();
+    }
+
+    @GetMapping("/deployment-behaviors")
+    public List<DeploymentBehaviorSummary> listDeploymentBehaviors() {
+        return deploymentService.listDeploymentBehaviors();
+    }
+
+    @GetMapping("/deployment-execution-extensions")
+    public List<DeploymentExecutionExtensionSummary> listDeploymentExecutionExtensions() {
+        return deploymentService.listDeploymentExecutionExtensions();
     }
 
     @GetMapping("/deployment-curated-modules")
@@ -640,6 +653,12 @@ public class DeploymentController {
     @GetMapping("/deployments/{deploymentId}/versions")
     public List<DeploymentVersionSummary> listVersions(@PathVariable String deploymentId) {
         return deploymentService.listVersions(deploymentId);
+    }
+
+    @GetMapping("/deployments/{deploymentId}/versions/{versionId}/compatible-source-artifacts")
+    public List<DeploymentSourceArtifactSummary> listCompatibleSourceArtifacts(@PathVariable String deploymentId,
+                                                                               @PathVariable String versionId) {
+        return deploymentService.listCompatibleSourceArtifacts(deploymentId, versionId);
     }
 
     @GetMapping("/deployments/{deploymentId}/versions/{versionId}/railway-plan")

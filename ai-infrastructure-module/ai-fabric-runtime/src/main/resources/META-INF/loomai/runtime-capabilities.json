@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "loomai-runtime-capabilities-v1",
+  "aiFabricVersion": "0.7.0",
+  "supportedBehaviorTypes": [
+    "AGENTIC_SPECIALIST_TEAM",
+    "CONVERSATIONAL",
+    "SMART_BRAIN"
+  ],
+  "supportedActivationSources": [
+    "AUTHENTICATED_INTERACTIVE",
+    "CLOUD_EVENT",
+    "SCHEDULED",
+    "TRUSTED_APPLICATION"
+  ],
+  "supportedChannelBindings": [
+    "BACKEND_API",
+    "DOCKED_COMPOSER",
+    "INLINE_ASSISTANT",
+    "MAX_MODE",
+    "QUERY_ONCE",
+    "SIGNED_WEBHOOK"
+  ],
+  "supportedExecutionExtensions": [
+    "HUMAN_REVIEW"
+  ],
+  "capabilities": [
+    "ai-fabric-chat-session",
+    "ai-fabric-core",
+    "ai-fabric-execution",
+    "action-proposal-human-review",
+    "cloudevents-ingress",
+    "deployment-result-store",
+    "jdbc-review-state",
+    "jdbc-specialist-chain-state",
+    "smart-brain-durable-operations",
+    "specialist-chains"
+  ],
+  "endpointClasses": [
+    "chat-query",
+    "chain-cancel",
+    "chain-execute",
+    "chain-status-result",
+    "chain-submit",
+    "operation-cancel",
+    "operation-status-result",
+    "query-once",
+    "review-decision",
+    "review-detail",
+    "review-inbox",
+    "review-outcome",
+    "trigger-submit",
+    "session-management"
+  ],
+  "migrationIds": [
+    "ai-action-proposal-receipt-v1",
+    "ai-review-dispatch-v1",
+    "ai-review-task-v1",
+    "ai-specialist-chain-execution-v1",
+    "ai-specialist-execution-v1",
+    "loomai-smart-brain-delivery-v1",
+    "loomai-smart-brain-operation-v1",
+    "loomai-smart-brain-scheduler-v1"
+  ],
+  "verificationPackIds": [
+    "agentic-specialist-team-v1",
+    "conversational-behavior-v1",
+    "human-review-action-proposal-v1",
+    "smart-brain-behavior-v1"
+  ],
+  "specialistBundles": [
+    {
+      "bundleId": "deployment-intelligence-team@1",
+      "contractVersion": "LOOMAI_SOURCE_ATTESTED_SPECIALIST_BUNDLE_V1",
+      "contentHash": "sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8",
+      "behaviorTypes": ["AGENTIC_SPECIALIST_TEAM"],
+      "specialistRefs": [
+        "deployment-intelligence-manager@1",
+        "deployment-knowledge-specialist@1",
+        "deployment-runtime-state-specialist@1"
+      ],
+      "chainRefs": ["deployment-intelligence-team@1"],
+      "resourceLocations": [
+        "classpath:ai-chains/deployment-intelligence-team.yml",
+        "classpath:ai-specialists/deployment-intelligence-team.yml",
+        "classpath:ai-specialists/deployment-knowledge-specialist.yml"
+      ]
+    },
+    {
+      "bundleId": "smart-brain-event-analysis@1",
+      "contractVersion": "LOOMAI_SOURCE_ATTESTED_SPECIALIST_BUNDLE_V1",
+      "contentHash": "sha256:1059173cfb1fe7e0794e971af43d373c4d047a02e9fb50b77c6fe0328094e61d",
+      "behaviorTypes": ["SMART_BRAIN"],
+      "specialistRefs": ["smart-brain-event-analyst@1"],
+      "chainRefs": [],
+      "resourceLocations": ["classpath:ai-specialists/smart-brain-event-analyst.yml"]
+    }
+  ]
+}

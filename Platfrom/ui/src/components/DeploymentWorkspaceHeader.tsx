@@ -33,6 +33,9 @@ import { DEPLOYMENT_WORKSPACE_PATHS, useDeploymentWorkspace } from '../workspace
 
 const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string> = {
   '/overview': 'Overview',
+  '/behavior': 'Behavior',
+  '/behavior-operations': 'Behavior Runs',
+  '/human-review': 'Human Review',
   '/activity': 'Activity',
   '/actions': 'Actions',
   '/approvals': 'Approvals',
@@ -239,6 +242,7 @@ export function DeploymentWorkspaceHeader() {
               <>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip label={`Environment: ${workspace.deployment.environment}`} variant="outlined" />
+                  <Chip label={`Behavior: ${workspace.deployment.behaviorType.replace(/_/g, ' ')}`} variant="outlined" />
                   <Chip label={`Template: ${workspace.template.name}`} variant="outlined" />
                   <Chip label={`Role: ${workspace.access.assignmentRole}`} variant="outlined" />
                   <Chip label={workspace.deployment.status} color="primary" />

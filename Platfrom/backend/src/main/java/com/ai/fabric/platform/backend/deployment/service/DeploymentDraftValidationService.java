@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.deployment.behavior.DeploymentBehaviorCatalogService;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentDraftEntity;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractIssue;
 import com.ai.fabric.platform.backend.deployment.entityconfig.EntityConfigContractService;
@@ -69,9 +70,16 @@ public class DeploymentDraftValidationService {
     private final PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService;
     private final PlatformManagedInferenceServiceService platformManagedInferenceServiceService;
     private final EntityConfigContractService entityConfigContractService;
+    private final DeploymentBehaviorCatalogService deploymentBehaviorCatalogService;
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper) {
-        this(objectMapper, null, null, new EntityConfigContractService(objectMapper));
+        this(
+            objectMapper,
+            null,
+            null,
+            new EntityConfigContractService(objectMapper),
+            new DeploymentBehaviorCatalogService(objectMapper)
+        );
     }
 
     public DeploymentDraftValidationService(ObjectMapper objectMapper,
@@ -80,7 +88,8 @@ public class DeploymentDraftValidationService {
             objectMapper,
             platformManagedInferenceEndpointService,
             null,
-            new EntityConfigContractService(objectMapper)
+            new EntityConfigContractService(objectMapper),
+            new DeploymentBehaviorCatalogService(objectMapper)
         );
     }
 
@@ -91,7 +100,8 @@ public class DeploymentDraftValidationService {
             objectMapper,
             platformManagedInferenceEndpointService,
             platformManagedInferenceServiceService,
-            new EntityConfigContractService(objectMapper)
+            new EntityConfigContractService(objectMapper),
+            new DeploymentBehaviorCatalogService(objectMapper)
         );
     }
 
@@ -99,14 +109,20 @@ public class DeploymentDraftValidationService {
     public DeploymentDraftValidationService(ObjectMapper objectMapper,
                                             PlatformManagedInferenceEndpointService platformManagedInferenceEndpointService,
                                             PlatformManagedInferenceServiceService platformManagedInferenceServiceService,
-                                            EntityConfigContractService entityConfigContractService) {
+                                            EntityConfigContractService entityConfigContractService,
+                                            DeploymentBehaviorCatalogService deploymentBehaviorCatalogService) {
         this.objectMapper = objectMapper;
         this.platformManagedInferenceEndpointService = platformManagedInferenceEndpointService;
         this.platformManagedInferenceServiceService = platformManagedInferenceServiceService;
         this.entityConfigContractService = entityConfigContractService;
+        this.deploymentBehaviorCatalogService = deploymentBehaviorCatalogService;
     }
 
     public DraftValidationResponse validate(DeploymentDraftEntity draft) {
+        return validate(draft, null);
+    }
+
+    public DraftValidationResponse validate(DeploymentDraftEntity draft, String expectedBehaviorType) {
         try {
             JsonNode actionsNode = objectMapper.readTree(draft.getActionsConfigJson());
             JsonNode entityNode = objectMapper.readTree(draft.getEntityConfigJson());
@@ -117,6 +133,7 @@ public class DeploymentDraftValidationService {
             JsonNode knowledgeSourceNode = objectMapper.readTree(draft.getKnowledgeSourceConfigJson());
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
             JsonNode marketplaceDatasetNode = objectMapper.readTree(draft.getMarketplaceDatasetConfigJson());
+            JsonNode behaviorNode = objectMapper.readTree(draft.getBehaviorConfigJson());
 
             List<DraftValidationIssue> issues = new ArrayList<>();
             ActionValidationSummary actionValidation = validateActions(actionsNode, issues);
@@ -130,6 +147,7 @@ public class DeploymentDraftValidationService {
             validateShellConfig(shellNode, issues);
             validateMarketplaceDatasetConfig(marketplaceDatasetNode, issues);
             validateKnowledgeSourceDatasetRefs(knowledgeSourceNode, marketplaceDatasetNode, issues);
+            validateBehavior(behaviorNode, expectedBehaviorType, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
             int warningCount = countBySeverity(issues, "WARNING");
@@ -162,6 +180,26 @@ public class DeploymentDraftValidationService {
                 Instant.now(),
                 issues
             );
+        }
+    }
+
+    private void validateBehavior(JsonNode behaviorNode,
+                                  String expectedBehaviorType,
+                                  List<DraftValidationIssue> issues) {
+        String behaviorType = expectedBehaviorType == null || expectedBehaviorType.isBlank()
+            ? behaviorNode == null ? "" : behaviorNode.path("type").asText("")
+            : expectedBehaviorType;
+        DeploymentBehaviorCatalogService.Validation validation = deploymentBehaviorCatalogService.validate(
+            behaviorNode,
+            behaviorType
+        );
+        if (!validation.valid()) {
+            issues.add(error(
+                "behavior",
+                validation.code(),
+                "$.behaviorConfig",
+                validation.message()
+            ));
         }
     }
 

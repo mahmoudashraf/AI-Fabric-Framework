@@ -330,6 +330,7 @@ public class PublicProvisioningApiService {
             overview.name(),
             overview.environment(),
             overview.templateId(),
+            overview.behaviorType(),
             overview.binding(),
             overview.source(),
             overview.access(),
@@ -563,6 +564,13 @@ public class PublicProvisioningApiService {
         return version == null ? objectMapper.createObjectNode() : readJson(version.getSecurityConfigJson());
     }
 
+    private com.fasterxml.jackson.databind.JsonNode latestPublishedBehaviorConfig(String deploymentId) {
+        DeploymentVersionEntity version = deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(deploymentId).stream()
+            .findFirst()
+            .orElse(null);
+        return version == null ? objectMapper.createObjectNode() : readJson(version.getBehaviorConfigJson());
+    }
+
     private PublicDeploymentAccessSummary accessSummary(DeploymentOverviewSummary overview,
                                                         com.fasterxml.jackson.databind.JsonNode securityConfig) {
         String runtimeBaseUrl = overview.runtimeBaseUrl();
@@ -642,7 +650,11 @@ public class PublicProvisioningApiService {
             hostBackedRuntimeRequired,
             false
         );
-        PublicRuntimeEndpointsSummary runtime = runtimeEndpoints(runtimeBaseUrl);
+        PublicRuntimeEndpointsSummary runtime = runtimeEndpoints(
+            runtimeBaseUrl,
+            overview.behaviorType(),
+            latestPublishedBehaviorConfig(overview.id())
+        );
         PublicTrustedBackendAccessSummary trustedBackend = new PublicTrustedBackendAccessSummary(
             runtimeBaseUrl != null && trustedBackendConfigured,
             runtimeBaseUrl != null && trustedBackendConfigured ? RUNTIME_TRUSTED_BACKEND_HEADER : null,
@@ -821,19 +833,35 @@ public class PublicProvisioningApiService {
         );
     }
 
-    private PublicRuntimeEndpointsSummary runtimeEndpoints(String runtimeBaseUrl) {
+    private PublicRuntimeEndpointsSummary runtimeEndpoints(String runtimeBaseUrl,
+                                                           String behaviorType,
+                                                           JsonNode behaviorConfig) {
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        boolean conversational = "CONVERSATIONAL".equals(behaviorType);
+        boolean agentic = "AGENTIC_SPECIALIST_TEAM".equals(behaviorType);
+        boolean smartBrain = "SMART_BRAIN".equals(behaviorType);
+        boolean humanReview = textValues(behaviorConfig.path("executionExtensions")).contains("HUMAN_REVIEW");
         return new PublicRuntimeEndpointsSummary(
-            blankToNull(runtimeBaseUrl),
+            conversational ? baseUrl : null,
             null,
-            preferredChatQueryUrl(runtimeBaseUrl),
-            preferredQueryOnceUrl(runtimeBaseUrl),
-            preferredSuggestionsUrl(runtimeBaseUrl),
-            preferredConversationsUrl(runtimeBaseUrl),
-            preferredConversationItemUrlTemplate(runtimeBaseUrl),
-            blankToNull(runtimeBaseUrl),
+            conversational ? preferredChatQueryUrl(runtimeBaseUrl) : null,
+            conversational ? preferredQueryOnceUrl(runtimeBaseUrl) : null,
+            conversational ? preferredSuggestionsUrl(runtimeBaseUrl) : null,
+            conversational ? preferredConversationsUrl(runtimeBaseUrl) : null,
+            conversational ? preferredConversationItemUrlTemplate(runtimeBaseUrl) : null,
+            baseUrl,
             preferredRuntimeHealthUrl(runtimeBaseUrl),
             preferredAuthContextUrl(runtimeBaseUrl),
-            preferredAuthOverviewUrl(runtimeBaseUrl)
+            preferredAuthOverviewUrl(runtimeBaseUrl),
+            agentic && baseUrl != null ? baseUrl + "/api/agentic/v1/execute" : null,
+            agentic && baseUrl != null ? baseUrl + "/api/agentic/v1/executions" : null,
+            agentic && baseUrl != null ? baseUrl + "/api/agentic/v1/executions/{executionId}" : null,
+            smartBrain && baseUrl != null ? baseUrl + "/api/smart-brain/v1/triggers/{triggerCode}" : null,
+            smartBrain && baseUrl != null ? baseUrl + "/api/smart-brain/v1/operations/{operationId}" : null,
+            humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/action-proposals/{receiptId}" : null,
+            humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/tasks" : null,
+            humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/tasks/{taskId}" : null,
+            humanReview && baseUrl != null ? baseUrl + "/api/reviews/v1/tasks/{taskId}/decisions" : null
         );
     }
 
@@ -842,7 +870,23 @@ public class PublicProvisioningApiService {
     }
 
     private PublicRuntimeEndpointsSummary emptyRuntimeEndpoints() {
-        return new PublicRuntimeEndpointsSummary(null, null, null, null, null, null, null, null, null, null, null);
+        return new PublicRuntimeEndpointsSummary(
+            null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null
+        );
+    }
+
+    private java.util.Set<String> textValues(JsonNode values) {
+        java.util.LinkedHashSet<String> result = new java.util.LinkedHashSet<>();
+        if (values != null && values.isArray()) {
+            values.forEach(value -> {
+                String text = value.asText("").trim();
+                if (!text.isEmpty()) {
+                    result.add(text);
+                }
+            });
+        }
+        return java.util.Set.copyOf(result);
     }
 
     private PublicTrustedBackendAccessSummary emptyTrustedBackend() {

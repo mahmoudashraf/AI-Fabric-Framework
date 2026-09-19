@@ -435,6 +435,7 @@ public class DeploymentMarketplaceInstallService {
         int templatePluginCount = 0;
         int automationPluginCount = 0;
         int inferenceProfilePluginCount = 0;
+        int specialistPluginCount = 0;
 
         for (DeploymentMarketplacePluginInstallEntity install : installs) {
             MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
@@ -461,6 +462,7 @@ public class DeploymentMarketplaceInstallService {
                 case "DATA" -> dataPluginCount++;
                 case "AUTOMATION" -> automationPluginCount++;
                 case "INFERENCE_PROFILE" -> inferenceProfilePluginCount++;
+                case "SPECIALIST" -> specialistPluginCount++;
                 case "TEMPLATE" -> {
                     templatePluginCount++;
                     if (!"BOOTSTRAPPED".equalsIgnoreCase(install.getStatus())) {
@@ -485,7 +487,10 @@ public class DeploymentMarketplaceInstallService {
                 contribution.shellCardIds(),
                 contribution.automationWorkflowIds(),
                 contribution.inferenceProfileIds(),
-                contribution.inferenceEndpointProfileRefs()
+                contribution.inferenceEndpointProfileRefs(),
+                contribution.specialistBundleRefs().stream()
+                    .map(com.ai.fabric.platform.backend.marketplace.model.MarketplaceSpecialistBundleRefSummary::bundleId)
+                    .toList()
             ));
         }
 
@@ -497,6 +502,7 @@ public class DeploymentMarketplaceInstallService {
             templatePluginCount,
             automationPluginCount,
             inferenceProfilePluginCount,
+            specialistPluginCount,
             List.copyOf(pluginIds),
             List.copyOf(actionIds),
             List.copyOf(knowledgeSourceIds),
@@ -505,6 +511,7 @@ public class DeploymentMarketplaceInstallService {
             installImpacts.stream().flatMap(item -> item.automationWorkflowIds().stream()).distinct().toList(),
             installImpacts.stream().flatMap(item -> item.inferenceProfileIds().stream()).distinct().toList(),
             installImpacts.stream().flatMap(item -> item.inferenceEndpointProfileRefs().stream()).distinct().toList(),
+            installImpacts.stream().flatMap(item -> item.specialistBundleIds().stream()).distinct().toList(),
             List.copyOf(installImpacts),
             List.copyOf(recommendedPluginIds),
             List.copyOf(warnings)
@@ -790,6 +797,13 @@ public class DeploymentMarketplaceInstallService {
                 }
             });
         }
+        if ("SPECIALIST".equals(parsed.pluginType())
+            && !parsed.contributions().specialistCompatibleBehaviorTypes().contains(deployment.getBehaviorType())) {
+            warnings.add(
+                "Incompatible deployment behavior. Specialist supports: "
+                    + String.join(", ", parsed.contributions().specialistCompatibleBehaviorTypes()) + "."
+            );
+        }
         if (containsSharedIndexContribution(parsed)) {
             String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerConfig);
             String vectorProvisioningMode = ManagedDeploymentProfileCatalog.resolveVectorProvisioningMode(providerConfig);
@@ -914,7 +928,8 @@ public class DeploymentMarketplaceInstallService {
         return containsInstallId(readJson(version.getActionsConfigJson()), installId)
             || containsInstallId(readJson(version.getKnowledgeSourceConfigJson()), installId)
             || containsInstallId(readJson(version.getShellConfigJson()), installId)
-            || containsInstallId(readJson(version.getProviderConfigJson()), installId);
+            || containsInstallId(readJson(version.getProviderConfigJson()), installId)
+            || containsInstallId(readJson(version.getBehaviorConfigJson()), installId);
     }
 
     private boolean containsInstallId(JsonNode node, String installId) {
