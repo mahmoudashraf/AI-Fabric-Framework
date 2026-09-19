@@ -2375,10 +2375,12 @@ Critical fixes that made the gate pass:
   `/tmp/loomai-m2-0.7.0.9mxI6q`; its `164` tests passed using Maven Central
   artifacts. The boot JAR contains `ai-fabric-execution-0.7.0.jar` and all
   other AI Fabric libraries at `0.7.0`; no `0.6.1` framework JAR is packaged.
-- Source upgrade and hosted fleet truth remain separate. The private source
-  target is now `0.7.0`, but the last verified live fleet remains the prior
-  V04 `0.6.1` rollout until this work is committed, deployed, and the hosted
-  Gate A version/health/direct-specialist/isolation/regression checks pass.
+- Source upgrade and hosted fleet truth were verified separately. Private
+  commit `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264` was pushed to
+  `origin/Platform-V11`; all supported staging and production runtime families
+  were then published and applied through V04. Live environment readback is
+  `AI_FABRIC_FRAMEWORK_VERSION=0.7.0` and
+  `AI_EXECUTION_SPECIALIST_CHAINS_ENABLED=false` for every applied release.
 - Renamed the implementation companion to
   `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_22_AI_FABRIC_0_7_0_LOOMAI_PLATFORM_PRODUCTIZATION_IMPLEMENTATION_PLAN.md`
   and aligned canonical `010.21` with the released official
@@ -2397,6 +2399,33 @@ Critical fixes that made the gate pass:
   Product Profile aggregate, or parallel release lifecycle. Java chain code is
   reserved for application invariants the official declarative contract cannot
   express.
-- Pending at this record: create the immutable private commit, perform the
-  hosted Gate A rollout, and record its exact release/deployment evidence.
-  Do not begin Gate B or Gate C before that review point.
+- Gate A hosted rollout is complete. Staging releases are Marketplace
+  `rel-c16e267e`, Ecommerce `rel-235185ed`, and Shopify `rel-45ae6acf`;
+  production releases are Marketplace `rel-ae6b1d12`, Ecommerce
+  `rel-667353a7`, ProdUS `rel-ed852b3e`, and Shopify `rel-6ec95cf0`. Every
+  release is `APPLIED_VERIFIED`, its verification passed, provisioning is
+  active, runtime health is `UP`, and Coolify reached terminal `finished`.
+- Staging two-deployment specialist proof passed with isolated temporary facts:
+  each deployment returned only its own fact, cross-deployment requests leaked
+  no foreign evidence, missing runtime auth returned `401`, missing trusted
+  tenant/deployment claims returned `403`, and incorrect trusted boundaries
+  returned no evidence. Temporary canary documents were deleted afterward.
+- ProdUS assignment resolves through both supported assignment hostnames to
+  `dep-f6abfa06`. Its live Milvus index reports `203` documents across `14`
+  entity types, including `90` service modules and `15` package templates. A
+  strict query returned `service-module:api-security-review` with tenant
+  `ten-bf9f61fb` and deployment `dep-f6abfa06`; a wrong-tenant query returned
+  no evidence. No ProdUS-side configuration change was required.
+- Canonical suites passed in staging (`vsr-8df8715d`) and production
+  (`vsr-da3641f3`). Fresh Partner and Thinker suites passed in staging
+  (`vsr-dd47edb2`, `vsr-cbb44501`) and production (`vsr-19240cf6`,
+  `vsr-bc98e4d9`) after safely refreshing the existing short-lived test JWT.
+- Full aggregate suites remain honestly non-green: staging `vsr-8e8306d3`
+  passed stages 1-8 and scored `8/11`; production `vsr-c9bb743e` passed stages
+  1-8 and scored `9/11`. Both fail only the owner-deferred Shopify
+  first-product answer-quality stage. This is an accepted framework-upgrade
+  exception, not a `PASSED` aggregate release gate.
+- The durable migration record is
+  `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_0_7_0_PLATFORM_MIGRATION/README.md`.
+  Gate B schema work, Gate C one-worker mechanics, and Gate D real
+  multi-specialist product adoption remain unstarted.

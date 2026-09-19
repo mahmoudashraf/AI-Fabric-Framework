@@ -1,6 +1,6 @@
 # 010.22 AI Fabric 0.7.0 Behavior-Aware Platform Composition Implementation Plan
 
-Status: implementation plan created on 2026-09-15, corrected on 2026-09-18 to make customer products customer-owned and reuse the existing Marketplace/V04 primitives, and aligned on 2026-09-19 with the released AI Fabric `0.7.0` declarative bounded-chain contract. No item is complete merely because AI Fabric exposes the underlying primitive. Completion requires the private runtime, existing Platform workflow, hosted verification, and operations described here.
+Status: implementation plan created on 2026-09-15, corrected on 2026-09-18 to make customer products customer-owned and reuse the existing Marketplace/V04 primitives, aligned on 2026-09-19 with the released AI Fabric `0.7.0` declarative bounded-chain contract, and updated after Gate A completed across the hosted fleet. No productization item is complete merely because AI Fabric exposes the underlying primitive. Completion requires the private runtime, existing Platform workflow, hosted verification, and operations described here.
 
 Canonical architecture:
 
@@ -108,15 +108,15 @@ Smart Brain execution remains read-only in the first released contract. It may e
 
 ### 3.4 Current evidence status
 
-`010.21` records the last verified hosted fleet baseline separately from the current `0.7.0` source target. Historical rollout detail remains in the working/private handoff records.
+`010.21` records the source and hosted fleet baseline separately. Historical rollout detail remains in the working/private handoff records.
 
 Current operational truth is:
 
-- all supported private runtime families use AI Fabric `0.6.1`;
-- the private source tree targets AI Fabric `0.7.0`, keeps specialist chains disabled, passes all three local Maven reactors, and passes an isolated-cache runtime build from Maven Central;
-- no hosted runtime may be described as `0.7.0` until an immutable private commit is deployed and the Gate A hosted checks pass;
+- all supported private runtime families now use AI Fabric `0.7.0` from immutable private commit `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264`;
+- specialist chains remain disabled across source defaults, generated deployment configuration, and live runtime readback;
+- all seven supported staging/production runtime-family releases are `APPLIED_VERIFIED`, healthy, and backed by terminal-success Coolify deployments;
 - ProdUS is assigned to verified deployment `dep-f6abfa06`;
-- staging and production canonical Platform, Marketplace, Partner, Thinker, and hosted checks passed;
+- staging and production canonical, Partner, Thinker, direct-specialist, isolation, and ProdUS grounded retrieval checks passed;
 - aggregate release suites still report failure only for the explicitly owner-deferred Shopify retrieval-quality stage;
 - that exception permits the framework rollout but must not be relabeled as a fully green aggregate release gate.
 
@@ -126,12 +126,12 @@ The framework runbook deliberately separates release adoption from chain product
 
 | Gate | Scope | Current status | Exit evidence |
 | --- | --- | --- | --- |
-| A. Base release | Upgrade every private dependency/default to `0.7.0`; keep `AI_EXECUTION_SPECIALIST_CHAINS_ENABLED=false`; add no chain resource, table, secret, or route | Local source and verification complete; immutable commit and hosted rollout pending | Central-only package proof, exact runtime JAR inventory, hosted version/health, direct deployment-knowledge success, missing-boundary denial, two-tenant/two-deployment isolation, existing capability regression |
+| A. Base release | Upgrade every private dependency/default to `0.7.0`; keep `AI_EXECUTION_SPECIALIST_CHAINS_ENABLED=false`; add no chain resource, table, secret, or route | **COMPLETE** at private commit `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264` | Central-only package proof, exact runtime JAR inventory, seven verified V04 releases, hosted version/health, direct deployment-knowledge success, missing-boundary denial, two-tenant/two-deployment isolation, ProdUS retrieval, and existing capability regression passed |
 | B. Schema preparation | Add deployment-local `ai_specialist_chain_execution` migration while chains remain disabled | Not started | Migration applies idempotently, runtime still starts with chains disabled, no secret or chain resource required, rollback/redeploy evidence recorded |
-| C. Declarative mechanics canary | Package one reviewed one-worker chain using `deployment-knowledge-specialist@1`, stable private secrets, JDBC persistence, and deployment-local route/status projection | Not started; blocked on Gate A and Gate B evidence | Offline validation, startup/readback hashes, direct baseline parity, trusted-context denial, replay/restart/cancel/definition-drift/provider-failure canaries |
+| C. Declarative mechanics canary | Package one reviewed one-worker chain using `deployment-knowledge-specialist@1`, stable private secrets, JDBC persistence, and deployment-local route/status projection | Not started; blocked on Gate B and a reviewed Gate C start decision | Offline validation, startup/readback hashes, direct baseline parity, trusted-context denial, replay/restart/cancel/definition-drift/provider-failure canaries |
 | D. Product chain | Introduce a real multi-specialist chain only when a genuinely distinct second read-only worker exists | Product decision pending | At least two distinct responsibilities, exact closed targets, hosted V04 proof, Marketplace/V04 packaging, full Agentic gate matrix |
 
-Stop after Gate A and record its hosted evidence before beginning Gate B or C. A one-worker Gate C canary proves mechanics only; it is not an Agentic Specialist Team market claim.
+The required stop after Gate A has occurred and its hosted evidence is recorded. Gate B and Gate C require a new reviewed start decision. A one-worker Gate C canary proves mechanics only; it is not an Agentic Specialist Team market claim.
 
 ## 4. Capability Maturity Model
 
@@ -752,7 +752,7 @@ Depends on: WP1 and shared runtime identity/storage work. WP2 should establish t
 Tasks:
 
 - select one design-partner canary, preferably deployment/incident investigation or account/support resolution;
-- complete Gate A and stop for evidence review;
+- use the completed Gate A release as the immutable chain-disabled baseline;
 - complete Gate B by adding the deployment-local PostgreSQL migration while chains remain disabled;
 - complete Gate C with one private-source, one-worker declarative mechanics canary over `deployment-knowledge-specialist@1`;
 - define a genuinely distinct second read-only specialist responsibility before Gate D;
@@ -890,7 +890,7 @@ Why this order:
 
 ## 15. First Implementation Batch
 
-The `0.7.0` release-adoption batch is Gate A and is deliberately separate from productization:
+The `0.7.0` release-adoption batch is Gate A and is deliberately separate from productization. It is complete:
 
 1. pin all private source and generated deployment defaults to `0.7.0`;
 2. keep chains disabled everywhere;
@@ -900,6 +900,13 @@ The `0.7.0` release-adoption batch is Gate A and is deliberately separate from p
 6. commit and deploy one immutable private source revision;
 7. run the hosted Gate A version, health, direct-specialist, isolation, and existing-capability regression matrix;
 8. stop and record evidence before Gate B or C.
+
+Completion evidence is recorded in
+`Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_0_7_0_PLATFORM_MIGRATION/README.md`.
+No chain migration, resource, private chain secret, route, or selectable chain
+product was introduced. The aggregate gate remains non-green only for the
+owner-deferred Shopify first-product answer-quality stage; that exception does
+not weaken or overstate the Gate A migration result.
 
 The first Platform productization batch after Gate A should be deliberately narrow:
 
@@ -986,6 +993,6 @@ The program is complete when:
 
 Proceed through one behavior-aware extension of the existing Marketplace/V04 composition path and three built-in deployment behavior types.
 
-The immediate release target is AI Fabric `0.7.0` Gate A with chains disabled. After its hosted evidence is recorded, the Platform build target is the minimal behavior/provenance extension, governed `SPECIALIST` contribution type, and one generic Conversational Assistant Marketplace template. Adopt declarative chain mechanics through Gates B and C, then productize a bounded Agentic Specialist Team only when a genuinely distinct second worker exists. Productize Smart Brain only after its existing strategy gate, using deployment-local CloudEvents, durable read execution, direct operation APIs, and deployment-owned result delivery.
+AI Fabric `0.7.0` Gate A is the completed chain-disabled baseline. The next Platform build target is the minimal behavior/provenance extension, governed `SPECIALIST` contribution type, and one generic Conversational Assistant Marketplace template. Adopt declarative chain mechanics only through separately approved Gates B and C, then productize a bounded Agentic Specialist Team only when a genuinely distinct second worker exists. Productize Smart Brain only after its existing strategy gate, using deployment-local CloudEvents, durable read execution, direct operation APIs, and deployment-owned result delivery.
 
 This sequence lets Platform users create their own AI products from the complete AI Fabric capability set without exposing framework internals as products, weakening authority, duplicating catalogues/lifecycles, or creating vertical runtime forks.

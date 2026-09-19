@@ -55,11 +55,14 @@ execution behavior and adds official immutable `ai.fabric/v1`
 Java/manifest registry and gateway, source-aware runtime status and hashes,
 and fail-closed declarative-chain loading.
 
-Source target and hosted-fleet truth are separate. The private source has been
-upgraded and locally verified against `0.7.0`; the last verified hosted fleet
-remains `0.6.1` until an immutable private commit is deployed and Gate A hosted
-checks pass. Never infer the live version from the source POM or relabel the
-fleet before readback evidence exists.
+Source target and hosted-fleet truth are separate. AI Fabric `0.7.0` Gate A is
+now complete at private commit
+`2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264`: the supported staging and
+production runtime families were published and applied through V04, live
+readback reports `0.7.0`, and specialist chains remain disabled. Never infer a
+future live version from the source POM or relabel the fleet before readback
+evidence exists. The canonical Gate A record is
+`Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_0_7_0_PLATFORM_MIGRATION/README.md`.
 
 The private runtime and embedding worker must each resolve one AI Fabric
 version. Docker/CI builds consume released Maven artifacts and must not clone
@@ -70,14 +73,15 @@ evidence.
 Platform uses the V04 entity lifecycle contract. The migration is greenfield
 and one-way: do not add dual readers, compatibility shims, or version
 fallbacks. Preserve immutable historical deployment records as evidence.
-Keep `ai-fabric-execution` in the private runtime. The required `0.7.0` Gate A
+Keep `ai-fabric-execution` in the private runtime. The completed `0.7.0` Gate A
 rollout preserves existing behavior with
 `ai.execution.output-finalization.max-attempts=1` and
 `ai.execution.specialist-chains.enabled=false`. Do not add chain tables,
-secrets, endpoints, or product claims as part of the dependency upgrade.
+secrets, endpoints, or product claims retroactively to that dependency upgrade.
 Gate B schema preparation, Gate C one-worker declarative mechanics canary, and
 Gate D real multi-specialist product adoption are separate reviewed decisions.
-Stop and record evidence after Gate A before beginning Gate B or C.
+Gate A evidence is recorded; Gate B and Gate C remain unstarted and require a
+new reviewed decision before implementation.
 
 The private runtime indexing admin facade uses `IndexingWorkQuery` and
 `IndexingWorkStatus` for durable per-work Data Sync reconciliation. Keep the
@@ -92,6 +96,12 @@ Before promotion, rebuild from an empty Central-only Maven cache, verify the
 packaged execution JAR is `0.7.0`, and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
+
+For the completed `0.7.0` rollout, canonical staging and production suites,
+Partner, Thinker, direct specialist, isolation, and ProdUS grounded retrieval
+passed. The aggregate full suites remain `FAILED` only at the explicitly
+owner-deferred Shopify first-product answer-quality stage. That accepted
+upgrade exception does not make the aggregate release gate green.
 
 For Coolify applies, a healthy pre-existing application is not deployment
 completion evidence. When Coolify returns a deployment UUID, poll that exact

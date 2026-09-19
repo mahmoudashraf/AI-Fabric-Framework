@@ -306,3 +306,13 @@ Current P0 cleanup items:
   plugin versions; V04 remains immutable deployment truth. Java chain code is
   reserved for genuine application invariants the declarative contract cannot
   express.
+- 2026-09-19: AI Fabric `0.7.0` Gate A is complete and supersedes the earlier
+  same-day hosted-fleet-pending statement. Private commit
+  `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264` is live across the supported
+  staging and production runtime families through verified V04 releases;
+  live readback reports `0.7.0` with specialist chains disabled. Canonical,
+  Partner, Thinker, direct-specialist, isolation, and ProdUS grounded
+  retrieval checks passed. The full aggregate suites remain non-green only at
+  the owner-deferred Shopify first-product answer-quality stage and must still
+  be reported as failed. Gates B, C, and D remain unstarted; declarative chains
+  are framework-available, not yet a selectable or market-ready LoomAI product.

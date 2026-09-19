@@ -1,6 +1,6 @@
 # 010.21 Consolidated LoomAI Customer Product And Deployment Behavior Architecture
 
-Status: canonical consolidated plan created on 2026-08-01, corrected to deployment-local Smart Brain integration on 2026-08-04, corrected on 2026-09-18 so customer AI products are composed through the existing Platform primitives rather than modeled as LoomAI-owned products or a parallel product-profile lifecycle, and aligned on 2026-09-19 with AI Fabric `0.7.0` declarative bounded specialist chains. Existing framework and hosted capabilities are evidence; new behavior-aware Marketplace contributions and runtime contracts remain planned until implemented and verified.
+Status: canonical consolidated plan created on 2026-08-01, corrected to deployment-local Smart Brain integration on 2026-08-04, corrected on 2026-09-18 so customer AI products are composed through the existing Platform primitives rather than modeled as LoomAI-owned products or a parallel product-profile lifecycle, aligned on 2026-09-19 with AI Fabric `0.7.0` declarative bounded specialist chains, and updated after the hosted `0.7.0` Gate A rollout completed. Existing framework and hosted capabilities are evidence; new behavior-aware Marketplace contributions and runtime contracts remain planned until implemented and verified.
 
 The historical filename is retained so existing documentation links do not break. The architecture below explicitly rejects a separate `Product Profile` aggregate.
 
@@ -219,12 +219,12 @@ Maturity labels used throughout this document:
 ### 4.3 Current source and hosted-fleet evidence baseline
 
 - Current framework release target: immutable Maven Central `0.7.0`, tag `ai-fabric-framework-v0.7.0`, release commit `5b075b66384dc5b756b3b3dd12efaf896ce9a50b`, documentation commit `7ac32985`.
-- The private source tree targets `0.7.0`, keeps chains disabled, passes the product, runtime/services, and Platform backend Maven reactors, and passes an isolated-cache Maven Central runtime build. The packaged runtime contains `ai-fabric-execution-0.7.0.jar` and no `0.6.1` framework JAR.
-- The last verified hosted fleet evidence remains the V04 `0.6.1` rollout until an immutable private `0.7.0` commit is deployed and Gate A hosted checks pass. Do not merge source-target and live-fleet claims.
-- The last verified `0.6.1` private rollout source was `Platform-V11` commit `d9edc5816696a2b35ff727c49eecc004e11a6820`; its backend suite passed `737/737`.
+- Private commit `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264` targets `0.7.0`, keeps chains disabled, passes the product, runtime/services, and Platform backend Maven reactors, and passes an isolated-cache Maven Central runtime build. The packaged runtime contains `ai-fabric-execution-0.7.0.jar` and no `0.6.1` framework JAR.
+- Gate A hosted fleet evidence now matches that source identity. All supported staging and production runtime families were published and applied through verified V04 releases; live readback reports `0.7.0` with specialist chains disabled.
+- The prior `0.6.1` rollout remains immutable historical evidence only. It is no longer the active supported fleet baseline.
 - ProdUS assignment resolves to `dep-f6abfa06`; corrected managed projection reindex completed `198/198`, and the strict grounded canary returned the expected service-module evidence.
-- Canonical hosted, Platform admin, Marketplace, Partner, and Thinker suites passed in staging and production.
-- Full aggregate runs `vsr-605c9b21` and `vsr-ddb39f72` remain failed only at the owner-deferred Shopify retrieval-quality stage. They must not be relabeled green.
+- Canonical suites passed in staging (`vsr-8df8715d`) and production (`vsr-da3641f3`); Partner and Thinker suites passed in staging (`vsr-dd47edb2`, `vsr-cbb44501`) and production (`vsr-19240cf6`, `vsr-bc98e4d9`).
+- Full aggregate runs `vsr-8e8306d3` and `vsr-c9bb743e` passed stages 1-8 and remain failed only at the owner-deferred Shopify first-product answer-quality stage. They must not be relabeled green.
 
 These facts prove the shared foundation. They do not prove the planned Agentic Specialist Team or Smart Brain Platform deployment types, nor every future template/plugin composition.
 
@@ -1092,7 +1092,7 @@ Behavior and pack proof examples:
 
 ## 15. Delivery Sequence
 
-### P-1: AI Fabric 0.7.0 Gate A base adoption
+### P-1: AI Fabric 0.7.0 Gate A base adoption - COMPLETE
 
 1. Upgrade every private framework dependency, generated deployment default, and active assertion to `0.7.0`.
 2. Keep `AI_EXECUTION_SPECIALIST_CHAINS_ENABLED=false` and add no chain resource, table, secret, or route.
@@ -1108,9 +1108,20 @@ Exit:
 - the source target and hosted fleet report the same immutable framework/private identities;
 - no chain persistence or secret is required by the base release.
 
+Completion record:
+
+- immutable private source: `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264`;
+- seven supported runtime-family releases reached `APPLIED_VERIFIED` with live `0.7.0` readback and chains disabled;
+- direct specialist, missing-boundary, two-tenant/two-deployment isolation, and ProdUS grounded retrieval passed;
+- canonical staging and production suites passed;
+- aggregate suites retain the separately owned Shopify answer-quality failure;
+- no Gate B migration, Gate C resource/secret/route, or Gate D product claim was introduced.
+
 ### P0: Behavior-aware existing deployment spine and Conversational baseline
 
-1. Keep Shopify Companion and production release gate green.
+1. Preserve Shopify Companion's passed stages and close the deferred
+   answer-quality defect before describing the full production release gate as
+   green.
 2. Define the closed `loomai-deployment-behavior-v1` contract and add its type/version to existing V04 draft/version state.
 3. Register `CONVERSATIONAL`, `AGENTIC_SPECIALIST_TEAM`, and `SMART_BRAIN` as server-owned activation/coordination contracts.
 4. Add a governed Marketplace `SPECIALIST` contribution for immutable non-executable AI Fabric specialist/chain resource bundles.
@@ -1126,7 +1137,7 @@ Exit:
 
 ### P1: Agentic Specialist Team
 
-1. Complete and record P-1 Gate A before touching chain persistence or enablement.
+1. Treat completed P-1 Gate A as the immutable baseline; do not alter its chain-disabled release records.
 2. Complete Gate B: add the application-owned JDBC chain migration while chains remain disabled, then prove normal startup/redeploy and migration idempotency.
 3. Complete Gate C: package one reviewed one-worker `ai.fabric/v1` `SpecialistChain` mechanics canary over `deployment-knowledge-specialist@1`, validate it with the runtime authoring catalogue/ceilings, configure two distinct stable private encryption/fingerprint secrets, and expose only deployment-local safe operations/readback.
 4. Prove direct-specialist parity, one-worker execution, trusted-context denial, exact replay, changed-payload conflict, restart recovery, cancellation/deadline, definition-drift rejection, provider failure, and runtime source/effective hashes. Do not call this a multi-specialist product.
@@ -1426,7 +1437,7 @@ A customer-owned V04 deployment built from that behavior and any Marketplace tem
 
 ### Immediate P0
 
-- Commit and deploy the AI Fabric `0.7.0` Gate A upgrade with chains disabled, then record hosted version, direct-specialist, isolation, and existing-capability evidence before Gate B.
+- Preserve the completed AI Fabric `0.7.0` Gate A evidence and require a separate reviewed decision before Gate B schema work or Gate C chain mechanics.
 - Review and approve the vocabulary/source-of-truth model in this document.
 - Define `loomai-deployment-behavior-v1` as a closed server-owned contract and V04 field.
 - Register the three behavior types and their activation/coordination/durability matrices.
@@ -1435,7 +1446,8 @@ A customer-owned V04 deployment built from that behavior and any Marketplace tem
 - Define composition provenance on the existing immutable V04 Deployment Version and export/import bundle.
 - Add compiler preview from one generic Conversational Marketplace template into an existing V04 draft.
 - Bind a reusable Conversational Assistant verification pack.
-- Keep Shopify and the full production release gate green.
+- Preserve Shopify's passed release stages, close the deferred answer-quality
+  defect, and do not claim a green full production gate before its rerun passes.
 
 ### Next P1
 
