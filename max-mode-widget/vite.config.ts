@@ -22,6 +22,7 @@ export default defineConfig({
       entry: path.resolve(__dirname, "src/entries/react.ts"),
       name: "MaxModeWidget",
       formats: ["es", "cjs"],
+      cssFileName: "styles",
       fileName: (format) =>
         format === "es" ? "max-mode-widget.esm.js" : "max-mode-widget.cjs.js",
     },

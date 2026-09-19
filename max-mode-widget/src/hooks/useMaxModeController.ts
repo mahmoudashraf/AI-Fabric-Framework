@@ -47,7 +47,7 @@ type PendingPrompt = {
   requestContext?: Record<string, any>;
 };
 
-const CONVERSATION_MODES: MaxModeMode[] = ["navigator", "navigator_deep", "thinker_deep", "cart_assistant", "executor"];
+const CONVERSATION_MODES: MaxModeMode[] = ["conversational", "navigator", "navigator_deep", "thinker_deep", "cart_assistant", "executor"];
 
 function loadPendingPrompts(): PendingPrompt[] {
   try {
@@ -160,6 +160,8 @@ function shellPromptPalette(index: number) {
 function deriveQuickActions(
   hostConfig: MaxModeHostConfig | undefined,
   shellConfig: RuntimeShellConfigSummary | null,
+  defaultConversationMode: MaxModeMode,
+  allowedConversationModes: MaxModeMode[],
 ): QuickAction[] {
   const hostStarterPrompts = hostConfig?.starterPrompts?.filter(
     (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
@@ -175,7 +177,9 @@ function deriveQuickActions(
         bg: palette.bg,
         border: palette.border,
         position: prompt.position ?? "search",
-        mode: prompt.mode ?? "navigator",
+        mode: prompt.mode && allowedConversationModes.includes(prompt.mode)
+          ? prompt.mode
+          : defaultConversationMode,
       };
     });
   }
@@ -196,7 +200,9 @@ function deriveQuickActions(
       bg: palette.bg,
       border: palette.border,
       position: shellPromptPosition(prompt.moduleId),
-      mode: shellPromptMode(prompt.moduleId),
+      mode: allowedConversationModes.includes(shellPromptMode(prompt.moduleId))
+        ? shellPromptMode(prompt.moduleId)
+        : defaultConversationMode,
     };
   });
 }
@@ -363,13 +369,20 @@ export function useMaxModeController({
   const hostRequestContext = useMemo(() => sanitizeRequestContext(hostConfig), [hostConfig]);
   const hostInitialAttachments = useMemo(() => sanitizeHostAttachments(hostConfig?.initialAttachments), [hostConfig]);
   const pageModeGroup = useMemo(() => derivePageModeGroup(hostRequestContext), [hostRequestContext]);
+  const [runtimeShellConfig, setRuntimeShellConfig] = useState<RuntimeShellConfigSummary | null>(null);
   const defaultConversationMode = useMemo(
-    () => sanitizeConversationMode(hostConfig?.defaultConversationMode, "navigator"),
-    [hostConfig?.defaultConversationMode],
+    () => sanitizeConversationMode(
+      hostConfig?.defaultConversationMode ?? runtimeShellConfig?.defaultConversationMode,
+      "navigator",
+    ),
+    [hostConfig?.defaultConversationMode, runtimeShellConfig?.defaultConversationMode],
   );
   const allowedConversationModes = useMemo(
-    () => sanitizeAllowedConversationModes(hostConfig?.allowedConversationModes, defaultConversationMode),
-    [hostConfig?.allowedConversationModes, defaultConversationMode],
+    () => sanitizeAllowedConversationModes(
+      hostConfig?.allowedConversationModes ?? runtimeShellConfig?.allowedConversationModes,
+      defaultConversationMode,
+    ),
+    [hostConfig?.allowedConversationModes, runtimeShellConfig?.allowedConversationModes, defaultConversationMode],
   );
   const pageModeMappings = useMemo(
     () => sanitizePageModeMappings(hostConfig?.pageModeMappings, allowedConversationModes),
@@ -394,8 +407,15 @@ export function useMaxModeController({
   ]);
   const initialPosition = useMemo(() => pageModeGroupToPosition(pageModeGroup), [pageModeGroup]);
 
-  const [runtimeShellConfig, setRuntimeShellConfig] = useState<RuntimeShellConfigSummary | null>(null);
-  const quickActions = useMemo(() => deriveQuickActions(hostConfig, runtimeShellConfig), [hostConfig, runtimeShellConfig]);
+  const quickActions = useMemo(
+    () => deriveQuickActions(
+      hostConfig,
+      runtimeShellConfig,
+      defaultConversationMode,
+      allowedConversationModes,
+    ),
+    [allowedConversationModes, defaultConversationMode, hostConfig, runtimeShellConfig],
+  );
   const searchCategories = SEARCH_CATEGORIES;
   const aiSearchCategories = AI_SEARCH_CATEGORIES;
   const browseProductCategories = BROWSE_PRODUCT_CATEGORIES;
@@ -422,6 +442,10 @@ export function useMaxModeController({
   // Position state for routing
   const [currentPosition, setCurrentPosition] = useState<MaxModePosition>(initialPosition);
   const [currentMode, setCurrentMode] = useState<MaxModeMode>(effectiveConversationMode);
+
+  useEffect(() => {
+    setCurrentMode((current) => allowedConversationModes.includes(current) ? current : effectiveConversationMode);
+  }, [allowedConversationModes, effectiveConversationMode]);
 
   // Debug modal state - stores last request/response for inspection
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);

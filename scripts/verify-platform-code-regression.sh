@@ -52,10 +52,6 @@ if [[ "${BACKEND_TESTS}" == "true" ]]; then
 fi
 
 if [[ "${PRODUCT_TESTS}" == "true" ]]; then
-  MAVEN_OPTS="${MAVEN_OPTS:--Xmx2g}" run_step "Install AI Fabric framework artifacts for product tests" run_maven_sanitized \
-    mvn -f ai-infrastructure-module/pom.xml -B -V -DskipTests install \
-      -pl '!integration-Testing/testcontainers-support,!integration-Testing/integration-tests,!integration-Testing/relationship-query-integration-tests,!integration-Testing/chat-session-integration-tests,!integration-Testing/behavior-integration-tests' \
-      -am
   run_step "ai-fabric-product tests" run_maven_sanitized \
     mvn -f ai-fabric-product/pom.xml test
 fi

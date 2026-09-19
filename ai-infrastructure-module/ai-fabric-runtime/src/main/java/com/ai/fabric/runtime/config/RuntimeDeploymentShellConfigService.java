@@ -34,6 +34,8 @@ public class RuntimeDeploymentShellConfigService {
     private volatile String greetingTitle;
     private volatile String greetingMessage;
     private volatile List<ObjectNode> starterPrompts;
+    private volatile String defaultConversationMode;
+    private volatile List<String> allowedConversationModes;
 
     public RuntimeDeploymentShellConfigService(RuntimeDeploymentShellConfigProperties properties,
                                                ResourceLoader resourceLoader,
@@ -48,6 +50,8 @@ public class RuntimeDeploymentShellConfigService {
         this.greetingTitle = null;
         this.greetingMessage = null;
         this.starterPrompts = List.of();
+        this.defaultConversationMode = null;
+        this.allowedConversationModes = List.of();
     }
 
     @PostConstruct
@@ -61,6 +65,8 @@ public class RuntimeDeploymentShellConfigService {
             greetingTitle = null;
             greetingMessage = null;
             starterPrompts = List.of();
+            defaultConversationMode = null;
+            allowedConversationModes = List.of();
             log.info("No deployment shell config file configured.");
             return;
         }
@@ -81,6 +87,8 @@ public class RuntimeDeploymentShellConfigService {
             greetingTitle = readTrimmedText(sanitized.path("greeting"), "title");
             greetingMessage = readTrimmedText(sanitized.path("greeting"), "message");
             starterPrompts = readStarterPrompts(sanitized.path("starterPrompts"));
+            defaultConversationMode = readTrimmedText(sanitized, "defaultConversationMode");
+            allowedConversationModes = readTextList(sanitized.path("allowedConversationModes"));
             log.info(
                 "Loaded deployment shell config from {} with {} module(s), {} card(s), and {} starter prompt(s).",
                 location,
@@ -133,6 +141,14 @@ public class RuntimeDeploymentShellConfigService {
         return starterPrompts.size();
     }
 
+    public String currentDefaultConversationMode() {
+        return defaultConversationMode;
+    }
+
+    public List<String> currentAllowedConversationModes() {
+        return allowedConversationModes;
+    }
+
     private ObjectNode sanitize(JsonNode candidate) {
         ObjectNode sanitized = defaultConfig(candidate);
         JsonNode modules = candidate != null ? candidate.path("modules") : null;
@@ -151,6 +167,17 @@ public class RuntimeDeploymentShellConfigService {
         if (starterPrompts instanceof ArrayNode arrayNode) {
             sanitized.set("starterPrompts", sanitizeStarterPrompts(arrayNode));
         }
+        String defaultMode = readTrimmedText(candidate, "defaultConversationMode");
+        ArrayNode allowedModes = sanitizeTextArray(
+            candidate == null ? null : candidate.path("allowedConversationModes")
+        );
+        if (StringUtils.hasText(defaultMode)) {
+            sanitized.put("defaultConversationMode", defaultMode);
+            if (!containsText(allowedModes, defaultMode)) {
+                allowedModes.insert(0, defaultMode);
+            }
+        }
+        sanitized.set("allowedConversationModes", allowedModes);
         return sanitized;
     }
 
@@ -164,6 +191,7 @@ public class RuntimeDeploymentShellConfigService {
         root.set("cards", objectMapper.createArrayNode());
         root.set("starterPrompts", objectMapper.createArrayNode());
         root.set("greeting", objectMapper.createObjectNode());
+        root.set("allowedConversationModes", objectMapper.createArrayNode());
         return root;
     }
 
@@ -309,5 +337,45 @@ public class RuntimeDeploymentShellConfigService {
             }
         }
         return List.copyOf(values);
+    }
+
+    private ArrayNode sanitizeTextArray(JsonNode entries) {
+        ArrayNode sanitized = objectMapper.createArrayNode();
+        if (!(entries instanceof ArrayNode arrayNode)) {
+            return sanitized;
+        }
+        for (JsonNode node : arrayNode) {
+            if (!node.isTextual()) {
+                continue;
+            }
+            String value = node.asText("").trim();
+            if (StringUtils.hasText(value) && !containsText(sanitized, value)) {
+                sanitized.add(value);
+            }
+        }
+        return sanitized;
+    }
+
+    private List<String> readTextList(JsonNode entries) {
+        if (!(entries instanceof ArrayNode arrayNode)) {
+            return List.of();
+        }
+        List<String> values = new ArrayList<>();
+        for (JsonNode node : arrayNode) {
+            String value = node.isTextual() ? node.asText("").trim() : "";
+            if (StringUtils.hasText(value) && !values.contains(value)) {
+                values.add(value);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private boolean containsText(ArrayNode values, String expected) {
+        for (JsonNode value : values) {
+            if (expected.equals(value.asText())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

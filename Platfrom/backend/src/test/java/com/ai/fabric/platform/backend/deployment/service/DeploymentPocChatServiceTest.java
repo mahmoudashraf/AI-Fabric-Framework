@@ -242,6 +242,51 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
+    void queryUsesVersionedShellDefaultModeWhenCallerOmitsMode() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "type": "INFORMATION_PROVIDED",
+                          "answer": "Hello from the conversational mode.",
+                          "safeSummary": "Hello from the conversational mode.",
+                          "conversationId": "chat-mode-default"
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(
+                server,
+                null,
+                "trusted-backend-key",
+                "conversational"
+            );
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Hello", null, null, null, null, null)
+            );
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(requestBody.path("mode").asText()).isEqualTo("conversational");
+            assertThat(response.success()).isTrue();
+            assertThat(response.message()).isEqualTo("Hello from the conversational mode.");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void queryProjectsCanonicalRuntimeChatResponseIntoPlatformPocContract() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
@@ -1158,6 +1203,13 @@ class DeploymentPocChatServiceTest {
     private DeploymentPocChatService serviceFor(HttpServer server,
                                                 JsonNode sessionPromptPreview,
                                                 String runtimeTrustedBackendApiKey) {
+        return serviceFor(server, sessionPromptPreview, runtimeTrustedBackendApiKey, null);
+    }
+
+    private DeploymentPocChatService serviceFor(HttpServer server,
+                                                JsonNode sessionPromptPreview,
+                                                String runtimeTrustedBackendApiKey,
+                                                String defaultConversationMode) {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentVersionRepository deploymentVersionRepository = mock(DeploymentVersionRepository.class);
         DeploymentAccessService deploymentAccessService = mock(DeploymentAccessService.class);
@@ -1173,6 +1225,13 @@ class DeploymentPocChatServiceTest {
         deployment.setRuntimeBaseUrl("http://localhost:" + server.getAddress().getPort());
         DeploymentVersionEntity version = new DeploymentVersionEntity();
         version.setId("ver-123");
+        if (defaultConversationMode != null) {
+            version.setShellConfigJson(
+                "{\"contractVersion\":\"SHELL_CONFIG_V1\",\"defaultConversationMode\":\""
+                    + defaultConversationMode
+                    + "\"}"
+            );
+        }
         version.setSecurityConfigJson("""
             {
               "publicRuntimeTokenIssuer": "platform-poc-public",

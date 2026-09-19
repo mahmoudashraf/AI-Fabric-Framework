@@ -24,6 +24,8 @@ class RuntimeDeploymentShellConfigServiceTest {
         assertThat(service.currentModuleIds()).isEmpty();
         assertThat(service.currentCardIds()).isEmpty();
         assertThat(service.currentStarterPrompts()).isEmpty();
+        assertThat(service.currentDefaultConversationMode()).isNull();
+        assertThat(service.currentAllowedConversationModes()).isEmpty();
         assertThat(service.currentRoot().path("modules").isArray()).isTrue();
         assertThat(service.currentRoot().path("cards").isArray()).isTrue();
         assertThat(service.currentRoot().path("starterPrompts").isArray()).isTrue();
@@ -45,6 +47,8 @@ class RuntimeDeploymentShellConfigServiceTest {
         assertThat(service.currentGreetingMessage()).isEqualTo("Ask about products, orders, or policy.");
         assertThat(service.currentModuleIds()).containsExactly("product-catalog", "orders");
         assertThat(service.currentCardIds()).containsExactly("product-list", "order-status");
+        assertThat(service.currentDefaultConversationMode()).isEqualTo("conversational");
+        assertThat(service.currentAllowedConversationModes()).containsExactly("conversational", "executor");
         assertThat(service.currentStarterPromptCount()).isEqualTo(2);
         assertThat(service.currentStarterPrompts()).extracting(prompt -> prompt.path("label").asText())
             .containsExactly("Browse featured products", "Track my latest order");

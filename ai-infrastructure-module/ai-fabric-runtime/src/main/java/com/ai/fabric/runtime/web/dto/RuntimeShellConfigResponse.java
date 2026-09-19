@@ -7,6 +7,8 @@ public record RuntimeShellConfigResponse(
     String contractVersion,
     String greetingTitle,
     String greetingMessage,
+    String defaultConversationMode,
+    List<String> allowedConversationModes,
     List<RuntimeShellStarterPromptResponse> starterPrompts,
     List<String> moduleIds,
     List<String> cardIds,

@@ -194,6 +194,13 @@ ai:
   orchestration:
     strict-mode-routing: true
     modes:
+      conversational:
+        actions-enabled: false
+        retrieval-enabled: false
+        retrieval-allowlist-required: false
+        vector-space-selection-required: false
+        knowledge-base-overview-enabled: false
+        information-mode: LLM_DRIVEN
       resolver:
         actions-enabled: false
         retrieval-enabled: false

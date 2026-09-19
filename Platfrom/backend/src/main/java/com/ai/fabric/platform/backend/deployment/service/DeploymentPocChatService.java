@@ -844,7 +844,25 @@ public class DeploymentPocChatService {
         } else {
             body.remove("promptPreview");
         }
+        if (!StringUtils.hasText(textOrNull(body, "mode"))) {
+            String defaultConversationMode = defaultConversationMode(deployment);
+            if (StringUtils.hasText(defaultConversationMode)) {
+                body.put("mode", defaultConversationMode);
+            }
+        }
         return new QueryPayload(body, promptPreview, promptPreviewSource);
+    }
+
+    private String defaultConversationMode(DeploymentEntity deployment) {
+        String activeVersionId = trimToNull(deployment == null ? null : deployment.getActiveVersionId());
+        if (!StringUtils.hasText(activeVersionId)) {
+            return null;
+        }
+        return deploymentVersionRepository.findById(activeVersionId)
+            .map(DeploymentVersionEntity::getShellConfigJson)
+            .map(this::readJson)
+            .map(shell -> trimToNull(textOrNull(shell, "defaultConversationMode")))
+            .orElse(null);
     }
 
     private DeploymentPocTraceSummary summarizeTrace(JsonNode result) {

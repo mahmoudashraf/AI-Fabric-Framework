@@ -104,6 +104,9 @@ class PublicRuntimeSessionControllerTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.defaultConversationMode").value("conversational"))
+            .andExpect(jsonPath("$.allowedConversationModes[0]").value("conversational"))
+            .andExpect(jsonPath("$.allowedConversationModes[1]").value("executor"))
             .andExpect(jsonPath("$.supportedModuleIds[0]").value("search"))
             .andExpect(jsonPath("$.moduleIds[0]").value("product-catalog"))
             .andExpect(jsonPath("$.starterPrompts[1].query").value("Track my latest order"));
@@ -431,6 +434,8 @@ class PublicRuntimeSessionControllerDefaultShellConfigTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.shellConfig.contractVersion").value("SHELL_CONFIG_V1"))
+            .andExpect(jsonPath("$.shellConfig.defaultConversationMode").doesNotExist())
+            .andExpect(jsonPath("$.shellConfig.allowedConversationModes").isEmpty())
             .andExpect(jsonPath("$.shellConfig.moduleIds").isEmpty())
             .andExpect(jsonPath("$.shellConfig.cardIds").isEmpty())
             .andExpect(jsonPath("$.shellConfig.starterPrompts").isEmpty())

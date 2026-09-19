@@ -1,5 +1,7 @@
 {
   "contractVersion": "SHELL_CONFIG_V1",
+  "defaultConversationMode": "conversational",
+  "allowedConversationModes": ["conversational", "executor", "conversational"],
   "greeting": {
     "title": "Commerce Assistant",
     "message": "Ask about products, orders, or policy."

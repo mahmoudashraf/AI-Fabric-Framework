@@ -33,7 +33,7 @@ import { useSupabaseAuth } from '../auth/SupabaseProvider'
 import { formatDateTime, titleize } from '../utils/format'
 
 const MAX_MODE_WIDGET_SCRIPT_ID = 'partner-max-mode-widget-script'
-const MAX_MODE_WIDGET_SCRIPT_VERSION = '2026-04-14-opaque-shell-v1'
+const MAX_MODE_WIDGET_SCRIPT_VERSION = '2026-09-19-conversation-modes-v1'
 const MAX_MODE_WIDGET_SCRIPT_SRC = `/max-mode-widget.iife.js?v=${MAX_MODE_WIDGET_SCRIPT_VERSION}`
 const MAX_MODE_WIDGET_STATE_KEY = 'maxmode_widget_state'
 const MAX_MODE_WIDGET_PENDING_ATTACHMENTS_KEY = 'maxmode_widget_pending_attachments'

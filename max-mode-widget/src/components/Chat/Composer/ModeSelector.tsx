@@ -1,10 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainCircuit, ChevronUp, LifeBuoy } from "lucide-react";
+import { BrainCircuit, ChevronUp, LifeBuoy, MessageSquare } from "lucide-react";
 import type { MaxModeMode } from "@/constants";
 
 const MODES = [
+  {
+    key: "conversational" as const,
+    label: "Assistant",
+    shortLabel: "Assistant",
+    group: "assistant",
+    icon: MessageSquare,
+    color: "text-blue-600",
+    bg: "bg-blue-600",
+    bgLight: "bg-blue-50 dark:bg-blue-900/30",
+    border: "border-blue-400",
+    description: "General conversational help",
+  },
   {
     key: "navigator" as const,
     label: "Shopping Assistant",
@@ -81,6 +93,7 @@ function collapseModeChoices(availableModes: MaxModeMode[]) {
 
 function preferredMode(candidate: MaxModeMode, current: MaxModeMode) {
   const rank: Record<MaxModeMode, number> = {
+    conversational: 5,
     thinker_deep: 5,
     navigator_deep: 4,
     navigator: 3,

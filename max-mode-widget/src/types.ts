@@ -1,3 +1,5 @@
+import type { MaxModeMode } from "@/constants";
+
 export interface MaxModeProps {
   isOpen: boolean;
   onClose: () => void;
@@ -173,6 +175,8 @@ export interface RuntimeShellConfigSummary {
   contractVersion?: string;
   greetingTitle?: string;
   greetingMessage?: string;
+  defaultConversationMode?: MaxModeMode;
+  allowedConversationModes?: MaxModeMode[];
   starterPrompts?: RuntimeShellStarterPromptSummary[];
   moduleIds?: string[];
   cardIds?: string[];
