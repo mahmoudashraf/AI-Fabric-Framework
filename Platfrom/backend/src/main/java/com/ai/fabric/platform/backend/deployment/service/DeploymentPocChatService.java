@@ -158,13 +158,31 @@ public class DeploymentPocChatService {
             authPath,
             queryScopes(queryPayload.promptPreview() != null)
         );
+        JsonNode runtimeResult = response.path("result");
+        if (runtimeResult.isMissingNode() || runtimeResult.isNull() || !runtimeResult.isObject()) {
+            runtimeResult = response;
+        }
         DeploymentPocChatQueryResponse summary = new DeploymentPocChatQueryResponse(
-            response.path("success").asBoolean(false),
-            textOrNull(response, "message"),
-            textOrNull(response, "conversationId"),
-            textOrNull(response, "sessionId"),
-            response.path("result").isMissingNode() ? objectMapper.nullNode() : response.path("result"),
-            summarizeTrace(response.path("result"))
+            response.has("success")
+                ? response.path("success").asBoolean(false)
+                : runtimeResult.path("success").asBoolean(false),
+            firstNonBlank(
+                textOrNull(response, "message"),
+                firstNonBlank(
+                    textOrNull(runtimeResult, "message"),
+                    firstNonBlank(textOrNull(runtimeResult, "answer"), textOrNull(runtimeResult, "safeSummary"))
+                )
+            ),
+            firstNonBlank(textOrNull(response, "conversationId"), textOrNull(runtimeResult, "conversationId")),
+            firstNonBlank(
+                textOrNull(response, "sessionId"),
+                firstNonBlank(
+                    textOrNull(runtimeResult, "sessionId"),
+                    textOrNull(runtimeResult.path("metadata"), "sessionId")
+                )
+            ),
+            runtimeResult,
+            summarizeTrace(runtimeResult)
         );
 
         platformAuditService.record(
@@ -875,11 +893,19 @@ public class DeploymentPocChatService {
             JsonNode metadata = node.path("metadata");
             JsonNode timing = metadata.path(METADATA_KEY_TIMING);
             JsonNode extractionDiagnostics = metadata.path(METADATA_KEY_EXTRACTION_DIAGNOSTICS);
-            JsonNode ragResponse = data.path("ragResponse");
+            JsonNode ragResponse = node.path("ragResponse").isObject()
+                ? node.path("ragResponse")
+                : data.path("ragResponse");
             JsonNode ragMetadata = ragResponse.path("metadata");
 
             executedAction = firstNonBlank(executedAction, textOrNull(data, "action"));
-            answer = firstNonBlank(answer, textOrNull(data, "answer"));
+            answer = firstNonBlank(
+                answer,
+                firstNonBlank(
+                    textOrNull(node, "answer"),
+                    firstNonBlank(textOrNull(node, "safeSummary"), textOrNull(data, "answer"))
+                )
+            );
             actionSummary = firstNonBlank(actionSummary, textOrNull(data, "summary"));
             routingStrategy = firstNonBlank(routingStrategy, textOrNull(data, "routingStrategy"));
 
@@ -958,6 +984,8 @@ public class DeploymentPocChatService {
             collectTextValues(data.path("candidateVectorSpaces"), candidateVectorSpaces);
             collectTextValues(data.path("vectorSpace"), vectorSpaces);
             collectDocuments(data.path("documents"), documents, documentKeys, vectorSpaces);
+            collectDocuments(node.path("documents"), documents, documentKeys, vectorSpaces);
+            collectDocuments(node.path("sources"), documents, documentKeys, vectorSpaces);
         }
 
         List<String> childResultTypes = result.path("children").isArray()
@@ -970,7 +998,7 @@ public class DeploymentPocChatService {
         return new DeploymentPocTraceSummary(
             textOrNull(result, "type"),
             result.path("success").asBoolean(false),
-            textOrNull(result, "message"),
+            firstNonBlank(textOrNull(result, "message"), textOrNull(result, "answer")),
             textOrNull(result, "errorCode"),
             executedAction,
             answer,

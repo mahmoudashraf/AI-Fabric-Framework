@@ -242,6 +242,65 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
+    void queryProjectsCanonicalRuntimeChatResponseIntoPlatformPocContract() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> writeJson(
+                exchange,
+                200,
+                """
+                    {
+                      "success": true,
+                      "type": "INFORMATION_PROVIDED",
+                      "answer": "Two plus two equals four.",
+                      "safeSummary": "Two plus two equals four.",
+                      "conversationId": "chat-canonical",
+                      "providerRequestId": "rag-canonical",
+                      "sources": [],
+                      "actions": [],
+                      "metadata": {
+                        "sessionId": "runtime-session-canonical",
+                        "timing": {
+                          "runtimeRequestDurationMs": 410,
+                          "pipelineTotalDurationMs": 360
+                        },
+                        "extractionDiagnostics": {
+                          "model": "gpt-4o-mini",
+                          "llmCalls": 1
+                        }
+                      }
+                    }
+                    """
+            ));
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(server, null, "trusted-backend-key");
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("What is two plus two?", null, null, null, null, null)
+            );
+
+            assertThat(response.success()).isTrue();
+            assertThat(response.message()).isEqualTo("Two plus two equals four.");
+            assertThat(response.conversationId()).isEqualTo("chat-canonical");
+            assertThat(response.sessionId()).isEqualTo("runtime-session-canonical");
+            assertThat(response.result().path("type").asText()).isEqualTo("INFORMATION_PROVIDED");
+            assertThat(response.result().path("answer").asText()).isEqualTo("Two plus two equals four.");
+            assertThat(response.traceSummary()).isNotNull();
+            assertThat(response.traceSummary().success()).isTrue();
+            assertThat(response.traceSummary().answer()).isEqualTo("Two plus two equals four.");
+            assertThat(response.traceSummary().runtimeRequestDurationMs()).isEqualTo(410L);
+            assertThat(response.traceSummary().pipelineDurationMs()).isEqualTo(360L);
+            assertThat(response.traceSummary().extractionModel()).isEqualTo("gpt-4o-mini");
+            assertThat(response.traceSummary().extractionLlmCalls()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void deploymentKnowledgeQueryUsesOnlyPrivateExactSpecialistScopes()
         throws Exception {
         AtomicReference<String> capturedBody = new AtomicReference<>();
