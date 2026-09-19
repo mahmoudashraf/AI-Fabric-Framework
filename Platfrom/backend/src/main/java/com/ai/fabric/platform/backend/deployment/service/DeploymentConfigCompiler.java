@@ -85,9 +85,13 @@ public class DeploymentConfigCompiler {
             JsonNode runtimeEntityNode = entityValidation.runtimeConfig();
 
             String actionsArtifactYaml = yamlMapper.writeValueAsString(actionsNode);
-            String entityArtifactYaml = yamlMapper.writeValueAsString(runtimeEntityNode);
+            JsonNode runtimeEntityArtifactNode = runtimeEntityArtifactProjection(runtimeEntityNode);
+            String entityArtifactYaml = yamlMapper.writeValueAsString(runtimeEntityArtifactNode);
             String routingArtifactYaml = yamlMapper.writeValueAsString(effectiveRoutingNode);
-            JsonNode entityRoundTripNode = yamlMapper.readTree(entityArtifactYaml);
+            JsonNode entityRoundTripNode = restoreEmptyEntityMapForValidation(
+                yamlMapper.readTree(entityArtifactYaml),
+                runtimeEntityNode
+            );
             EntityConfigContractValidation roundTripValidation =
                 entityConfigContractService.requireValid(entityRoundTripNode, entityContext);
             if (!canonicalJson(runtimeEntityNode).equals(canonicalJson(roundTripValidation.runtimeConfig()))) {
@@ -336,7 +340,10 @@ public class DeploymentConfigCompiler {
                 context
             );
             JsonNode expectedRuntimeConfig = persistedValidation.runtimeConfig();
-            JsonNode artifactConfig = yamlMapper.readTree(version.getEntityArtifactYaml());
+            JsonNode artifactConfig = restoreEmptyEntityMapForValidation(
+                yamlMapper.readTree(version.getEntityArtifactYaml()),
+                expectedRuntimeConfig
+            );
             EntityConfigContractValidation artifactValidation =
                 entityConfigContractService.requireValid(artifactConfig, context);
             if (!canonicalJson(expectedRuntimeConfig).equals(
@@ -461,6 +468,33 @@ public class DeploymentConfigCompiler {
         names.sort(Comparator.naturalOrder());
         names.forEach(name -> object.set(name, canonicalize(node.get(name))));
         return object;
+    }
+
+    private JsonNode runtimeEntityArtifactProjection(JsonNode runtimeEntityConfig) {
+        if (!(runtimeEntityConfig instanceof ObjectNode runtimeRoot)) {
+            return runtimeEntityConfig;
+        }
+        ObjectNode artifactRoot = runtimeRoot.deepCopy();
+        JsonNode entities = artifactRoot.path("ai-entities");
+        if (entities.isObject() && entities.isEmpty()) {
+            // Spring Config Data exposes an empty YAML map root as an empty scalar. Omitting
+            // the root lets AI Fabric's optional map binding resolve to the same empty map.
+            artifactRoot.remove("ai-entities");
+        }
+        return artifactRoot;
+    }
+
+    private JsonNode restoreEmptyEntityMapForValidation(JsonNode artifactConfig,
+                                                        JsonNode expectedRuntimeConfig) {
+        if (!(artifactConfig instanceof ObjectNode artifactRoot)
+            || artifactRoot.has("ai-entities")
+            || !expectedRuntimeConfig.path("ai-entities").isObject()
+            || !expectedRuntimeConfig.path("ai-entities").isEmpty()) {
+            return artifactConfig;
+        }
+        ObjectNode normalized = artifactRoot.deepCopy();
+        normalized.putObject("ai-entities");
+        return normalized;
     }
 
     private String canonicalJson(JsonNode node) throws JsonProcessingException {

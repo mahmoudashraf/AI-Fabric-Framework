@@ -203,6 +203,40 @@ class DeploymentConfigCompilerTest {
     }
 
     @Test
+    void compileOmitsEmptyEntityMapFromSpringBoundArtifactWithoutChangingCanonicalContract() throws Exception {
+        DeploymentDraftEntity draft = draft("{\"actions\":[]}", "{}", "{\"connectorApiKeyEnabled\":false}");
+
+        DeploymentConfigCompiler.CompiledDeploymentVersion compiled = compiler.compile(
+            deployment(),
+            draft,
+            "ver-1",
+            "v1",
+            false
+        );
+
+        JsonNode entityArtifact = yamlMapper.readTree(compiled.entityArtifactYaml());
+        JsonNode manifest = objectMapper.readTree(compiled.manifestJson());
+        assertThat(entityArtifact.has("ai-entities")).isFalse();
+        assertThat(entityArtifact.path("ai-config").path("vector-dimensions").asInt()).isEqualTo(512);
+        assertThat(manifest.path("entityConfig").path("ai-entities").isObject()).isTrue();
+        assertThat(manifest.path("entityConfig").path("ai-entities").isEmpty()).isTrue();
+
+        DeploymentVersionEntity version = new DeploymentVersionEntity();
+        version.setId("ver-1");
+        version.setDeploymentId("dep-1");
+        version.setEntityConfigContractVersion(EntityConfigContractService.CONTRACT_VERSION_V04);
+        version.setAiFabricFrameworkVersion(compiler.frameworkVersion());
+        version.setEntityConfigJson(draft.getEntityConfigJson());
+        version.setProviderConfigJson(draft.getProviderConfigJson());
+        version.setBehaviorConfigJson(draft.getBehaviorConfigJson());
+        version.setCompositionProvenanceJson(compiled.compositionProvenanceJson());
+        version.setEntityArtifactYaml(compiled.entityArtifactYaml());
+        version.setManifestJson(compiled.manifestJson());
+
+        compiler.requireRuntimeArtifactCompatible(version);
+    }
+
+    @Test
     void compileRejectsLegacyEntityPropertiesBeforeYamlGeneration() {
         DeploymentDraftEntity draft = draft("{\"actions\":[]}", "{}", "{\"connectorApiKeyEnabled\":false}");
         draft.setEntityConfigJson(
