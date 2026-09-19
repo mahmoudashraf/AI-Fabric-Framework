@@ -34,7 +34,7 @@ platform:
   stage: bootstrap
   current-phase: phase-21-public-provisioning-api
   ai-fabric:
-    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.6.1}
+    framework-version: ${AI_FABRIC_FRAMEWORK_VERSION:0.7.0}
   bootstrap:
     sample-enabled: ${PLATFORM_BOOTSTRAP_SAMPLE_ENABLED:false}
     ecommerce-demo:

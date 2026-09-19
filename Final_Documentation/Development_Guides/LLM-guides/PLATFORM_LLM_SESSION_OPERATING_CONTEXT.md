@@ -41,16 +41,25 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.6.1` through:
+The current private product source target is AI Fabric `0.7.0` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.6.1`
-- Git tag `ai-fabric-framework-v0.6.1`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.7.0`
+- Git tag `ai-fabric-framework-v0.7.0`
 
 The immutable tag, GitHub release, framework CI, signed publication workflow,
 and Maven Central artifacts exist and match release commit
-`bf6d19eed5ed0a8d8085db7cc02e0505e9973e65`. The release includes the
-trusted-retrieval security correction and the bounded multi-specialist chain
-contracts inherited through the direct `0.5.2 -> 0.6.1` upgrade.
+`5b075b66384dc5b756b3b3dd12efaf896ce9a50b`. Framework guidance is at
+documentation commit `7ac32985`. The release retains the existing security and
+execution behavior and adds official immutable `ai.fabric/v1`
+`SpecialistChain` YAML/JSON resources, offline validation, a shared
+Java/manifest registry and gateway, source-aware runtime status and hashes,
+and fail-closed declarative-chain loading.
+
+Source target and hosted-fleet truth are separate. The private source has been
+upgraded and locally verified against `0.7.0`; the last verified hosted fleet
+remains `0.6.1` until an immutable private commit is deployed and Gate A hosted
+checks pass. Never infer the live version from the source POM or relabel the
+fleet before readback evidence exists.
 
 The private runtime and embedding worker must each resolve one AI Fabric
 version. Docker/CI builds consume released Maven artifacts and must not clone
@@ -61,25 +70,26 @@ evidence.
 Platform uses the V04 entity lifecycle contract. The migration is greenfield
 and one-way: do not add dual readers, compatibility shims, or version
 fallbacks. Preserve immutable historical deployment records as evidence.
-Keep `ai-fabric-execution` in the private runtime. The required `0.6.1` base
+Keep `ai-fabric-execution` in the private runtime. The required `0.7.0` Gate A
 rollout preserves existing behavior with
 `ai.execution.output-finalization.max-attempts=1` and
 `ai.execution.specialist-chains.enabled=false`. Do not add chain tables,
 secrets, endpoints, or product claims as part of the dependency upgrade.
-Optional chain adoption is a separate reviewed productization and rollout
-decision.
+Gate B schema preparation, Gate C one-worker declarative mechanics canary, and
+Gate D real multi-specialist product adoption are separate reviewed decisions.
+Stop and record evidence after Gate A before beginning Gate B or C.
 
 The private runtime indexing admin facade uses `IndexingWorkQuery` and
 `IndexingWorkStatus` for durable per-work Data Sync reconciliation. Keep the
 private HTTP route, admin authorization, tenant/deployment checks, polling
 policy, and response projection in LoomAI. Aggregate queue diagnostics still
-use the framework's internal queue repository contract because `0.6.1` does
+use the framework's internal queue repository contract because `0.7.0` does
 not expose a public
 queue-summary contract; preserve that diagnostic behavior and raise a
 framework contract request before removing or duplicating it.
 
 Before promotion, rebuild from an empty Central-only Maven cache, verify the
-packaged execution JAR is `0.6.1`, and repeat the hosted two-tenant,
+packaged execution JAR is `0.7.0`, and repeat the hosted two-tenant,
 two-deployment, and missing-boundary specialist canaries. The full release gate
 must run only after those checks pass.
 
@@ -110,9 +120,9 @@ Framework debugging and contract escalation:
 Resolved specialist boundary and current release posture:
 
 - The historical trusted-retrieval blocker is resolved in the immutable
-  release lineage consumed by `0.6.1`; keep LoomAI's native provider filter
+  release lineage consumed by `0.7.0`; keep LoomAI's native provider filter
   and fail-closed post-filter as defense in depth.
-- `0.6.1` also tightens exact MCP server binding, nested backend-owned read
+- `0.7.0` retains exact MCP server binding, nested backend-owned read
   parameters, Lucene reader leases, and specialist grounding from approved
   read actions. Do not add product-side compatibility workarounds for the old
   behavior.
@@ -120,9 +130,18 @@ Resolved specialist boundary and current release posture:
   schema. Drain or cancel non-terminal manifest-backed work before replacing a
   runtime; never rewrite stored hashes to make old work resume under changed
   behavior.
-- Multi-specialist chains remain disabled during the base rollout. They may be
-  enabled only after durable state, stable private secrets, exact-version
-  read-only topology, security/restart canaries, and explicit owner approval.
+- Multi-specialist chains remain disabled during Gate A. Gate B adds only the
+  application-owned chain migration. Gate C may package one reviewed one-worker
+  `SpecialistChain` mechanics canary using the existing deployment-knowledge
+  specialist. Gate D requires a genuinely distinct second read-only worker;
+  do not invent one for a demo. Every enabled chain still requires durable
+  state, stable distinct private secrets, exact-version closed topology,
+  trusted-context/security/restart/replay/cancellation/drift canaries, and
+  explicit owner approval.
+- LoomAI must use the official `SpecialistChain` resource contract when its
+  bounded JSON mapping/projection is sufficient. A reviewed Java chain is for
+  genuine application-owned invariants only. Never add a LoomAI-only chain DSL
+  or a second chain engine.
 
 Framework responsibilities:
 

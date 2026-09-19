@@ -30,7 +30,7 @@ export const products: Product[] = [
     shortName: 'Framework',
     layerLabel: 'Application enablement',
     statusLabel: 'Early release',
-    version: '0.6.1',
+    version: '0.7.0',
     licence: 'Apache 2.0',
     summary:
       'A Spring-native foundation for grounding, retrieval, governed actions and application-owned AI orchestration.',
@@ -58,8 +58,8 @@ export const products: Product[] = [
         description: 'Synchronize entities and keep index state aligned with source records.',
       },
       {
-        name: 'Operational evidence',
-        description: 'Expose traces, decisions and result contracts for inspection and testing.',
+        name: 'Bounded orchestration',
+        description: 'Run validated specialist chains with durable replay, traces and result evidence.',
       },
     ],
     owns: [
@@ -81,7 +81,7 @@ export const products: Product[] = [
   <dependency>
     <groupId>io.github.loom-ai-labs</groupId>
     <artifactId>ai-fabric-bom</artifactId>
-    <version>0.6.1</version>
+    <version>0.7.0</version>
     <type>pom</type>
     <scope>import</scope>
   </dependency>
@@ -110,8 +110,8 @@ export const products: Product[] = [
         external: true,
       },
       releaseNotes: {
-        label: '0.6.1 release',
-        href: 'https://github.com/Loom-AI-Labs/ai-fabric-framework/releases/tag/ai-fabric-framework-v0.6.1',
+        label: '0.7.0 release',
+        href: 'https://github.com/Loom-AI-Labs/ai-fabric-framework/releases/tag/ai-fabric-framework-v0.7.0',
         external: true,
       },
     },

@@ -2306,7 +2306,8 @@ Critical fixes that made the gate pass:
 ## 2026-09-15 AI Fabric 0.6.1 Productization Implementation Plan
 
 - Created canonical execution companion
-  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_22_AI_FABRIC_0_6_1_LOOMAI_PLATFORM_PRODUCTIZATION_IMPLEMENTATION_PLAN.md`.
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_22_AI_FABRIC_0_7_0_LOOMAI_PLATFORM_PRODUCTIZATION_IMPLEMENTATION_PLAN.md`
+  (renamed and superseded by the 2026-09-19 release alignment below).
 - `010.21` remains the product and deployment architecture source of truth;
   `010.22` defines the implementation sequence, Platform data model, private
   runtime bundles, deployment-local data-plane contracts, verification gates,
@@ -2321,3 +2322,81 @@ Critical fixes that made the gate pass:
   do not establish a LoomAI product claim.
 - This change is documentation and planning only. No Platform schema, runtime
   capability, deployment, assignment, or production behavior changed.
+
+## 2026-09-18 Customer Product Ownership And Primitive-Reuse Correction
+
+- Corrected canonical architecture `010.21` and implementation companion
+  `010.22`: LoomAI remains a generic AI-enablement Platform, while Platform
+  users create and own the actual domain products.
+- Conversational Assistant, Agentic Specialist Team, and Smart Brain are now
+  defined as built-in deployment behavior types. They describe activation,
+  coordination, durability, endpoint classes, and compatible extensions; they
+  are not a LoomAI-owned product portfolio.
+- The correction was grounded in current code. `DeploymentTemplateSummary`
+  already owns runtime/connector/provider/vector topology;
+  `MarketplaceTemplateBootstrapService` already bootstraps a deployment from a
+  published `TEMPLATE`; `DeploymentMarketplaceDraftCompilerService` already
+  compiles installed `TEMPLATE`, `DATA`, `ACTION`, and `INFERENCE_PROFILE`
+  versions; V04 already owns draft, immutable version, release, verification,
+  assignment, promotion, rollback, and export/import.
+- The implementation plan extends those exact primitives: add a small
+  server-owned behavior contract/field, behavior-aware `TEMPLATE` metadata,
+  exact required-plugin references, source-artifact capability inventory,
+  cross-primitive validation, and immutable composition provenance on the V04
+  Deployment Version.
+- Explicitly rejected new `behavior_product_template`, `product_profile`, and
+  parallel publish/version/release aggregates. A published Marketplace
+  `TEMPLATE` is the reusable customer-solution starter; the customer-owned V04
+  deployment/version is deployable truth. Entitlements constrain available
+  choices but do not define customer-product identity or grant runtime
+  authority.
+- Smart Brain remains deployment-local: assignment discovers the runtime, and
+  event/result traffic goes directly to that self-contained deployment.
+- This correction changed documentation/planning only. No schema, runtime,
+  deployment, assignment, or production state was changed.
+
+## 2026-09-19 AI Fabric 0.7.0 Gate A Source Upgrade And Productization Alignment
+
+- Verified the immutable public release before private adoption: tag
+  `ai-fabric-framework-v0.7.0` resolves to release commit
+  `5b075b66384dc5b756b3b3dd12efaf896ce9a50b`; framework guidance is present
+  at clean `main` documentation commit `7ac32985`; Maven Central resolves the
+  `io.github.loom-ai-labs:ai-fabric-bom:0.7.0` BOM from an empty cache.
+- Updated the private product and runtime BOM properties, Platform framework
+  default, new V04 version fallback, compiler defaults, and exact version test
+  fixtures to `0.7.0`. Specialist chains remain disabled in runtime defaults
+  and generated deployment environment. No chain resource, chain database
+  migration, chain secret, route, or product claim was added in Gate A.
+- Local verification is green: all five `ai-fabric-product` reactor modules;
+  private connector/runtime/relay reactors with `10`, `164`, and `35` tests;
+  and the complete Platform backend suite with `737` tests. No normal test was
+  skipped.
+- Rebuilt the private runtime with isolated Maven repository
+  `/tmp/loomai-m2-0.7.0.9mxI6q`; its `164` tests passed using Maven Central
+  artifacts. The boot JAR contains `ai-fabric-execution-0.7.0.jar` and all
+  other AI Fabric libraries at `0.7.0`; no `0.6.1` framework JAR is packaged.
+- Source upgrade and hosted fleet truth remain separate. The private source
+  target is now `0.7.0`, but the last verified live fleet remains the prior
+  V04 `0.6.1` rollout until this work is committed, deployed, and the hosted
+  Gate A version/health/direct-specialist/isolation/regression checks pass.
+- Renamed the implementation companion to
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_22_AI_FABRIC_0_7_0_LOOMAI_PLATFORM_PRODUCTIZATION_IMPLEMENTATION_PLAN.md`
+  and aligned canonical `010.21` with the released official
+  `ai.fabric/v1` `SpecialistChain` resource, offline validation, shared
+  Java/manifest registry/gateway, and source-aware runtime hashes.
+- Declarative adoption is intentionally staged: Gate A base release with
+  chains disabled; Gate B deployment-local schema while disabled; Gate C a
+  one-worker mechanics canary over `deployment-knowledge-specialist@1`; Gate D
+  a real multi-specialist product only after a distinct second read-only
+  worker exists. A Gate C canary is not a market-ready team claim.
+- Productization remains on the existing Marketplace/V04 spine. The plan adds
+  one governed `SPECIALIST` contribution type for reviewed non-executable
+  specialist/chain/schema/prompt resource bundles, exact offline validation,
+  content-addressed deployment materialization, provenance, export/import,
+  and runtime hash readback. It does not add a private chain DSL, chain engine,
+  Product Profile aggregate, or parallel release lifecycle. Java chain code is
+  reserved for application invariants the official declarative contract cannot
+  express.
+- Pending at this record: create the immutable private commit, perform the
+  hosted Gate A rollout, and record its exact release/deployment evidence.
+  Do not begin Gate B or Gate C before that review point.

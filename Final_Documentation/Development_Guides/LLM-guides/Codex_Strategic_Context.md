@@ -265,3 +265,44 @@ Current P0 cleanup items:
   readiness. Start with a generic Conversational Assistant profile, then a
   bounded Agentic Specialist Team. Smart Brain remains subject to the existing
   Shopify commercial-signal gate or an explicit superseding strategy decision.
+- 2026-09-18: The prior Product Kernel/Product Profile/three-behavior-product
+  model is superseded. LoomAI is a generic AI-enablement Platform; Platform
+  users create and own the domain products. `CONVERSATIONAL`,
+  `AGENTIC_SPECIALIST_TEAM`, and `SMART_BRAIN` are built-in deployment
+  behavior types describing activation and coordination, not LoomAI-owned
+  customer products. Reusable solution starts use the existing published
+  Marketplace `TEMPLATE` lifecycle; capabilities continue through existing
+  `DATA`, `ACTION`, and `INFERENCE_PROFILE` plugin versions. Existing curated
+  modules, runtime/inference/vector profiles, Deployment Templates, Target
+  Profiles, managed services, source artifacts, verification, V04 drafts and
+  versions, releases, assignments, promotion, and export/import remain the
+  implementation spine. The immutable V04 Deployment Version owns exact
+  composition provenance. Do not add `behavior_product_template`,
+  `product_profile`, parallel publish/version tables, or a second release
+  engine. Entitlements constrain choices but are neither customer-product
+  identity nor runtime authority. Canonical `010.21` and implementation plan
+  `010.22` were corrected accordingly; this was documentation/planning only.
+- 2026-09-19: AI Fabric `0.7.0` is the current private source target. The
+  immutable framework release is tag `ai-fabric-framework-v0.7.0`, release
+  commit `5b075b66384dc5b756b3b3dd12efaf896ce9a50b`, with LoomAI guidance at
+  documentation commit `7ac32985`. The source upgrade keeps specialist chains
+  disabled and adds no chain table, secret, resource, or route. The last
+  verified hosted fleet remains `0.6.1` until an immutable private commit is
+  deployed and Gate A hosted evidence passes; source and fleet claims must not
+  be conflated.
+- 2026-09-19: Declarative-chain adoption is four explicit gates: Gate A base
+  `0.7.0` with chains disabled; Gate B deployment-local chain migration while
+  disabled; Gate C one-worker mechanics canary using the existing
+  `deployment-knowledge-specialist@1`; and Gate D a real multi-specialist
+  product only after a genuinely distinct second read-only worker exists. Stop
+  after Gate A for evidence review. A one-worker canary is not a marketable
+  Agentic Specialist Team.
+- 2026-09-19: LoomAI will use the official `ai.fabric/v1` `SpecialistChain`
+  resource, offline validator, shared registry/gateway, and runtime hashes. It
+  will not create a private chain DSL or second engine. Reusable specialist
+  teams should enter the existing Marketplace/V04 lifecycle through one
+  planned governed `SPECIALIST` contribution carrying non-executable exact
+  specialist/chain/schema/prompt resources. `TEMPLATE` references exact
+  plugin versions; V04 remains immutable deployment truth. Java chain code is
+  reserved for genuine application invariants the declarative contract cannot
+  express.
