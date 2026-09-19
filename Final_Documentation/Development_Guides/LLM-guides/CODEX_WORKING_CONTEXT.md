@@ -2429,3 +2429,32 @@ Critical fixes that made the gate pass:
   `Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_0_7_0_PLATFORM_MIGRATION/README.md`.
   Gate B schema work, Gate C one-worker mechanics, and Gate D real
   multi-specialist product adoption remain unstarted.
+
+## 2026-09-19 Human Review Productization Contract Clarification
+
+- Rechecked AI Fabric `0.7.0` framework source and the official Durable Human
+  Review guide before expanding the LoomAI plan. The released durable review
+  source is exactly `ReviewSourceType.ACTION_PROPOSAL`; framework support is
+  not a generic approval wrapper for arbitrary answers, analyses, chain
+  results, or Smart Brain results.
+- AI Fabric supplies `ReviewDecisionGateway`, immutable review policies, safe
+  task views, JDBC task/dispatch repositories, optimistic decision ownership,
+  exact replay, recovery, expiry, retention, and continuation through the
+  governed action coordinator. LoomAI must productize the application-owned
+  migrations, secrets, policies, authorizer, dispatcher, trusted reviewer
+  context, safe deployment-local APIs, managed Review Inbox, V04 configuration,
+  operations, and hosted verification.
+- Ownership is explicit: the LoomAI Platform team implements and publishes the
+  versioned execution extension after owner approval; the customer opts it into
+  a compatible deployment and remains authoritative for reviewer identity,
+  roles/scopes, separation of duty, domain authorization, and system-of-record
+  effects. The model cannot select or impersonate a reviewer.
+- Release order is Conversational governed-action review first, Agentic reuse
+  only after the real Specialist Team is hosted-proven, and Smart Brain read-
+  result review only through a separate authorized application contract. Smart
+  Brain remains read-only and cannot call Resolver automatically.
+- Canonical `010.21` and implementation plan `010.22` now contain the lifecycle,
+  safe API/UI boundary, state/secret controls, verification matrix, work-package
+  tasks, and phased release sequence. This was documentation/planning only; no
+  review migration, secret, endpoint, runtime flag, V04 version, or deployment
+  was created.

@@ -152,6 +152,13 @@ Resolved specialist boundary and current release posture:
   bounded JSON mapping/projection is sufficient. A reviewed Java chain is for
   genuine application-owned invariants only. Never add a LoomAI-only chain DSL
   or a second chain engine.
+- AI Fabric `0.7.0` durable Human Review is specifically bound to
+  `ReviewSourceType.ACTION_PROPOSAL`. Reuse its `ReviewDecisionGateway`, policy,
+  persistence, dispatch, replay, and recovery contracts; do not duplicate them
+  or present arbitrary answers/analysis/chain/Smart Brain results as action
+  review. LoomAI owns V04/runtime/API/UI productization, while the customer
+  application remains authoritative for reviewer identity, roles/scopes,
+  separation of duty, domain authorization, and system-of-record effects.
 
 Framework responsibilities:
 

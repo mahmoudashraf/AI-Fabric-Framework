@@ -181,7 +181,7 @@ Maturity labels used throughout this document:
 | Bounded multi-specialist chains | `ai-fabric-execution` closed manager target catalogue, official `ai.fabric/v1` `SpecialistChain` YAML/JSON resources, bounded JSON input mapping/result projection, shared Java/manifest registry and gateway, sequential/independent-parallel worker selection, synthesis/handoff, JDBC checkpoints and replay | Read-only leaf workers; no cycles, recursion, nested chains, dynamic discovery, write workers, executable YAML, provider selection, or exactly-once provider invocation | `AI_FABRIC_AVAILABLE`; LoomAI product adoption is disabled pending separate schema and canary gates |
 | Declarative chain authoring and readback | `SpecialistChainManifestValidator`, authoring catalogue, source-aware registration, runtime status and aggregate hashes | Platform must validate against the selected runtime catalogue/ceilings and package immutable resources; runtime status is not a product catalogue | `AI_FABRIC_AVAILABLE`; Platform binding is `PRODUCTIZATION_REQUIRED` |
 | Durable proactive read execution | `ai-fabric-execution` JDBC read jobs and optional bounded chain execution for trusted application/event/scheduled sources | Exact read-only specialist or approved bounded chain; at-least-once provider execution; no event/scheduled write or open-ended graph | `AI_FABRIC_AVAILABLE` |
-| Governed receipts and human review | `ai-fabric-execution` proposal receipts, review tasks/delivery, replay, reconciliation contracts | Application owns reviewer authorization, transaction, system-of-record reconciliation, and migrations | `AI_FABRIC_AVAILABLE` |
+| Governed receipts and human review | `ai-fabric-execution` governed action proposal receipts, `ACTION_PROPOSAL` review tasks/delivery, replay, reconciliation contracts | Application owns reviewer authorization, transaction, system-of-record reconciliation, and migrations; arbitrary result review is not included | `AI_FABRIC_AVAILABLE` |
 | PII | `ai-fabric-pii` | Product defines legal/policy posture, encryption, retention, and claims | `AI_FABRIC_AVAILABLE` |
 | Governance | `ai-fabric-governance` | Does not replace product-specific authorization or compliance review | `AI_FABRIC_AVAILABLE` |
 | Relationship query | `ai-fabric-relationship-query` | Requires approved domain schema and object authorization | `AI_FABRIC_AVAILABLE` |
@@ -700,7 +700,7 @@ trusted application event / schedule / internal API / durable job submission
   -> deployment maps facts to exact specialist and trusted execution context
   -> read-only analysis over approved current state, evidence, or read actions
   -> typed terminal result
-  -> deployment persists, returns, notifies, or routes to authorized human review
+  -> deployment persists, returns, notifies, or hands the result to a separate application-owned read-result review workflow
 ```
 
 Deployment-local integration contract:
@@ -765,13 +765,55 @@ It may extend compatible Conversational Assistant or Agentic Specialist Team dep
 
 #### Human Review
 
-Adds a durable version-bound review task, authorized reviewer assignment, correction/approval/rejection/information/escalation decisions, delivery evidence, and governed execution after approval.
+Adds a durable version-bound review task, safe dispatch evidence, separately
+authenticated reviewer context, and policy-bound approve, reject, correct,
+request-information, or escalate decisions. It is an Execution Extension, not
+a Deployment Behavior Type, chat mode, or customer product.
 
-Primary official capability bindings: `loomai_safety_governance`, `loomai_governed_action_execution` where approval can lead to a write, and `loomai_structured_outputs` for the reviewed proposal/result.
+Primary official capability bindings: `loomai_safety_governance`,
+`loomai_governed_action_execution`, and `loomai_structured_outputs` for the
+reviewed action proposal and safe outcome.
 
-Reviewer identity and final authorization remain application-owned. Human Review may receive a Smart Brain result as a new application-owned review workflow, but the event job itself remains read-only.
+The LoomAI Platform team owns implementing, verifying, and publishing the
+versioned extension through the existing V04 lifecycle. The customer opts it
+into a compatible deployment and remains authoritative for reviewer identity,
+role/scope policy, separation of duty, domain authorization, and the system of
+record. The model may propose and explain but cannot choose the review policy,
+reviewer, dispatcher, recipient, escalation target, decision, or execution
+authority.
 
-Both extensions are `AI_FABRIC_AVAILABLE`; each deployed solution requires its own application action/reviewer contracts and hosted verification before external readiness claims.
+The released AI Fabric `0.7.0` durable review source is exactly
+`ACTION_PROPOSAL`. The framework supplies `ReviewDecisionGateway`, immutable
+review policies, safe task views, JDBC task/dispatch repositories, optimistic
+decisions, exact replay, recovery, expiry, and governed continuation. LoomAI
+must supply the application-owned migrations, stable distinct secrets,
+policy/authorizer/dispatcher beans, trusted reviewer context, safe
+deployment-local APIs, optional managed Review Inbox, and operational proof.
+
+The first supported profile is a Conversational deployment that creates one
+grounded governed action proposal. The application selects the immutable
+review policy, persists the task before dispatch, authenticates the reviewer,
+and submits the decision through the framework gateway. Approval never invokes
+an action handler directly: it delegates to `ActionProposalCoordinator`, which
+revalidates current authority, schema, protected parameters, and preflight
+before one known outcome. Rejection and expiry cannot mutate. Correction
+creates a schema-bound successor; information and escalation use registered
+schemas/handlers/policies.
+
+Agentic reuse comes only after the Specialist Team is hosted-proven; workers
+remain read-only and can only hand a proposal to the application-owned action
+and review boundary. Smart Brain may later feed a separate application-owned
+read-result review workflow, but its event job remains read-only and cannot
+call Resolver automatically. Arbitrary answers, analyses, chain results, or
+Smart Brain results must not be disguised as `ACTION_PROPOSAL`; reusable
+general result review requires a released framework source contract or an
+explicitly versioned and separately verified application workflow.
+
+Governed Resolver and `ACTION_PROPOSAL` review primitives are
+`AI_FABRIC_AVAILABLE`; each deployed solution requires its own application
+action/reviewer contracts and hosted verification before external readiness
+claims. General read-result review is not currently a framework-proven
+capability.
 
 ### 8.6 Customer solution templates and reference deployments
 
@@ -833,7 +875,7 @@ These are compiler requirements selected by behavior type plus template/plugin c
 | Interactive specialist | Agentic Specialist Team | Read specialist + conversation manager + typed wait | Chat session as selected | Input waits and manager state are process-local; avoid restart-survival claims |
 | Bounded specialist chain | Agentic Specialist Team or Smart Brain | Official declarative `SpecialistChain` or reviewed Java definition + closed exact-version read-only worker catalogue + manager directives + bounded mapping/projection | Optional `ai_specialist_chain_execution`, stable encryption/fingerprint secrets, leases and retention | No recursion, nesting, cycles, dynamic targets, executable YAML, write workers, or exactly-once provider claim |
 | Governed write | Conversational Assistant or Agentic Specialist Team extension | Specialist/action proposal + confirmation | `ai_action_proposal_receipt`, stable secrets, application transaction | Side effect remains application-owned |
-| Human review | Compatible behavior extension | Review task + delivery + governed receipt | `ai_review_task`, `ai_review_dispatch`, receipt storage | Reviewer authorization and assignment are product/application-owned |
+| Human review | Conversational governed action first; Agentic only after hosted proof | `ACTION_PROPOSAL` review task + safe dispatch + governed receipt | `ai_review_task`, `ai_review_dispatch`, action receipt storage, stable review secrets | Reviewer identity/authorization are customer-application-owned; arbitrary read-result review is a separate future contract |
 | Durable event read | Smart Brain | Deployment-local event/schedule endpoint + exact specialist job or bounded specialist chain | `ai_specialist_execution` or `ai_specialist_chain_execution`, stable encryption/fingerprint secrets, local result/delivery outbox | Direct deployment data plane; at-least-once read execution, not exactly-once provider calls or event writes |
 | Process-local fixed plan | Agentic Specialist Team or Smart Brain | Fixed sequential/parallel read-only plan | Bounded in-process checkpoints | Exact-version, deterministic topology; not a durable graph |
 | Live data RAG | Any retrieval-enabled behavior | Data Sync + indexing worker + vector provider | Indexing queue/work plus vector storage | Query work status; do not infer completion from vector presence |
@@ -1172,15 +1214,42 @@ Exit:
 
 ### P3: Governed Resolver and Human Review extensions
 
-1. Bind Resolver only to compatible Conversational Assistant or Agentic Specialist Team deployments.
-2. Add one low-risk registered write with trusted target, application validation, explicit confirmation, and safe result generation.
-3. Add durable receipt, restart/replay proof, and system-of-record reconciliation.
-4. Add Human Review as a separate application-owned workflow with reviewer authorization, delivery, decisions, escalation, expiry, and recovery.
-5. Allow Smart Brain results to create application-owned review work only through a new authorized boundary; keep the originating event execution read-only.
+1. Productize Human Review first for a Conversational deployment with one
+   low-risk registered governed action proposal; do not make Agentic or Smart
+   Brain a prerequisite.
+2. Pin the first release to AI Fabric `ReviewSourceType.ACTION_PROPOSAL` and
+   configure application-owned JDBC task/dispatch migrations, stable distinct
+   review secrets, one immutable policy, reviewer authorizer, and safe inbox
+   dispatcher.
+3. Expose deployment-local safe inbox, detail, decision, information, outcome,
+   and operator-recovery contracts. LoomAI may provide a managed Review Inbox,
+   while customer-owned UIs use the same API.
+4. Prove approve/reject, separation of duty, tenant/deployment isolation,
+   restart, exact replay, changed-decision conflict, policy/source drift,
+   dispatch failure, expiry, retention, rollback, and `OUTCOME_UNKNOWN`.
+5. Ensure approval delegates only to `ActionProposalCoordinator`, which
+   revalidates current action authority and preflight; Review code never calls
+   an action handler directly.
+6. Add schema-bound correction, request-information, escalation, and external
+   safe-reference dispatch only after their handlers and successor policies
+   are registered and verified.
+7. Bind Resolver only to compatible Conversational Assistant or later hosted-
+   proven Agentic Specialist Team deployments, with durable receipt and
+   system-of-record reconciliation.
+8. Reuse Human Review with Agentic only after the real team passes its own
+   gates; workers remain read-only and cannot select a reviewer or execute.
+9. Allow Smart Brain results to create application-owned read-result review
+   only through a separate authorized contract. Keep event execution read-only,
+   block direct Resolver use, and never overload `ACTION_PROPOSAL`.
 
 Exit:
 
-- denial never executes, confirmation cannot replace trusted facts, retries do not duplicate side effects, reviewer authority is independent, and reconciliation is terminal.
+- one Conversational V04 deployment has hosted-proven durable action-proposal
+  review with customer-owned reviewer authority and a generic safe inbox;
+- denial/expiry never executes, approval cannot replace trusted facts, retries
+  do not duplicate side effects, reviewer authority is independent, and
+  reconciliation is terminal;
+- arbitrary answers/results are not claimed as framework-backed Human Review.
 
 ### P4: Shared solution, capability, and channel packs
 
@@ -1305,7 +1374,17 @@ Exit:
 - exact-version deployment packaging;
 - trusted adapters;
 - execution status/input waits/jobs;
-- proposal/confirmation/review/receipt/reconciliation UI;
+- exact immutable review-policy registration and `ACTION_PROPOSAL` source
+  validation;
+- application-owned task/dispatch migrations, stable secrets, recovery,
+  expiry, retention, and draining;
+- customer-authority-backed reviewer context, scopes, separation of duty, and
+  current-authorization revalidation;
+- deployment-local safe inbox/detail/decision/information/outcome APIs;
+- optional LoomAI managed Review Inbox plus customer-owned UI and safe-
+  reference dispatcher support;
+- proposal/confirmation/review/receipt/reconciliation UI with no raw receipt,
+  executable parameter, identity fingerprint, or handler-result exposure;
 - security and restart canaries.
 
 ### Workstream G: Solution and capability packs
@@ -1459,7 +1538,9 @@ A customer-owned V04 deployment built from that behavior and any Marketplace tem
 
 ### Later gated items
 
-- Resolver extension with one low-risk write and the separate Human Review extension.
+- Conversational `ACTION_PROPOSAL` Human Review with one low-risk governed
+  action first; Resolver remains separately selectable, and Agentic attachment
+  comes only after the team is hosted-proven.
 - Grounded Company Knowledge, Document Knowledge Operations, and non-Shopify MCP packs.
 - Customer-facing specialist-team Marketplace templates.
 - Behavior/churn and incident Smart Brain Marketplace templates.

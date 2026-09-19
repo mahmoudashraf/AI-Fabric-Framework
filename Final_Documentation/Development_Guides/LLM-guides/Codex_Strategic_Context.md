@@ -316,3 +316,13 @@ Current P0 cleanup items:
   the owner-deferred Shopify first-product answer-quality stage and must still
   be reported as failed. Gates B, C, and D remain unstarted; declarative chains
   are framework-available, not yet a selectable or market-ready LoomAI product.
+- 2026-09-19: Human Review is a LoomAI execution extension, not a deployment
+  behavior or customer product. LoomAI Platform publishes the versioned
+  extension through V04; customers opt in and retain reviewer identity,
+  roles/scopes, separation of duty, domain authorization, and system-of-record
+  authority. The first productized profile is a Conversational governed action
+  proposal using AI Fabric's released `ACTION_PROPOSAL` review source. Agentic
+  reuse waits for a hosted-proven real team. Smart Brain remains read-only and
+  may feed only a separate application-owned read-result review contract; it
+  cannot call Resolver automatically. Never represent arbitrary model or chain
+  results as framework-backed action review.
