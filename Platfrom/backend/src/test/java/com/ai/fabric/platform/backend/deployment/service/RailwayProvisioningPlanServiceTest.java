@@ -1655,6 +1655,7 @@ class RailwayProvisioningPlanServiceTest {
             """);
         Map<String, String> agenticEnv = envMap(service.buildPlan(deployment(), agentic).services().runtime().env());
         assertThat(agenticEnv)
+            .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "2")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "true")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_DURABLE_ENABLED", "true")
             .containsEntry(
@@ -1689,6 +1690,7 @@ class RailwayProvisioningPlanServiceTest {
             service.buildPlan(deployment(), smartBrain).services().runtime().env()
         );
         assertThat(smartBrainEnv)
+            .containsEntry("AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS", "2")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_ENABLED", "false")
             .containsEntry("AI_EXECUTION_SPECIALIST_CHAINS_DURABLE_ENABLED", "false")
             .containsEntry(

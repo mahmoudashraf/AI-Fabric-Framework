@@ -274,11 +274,13 @@ public class RailwayProvisioningPlanService {
             "AI_FABRIC_FRAMEWORK_VERSION",
             aiFabricFrameworkVersion
         ));
+        String deploymentBehaviorType = behaviorConfig.path("type").asText("");
+        boolean structuredBehavior = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType)
+            || "SMART_BRAIN".equals(deploymentBehaviorType);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_OUTPUT_FINALIZATION_MAX_ATTEMPTS",
-            "1"
+            structuredBehavior ? "2" : "1"
         ));
-        String deploymentBehaviorType = behaviorConfig.path("type").asText("");
         boolean specialistChainsEnabled = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType);
         boolean humanReviewEnabled = contains(behaviorConfig.path("executionExtensions"), "HUMAN_REVIEW");
         runtimeEnv.add(new RailwayEnvVarSummary(
