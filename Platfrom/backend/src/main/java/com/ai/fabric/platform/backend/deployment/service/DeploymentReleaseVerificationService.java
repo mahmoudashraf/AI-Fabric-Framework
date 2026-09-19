@@ -230,6 +230,7 @@ public class DeploymentReleaseVerificationService {
             verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
             VerificationExpectations expectations = buildExpectations(version, release, artifacts);
+            boolean connectorVerificationRequired = connectorVerificationRequired(release, expectations);
             addBooleanCheck(
                 checks,
                 "active_version_matches_release",
@@ -242,12 +243,20 @@ public class DeploymentReleaseVerificationService {
                 hasText(deployment.getRuntimeBaseUrl()),
                 "Runtime base URL is populated."
             );
-            addBooleanCheck(
-                checks,
-                "connector_base_url_present",
-                hasText(deployment.getConnectorBaseUrl()),
-                "Connector base URL is populated."
-            );
+            if (connectorVerificationRequired) {
+                addBooleanCheck(
+                    checks,
+                    "connector_base_url_present",
+                    hasText(deployment.getConnectorBaseUrl()),
+                    "Connector base URL is populated."
+                );
+            } else {
+                addSkippedCheck(
+                    checks,
+                    "connector_base_url_present",
+                    "Connector base URL is not required for a runtime-only image deployment without actions."
+                );
+            }
             addBooleanCheck(
                 checks,
                 "provisioning_details_present",
@@ -261,7 +270,7 @@ public class DeploymentReleaseVerificationService {
                 "Compiled manifest exists for the release version."
             );
             verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, deployment);
-            verifyLiveEndpoints(checks, deployment, release, expectations);
+            verifyLiveEndpoints(checks, deployment, release, expectations, connectorVerificationRequired);
         }
 
         int passed = 0;
@@ -419,7 +428,8 @@ public class DeploymentReleaseVerificationService {
     private void verifyLiveEndpoints(ArrayNode checks,
                                      DeploymentEntity deployment,
                                      DeploymentReleaseEntity release,
-                                     VerificationExpectations expectations) {
+                                     VerificationExpectations expectations,
+                                     boolean connectorVerificationRequired) {
         if ("RAILWAY_STUB".equalsIgnoreCase(release.getProvisioningTarget())) {
             addSkippedCheck(checks, "runtime_health_http_probe",
                 "Live runtime probe skipped because the deployment is still using stub provisioning.");
@@ -477,18 +487,27 @@ public class DeploymentReleaseVerificationService {
         );
 
         Map<String, String> runtimeAdminHeaders = runtimeAdminHeaders(deployment);
-        JsonProbeResult connectorHealth = awaitSuccessfulJsonProbe(
-            deployment.getRuntimeBaseUrl(),
-            verificationProperties.runtimeConnectorHealthPath(),
-            runtimeAdminHeaders
-        );
-        addProbeCheck(checks, "connector_health_http_probe", "Connector health via runtime proxy", connectorHealth);
+        if (connectorVerificationRequired) {
+            JsonProbeResult connectorHealth = awaitSuccessfulJsonProbe(
+                deployment.getRuntimeBaseUrl(),
+                verificationProperties.runtimeConnectorHealthPath(),
+                runtimeAdminHeaders
+            );
+            addProbeCheck(checks, "connector_health_http_probe", "Connector health via runtime proxy", connectorHealth);
+        } else {
+            addSkippedCheck(
+                checks,
+                "connector_health_http_probe",
+                "Connector health probe is not required for a runtime-only image deployment without actions."
+            );
+        }
 
-        SettledOverviewProbes settledOverviews = awaitExpectedOverviewConsistency(
-            deployment,
-            runtimeAdminHeaders,
-            expectations
-        );
+        SettledOverviewProbes settledOverviews = connectorVerificationRequired
+            ? awaitExpectedOverviewConsistency(deployment, runtimeAdminHeaders, expectations)
+            : new SettledOverviewProbes(
+                awaitExpectedRuntimeOverviewConsistency(deployment, runtimeAdminHeaders, expectations),
+                null
+            );
         JsonProbeResult runtimeOverview = settledOverviews.runtimeOverview();
         addProbeCheck(checks, "runtime_admin_overview_http_probe", "Runtime admin overview", runtimeOverview);
         validateRuntimeOverview(checks, runtimeOverview, expectations);
@@ -518,22 +537,101 @@ public class DeploymentReleaseVerificationService {
         addProbeCheck(checks, "runtime_indexing_overview_http_probe", "Runtime indexing overview", runtimeIndexingOverview);
         validateRuntimeIndexing(checks, runtimeIndexingOverview, expectations);
 
-        JsonProbeResult connectorOverview = settledOverviews.connectorOverview();
-        addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview via runtime proxy", connectorOverview);
-        validateConnectorOverview(checks, connectorOverview, expectations);
-        validateConnectorAuthz(checks, connectorOverview, expectations);
+        if (connectorVerificationRequired) {
+            JsonProbeResult connectorOverview = settledOverviews.connectorOverview();
+            addProbeCheck(checks, "connector_admin_overview_http_probe", "Connector admin overview via runtime proxy", connectorOverview);
+            validateConnectorOverview(checks, connectorOverview, expectations);
+            validateConnectorAuthz(checks, connectorOverview, expectations);
+        } else {
+            addRuntimeOnlyConnectorChecks(checks);
+        }
         validateMarketplaceDatasetSync(checks, deployment, release, expectations);
 
-        JsonProbeResult connectorActionsOverview = awaitSuccessfulJsonProbe(
-            deployment.getRuntimeBaseUrl(),
-            verificationProperties.connectorActionsOverviewPath(),
-            runtimeAdminHeaders
-        );
-        addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview via runtime proxy", connectorActionsOverview);
-        validateConnectorActions(checks, connectorActionsOverview, expectations);
+        if (connectorVerificationRequired) {
+            JsonProbeResult connectorActionsOverview = awaitSuccessfulJsonProbe(
+                deployment.getRuntimeBaseUrl(),
+                verificationProperties.connectorActionsOverviewPath(),
+                runtimeAdminHeaders
+            );
+            addProbeCheck(checks, "connector_actions_overview_http_probe", "Connector actions overview via runtime proxy", connectorActionsOverview);
+            validateConnectorActions(checks, connectorActionsOverview, expectations);
+        } else {
+            addSkippedCheck(
+                checks,
+                "connector_actions_overview_http_probe",
+                "Connector actions probe is not required for a runtime-only image deployment without actions."
+            );
+            addSkippedCheck(
+                checks,
+                "connector_actions_match_expected",
+                "Connector action validation is not required for a runtime-only image deployment without actions."
+            );
+        }
         verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
         verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig(), true);
         verifyVectorizationRunnerServiceProvisioning(checks, deployment, release, expectations.entityConfig());
+    }
+
+    private JsonProbeResult awaitExpectedRuntimeOverviewConsistency(DeploymentEntity deployment,
+                                                                    Map<String, String> runtimeAdminHeaders,
+                                                                    VerificationExpectations expectations) {
+        JsonProbeResult runtimeOverview = probeJson(
+            deployment.getRuntimeBaseUrl(),
+            verificationProperties.runtimeAdminOverviewPath(),
+            runtimeAdminHeaders
+        );
+        if (runtimeOverviewMatchesExpected(runtimeOverview, expectations)) {
+            return runtimeOverview;
+        }
+
+        Instant deadline = Instant.now().plus(verificationProperties.postApplyConsistencyTimeout());
+        while (Instant.now().isBefore(deadline)) {
+            if (!sleepQuietly(verificationProperties.postApplyConsistencyPollInterval())) {
+                break;
+            }
+            runtimeOverview = probeJson(
+                deployment.getRuntimeBaseUrl(),
+                verificationProperties.runtimeAdminOverviewPath(),
+                runtimeAdminHeaders
+            );
+            if (runtimeOverviewMatchesExpected(runtimeOverview, expectations)) {
+                break;
+            }
+        }
+        return runtimeOverview;
+    }
+
+    private void addRuntimeOnlyConnectorChecks(ArrayNode checks) {
+        addSkippedCheck(
+            checks,
+            "connector_admin_overview_http_probe",
+            "Connector admin probe is not required for a runtime-only image deployment without actions."
+        );
+        addSkippedCheck(
+            checks,
+            "connector_config_matches_expected",
+            "Connector config validation is not required for a runtime-only image deployment without actions."
+        );
+        addSkippedCheck(
+            checks,
+            "connector_authz_configuration_matches_expected",
+            "Connector authorization validation is not required for a runtime-only image deployment without actions."
+        );
+    }
+
+    private boolean connectorVerificationRequired(DeploymentReleaseEntity release,
+                                                  VerificationExpectations expectations) {
+        JsonNode provisioningDetails = readJson(release == null ? null : release.getProvisioningDetailsJson());
+        if (!"IMAGE_SOURCE".equalsIgnoreCase(provisioningDetails.path("sourceStrategy").asText(""))) {
+            return true;
+        }
+
+        boolean connectorProvisioned = hasText(provisioningDetails.path("connectorApplicationUuid").asText(""))
+            || hasText(provisioningDetails.path("connectorProviderResourceHandleId").asText(""))
+            || hasText(provisioningDetails.path("coolify").path("services").path("connector").path("serviceId").asText(""));
+        boolean actionsConfigured = !expectations.expectedActionNames().isEmpty()
+            || !expectations.expectedRoutingActions().isEmpty();
+        return connectorProvisioned || actionsConfigured;
     }
 
     private SettledOverviewProbes awaitExpectedOverviewConsistency(DeploymentEntity deployment,

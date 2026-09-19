@@ -373,6 +373,77 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void verifySkipsConnectorChecksForRuntimeOnlyImageWithoutActions() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            DeploymentArtifactBundleSummary artifacts = new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
+                "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+            );
+            registerRuntimeOnlyImageHandlers(runtimeServer, artifacts);
+            runtimeServer.start();
+
+            PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+            when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
+                .thenReturn("trusted-backend-secret");
+            when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
+                .thenReturn("private-assertion-secret");
+            when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
+                .thenReturn(true);
+            when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
+                .thenReturn(true);
+
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            DeploymentProviderConnectivityService connectivityService = mock(DeploymentProviderConnectivityService.class);
+            DeploymentTenantScopedVectorService tenantScopedVectorService = mock(DeploymentTenantScopedVectorService.class);
+            DeploymentVectorizationVerificationService vectorizationVerificationService =
+                mock(DeploymentVectorizationVerificationService.class);
+            when(vectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
+
+            DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
+                objectMapper,
+                verificationProperties(Duration.ofMillis(100)),
+                platformSecretService,
+                new DeploymentConfigCompiler(objectMapper),
+                artifactService,
+                mock(RailwayPreflightService.class),
+                connectivityService,
+                tenantScopedVectorService,
+                vectorizationVerificationService
+            );
+
+            String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment(runtimeBaseUrl, runtimeBaseUrl),
+                runtimeOnlyImageVersion(),
+                runtimeOnlyImageRelease(),
+                "POST_DEPLOY"
+            );
+
+            assertThat(run.getStatus()).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_admin_overview_http_probe")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "runtime_config_matches_expected")).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "connector_base_url_present")).isEqualTo("SKIPPED");
+            assertThat(checkStatus(run, "connector_health_http_probe")).isEqualTo("SKIPPED");
+            assertThat(checkStatus(run, "connector_admin_overview_http_probe")).isEqualTo("SKIPPED");
+            assertThat(checkStatus(run, "connector_config_matches_expected")).isEqualTo("SKIPPED");
+            assertThat(checkStatus(run, "connector_authz_configuration_matches_expected")).isEqualTo("SKIPPED");
+            assertThat(checkStatus(run, "connector_actions_overview_http_probe")).isEqualTo("SKIPPED");
+            assertThat(checkStatus(run, "connector_actions_match_expected")).isEqualTo("SKIPPED");
+        } finally {
+            runtimeServer.stop(0);
+        }
+    }
+
+    @Test
     void verifyUsesLongerTimeoutForRuntimeIndexingOverviewProbe() throws Exception {
         HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
         HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
@@ -2490,6 +2561,123 @@ class DeploymentReleaseVerificationServiceTest {
         );
     }
 
+    private void registerRuntimeOnlyImageHandlers(HttpServer server, DeploymentArtifactBundleSummary artifacts) {
+        registerRuntimeHandlers(server, artifacts);
+        server.removeContext("/api/admin/overview");
+        server.removeContext("/api/admin/actions/overview");
+        server.removeContext("/api/admin/indexing/overview");
+        server.removeContext("/api/admin/connector/health");
+        server.removeContext("/api/admin/connector/overview");
+        server.removeContext("/api/admin/connector/actions/overview");
+
+        server.createContext(
+            "/api/admin/overview",
+            privateRuntimeJsonHandler(
+                """
+                    {
+                      "success": true,
+                      "aiFabricFrameworkVersion": "0.7.0",
+                      "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
+                      "entityConfigHash": "entity-hash-123",
+                      "deploymentVersionId": "ver-123",
+                      "deploymentBehavior": {
+                        "type": "CONVERSATIONAL",
+                        "schemaVersion": "loomai-deployment-behavior-v1",
+                        "contractVersion": 1,
+                        "compositionHash": "",
+                        "specialistChainsEnabled": false
+                      },
+                      "runtimeMigrations": {"appliedMigrationIds": []},
+                      "runtimeCapabilityManifestHash": "",
+                      "productSourceCommit": "",
+                      "aifabricEntities": {
+                        "available": true,
+                        "queue": {"ready": true}
+                      },
+                      "entityConfigLocation": "%s",
+                      "promptConfigLocation": "%s",
+                      "knowledgeSourceConfigLocation": "",
+                      "shellConfigLocation": "",
+                      "actionCatalogSources": [
+                        {"type": "FILE", "path": "%s", "optional": false}
+                      ],
+                      "actionsCount": 0,
+                      "confirmationInterceptorsCount": 0,
+                      "postActionWebhookPoliciesCount": 0,
+                      "actionNamesWithPostActionWebhookPolicies": [],
+                      "webhookTargetsCount": 0,
+                      "webhookTargetIds": [],
+                      "confirmationInterceptorRuleNames": [],
+                      "confirmationInterceptorSources": ["%s"],
+                      "knowledgeSourcesCount": 0,
+                      "knowledgeSourceIds": [],
+                      "knowledgeSourceTypes": [],
+                      "knowledgeSourceAdapterTypes": [],
+                      "shellModulesCount": 0,
+                      "shellModuleIds": [],
+                      "shellCardsCount": 0,
+                      "shellCardIds": [],
+                      "shellStarterPromptsCount": 0,
+                      "shellGreetingConfigured": false,
+                      "supportedEntityTypes": [],
+                      "inferenceProfile": {
+                        "llmProvider": "openai",
+                        "embeddingProvider": "openai"
+                      },
+                      "marketplaceSupport": {
+                        "knowledgeSourceContractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                        "shellConfigContractVersion": "SHELL_CONFIG_V1",
+                        "inferenceProfileContractVersion": "INFERENCE_PROFILE_RUNTIME_V1"
+                      }
+                    }
+                    """.formatted(
+                        artifacts.entityArtifactUrl(),
+                        artifacts.promptArtifactUrl(),
+                        artifacts.actionsArtifactUrl(),
+                        artifacts.actionsArtifactUrl()
+                    )
+            )
+        );
+        server.createContext(
+            "/api/admin/actions/overview",
+            privateRuntimeJsonHandler(
+                """
+                    {
+                      "success": true,
+                      "contractVersion": "RUNTIME_ACTION_CATALOG_OVERVIEW_V3",
+                      "count": 0,
+                      "withPresentationHintsCount": 0,
+                      "withBuiltInModuleMappingsCount": 0,
+                      "withBuiltInCardMappingsCount": 0,
+                      "withProvenanceCount": 0,
+                      "confirmationInterceptorsCount": 0,
+                      "postActionWebhookPoliciesCount": 0,
+                      "actionNamesWithPostActionWebhookPolicies": [],
+                      "webhookTargetsCount": 0,
+                      "webhookTargetIds": [],
+                      "confirmationInterceptorRuleNames": [],
+                      "confirmationInterceptorSources": ["%s"],
+                      "actions": []
+                    }
+                    """.formatted(artifacts.actionsArtifactUrl())
+            )
+        );
+        server.createContext(
+            "/api/admin/indexing/overview",
+            privateRuntimeJsonHandler(
+                """
+                    {
+                      "success": true,
+                      "supportsVectorScan": true,
+                      "entityTypes": [],
+                      "countsByEntityType": {},
+                      "totalVectors": 0
+                    }
+                    """
+            )
+        );
+    }
+
     private void registerRuntimeHandlers(HttpServer server,
                                          DeploymentArtifactBundleSummary artifacts,
                                          HttpHandler connectorHealthHandler) {
@@ -3035,6 +3223,26 @@ class DeploymentReleaseVerificationServiceTest {
         return version;
     }
 
+    private DeploymentVersionEntity runtimeOnlyImageVersion() {
+        DeploymentVersionEntity version = version();
+        version.setActionsConfigJson("""
+            {"actions":[],"confirmationInterceptors":[],"webhookTargets":[]}
+            """);
+        version.setEntityConfigJson("""
+            {"ai-entities":{}}
+            """);
+        version.setRoutingConfigJson("""
+            {
+              "connector":{"inbound-auth":{"allow-unauthenticated":false}},
+              "authz":{"enabled":false},
+              "actions":{}
+            }
+            """);
+        version.setKnowledgeSourceConfigJson(null);
+        version.setShellConfigJson(null);
+        return version;
+    }
+
     private DeploymentReleaseEntity release() {
         DeploymentReleaseEntity release = new DeploymentReleaseEntity();
         release.setId("rel-123");
@@ -3050,6 +3258,21 @@ class DeploymentReleaseVerificationServiceTest {
         release.setCreatedAt(Instant.parse("2026-03-29T00:00:00Z"));
         release.setAppliedAt(Instant.parse("2026-03-29T00:00:00Z"));
         release.setUpdatedAt(Instant.parse("2026-03-29T00:00:00Z"));
+        return release;
+    }
+
+    private DeploymentReleaseEntity runtimeOnlyImageRelease() {
+        DeploymentReleaseEntity release = release();
+        release.setProvisioningTarget("COOLIFY");
+        release.setProvisioningDetailsJson("""
+            {
+              "sourceStrategy":"IMAGE_SOURCE",
+              "effectiveProviderConfig":{
+                "llmProvider":"openai",
+                "embeddingProvider":"openai"
+              }
+            }
+            """);
         return release;
     }
 
