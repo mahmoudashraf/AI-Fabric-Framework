@@ -955,7 +955,8 @@ class MarketplaceIntegrationTest {
     @Test
     @Sql({
         "classpath:db/migration/V133__behavior_marketplace_templates_and_specialists.sql",
-        "classpath:db/migration/V135__verified_authz_behavior_template_versions.sql"
+        "classpath:db/migration/V135__verified_authz_behavior_template_versions.sql",
+        "classpath:db/migration/V136__agentic_specialist_manager_contract_patch.sql"
     })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void behaviorTemplatesBootstrapExactSpecialistsAndPublishImmutableComposition() throws Exception {
@@ -985,7 +986,7 @@ class MarketplaceIntegrationTest {
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-agentic-specialist-team")
                     .contentType(APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(java.util.Map.of(
-                        "pluginVersion", "1.0.1",
+                        "pluginVersion", "1.0.2",
                         "name", "Agentic Specialist Team Smoke",
                         "environment", "dev",
                         "templateId", "custom-start-from-scratch"
@@ -1006,7 +1007,7 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].bundleId", is("deployment-intelligence-team@1")))
             .andExpect(jsonPath(
                 "$.behaviorConfig.specialistBundles[0].contentHash",
-                is("sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8")
+                is("sha256:ab1a1185dbe5f8ba5dc6c67c10c196bd9a569f211c537a39efb2d47fef05a025")
             ))
             .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].marketplaceManaged", is(true)))
             .andExpect(jsonPath(

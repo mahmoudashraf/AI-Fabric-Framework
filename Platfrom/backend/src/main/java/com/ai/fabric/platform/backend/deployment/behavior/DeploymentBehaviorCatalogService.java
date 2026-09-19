@@ -27,6 +27,16 @@ public class DeploymentBehaviorCatalogService {
     public static final int CONTRACT_VERSION = 1;
     public static final String SPECIALIST_BUNDLE_CONTRACT_VERSION =
         "LOOMAI_SOURCE_ATTESTED_SPECIALIST_BUNDLE_V1";
+    private static final String AGENTIC_SPECIALIST_BUNDLE_ID =
+        "deployment-intelligence-team@1";
+    private static final String AGENTIC_SPECIALIST_BUNDLE_HASH_V100 =
+        "sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8";
+    private static final String AGENTIC_SPECIALIST_BUNDLE_HASH_V101 =
+        "sha256:ab1a1185dbe5f8ba5dc6c67c10c196bd9a569f211c537a39efb2d47fef05a025";
+    private static final String SMART_BRAIN_SPECIALIST_BUNDLE_ID =
+        "smart-brain-event-analysis@1";
+    private static final String SMART_BRAIN_SPECIALIST_BUNDLE_HASH_V100 =
+        "sha256:1059173cfb1fe7e0794e971af43d373c4d047a02e9fb50b77c6fe0328094e61d";
 
     private final ObjectMapper objectMapper;
     private final Map<DeploymentBehaviorType, BehaviorContract> contracts;
@@ -275,7 +285,7 @@ public class DeploymentBehaviorCatalogService {
                 );
             }
             if (!SPECIALIST_BUNDLE_CONTRACT_VERSION.equals(item.path("contractVersion").asText(""))
-                || !requirement.contentHash().equals(item.path("contentHash").asText(""))
+                || !supportedSpecialistBundleHashes(bundleId).contains(item.path("contentHash").asText(""))
                 || !exactStrings(item.path("specialistRefs"), requirement.specialistRefs())
                 || !exactStrings(item.path("chainRefs"), requirement.chainRefs())
                 || !StringUtils.hasText(item.path("marketplacePluginId").asText(""))
@@ -290,6 +300,37 @@ public class DeploymentBehaviorCatalogService {
             }
         }
         return Validation.valid(configured.deepCopy());
+    }
+
+    public boolean supportsSpecialistBundle(String behaviorType,
+                                            String bundleId,
+                                            String contractVersion,
+                                            String contentHash,
+                                            List<String> specialistRefs,
+                                            List<String> chainRefs) {
+        BehaviorContract behavior = requireContract(
+            DeploymentBehaviorType.require(behaviorType)
+        );
+        return behavior.requiredSpecialistBundles().stream().anyMatch(expected ->
+            expected.bundleId().equals(bundleId)
+                && expected.contractVersion().equals(contractVersion)
+                && supportedSpecialistBundleHashes(bundleId).contains(contentHash)
+                && expected.specialistRefs().equals(specialistRefs)
+                && expected.chainRefs().equals(chainRefs)
+        );
+    }
+
+    private Set<String> supportedSpecialistBundleHashes(String bundleId) {
+        return switch (bundleId) {
+            case AGENTIC_SPECIALIST_BUNDLE_ID -> Set.of(
+                AGENTIC_SPECIALIST_BUNDLE_HASH_V100,
+                AGENTIC_SPECIALIST_BUNDLE_HASH_V101
+            );
+            case SMART_BRAIN_SPECIALIST_BUNDLE_ID -> Set.of(
+                SMART_BRAIN_SPECIALIST_BUNDLE_HASH_V100
+            );
+            default -> Set.of();
+        };
     }
 
     private boolean exactStrings(JsonNode values, List<String> expected) {
@@ -449,9 +490,49 @@ public class DeploymentBehaviorCatalogService {
             List.copyOf(endpointClasses),
             List.copyOf(migrationIds),
             List.copyOf(verificationPackIds),
-            behavior.requiredSpecialistBundles(),
+            selectedSpecialistBundles(
+                behaviorConfig.path("specialistBundles"),
+                behavior.requiredSpecialistBundles()
+            ),
             behavior.releaseRequiresCapabilityManifest() || !executionExtensions.isEmpty()
         );
+    }
+
+    private List<DeploymentSpecialistBundleSummary> selectedSpecialistBundles(
+        JsonNode configured,
+        List<DeploymentSpecialistBundleSummary> required
+    ) {
+        if (required.isEmpty()) {
+            return List.of();
+        }
+        if (!configured.isArray()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "The deployment behavior does not contain its reviewed specialist bundle selection."
+            );
+        }
+        Map<String, JsonNode> selected = new LinkedHashMap<>();
+        configured.forEach(item -> selected.put(item.path("bundleId").asText(""), item));
+        return required.stream().map(expected -> {
+            JsonNode item = selected.get(expected.bundleId());
+            if (item == null || !supportedSpecialistBundleHashes(expected.bundleId())
+                .contains(item.path("contentHash").asText(""))) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "The deployment behavior specialist bundle selection is not a reviewed revision: "
+                        + expected.bundleId()
+                );
+            }
+            return new DeploymentSpecialistBundleSummary(
+                expected.bundleId(),
+                expected.contractVersion(),
+                item.path("contentHash").asText(),
+                expected.behaviorTypes(),
+                expected.specialistRefs(),
+                expected.chainRefs(),
+                expected.resourceLocations()
+            );
+        }).toList();
     }
 
     public BehaviorContract requireContract(DeploymentBehaviorType behaviorType) {
@@ -606,9 +687,9 @@ public class DeploymentBehaviorCatalogService {
 
     private DeploymentSpecialistBundleSummary agenticSpecialistBundle() {
         return new DeploymentSpecialistBundleSummary(
-            "deployment-intelligence-team@1",
+            AGENTIC_SPECIALIST_BUNDLE_ID,
             SPECIALIST_BUNDLE_CONTRACT_VERSION,
-            "sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8",
+            AGENTIC_SPECIALIST_BUNDLE_HASH_V101,
             List.of(DeploymentBehaviorType.AGENTIC_SPECIALIST_TEAM.name()),
             List.of(
                 "deployment-intelligence-manager@1",
@@ -626,9 +707,9 @@ public class DeploymentBehaviorCatalogService {
 
     private DeploymentSpecialistBundleSummary smartBrainSpecialistBundle() {
         return new DeploymentSpecialistBundleSummary(
-            "smart-brain-event-analysis@1",
+            SMART_BRAIN_SPECIALIST_BUNDLE_ID,
             SPECIALIST_BUNDLE_CONTRACT_VERSION,
-            "sha256:1059173cfb1fe7e0794e971af43d373c4d047a02e9fb50b77c6fe0328094e61d",
+            SMART_BRAIN_SPECIALIST_BUNDLE_HASH_V100,
             List.of(DeploymentBehaviorType.SMART_BRAIN.name()),
             List.of("smart-brain-event-analyst@1"),
             List.of(),

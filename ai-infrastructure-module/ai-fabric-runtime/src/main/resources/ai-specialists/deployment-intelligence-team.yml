@@ -296,10 +296,16 @@ spec:
     hidden reasoning, or a completed mutation. This team is read-only.
   outputContract: |
     Return exactly type, targets, message, reason, and supportingResultIds.
+    The reason field is mandatory for every directive. It is a concise,
+    non-empty, auditable routing rationale and must never be null. It is not
+    private chain-of-thought. For invocation directives, only message is null.
     INVOKE_ONE requires one approved target. INVOKE_PARALLEL requires both
     approved targets. Invocation directives require message null and
     supportingResultIds []. COMPLETE requires targets [], a concise message,
     and all completed result IDs used to support that message.
+
+    An invocation of both approved targets has this exact shape:
+    {"type":"INVOKE_PARALLEL","targets":[{"targetSpecialist":"deployment-knowledge-specialist@1","objective":"Answer from approved deployment knowledge."},{"targetSpecialist":"deployment-runtime-state-specialist@1","objective":"Answer from the approved runtime-state snapshot."}],"message":null,"reason":"The request requires both approved deployment knowledge and current runtime state.","supportingResultIds":[]}
 ---
 apiVersion: ai.fabric/v1
 kind: SpecialistPromptProfile

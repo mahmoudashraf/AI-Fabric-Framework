@@ -1113,10 +1113,14 @@ public class MarketplaceManifestService {
             for (MarketplaceSpecialistBundleRefSummary declared : bundleRefs) {
                 var expectedBundle = expectedBundles.get(declared.bundleId());
                 if (expectedBundle == null
-                    || !expectedBundle.contractVersion().equals(declared.contractVersion())
-                    || !expectedBundle.contentHash().equals(declared.contentHash())
-                    || !expectedBundle.specialistRefs().equals(declared.specialistRefs())
-                    || !expectedBundle.chainRefs().equals(declared.chainRefs())) {
+                    || !deploymentBehaviorCatalogService.supportsSpecialistBundle(
+                        behavior.code(),
+                        declared.bundleId(),
+                        declared.contractVersion(),
+                        declared.contentHash(),
+                        declared.specialistRefs(),
+                        declared.chainRefs()
+                    )) {
                     throw invalid(
                         plugin,
                         version,

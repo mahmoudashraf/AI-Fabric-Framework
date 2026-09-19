@@ -44,6 +44,9 @@ class DeploymentKnowledgeSpecialistManifestTest {
     private static final SpecialistId SPECIALIST_ID = SpecialistId.parse(
         "deployment-knowledge-specialist@1"
     );
+    private static final SpecialistId MANAGER_ID = SpecialistId.parse(
+        "deployment-intelligence-manager@1"
+    );
 
     @Autowired
     private SpecialistRegistry specialistRegistry;
@@ -92,6 +95,21 @@ class DeploymentKnowledgeSpecialistManifestTest {
         assertThat(manifestStatus.manifestDefinitionCount()).isEqualTo(4);
         assertThat(healthIndicator.health().getStatus())
             .isEqualTo(Status.UP);
+    }
+
+    @Test
+    void managerContractRequiresAnAuditableReasonForEveryDirective() {
+        SpecialistDefinition<JsonNode, JsonNode> manager = definition(
+            MANAGER_ID
+        );
+
+        assertThat(manager.outputAdapter().outputContract()).isNotNull();
+        assertThat(manager.outputAdapter().outputContract().promptInstructions())
+            .contains("reason field is mandatory for every directive")
+            .contains("must never be null")
+            .contains("only message is null")
+            .contains("\"type\":\"INVOKE_PARALLEL\"")
+            .contains("\"reason\":\"The request requires both approved deployment knowledge");
     }
 
     @Test
@@ -161,11 +179,17 @@ class DeploymentKnowledgeSpecialistManifestTest {
         );
     }
 
-    @SuppressWarnings("unchecked")
     private SpecialistDefinition<JsonNode, JsonNode> definition() {
+        return definition(SPECIALIST_ID);
+    }
+
+    @SuppressWarnings("unchecked")
+    private SpecialistDefinition<JsonNode, JsonNode> definition(
+        SpecialistId specialistId
+    ) {
         return (SpecialistDefinition<JsonNode, JsonNode>)
             (SpecialistDefinition<?, ?>)
-                specialistRegistry.require(SPECIALIST_ID);
+                specialistRegistry.require(specialistId);
     }
 
     private TrustedExecutionContext trustedContext(Set<String> scopes) {

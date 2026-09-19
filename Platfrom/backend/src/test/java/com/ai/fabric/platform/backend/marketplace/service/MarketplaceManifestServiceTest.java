@@ -34,6 +34,25 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void previouslyPublishedAgenticSpecialistManifestRemainsAccepted() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validAgenticSpecialistManifest());
+        ((ObjectNode) manifest.path("contributions").path("specialist").path("sourceBundleRefs").get(0))
+            .put(
+                "contentHash",
+                "sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8"
+            );
+
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            specialistPlugin(),
+            specialistVersion(objectMapper.writeValueAsString(manifest))
+        );
+
+        assertThat(parsed.contributions().specialistBundleRefs())
+            .extracting(com.ai.fabric.platform.backend.marketplace.model.MarketplaceSpecialistBundleRefSummary::contentHash)
+            .containsExactly("sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8");
+    }
+
+    @Test
     void specialistManifestRejectsInlineExecutableDefinitions() throws Exception {
         ObjectNode manifest = (ObjectNode) objectMapper.readTree(validAgenticSpecialistManifest());
         ((ObjectNode) manifest.path("contributions").path("specialist"))
@@ -432,7 +451,7 @@ class MarketplaceManifestServiceTest {
                     {
                       "bundleId": "deployment-intelligence-team@1",
                       "contractVersion": "LOOMAI_SOURCE_ATTESTED_SPECIALIST_BUNDLE_V1",
-                      "contentHash": "sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8",
+                      "contentHash": "sha256:ab1a1185dbe5f8ba5dc6c67c10c196bd9a569f211c537a39efb2d47fef05a025",
                       "specialistRefs": [
                         "deployment-intelligence-manager@1",
                         "deployment-knowledge-specialist@1",

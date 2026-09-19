@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("135"))
+            .target(MigrationVersion.fromVersion("136"))
             .load();
 
         flyway.migrate();
@@ -88,6 +88,33 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
                 assertVerifiedTemplateVersion(result, "mkv-template-agentic-specialist-team-v101");
                 assertVerifiedTemplateVersion(result, "mkv-template-conversational-assistant-v101");
                 assertVerifiedTemplateVersion(result, "mkv-template-smart-brain-v101");
+                assertThat(result.next()).isFalse();
+            }
+
+            try (ResultSet result = statement.executeQuery("""
+                select id, version, manifest_json, bundle_sha256
+                from platform_marketplace_plugin_versions
+                where id = 'mkv-specialist-deployment-intelligence-v101'
+                """)) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("version")).isEqualTo("1.0.1");
+                assertThat(result.getString("manifest_json"))
+                    .contains("sha256:ab1a1185dbe5f8ba5dc6c67c10c196bd9a569f211c537a39efb2d47fef05a025");
+                assertThat(result.getString("bundle_sha256"))
+                    .isEqualTo("sha256:ab1a1185dbe5f8ba5dc6c67c10c196bd9a569f211c537a39efb2d47fef05a025");
+                assertThat(result.next()).isFalse();
+            }
+
+            try (ResultSet result = statement.executeQuery("""
+                select id, version, manifest_json
+                from platform_marketplace_plugin_versions
+                where id = 'mkv-template-agentic-specialist-team-v102'
+                """)) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("version")).isEqualTo("1.0.2");
+                assertThat(result.getString("manifest_json"))
+                    .contains("\"security\": {\"authzMode\": \"ALLOW_VERIFIED\"}")
+                    .contains("mkp-specialist-deployment-intelligence@1.0.1");
                 assertThat(result.next()).isFalse();
             }
 

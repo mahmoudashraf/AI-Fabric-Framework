@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class DeploymentSourceCapabilityManifestServiceTest {
 
     private static final String AGENTIC_BUNDLE_HASH =
-        "sha256:00b9f8f582195eb18857361d94c02c48ab703e72a9a5d70d9e4c2cd8ea51a0d8";
+        "sha256:ab1a1185dbe5f8ba5dc6c67c10c196bd9a569f211c537a39efb2d47fef05a025";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final DeploymentSourceCapabilityManifestService service =
