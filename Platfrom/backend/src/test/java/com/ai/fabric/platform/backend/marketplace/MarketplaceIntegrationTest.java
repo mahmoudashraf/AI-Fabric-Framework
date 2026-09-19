@@ -953,14 +953,39 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
-    @Sql("classpath:db/migration/V133__behavior_marketplace_templates_and_specialists.sql")
+    @Sql({
+        "classpath:db/migration/V133__behavior_marketplace_templates_and_specialists.sql",
+        "classpath:db/migration/V135__verified_authz_behavior_template_versions.sql"
+    })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void behaviorTemplatesBootstrapExactSpecialistsAndPublishImmutableComposition() throws Exception {
+        String conversationalResponse = mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-conversational-assistant")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.1",
+                        "name", "Conversational Assistant Smoke",
+                        "environment", "dev",
+                        "templateId", "custom-start-from-scratch"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.behaviorType", is("CONVERSATIONAL")))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String conversationalDeploymentId = objectMapper.readTree(conversationalResponse).path("id").asText();
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", conversationalDeploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.behaviorConfig.type", is("CONVERSATIONAL")))
+            .andExpect(jsonPath("$.securityConfig.authzMode", is("ALLOW_VERIFIED")));
+
         String agenticResponse = mockMvc.perform(asAdmin(
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-agentic-specialist-team")
                     .contentType(APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(java.util.Map.of(
-                        "pluginVersion", "1.0.0",
+                        "pluginVersion", "1.0.1",
                         "name", "Agentic Specialist Team Smoke",
                         "environment", "dev",
                         "templateId", "custom-start-from-scratch"
@@ -976,6 +1001,7 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", agenticDeploymentId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.behaviorConfig.type", is("AGENTIC_SPECIALIST_TEAM")))
+            .andExpect(jsonPath("$.securityConfig.authzMode", is("ALLOW_VERIFIED")))
             .andExpect(jsonPath("$.behaviorConfig.specialistBundles.length()", is(1)))
             .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].bundleId", is("deployment-intelligence-team@1")))
             .andExpect(jsonPath(
@@ -1019,7 +1045,7 @@ class MarketplaceIntegrationTest {
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-smart-brain")
                     .contentType(APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(java.util.Map.of(
-                        "pluginVersion", "1.0.0",
+                        "pluginVersion", "1.0.1",
                         "name", "Smart Brain Smoke",
                         "environment", "dev",
                         "templateId", "custom-start-from-scratch"
@@ -1035,6 +1061,7 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", smartBrainDeploymentId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.behaviorConfig.type", is("SMART_BRAIN")))
+            .andExpect(jsonPath("$.securityConfig.authzMode", is("ALLOW_VERIFIED")))
             .andExpect(jsonPath("$.behaviorConfig.smartBrain.triggers[0].code", is("event-analysis")))
             .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].bundleId", is("smart-brain-event-analysis@1")))
             .andExpect(jsonPath(

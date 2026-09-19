@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("134"))
+            .target(MigrationVersion.fromVersion("135"))
             .load();
 
         flyway.migrate();
@@ -76,6 +76,22 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
             }
 
             try (ResultSet result = statement.executeQuery("""
+                select id, manifest_json
+                from platform_marketplace_plugin_versions
+                where id in (
+                    'mkv-template-conversational-assistant-v101',
+                    'mkv-template-agentic-specialist-team-v101',
+                    'mkv-template-smart-brain-v101'
+                )
+                order by id
+                """)) {
+                assertVerifiedTemplateVersion(result, "mkv-template-agentic-specialist-team-v101");
+                assertVerifiedTemplateVersion(result, "mkv-template-conversational-assistant-v101");
+                assertVerifiedTemplateVersion(result, "mkv-template-smart-brain-v101");
+                assertThat(result.next()).isFalse();
+            }
+
+            try (ResultSet result = statement.executeQuery("""
                 select id, environment_name, source_strategy, resource_defaults_json
                 from deployment_target_profiles
                 where id in (
@@ -101,6 +117,14 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         assertThat(result.getString("resource_defaults_json"))
             .contains("\"runtimeDatabaseMode\":\"COOLIFY_POSTGRES\"")
             .contains("\"promotionChannel\":\"" + expectedEnvironment + "\"");
+    }
+
+    private void assertVerifiedTemplateVersion(ResultSet result, String expectedId) throws Exception {
+        assertThat(result.next()).isTrue();
+        assertThat(result.getString("id")).isEqualTo(expectedId);
+        assertThat(result.getString("manifest_json"))
+            .contains("\"version\": \"1.0.1\"")
+            .contains("\"security\": {\"authzMode\": \"ALLOW_VERIFIED\"}");
     }
 
     private boolean columnExists(Statement statement, String table, String column) throws Exception {
