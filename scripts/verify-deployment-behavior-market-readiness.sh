@@ -311,7 +311,7 @@ wait_for_agentic_execution() {
       json_assert "agentic durable result" $'assert (data or {}).get("durable") is True\nresults = (data or {}).get("results") or []\nspecialists = {item.get("specialist") for item in results if isinstance(item, dict) and item.get("specialist")}\nassert len(specialists) >= 2, data\nsteps = (data or {}).get("steps") or []\nworkers = [worker for step in steps if isinstance(step, dict) for worker in (step.get("workers") or []) if isinstance(worker, dict)]\nassert len({worker.get("specialist") for worker in workers if worker.get("specialist")}) >= 2, data'
       return
     fi
-    [[ ! "${status}" =~ ^(FAILED|CANCELLED|CANCELED|EXPIRED)$ ]] || fail "Agentic execution ${execution_id} ended ${status}."
+    [[ ! "${status}" =~ ^(FAILED|INVALID|CANCELLED|CANCELED|EXPIRED)$ ]] || fail "Agentic execution ${execution_id} ended ${status}."
     (( $(date +%s) - started < OPERATION_WAIT_MAX_TOTAL_SECONDS )) || fail "Timed out waiting for agentic execution ${execution_id}."
     sleep "${OPERATION_POLL_SLEEP_SECONDS}"
   done

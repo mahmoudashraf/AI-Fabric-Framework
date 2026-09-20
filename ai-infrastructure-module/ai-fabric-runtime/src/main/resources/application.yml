@@ -144,7 +144,7 @@ ai:
       max-parallel-workers: ${AI_EXECUTION_SPECIALIST_CHAINS_MAX_PARALLEL_WORKERS:2}
       max-invocations-per-target: 1
       max-projected-result-characters: 8000
-      max-directive-corrections: 1
+      max-directive-corrections: ${AI_EXECUTION_SPECIALIST_CHAINS_MAX_DIRECTIVE_CORRECTIONS:3}
       lease-duration: PT2M
       recovery-interval: PT30S
       recovery-batch-size: 50
