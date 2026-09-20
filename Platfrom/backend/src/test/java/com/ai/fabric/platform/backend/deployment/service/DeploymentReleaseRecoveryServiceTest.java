@@ -32,6 +32,45 @@ class DeploymentReleaseRecoveryServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void startupRecoveryFailsApplyWorkflowsInterruptedByRestart() {
+        DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
+        DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);
+        DeploymentReleaseExecutionService deploymentReleaseExecutionService = mock(DeploymentReleaseExecutionService.class);
+        RailwayGraphqlClient railwayGraphqlClient = mock(RailwayGraphqlClient.class);
+        DeploymentVerificationRunRepository verificationRunRepository = mock(DeploymentVerificationRunRepository.class);
+
+        DeploymentReleaseRecoveryService service = new DeploymentReleaseRecoveryService(
+            deploymentRepository,
+            releaseRepository,
+            deploymentReleaseExecutionService,
+            verificationRunRepository,
+            railwayGraphqlClient,
+            provisioningProperties(),
+            objectMapper
+        );
+
+        DeploymentReleaseEntity release = new DeploymentReleaseEntity();
+        release.setId("rel-interrupted");
+        release.setDeploymentId("dep-interrupted");
+        release.setStatus("PROVISIONING");
+        release.setProvisioningStatus("RUNNING");
+        release.setVerificationStatus("PENDING");
+        release.setCurrentStepKey("wait_for_coolify_runtime");
+
+        when(releaseRepository.findByStatusIn(DeploymentReleaseRecoveryService.ACTIVE_RELEASE_STATUSES))
+            .thenReturn(List.of(release));
+
+        service.recoverInterruptedReleasesOnStartup();
+
+        verify(deploymentReleaseExecutionService).markFailed(
+            eq(release.getId()),
+            eq(release.getDeploymentId()),
+            argThat(ex -> DeploymentReleaseRecoveryService.RESTART_INTERRUPTION_MESSAGE.equals(ex.getMessage()))
+        );
+        verifyNoRailwayInteractions(railwayGraphqlClient);
+    }
+
+    @Test
     void reconcileLatestInProgressReleaseCompletesStaleRailwayReleaseAfterDeploymentsSucceed() {
         DeploymentRepository deploymentRepository = mock(DeploymentRepository.class);
         DeploymentReleaseRepository releaseRepository = mock(DeploymentReleaseRepository.class);

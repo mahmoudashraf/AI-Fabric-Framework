@@ -10,6 +10,10 @@ import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentVerificationRunRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -17,13 +21,23 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DeploymentReleaseRecoveryService {
 
+    private static final Logger log = LoggerFactory.getLogger(DeploymentReleaseRecoveryService.class);
     private static final Duration MIN_STALE_WINDOW = Duration.ofSeconds(45);
+    static final List<String> ACTIVE_RELEASE_STATUSES = List.of(
+        "APPLY_REQUESTED",
+        "PRE_APPLY_VERIFYING",
+        "PROVISIONING",
+        "VERIFYING"
+    );
+    static final String RESTART_INTERRUPTION_MESSAGE =
+        "Deployment apply was interrupted by a Platform backend restart and must be run again.";
 
     private final DeploymentRepository deploymentRepository;
     private final DeploymentReleaseRepository releaseRepository;
@@ -47,6 +61,26 @@ public class DeploymentReleaseRecoveryService {
         this.railwayGraphqlClient = railwayGraphqlClient;
         this.provisioningProperties = provisioningProperties;
         this.objectMapper = objectMapper;
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void recoverInterruptedReleasesOnStartup() {
+        releaseRepository.findByStatusIn(ACTIVE_RELEASE_STATUSES).forEach(release -> {
+            try {
+                deploymentReleaseExecutionService.markFailed(
+                    release.getId(),
+                    release.getDeploymentId(),
+                    new IllegalStateException(RESTART_INTERRUPTION_MESSAGE)
+                );
+            } catch (RuntimeException ex) {
+                log.error(
+                    "Failed to recover deployment release interrupted by backend restart: releaseId={}, deploymentId={}",
+                    release.getId(),
+                    release.getDeploymentId(),
+                    ex
+                );
+            }
+        });
     }
 
     @Transactional

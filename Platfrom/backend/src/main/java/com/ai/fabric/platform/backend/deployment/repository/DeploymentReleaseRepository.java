@@ -7,9 +7,12 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface DeploymentReleaseRepository extends JpaRepository<DeploymentReleaseEntity, String> {
+
+    List<DeploymentReleaseEntity> findByStatusIn(Collection<String> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from DeploymentReleaseEntity r where r.id = :id")
