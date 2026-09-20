@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("138"))
+            .target(MigrationVersion.fromVersion("139"))
             .load();
 
         flyway.migrate();
@@ -110,14 +110,16 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
             try (ResultSet result = statement.executeQuery("""
                 select id, version, manifest_json
                 from platform_marketplace_plugin_versions
-                where id = 'mkv-template-agentic-specialist-team-v103'
+                where id = 'mkv-template-agentic-specialist-team-v104'
                 """)) {
                 assertThat(result.next()).isTrue();
-                assertThat(result.getString("version")).isEqualTo("1.0.3");
+                assertThat(result.getString("version")).isEqualTo("1.0.4");
                 assertThat(result.getString("manifest_json"))
                     .contains("\"security\": {\"authzMode\": \"ALLOW_VERIFIED\"}")
                     .contains("\"name\": \"content\"")
                     .contains("\"name\": \"tenantId\"")
+                    .contains("\"name\": \"deploymentId\"")
+                    .contains("\"defaultConversationMode\": \"conversational\"")
                     .contains("mkp-specialist-deployment-intelligence@1.0.1");
                 assertThat(result.next()).isFalse();
             }

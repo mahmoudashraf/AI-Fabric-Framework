@@ -63,7 +63,7 @@ const BEHAVIOR_TEMPLATE_OPTIONS = {
   AGENTIC_SPECIALIST_TEAM: {
     label: 'Agentic Specialist Team',
     pluginId: 'mkp-template-agentic-specialist-team',
-    version: '1.0.3',
+    version: '1.0.4',
   },
   SMART_BRAIN: {
     label: 'Smart Brain',

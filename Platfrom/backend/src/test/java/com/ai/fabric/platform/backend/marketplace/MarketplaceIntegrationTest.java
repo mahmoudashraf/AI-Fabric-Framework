@@ -957,7 +957,8 @@ class MarketplaceIntegrationTest {
         "classpath:db/migration/V133__behavior_marketplace_templates_and_specialists.sql",
         "classpath:db/migration/V135__verified_authz_behavior_template_versions.sql",
         "classpath:db/migration/V136__agentic_specialist_manager_contract_patch.sql",
-        "classpath:db/migration/V138__agentic_template_document_contract.sql"
+        "classpath:db/migration/V138__agentic_template_document_contract.sql",
+        "classpath:db/migration/V139__agentic_template_deployment_boundary.sql"
     })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void behaviorTemplatesBootstrapExactSpecialistsAndPublishImmutableComposition() throws Exception {
@@ -987,7 +988,7 @@ class MarketplaceIntegrationTest {
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-agentic-specialist-team")
                     .contentType(APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(java.util.Map.of(
-                        "pluginVersion", "1.0.3",
+                        "pluginVersion", "1.0.4",
                         "name", "Agentic Specialist Team Smoke",
                         "environment", "dev",
                         "templateId", "custom-start-from-scratch"
@@ -1009,6 +1010,14 @@ class MarketplaceIntegrationTest {
                 "$.entityConfig.ai-entities.document.searchable-fields[0].name",
                 is("content")
             ))
+            .andExpect(jsonPath(
+                "$.entityConfig.ai-entities.document.metadata-fields[?(@.name=='tenantId')].required",
+                is(List.of(true))
+            ))
+            .andExpect(jsonPath(
+                "$.entityConfig.ai-entities.document.metadata-fields[?(@.name=='deploymentId')].required",
+                is(List.of(true))
+            ))
             .andExpect(jsonPath("$.entityConfig.ai-entities.document.marketplaceManaged", is(true)))
             .andExpect(jsonPath(
                 "$.entityConfig.ai-entities.document.marketplacePluginId",
@@ -1024,7 +1033,8 @@ class MarketplaceIntegrationTest {
             .andExpect(jsonPath(
                 "$.behaviorConfig.specialistBundles[0].marketplacePluginId",
                 is("mkp-specialist-deployment-intelligence")
-            ));
+            ))
+            .andExpect(jsonPath("$.shellConfig.defaultConversationMode", is("conversational")));
 
         mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", agenticDeploymentId)))
             .andExpect(status().isOk())
