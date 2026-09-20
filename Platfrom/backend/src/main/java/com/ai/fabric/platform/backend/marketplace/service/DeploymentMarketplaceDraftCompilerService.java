@@ -211,11 +211,20 @@ public class DeploymentMarketplaceDraftCompilerService {
                     existingKnowledgeSourceIds
                 );
                 case "TEMPLATE" -> {
+                    JsonNode template = parsed.manifest().path("contributions").path("template");
+                    applyEntityContribution(
+                        entityRoot,
+                        template.path("entityConfig"),
+                        install,
+                        plugin,
+                        version,
+                        existingEntityTypes
+                    );
                     applyTemplateShell(
                         shellRoot,
                         plugin,
                         version,
-                        parsed.manifest().path("contributions").path("template").path("shell")
+                        template.path("shell")
                     );
                     applyTemplateBehavior(behaviorRoot, plugin, parsed);
                 }

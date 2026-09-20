@@ -956,7 +956,8 @@ class MarketplaceIntegrationTest {
     @Sql({
         "classpath:db/migration/V133__behavior_marketplace_templates_and_specialists.sql",
         "classpath:db/migration/V135__verified_authz_behavior_template_versions.sql",
-        "classpath:db/migration/V136__agentic_specialist_manager_contract_patch.sql"
+        "classpath:db/migration/V136__agentic_specialist_manager_contract_patch.sql",
+        "classpath:db/migration/V138__agentic_template_document_contract.sql"
     })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void behaviorTemplatesBootstrapExactSpecialistsAndPublishImmutableComposition() throws Exception {
@@ -986,7 +987,7 @@ class MarketplaceIntegrationTest {
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-agentic-specialist-team")
                     .contentType(APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(java.util.Map.of(
-                        "pluginVersion", "1.0.2",
+                        "pluginVersion", "1.0.3",
                         "name", "Agentic Specialist Team Smoke",
                         "environment", "dev",
                         "templateId", "custom-start-from-scratch"
@@ -1003,6 +1004,16 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.behaviorConfig.type", is("AGENTIC_SPECIALIST_TEAM")))
             .andExpect(jsonPath("$.securityConfig.authzMode", is("ALLOW_VERIFIED")))
+            .andExpect(jsonPath("$.entityConfig.ai-entities.document.indexing.enabled", is(true)))
+            .andExpect(jsonPath(
+                "$.entityConfig.ai-entities.document.searchable-fields[0].name",
+                is("content")
+            ))
+            .andExpect(jsonPath("$.entityConfig.ai-entities.document.marketplaceManaged", is(true)))
+            .andExpect(jsonPath(
+                "$.entityConfig.ai-entities.document.marketplacePluginId",
+                is("mkp-template-agentic-specialist-team")
+            ))
             .andExpect(jsonPath("$.behaviorConfig.specialistBundles.length()", is(1)))
             .andExpect(jsonPath("$.behaviorConfig.specialistBundles[0].bundleId", is("deployment-intelligence-team@1")))
             .andExpect(jsonPath(

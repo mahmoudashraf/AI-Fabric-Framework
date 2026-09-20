@@ -317,6 +317,40 @@ wait_for_agentic_execution() {
   done
 }
 
+seed_agentic_verification_evidence() {
+  local body
+  body="$(python3 - <<'PY' "${DEPLOYMENT_ID}"
+import json, sys
+deployment_id = sys.argv[1]
+print(json.dumps({
+    "datasetLabel": "Agentic behavior readiness evidence",
+    "vectorSpace": "document",
+    "records": [
+        {
+            "id": f"behavior-readiness-{deployment_id}",
+            "content": (
+                "Verified deployment knowledge: this agentic deployment coordinates a deployment "
+                "knowledge specialist and a deployment runtime-state specialist. The knowledge "
+                "specialist grounds answers in approved indexed evidence, while the runtime-state "
+                "specialist reports the current bounded runtime snapshot. The application remains "
+                "the authority and this evidence grants no write action."
+            ),
+            "metadata": {
+                "title": "Agentic deployment readiness evidence",
+                "source": "deployment-behavior-market-readiness",
+                "kind": "verification"
+            }
+        }
+    ]
+}))
+PY
+)"
+  platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/poc/import-runs" "${body}"
+  assert_status "201" "agentic verification evidence import"
+  json_assert "agentic verification evidence import" $'assert (data or {}).get("status") == "SUCCEEDED", data\nassert (data or {}).get("vectorSpace") == "document", data\nassert int((data or {}).get("importedCount") or 0) == 1, data\nassert int((data or {}).get("failedCount") or 0) == 0, data'
+  pass "seeded deployment-scoped grounded evidence through the secured import API"
+}
+
 verify_agentic() {
   local key="behavior-agentic-$(date +%s)-${RANDOM}"
   local question="Analyze this deployment using both verified knowledge and runtime-state specialists, then summarize their distinct evidence."
@@ -540,7 +574,7 @@ wait_for_release
 
 case "${BEHAVIOR_TYPE}" in
   CONVERSATIONAL) verify_conversational ;;
-  AGENTIC_SPECIALIST_TEAM) verify_agentic ;;
+  AGENTIC_SPECIALIST_TEAM) seed_agentic_verification_evidence; verify_agentic ;;
   SMART_BRAIN) verify_smart_brain ;;
 esac
 

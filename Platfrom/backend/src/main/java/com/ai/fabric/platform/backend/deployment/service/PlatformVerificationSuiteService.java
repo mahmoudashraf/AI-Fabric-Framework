@@ -324,7 +324,7 @@ public class PlatformVerificationSuiteService {
         String behaviorType = environment.get("BEHAVIOR_TYPE").toUpperCase();
         String expectedTemplate = switch (behaviorType) {
             case "CONVERSATIONAL" -> "mkp-template-conversational-assistant@1.0.1";
-            case "AGENTIC_SPECIALIST_TEAM" -> "mkp-template-agentic-specialist-team@1.0.2";
+            case "AGENTIC_SPECIALIST_TEAM" -> "mkp-template-agentic-specialist-team@1.0.3";
             case "SMART_BRAIN" -> "mkp-template-smart-brain@1.0.1";
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported deployment behavior verification type.");
         };

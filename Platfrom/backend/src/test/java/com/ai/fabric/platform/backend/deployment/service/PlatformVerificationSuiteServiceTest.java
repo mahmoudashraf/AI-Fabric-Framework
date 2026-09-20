@@ -407,7 +407,7 @@ class PlatformVerificationSuiteServiceTest {
                 new DeploymentBehaviorVerificationExpectationOverrides(
                     "AGENTIC_SPECIALIST_TEAM",
                     "mkp-template-agentic-specialist-team",
-                    "1.0.2",
+                    "1.0.3",
                     "dtp-coolify-staging-behavior",
                     "dsa-runtime",
                     "staging",

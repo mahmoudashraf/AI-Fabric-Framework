@@ -251,6 +251,7 @@ public class MarketplaceManifestService {
         String curatedModuleId = template.path("curatedModuleId").asText("").trim();
         JsonNode shell = template.path("shell");
         validateTemplateSecurityContribution(plugin, version, template.path("security"));
+        validateEntityContribution(plugin, version, template.path("entityConfig"));
         TemplateBehaviorContribution behavior = parseTemplateBehaviorContribution(
             plugin,
             version,
