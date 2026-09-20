@@ -17,7 +17,10 @@ import com.ai.fabric.platform.backend.deployment.repository.PlatformVerification
 import com.ai.fabric.platform.backend.security.PlatformSecurityContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -64,6 +67,24 @@ public class PlatformVerificationSuiteService {
 
     public List<PlatformVerificationSuiteDefinitionSummary> listDefinitions() {
         return catalog.listDefinitions();
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void recoverInterruptedRunsOnStartup() {
+        Instant now = Instant.now();
+        runRepository.findByStatusIn(ACTIVE_STATUSES).forEach(run -> {
+            List<PlatformVerificationSuiteRunStageEntity> stages =
+                stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId());
+            recoverRun(
+                run,
+                stages,
+                now,
+                "FAILED",
+                "Verification suite was interrupted by a Platform backend restart and must be run again.",
+                "Stage was interrupted by a Platform backend restart and must be run again."
+            );
+        });
     }
 
     public List<PlatformVerificationSuiteRunSummary> listRuns() {

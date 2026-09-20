@@ -11,6 +11,8 @@ public interface PlatformVerificationSuiteRunRepository extends JpaRepository<Pl
 
     boolean existsBySuiteKeyAndStatusIn(String suiteKey, Collection<String> statuses);
 
+    List<PlatformVerificationSuiteRunEntity> findByStatusIn(Collection<String> statuses);
+
     Optional<PlatformVerificationSuiteRunEntity> findTopBySuiteKeyOrderByCreatedAtDesc(String suiteKey);
 
     List<PlatformVerificationSuiteRunEntity> findTop20ByOrderByCreatedAtDesc();

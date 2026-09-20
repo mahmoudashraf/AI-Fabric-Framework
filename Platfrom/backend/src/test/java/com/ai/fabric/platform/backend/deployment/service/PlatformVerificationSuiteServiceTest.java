@@ -28,10 +28,75 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PlatformVerificationSuiteServiceTest {
+
+    @Test
+    void startupRecoveryFailsProcessLocalRunsInterruptedByRestart() {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformVerificationSuiteExecutionService executionService = mock(PlatformVerificationSuiteExecutionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        PlatformVerificationSuiteRunEntity run = new PlatformVerificationSuiteRunEntity();
+        run.setId("vsr-interrupted");
+        run.setSuiteKey(PlatformVerificationSuiteCatalog.DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY);
+        run.setSuiteLabel("Deployment behavior market readiness");
+        run.setStatus("RUNNING");
+        run.setReleaseBlocking(true);
+        run.setSummaryMessage("running");
+        run.setRequestedByActorId("admin");
+        run.setRequestedByRole("PLATFORM_ADMIN");
+        run.setCreatedAt(Instant.now().minus(Duration.ofMinutes(5)));
+        run.setStartedAt(Instant.now().minus(Duration.ofMinutes(5)));
+
+        PlatformVerificationSuiteRunStageEntity completedStage = new PlatformVerificationSuiteRunStageEntity();
+        completedStage.setId("vss-completed");
+        completedStage.setSuiteRunId(run.getId());
+        completedStage.setStatus("PASSED");
+
+        PlatformVerificationSuiteRunStageEntity activeStage = new PlatformVerificationSuiteRunStageEntity();
+        activeStage.setId("vss-interrupted");
+        activeStage.setSuiteRunId(run.getId());
+        activeStage.setStatus("RUNNING");
+
+        when(runRepository.findByStatusIn(PlatformVerificationSuiteService.ACTIVE_STATUSES)).thenReturn(List.of(run));
+        when(stageRepository.findBySuiteRunIdOrderByStageOrderAsc(run.getId()))
+            .thenReturn(List.of(completedStage, activeStage));
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformVerificationSuiteService service = new PlatformVerificationSuiteService(
+            new PlatformVerificationSuiteCatalog(),
+            runRepository,
+            stageRepository,
+            executionService,
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
+            auditService,
+            new ObjectMapper()
+        );
+
+        service.recoverInterruptedRunsOnStartup();
+
+        assertThat(run.getStatus()).isEqualTo("FAILED");
+        assertThat(run.getCompletedAt()).isNotNull();
+        assertThat(run.getSummaryMessage()).contains("backend restart");
+        assertThat(activeStage.getStatus()).isEqualTo("FAILED");
+        assertThat(activeStage.getCompletedAt()).isNotNull();
+        assertThat(activeStage.getSummaryMessage()).contains("backend restart");
+        assertThat(completedStage.getStatus()).isEqualTo("PASSED");
+        verify(stageRepository).save(activeStage);
+        verify(stageRepository, never()).save(completedStage);
+        verify(auditService).record(
+            eq("PLATFORM_VERIFICATION_SUITE_RECOVERED"),
+            eq("PLATFORM_VERIFICATION_SUITE"),
+            eq(run.getId()),
+            argThat(details -> "FAILED".equals(details.get("status")))
+        );
+    }
 
     @Test
     void dispatchQueuesCanonicalReleaseReadinessSuite() {
