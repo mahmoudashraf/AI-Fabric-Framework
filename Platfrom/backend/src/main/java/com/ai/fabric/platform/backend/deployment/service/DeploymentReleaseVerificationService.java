@@ -1028,8 +1028,7 @@ public class DeploymentReleaseVerificationService {
             behaviorConfig.path("schemaVersion").asText(""),
             Integer.toString(behaviorConfig.path("contractVersion").asInt(-1)),
             compositionProvenance.path("compositionHash").asText(""),
-            Set.of("AGENTIC_SPECIALIST_TEAM", "SMART_BRAIN")
-                .contains(behaviorConfig.path("type").asText("")),
+            expectsSpecialistChains(behaviorConfig),
             expectedRuntimeMigrationIds,
             provisioningDetails.path("sourceCapabilityManifestHash").asText(""),
             provisioningDetails.path("sourceGitCommit").asText(""),
@@ -2460,6 +2459,11 @@ public class DeploymentReleaseVerificationService {
             && textSet(probe.body().path("actionNamesWithPostActionWebhookPolicies")).equals(expectations.expectedActionNamesWithPostActionWebhookPolicies())
             && textSet(probe.body().path("webhookTargetIds")).equals(expectations.expectedWebhookTargetIds())
             && supportedEntityTypes.equals(expectations.expectedEntityTypes());
+    }
+
+    static boolean expectsSpecialistChains(JsonNode behaviorConfig) {
+        return behaviorConfig != null
+            && "AGENTIC_SPECIALIST_TEAM".equals(behaviorConfig.path("type").asText(""));
     }
 
     private boolean runtimePromptConfigMatchesExpected(JsonProbeResult probe,

@@ -59,6 +59,19 @@ class DeploymentReleaseVerificationServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void expectsDeclarativeChainsOnlyForAgenticSpecialistTeams() throws Exception {
+        assertThat(DeploymentReleaseVerificationService.expectsSpecialistChains(
+            objectMapper.readTree("{\"type\":\"AGENTIC_SPECIALIST_TEAM\"}")
+        )).isTrue();
+        assertThat(DeploymentReleaseVerificationService.expectsSpecialistChains(
+            objectMapper.readTree("{\"type\":\"SMART_BRAIN\"}")
+        )).isFalse();
+        assertThat(DeploymentReleaseVerificationService.expectsSpecialistChains(
+            objectMapper.readTree("{\"type\":\"CONVERSATIONAL\"}")
+        )).isFalse();
+    }
+
+    @Test
     void verifyChecksRuntimeAndConnectorAdminStateAgainstPublishedVersion() throws Exception {
         HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
         HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
