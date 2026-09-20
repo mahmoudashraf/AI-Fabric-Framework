@@ -363,3 +363,12 @@ Current P0 cleanup items:
   `401`, and the apex certificate is valid. A client that still fails only on
   one Wi-Fi network should be investigated as local DNS cache, filtering, or
   transport behavior rather than treated as an incomplete Platform cutover.
+- 2026-09-20: `010.23` is the focused market-readiness execution plan for the
+  three deployment behaviors. Readiness belongs to an exact immutable
+  Marketplace template/V04 composition with complete clean-room, behavior,
+  isolation, lifecycle, recovery, operations, commercial, and controlled-
+  production evidence; it never belongs to a behavior label or canary by
+  implication. Generic Conversational is the first GA candidate, followed by
+  hosted Conversational Human Review, bounded Agentic, and deployment-local
+  read-only Smart Brain. Reuse the current Marketplace/V04 lifecycle and do
+  not modify ProdUS or Shopify assignments to create generic evidence.

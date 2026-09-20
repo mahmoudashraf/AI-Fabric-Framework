@@ -2591,3 +2591,26 @@ Critical fixes that made the gate pass:
   HTTP `200` with a valid Let's Encrypt certificate, `www` redirected to the
   apex, and all four public service hostnames answered. There is no native apex
   AAAA record; the local network's DNS64/IPv4 path was nevertheless verified.
+
+## 2026-09-20 Deployment Behavior Market Readiness Plan
+
+- Created focused execution plan `010.23` for advancing exact
+  `CONVERSATIONAL`, `AGENTIC_SPECIALIST_TEAM`, and `SMART_BRAIN` compositions
+  from hosted canaries to market-ready reusable deployment templates.
+- Market readiness is granted per immutable Marketplace template/V04
+  composition version, never to a behavior name or every possible customer
+  composition. A healthy canary alone is insufficient.
+- The common blocking path is published template origin, deterministic V04
+  compilation, and clean-tenant creation without manual environment repair.
+  Each exact template must then pass behavior, isolation, lifecycle, recovery,
+  operations, cost, support, and controlled-production gates independently.
+- Launch order is Generic Conversational, Conversational Human Review, bounded
+  Agentic Specialist Team, then Smart Brain. Human Review remains an optional
+  execution extension rather than a fourth behavior type.
+- Agentic first release stays bounded and read-only. Smart Brain keeps
+  deployment-local CloudEvents ingress, polling/signed callback result paths,
+  and no direct writes. Customer applications remain authoritative.
+- The immediate implementation batch is the readiness evidence/maturity guard
+  and one published Generic Conversational template deployed from a clean
+  staging tenant through the existing Marketplace/V04 lifecycle. ProdUS and
+  Shopify assignments must not be changed to manufacture this evidence.

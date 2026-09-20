@@ -6,6 +6,10 @@ Canonical architecture:
 
 - [010.21 Consolidated LoomAI Customer Product And Deployment Behavior Architecture](010_21_CONSOLIDATED_LOOMAI_AI_ENABLEMENT_PRODUCT_PROFILE_AND_DEPLOYMENT_ARCHITECTURE.md)
 
+Focused market-readiness execution:
+
+- [010.23 LoomAI Deployment Behavior Market Readiness Execution Plan](010_23_LOOMAI_DEPLOYMENT_BEHAVIOR_MARKET_READINESS_EXECUTION_PLAN.md)
+
 The filename retains the `0.7.0` contract lineage so existing links remain
 valid. All new builds, deployments, and verification in this plan use the
 compatible production patch `0.7.1`.
