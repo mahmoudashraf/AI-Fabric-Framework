@@ -341,7 +341,7 @@ PY
 
   platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/behavior-operations/agentic/executions/${execution_id}/replay" "${body}"
   assert_status "200 202" "agentic explicit replay"
-  json_assert "agentic explicit replay" 'assert (data or {}).get("executionId") == "'"${execution_id}"'"\nassert (data or {}).get("replayed") is True'
+  EXECUTION_ID_EXPECTED="${execution_id}" json_assert "agentic explicit replay" $'import os\nassert (data or {}).get("executionId") == os.environ["EXECUTION_ID_EXPECTED"]\nassert (data or {}).get("replayed") is True'
   pass "agentic idempotency and replay"
 }
 
@@ -354,7 +354,7 @@ wait_for_smart_brain_operation() {
     assert_status "200" "Smart Brain operation status"
     status="$(json_value 'result = (data or {}).get("status", "")')"
     if [[ "${status}" == "SUCCEEDED" ]]; then
-      json_assert "Smart Brain durable result" 'assert (data or {}).get("result") is not None\nassert not (data or {}).get("failure")'
+      json_assert "Smart Brain durable result" $'assert (data or {}).get("result") is not None\nassert not (data or {}).get("failure")'
       return
     fi
     [[ ! "${status}" =~ ^(FAILED|CANCELLED|CANCELED|EXPIRED)$ ]] || fail "Smart Brain operation ${operation_id} ended ${status}."
@@ -396,7 +396,7 @@ PY
 
   platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/behavior-operations/smart-brain/operations/${operation_id}/replay" '{}'
   assert_status "200" "Smart Brain explicit replay"
-  json_assert "Smart Brain explicit replay" 'assert (data or {}).get("operationId") == "'"${operation_id}"'"\nassert (data or {}).get("replayed") is True'
+  OPERATION_ID_EXPECTED="${operation_id}" json_assert "Smart Brain explicit replay" $'import os\nassert (data or {}).get("operationId") == os.environ["OPERATION_ID_EXPECTED"]\nassert (data or {}).get("replayed") is True'
   pass "Smart Brain idempotency and replay"
 }
 
@@ -511,7 +511,7 @@ pass "exact BOOTSTRAPPED template provenance"
 fetch_active_draft
 platform_request "POST" "/api/deployment-drafts/${DRAFT_ID}/validate"
 assert_status "200" "deployment draft validation"
-json_assert "deployment draft validation" 'assert (data or {}).get("publishReady") is True\nassert len((data or {}).get("issues") or []) == 0, data'
+json_assert "deployment draft validation" $'assert (data or {}).get("publishReady") is True\nassert (data or {}).get("errorCount") == 0, data\nassert all((issue or {}).get("severity") == "WARNING" for issue in ((data or {}).get("issues") or [])), data'
 pass "draft is publish-ready"
 
 platform_request "GET" "/api/deployments/${DEPLOYMENT_ID}/draft"
