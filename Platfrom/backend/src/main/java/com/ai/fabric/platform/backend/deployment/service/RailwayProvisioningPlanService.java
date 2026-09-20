@@ -282,6 +282,7 @@ public class RailwayProvisioningPlanService {
             structuredBehavior ? "2" : "1"
         ));
         boolean specialistChainsEnabled = "AGENTIC_SPECIALIST_TEAM".equals(deploymentBehaviorType);
+        boolean deploymentKnowledgeSpecialistEnabled = !"SMART_BRAIN".equals(deploymentBehaviorType);
         boolean humanReviewEnabled = contains(behaviorConfig.path("executionExtensions"), "HUMAN_REVIEW");
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_SPECIALIST_CHAINS_ENABLED",
@@ -294,6 +295,10 @@ public class RailwayProvisioningPlanService {
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_EXECUTION_MANIFEST_LOCATIONS",
             executionManifestLocations(deploymentBehaviorType)
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_DEPLOYMENT_KNOWLEDGE_SPECIALIST_ENABLED",
+            Boolean.toString(deploymentKnowledgeSpecialistEnabled)
         ));
         if (specialistChainsEnabled) {
             runtimeEnv.add(new RailwayEnvVarSummary(

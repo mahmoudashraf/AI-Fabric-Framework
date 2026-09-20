@@ -1664,6 +1664,7 @@ class RailwayProvisioningPlanServiceTest {
                     + "classpath:ai-specialists/deployment-knowledge-specialist.yml,"
                     + "classpath:ai-chains/deployment-intelligence-team.yml"
             )
+            .containsEntry("LOOMAI_DEPLOYMENT_KNOWLEDGE_SPECIALIST_ENABLED", "true")
             .containsEntry("AI_EXECUTION_RECEIPTS_ENABLED", "true")
             .containsEntry("AI_EXECUTION_REVIEWS_ENABLED", "true")
             .containsEntry("LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE", "AGENTIC_SPECIALIST_TEAM")
@@ -1697,6 +1698,7 @@ class RailwayProvisioningPlanServiceTest {
                 "AI_EXECUTION_MANIFEST_LOCATIONS",
                 "classpath:ai-specialists/smart-brain-event-analyst.yml"
             )
+            .containsEntry("LOOMAI_DEPLOYMENT_KNOWLEDGE_SPECIALIST_ENABLED", "false")
             .containsEntry("LOOMAI_SMART_BRAIN_ENABLED", "true")
             .containsEntry("AI_EXECUTION_ASYNC_REPOSITORY", "JDBC")
             .containsEntry("AI_EXECUTION_ASYNC_INITIALIZE_SCHEMA", "false")
