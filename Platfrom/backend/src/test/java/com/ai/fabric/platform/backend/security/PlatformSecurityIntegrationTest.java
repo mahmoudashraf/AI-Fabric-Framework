@@ -45,6 +45,21 @@ class PlatformSecurityIntegrationTest {
     private PlatformSecretService platformSecretService;
 
     @Test
+    void healthProbesRemainPublicWithoutPlatformCredentials() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("UP")));
+
+        mockMvc.perform(get("/actuator/health/liveness"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("UP")));
+
+        mockMvc.perform(get("/actuator/health/readiness"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status", is("UP")));
+    }
+
+    @Test
     void corsPreflightAllowsPatchForPlatformUiMutations() throws Exception {
         mockMvc.perform(options("/api/platform/partners/members/pm-test")
                 .header(HttpHeaders.ORIGIN, "https://platform-ui.test")

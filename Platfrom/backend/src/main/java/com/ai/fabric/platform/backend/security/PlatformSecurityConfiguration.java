@@ -117,7 +117,7 @@ public class PlatformSecurityConfiguration {
         }
         http.authorizeHttpRequests(authorize -> {
             authorize.requestMatchers(
-                "/actuator/health",
+                "/actuator/health/**",
                 "/api/platform/auth/session",
                 "/api/platform/auth/login",
                 "/api/platform/auth/logout",
