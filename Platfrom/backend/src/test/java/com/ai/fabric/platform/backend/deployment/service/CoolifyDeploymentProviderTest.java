@@ -30,9 +30,11 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -129,6 +131,91 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().portsExposes()).isEqualTo("8097");
         assertThat(request.getValue().healthCheckPath()).isEqualTo("/actuator/health/liveness");
         assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
+    }
+
+    @Test
+    void rejectsDuplicateExactNameApplicationsBeforeMutation() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "staging",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary duplicateOne = new CoolifyApplicationSummary(
+            "duplicate-one",
+            "ai-fabric-runtime-dep-123",
+            null,
+            "exited:unhealthy",
+            null,
+            null,
+            objectMapper.createObjectNode()
+        );
+        CoolifyApplicationSummary duplicateTwo = new CoolifyApplicationSummary(
+            "duplicate-two",
+            "ai-fabric-runtime-dep-123",
+            null,
+            "running:healthy",
+            null,
+            null,
+            objectMapper.createObjectNode()
+        );
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-staging"),
+            eq("APPLICATION")
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of(duplicateOne, duplicateTwo));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            objectMapper
+        );
+
+        assertThatThrownBy(() -> provider.provision(
+            deployment(),
+            version(),
+            release(),
+            ProvisioningProgressTracker.noop()
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("found 2 exact-name resources");
+
+        verify(coolifyApiClient, never()).createDockerImageApplication(eq(connection), any());
+        verify(coolifyApiClient, never()).updateEnvironmentVariables(eq(connection), anyString(), any());
+        verify(resourceHandleRepository, never()).save(any());
     }
 
     @Test
@@ -257,7 +344,7 @@ class CoolifyDeploymentProviderTest {
 
         ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
             ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
-        verify(resourceHandleRepository).save(handle.capture());
+        verify(resourceHandleRepository, atLeastOnce()).save(handle.capture());
         assertThat(handle.getValue().getId()).isEqualTo("dprh-stale");
         assertThat(handle.getValue().getProviderResourceUuid()).isEqualTo("current-app-uuid");
         assertThat(handle.getValue().getProviderProjectUuid()).isEqualTo("customer-project");
@@ -452,7 +539,15 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.getDatabase(connection, "db-uuid")).thenReturn(Optional.of(database));
         when(coolifyApiClient.startDatabase(connection, "db-uuid"))
             .thenReturn(new CoolifyActionResponse("Database start queued.", "db-deploy-uuid", objectMapper.createObjectNode()));
-        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenReturn(14);
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("app-uuid"), any())).thenAnswer(invocation -> {
+            ArgumentCaptor<DeploymentProviderResourceHandleEntity> provisionalHandles =
+                ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
+            verify(resourceHandleRepository, times(2)).save(provisionalHandles.capture());
+            assertThat(provisionalHandles.getAllValues())
+                .extracting(DeploymentProviderResourceHandleEntity::getResourceKind)
+                .containsExactlyInAnyOrder("APPLICATION", "RUNTIME_POSTGRES_DATABASE");
+            return 14;
+        });
         when(coolifyApiClient.start(connection, "app-uuid", true, true))
             .thenReturn(new CoolifyActionResponse("Deployment request queued.", "deploy-uuid", objectMapper.createObjectNode()));
         stubFinishedDeployments(coolifyApiClient, connection);
@@ -499,6 +594,122 @@ class CoolifyDeploymentProviderTest {
         assertThat(env).containsEntry("SPRING_DATASOURCE_PASSWORD", "pg-password");
         assertThat(env).containsEntry("PLATFORM_RUNTIME_DATABASE_MODE", "COOLIFY_POSTGRES");
         assertThat(env).containsEntry("PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", "db-uuid");
+    }
+
+    @Test
+    void rejectsDuplicateExactNameRuntimeDatabasesBeforeConfiguration() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        profile.setId("dtp-coolify-production");
+        profile.setEnvironmentName("production");
+        profile.setResourceDefaultsJson("""
+            {
+              "runtimeDatabaseMode": "COOLIFY_POSTGRES",
+              "runtimeDatabaseNamePrefix": "ai-fabric-runtime-postgres"
+            }
+            """);
+        CoolifyConnection connection = new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "production",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+        CoolifyApplicationSummary application = new CoolifyApplicationSummary(
+            "app-uuid",
+            "ai-fabric-runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            "ghcr.io/example/runtime",
+            "sha",
+            objectMapper.createObjectNode()
+        );
+        CoolifyDatabaseSummary duplicateOne = new CoolifyDatabaseSummary(
+            "db-one",
+            "ai-fabric-runtime-postgres-dep-123",
+            "running:healthy",
+            "postgresql",
+            "runtime_user",
+            "runtime_chat",
+            objectMapper.createObjectNode()
+        );
+        CoolifyDatabaseSummary duplicateTwo = new CoolifyDatabaseSummary(
+            "db-two",
+            "ai-fabric-runtime-postgres-dep-123",
+            "exited:unhealthy",
+            "postgresql",
+            "runtime_user",
+            "runtime_chat",
+            objectMapper.createObjectNode()
+        );
+
+        when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
+        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-production"),
+            anyString()
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createDockerImageApplication(eq(connection), any())).thenReturn("app-uuid");
+        when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.of(application));
+        when(platformSecretService.resolveSecret("MANAGED_RUNTIME_POSTGRES_PASSWORD_DEP_DEP_123_PROFILE_DTP_COOLIFY_PRODUCTION"))
+            .thenReturn("pg-password");
+        when(coolifyApiClient.listDatabases(connection)).thenReturn(List.of(duplicateOne, duplicateTwo));
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
+            objectMapper
+        );
+        DeploymentReleaseEntity release = release();
+        release.setTargetProfileId("dtp-coolify-production");
+
+        assertThatThrownBy(() -> provider.provision(
+            deployment(),
+            version(),
+            release,
+            ProvisioningProgressTracker.noop()
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("found 2 exact-name resources");
+
+        verify(coolifyApiClient, never()).createPostgresDatabase(eq(connection), any());
+        verify(coolifyApiClient, never()).updateEnvironmentVariables(eq(connection), anyString(), any());
+        ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
+            ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
+        verify(resourceHandleRepository).save(handle.capture());
+        assertThat(handle.getValue().getResourceKind()).isEqualTo("APPLICATION");
     }
 
     @Test
@@ -725,7 +936,7 @@ class CoolifyDeploymentProviderTest {
 
         ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
             ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
-        verify(resourceHandleRepository).save(handle.capture());
+        verify(resourceHandleRepository, atLeastOnce()).save(handle.capture());
         assertThat(handle.getValue().getProviderProjectUuid()).isEqualTo("customer-project");
         assertThat(handle.getValue().getProviderEnvironmentUuid()).isEqualTo("customer-env");
         assertThat(handle.getValue().getMetadataJson()).contains("customer-shopping-companion-test");
@@ -857,7 +1068,7 @@ class CoolifyDeploymentProviderTest {
 
         ArgumentCaptor<DeploymentProviderResourceHandleEntity> handle =
             ArgumentCaptor.forClass(DeploymentProviderResourceHandleEntity.class);
-        verify(resourceHandleRepository).save(handle.capture());
+        verify(resourceHandleRepository, atLeastOnce()).save(handle.capture());
         assertThat(handle.getValue().getId()).isEqualTo("dprh-old");
         assertThat(handle.getValue().getProviderResourceUuid()).isEqualTo("new-app");
         assertThat(handle.getValue().getProviderProjectUuid()).isEqualTo("customer-project");
