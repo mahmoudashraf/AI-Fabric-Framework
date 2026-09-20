@@ -402,22 +402,21 @@ PY
 
 verify_conversational() {
   local first_body second_body conversation_id
-  first_body='{"query":"Explain the purpose of this deployment in a concise structured response.","mode":"NORMAL","authPath":"PLATFORM_PRIVATE"}'
+  first_body='{"query":"Write a concise welcome message for a new user.","authPath":"PLATFORM_PRIVATE"}'
   behavior_request_with_retry "POST" "/api/deployments/${DEPLOYMENT_ID}/poc-chat/query" "${first_body}" "conversational first query"
-  json_assert "conversational first query" $'assert (data or {}).get("success") is True\nassert isinstance((data or {}).get("result"), dict)\nassert (data or {}).get("conversationId")'
+  json_assert "conversational first query" $'assert (data or {}).get("success") is True\nresult = (data or {}).get("result")\nassert isinstance(result, dict)\nassert ((result.get("metadata") or {}).get("mode") or result.get("mode") or "").lower() == "conversational", result\nassert (data or {}).get("conversationId")'
   conversation_id="$(json_value 'result = (data or {}).get("conversationId", "")')"
   second_body="$(python3 - <<'PY' "${conversation_id}"
 import json, sys
 print(json.dumps({
-    "query": "Continue the same answer with one concrete next step.",
+    "query": "Continue the same welcome message with one concrete next step.",
     "conversationId": sys.argv[1],
-    "mode": "NORMAL",
     "authPath": "PLATFORM_PRIVATE",
 }))
 PY
 )"
   behavior_request_with_retry "POST" "/api/deployments/${DEPLOYMENT_ID}/poc-chat/query" "${second_body}" "conversational continuation"
-  CONVERSATION_ID_EXPECTED="${conversation_id}" json_assert "conversational continuation" $'import os\nassert (data or {}).get("success") is True\nassert (data or {}).get("conversationId") == os.environ["CONVERSATION_ID_EXPECTED"]\nassert isinstance((data or {}).get("result"), dict)'
+  CONVERSATION_ID_EXPECTED="${conversation_id}" json_assert "conversational continuation" $'import os\nassert (data or {}).get("success") is True\nassert (data or {}).get("conversationId") == os.environ["CONVERSATION_ID_EXPECTED"]\nresult = (data or {}).get("result")\nassert isinstance(result, dict)\nassert ((result.get("metadata") or {}).get("mode") or result.get("mode") or "").lower() == "conversational", result'
   pass "authenticated conversational query, structured result, and continuation"
 }
 
