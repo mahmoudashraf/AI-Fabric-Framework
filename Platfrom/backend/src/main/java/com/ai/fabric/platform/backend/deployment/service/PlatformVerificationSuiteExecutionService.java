@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -297,6 +298,20 @@ public class PlatformVerificationSuiteExecutionService {
         markStageRunning(stage, "Running allowlisted platform verification script.");
         Map<String, String> environmentOverrides = readScriptEnvironmentOverrides(stage);
         PlatformVerificationScriptContextSummary context = scriptContextService.build(stage.getTargetRef(), environmentOverrides);
+        Map<String, String> executionEnvironment = new LinkedHashMap<>(context.environment());
+        executionEnvironment.put("PLATFORM_VERIFICATION_SUITE_RUN_ID", stage.getSuiteRunId());
+        executionEnvironment.put("PLATFORM_VERIFICATION_SUITE_STAGE_ID", stage.getId());
+        executionEnvironment.put(
+            "BEHAVIOR_EVIDENCE_REF",
+            "verification-suite:" + stage.getSuiteRunId() + ":stage:" + stage.getId()
+        );
+        context = new PlatformVerificationScriptContextSummary(
+            context.scriptPath(),
+            Map.copyOf(executionEnvironment),
+            context.secretEnvironment(),
+            context.timeoutOverride(),
+            context.maxOutputCharactersOverride()
+        );
         PlatformVerificationScriptRunnerService.ScriptRunResult result = scriptRunnerService.run(context);
         boolean retryAttempted = false;
         if (shouldRetryScriptVerification(stage, result)) {

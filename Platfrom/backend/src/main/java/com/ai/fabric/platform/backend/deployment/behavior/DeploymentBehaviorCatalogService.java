@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -41,9 +42,17 @@ public class DeploymentBehaviorCatalogService {
     private final ObjectMapper objectMapper;
     private final Map<DeploymentBehaviorType, BehaviorContract> contracts;
     private final Map<String, ExecutionExtensionContract> extensionContracts;
+    private final DeploymentBehaviorReadinessLookup readinessLookup;
 
     public DeploymentBehaviorCatalogService(ObjectMapper objectMapper) {
+        this(objectMapper, (behaviorType, fallbackMaturity) -> fallbackMaturity);
+    }
+
+    @Autowired
+    public DeploymentBehaviorCatalogService(ObjectMapper objectMapper,
+                                            DeploymentBehaviorReadinessLookup readinessLookup) {
         this.objectMapper = objectMapper;
+        this.readinessLookup = readinessLookup;
         this.contracts = buildContracts();
         this.extensionContracts = buildExtensionContracts();
     }
@@ -587,7 +596,7 @@ public class DeploymentBehaviorCatalogService {
             contract.description(),
             SCHEMA_VERSION,
             CONTRACT_VERSION,
-            contract.maturity(),
+            readinessLookup.bestMaturity(contract.type().name(), contract.maturity()),
             true,
             contract.releaseRequiresCapabilityManifest(),
             contract.availabilityMessage(),
@@ -630,9 +639,9 @@ public class DeploymentBehaviorCatalogService {
             DeploymentBehaviorType.CONVERSATIONAL,
             "Conversational Assistant",
             "A person asks and receives a bounded answer, clarification, structured result, or governed next step.",
-            "HOSTED_PROVEN",
+            "PLATFORM_SELECTABLE",
             false,
-            "Ready on the current verified LoomAI runtime.",
+            "Authoring is available. Hosted and market-ready claims are shown only when an exact template release has current stored evidence.",
             List.of("AUTHENTICATED_INTERACTIVE"),
             List.of("BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT", "QUERY_ONCE"),
             List.of("GOVERNED_RESOLVER", "HUMAN_REVIEW"),

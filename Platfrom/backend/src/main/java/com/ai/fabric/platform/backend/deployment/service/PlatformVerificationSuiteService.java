@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunStageEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorVerificationExpectationOverrides;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDefinitionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
@@ -24,9 +25,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -164,6 +167,7 @@ public class PlatformVerificationSuiteService {
     public PlatformVerificationSuiteDispatchSummary dispatch(String suiteKey,
                                                              PlatformVerificationSuiteDispatchRequest request) {
         PlatformVerificationSuiteDefinitionSummary definition = catalog.requireDefinition(suiteKey);
+        validateBehaviorExpectations(definition, request);
         recoverStaleRuns(runRepository.findAllByOrderByCreatedAtDesc().stream().limit(suiteProperties.maxRecentRuns()).toList());
         if (runRepository.existsBySuiteKeyAndStatusIn(definition.key(), ACTIVE_STATUSES)) {
             throw new ResponseStatusException(CONFLICT, "A verification suite run is already queued or running for " + definition.label() + ".");
@@ -200,7 +204,10 @@ public class PlatformVerificationSuiteService {
                 "allowControlPlaneRepair", allowControlPlaneRepair,
                 "shopifyExpectationOverrides", request == null || request.shopifyCompanionExpectations() == null
                     ? ""
-                    : request.shopifyCompanionExpectations().toEnvironmentOverrides().toString()
+                    : request.shopifyCompanionExpectations().toEnvironmentOverrides().toString(),
+                "deploymentBehaviorExpectationOverrides", request == null || request.deploymentBehaviorExpectations() == null
+                    ? ""
+                    : request.deploymentBehaviorExpectations().toEnvironmentOverrides().toString()
             ))
         );
         executionService.execute(run.getId(), allowControlPlaneRepair);
@@ -265,6 +272,14 @@ public class PlatformVerificationSuiteService {
         PlatformVerificationSuiteDispatchRequest request
     ) {
         com.fasterxml.jackson.databind.node.ObjectNode details = objectMapper.createObjectNode();
+        if (PlatformVerificationSuiteScriptContextService.SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS
+            .equalsIgnoreCase(stage.targetRef())) {
+            details.set(
+                "scriptEnvironmentOverrides",
+                objectMapper.valueToTree(request.deploymentBehaviorExpectations().toEnvironmentOverrides())
+            );
+            return details;
+        }
         ShopifyCompanionVerificationExpectationOverrides expectations = expectationsForStage(stage.targetRef(), request);
         if (expectations == null
             || expectations.isEmpty()
@@ -273,6 +288,56 @@ public class PlatformVerificationSuiteService {
         }
         details.set("scriptEnvironmentOverrides", objectMapper.valueToTree(expectations.toEnvironmentOverrides()));
         return details;
+    }
+
+    private void validateBehaviorExpectations(
+        PlatformVerificationSuiteDefinitionSummary definition,
+        PlatformVerificationSuiteDispatchRequest request
+    ) {
+        if (!PlatformVerificationSuiteCatalog.DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY
+            .equalsIgnoreCase(definition.key())) {
+            return;
+        }
+        DeploymentBehaviorVerificationExpectationOverrides expectations = request == null
+            ? null
+            : request.deploymentBehaviorExpectations();
+        if (expectations == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Deployment behavior verification expectations are required.");
+        }
+        Map<String, String> environment = expectations.toEnvironmentOverrides();
+        for (String required : List.of(
+            "BEHAVIOR_TYPE",
+            "TEMPLATE_PLUGIN_ID",
+            "TEMPLATE_PLUGIN_VERSION",
+            "TARGET_PROFILE_ID",
+            "SOURCE_ARTIFACT_ID",
+            "VALIDATION_ENVIRONMENT"
+        )) {
+            if (!environment.containsKey(required)) {
+                throw new ResponseStatusException(BAD_REQUEST, "Missing deployment behavior verification input: " + required);
+            }
+        }
+        if (!Set.of("CONVERSATIONAL", "AGENTIC_SPECIALIST_TEAM", "SMART_BRAIN")
+            .contains(environment.get("BEHAVIOR_TYPE").toUpperCase())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unsupported deployment behavior verification type.");
+        }
+        String behaviorType = environment.get("BEHAVIOR_TYPE").toUpperCase();
+        String expectedTemplate = switch (behaviorType) {
+            case "CONVERSATIONAL" -> "mkp-template-conversational-assistant@1.0.1";
+            case "AGENTIC_SPECIALIST_TEAM" -> "mkp-template-agentic-specialist-team@1.0.2";
+            case "SMART_BRAIN" -> "mkp-template-smart-brain@1.0.1";
+            default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported deployment behavior verification type.");
+        };
+        String actualTemplate = environment.get("TEMPLATE_PLUGIN_ID") + "@" + environment.get("TEMPLATE_PLUGIN_VERSION");
+        if (!expectedTemplate.equals(actualTemplate)) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Deployment behavior verification requires the reviewed exact template " + expectedTemplate + "."
+            );
+        }
+        if (!Set.of("staging", "production").contains(environment.get("VALIDATION_ENVIRONMENT").toLowerCase())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Behavior verification environment must be staging or production.");
+        }
     }
 
     private ShopifyCompanionVerificationExpectationOverrides expectationsForStage(String targetRef,

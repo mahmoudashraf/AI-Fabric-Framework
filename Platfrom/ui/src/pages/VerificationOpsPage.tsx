@@ -9,6 +9,7 @@ import {
   Chip,
   FormControlLabel,
   Grid,
+  MenuItem,
   Stack,
   Switch,
   Table,
@@ -16,6 +17,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -25,6 +27,8 @@ import {
   dispatchPlatformVerificationSuiteRun,
   dispatchDeploymentHostedVerification,
   fetchDeploymentHostedVerificationRuns,
+  fetchDeploymentSourceArtifacts,
+  fetchDeploymentTargetProfiles,
   fetchDeploymentSecretUsage,
   fetchDeploymentVerificationRollouts,
   fetchMarketplaceInferenceServiceHealth,
@@ -45,9 +49,31 @@ import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { HostedVerificationRunHistory } from '../components/HostedVerificationRunHistory'
 
 const FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY = 'full-platform-release-readiness'
+const DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY = 'deployment-behavior-market-readiness'
 const SHARED_INFERENCE_SERVICE_REF = 'shared-ollama-orchestration'
 const ROLLOUT_RUN_ORDER = ['marketplace', 'ecommerce', 'qdrant', 'pinecone', 'milvus', 'weaviate'] as const
 const ACTIVE_SUITE_STATUSES = ['QUEUED', 'RUNNING'] as const
+
+const BEHAVIOR_TEMPLATE_OPTIONS = {
+  CONVERSATIONAL: {
+    label: 'Conversational',
+    pluginId: 'mkp-template-conversational-assistant',
+    version: '1.0.1',
+  },
+  AGENTIC_SPECIALIST_TEAM: {
+    label: 'Agentic Specialist Team',
+    pluginId: 'mkp-template-agentic-specialist-team',
+    version: '1.0.2',
+  },
+  SMART_BRAIN: {
+    label: 'Smart Brain',
+    pluginId: 'mkp-template-smart-brain',
+    version: '1.0.1',
+  },
+} as const
+
+type BehaviorVerificationType = keyof typeof BEHAVIOR_TEMPLATE_OPTIONS
+type BehaviorVerificationEnvironment = 'staging' | 'production'
 
 function verificationStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
   if (['PASSED', 'READY', 'ACTIVE', 'SUCCESS'].includes(status)) {
@@ -270,7 +296,13 @@ export function VerificationOpsPage() {
   const queryClient = useQueryClient()
   const [allowControlPlaneRepair, setAllowControlPlaneRepair] = useState(false)
   const [selectedSuiteKey, setSelectedSuiteKey] = useState(FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY)
+  const [behaviorVerificationType, setBehaviorVerificationType] = useState<BehaviorVerificationType>('CONVERSATIONAL')
+  const [behaviorVerificationEnvironment, setBehaviorVerificationEnvironment] = useState<BehaviorVerificationEnvironment>('staging')
+  const [behaviorTargetProfileId, setBehaviorTargetProfileId] = useState('')
+  const [behaviorSourceArtifactId, setBehaviorSourceArtifactId] = useState('')
+  const [keepBehaviorDeployment, setKeepBehaviorDeployment] = useState(true)
   const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
+  const behaviorSuiteSelected = selectedSuiteKey === DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY
 
   const verificationSuiteDefinitionsQuery = useQuery({
     queryKey: ['verification-suites', 'definitions'],
@@ -296,6 +328,18 @@ export function VerificationOpsPage() {
       suiteRunActive(query.state.data?.latestRun?.status) ? 4000 : false,
   })
 
+  const behaviorTargetProfilesQuery = useQuery({
+    queryKey: ['deployment-target-profiles', 'behavior-readiness'],
+    queryFn: () => fetchDeploymentTargetProfiles('COOLIFY'),
+    enabled: canManageHostedVerification && behaviorSuiteSelected,
+  })
+
+  const behaviorSourceArtifactsQuery = useQuery({
+    queryKey: ['deployment-source-artifacts', 'ai-fabric-runtime'],
+    queryFn: () => fetchDeploymentSourceArtifacts('ai-fabric-runtime'),
+    enabled: canManageHostedVerification && behaviorSuiteSelected,
+  })
+
   useEffect(() => {
     const definitions = verificationSuiteDefinitionsQuery.data ?? []
     if (definitions.length === 0) {
@@ -308,6 +352,35 @@ export function VerificationOpsPage() {
       ?? definitions[0]
     setSelectedSuiteKey(preferred.key)
   }, [selectedSuiteKey, verificationSuiteDefinitionsQuery.data])
+
+  const behaviorTargetProfiles = useMemo(
+    () => (behaviorTargetProfilesQuery.data ?? []).filter((profile) => (
+      profile.active && profile.environmentName.toLowerCase() === behaviorVerificationEnvironment
+    )),
+    [behaviorTargetProfilesQuery.data, behaviorVerificationEnvironment],
+  )
+  const behaviorSourceArtifacts = useMemo(
+    () => (behaviorSourceArtifactsQuery.data ?? []).filter((artifact) => (
+      artifact.promotedAt != null
+      && artifact.imageDigest != null
+      && artifact.gitCommitSha != null
+      && artifact.capabilityManifestHash != null
+      && (artifact.promotionChannel ?? '').toLowerCase() === behaviorVerificationEnvironment
+    )),
+    [behaviorSourceArtifactsQuery.data, behaviorVerificationEnvironment],
+  )
+
+  useEffect(() => {
+    if (!behaviorTargetProfiles.some((profile) => profile.id === behaviorTargetProfileId)) {
+      setBehaviorTargetProfileId(behaviorTargetProfiles[0]?.id ?? '')
+    }
+  }, [behaviorTargetProfileId, behaviorTargetProfiles])
+
+  useEffect(() => {
+    if (!behaviorSourceArtifacts.some((artifact) => artifact.id === behaviorSourceArtifactId)) {
+      setBehaviorSourceArtifactId(behaviorSourceArtifacts[0]?.id ?? '')
+    }
+  }, [behaviorSourceArtifactId, behaviorSourceArtifacts])
 
   const selectedSuiteDefinition = useMemo(
     () => verificationSuiteDefinitionsQuery.data?.find((definition) => definition.key === selectedSuiteKey) ?? null,
@@ -337,6 +410,8 @@ export function VerificationOpsPage() {
     [latestSelectedSuiteRun],
   )
   const manualOpsLocked = activeSelectedSuiteRun != null
+  const behaviorVerificationInputsReady = !behaviorSuiteSelected
+    || (behaviorTargetProfileId.length > 0 && behaviorSourceArtifactId.length > 0)
 
   const verificationRolloutsQuery = useQuery({
     queryKey: ['deployment-verification-rollouts'],
@@ -495,8 +570,20 @@ export function VerificationOpsPage() {
       if (selectedSuiteDefinition == null) {
         throw new Error('Select a verification suite before dispatching a run.')
       }
+      const behaviorTemplate = BEHAVIOR_TEMPLATE_OPTIONS[behaviorVerificationType]
       return dispatchPlatformVerificationSuiteRun(selectedSuiteDefinition.key, {
-      allowControlPlaneRepair,
+        allowControlPlaneRepair,
+        ...(behaviorSuiteSelected ? {
+          deploymentBehaviorExpectations: {
+            behaviorType: behaviorVerificationType,
+            templatePluginId: behaviorTemplate.pluginId,
+            templatePluginVersion: behaviorTemplate.version,
+            targetProfileId: behaviorTargetProfileId,
+            sourceArtifactId: behaviorSourceArtifactId,
+            environment: behaviorVerificationEnvironment,
+            keepDeployment: keepBehaviorDeployment,
+          },
+        } : {}),
       })
     },
     onSuccess: async () => {
@@ -896,6 +983,94 @@ export function VerificationOpsPage() {
               </Alert>
             ) : null}
 
+            {behaviorSuiteSelected ? (
+              <Box component="section">
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+                  Exact behavior candidate
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Behavior"
+                      value={behaviorVerificationType}
+                      onChange={(event) => setBehaviorVerificationType(event.target.value as BehaviorVerificationType)}
+                    >
+                      {Object.entries(BEHAVIOR_TEMPLATE_OPTIONS).map(([code, option]) => (
+                        <MenuItem key={code} value={code}>{option.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Environment"
+                      value={behaviorVerificationEnvironment}
+                      onChange={(event) => setBehaviorVerificationEnvironment(event.target.value as BehaviorVerificationEnvironment)}
+                    >
+                      <MenuItem value="staging">Staging</MenuItem>
+                      <MenuItem value="production">Production</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Template"
+                      value={`${BEHAVIOR_TEMPLATE_OPTIONS[behaviorVerificationType].pluginId}@${BEHAVIOR_TEMPLATE_OPTIONS[behaviorVerificationType].version}`}
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Target profile"
+                      value={behaviorTargetProfileId}
+                      onChange={(event) => setBehaviorTargetProfileId(event.target.value)}
+                      disabled={behaviorTargetProfilesQuery.isLoading}
+                    >
+                      {behaviorTargetProfiles.map((profile) => (
+                        <MenuItem key={profile.id} value={profile.id}>{profile.name} ({profile.id})</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Immutable runtime artifact"
+                      value={behaviorSourceArtifactId}
+                      onChange={(event) => setBehaviorSourceArtifactId(event.target.value)}
+                      disabled={behaviorSourceArtifactsQuery.isLoading}
+                    >
+                      {behaviorSourceArtifacts.map((artifact) => (
+                        <MenuItem key={artifact.id} value={artifact.id}>
+                          {artifact.imageTag} · {artifact.gitCommitSha?.slice(0, 12)} · {artifact.id}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                </Grid>
+                <FormControlLabel
+                  sx={{ mt: 1 }}
+                  control={(
+                    <Switch
+                      checked={keepBehaviorDeployment}
+                      onChange={(event) => setKeepBehaviorDeployment(event.target.checked)}
+                    />
+                  )}
+                  label="Keep certified deployment as a live evidence fixture"
+                />
+                {!behaviorVerificationInputsReady ? (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    This environment needs an active Coolify behavior target and a promoted immutable AI Fabric runtime artifact.
+                  </Alert>
+                ) : null}
+              </Box>
+            ) : null}
+
             <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ xs: 'stretch', lg: 'center' }}>
               <FormControlLabel
                 control={(
@@ -914,6 +1089,7 @@ export function VerificationOpsPage() {
                   selectedSuiteDefinition == null
                   || dispatchCanonicalReleaseSuiteMutation.isPending
                   || manualOpsLocked
+                  || !behaviorVerificationInputsReady
                 }
                 onClick={() => dispatchCanonicalReleaseSuiteMutation.mutate()}
               >

@@ -41,6 +41,66 @@ export type DeploymentBehaviorSummary = {
   defaultConfig: unknown
 }
 
+export type DeploymentBehaviorReadinessHostedProof = {
+  environment: string
+  deploymentId?: string | null
+  deploymentVersionId?: string | null
+  releaseId?: string | null
+  verificationRunId?: string | null
+  targetProfileId?: string | null
+  sourceArtifactId?: string | null
+  releaseStatus: string
+  verificationStatus: string
+  behaviorProofs?: Array<{
+    verificationPackId: string
+    status: string
+    evidenceRef?: string | null
+    passedChecks: string[]
+  }>
+  verifiedAt: string
+  expiresAt: string
+}
+
+export type DeploymentBehaviorReadinessEvidence = {
+  area: string
+  status: string
+  evidenceRef?: string | null
+  summary: string
+}
+
+export type DeploymentBehaviorReadinessSummary = {
+  id: string
+  schemaVersion: string
+  behaviorType: string
+  templatePluginId: string
+  templatePluginVersionId: string
+  templatePluginVersion: string
+  compositionHash: string
+  materialHash: string
+  frameworkVersion: string
+  sourceArtifactId: string | null
+  sourceCommit: string | null
+  imageDigest: string | null
+  sourceCapabilityManifestHash: string | null
+  verificationPackIds: string[]
+  maturity: string
+  effectiveMaturity: string
+  status: string
+  expired: boolean
+  hostedProofs: DeploymentBehaviorReadinessHostedProof[]
+  approvalEvidence: DeploymentBehaviorReadinessEvidence[]
+  deploymentId: string | null
+  deploymentVersionId: string | null
+  releaseId: string | null
+  evaluatedAt: string
+  expiresAt: string
+  approvedByActorId: string | null
+  approvedAt: string | null
+  approvalNote: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export type DeploymentSpecialistBundleSummary = {
   bundleId: string
   contractVersion: string
@@ -4098,6 +4158,61 @@ export function fetchDeploymentBehaviors() {
   return request<DeploymentBehaviorSummary[]>('/api/deployment-behaviors')
 }
 
+export function fetchDeploymentBehaviorReadiness(behaviorType?: string, templatePluginId?: string) {
+  const params = new URLSearchParams()
+  if (behaviorType) params.set('behaviorType', behaviorType)
+  if (templatePluginId) params.set('templatePluginId', templatePluginId)
+  const query = params.toString()
+  return request<DeploymentBehaviorReadinessSummary[]>(
+    `/api/deployment-behavior-readiness${query ? `?${query}` : ''}`,
+  )
+}
+
+export function evaluateDeploymentBehaviorReadiness(
+  deploymentId: string,
+  payload: {
+    releaseId: string
+    behaviorProofs: Array<{
+      verificationPackId: string
+      status: 'PASSED'
+      evidenceRef: string
+      passedChecks: string[]
+    }>
+    expiresAt?: string
+  },
+) {
+  return request<DeploymentBehaviorReadinessSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/behavior-readiness/evaluate`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function approveDeploymentBehaviorReadiness(
+  candidateId: string,
+  payload: {
+    evidence: Array<{
+      area: string
+      status: 'PASSED'
+      evidenceRef: string
+      summary: string
+    }>
+    approvalNote: string
+    expiresAt?: string
+  },
+) {
+  return request<DeploymentBehaviorReadinessSummary>(
+    `/api/deployment-behavior-readiness/${encodeURIComponent(candidateId)}/approve`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function withdrawDeploymentBehaviorReadiness(candidateId: string, reason: string) {
+  return request<DeploymentBehaviorReadinessSummary>(
+    `/api/deployment-behavior-readiness/${encodeURIComponent(candidateId)}/withdraw`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  )
+}
+
 export function fetchDeploymentExecutionExtensions() {
   return request<DeploymentExecutionExtensionSummary[]>('/api/deployment-execution-extensions')
 }
@@ -5783,12 +5898,22 @@ export function dispatchPlatformVerificationSuiteRun(
   suiteKey: string,
   payload?: {
     allowControlPlaneRepair?: boolean
+    deploymentBehaviorExpectations?: {
+      behaviorType: 'CONVERSATIONAL' | 'AGENTIC_SPECIALIST_TEAM' | 'SMART_BRAIN'
+      templatePluginId: string
+      templatePluginVersion: string
+      targetProfileId: string
+      sourceArtifactId: string
+      environment: 'staging' | 'production'
+      keepDeployment: boolean
+    }
   },
 ) {
   return request<PlatformVerificationSuiteDispatchSummary>(`/api/verification-suites/${suiteKey}/runs`, {
     method: 'POST',
     body: JSON.stringify({
       allowControlPlaneRepair: payload?.allowControlPlaneRepair ?? false,
+      deploymentBehaviorExpectations: payload?.deploymentBehaviorExpectations,
     }),
   })
 }

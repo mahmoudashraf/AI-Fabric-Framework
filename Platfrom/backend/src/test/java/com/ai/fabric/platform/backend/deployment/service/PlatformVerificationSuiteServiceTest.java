@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunStageEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorVerificationExpectationOverrides;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
@@ -21,8 +22,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -54,7 +57,7 @@ class PlatformVerificationSuiteServiceTest {
 
         PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
             PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
-            new PlatformVerificationSuiteDispatchRequest(false, null, null)
+            new PlatformVerificationSuiteDispatchRequest(false, null, null, null)
         );
 
         assertThat(summary.suiteKey()).isEqualTo(PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY);
@@ -127,7 +130,7 @@ class PlatformVerificationSuiteServiceTest {
 
         PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
             PlatformVerificationSuiteCatalog.FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY,
-            new PlatformVerificationSuiteDispatchRequest(false, null, null)
+            new PlatformVerificationSuiteDispatchRequest(false, null, null, null)
         );
 
         ArgumentCaptor<PlatformVerificationSuiteRunEntity> runCaptor = ArgumentCaptor.forClass(PlatformVerificationSuiteRunEntity.class);
@@ -202,7 +205,8 @@ class PlatformVerificationSuiteServiceTest {
                     "RECENT_ORDER_ONLY",
                     "comparison,contextual-pill,order-lookup,policy-strip,product-faq,product-insight",
                     "comparison,contextual-pill,order-lookup,policy-strip,product-faq,product-insight"
-                )
+                ),
+                null
             )
         );
 
@@ -371,5 +375,93 @@ class PlatformVerificationSuiteServiceTest {
         assertThat(summary.status()).isEqualTo("STALE");
         assertThat(summary.latestRun()).isNotNull();
         assertThat(summary.expiresAt()).isNotNull();
+    }
+
+    @Test
+    void dispatchStoresExactBehaviorCertificationInputsOnStandaloneStage() {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformVerificationSuiteExecutionService executionService = mock(PlatformVerificationSuiteExecutionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        when(runRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+        when(runRepository.existsBySuiteKeyAndStatusIn(any(), any())).thenReturn(false);
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stageRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformVerificationSuiteService service = new PlatformVerificationSuiteService(
+            new PlatformVerificationSuiteCatalog(),
+            runRepository,
+            stageRepository,
+            executionService,
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
+            auditService,
+            new ObjectMapper()
+        );
+
+        service.dispatch(
+            PlatformVerificationSuiteCatalog.DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY,
+            new PlatformVerificationSuiteDispatchRequest(
+                false,
+                null,
+                null,
+                new DeploymentBehaviorVerificationExpectationOverrides(
+                    "AGENTIC_SPECIALIST_TEAM",
+                    "mkp-template-agentic-specialist-team",
+                    "1.0.2",
+                    "dtp-coolify-staging-behavior",
+                    "dsa-runtime",
+                    "staging",
+                    true
+                )
+            )
+        );
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PlatformVerificationSuiteRunStageEntity>> stageCaptor = ArgumentCaptor.forClass(List.class);
+        verify(stageRepository).saveAll(stageCaptor.capture());
+        PlatformVerificationSuiteRunStageEntity stage = stageCaptor.getValue().getFirst();
+        assertThat(stage.getTargetRef())
+            .isEqualTo(PlatformVerificationSuiteScriptContextService.SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS);
+        assertThat(stage.getDetailsJson()).contains("AGENTIC_SPECIALIST_TEAM");
+        assertThat(stage.getDetailsJson()).contains("mkp-template-agentic-specialist-team");
+        assertThat(stage.getDetailsJson()).contains("dtp-coolify-staging-behavior");
+        assertThat(stage.getDetailsJson()).contains("dsa-runtime");
+        verify(executionService).execute(any(), eq(false));
+    }
+
+    @Test
+    void dispatchRejectsBehaviorCertificationWithUnreviewedTemplateTuple() {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformVerificationSuiteExecutionService executionService = mock(PlatformVerificationSuiteExecutionService.class);
+        PlatformVerificationSuiteService service = new PlatformVerificationSuiteService(
+            new PlatformVerificationSuiteCatalog(),
+            runRepository,
+            stageRepository,
+            executionService,
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
+            mock(PlatformAuditService.class),
+            new ObjectMapper()
+        );
+
+        assertThatThrownBy(() -> service.dispatch(
+            PlatformVerificationSuiteCatalog.DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY,
+            new PlatformVerificationSuiteDispatchRequest(
+                false,
+                null,
+                null,
+                new DeploymentBehaviorVerificationExpectationOverrides(
+                    "SMART_BRAIN",
+                    "mkp-template-conversational-assistant",
+                    "1.0.1",
+                    "dtp-coolify-staging-behavior",
+                    "dsa-runtime",
+                    "staging",
+                    true
+                )
+            )
+        ))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("mkp-template-smart-brain@1.0.1");
     }
 }

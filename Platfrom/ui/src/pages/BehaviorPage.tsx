@@ -1,14 +1,20 @@
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
+import VerifiedUserRoundedIcon from '@mui/icons-material/VerifiedUserRounded'
 import {
   Alert,
   Box,
   Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControlLabel,
   Grid,
@@ -25,11 +31,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  approveDeploymentBehaviorReadiness,
   fetchDeploymentBehaviors,
+  fetchDeploymentBehaviorReadiness,
   fetchDeploymentDraft,
   fetchDeploymentExecutionExtensions,
   updateDeploymentDraft,
+  withdrawDeploymentBehaviorReadiness,
 } from '../api/platformApi'
+import { usePlatformAuth } from '../auth/PlatformAuthProvider'
 import { useDeploymentWorkspace } from '../workspace/DeploymentWorkspaceContext'
 import { useDeploymentWorkspaceEditorState } from '../workspace/useDeploymentWorkspaceEditorState'
 
@@ -68,6 +78,32 @@ const EMPTY_SELECTIONS: BehaviorSelections = {
   channelBindings: [],
   executionExtensions: [],
   smartBrain: null,
+}
+
+const READINESS_APPROVAL_AREAS = [
+  ['BEHAVIOR', 'Behavior'],
+  ['SECURITY_ISOLATION', 'Security and isolation'],
+  ['LIFECYCLE_RECOVERY', 'Lifecycle and recovery'],
+  ['OPERATIONS', 'Operations'],
+  ['COST_LIMITS', 'Cost and limits'],
+  ['CUSTOMER_UX', 'Customer experience'],
+  ['SUPPORT', 'Support'],
+  ['COMMERCIAL', 'Commercial'],
+  ['CONTROLLED_PRODUCTION', 'Controlled production'],
+] as const
+
+type ReadinessApprovalArea = typeof READINESS_APPROVAL_AREAS[number][0]
+type ReadinessApprovalEvidenceDraft = Record<ReadinessApprovalArea, { evidenceRef: string; summary: string }>
+
+function emptyApprovalEvidence(): ReadinessApprovalEvidenceDraft {
+  return Object.fromEntries(
+    READINESS_APPROVAL_AREAS.map(([area]) => [area, { evidenceRef: '', summary: '' }]),
+  ) as ReadinessApprovalEvidenceDraft
+}
+
+function defaultApprovalExpiry(): string {
+  const value = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -180,11 +216,30 @@ function readSpecialistBundles(config: unknown): Array<Record<string, unknown>> 
   return config.specialistBundles.filter(isRecord)
 }
 
+function shortHash(value: string | null | undefined): string {
+  if (!value) return 'Not exposed'
+  return value.length > 22 ? `${value.slice(0, 14)}…${value.slice(-7)}` : value
+}
+
+function readinessColor(maturity: string): 'success' | 'warning' | 'info' | 'default' {
+  if (maturity === 'MARKET_READY') return 'success'
+  if (maturity === 'HOSTED_PROVEN') return 'info'
+  if (maturity === 'PLATFORM_SELECTABLE') return 'warning'
+  return 'default'
+}
+
 export function BehaviorPage() {
   const { selectedDeploymentId, selectedDeploymentSummary, workspace } = useDeploymentWorkspace()
+  const auth = usePlatformAuth()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [selections, setSelections] = useState<BehaviorSelections>(EMPTY_SELECTIONS)
+  const [approvalCandidateId, setApprovalCandidateId] = useState('')
+  const [approvalEvidence, setApprovalEvidence] = useState<ReadinessApprovalEvidenceDraft>(emptyApprovalEvidence)
+  const [approvalNote, setApprovalNote] = useState('')
+  const [approvalExpiresAt, setApprovalExpiresAt] = useState(defaultApprovalExpiry)
+  const [withdrawCandidateId, setWithdrawCandidateId] = useState('')
+  const [withdrawReason, setWithdrawReason] = useState('')
 
   const draftQuery = useQuery({
     queryKey: ['deployment-draft', selectedDeploymentId],
@@ -198,6 +253,12 @@ export function BehaviorPage() {
   const extensionQuery = useQuery({
     queryKey: ['deployment-execution-extensions'],
     queryFn: fetchDeploymentExecutionExtensions,
+  })
+  const readinessQuery = useQuery({
+    queryKey: ['deployment-behavior-readiness', selectedDeploymentSummary?.behaviorType],
+    queryFn: () => fetchDeploymentBehaviorReadiness(selectedDeploymentSummary?.behaviorType),
+    enabled: Boolean(selectedDeploymentSummary?.behaviorType),
+    retry: false,
   })
 
   useEffect(() => {
@@ -224,6 +285,14 @@ export function BehaviorPage() {
   )
   const dirty = draftQuery.data ? !selectionsEqual(selections, savedSelections) : false
   const canEdit = workspace?.access.canEdit ?? false
+  const canManageReadiness = auth.session != null
+    && (auth.session.enabled ? auth.session.role === 'PLATFORM_ADMIN' : true)
+  const approvalReady = approvalNote.trim().length > 0
+    && approvalExpiresAt.length > 0
+    && READINESS_APPROVAL_AREAS.every(([area]) => (
+      approvalEvidence[area].evidenceRef.trim().length > 0
+      && approvalEvidence[area].summary.trim().length > 0
+    ))
   const selectionError = selections.activationSources.length === 0
     ? 'Select at least one activation source.'
     : selections.channelBindings.length === 0
@@ -255,6 +324,51 @@ export function BehaviorPage() {
       ])
     },
   })
+
+  const approveReadinessMutation = useMutation({
+    mutationFn: () => approveDeploymentBehaviorReadiness(approvalCandidateId, {
+      evidence: READINESS_APPROVAL_AREAS.map(([area]) => ({
+        area,
+        status: 'PASSED' as const,
+        evidenceRef: approvalEvidence[area].evidenceRef.trim(),
+        summary: approvalEvidence[area].summary.trim(),
+      })),
+      approvalNote: approvalNote.trim(),
+      expiresAt: new Date(approvalExpiresAt).toISOString(),
+    }),
+    onSuccess: async () => {
+      setApprovalCandidateId('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-behavior-readiness'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-behaviors'] }),
+      ])
+    },
+  })
+
+  const withdrawReadinessMutation = useMutation({
+    mutationFn: () => withdrawDeploymentBehaviorReadiness(withdrawCandidateId, withdrawReason.trim()),
+    onSuccess: async () => {
+      setWithdrawCandidateId('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['deployment-behavior-readiness'] }),
+        queryClient.invalidateQueries({ queryKey: ['deployment-behaviors'] }),
+      ])
+    },
+  })
+
+  const openApproval = (candidateId: string) => {
+    setApprovalCandidateId(candidateId)
+    setApprovalEvidence(emptyApprovalEvidence())
+    setApprovalNote('')
+    setApprovalExpiresAt(defaultApprovalExpiry())
+    approveReadinessMutation.reset()
+  }
+
+  const openWithdrawal = (candidateId: string) => {
+    setWithdrawCandidateId(candidateId)
+    setWithdrawReason('')
+    withdrawReadinessMutation.reset()
+  }
 
   if (!selectedDeploymentId) {
     return <Alert severity="info">Select a deployment to configure its behavior contract.</Alert>
@@ -303,6 +417,229 @@ export function BehaviorPage() {
       <Alert severity={behavior.releaseRequiresCapabilityManifest ? 'warning' : 'success'}>
         {behavior.availabilityMessage}
       </Alert>
+
+      <Box component="section">
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
+          <Box>
+            <Typography variant="h6">Exact release readiness</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Maturity belongs to an immutable Marketplace template, V04 composition, and runtime image, not to every deployment of this behavior.
+            </Typography>
+          </Box>
+          <Chip
+            label={`Highest maturity: ${behavior.maturity.replace(/_/g, ' ')}`}
+            color={readinessColor(behavior.maturity)}
+            variant="outlined"
+          />
+        </Stack>
+        {readinessQuery.isLoading ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>Loading release evidence…</Typography>
+        ) : readinessQuery.isError ? (
+          <Alert severity="info" sx={{ mt: 1.5 }}>
+            Detailed release evidence is available to Platform operators. The maturity label above remains evidence-backed.
+          </Alert>
+        ) : (readinessQuery.data ?? []).length === 0 ? (
+          <Alert severity="warning" sx={{ mt: 1.5 }}>
+            No current exact hosted-release evidence is recorded for this behavior. Authoring remains available, but this is not a market-ready claim.
+          </Alert>
+        ) : (
+          <Stack divider={<Divider flexItem />} sx={{ mt: 1.5 }}>
+            {(readinessQuery.data ?? []).map((candidate) => (
+              <Stack key={candidate.id} spacing={1.25} sx={{ py: 1.5 }}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    {candidate.templatePluginId}@{candidate.templatePluginVersion}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={candidate.effectiveMaturity.replace(/_/g, ' ')}
+                    color={readinessColor(candidate.effectiveMaturity)}
+                  />
+                  {candidate.expired ? <Chip size="small" label="Evidence expired" color="error" variant="outlined" /> : null}
+                  {candidate.status !== 'ACTIVE' ? <Chip size="small" label={candidate.status} color="error" variant="outlined" /> : null}
+                </Stack>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" label={`AI Fabric ${candidate.frameworkVersion}`} variant="outlined" />
+                  <Chip size="small" label={`Composition ${shortHash(candidate.compositionHash)}`} variant="outlined" />
+                  <Chip size="small" label={`Image ${shortHash(candidate.imageDigest)}`} variant="outlined" />
+                  {candidate.hostedProofs.map((proof) => (
+                    <Chip
+                      key={`${candidate.id}-${proof.environment}-${proof.verifiedAt}`}
+                      size="small"
+                      label={`${proof.environment}: ${proof.verificationStatus} until ${new Date(proof.expiresAt).toLocaleDateString()}`}
+                      color={proof.verificationStatus === 'PASSED' ? 'success' : 'warning'}
+                      variant="outlined"
+                    />
+                  ))}
+                </Stack>
+                <Typography variant="caption" color="text.secondary">
+                  Verification packs: {candidate.verificationPackIds.join(', ')} · evidence expires {new Date(candidate.expiresAt).toLocaleString()}
+                </Typography>
+                {canManageReadiness && candidate.status === 'ACTIVE' ? (
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<VerifiedUserRoundedIcon />}
+                      disabled={
+                        !['HOSTED_PROVEN', 'MARKET_READY'].includes(candidate.effectiveMaturity)
+                        || !['staging', 'production'].every((environment) => candidate.hostedProofs.some((proof) => (
+                          proof.environment === environment
+                          && proof.releaseStatus === 'APPLIED_VERIFIED'
+                          && proof.verificationStatus === 'PASSED'
+                          && new Date(proof.expiresAt).getTime() > Date.now()
+                        )))
+                      }
+                      onClick={() => openApproval(candidate.id)}
+                    >
+                      {candidate.effectiveMaturity === 'MARKET_READY' ? 'Renew market decision' : 'Review for market ready'}
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="text"
+                      startIcon={<BlockRoundedIcon />}
+                      onClick={() => openWithdrawal(candidate.id)}
+                    >
+                      Withdraw evidence
+                    </Button>
+                  </Stack>
+                ) : null}
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </Box>
+
+      <Dialog
+        open={approvalCandidateId.length > 0}
+        onClose={() => !approveReadinessMutation.isPending && setApprovalCandidateId('')}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Market-ready evidence decision</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2.5}>
+            <Alert severity="warning">
+              This promotes only the exact immutable candidate. Every area requires a real reviewed evidence reference; no default approval is supplied.
+            </Alert>
+            {READINESS_APPROVAL_AREAS.map(([area, label]) => (
+              <Box component="section" key={area}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>{label}</Typography>
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} md={5}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Evidence reference"
+                      value={approvalEvidence[area].evidenceRef}
+                      onChange={(event) => setApprovalEvidence((current) => ({
+                        ...current,
+                        [area]: { ...current[area], evidenceRef: event.target.value },
+                      }))}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={7}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Customer-safe reviewed outcome"
+                      value={approvalEvidence[area].summary}
+                      onChange={(event) => setApprovalEvidence((current) => ({
+                        ...current,
+                        [area]: { ...current[area], summary: event.target.value },
+                      }))}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
+            <Divider />
+            <TextField
+              fullWidth
+              multiline
+              minRows={2}
+              label="Approval decision note"
+              value={approvalNote}
+              onChange={(event) => setApprovalNote(event.target.value)}
+            />
+            <TextField
+              type="datetime-local"
+              label="Decision expires"
+              value={approvalExpiresAt}
+              onChange={(event) => setApprovalExpiresAt(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            {approveReadinessMutation.isError ? (
+              <Alert severity="error">
+                {approveReadinessMutation.error instanceof Error
+                  ? approveReadinessMutation.error.message
+                  : 'Market-ready approval failed.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={approveReadinessMutation.isPending} onClick={() => setApprovalCandidateId('')}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<VerifiedUserRoundedIcon />}
+            disabled={!approvalReady || approveReadinessMutation.isPending}
+            onClick={() => approveReadinessMutation.mutate()}
+          >
+            Approve exact candidate
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={withdrawCandidateId.length > 0}
+        onClose={() => !withdrawReadinessMutation.isPending && setWithdrawCandidateId('')}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Withdraw readiness evidence</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Alert severity="warning">
+              Withdrawal immediately returns this exact candidate to platform-selectable maturity and cannot be undone for the same immutable material.
+            </Alert>
+            <TextField
+              autoFocus
+              fullWidth
+              multiline
+              minRows={3}
+              label="Withdrawal reason"
+              value={withdrawReason}
+              onChange={(event) => setWithdrawReason(event.target.value)}
+            />
+            {withdrawReadinessMutation.isError ? (
+              <Alert severity="error">
+                {withdrawReadinessMutation.error instanceof Error
+                  ? withdrawReadinessMutation.error.message
+                  : 'Readiness withdrawal failed.'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={withdrawReadinessMutation.isPending} onClick={() => setWithdrawCandidateId('')}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            startIcon={<BlockRoundedIcon />}
+            disabled={withdrawReason.trim().length === 0 || withdrawReadinessMutation.isPending}
+            onClick={() => withdrawReadinessMutation.mutate()}
+          >
+            Withdraw exact candidate
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {selectionError ? <Alert severity="error">{selectionError}</Alert> : null}
       {saveMutation.isError ? (
         <Alert severity="error">

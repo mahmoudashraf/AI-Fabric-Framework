@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("136"))
+            .target(MigrationVersion.fromVersion("137"))
             .load();
 
         flyway.migrate();
@@ -36,6 +36,8 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
             assertThat(columnExists(statement, "platform_deployment_drafts", "behavior_config_json")).isTrue();
             assertThat(columnExists(statement, "platform_deployment_versions", "composition_provenance_json")).isTrue();
             assertThat(columnExists(statement, "deployment_source_artifacts", "capability_manifest_hash")).isTrue();
+            assertThat(columnExists(statement, "platform_deployment_behavior_readiness", "material_hash")).isTrue();
+            assertThat(columnExists(statement, "platform_deployment_behavior_readiness", "source_capability_manifest_hash")).isTrue();
 
             try (ResultSet result = statement.executeQuery("""
                 select plugin_type, count(*)

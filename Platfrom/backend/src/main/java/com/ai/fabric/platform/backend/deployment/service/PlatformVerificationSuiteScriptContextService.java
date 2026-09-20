@@ -10,6 +10,7 @@ import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +30,7 @@ public class PlatformVerificationSuiteScriptContextService {
     public static final String SCRIPT_PARTNER_ENABLEMENT_VERIFICATION = "partner-enablement-verification";
     public static final String SCRIPT_THINKER_RESOLVER_READINESS = "thinker-resolver-readiness";
     public static final String SCRIPT_COOLIFY_PROVIDER_VERIFICATION = "coolify-provider-verification";
+    public static final String SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS = "deployment-behavior-market-readiness";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
@@ -78,6 +80,7 @@ public class PlatformVerificationSuiteScriptContextService {
             case SCRIPT_PARTNER_ENABLEMENT_VERIFICATION -> buildPartnerEnablementVerification();
             case SCRIPT_THINKER_RESOLVER_READINESS -> buildThinkerResolverReadiness();
             case SCRIPT_COOLIFY_PROVIDER_VERIFICATION -> buildCoolifyProviderVerification();
+            case SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS -> buildDeploymentBehaviorMarketReadiness();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
         if (environmentOverrides == null || environmentOverrides.isEmpty()) {
@@ -95,7 +98,9 @@ public class PlatformVerificationSuiteScriptContextService {
         return new PlatformVerificationScriptContextSummary(
             base.scriptPath(),
             Map.copyOf(environment),
-            base.secretEnvironment()
+            base.secretEnvironment(),
+            base.timeoutOverride(),
+            base.maxOutputCharactersOverride()
         );
     }
 
@@ -370,6 +375,20 @@ public class PlatformVerificationSuiteScriptContextService {
             "scripts/verify-coolify-provider.sh",
             environment,
             secretEnvironment
+        );
+    }
+
+    private PlatformVerificationScriptContextSummary buildDeploymentBehaviorMarketReadiness() {
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("KEEP_DEPLOYMENT", "false");
+        environment.put("RELEASE_WAIT_MAX_TOTAL_SECONDS", "3600");
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-deployment-behavior-market-readiness.sh",
+            environment,
+            basePlatformAdminSecretEnvironment(),
+            Duration.ofMinutes(75),
+            40_000
         );
     }
 

@@ -10,7 +10,7 @@ spring:
     # later application schema additions without executing those
     # production-only data updates against H2.
     locations: classpath:db/migration,classpath:db/test-migration
-    target: "120.2"
+    target: "120.3"
 
 platform:
   bootstrap:

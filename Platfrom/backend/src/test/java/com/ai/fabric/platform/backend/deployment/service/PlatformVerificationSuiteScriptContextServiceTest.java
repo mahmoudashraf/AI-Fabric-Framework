@@ -699,4 +699,46 @@ class PlatformVerificationSuiteScriptContextServiceTest {
             .hasMessageContaining("PLATFORM_ADMIN_API_KEY");
     }
 
+    @Test
+    void buildsLongRunningBehaviorReadinessContextAndPreservesOverrides() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75),
+                Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000,
+                "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test",
+                "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true, "X-PLATFORM-API-KEY", true, true, "sid", Duration.ofHours(8), true, "Lax",
+                null, null, false, null, null, null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS,
+            Map.of(
+                "BEHAVIOR_TYPE", "SMART_BRAIN",
+                "TARGET_PROFILE_ID", "dtp-coolify-staging-behavior",
+                "SOURCE_ARTIFACT_ID", "dsa-runtime"
+            )
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-deployment-behavior-market-readiness.sh");
+        assertThat(context.environment())
+            .containsEntry("PLATFORM_BASE_URL", "https://platform.example.test")
+            .containsEntry("BEHAVIOR_TYPE", "SMART_BRAIN")
+            .containsEntry("TARGET_PROFILE_ID", "dtp-coolify-staging-behavior")
+            .containsEntry("SOURCE_ARTIFACT_ID", "dsa-runtime");
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
+        assertThat(context.timeoutOverride()).isEqualTo(Duration.ofMinutes(75));
+        assertThat(context.maxOutputCharactersOverride()).isEqualTo(40_000);
+    }
+
 }

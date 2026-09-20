@@ -23,6 +23,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String PARTNER_ENABLEMENT_VERIFICATION_SUITE_KEY = "partner-enablement-verification";
     public static final String THINKER_RESOLVER_READINESS_SUITE_KEY = "thinker-resolver-readiness";
     public static final String COOLIFY_PROVIDER_VERIFICATION_SUITE_KEY = "coolify-provider-verification";
+    public static final String DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY = "deployment-behavior-market-readiness";
     public static final String SHARED_INFERENCE_SERVICE_REF = "openai-cloud-orchestration";
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
@@ -42,7 +43,8 @@ public class PlatformVerificationSuiteCatalog {
             shopifyFirstProductReadinessAudit(),
             partnerEnablementVerification(),
             thinkerResolverReadiness(),
-            coolifyProviderVerification()
+            coolifyProviderVerification(),
+            deploymentBehaviorMarketReadiness()
         );
     }
 
@@ -393,6 +395,25 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_COOLIFY_PROVIDER_VERIFICATION,
                     true,
                     "Verify Coolify API tokens, live host health/version, application listing, and optional staging create/start/log/delete flow."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary deploymentBehaviorMarketReadiness() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY,
+            "Deployment behavior market readiness",
+            "Certifies one exact Marketplace behavior template, V04 composition, immutable runtime artifact, and target environment through the supported deployment lifecycle.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    "deployment-behavior-market-readiness",
+                    "Deployment behavior market readiness",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS,
+                    true,
+                    "Bootstrap, publish, apply, execute, verify, and record hosted proof for one exact behavior-template release."
                 )
             )
         );
