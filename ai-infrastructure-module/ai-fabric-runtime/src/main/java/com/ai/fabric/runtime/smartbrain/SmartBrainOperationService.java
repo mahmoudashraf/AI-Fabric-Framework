@@ -321,10 +321,13 @@ public class SmartBrainOperationService {
     }
 
     public SmartBrainOperationView toView(SmartBrainOperationEntity operation, boolean replayed) {
-        JsonNode result = null;
+        Object result = null;
         if (StringUtils.hasText(operation.getProtectedResult())) {
             try {
-                result = objectMapper.readTree(security.decrypt(operation.getProtectedResult()));
+                result = objectMapper.readValue(
+                    security.decrypt(operation.getProtectedResult()),
+                    Object.class
+                );
             } catch (Exception exception) {
                 throw new IllegalStateException("Stored Smart Brain result could not be read.", exception);
             }

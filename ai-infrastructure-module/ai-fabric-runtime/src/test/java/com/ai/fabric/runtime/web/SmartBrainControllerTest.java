@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -19,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,7 +71,25 @@ class SmartBrainControllerTest {
         verify(authResolver, never()).resolveVerifiedForChat(any());
     }
 
+    @Test
+    void statusSerializesTypedResultWithoutJacksonNodeMetadata() throws Exception {
+        when(authResolver.resolveVerifiedPrivateContext(any(), eq("/api/smart-brain/v1/operations/{operationId}")))
+            .thenReturn(identity);
+        when(operationService.status(identity, "op-1"))
+            .thenReturn(view(Map.of("summary", "Release risk is low.", "riskLevel", "LOW")));
+
+        mockMvc.perform(get("/api/smart-brain/v1/operations/op-1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.summary").value("Release risk is low."))
+            .andExpect(jsonPath("$.result.riskLevel").value("LOW"))
+            .andExpect(jsonPath("$.result.nodeType").doesNotExist());
+    }
+
     private SmartBrainOperationView view() {
+        return view(null);
+    }
+
+    private SmartBrainOperationView view(Object result) {
         Instant now = Instant.parse("2026-09-19T10:00:00Z");
         return new SmartBrainOperationView(
             "op-1",
@@ -78,7 +98,7 @@ class SmartBrainControllerTest {
             "com.example.risk.requested",
             "ACCEPTED",
             "https://runtime.example/api/smart-brain/v1/operations/op-1",
-            null,
+            result,
             null,
             now,
             now,

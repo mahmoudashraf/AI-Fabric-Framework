@@ -1,7 +1,5 @@
 package com.ai.fabric.runtime.smartbrain;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import java.time.Instant;
 
 public record SmartBrainOperationView(
@@ -11,7 +9,7 @@ public record SmartBrainOperationView(
     String cloudEventType,
     String status,
     String operationUrl,
-    JsonNode result,
+    Object result,
     Failure failure,
     Instant createdAt,
     Instant updatedAt,
