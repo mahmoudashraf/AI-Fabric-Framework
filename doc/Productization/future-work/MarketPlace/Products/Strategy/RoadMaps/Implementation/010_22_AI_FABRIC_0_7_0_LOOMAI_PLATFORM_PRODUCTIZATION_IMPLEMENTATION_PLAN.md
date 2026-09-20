@@ -148,7 +148,7 @@ Current operational truth is:
 - canonical release-readiness `vsr-015a8e14` passed without control-plane repair: Marketplace `41/41` and Ecommerce `43/43`, both `IN_SYNC`; optional legacy Qdrant remains `MIGRATION_REQUIRED` and non-blocking;
 - Thinker/Resolver `vsr-f3a5604d` passed after refreshing the dedicated short-lived Partner test JWT;
 - the latest aggregate gate remains honestly non-green only on the owner-deferred Shopify answer-quality path, and the standalone Partner run reaches that same protected Shopify runtime exception after all preceding partner checks pass;
-- authoritative DNS for the apex, `api`, and `console` still points at the old host. Coolify hostnames are live, but custom-domain TLS is not complete until Namecheap is corrected.
+- production custom-domain DNS is complete: authoritative Namecheap DNS and public resolvers return `46.225.162.106` for the apex, `api`, `console`, `partners`, and `shopify-bridge`; apex HTTPS, redirect behavior, service routes, and trusted TLS were reverified on 2026-09-20.
 
 ### 3.5 Mandatory AI Fabric `0.7.x` adoption gates
 

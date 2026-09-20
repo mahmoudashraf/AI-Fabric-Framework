@@ -2584,7 +2584,10 @@ Critical fixes that made the gate pass:
   Remaining gates are released-template origin, complete lifecycle
   export/import/promotion/rollback/draining/decommission, full Agentic and
   Smart Brain failure/recovery matrices, and hosted Human Review.
-- Coolify production domains are configured, but authoritative Namecheap DNS
-  still points the apex, `api`, and `console` at `18.204.152.241`; production
-  Coolify is `46.225.162.106`. Treat the sslip endpoints as current live proof
-  until those DNS records and certificates are corrected.
+- Namecheap DNS cutover is complete. On 2026-09-20 the two authoritative
+  Namecheap nameservers and the system, Cloudflare, Google, and Quad9 resolvers
+  all returned `46.225.162.106` for `loomai.pro`; `api`, `console`, `partners`,
+  and `shopify-bridge` resolved to the same production host. The apex returned
+  HTTP `200` with a valid Let's Encrypt certificate, `www` redirected to the
+  apex, and all four public service hostnames answered. There is no native apex
+  AAAA record; the local network's DNS64/IPv4 path was nevertheless verified.

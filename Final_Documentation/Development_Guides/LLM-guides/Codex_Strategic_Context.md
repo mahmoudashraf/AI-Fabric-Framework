@@ -355,3 +355,11 @@ Current P0 cleanup items:
   aggregate gate remains honestly non-green on the owner-deferred protected
   Shopify path. Never weaken that expectation or modify ProdUS/Shopify
   assignments merely to manufacture a green aggregate result.
+- 2026-09-20: The production custom-domain cutover is complete and supersedes
+  the earlier DNS-pending operational note. Authoritative Namecheap DNS and
+  independent public resolvers return `46.225.162.106` for the apex and the
+  `api`, `console`, `partners`, and `shopify-bridge` hostnames. The apex and
+  public UIs return HTTP `200`, `api` returns the expected unauthenticated
+  `401`, and the apex certificate is valid. A client that still fails only on
+  one Wi-Fi network should be investigated as local DNS cache, filtering, or
+  transport behavior rather than treated as an incomplete Platform cutover.
