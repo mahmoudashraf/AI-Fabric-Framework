@@ -1886,6 +1886,15 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 );
             }
         }
+        String javaOpts = serviceSetting(
+            readJson(profile.getResourceDefaultsJson()),
+            serviceRole,
+            "JavaOpts",
+            "javaOpts"
+        );
+        if (StringUtils.hasText(javaOpts)) {
+            putEnv(env, "JAVA_OPTS", javaOpts);
+        }
         putEnv(env, "PLATFORM_DEPLOYMENT_ID", deployment.getId());
         putEnv(env, "PLATFORM_DEPLOYMENT_VERSION_ID", version.getId());
         putEnv(env, "PLATFORM_DEPLOYMENT_RELEASE_ID", release.getId());
@@ -2079,7 +2088,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemory", "limitsMemory"),
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemorySwap", "limitsMemorySwap"),
             serviceSetting(resourceDefaults, serviceRole, "LimitsMemoryReservation", "limitsMemoryReservation"),
-            serviceSetting(resourceDefaults, serviceRole, "LimitsCpus", "limitsCpus")
+            serviceSetting(resourceDefaults, serviceRole, "LimitsCpus", "limitsCpus"),
+            serviceSetting(resourceDefaults, serviceRole, "LimitsCpuSet", "limitsCpuSet")
         );
     }
 
@@ -2613,6 +2623,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         copyText(raw, details, "limits_memory_swap");
         copyText(raw, details, "limits_memory_reservation");
         copyText(raw, details, "limits_cpus");
+        copyText(raw, details, "limits_cpuset");
         copyText(raw, details, "project_uuid");
         copyText(raw, details, "environment_uuid");
         copyText(raw, details, "environment_name");

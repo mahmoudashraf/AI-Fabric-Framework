@@ -103,7 +103,8 @@ class CoolifyApiClientTest {
                         "2g",
                         "2g",
                         "1g",
-                        "1.5"
+                        "1.5",
+                        "3"
                     ),
                     false,
                     false,
@@ -129,6 +130,7 @@ class CoolifyApiClientTest {
             assertThat(body.path("limits_memory_swap").asText()).isEqualTo("2g");
             assertThat(body.path("limits_memory_reservation").asText()).isEqualTo("1g");
             assertThat(body.path("limits_cpus").asText()).isEqualTo("1.5");
+            assertThat(body.path("limits_cpuset").asText()).isEqualTo("3");
         } finally {
             server.stop(0);
         }

@@ -8,6 +8,7 @@ public record CoolifyApplicationRuntimeSettings(
     String limitsMemory,
     String limitsMemorySwap,
     String limitsMemoryReservation,
-    String limitsCpus
+    String limitsCpus,
+    String limitsCpuSet
 ) {
 }

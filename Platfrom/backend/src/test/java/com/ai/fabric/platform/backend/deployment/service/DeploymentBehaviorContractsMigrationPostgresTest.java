@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("140"))
+            .target(MigrationVersion.fromVersion("141"))
             .load();
 
         flyway.migrate();
@@ -150,7 +150,10 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         assertThat(result.getString("resource_defaults_json"))
             .contains("\"runtimeDatabaseMode\": \"COOLIFY_POSTGRES\"")
             .contains("\"promotionChannel\": \"" + expectedEnvironment + "\"")
-            .contains("\"runtimeLimitsCpus\": \"1.5\"")
+            .contains("\"runtimeLimitsCpus\": \"1.0\"")
+            .contains("\"runtimeLimitsMemory\": \"1g\"")
+            .contains("\"runtimeJavaOpts\": \"-XX:ActiveProcessorCount=1 -Xms256m -Xmx768m\"")
+            .contains("\"runtimeLimitsCpuSet\": \"" + ("staging".equals(expectedEnvironment) ? "7" : "3") + "\"")
             .contains("\"runtimeHealthCheckStartPeriodSeconds\": 180");
     }
 

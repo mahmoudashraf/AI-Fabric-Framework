@@ -136,7 +136,12 @@ class CoolifyDeploymentProviderTest {
         DeploymentTargetProfileEntity profile = profile();
         profile.setResourceDefaultsJson("""
             {
-              "runtimeLimitsCpus": "1.5",
+              "runtimeLimitsMemory": "1g",
+              "runtimeLimitsMemorySwap": "1g",
+              "runtimeLimitsMemoryReservation": "512m",
+              "runtimeLimitsCpus": "1.0",
+              "runtimeLimitsCpuSet": "3",
+              "runtimeJavaOpts": "-XX:ActiveProcessorCount=1 -Xms256m -Xmx768m",
               "runtimeHealthCheckIntervalSeconds": 10,
               "runtimeHealthCheckTimeoutSeconds": 5,
               "runtimeHealthCheckRetries": 18,
@@ -219,8 +224,12 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().healthCheckPath()).isEqualTo("/actuator/health/liveness");
         assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
         assertThat(request.getValue().runtimeSettings()).isEqualTo(
-            new CoolifyApplicationRuntimeSettings(10, 5, 18, 180, null, null, null, "1.5")
+            new CoolifyApplicationRuntimeSettings(10, 5, 18, 180, "1g", "1g", "512m", "1.0", "3")
         );
+        ArgumentCaptor<List<CoolifyEnvVar>> environment = ArgumentCaptor.forClass(List.class);
+        verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), environment.capture());
+        assertThat(envByKey(environment.getValue()).get("JAVA_OPTS").value())
+            .isEqualTo("-XX:ActiveProcessorCount=1 -Xms256m -Xmx768m");
     }
 
     @Test

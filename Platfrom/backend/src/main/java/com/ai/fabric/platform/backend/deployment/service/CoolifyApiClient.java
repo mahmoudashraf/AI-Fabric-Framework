@@ -822,6 +822,7 @@ public class CoolifyApiClient {
         put(body, "limits_memory_swap", settings.limitsMemorySwap());
         put(body, "limits_memory_reservation", settings.limitsMemoryReservation());
         put(body, "limits_cpus", settings.limitsCpus());
+        put(body, "limits_cpuset", settings.limitsCpuSet());
     }
 
     private void put(ObjectNode body, String field, Integer value) {
