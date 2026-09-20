@@ -134,6 +134,15 @@ class CoolifyDeploymentProviderTest {
         CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
 
         DeploymentTargetProfileEntity profile = profile();
+        profile.setResourceDefaultsJson("""
+            {
+              "runtimeLimitsCpus": "1.5",
+              "runtimeHealthCheckIntervalSeconds": 10,
+              "runtimeHealthCheckTimeoutSeconds": 5,
+              "runtimeHealthCheckRetries": 18,
+              "runtimeHealthCheckStartPeriodSeconds": 180
+            }
+            """);
         DeploymentSourceArtifactEntity artifact = artifact();
         CoolifyConnection connection = new CoolifyConnection(
             "http://coolify.example",
@@ -209,6 +218,9 @@ class CoolifyDeploymentProviderTest {
         assertThat(request.getValue().portsExposes()).isEqualTo("8097");
         assertThat(request.getValue().healthCheckPath()).isEqualTo("/actuator/health/liveness");
         assertThat(request.getValue().healthCheckPort()).isEqualTo("8097");
+        assertThat(request.getValue().runtimeSettings()).isEqualTo(
+            new CoolifyApplicationRuntimeSettings(10, 5, 18, 180, null, null, null, "1.5")
+        );
     }
 
     @Test

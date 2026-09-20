@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("139"))
+            .target(MigrationVersion.fromVersion("140"))
             .load();
 
         flyway.migrate();
@@ -148,8 +148,10 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         assertThat(result.getString("environment_name")).isEqualTo(expectedEnvironment);
         assertThat(result.getString("source_strategy")).isEqualTo("IMAGE_SOURCE");
         assertThat(result.getString("resource_defaults_json"))
-            .contains("\"runtimeDatabaseMode\":\"COOLIFY_POSTGRES\"")
-            .contains("\"promotionChannel\":\"" + expectedEnvironment + "\"");
+            .contains("\"runtimeDatabaseMode\": \"COOLIFY_POSTGRES\"")
+            .contains("\"promotionChannel\": \"" + expectedEnvironment + "\"")
+            .contains("\"runtimeLimitsCpus\": \"1.5\"")
+            .contains("\"runtimeHealthCheckStartPeriodSeconds\": 180");
     }
 
     private void assertVerifiedTemplateVersion(ResultSet result, String expectedId) throws Exception {

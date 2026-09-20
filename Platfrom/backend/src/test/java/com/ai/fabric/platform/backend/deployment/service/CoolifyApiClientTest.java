@@ -95,6 +95,16 @@ class CoolifyApiClientTest {
                     true,
                     "/actuator/health",
                     "8080",
+                    new CoolifyApplicationRuntimeSettings(
+                        10,
+                        5,
+                        18,
+                        180,
+                        "2g",
+                        "2g",
+                        "1g",
+                        "1.5"
+                    ),
                     false,
                     false,
                     false
@@ -111,6 +121,14 @@ class CoolifyApiClientTest {
             assertThat(body.path("docker_registry_image_name").asText()).isEqualTo("ghcr.io/example/runtime");
             assertThat(body.path("docker_registry_image_tag").asText()).isEqualTo("sha-123");
             assertThat(body.path("domains").asText()).isEqualTo("http://dep-123.example.test");
+            assertThat(body.path("health_check_interval").asInt()).isEqualTo(10);
+            assertThat(body.path("health_check_timeout").asInt()).isEqualTo(5);
+            assertThat(body.path("health_check_retries").asInt()).isEqualTo(18);
+            assertThat(body.path("health_check_start_period").asInt()).isEqualTo(180);
+            assertThat(body.path("limits_memory").asText()).isEqualTo("2g");
+            assertThat(body.path("limits_memory_swap").asText()).isEqualTo("2g");
+            assertThat(body.path("limits_memory_reservation").asText()).isEqualTo("1g");
+            assertThat(body.path("limits_cpus").asText()).isEqualTo("1.5");
         } finally {
             server.stop(0);
         }
