@@ -1,17 +1,22 @@
-# 010.22 AI Fabric 0.7.0 Behavior-Aware Platform Composition Implementation Plan
+# 010.22 AI Fabric 0.7.1 Behavior-Aware Platform Composition Implementation Plan
 
-Status: implementation plan created on 2026-09-15, corrected on 2026-09-18 to make customer products customer-owned and reuse the existing Marketplace/V04 primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and implemented in source on 2026-09-19 after explicit owner direction to proceed with all three deployment behaviors. The Platform/backend/runtime/frontend implementation and local release checks are complete. The new source is not yet deployed, hosted-proven, or market-ready. No productization item is complete merely because AI Fabric exposes the primitive or because local tests pass; hosted verification and operational rollout remain mandatory.
+Status: implementation plan created on 2026-09-15, corrected on 2026-09-18 to make customer products customer-owned and reuse the existing Marketplace/V04 primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and implemented in source on 2026-09-19 after explicit owner direction to proceed with all three deployment behaviors. The PostgreSQL durability correction shipped in AI Fabric `0.7.1` on 2026-09-20 and is now the active Platform/runtime baseline. The reviewed Platform/backend/runtime/frontend source is committed and deployed. Exact Conversational, two-worker Agentic, and Smart Brain compositions have passed hosted canaries; reusable-template lifecycle completion, Human Review hosted proof, and market-readiness work remain open. No productization item is complete merely because AI Fabric exposes the primitive or because one canary passes.
 
 Canonical architecture:
 
 - [010.21 Consolidated LoomAI Customer Product And Deployment Behavior Architecture](010_21_CONSOLIDATED_LOOMAI_AI_ENABLEMENT_PRODUCT_PROFILE_AND_DEPLOYMENT_ARCHITECTURE.md)
 
+The filename retains the `0.7.0` contract lineage so existing links remain
+valid. All new builds, deployments, and verification in this plan use the
+compatible production patch `0.7.1`.
+
 Release foundation:
 
-- AI Fabric `0.7.0`
+- AI Fabric `0.7.1` current production baseline
 - Maven group `io.github.loom-ai-labs`
-- tag `ai-fabric-framework-v0.7.0`
-- release commit `5b075b66384dc5b756b3b3dd12efaf896ce9a50b`
+- tag `ai-fabric-framework-v0.7.1`
+- release commit `58ac80d55f0102485562942a1a9cab88208c7530`
+- `0.7.1` is a compatible production patch over the `0.7.0` declarative-chain and durable-review contracts; it fixes nullable lease-owner compare-and-set transitions in PostgreSQL-backed durable specialist and review repositories
 - framework documentation commit `7ac32985`
 - published upgrade notes `docs/release-notes/LOOMAI_PLATFORM_AI_FABRIC_0_7_0_UPGRADE_NOTES.md`
 - published migration runbook `docs/Framework-Dev-Guides/application-patterns/LOOMAI_AI_FABRIC_0_7_DECLARATIVE_CHAIN_MIGRATION_RUNBOOK.md`
@@ -42,9 +47,9 @@ Make the complete released AI Fabric capability set usable through the generic L
 
 | Deployment behavior type | Customer-product value | Activation | Coordination | Initial maturity |
 | --- | --- | --- | --- | --- |
-| `CONVERSATIONAL` | A customer can build a product where a person asks and receives an answer, clarification, structured result, or governed next step | Authenticated interactive request | One bounded orchestration turn with optional backend-owned session | Existing Shopify/ProdUS deployments are hosted-proven; generic behavior/template source is Platform-selectable, with a generic hosted canary pending |
-| `AGENTIC_SPECIALIST_TEAM` | A customer can build a product where a bounded manager coordinates approved specialists for a larger task | Authenticated interactive or trusted application request | Exact-version manager and read-only workers through an official declarative `SpecialistChain`, a reviewed Java definition when richer application logic is required, or a fixed plan | Platform/runtime source complete with a real two-worker team; hosted V04 proof pending |
-| `SMART_BRAIN` | A customer can build a product where trusted events and schedules initiate proactive analysis without a fabricated chat turn | Trusted application, CloudEvent, or managed schedule | Exact specialist, bounded read-only chain, or explicitly selected fixed read plan | Platform/runtime source complete with deployment-local durable operations and delivery; hosted V04 proof pending |
+| `CONVERSATIONAL` | A customer can build a product where a person asks and receives an answer, clarification, structured result, or governed next step | Authenticated interactive request | One bounded orchestration turn with optional backend-owned session | Exact generic staging and production canaries are hosted-proven; reusable-template promotion/export/import/rollback evidence remains open |
+| `AGENTIC_SPECIALIST_TEAM` | A customer can build a product where a bounded manager coordinates approved specialists for a larger task | Authenticated interactive or trusted application request | Exact-version manager and read-only workers through an official declarative `SpecialistChain`, a reviewed Java definition when richer application logic is required, or a fixed plan | Exact PostgreSQL-backed two-worker staging and production canaries are hosted-proven; full reusable-template lifecycle and market gates remain open |
+| `SMART_BRAIN` | A customer can build a product where trusted events and schedules initiate proactive analysis without a fabricated chat turn | Trusted application, CloudEvent, or managed schedule | Exact specialist, bounded read-only chain, or explicitly selected fixed read plan | Exact PostgreSQL-backed production canary is live and typed durable execution passed; reusable-template delivery/restart/draining gates remain open |
 
 ### 2.2 Execution extensions
 
@@ -107,7 +112,7 @@ arbitrary result as an `ACTION_PROPOSAL`.
 - Exact deployment-knowledge specialist with tenant/deployment isolation proof.
 - Platform, Marketplace, Partner, Thinker, hosted-product, and release verification suites.
 
-### 3.2 Source-complete in this implementation
+### 3.2 Source-complete and hosted-canary-proven in this implementation
 
 - built-in `CONVERSATIONAL`, `AGENTIC_SPECIALIST_TEAM`, and `SMART_BRAIN` contracts, creation/draft/version persistence, deterministic migration, compatibility validation, and behavior-specific endpoint metadata;
 - behavior-aware Marketplace `TEMPLATE` bootstrap plus governed `SPECIALIST` manifests, exact specialist-bundle references, deterministic compilation, and three reusable behavior templates;
@@ -117,14 +122,15 @@ arbitrary result as an `ACTION_PROPOSAL`.
 - deployment-local `ACTION_PROPOSAL` Human Review with durable task/dispatch/receipt migrations, safe inbox/detail/decision APIs, customer-owned reviewer authorization, and a Platform Review Inbox proxy/UI;
 - source-artifact capability manifests, runtime readback, scoped execution secrets, behavior operations APIs, and Platform UI pages for behavior, artifacts, operations, and review;
 - local verification: private runtime `174/174`, Platform backend `757/757`, PostgreSQL 16 full migration `V1..V133`, and the Platform UI production build all pass;
-- local practical proof: all three behavior templates bootstrap and publish through V04, a strict Agentic runtime fails closed when private assertion material is absent, and the correctly configured PostgreSQL runtime starts healthy with all eight runtime migrations, one ready declarative chain, no chain diagnostics, and an authenticated capability-manifest readback for AI Fabric `0.7.0`.
+- local practical proof: all three behavior templates bootstrap and publish through V04, a strict Agentic runtime fails closed when private assertion material is absent, and the correctly configured PostgreSQL runtime starts healthy with all eight runtime migrations, one ready declarative chain, no chain diagnostics, and authenticated capability-manifest readback;
+- hosted proof on AI Fabric `0.7.1`: staging Conversational `dep-5c249fac`, staging Agentic `dep-17befd6c`, and staging Smart Brain mechanics `dep-10c99bd4` passed their focused canaries; production Conversational `dep-18e74807`, Agentic `dep-f56d32a9`, and Smart Brain `dep-e8a29c2b` reached verified behavior proof;
+- the production Agentic canary completed a durable two-worker execution, and the production Smart Brain canary completed a typed durable PostgreSQL operation. All three production runtime applications currently report healthy liveness.
 
-### 3.3 Remaining hosted and market-readiness work
+### 3.3 Remaining productization and market-readiness work
 
-- commit and deploy the exact reviewed private source through the existing V04 lifecycle;
-- prove source-manifest and immutable composition readback against the deployed artifact;
-- run the behavior-specific Agentic, Smart Brain, Human Review, isolation, restart, replay, cancellation, failure, promotion, export/import, rollback, draining, and decommission canaries;
-- prove one generic Conversational, one Agentic, and one Smart Brain template-backed deployment in staging before any production or market claim;
+- convert the exact canary compositions into released reusable Marketplace `TEMPLATE` paths rather than relying on `custom-start-from-scratch` canary records;
+- complete the remaining Agentic, Smart Brain, Human Review, isolation, restart, replay, cancellation, failure, promotion, export/import, rollback, draining, and decommission matrix not covered by the focused canaries;
+- prove one released generic Conversational, Agentic, and Smart Brain template through the complete supported staging-to-production lifecycle before a broad market claim;
 - finish reusable Verification Pack registration where behavior checks still exist only as focused tests;
 - finish generic Platform operations for PII, governance, relationship, behavior, migration, and document ingestion;
 - define entitlement, quota, billing, support, retention, backup, recovery, and offboarding rules for the new deployment capabilities.
@@ -135,35 +141,33 @@ arbitrary result as an `ACTION_PROPOSAL`.
 
 Current operational truth is:
 
-- all supported private runtime families now use AI Fabric `0.7.0` from immutable private commit `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264`;
-- specialist chains remain disabled across source defaults, generated deployment configuration, and live runtime readback;
-- all seven supported staging/production runtime-family releases are `APPLIED_VERIFIED`, healthy, and backed by terminal-success Coolify deployments;
-- ProdUS is assigned to verified deployment `dep-f6abfa06`;
-- staging and production canonical, Partner, Thinker, direct-specialist, isolation, and ProdUS grounded retrieval checks passed;
-- aggregate release suites still report failure only for the explicitly owner-deferred Shopify retrieval-quality stage;
-- that exception permits the framework rollout but must not be relabeled as a fully green aggregate release gate.
+- AI Fabric `0.7.1` tag `ai-fabric-framework-v0.7.1` resolves to release commit `58ac80d55f0102485562942a1a9cab88208c7530`; the current private rollout commits are `3bdb9ccc4`, `359a5ae03`, and `ed25d7c30`;
+- the immutable private runtime image is `ghcr.io/mahmoudashraf/ai-fabric-runtime:359a5ae0306c2957a8070e9c40ca263b1710a2f6` at digest `sha256:e032e116caf58ab73be41acd5920a2faeeb41ab343a0c7aa1aca5b766325fa12`;
+- staging and production Platform backends are healthy at exact backend commit `ed25d7c30`; both Platform UI hostnames answer their health and application routes;
+- all three production behavior canary runtimes are active and healthy; the exact Agentic and Smart Brain durable proofs passed;
+- canonical release-readiness `vsr-015a8e14` passed without control-plane repair: Marketplace `41/41` and Ecommerce `43/43`, both `IN_SYNC`; optional legacy Qdrant remains `MIGRATION_REQUIRED` and non-blocking;
+- Thinker/Resolver `vsr-f3a5604d` passed after refreshing the dedicated short-lived Partner test JWT;
+- the latest aggregate gate remains honestly non-green only on the owner-deferred Shopify answer-quality path, and the standalone Partner run reaches that same protected Shopify runtime exception after all preceding partner checks pass;
+- authoritative DNS for the apex, `api`, and `console` still points at the old host. Coolify hostnames are live, but custom-domain TLS is not complete until Namecheap is corrected.
 
-The source-complete behavior implementation described in section 3.2 is still
-local and does not change this hosted-fleet statement. Existing live runtimes
-remain the Gate A chain-disabled fleet until a new immutable private commit and
-verified V04 releases are created.
-
-### 3.5 Mandatory AI Fabric `0.7.0` adoption gates
+### 3.5 Mandatory AI Fabric `0.7.x` adoption gates
 
 The framework runbook deliberately separates release adoption from chain productization. Do not collapse these gates into one deployment:
 
 | Gate | Scope | Current status | Exit evidence |
 | --- | --- | --- | --- |
-| A. Base release | Upgrade every private dependency/default to `0.7.0`; keep `AI_EXECUTION_SPECIALIST_CHAINS_ENABLED=false`; add no chain resource, table, secret, or route | **COMPLETE** at private commit `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264` | Central-only package proof, exact runtime JAR inventory, seven verified V04 releases, hosted version/health, direct deployment-knowledge success, missing-boundary denial, two-tenant/two-deployment isolation, ProdUS retrieval, and existing capability regression passed |
-| B. Schema preparation | Add deployment-local `ai_specialist_chain_execution` migration while chains remain disabled | **SOURCE COMPLETE; HOSTED GATE OPEN**. Reviewed Flyway migration and PostgreSQL 16 migration proof exist; no hosted rollback/redeploy evidence yet | Migration applies idempotently, runtime still starts with chains disabled, no secret or chain resource required, rollback/redeploy evidence recorded |
-| C. Declarative mechanics canary | Package reviewed chain mechanics with stable private secrets, JDBC persistence, and deployment-local route/status projection | **SOURCE COMPLETE; HOSTED GATE OPEN**. The implementation moved directly to the stricter two-worker package and passed local runtime tests; no hosted mechanics canary yet | Offline validation, startup/readback hashes, direct baseline parity, trusted-context denial, replay/restart/cancel/definition-drift/provider-failure canaries |
-| D. Product chain | Introduce a real multi-specialist chain only when a genuinely distinct second read-only worker exists | **SOURCE COMPLETE; HOSTED/MARKET GATE OPEN**. Knowledge and runtime-state workers are distinct and closed; hosted V04 and full Agentic evidence remain pending | At least two distinct responsibilities, exact closed targets, hosted V04 proof, Marketplace/V04 packaging, full Agentic gate matrix |
+| A. Base release | Run the compatible `0.7.x` line from immutable Maven Central artifacts while preserving existing behavior | **COMPLETE** on current patch `0.7.1` | Central-only release proof, exact runtime image/digest, healthy Platform deployments, and existing-capability regression evidence |
+| B. Schema preparation | Add deployment-local chain/review/operation migrations and validate them on PostgreSQL | **HOSTED CANARY COMPLETE**. Production Agentic and Smart Brain runtimes apply the deployment-local migrations and execute durable work | Reusable-template rollback/redeploy and backup/restore evidence remains required |
+| C. Declarative mechanics canary | Package reviewed chain mechanics with stable private secrets, JDBC persistence, and deployment-local route/status projection | **HOSTED CANARY COMPLETE**. The exact two-worker Agentic canary completed a durable execution | Complete replay/restart/cancel/definition-drift/provider-failure matrix for the released template |
+| D. Product chain | Introduce a real multi-specialist chain only when a genuinely distinct second read-only worker exists | **HOSTED CANARY COMPLETE; MARKET GATE OPEN**. Knowledge and runtime-state workers are distinct, closed, and proved live | Released Marketplace/V04 template, full lifecycle matrix, commercial/support posture, and market claim review |
 
 The required stop after Gate A occurred and its hosted evidence is recorded. The
 later explicit owner instruction to implement the complete backend/frontend
 authorized source work for Gates B-D and Smart Brain, but did not waive hosted
-release evidence. None of Gates B-D is complete until its hosted exit evidence
-passes, and local two-worker proof is not an Agentic market claim.
+release evidence. Focused hosted evidence now closes the mechanics-canary
+portion of Gates B-D. It does not close the reusable-template, complete
+lifecycle, operations, or market-readiness exits, and must not be presented as
+an unrestricted-agent claim.
 
 ## 4. Capability Maturity Model
 
@@ -889,7 +893,7 @@ Every behavior-aware V04 deployment must pass:
 
 ### WP0: Truth, contracts, and status model
 
-Status: `SOURCE_COMPLETE`
+Status: `COMPLETE`
 
 Tasks:
 
@@ -907,7 +911,7 @@ Exit:
 
 ### WP1: Behavior-aware existing Marketplace/V04 composition path
 
-Status: `SOURCE_COMPLETE_HOSTED_PENDING`
+Status: `HOSTED_CANARY_COMPLETE_REUSABLE_TEMPLATE_PENDING`
 
 Depends on: WP0.
 
@@ -933,7 +937,7 @@ Exit:
 
 ### WP2: Generic Conversational Assistant baseline
 
-Status: `SOURCE_COMPLETE_HOSTED_PENDING`
+Status: `HOSTED_CANARY_COMPLETE_REUSABLE_TEMPLATE_PENDING`
 
 Depends on: WP1.
 
@@ -954,17 +958,16 @@ Exit:
 
 ### WP3: Agentic Specialist Team
 
-Status: `SOURCE_COMPLETE_HOSTED_PENDING`
+Status: `HOSTED_CANARY_COMPLETE_FULL_GATE_PENDING`
 
 Depends on: WP1 and shared runtime identity/storage work. WP2 should establish the normal template/compiler/V04 release path first.
 
 Tasks:
 
 - select one design-partner canary, preferably deployment/incident investigation or account/support resolution;
-- use the completed Gate A release as the immutable chain-disabled baseline;
-- complete Gate B by adding the deployment-local PostgreSQL migration while chains remain disabled;
-- complete Gate C with one private-source, one-worker declarative mechanics canary over `deployment-knowledge-specialist@1`;
-- define a genuinely distinct second read-only specialist responsibility before Gate D;
+- retain the completed Gate A release as historical baseline evidence and use current patch `0.7.1` for PostgreSQL durability;
+- retain the completed deployment-local PostgreSQL migration and exact two-worker hosted canary evidence for Gates B-D;
+- keep the two responsibilities genuinely distinct: deployment knowledge and current runtime state;
 - publish exact manager/workers and the official declarative `SpecialistChain` through a reviewed `SPECIALIST` plugin when released mapping/projection is sufficient;
 - use private Java chain components only for a documented application invariant that the declarative contract cannot express;
 - configure the JDBC repository, stable distinct secrets, workers, leases, recovery, retention, and cleanup;
@@ -972,7 +975,7 @@ Tasks:
 - expose authenticated execute/submit/status/result/cancel/replay contracts;
 - add safe lineage and Platform operation UI;
 - run the complete Agentic gate matrix;
-- promote one verified template-backed deployment to a controlled production canary.
+- convert the healthy controlled production canary into a released template-backed lifecycle proof.
 
 Exit:
 
@@ -981,7 +984,7 @@ Exit:
 
 ### WP4: Smart Brain
 
-Status: `SOURCE_COMPLETE_HOSTED_PENDING`
+Status: `HOSTED_CANARY_COMPLETE_FULL_GATE_PENDING`
 
 Depends on: WP1 and durable execution lessons from WP3.
 
@@ -990,17 +993,13 @@ owner request to build all new deployment types. This authorizes source and
 staging-proof work, not a production or market launch. Launch still requires
 the hosted, operational, commercial, and support evidence in this plan.
 
-Tasks after gate approval:
+Implemented and remaining tasks:
 
-- implement CloudEvents ingress and deterministic trigger registry;
-- extend assignment metadata with deployment-local Smart Brain endpoint templates;
-- implement durable operations, status/result/cancel/replay, retention and cleanup;
-- implement deployment-local Quartz schedules;
-- implement typed result store and signed-webhook outbox;
-- add promotion draining and decommission guards;
+- retain the implemented CloudEvents ingress, deterministic trigger registry, deployment-local endpoint metadata, durable operations, polling, cancel/replay, Quartz schedules, typed result store, and signed-webhook outbox;
+- complete promotion draining and decommission proof;
 - publish and prove one Behavior/Churn or Incident Intelligence Marketplace template;
 - prove direct data-plane behavior with Platform unavailable after assignment;
-- run the full Smart Brain gate matrix.
+- run the remaining restart, delivery retry/dead-letter, draining, export/import, rollback, and decommission matrix against the released template.
 
 Exit:
 
@@ -1138,7 +1137,11 @@ Why this order:
 
 ## 15. Implemented Source Batch And Next Rollout Batch
 
-The `0.7.0` release-adoption batch is Gate A and is deliberately separate from productization. It is complete:
+The original `0.7.0` release-adoption batch is historical Gate A evidence. The
+active compatible patch is `0.7.1`, released from framework commit
+`58ac80d55f0102485562942a1a9cab88208c7530`. Current private source and the
+immutable runtime image are committed, pushed, deployed, and live-verified.
+The original Gate A sequence was:
 
 1. pin all private source and generated deployment defaults to `0.7.0`;
 2. keep chains disabled everywhere;
@@ -1174,21 +1177,36 @@ earlier narrow stop. The completed source batch now includes:
 10. focused tests, runtime `174/174`, Platform backend `757/757`, PostgreSQL
     `V1..V133`, UI production build, and clean diff hygiene.
 
-The next batch is rollout, not more speculative architecture:
+The focused hosted-canary batch is also complete:
 
-1. review and commit one immutable private source revision;
-2. build from released AI Fabric `0.7.0` artifacts and inspect packaged JARs,
-   resource manifests, and migration inventory;
-3. deploy a generic Conversational staging deployment through V04;
-4. deploy the Agentic template with the reviewed chain secrets and attached
-   PostgreSQL, then run the complete Gate B-D matrix;
-5. deploy Smart Brain with one registered CloudEvent trigger, schedule, polling
-   result path, and signed webhook sink, then run durability and draining tests;
-6. deploy one low-risk Conversational governed action with Human Review and
+1. exact private source was committed and pushed in `3bdb9ccc4`, `359a5ae03`,
+   and `ed25d7c30`;
+2. the immutable runtime image and digest were recorded and used by the
+   behavior deployments;
+3. generic Conversational passed in staging and production;
+4. the two-worker Agentic team passed a durable PostgreSQL-backed execution in
+   staging and production;
+5. Smart Brain passed a typed durable PostgreSQL operation and remains healthy
+   in the production canary;
+6. canonical Marketplace and Ecommerce verification passed without repair;
+7. Platform staging and production services are healthy.
+
+The next batch is reusable productization and complete lifecycle proof:
+
+1. publish and exercise the three reusable Marketplace `TEMPLATE` paths rather
+   than retaining `custom-start-from-scratch` as the canary origin;
+2. complete replay/restart/cancel/failure/isolation for the released Agentic
+   template;
+3. complete schedule, delivery retry/dead-letter, Platform-outage, draining,
+   and decommission proof for the released Smart Brain template;
+4. deploy one low-risk Conversational governed action with Human Review and
    prove approve/reject/replay/authorization/restart behavior;
-7. prove export/import, promotion, rollback, draining, and decommission for
-   each behavior before production rollout;
-8. update maturity to `HOSTED_PROVEN` only for the exact compositions that pass.
+5. prove export/import, promotion, rollback, draining, and decommission for
+   each released behavior template;
+6. close or explicitly continue the protected Shopify exception without
+   weakening its verification expectations;
+7. update maturity to `MARKET_READY` only for exact released compositions that
+   pass commercial, support, and full lifecycle gates.
 
 Still prohibited:
 
@@ -1260,12 +1278,12 @@ Use one behavior-aware extension of the existing Marketplace/V04 composition
 path and three built-in deployment behavior types. That source implementation
 now exists. It does not create a second catalogue or release engine.
 
-AI Fabric `0.7.0` Gate A remains the live chain-disabled baseline. The new
-source adds the behavior/provenance contract, governed `SPECIALIST` bundles,
-generic templates, a real bounded Agentic team, deployment-local Smart Brain,
-and durable Human Review. The next decision is whether the reviewed source is
-ready to become an immutable staging revision; the next engineering work is
-hosted verification and rollout, not another behavior abstraction.
+AI Fabric `0.7.1` is the live behavior-aware baseline. The committed source
+adds the behavior/provenance contract, governed `SPECIALIST` bundles, generic
+templates, a real bounded Agentic team, deployment-local Smart Brain, and
+durable Human Review. Focused hosted canaries prove all three behavior types;
+the next engineering work is reusable-template and complete lifecycle proof,
+not another behavior abstraction.
 
 Human Review remains customer-authorized and reaches mutation only through the
 governed action coordinator. Smart Brain remains read-only, deployment-local,

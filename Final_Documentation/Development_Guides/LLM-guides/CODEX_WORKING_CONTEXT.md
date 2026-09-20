@@ -2527,3 +2527,64 @@ Critical fixes that made the gate pass:
   chain-disabled baseline. Next work is review/commit, Central-only packaging,
   then separate Conversational, Agentic, Smart Brain, and Human Review staging
   canaries with promotion/export/import/rollback/draining evidence.
+
+## 2026-09-20 AI Fabric 0.7.1 Behavior-Aware Hosted Release
+
+- This section supersedes the hosted-pending statement immediately above.
+  AI Fabric `0.7.1` is published at tag
+  `ai-fabric-framework-v0.7.1`, release commit
+  `58ac80d55f0102485562942a1a9cab88208c7530`. It is the compatible
+  PostgreSQL durability patch for the `0.7.0` chain/review contracts.
+- Public framework fixture follow-up `625e34db` made the Ecommerce verification
+  fixture independently deployable and seeded the canonical two-product,
+  one-policy clean state. Its focused Maven suites and local Docker smoke pass.
+- Private commits `3bdb9ccc4`, `359a5ae03`, and `ed25d7c30` are pushed on
+  `Platform-V11`. The immutable private runtime image is
+  `ghcr.io/mahmoudashraf/ai-fabric-runtime:359a5ae0306c2957a8070e9c40ca263b1710a2f6`
+  at digest
+  `sha256:e032e116caf58ab73be41acd5920a2faeeb41ab343a0c7aa1aca5b766325fa12`.
+- Staging and production Platform backends run exact commit `ed25d7c30` and
+  are healthy. Their Coolify Platform UI health and application routes return
+  HTTP `200`. Production Conversational `dep-18e74807`, Agentic
+  `dep-f56d32a9`, and Smart Brain `dep-e8a29c2b` runtimes are active and
+  healthy.
+- Focused staging behavior proof passed for Conversational `dep-5c249fac`,
+  Agentic `dep-17befd6c`, and Smart Brain mechanics `dep-10c99bd4`.
+  Production proof passed a normal Conversational turn, durable two-worker
+  Agentic chain `chain-7a550596-af71-448c-a5fb-03a4ef9a21e8`, and typed Smart
+  Brain operation `sbo-d698bd3e-0802-41fa-bea7-44bfe2fca0ca`.
+- Production configuration-only backups were created before canonical repair:
+  Marketplace export `dexp-ae8f4539` / bundle `dxb-faaf6032`; Ecommerce export
+  `dexp-af2f1d94` / bundle `dxb-48e63d6f`. Local mode-600 operational backups
+  remain under `/private/tmp` with the `loomai-platform-0.7.1-*` prefixes.
+- Marketplace canonical deployment `dep-f772d1a4` is on version
+  `ver-28409c2c`, release `rel-fad98bc8`, with runtime/connector/runner healthy
+  and vector counts `policy=1`, `product=2`, `review=0`. Ecommerce
+  `dep-f8492dcc` is on version `ver-814ad413`, release `rel-39be3c8f`; reindex
+  `vrn-e23aa307` completed `3/3` with the same canonical counts.
+- Canonical release-readiness `vsr-015a8e14` passed with control-plane repair
+  disabled. Marketplace hosted verification passed `41/41`; Ecommerce passed
+  `43/43`; both were already `IN_SYNC`. Optional historical Qdrant
+  `dep-72f212c7` remains non-blocking `MIGRATION_REQUIRED` on the retired
+  contract.
+- Thinker/Resolver suite `vsr-f3a5604d` passed. Initial Partner/Thinker runs
+  failed because the dedicated short-lived Supabase release-gate JWT had
+  expired; the existing fixture was refreshed and Platform secret
+  `PARTNER_SUPABASE_JWT` updated without logging token material. Do not run
+  Partner and Thinker concurrently because both temporarily govern the same
+  test-store assignment.
+- Standalone Partner run `vsr-50015761` passed every auth, UI, approval,
+  assignment, privilege, and safe-context check before reaching the existing
+  owner-deferred Shopify runtime exception: its protected deployment rejects
+  legacy mode `shopify-companion`. No Shopify assignment/deployment or
+  verification expectation was changed. The aggregate gate remains honestly
+  non-green on the same deferred Shopify answer-quality path.
+- The exact behavior canary compositions are `HOSTED_PROVEN`; this does not
+  make the three reusable Marketplace templates or Human Review market-ready.
+  Remaining gates are released-template origin, complete lifecycle
+  export/import/promotion/rollback/draining/decommission, full Agentic and
+  Smart Brain failure/recovery matrices, and hosted Human Review.
+- Coolify production domains are configured, but authoritative Namecheap DNS
+  still points the apex, `api`, and `console` at `18.204.152.241`; production
+  Coolify is `46.225.162.106`. Treat the sslip endpoints as current live proof
+  until those DNS records and certificates are corrected.

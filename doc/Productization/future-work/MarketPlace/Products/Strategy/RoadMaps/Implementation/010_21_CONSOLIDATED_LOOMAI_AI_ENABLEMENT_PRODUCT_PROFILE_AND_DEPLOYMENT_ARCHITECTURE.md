@@ -1,8 +1,13 @@
 # 010.21 Consolidated LoomAI Customer Product And Deployment Behavior Architecture
 
-Status: canonical consolidated plan created on 2026-08-01, corrected to deployment-local Smart Brain integration on 2026-08-04, corrected on 2026-09-18 so customer AI products are composed through existing Platform primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and source-implemented on 2026-09-19 after the hosted Gate A rollout. Behavior-aware Marketplace contributions and private runtime contracts now exist and pass local release checks. They remain separate from the live Gate A fleet and are not hosted-proven or market-ready until immutable V04 canaries pass.
+Status: canonical consolidated plan created on 2026-08-01, corrected to deployment-local Smart Brain integration on 2026-08-04, corrected on 2026-09-18 so customer AI products are composed through existing Platform primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and source-implemented on 2026-09-19 after the hosted Gate A rollout. AI Fabric `0.7.1` is now the active compatible production patch. Behavior-aware Marketplace contributions and private runtime contracts are committed and deployed; focused Conversational, two-worker Agentic, and Smart Brain hosted canaries pass. Reusable-template lifecycle completion, Human Review hosted proof, and market readiness remain open.
 
 The historical filename is retained so existing documentation links do not break. The architecture below explicitly rejects a separate `Product Profile` aggregate.
+
+Version note: references to `0.7.0` below identify the release that introduced
+the declarative-chain and durable-review contracts. The active compatible
+runtime baseline is `0.7.1`; new implementation and verification must target
+`0.7.1`, not the superseded patch level.
 
 This document consolidates and judges:
 
@@ -51,7 +56,7 @@ The Platform should add one small, server-owned **Deployment Behavior Type** dis
 
 These are Platform execution capabilities. A Platform user creates the actual customer product by combining one behavior type with domain-specific templates, plugins, data, actions, prompts, schemas, UI surfaces, and application contracts.
 
-`Governed Resolver` and `Human Review` are execution extensions, not deployment types or products. They may be enabled only for behavior types and activation sources whose released runtime contracts support them. In AI Fabric `0.7.0`, specialist-chain workers and event/scheduled durable work are read-only; do not attach automatic writes to Smart Brain deployments until a later released framework/runtime contract explicitly supports them.
+`Governed Resolver` and `Human Review` are execution extensions, not deployment types or products. They may be enabled only for behavior types and activation sources whose released runtime contracts support them. In AI Fabric `0.7.1`, specialist-chain workers and event/scheduled durable work are read-only; do not attach automatic writes to Smart Brain deployments until a later released framework/runtime contract explicitly supports them.
 
 The canonical composition is:
 
@@ -178,8 +183,8 @@ Maturity labels used throughout this document:
 | Chat sessions | `ai-fabric-chat-session` | Product owns authenticated conversation API, retention, and cross-owner policy | `AI_FABRIC_AVAILABLE` |
 | Actions and confirmations | core actions plus connector/registry modules | Final authorization and side effects remain application-owned | `AI_FABRIC_AVAILABLE` |
 | Direct specialists, conversation managers, and fixed plans | `ai-fabric-execution` exact versions, schemas, trusted context, manager, plans, waits, delegation/handoff | Input waits and legacy manager/fixed-plan state are process-local; no dynamic registry or hot reload | `AI_FABRIC_AVAILABLE` |
-| Bounded multi-specialist chains | `ai-fabric-execution` closed manager target catalogue, official `ai.fabric/v1` `SpecialistChain` YAML/JSON resources, bounded JSON input mapping/result projection, shared Java/manifest registry and gateway, sequential/independent-parallel worker selection, synthesis/handoff, JDBC checkpoints and replay | Read-only leaf workers; no cycles, recursion, nested chains, dynamic discovery, write workers, executable YAML, provider selection, or exactly-once provider invocation | `AI_FABRIC_AVAILABLE`; LoomAI source adoption is `LOOMAI_IMPLEMENTED`, hosted proof pending |
-| Declarative chain authoring and readback | `SpecialistChainManifestValidator`, authoring catalogue, source-aware registration, runtime status and aggregate hashes | Platform must validate against the selected runtime catalogue/ceilings and package immutable resources; runtime status is not a product catalogue | `AI_FABRIC_AVAILABLE`; Platform binding is `LOOMAI_IMPLEMENTED`, hosted proof pending |
+| Bounded multi-specialist chains | `ai-fabric-execution` closed manager target catalogue, official `ai.fabric/v1` `SpecialistChain` YAML/JSON resources, bounded JSON input mapping/result projection, shared Java/manifest registry and gateway, sequential/independent-parallel worker selection, synthesis/handoff, JDBC checkpoints and replay | Read-only leaf workers; no cycles, recursion, nested chains, dynamic discovery, write workers, executable YAML, provider selection, or exactly-once provider invocation | `AI_FABRIC_AVAILABLE`; exact LoomAI two-worker composition is `LOOMAI_HOSTED_PROVEN`, reusable-template/full-lifecycle gate pending |
+| Declarative chain authoring and readback | `SpecialistChainManifestValidator`, authoring catalogue, source-aware registration, runtime status and aggregate hashes | Platform must validate against the selected runtime catalogue/ceilings and package immutable resources; runtime status is not a product catalogue | `AI_FABRIC_AVAILABLE`; exact Platform/runtime binding is `LOOMAI_HOSTED_PROVEN`, reusable authoring lifecycle gate pending |
 | Durable proactive read execution | `ai-fabric-execution` JDBC read jobs and optional bounded chain execution for trusted application/event/scheduled sources | Exact read-only specialist or approved bounded chain; at-least-once provider execution; no event/scheduled write or open-ended graph | `AI_FABRIC_AVAILABLE` |
 | Governed receipts and human review | `ai-fabric-execution` governed action proposal receipts, `ACTION_PROPOSAL` review tasks/delivery, replay, reconciliation contracts | Application owns reviewer authorization, transaction, system-of-record reconciliation, and migrations; arbitrary result review is not included | `AI_FABRIC_AVAILABLE` |
 | PII | `ai-fabric-pii` | Product defines legal/policy posture, encryption, retention, and claims | `AI_FABRIC_AVAILABLE` |
@@ -197,7 +202,7 @@ Maturity labels used throughout this document:
 | V04 deployment lifecycle | Draft, validation, publish, immutable version, release, apply, post-apply verification, assignment, rollback evidence | `LOOMAI_HOSTED_PROVEN` |
 | Deployment topology templates | Provider/vector presets such as OpenAI/Lucene, OpenAI/Milvus, Anthropic/Lucene, and other verified combinations | `LOOMAI_IMPLEMENTED` |
 | Curated behavior | Curated modules, prompt presets, runtime `AI_CURATED_PACK`, shell config | `LOOMAI_HOSTED_PROVEN` |
-| Marketplace capabilities | Template, data, action, and inference-profile plugins are hosted-proven; governed specialist bundles now compile through the same lifecycle in source | Existing plugin types `LOOMAI_HOSTED_PROVEN`; `SPECIALIST` is `LOOMAI_IMPLEMENTED`, hosted proof pending |
+| Marketplace capabilities | Template, data, action, and inference-profile plugins are hosted-proven; governed specialist bundles now compile through the same lifecycle in source | Existing plugin types are `LOOMAI_HOSTED_PROVEN`; the exact Agentic `SPECIALIST` composition is hosted-proven while released reusable-template lifecycle proof remains pending |
 | Vertical package mapping | Shopify package/tier/runtime/vector/inference/template/verification profile entity and server-owned option catalogue | `LOOMAI_IMPLEMENTED`, Shopify-specific |
 | Target placement | Coolify/Railway target profiles, environment, region, credentials, network, resources, product-service permissions | `LOOMAI_HOSTED_PROVEN` |
 | Managed vectors | Platform provisioning, vectorization runner, status/revision reconciliation, managed Milvus/Zilliz and other supported providers | `LOOMAI_HOSTED_PROVEN` |
@@ -208,32 +213,29 @@ Maturity labels used throughout this document:
 | Product verification | Canonical suites, hosted product checks, release gate, source identity, optional/non-blocking legacy checks | `LOOMAI_HOSTED_PROVEN` |
 | Conversational behavior | Shopify and ProdUS backend-mediated query/chat deployments, grounding, assignment, and verification | `LOOMAI_HOSTED_PROVEN` |
 | Deployment knowledge specialist | Exact `deployment-knowledge-specialist@1`, trusted scope, hosted two-tenant/two-deployment canaries | `LOOMAI_HOSTED_PROVEN` |
-| Agentic Specialist Team behavior | Source packages a closed manager plus distinct deployment-knowledge and runtime-state workers through the official gateway, durable PostgreSQL state, APIs, template, provenance, and operations UI | `LOOMAI_IMPLEMENTED`; hosted V04 proof pending |
-| Smart Brain behavior | Source packages trusted CloudEvents, exact trigger mapping, durable operations/results, Quartz schedules, polling, replay/cancel, and signed webhook outbox delivery | `LOOMAI_IMPLEMENTED`; hosted V04 proof pending |
+| Agentic Specialist Team behavior | Source packages a closed manager plus distinct deployment-knowledge and runtime-state workers through the official gateway, durable PostgreSQL state, APIs, template, provenance, and operations UI | `LOOMAI_HOSTED_PROVEN` for the exact canary composition; reusable-template/full-lifecycle gate pending |
+| Smart Brain behavior | Source packages trusted CloudEvents, exact trigger mapping, durable operations/results, Quartz schedules, polling, replay/cancel, and signed webhook outbox delivery | `LOOMAI_HOSTED_PROVEN` for the exact durable production canary; reusable-template/full-lifecycle gate pending |
 | Embedded UI | Max widget, docked composer concept, inline/result-card patterns, backend-mediated chat | `PRODUCTIZATION_REQUIRED` as a stable reusable package |
-| Deployment Behavior Type | Built-in contract, creation/draft/version persistence, migration, compatibility validation, assignment metadata, and UI exist in source | `LOOMAI_IMPLEMENTED`; hosted proof pending |
-| Behavior-aware Marketplace template composition | Three first-party templates declare behavior, exact plugin dependencies, runtime capabilities, and verification packs and compile through existing V04 | `LOOMAI_IMPLEMENTED`; hosted proof pending |
-| Specialist Marketplace composition | Governed source-attested `SPECIALIST` bundles, hashes, exact dependency install, immutable V04 provenance, source capability matching, and export/import exist in source | `LOOMAI_IMPLEMENTED`; hosted proof pending |
+| Deployment Behavior Type | Built-in contract, creation/draft/version persistence, migration, compatibility validation, assignment metadata, and UI exist in source | `LOOMAI_HOSTED_PROVEN` for exact canaries; broad reusable lifecycle gate pending |
+| Behavior-aware Marketplace template composition | Three first-party templates declare behavior, exact plugin dependencies, runtime capabilities, and verification packs and compile through existing V04 | `LOOMAI_IMPLEMENTED`; released reusable-template hosted proof remains pending because current canaries originated from `custom-start-from-scratch` |
+| Specialist Marketplace composition | Governed source-attested `SPECIALIST` bundles, hashes, exact dependency install, immutable V04 provenance, source capability matching, and export/import exist in source | `LOOMAI_HOSTED_PROVEN` for the exact Agentic canary composition; reusable-template export/import and promotion matrix pending |
 | Inbound authoring MCP server | Existing Gateway is outbound execution, not a developer-facing Platform authoring server | `FUTURE` |
 
 ### 4.3 Current source and hosted-fleet evidence baseline
 
-- Current framework release target: immutable Maven Central `0.7.0`, tag `ai-fabric-framework-v0.7.0`, release commit `5b075b66384dc5b756b3b3dd12efaf896ce9a50b`, documentation commit `7ac32985`.
-- Private commit `2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264` targets `0.7.0`, keeps chains disabled, passes the product, runtime/services, and Platform backend Maven reactors, and passes an isolated-cache Maven Central runtime build. The packaged runtime contains `ai-fabric-execution-0.7.0.jar` and no `0.6.1` framework JAR.
-- Gate A hosted fleet evidence now matches that source identity. All supported staging and production runtime families were published and applied through verified V04 releases; live readback reports `0.7.0` with specialist chains disabled.
-- The prior `0.6.1` rollout remains immutable historical evidence only. It is no longer the active supported fleet baseline.
+- Current framework release target: immutable Maven Central `0.7.1`, tag `ai-fabric-framework-v0.7.1`, release commit `58ac80d55f0102485562942a1a9cab88208c7530`. It preserves the `0.7.0` public contracts and fixes PostgreSQL nullable lease-owner transitions for durable specialist execution and Human Review.
+- Current private rollout commits are `3bdb9ccc4`, `359a5ae03`, and `ed25d7c30`. The immutable runtime image is `ghcr.io/mahmoudashraf/ai-fabric-runtime:359a5ae0306c2957a8070e9c40ca263b1710a2f6` at digest `sha256:e032e116caf58ab73be41acd5920a2faeeb41ab343a0c7aa1aca5b766325fa12`.
+- Both staging and production Platform backends are healthy at exact backend commit `ed25d7c30`; their Coolify Platform UI health/application routes answer `200`.
+- Production behavior canaries are active and healthy: Conversational `dep-18e74807`, two-worker Agentic `dep-f56d32a9`, and Smart Brain `dep-e8a29c2b`. Agentic durable chain execution and Smart Brain typed PostgreSQL operation proofs passed.
+- Focused staging proofs passed for Conversational `dep-5c249fac`, Agentic `dep-17befd6c`, and Smart Brain mechanics `dep-10c99bd4`; these are canary evidence, not a promise that every staging canary remains continuously allocated.
 - ProdUS assignment resolves to `dep-f6abfa06`; corrected managed projection reindex completed `198/198`, and the strict grounded canary returned the expected service-module evidence.
-- Canonical suites passed in staging (`vsr-8df8715d`) and production (`vsr-da3641f3`); Partner and Thinker suites passed in staging (`vsr-dd47edb2`, `vsr-cbb44501`) and production (`vsr-19240cf6`, `vsr-bc98e4d9`).
-- Full aggregate runs `vsr-8e8306d3` and `vsr-c9bb743e` passed stages 1-8 and remain failed only at the owner-deferred Shopify first-product answer-quality stage. They must not be relabeled green.
+- Fresh canonical release-readiness `vsr-015a8e14` passed without repair: Marketplace `41/41` and Ecommerce `43/43`, both with `IN_SYNC` vectors. Optional historical Qdrant remains non-blocking `MIGRATION_REQUIRED`.
+- Fresh Thinker/Resolver `vsr-f3a5604d` passed. A dedicated short-lived Partner test JWT was refreshed after expiry; standalone Partner then passed every control before reaching the already owner-deferred protected Shopify mode/retrieval exception.
+- The aggregate release gate must remain reported as non-green while that Shopify exception remains. No expectation was weakened to manufacture a pass.
 
-The newer behavior-aware worktree passes private runtime `174/174`, Platform
-backend `757/757`, PostgreSQL 16 migrations `V1..V133`, and the Platform UI
-production build. It has not been committed or deployed through V04, so it
-does not alter the hosted-fleet identity above.
-
-These facts prove the shared foundation and local source implementation. They
-do not prove a hosted Agentic Specialist Team, Smart Brain, Human Review
-extension, or every future template/plugin composition.
+These facts prove the shared foundation and exact hosted behavior canaries.
+They do not yet prove hosted Human Review, every reusable Marketplace template,
+or the full promotion/export/import/rollback/draining/decommission matrix.
 
 ## 5. Canonical LoomAI Vocabulary And Sources Of Truth
 
@@ -700,7 +702,7 @@ Maturity:
 
 - Framework contracts and executable Agentic Action Resolver proof: `AI_FABRIC_AVAILABLE`.
 - Exact LoomAI specialist deployment and tenant/deployment isolation: `LOOMAI_HOSTED_PROVEN` for `deployment-knowledge-specialist@1`.
-- Generic `SPECIALIST` Marketplace contribution and V04 deployment path: `LOOMAI_IMPLEMENTED`, hosted proof pending. The live Gate A fleet remains chain-disabled; the newer source contains the schema, official resources, distinct second worker, provenance, and operations path, but no hosted team claim exists yet.
+- Generic `SPECIALIST` Marketplace contribution and V04 deployment path: the exact two-worker canary composition is `LOOMAI_HOSTED_PROVEN`; released reusable-template export/import, promotion, rollback, and recovery proof remains pending.
 
 ### 8.4 Behavior Type C: Smart Brain
 
@@ -1434,24 +1436,21 @@ Exit:
 
 ### Confirmed framework follow-up
 
-No framework blocker is currently confirmed for the base `0.7.0` migration.
+No framework blocker is currently confirmed for the active `0.7.1` migration.
 The earlier request for an official declarative bounded-chain YAML/JSON contract
 is fulfilled by `ai.fabric/v1` `SpecialistChain`, its offline validator,
 source-aware registry/readback, and the shared chain gateway.
 The historical `AF-MCP-STRICT-SERVER-REF` issue is resolved by the immutable
 release's exact remote server name/title binding and bounded result handling.
-Any new framework gap must still be reproduced against `0.7.0` before LoomAI
+Any new framework gap must still be reproduced against `0.7.1` before LoomAI
 adds a product-side workaround.
 
 ### LoomAI Platform gaps, not framework blockers
 
-- built-in Deployment Behavior Type contract and V04 persistence/provenance;
-- behavior-aware Marketplace `TEMPLATE` manifest, bootstrap, compatibility, and verification references;
-- Marketplace `SPECIALIST` contribution validation, review, immutable V04 resource materialization, provenance, export/import, and runtime hash readback;
-- generic Conversational Assistant Marketplace template independent of Shopify-specific packaging;
-- generic template/runtime/vector/verification compatibility beyond Shopify;
-- hosted reusable bounded-chain/multi-specialist team template and V04 deployment proof;
-- Smart Brain deployment-local trigger/status/result endpoints, assignment endpoint publication, durable worker operations, direct output delivery, promotion draining, and hosted deployment proof;
+- released reusable Marketplace `TEMPLATE` lifecycle proof for all three behavior types, independent of `custom-start-from-scratch` canaries;
+- full generic template/runtime/vector/verification compatibility beyond Shopify;
+- complete promotion/export/import/rollback/draining/decommission proof for the reusable Agentic and Smart Brain templates;
+- hosted Human Review authorization, restart, replay, and at-most-one governed-action outcome proof;
 - reusable embedded assistant package;
 - knowledge/document operator UX;
 - specialist authoring/deployment UI;
@@ -1538,25 +1537,23 @@ A customer-owned V04 deployment built from that behavior and any Marketplace tem
 
 ### Immediate P0
 
-- Review the source-complete worktree and create one immutable private commit.
-- Build from Maven Central AI Fabric `0.7.0` artifacts and inspect the runtime
-  JAR inventory, packaged manifests, source capability hash, and migrations.
-- Publish/apply one generic Conversational staging V04 version and verify exact
-  behavior/template/provenance/source readback, assignment, and regression.
+- Publish and exercise the released reusable Marketplace `TEMPLATE` path for
+  each behavior instead of using `custom-start-from-scratch` as the canary
+  origin.
+- Complete exact composition/provenance/source readback, export/import,
+  promotion, rollback, draining, and decommission evidence for those templates.
+- Host-canary Conversational `ACTION_PROPOSAL` Human Review with customer-owned
+  reviewer authorization and at-most-one governed action outcome.
 - Preserve Shopify's passed release stages, close the deferred answer-quality
   defect, and do not claim a green full production gate before its rerun passes.
 
 ### Next P1
 
-- Host-canary the source-complete `AGENTIC_SPECIALIST_TEAM` with one manager,
-  two exact read-only workers, attached PostgreSQL, stable scoped secrets,
-  replay/restart/cancel/failure/isolation tests, and runtime bundle-hash readback.
-- Host-canary `SMART_BRAIN` with assignment-advertised deployment-local
-  endpoints, trusted CloudEvent and schedule activation, durable result
-  polling, restart/replay/cancel, signed webhook retry/dead-letter, and draining.
-- Host-canary Conversational `ACTION_PROPOSAL` Human Review with customer-owned
-  reviewer authorization, approve/reject/exact replay/restart/separation-of-duty
-  proof, and at-most-one governed action outcome.
+- Complete Agentic replay/restart/cancel/failure/isolation and runtime
+  bundle-hash evidence against the released reusable template.
+- Complete Smart Brain schedule, Platform-outage, restart/replay/cancel, signed
+  webhook retry/dead-letter, and draining evidence against the released
+  reusable template.
 - Exercise export/import, promotion, rollback, and decommission for every
   behavior before production rollout.
 

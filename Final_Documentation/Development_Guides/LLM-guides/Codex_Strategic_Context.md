@@ -342,3 +342,16 @@ Current P0 cleanup items:
   backend `757/757`, PostgreSQL `V1..V133`, and UI build checks pass. Do not call
   these behaviors hosted-proven or market-ready until immutable V04 staging
   deployments pass their complete behavior-specific gates.
+- 2026-09-20: AI Fabric `0.7.1` is the active compatible production patch and
+  fixes PostgreSQL nullable lease-owner transitions for durable specialist and
+  Human Review state. Private behavior-aware source is committed, pushed, and
+  deployed. Exact Conversational, two-worker Agentic, and Smart Brain hosted
+  canaries pass; production canary runtimes are healthy, Agentic completed a
+  durable two-worker chain, and Smart Brain completed a typed durable
+  operation. This advances the exact compositions to `HOSTED_PROVEN`, not
+  `MARKET_READY`. Reusable Marketplace-template origin, complete lifecycle and
+  recovery matrices, and hosted Human Review remain required. Canonical
+  Marketplace/Ecommerce verification passes without repair, while the full
+  aggregate gate remains honestly non-green on the owner-deferred protected
+  Shopify path. Never weaken that expectation or modify ProdUS/Shopify
+  assignments merely to manufacture a green aggregate result.
