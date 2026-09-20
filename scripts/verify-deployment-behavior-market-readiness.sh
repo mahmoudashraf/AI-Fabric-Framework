@@ -19,7 +19,7 @@ SOURCE_ARTIFACT_ID="${SOURCE_ARTIFACT_ID:-}"
 VALIDATION_ENVIRONMENT="${VALIDATION_ENVIRONMENT:-}"
 VALIDATION_TEMPLATE_ID="${VALIDATION_TEMPLATE_ID:-custom-start-from-scratch}"
 VALIDATION_NAME_PREFIX="${VALIDATION_NAME_PREFIX:-Behavior Readiness Proof}"
-VALIDATION_VECTOR_PROVISIONING_MODE="${VALIDATION_VECTOR_PROVISIONING_MODE:-PLATFORM_MANAGED}"
+VALIDATION_VECTOR_PROVISIONING_MODE="${VALIDATION_VECTOR_PROVISIONING_MODE:-}"
 BEHAVIOR_EVIDENCE_REF="${BEHAVIOR_EVIDENCE_REF:-}"
 
 KEEP_DEPLOYMENT="${KEEP_DEPLOYMENT:-false}"
@@ -484,13 +484,15 @@ login_if_needed
 VALIDATION_NAME="${VALIDATION_NAME_PREFIX} ${BEHAVIOR_TYPE} ${VALIDATION_ENVIRONMENT} $(date +%Y%m%d-%H%M%S)"
 BOOTSTRAP_BODY="$(python3 - <<'PY' "${VALIDATION_NAME}" "${VALIDATION_ENVIRONMENT}" "${VALIDATION_TEMPLATE_ID}" "${TEMPLATE_PLUGIN_VERSION}" "${VALIDATION_VECTOR_PROVISIONING_MODE}"
 import json, sys
-print(json.dumps({
+payload = {
     "name": sys.argv[1],
     "environment": sys.argv[2],
     "templateId": sys.argv[3],
     "pluginVersion": sys.argv[4],
-    "vectorProvisioningMode": sys.argv[5],
-}))
+}
+if sys.argv[5]:
+    payload["vectorProvisioningMode"] = sys.argv[5]
+print(json.dumps(payload))
 PY
 )"
 platform_request "POST" "/api/marketplace/templates/${TEMPLATE_PLUGIN_ID}/bootstrap" "${BOOTSTRAP_BODY}"
