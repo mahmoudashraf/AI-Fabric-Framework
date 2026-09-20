@@ -422,6 +422,7 @@ payload = {
     "name": os.environ["CREATE_NAME"],
     "environment": os.environ["DELETE_SMOKE_ENVIRONMENT"],
     "templateId": os.environ["DELETE_SMOKE_TEMPLATE_ID"],
+    "behaviorType": "CONVERSATIONAL",
 }
 curated = os.environ.get("DELETE_SMOKE_CURATED_MODULE_ID", "").strip()
 if curated:
@@ -688,6 +689,7 @@ payload = {
     "environment": "dev",
     "templateId": "dev-openai-lucene",
     "customerId": os.environ["CUSTOMER_ID"],
+    "behaviorType": "CONVERSATIONAL",
 }
 print(json.dumps(payload))
 PY
