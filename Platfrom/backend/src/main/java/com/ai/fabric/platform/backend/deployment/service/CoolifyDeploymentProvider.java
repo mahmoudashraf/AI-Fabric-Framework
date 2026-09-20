@@ -787,11 +787,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         try {
             if (isRuntimePostgresDatabase(handle)) {
                 CoolifyActionResponse response = coolifyApiClient.deleteDatabase(connection, handle.getProviderResourceUuid(), true, true, true, true);
+                waitForDatabaseAbsent(connection, handle.getProviderResourceUuid());
                 clearRuntimeDatabaseSecret(handle, reason);
-                return actionSummary(handle, "DELETE", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
+                return actionSummary(handle, "DELETE", "COMPLETED", response.message(), response.deploymentUuid(), response.raw());
             }
             CoolifyActionResponse response = coolifyApiClient.delete(connection, handle.getProviderResourceUuid(), true, false, true, true);
-            return actionSummary(handle, "DELETE", "QUEUED", response.message(), response.deploymentUuid(), response.raw());
+            waitForApplicationAbsent(connection, handle.getProviderResourceUuid());
+            return actionSummary(handle, "DELETE", "COMPLETED", response.message(), response.deploymentUuid(), response.raw());
         } catch (CoolifyApiException ex) {
             if (ex.statusCode() == 404) {
                 if (isRuntimePostgresDatabase(handle)) {
@@ -2103,9 +2105,37 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 Thread.sleep(DEFAULT_STALE_DELETE_POLL_INTERVAL.toMillis());
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                return;
+                throw new IllegalStateException(
+                    "Interrupted while waiting for Coolify application " + applicationUuid + " to be deleted.",
+                    ex
+                );
             }
         }
+        throw new IllegalStateException(
+            "Timed out waiting for Coolify application " + applicationUuid + " to be deleted."
+        );
+    }
+
+    private void waitForDatabaseAbsent(CoolifyConnection connection, String databaseUuid) {
+        Instant deadline = Instant.now().plus(DEFAULT_STALE_DELETE_TIMEOUT);
+        while (Instant.now().isBefore(deadline)) {
+            Optional<CoolifyDatabaseSummary> observed = coolifyApiClient.getDatabase(connection, databaseUuid);
+            if (observed == null || observed.isEmpty()) {
+                return;
+            }
+            try {
+                Thread.sleep(DEFAULT_STALE_DELETE_POLL_INTERVAL.toMillis());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(
+                    "Interrupted while waiting for Coolify database " + databaseUuid + " to be deleted.",
+                    ex
+                );
+            }
+        }
+        throw new IllegalStateException(
+            "Timed out waiting for Coolify database " + databaseUuid + " to be deleted."
+        );
     }
 
     private boolean applicationMatchesScope(CoolifyApplicationSummary application, CoolifyResourceScope scope) {

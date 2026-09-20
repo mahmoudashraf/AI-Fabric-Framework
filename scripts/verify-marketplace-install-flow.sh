@@ -191,7 +191,8 @@ cleanup() {
       fi
     fi
 
-    platform_request "DELETE" "/api/deployments/${DEPLOYMENT_ID}" || true
+    platform_request "DELETE" "/api/deployments/${DEPLOYMENT_ID}" \
+      '{"hardDelete":true,"reason":"Marketplace install-flow verification cleanup."}' || true
     if [[ "${HTTP_STATUS:-}" != "200" && "${HTTP_STATUS:-}" != "202" && "${HTTP_STATUS:-}" != "204" ]]; then
       echo "WARN: cleanup delete for ${DEPLOYMENT_ID} returned HTTP ${HTTP_STATUS:-unknown}" >&2
       if [[ -n "${HTTP_BODY_FILE:-}" && -f "${HTTP_BODY_FILE}" ]]; then

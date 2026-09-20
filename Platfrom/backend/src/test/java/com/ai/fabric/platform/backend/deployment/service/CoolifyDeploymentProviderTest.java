@@ -7,6 +7,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentSourceArtifact
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderResourceActionSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayArtifactUrlsSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
@@ -45,6 +46,83 @@ import static org.mockito.Mockito.when;
 class CoolifyDeploymentProviderTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void confirmsApplicationIsAbsentBeforeReportingDeleteComplete() {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentTargetProfileEntity profile = profile();
+        CoolifyConnection connection = connection();
+        DeploymentProviderResourceHandleEntity handle = providerHandle("APPLICATION", "app-uuid");
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.delete(connection, "app-uuid", true, false, true, true))
+            .thenReturn(new CoolifyActionResponse("Application deletion queued.", null, objectMapper.createObjectNode()));
+        when(coolifyApiClient.getApplication(connection, "app-uuid")).thenReturn(Optional.empty());
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            objectMapper
+        );
+
+        DeploymentProviderResourceActionSummary result = provider.delete(handle, "verification cleanup");
+
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        verify(coolifyApiClient).getApplication(connection, "app-uuid");
+    }
+
+    @Test
+    void confirmsDatabaseIsAbsentBeforeClearingItsSecretAndReportingDeleteComplete() {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        DeploymentTargetProfileEntity profile = profile();
+        CoolifyConnection connection = connection();
+        DeploymentProviderResourceHandleEntity handle = providerHandle("RUNTIME_POSTGRES_DATABASE", "database-uuid");
+        handle.setDeploymentId("dep-123");
+        handle.setMetadataJson("{\"passwordSecretName\":\"MANAGED_RUNTIME_DATABASE_PASSWORD\"}");
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.deleteDatabase(connection, "database-uuid", true, true, true, true))
+            .thenReturn(new CoolifyActionResponse("Database deletion queued.", null, objectMapper.createObjectNode()));
+        when(coolifyApiClient.getDatabase(connection, "database-uuid")).thenReturn(Optional.empty());
+        when(platformSecretService.isManagedSecretName("MANAGED_RUNTIME_DATABASE_PASSWORD")).thenReturn(true);
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
+            objectMapper
+        );
+
+        DeploymentProviderResourceActionSummary result = provider.delete(handle, "verification cleanup");
+
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        verify(coolifyApiClient).getDatabase(connection, "database-uuid");
+        verify(platformSecretService).clearManagedSecret(
+            eq("MANAGED_RUNTIME_DATABASE_PASSWORD"),
+            any()
+        );
+    }
 
     @Test
     void provisionsDockerImageApplicationAndPersistsResourceHandle() throws Exception {
@@ -1480,6 +1558,40 @@ class CoolifyDeploymentProviderTest {
         deployment.setCreatedAt(Instant.parse("2026-05-01T00:00:00Z"));
         deployment.setUpdatedAt(Instant.parse("2026-05-01T00:00:00Z"));
         return deployment;
+    }
+
+    private CoolifyConnection connection() {
+        return new CoolifyConnection(
+            "http://coolify.example",
+            "mock-token",
+            new CoolifyTargetProfileConfig(
+                "http://coolify.example",
+                "project",
+                "staging",
+                "env",
+                "server",
+                "destination",
+                "runtime.example.test",
+                "4.0.0",
+                5,
+                600,
+                false,
+                false,
+                "8080",
+                "/actuator/health",
+                "8080"
+            )
+        );
+    }
+
+    private DeploymentProviderResourceHandleEntity providerHandle(String resourceKind, String resourceUuid) {
+        DeploymentProviderResourceHandleEntity handle = new DeploymentProviderResourceHandleEntity();
+        handle.setId("dprh-123");
+        handle.setProviderType(DeploymentProviderType.COOLIFY);
+        handle.setProviderResourceUuid(resourceUuid);
+        handle.setTargetProfileId("dtp-coolify-staging");
+        handle.setResourceKind(resourceKind);
+        return handle;
     }
 
     private DeploymentVersionEntity version() {

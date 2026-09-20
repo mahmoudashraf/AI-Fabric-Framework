@@ -24,6 +24,8 @@ BEHAVIOR_EVIDENCE_REF="${BEHAVIOR_EVIDENCE_REF:-}"
 
 KEEP_DEPLOYMENT="${KEEP_DEPLOYMENT:-false}"
 CLEANUP_ON_FAILURE="${CLEANUP_ON_FAILURE:-false}"
+CLEANUP_DELETE_POLL_ATTEMPTS="${CLEANUP_DELETE_POLL_ATTEMPTS:-60}"
+CLEANUP_DELETE_POLL_SLEEP_SECONDS="${CLEANUP_DELETE_POLL_SLEEP_SECONDS:-3}"
 HTTP_CONNECT_TIMEOUT_SECONDS="${HTTP_CONNECT_TIMEOUT_SECONDS:-15}"
 HTTP_MAX_TIME_SECONDS="${HTTP_MAX_TIME_SECONDS:-90}"
 HTTP_RETRY_ATTEMPTS="${HTTP_RETRY_ATTEMPTS:-4}"
@@ -45,6 +47,7 @@ VERSION_ID=""
 RELEASE_ID=""
 READINESS_CANDIDATE_ID=""
 SCRIPT_SUCCEEDED="false"
+CLEANUP_ATTEMPTED="false"
 
 resolve_secret_value() {
   local var_name="$1"
@@ -205,6 +208,10 @@ PY
 }
 
 cleanup_deployment() {
+  if [[ "${CLEANUP_ATTEMPTED}" == "true" ]]; then
+    return
+  fi
+  CLEANUP_ATTEMPTED="true"
   [[ -n "${DEPLOYMENT_ID}" ]] || return
   if [[ "${KEEP_DEPLOYMENT}" == "true" ]]; then
     echo "INFO: keeping deployment ${DEPLOYMENT_ID}."
@@ -215,25 +222,65 @@ cleanup_deployment() {
     return
   fi
 
-  platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/archive" || true
-  if [[ "${HTTP_STATUS}" != "200" && "${HTTP_STATUS}" != "409" && "${HTTP_STATUS}" != "404" ]]; then
-    echo "WARN: archive returned HTTP ${HTTP_STATUS} for ${DEPLOYMENT_ID}." >&2
+  platform_request "POST" "/api/deployments/${DEPLOYMENT_ID}/archive"
+  if [[ "${HTTP_STATUS}" != "200" && "${HTTP_STATUS}" != "409" ]]; then
+    echo "FAIL: cleanup archive returned HTTP ${HTTP_STATUS} for ${DEPLOYMENT_ID}." >&2
+    [[ -f "${HTTP_BODY_FILE}" ]] && cat "${HTTP_BODY_FILE}" >&2
+    return 1
   fi
-  local attempt
+  local attempt archived="false"
   for attempt in $(seq 1 18); do
-    platform_request "GET" "/api/deployments?includeArchived=true" || true
-    [[ "${HTTP_STATUS}" == "200" ]] || break
-    local archived
+    platform_request "GET" "/api/deployments?includeArchived=true"
+    if [[ "${HTTP_STATUS}" != "200" ]]; then
+      echo "FAIL: cleanup archive status returned HTTP ${HTTP_STATUS} for ${DEPLOYMENT_ID}." >&2
+      [[ -f "${HTTP_BODY_FILE}" ]] && cat "${HTTP_BODY_FILE}" >&2
+      return 1
+    fi
     archived="$(DEPLOYMENT_ID_TARGET="${DEPLOYMENT_ID}" json_value $'import os\nitems = data or []\ntarget = os.environ["DEPLOYMENT_ID_TARGET"]\nitem = next((x for x in items if (x or {}).get("id") == target), None)\nresult = item is None or (item.get("status") or "").upper() == "ARCHIVED"')"
     [[ "${archived}" == "true" ]] && break
     sleep 5
   done
-  platform_request "DELETE" "/api/deployments/${DEPLOYMENT_ID}" || true
-  if [[ ! "${HTTP_STATUS}" =~ ^(200|202|204|404)$ ]]; then
-    echo "WARN: delete returned HTTP ${HTTP_STATUS} for ${DEPLOYMENT_ID}." >&2
-  else
-    pass "cleanup requested for ${DEPLOYMENT_ID}"
+  if [[ "${archived}" != "true" ]]; then
+    echo "FAIL: deployment ${DEPLOYMENT_ID} did not reach ARCHIVED before cleanup." >&2
+    return 1
   fi
+
+  local delete_body delete_operation_id delete_status=""
+  delete_body='{"hardDelete":true,"reason":"Deployment behavior market-readiness verification cleanup."}'
+  platform_request "DELETE" "/api/deployments/${DEPLOYMENT_ID}" "${delete_body}"
+  if [[ ! "${HTTP_STATUS}" =~ ^(200|201|202)$ ]]; then
+    echo "FAIL: hard delete returned HTTP ${HTTP_STATUS} for ${DEPLOYMENT_ID}." >&2
+    [[ -f "${HTTP_BODY_FILE}" ]] && cat "${HTTP_BODY_FILE}" >&2
+    return 1
+  fi
+  delete_operation_id="$(json_value 'result = (data or {}).get("id", "")')"
+  if [[ -z "${delete_operation_id}" ]]; then
+    echo "FAIL: hard delete returned no deletion operation id for ${DEPLOYMENT_ID}." >&2
+    return 1
+  fi
+
+  for attempt in $(seq 1 "${CLEANUP_DELETE_POLL_ATTEMPTS}"); do
+    platform_request "GET" "/api/platform/notifications/deployment-deletions/${delete_operation_id}"
+    if [[ "${HTTP_STATUS}" != "200" ]]; then
+      echo "FAIL: hard-delete operation ${delete_operation_id} returned HTTP ${HTTP_STATUS}." >&2
+      [[ -f "${HTTP_BODY_FILE}" ]] && cat "${HTTP_BODY_FILE}" >&2
+      return 1
+    fi
+    delete_status="$(json_value 'result = (data or {}).get("status", "")')"
+    if [[ "${delete_status}" == "SUCCEEDED" ]]; then
+      pass "hard-delete cleanup completed for ${DEPLOYMENT_ID} as ${delete_operation_id}"
+      return
+    fi
+    if [[ "${delete_status}" == "FAILED" ]]; then
+      echo "FAIL: hard-delete operation ${delete_operation_id} failed for ${DEPLOYMENT_ID}." >&2
+      [[ -f "${HTTP_BODY_FILE}" ]] && cat "${HTTP_BODY_FILE}" >&2
+      return 1
+    fi
+    sleep "${CLEANUP_DELETE_POLL_SLEEP_SECONDS}"
+  done
+
+  echo "FAIL: hard-delete operation ${delete_operation_id} did not complete for ${DEPLOYMENT_ID}; last status ${delete_status:-unknown}." >&2
+  return 1
 }
 
 cleanup() {
@@ -590,6 +637,7 @@ ENVIRONMENT_EXPECTED="${VALIDATION_ENVIRONMENT}" json_assert "behavior readiness
 pass "recorded HOSTED_PROVEN readiness candidate ${READINESS_CANDIDATE_ID}"
 
 SCRIPT_SUCCEEDED="true"
+cleanup_deployment
 python3 - <<'PY' "${BEHAVIOR_TYPE}" "${TEMPLATE_PLUGIN_ID}" "${TEMPLATE_PLUGIN_VERSION}" "${VALIDATION_ENVIRONMENT}" "${DEPLOYMENT_ID}" "${VERSION_ID}" "${RELEASE_ID}" "${READINESS_CANDIDATE_ID}" "${MATERIAL_HASH}"
 import json, sys
 keys = ["behaviorType", "templatePluginId", "templatePluginVersion", "environment", "deploymentId", "versionId", "releaseId", "readinessCandidateId", "materialHash"]
