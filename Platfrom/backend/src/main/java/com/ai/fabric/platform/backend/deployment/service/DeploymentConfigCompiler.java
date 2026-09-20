@@ -40,14 +40,14 @@ public class DeploymentConfigCompiler {
     private final String aiFabricFrameworkVersion;
 
     public DeploymentConfigCompiler(ObjectMapper objectMapper) {
-        this(objectMapper, new EntityConfigContractService(objectMapper), null, "0.7.0");
+        this(objectMapper, new EntityConfigContractService(objectMapper), null, "0.7.1");
     }
 
     @Autowired
     public DeploymentConfigCompiler(ObjectMapper objectMapper,
                                     EntityConfigContractService entityConfigContractService,
                                     DeploymentCompositionProvenanceService deploymentCompositionProvenanceService,
-                                    @Value("${platform.ai-fabric.framework-version:0.7.0}") String aiFabricFrameworkVersion) {
+                                    @Value("${platform.ai-fabric.framework-version:0.7.1}") String aiFabricFrameworkVersion) {
         this.objectMapper = objectMapper;
         this.entityConfigContractService = entityConfigContractService;
         this.deploymentCompositionProvenanceService = deploymentCompositionProvenanceService;
