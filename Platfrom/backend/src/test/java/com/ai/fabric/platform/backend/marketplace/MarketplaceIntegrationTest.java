@@ -636,6 +636,14 @@ class MarketplaceIntegrationTest {
                 "$.entityConfig['ai-entities'].product['metadata-fields'][?(@.name=='knowledgeSourceHandleRef')].required",
                 is(List.of(false))
             ))
+            .andExpect(jsonPath(
+                "$.entityConfig['ai-entities'].product['metadata-fields'][?(@.name=='deploymentId')].destinations",
+                is(List.of(List.of("VECTOR_METADATA")))
+            ))
+            .andExpect(jsonPath(
+                "$.entityConfig['ai-entities'].product['metadata-fields'][?(@.name=='deploymentId')].required",
+                is(List.of(true))
+            ))
             .andExpect(jsonPath("$.entityConfig['ai-entities'].product.features").doesNotExist())
             .andExpect(jsonPath("$.knowledgeSourceConfig.sources[?(@.id=='shopify-catalog')].handleRef", is(List.of(originalHandle))));
     }

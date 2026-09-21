@@ -405,12 +405,16 @@ class ShopifyStoreVectorizationServiceTest {
                 && "availableVariantCount".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("availableVariantCount").asText())
                 && "plugin/mkp-data-shopify-catalog/tenant/ten-123/shopify-catalog/catalog-hash/product"
                     .equals(request.mappingConfig().path("entityMappings").path("product").path("metadataStaticValues").path("knowledgeSourceHandleRef").asText())
+                && "ten-123".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataStaticValues").path("tenantId").asText())
+                && "dep-123".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataStaticValues").path("deploymentId").asText())
                 && "content".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("entityFieldMappings").path("content").asText())
                 && "content".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("entityFieldMappings").path("description").asText())
                 && "title".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataFieldMappings").path("title").asText())
                 && "sourceCategory".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataFieldMappings").path("scope").asText())
                 && "plugin/mkp-data-shopify-policies/tenant/ten-123/shopify-policies/policies-hash/support-policy"
                     .equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataStaticValues").path("knowledgeSourceHandleRef").asText())
+                && "ten-123".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataStaticValues").path("tenantId").asText())
+                && "dep-123".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataStaticValues").path("deploymentId").asText())
                 && request.executionConfig().path("batchSize").asInt() == 50
         ));
         verify(installService).createInstall(eq("dep-123"), argThat((CreateDeploymentMarketplaceInstallRequest request) ->

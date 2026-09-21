@@ -474,8 +474,11 @@ public class ShopifyStoreVectorizationService {
         productMetadata.put("totalInventory", "totalInventory");
         productMetadata.put("availableVariantCount", "availableVariantCount");
         productMetadata.put("updatedAt", "updatedAt");
+        ObjectNode productStaticMetadata = productMapping.putObject("metadataStaticValues");
+        productStaticMetadata.put("tenantId", deployment.getTenantId());
+        productStaticMetadata.put("deploymentId", deployment.getId());
         if (ShopifyCompanionPluginSelection.requiresCatalogData(store)) {
-            productMapping.putObject("metadataStaticValues").put(
+            productStaticMetadata.put(
                 "knowledgeSourceHandleRef",
                 requireDatasetHandle(
                     datasetHandles,
@@ -505,8 +508,11 @@ public class ShopifyStoreVectorizationService {
         supportPolicyMetadata.put("definitionName", "definitionName");
         supportPolicyMetadata.put("storefrontUrl", "storefrontUrl");
         supportPolicyMetadata.put("updatedAt", "updatedAt");
+        ObjectNode supportPolicyStaticMetadata = supportPolicyMapping.putObject("metadataStaticValues");
+        supportPolicyStaticMetadata.put("tenantId", deployment.getTenantId());
+        supportPolicyStaticMetadata.put("deploymentId", deployment.getId());
         if (ShopifyCompanionPluginSelection.requiresPoliciesData(store)) {
-            supportPolicyMapping.putObject("metadataStaticValues").put(
+            supportPolicyStaticMetadata.put(
                 "knowledgeSourceHandleRef",
                 requireDatasetHandle(
                     datasetHandles,

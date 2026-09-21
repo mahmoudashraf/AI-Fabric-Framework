@@ -52,6 +52,8 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION = "MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1";
     private static final String MARKETPLACE_INFERENCE_FIELD = "marketplaceInference";
     private static final String KNOWLEDGE_SOURCE_HANDLE_REF_FIELD = "knowledgeSourceHandleRef";
+    private static final String TENANT_ID_FIELD = "tenantId";
+    private static final String DEPLOYMENT_ID_FIELD = "deploymentId";
     private static final Set<String> GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS = Set.of(
         "mkp-action-shopify-storefront-read-mcp",
         "mkp-action-shopify-cart-mcp",
@@ -1040,7 +1042,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                 if (!StringUtils.hasText(entityType) && resolvedDataset != null) {
                     entityType = resolvedDataset.entityType();
                 }
-                ensureKnowledgeSourceHandleMetadataProjection(entityRoot, entityType);
+                ensureSharedIndexBoundaryMetadataProjection(entityRoot, entityType);
             }
             if (sourceEntry.path("enabled").isBoolean()) {
                 compiled.put("enabled", sourceEntry.path("enabled").asBoolean());
@@ -1476,6 +1478,42 @@ public class DeploymentMarketplaceDraftCompilerService {
     }
 
     void ensureKnowledgeSourceHandleMetadataProjection(ObjectNode entityRoot, String entityType) {
+        ensureVectorMetadataProjection(
+            entityRoot,
+            entityType,
+            KNOWLEDGE_SOURCE_HANDLE_REF_FIELD,
+            "STRING",
+            "Platform-owned shared-index knowledge source handle.",
+            false
+        );
+    }
+
+    void ensureSharedIndexBoundaryMetadataProjection(ObjectNode entityRoot, String entityType) {
+        ensureKnowledgeSourceHandleMetadataProjection(entityRoot, entityType);
+        ensureVectorMetadataProjection(
+            entityRoot,
+            entityType,
+            TENANT_ID_FIELD,
+            "ID",
+            "Server-owned tenant isolation key.",
+            true
+        );
+        ensureVectorMetadataProjection(
+            entityRoot,
+            entityType,
+            DEPLOYMENT_ID_FIELD,
+            "ID",
+            "Server-owned deployment isolation key.",
+            true
+        );
+    }
+
+    private void ensureVectorMetadataProjection(ObjectNode entityRoot,
+                                                String entityType,
+                                                String fieldName,
+                                                String dataType,
+                                                String description,
+                                                boolean required) {
         if (entityRoot == null || !StringUtils.hasText(entityType)) {
             return;
         }
@@ -1489,7 +1527,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         ArrayNode metadataFields = ensureArray(entity, "metadata-fields");
         for (JsonNode fieldNode : metadataFields) {
             if (!(fieldNode instanceof ObjectNode field)
-                || !KNOWLEDGE_SOURCE_HANDLE_REF_FIELD.equalsIgnoreCase(field.path("name").asText(""))) {
+                || !fieldName.equalsIgnoreCase(field.path("name").asText(""))) {
                 continue;
             }
             ArrayNode destinations = field.path("destinations") instanceof ArrayNode existing
@@ -1506,16 +1544,16 @@ public class DeploymentMarketplaceDraftCompilerService {
                 destinations.add("VECTOR_METADATA");
             }
             if (!StringUtils.hasText(field.path("data-type").asText(""))) {
-                field.put("data-type", "STRING");
+                field.put("data-type", dataType);
             }
             if (!StringUtils.hasText(field.path("description").asText(""))) {
-                field.put("description", "Platform-owned shared-index knowledge source handle.");
+                field.put("description", description);
             }
             if (!field.path("priority").canConvertToInt()) {
                 field.put("priority", 100);
             }
-            if (!field.path("required").isBoolean()) {
-                field.put("required", false);
+            if (required || !field.path("required").isBoolean()) {
+                field.put("required", required);
             }
             if (!field.path("sanitize-pii").isBoolean()) {
                 field.put("sanitize-pii", false);
@@ -1524,12 +1562,12 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
 
         ObjectNode field = metadataFields.addObject();
-        field.put("name", KNOWLEDGE_SOURCE_HANDLE_REF_FIELD);
-        field.put("data-type", "STRING");
-        field.put("description", "Platform-owned shared-index knowledge source handle.");
+        field.put("name", fieldName);
+        field.put("data-type", dataType);
+        field.put("description", description);
         field.putArray("destinations").add("VECTOR_METADATA");
         field.put("priority", 100);
-        field.put("required", false);
+        field.put("required", required);
         field.put("sanitize-pii", false);
     }
 

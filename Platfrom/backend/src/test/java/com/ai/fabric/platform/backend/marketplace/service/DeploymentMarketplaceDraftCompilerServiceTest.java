@@ -413,6 +413,39 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(handleField.path("sanitize-pii").asBoolean()).isFalse();
     }
 
+    @Test
+    void sharedIndexBoundaryProjectionDeclaresTrustedIsolationMetadataOnce() {
+        ObjectNode entityRoot = objectMapper.createObjectNode();
+        ObjectNode product = entityRoot.putObject("ai-entities").putObject("product");
+        ArrayNode metadataFields = product.putArray("metadata-fields");
+        metadataFields.addObject()
+            .put("name", "tenantId")
+            .put("data-type", "ID")
+            .put("required", false)
+            .putArray("destinations")
+            .add("LLM_CONTEXT");
+
+        compilerService.ensureSharedIndexBoundaryMetadataProjection(entityRoot, "product");
+        compilerService.ensureSharedIndexBoundaryMetadataProjection(entityRoot, "product");
+
+        assertThat(metadataFields).hasSize(3);
+        JsonNode tenantField = metadataField(metadataFields, "tenantId");
+        assertThat(tenantField.path("destinations")).extracting(JsonNode::asText)
+            .containsExactly("LLM_CONTEXT", "VECTOR_METADATA");
+        assertThat(tenantField.path("required").asBoolean()).isTrue();
+        assertThat(metadataField(metadataFields, "deploymentId").path("required").asBoolean()).isTrue();
+        assertThat(metadataField(metadataFields, "knowledgeSourceHandleRef").path("required").asBoolean()).isFalse();
+    }
+
+    private JsonNode metadataField(ArrayNode metadataFields, String name) {
+        for (JsonNode field : metadataFields) {
+            if (name.equals(field.path("name").asText())) {
+                return field;
+            }
+        }
+        return objectMapper.missingNode();
+    }
+
     private DeploymentMarketplacePluginInstallEntity install() {
         DeploymentMarketplacePluginInstallEntity install = new DeploymentMarketplacePluginInstallEntity();
         install.setId("mpi-test");
