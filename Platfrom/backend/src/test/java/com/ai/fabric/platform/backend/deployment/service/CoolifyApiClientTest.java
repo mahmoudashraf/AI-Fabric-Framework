@@ -364,6 +364,24 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void placementPreflightReadsConfiguredServerAndDestination() throws Exception {
+        HttpServer server = serverDestinationServer();
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+            CoolifyConnection connection = connection(server);
+
+            JsonNode coolifyServer = client.getServer(connection, "server-uuid");
+            JsonNode destination = client.getDestination(connection, "destination-uuid");
+
+            assertThat(coolifyServer.path("name").asText()).isEqualTo("behavior-worker");
+            assertThat(coolifyServer.path("settings").path("is_reachable").asBoolean()).isTrue();
+            assertThat(destination.path("server_uuid").asText()).isEqualTo("server-uuid");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void transportFailuresUseCoolifyUpstreamExceptionContract() {
         CoolifyApiClient client = new CoolifyApiClient(objectMapper);
 
@@ -629,6 +647,42 @@ class CoolifyApiClientTest {
                     "uuid": "app-uuid",
                     "name": "runtime-dep-123"
                   }
+                }
+                """);
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer serverDestinationServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/servers/server-uuid", exchange -> {
+            if (!"GET".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            sendJson(exchange, 200, """
+                {
+                  "uuid": "server-uuid",
+                  "name": "behavior-worker",
+                  "settings": {
+                    "is_reachable": true,
+                    "is_usable": true
+                  }
+                }
+                """);
+        });
+        server.createContext("/api/v1/destinations/destination-uuid", exchange -> {
+            if (!"GET".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            sendJson(exchange, 200, """
+                {
+                  "uuid": "destination-uuid",
+                  "server_uuid": "server-uuid"
                 }
                 """);
         });

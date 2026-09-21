@@ -14,9 +14,11 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentSourceArtifactS
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetProfileSummary;
 import com.ai.fabric.platform.backend.deployment.model.PatchDeploymentTargetProfileRequest;
 import com.ai.fabric.platform.backend.deployment.model.PromoteDeploymentSourceArtifactRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTargetProfilePlacementRequest;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentProviderResourceActionService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentSourceArtifactService;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentTargetProfileService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -64,6 +66,15 @@ public class DeploymentProviderOperationsController {
     public DeploymentTargetProfileSummary patchTargetProfile(@PathVariable String targetProfileId,
                                                              @RequestBody PatchDeploymentTargetProfileRequest request) {
         return targetProfileService.patchProfile(targetProfileId, request);
+    }
+
+    @PatchMapping("/target-profiles/{targetProfileId}/placement")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public DeploymentTargetProfileSummary updateTargetProfilePlacement(
+        @PathVariable String targetProfileId,
+        @Valid @RequestBody UpdateDeploymentTargetProfilePlacementRequest request
+    ) {
+        return targetProfileService.updatePlacement(targetProfileId, request);
     }
 
     @GetMapping("/source-artifacts")

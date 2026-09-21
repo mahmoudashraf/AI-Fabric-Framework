@@ -1,14 +1,17 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentTargetProfileSummary;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.PatchDeploymentTargetProfileRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTargetProfilePlacementRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DeploymentTargetProfileService {
@@ -24,13 +28,16 @@ public class DeploymentTargetProfileService {
     private final PlatformProvisioningProperties provisioningProperties;
     private final DeploymentTargetProfileRepository targetProfileRepository;
     private final ObjectMapper objectMapper;
+    private final PlatformAuditService platformAuditService;
 
     public DeploymentTargetProfileService(PlatformProvisioningProperties provisioningProperties,
                                           DeploymentTargetProfileRepository targetProfileRepository,
-                                          ObjectMapper objectMapper) {
+                                          ObjectMapper objectMapper,
+                                          PlatformAuditService platformAuditService) {
         this.provisioningProperties = provisioningProperties;
         this.targetProfileRepository = targetProfileRepository;
         this.objectMapper = objectMapper;
+        this.platformAuditService = platformAuditService;
     }
 
     public DeploymentTargetProfileEntity resolveDefaultRuntimeProfile() {
@@ -133,6 +140,72 @@ public class DeploymentTargetProfileService {
         return toSummary(targetProfileRepository.save(profile));
     }
 
+    @Transactional
+    public DeploymentTargetProfileSummary updatePlacement(
+        String targetProfileId,
+        UpdateDeploymentTargetProfilePlacementRequest request
+    ) {
+        DeploymentTargetProfileEntity profile = requireProfile(targetProfileId);
+        if (profile.getProviderType() != DeploymentProviderType.COOLIFY) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Placement updates are supported only for Coolify target profiles: " + targetProfileId
+            );
+        }
+        if (profile.isActive()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Deactivate the target profile before changing its Coolify placement: " + targetProfileId
+            );
+        }
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coolify placement is required.");
+        }
+
+        String serverUuid = requirePlacementValue(request.serverUuid(), "serverUuid");
+        String destinationUuid = requirePlacementValue(request.destinationUuid(), "destinationUuid");
+        JsonNode currentConfig = readJson(profile.getProviderConfigJson());
+        if (!currentConfig.isObject()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Coolify target profile provider configuration must be a JSON object: " + targetProfileId
+            );
+        }
+        String currentServerUuid = text(currentConfig, "serverUuid");
+        String currentDestinationUuid = text(currentConfig, "destinationUuid");
+        requireExpectedPlacement(
+            request.expectedCurrentServerUuid(),
+            currentServerUuid,
+            "serverUuid",
+            targetProfileId
+        );
+        requireExpectedPlacement(
+            request.expectedCurrentDestinationUuid(),
+            currentDestinationUuid,
+            "destinationUuid",
+            targetProfileId
+        );
+
+        ObjectNode updatedConfig = ((ObjectNode) currentConfig).deepCopy();
+        updatedConfig.put("serverUuid", serverUuid);
+        updatedConfig.put("destinationUuid", destinationUuid);
+        profile.setProviderConfigJson(writeJson(updatedConfig));
+        profile.setUpdatedAt(Instant.now());
+        DeploymentTargetProfileEntity saved = targetProfileRepository.save(profile);
+        platformAuditService.record(
+            "DEPLOYMENT_TARGET_PROFILE_PLACEMENT_UPDATED",
+            "DEPLOYMENT_TARGET_PROFILE",
+            targetProfileId,
+            Map.of(
+                "previousServerUuid", valueOrEmpty(currentServerUuid),
+                "previousDestinationUuid", valueOrEmpty(currentDestinationUuid),
+                "serverUuid", serverUuid,
+                "destinationUuid", destinationUuid
+            )
+        );
+        return toSummary(saved);
+    }
+
     public void applyProfileToRelease(DeploymentReleaseEntity release,
                                       DeploymentTargetProfileEntity targetProfile) {
         if (release == null || targetProfile == null) {
@@ -212,5 +285,41 @@ public class DeploymentTargetProfileService {
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to read deployment target profile JSON.", ex);
         }
+    }
+
+    private String writeJson(JsonNode json) {
+        try {
+            return objectMapper.writeValueAsString(json);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to write deployment target profile JSON.", ex);
+        }
+    }
+
+    private String requirePlacementValue(String value, String field) {
+        if (!StringUtils.hasText(value)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coolify placement " + field + " is required.");
+        }
+        return value.trim();
+    }
+
+    private void requireExpectedPlacement(String expected,
+                                          String actual,
+                                          String field,
+                                          String targetProfileId) {
+        if (StringUtils.hasText(expected) && !expected.trim().equals(actual)) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Coolify placement " + field + " changed before this update for target profile " + targetProfileId + "."
+            );
+        }
+    }
+
+    private String text(JsonNode node, String field) {
+        String value = node == null ? null : node.path(field).asText(null);
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 }

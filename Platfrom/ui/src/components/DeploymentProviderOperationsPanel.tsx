@@ -1,5 +1,6 @@
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
+import DnsRoundedIcon from '@mui/icons-material/DnsRounded'
 import HealthAndSafetyRoundedIcon from '@mui/icons-material/HealthAndSafetyRounded'
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
@@ -7,6 +8,7 @@ import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
 import StopRoundedIcon from '@mui/icons-material/StopRounded'
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
+import ToggleOffRoundedIcon from '@mui/icons-material/ToggleOffRounded'
 import {
   Alert,
   Box,
@@ -26,6 +28,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
@@ -42,6 +45,7 @@ import {
   restartDeploymentProviderResource,
   startDeploymentProviderResource,
   stopDeploymentProviderResource,
+  updateDeploymentTargetProfilePlacement,
   type DeploymentProviderPreflightSummary,
   type DeploymentProviderResourceActionSummary,
   type DeploymentProviderResourceHandleSummary,
@@ -111,12 +115,26 @@ function actionReason(action: ProviderResourceAction): string {
   return `Operator requested ${action} from the Platform provider operations UI.`
 }
 
+function coolifyPlacement(profile: DeploymentTargetProfileSummary): { serverUuid: string; destinationUuid: string } {
+  if (!profile.providerConfig || typeof profile.providerConfig !== 'object' || Array.isArray(profile.providerConfig)) {
+    return { serverUuid: '', destinationUuid: '' }
+  }
+  const config = profile.providerConfig as Record<string, unknown>
+  return {
+    serverUuid: typeof config.serverUuid === 'string' ? config.serverUuid : '',
+    destinationUuid: typeof config.destinationUuid === 'string' ? config.destinationUuid : '',
+  }
+}
+
 export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentProviderOperationsPanelProps) {
   const queryClient = useQueryClient()
   const auth = usePlatformAuth()
   const [lastPreflight, setLastPreflight] = useState<DeploymentProviderPreflightSummary | null>(null)
   const [lastStatus, setLastStatus] = useState<DeploymentProviderResourceStatusSummary | null>(null)
   const [logsDialogOpen, setLogsDialogOpen] = useState(false)
+  const [placementProfile, setPlacementProfile] = useState<DeploymentTargetProfileSummary | null>(null)
+  const [placementServerUuid, setPlacementServerUuid] = useState('')
+  const [placementDestinationUuid, setPlacementDestinationUuid] = useState('')
 
   const authDisabled = auth.session?.enabled === false
   const isPlatformAdmin = authDisabled || auth.session?.role === 'PLATFORM_ADMIN'
@@ -160,6 +178,33 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
     },
   })
 
+  const placementMutation = useMutation({
+    mutationFn: ({
+      profile,
+      serverUuid,
+      destinationUuid,
+    }: {
+      profile: DeploymentTargetProfileSummary
+      serverUuid: string
+      destinationUuid: string
+    }) => {
+      const currentPlacement = coolifyPlacement(profile)
+      return updateDeploymentTargetProfilePlacement(profile.id, {
+        serverUuid: serverUuid.trim(),
+        destinationUuid: destinationUuid.trim(),
+        expectedCurrentServerUuid: currentPlacement.serverUuid,
+        expectedCurrentDestinationUuid: currentPlacement.destinationUuid,
+      })
+    },
+    onSuccess: async () => {
+      setPlacementProfile(null)
+      setPlacementServerUuid('')
+      setPlacementDestinationUuid('')
+      setLastPreflight(null)
+      await queryClient.invalidateQueries({ queryKey: ['deployment-target-profiles'] })
+    },
+  })
+
   const statusMutation = useMutation({
     mutationFn: fetchDeploymentProviderResourceStatus,
     onSuccess: (data) => setLastStatus(data),
@@ -192,6 +237,23 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
     },
   })
 
+  const openPlacementDialog = (profile: DeploymentTargetProfileSummary) => {
+    const placement = coolifyPlacement(profile)
+    placementMutation.reset()
+    setPlacementProfile(profile)
+    setPlacementServerUuid(placement.serverUuid)
+    setPlacementDestinationUuid(placement.destinationUuid)
+  }
+
+  const closePlacementDialog = () => {
+    if (!placementMutation.isPending) {
+      setPlacementProfile(null)
+      setPlacementServerUuid('')
+      setPlacementDestinationUuid('')
+      placementMutation.reset()
+    }
+  }
+
   const renderProfileActions = (profile: DeploymentTargetProfileSummary) => (
     <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
       <Tooltip title="Run provider preflight for this target profile">
@@ -208,14 +270,43 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
         </span>
       </Tooltip>
       {isPlatformAdmin && !profile.active ? (
+        <>
+          {profile.providerType === 'COOLIFY' ? (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DnsRoundedIcon />}
+              disabled={placementMutation.isPending}
+              onClick={() => openPlacementDialog(profile)}
+            >
+              Placement
+            </Button>
+          ) : null}
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<CheckCircleRoundedIcon />}
+            disabled={patchProfileMutation.isPending}
+            onClick={() => patchProfileMutation.mutate({ id: profile.id, payload: { active: true } })}
+          >
+            Activate
+          </Button>
+        </>
+      ) : null}
+      {isPlatformAdmin && profile.active && !profile.defaultForRuntime && !profile.defaultForRestartableServices ? (
         <Button
           size="small"
           variant="outlined"
-          startIcon={<CheckCircleRoundedIcon />}
+          color="warning"
+          startIcon={<ToggleOffRoundedIcon />}
           disabled={patchProfileMutation.isPending}
-          onClick={() => patchProfileMutation.mutate({ id: profile.id, payload: { active: true } })}
+          onClick={() => {
+            if (window.confirm(`Deactivate target profile ${profile.name} (${profile.id})? New applies cannot use it until it is activated again.`)) {
+              patchProfileMutation.mutate({ id: profile.id, payload: { active: false } })
+            }
+          }}
         >
-          Activate
+          Deactivate
         </Button>
       ) : null}
       {isPlatformAdmin ? (
@@ -437,6 +528,9 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
             {patchProfileMutation.isSuccess ? (
               <Alert severity="success">Target profile updated.</Alert>
             ) : null}
+            {placementMutation.isSuccess ? (
+              <Alert severity="success">Coolify placement updated. Run preflight before activating the target profile.</Alert>
+            ) : null}
             {preflightMutation.isError ? (
               <Alert severity="error">
                 {preflightMutation.error instanceof Error
@@ -445,7 +539,7 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
               </Alert>
             ) : null}
             {lastPreflight ? (
-              <Alert severity={lastPreflight.status === 'READY' ? 'success' : 'warning'}>
+              <Alert severity={['READY', 'PASSED'].includes(lastPreflight.status) ? 'success' : 'warning'}>
                 <Stack spacing={1}>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip size="small" label={lastPreflight.status} color={statusChipColor(lastPreflight.status)} />
@@ -617,6 +711,71 @@ export function DeploymentProviderOperationsPanel({ deploymentId }: DeploymentPr
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setLogsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={placementProfile !== null} onClose={closePlacementDialog} fullWidth maxWidth="sm">
+        <DialogTitle>Coolify Target Placement</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
+            <Alert severity="warning">
+              The target profile must remain inactive while placement changes. Save the new coordinates, run provider preflight, and activate only after the server and destination checks pass.
+            </Alert>
+            {placementProfile ? (
+              <Typography variant="body2" color="text.secondary">
+                {placementProfile.name} ({placementProfile.id})
+              </Typography>
+            ) : null}
+            <TextField
+              label="Server UUID"
+              value={placementServerUuid}
+              onChange={(event) => setPlacementServerUuid(event.target.value)}
+              fullWidth
+              required
+              autoComplete="off"
+              disabled={placementMutation.isPending}
+            />
+            <TextField
+              label="Destination UUID"
+              value={placementDestinationUuid}
+              onChange={(event) => setPlacementDestinationUuid(event.target.value)}
+              fullWidth
+              required
+              autoComplete="off"
+              disabled={placementMutation.isPending}
+            />
+            {placementMutation.isError ? (
+              <Alert severity="error">
+                {placementMutation.error instanceof Error
+                  ? placementMutation.error.message
+                  : 'Failed to update Coolify placement'}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closePlacementDialog} disabled={placementMutation.isPending}>Cancel</Button>
+          <Button
+            variant="contained"
+            startIcon={<DnsRoundedIcon />}
+            disabled={
+              placementMutation.isPending
+              || !placementProfile
+              || placementServerUuid.trim().length === 0
+              || placementDestinationUuid.trim().length === 0
+            }
+            onClick={() => {
+              if (placementProfile) {
+                placementMutation.mutate({
+                  profile: placementProfile,
+                  serverUuid: placementServerUuid,
+                  destinationUuid: placementDestinationUuid,
+                })
+              }
+            }}
+          >
+            Save placement
+          </Button>
         </DialogActions>
       </Dialog>
     </Stack>

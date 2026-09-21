@@ -2305,6 +2305,13 @@ export type PatchDeploymentTargetProfileRequest = {
   platformServicesAllowed?: boolean
 }
 
+export type UpdateDeploymentTargetProfilePlacementRequest = {
+  serverUuid: string
+  destinationUuid: string
+  expectedCurrentServerUuid?: string
+  expectedCurrentDestinationUuid?: string
+}
+
 export type DeploymentProviderResourceHandleSummary = {
   id: string
   deploymentId: string
@@ -5114,6 +5121,19 @@ export function promoteDeploymentSourceArtifact(artifactId: string, promotionCha
 export function patchDeploymentTargetProfile(targetProfileId: string, payload: PatchDeploymentTargetProfileRequest) {
   return request<DeploymentTargetProfileSummary>(
     `/api/deployment-provider/target-profiles/${encodeURIComponent(targetProfileId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function updateDeploymentTargetProfilePlacement(
+  targetProfileId: string,
+  payload: UpdateDeploymentTargetProfilePlacementRequest,
+) {
+  return request<DeploymentTargetProfileSummary>(
+    `/api/deployment-provider/target-profiles/${encodeURIComponent(targetProfileId)}/placement`,
     {
       method: 'PATCH',
       body: JSON.stringify(payload),

@@ -54,6 +54,26 @@ public class CoolifyApiClient {
         return StringUtils.hasText(version) ? version : response.toString();
     }
 
+    public JsonNode getServer(CoolifyConnection connection, String serverUuid) {
+        return requestJson(
+            connection,
+            "GET",
+            "/servers/" + encodePath(serverUuid),
+            null,
+            false
+        );
+    }
+
+    public JsonNode getDestination(CoolifyConnection connection, String destinationUuid) {
+        return requestJson(
+            connection,
+            "GET",
+            "/destinations/" + encodePath(destinationUuid),
+            null,
+            false
+        );
+    }
+
     public List<CoolifyApplicationSummary> listApplications(CoolifyConnection connection) {
         JsonNode response = requestJson(connection, "GET", "/applications", null, true);
         List<CoolifyApplicationSummary> applications = new ArrayList<>();

@@ -108,11 +108,52 @@ public class CoolifyTargetProfileResolver {
                 String version = coolifyApiClient.version(connection);
                 checks.add("version_endpoint_ok");
                 checks.add("version_endpoint_used_for_liveness");
+                JsonNode server = coolifyApiClient.getServer(connection, connection.config().serverUuid());
+                checks.add("server_endpoint_ok");
+                JsonNode destination = coolifyApiClient.getDestination(connection, connection.config().destinationUuid());
+                checks.add("destination_endpoint_ok");
                 details.put("attempts", attempt);
                 details.put("projectUuid", connection.config().projectUuid());
                 details.put("environmentUuid", connection.config().environmentUuid());
                 details.put("serverUuid", connection.config().serverUuid());
                 details.put("destinationUuid", connection.config().destinationUuid());
+                boolean serverReachable = server.path("settings").path("is_reachable").asBoolean(false);
+                boolean serverUsable = server.path("settings").path("is_usable").asBoolean(false);
+                details.put("serverName", text(server, "name"));
+                details.put("serverReachable", serverReachable);
+                details.put("serverUsable", serverUsable);
+                if (!serverReachable || !serverUsable) {
+                    checks.add("server_not_ready");
+                    return new DeploymentProviderPreflightSummary(
+                        profile.getId(),
+                        profile.getProviderType(),
+                        "FAILED",
+                        "Coolify deployment server is not reachable and usable.",
+                        connection.baseUrl(),
+                        version,
+                        List.copyOf(checks),
+                        details,
+                        checkedAt
+                    );
+                }
+                checks.add("server_ready");
+                String destinationServerUuid = text(destination, "server_uuid");
+                details.put("destinationServerUuid", destinationServerUuid);
+                if (!connection.config().serverUuid().equals(destinationServerUuid)) {
+                    checks.add("destination_server_mismatch");
+                    return new DeploymentProviderPreflightSummary(
+                        profile.getId(),
+                        profile.getProviderType(),
+                        "FAILED",
+                        "Coolify destination does not belong to the configured deployment server.",
+                        connection.baseUrl(),
+                        version,
+                        List.copyOf(checks),
+                        details,
+                        checkedAt
+                    );
+                }
+                checks.add("destination_server_matches");
                 if (StringUtils.hasText(connection.config().apiVersionPinned())
                     && !connection.config().apiVersionPinned().equals(version)) {
                     checks.add("version_pin_mismatch");
@@ -132,7 +173,7 @@ public class CoolifyTargetProfileResolver {
                     profile.getId(),
                     profile.getProviderType(),
                     "PASSED",
-                    "Coolify API version endpoint is reachable and credentials are valid.",
+                    "Coolify API, deployment server, and destination are reachable and aligned.",
                     connection.baseUrl(),
                     version,
                     List.copyOf(checks),

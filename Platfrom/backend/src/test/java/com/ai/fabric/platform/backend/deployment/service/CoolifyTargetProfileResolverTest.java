@@ -14,6 +14,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +33,8 @@ class CoolifyTargetProfileResolverTest {
 
         when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential));
         when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
-        when(coolifyApiClient.version(org.mockito.ArgumentMatchers.any())).thenReturn("4.0.0");
+        when(coolifyApiClient.version(any())).thenReturn("4.0.0");
+        stubReadyPlacement(coolifyApiClient);
 
         CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
             credentialRepository,
@@ -45,7 +48,15 @@ class CoolifyTargetProfileResolverTest {
         assertThat(summary.status()).isEqualTo("PASSED");
         assertThat(summary.version()).isEqualTo("4.0.0");
         assertThat(summary.message()).doesNotContain("mock-token");
-        assertThat(summary.checks()).contains("credential_resolved", "version_endpoint_ok", "version_endpoint_used_for_liveness");
+        assertThat(summary.checks()).contains(
+            "credential_resolved",
+            "version_endpoint_ok",
+            "version_endpoint_used_for_liveness",
+            "server_endpoint_ok",
+            "server_ready",
+            "destination_endpoint_ok",
+            "destination_server_matches"
+        );
     }
 
     @Test
@@ -58,9 +69,10 @@ class CoolifyTargetProfileResolverTest {
 
         when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential));
         when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
-        when(coolifyApiClient.version(org.mockito.ArgumentMatchers.any()))
+        when(coolifyApiClient.version(any()))
             .thenThrow(new CoolifyApiException("Coolify API transport failed for /health.", 502, "/health"))
             .thenReturn("4.0.0");
+        stubReadyPlacement(coolifyApiClient);
 
         CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
             credentialRepository,
@@ -74,6 +86,38 @@ class CoolifyTargetProfileResolverTest {
         assertThat(summary.status()).isEqualTo("PASSED");
         assertThat(summary.checks()).contains("coolify_api_retry_2", "version_endpoint_ok");
         assertThat(summary.details().path("attempts").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    void preflightFailsWhenDestinationBelongsToAnotherServer() throws Exception {
+        DeploymentProviderCredentialRepository credentialRepository = mock(DeploymentProviderCredentialRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        DeploymentTargetProfileEntity profile = profile();
+
+        when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential()));
+        when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
+        when(coolifyApiClient.version(any())).thenReturn("4.0.0");
+        when(coolifyApiClient.getServer(any(), eq("server"))).thenReturn(objectMapper.readTree("""
+            {"name":"behavior-worker","settings":{"is_reachable":true,"is_usable":true}}
+            """));
+        when(coolifyApiClient.getDestination(any(), eq("destination"))).thenReturn(objectMapper.readTree("""
+            {"uuid":"destination","server_uuid":"another-server"}
+            """));
+
+        CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
+            credentialRepository,
+            platformSecretService,
+            coolifyApiClient,
+            objectMapper
+        );
+
+        DeploymentProviderPreflightSummary summary = resolver.preflight(profile);
+
+        assertThat(summary.status()).isEqualTo("FAILED");
+        assertThat(summary.message()).contains("destination").contains("configured deployment server");
+        assertThat(summary.checks()).contains("server_ready", "destination_server_mismatch");
+        assertThat(summary.details().path("destinationServerUuid").asText()).isEqualTo("another-server");
     }
 
     @Test
@@ -125,6 +169,19 @@ class CoolifyTargetProfileResolverTest {
         credential.setCreatedAt(Instant.parse("2026-05-01T00:00:00Z"));
         credential.setUpdatedAt(Instant.parse("2026-05-01T00:00:00Z"));
         return credential;
+    }
+
+    private void stubReadyPlacement(CoolifyApiClient coolifyApiClient) {
+        try {
+            when(coolifyApiClient.getServer(any(), eq("server"))).thenReturn(objectMapper.readTree("""
+                {"name":"behavior-worker","settings":{"is_reachable":true,"is_usable":true}}
+                """));
+            when(coolifyApiClient.getDestination(any(), eq("destination"))).thenReturn(objectMapper.readTree("""
+                {"uuid":"destination","server_uuid":"server"}
+                """));
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     private DeploymentTargetProfileEntity profile() {

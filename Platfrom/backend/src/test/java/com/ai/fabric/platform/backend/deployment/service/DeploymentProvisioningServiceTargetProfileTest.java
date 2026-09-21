@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
@@ -7,6 +8,7 @@ import com.ai.fabric.platform.backend.deployment.entity.DeploymentTargetProfileE
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.PatchDeploymentTargetProfileRequest;
+import com.ai.fabric.platform.backend.deployment.model.UpdateDeploymentTargetProfilePlacementRequest;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentTargetProfileRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -117,7 +121,8 @@ class DeploymentProvisioningServiceTargetProfileTest {
         DeploymentTargetProfileService service = new DeploymentTargetProfileService(
             provisioningProperties(),
             repository,
-            new ObjectMapper()
+            new ObjectMapper(),
+            mock(PlatformAuditService.class)
         );
 
         var summary = service.patchProfile(
@@ -145,7 +150,8 @@ class DeploymentProvisioningServiceTargetProfileTest {
         DeploymentTargetProfileService service = new DeploymentTargetProfileService(
             provisioningProperties(),
             repository,
-            new ObjectMapper()
+            new ObjectMapper(),
+            mock(PlatformAuditService.class)
         );
 
         DeploymentTargetProfileEntity resolved = service.resolveDefaultRuntimeProfile();
@@ -165,7 +171,8 @@ class DeploymentProvisioningServiceTargetProfileTest {
         DeploymentTargetProfileService service = new DeploymentTargetProfileService(
             provisioningProperties(),
             repository,
-            new ObjectMapper()
+            new ObjectMapper(),
+            mock(PlatformAuditService.class)
         );
 
         assertThatThrownBy(() -> service.patchProfile(
@@ -173,6 +180,106 @@ class DeploymentProvisioningServiceTargetProfileTest {
             new PatchDeploymentTargetProfileRequest(null, true, null, null)
         ))
             .hasMessageContaining("must be active");
+    }
+
+    @Test
+    void updatePlacementChangesOnlyInactiveCoolifyCoordinatesAndRecordsAudit() {
+        DeploymentTargetProfileRepository repository = mock(DeploymentTargetProfileRepository.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+        DeploymentTargetProfileEntity coolify = profile("dtp-coolify-behavior", DeploymentProviderType.COOLIFY);
+        coolify.setActive(false);
+        coolify.setProviderConfigJson("""
+            {
+              "baseUrl": "https://coolify.example",
+              "projectUuid": "project-uuid",
+              "serverUuid": "server-old",
+              "destinationUuid": "destination-old"
+            }
+            """);
+        when(repository.findById(coolify.getId())).thenReturn(Optional.of(coolify));
+        when(repository.save(any(DeploymentTargetProfileEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeploymentTargetProfileService service = new DeploymentTargetProfileService(
+            provisioningProperties(),
+            repository,
+            new ObjectMapper(),
+            auditService
+        );
+
+        var summary = service.updatePlacement(
+            coolify.getId(),
+            new UpdateDeploymentTargetProfilePlacementRequest(
+                "server-new",
+                "destination-new",
+                "server-old",
+                "destination-old"
+            )
+        );
+
+        assertThat(summary.providerConfig().path("serverUuid").asText()).isEqualTo("server-new");
+        assertThat(summary.providerConfig().path("destinationUuid").asText()).isEqualTo("destination-new");
+        assertThat(summary.providerConfig().path("projectUuid").asText()).isEqualTo("project-uuid");
+        verify(auditService).record(
+            eq("DEPLOYMENT_TARGET_PROFILE_PLACEMENT_UPDATED"),
+            eq("DEPLOYMENT_TARGET_PROFILE"),
+            eq(coolify.getId()),
+            argThat(details -> "server-old".equals(details.get("previousServerUuid"))
+                && "destination-old".equals(details.get("previousDestinationUuid"))
+                && "server-new".equals(details.get("serverUuid"))
+                && "destination-new".equals(details.get("destinationUuid")))
+        );
+    }
+
+    @Test
+    void updatePlacementRejectsActiveTargetProfile() {
+        DeploymentTargetProfileRepository repository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentTargetProfileEntity coolify = profile("dtp-coolify-behavior", DeploymentProviderType.COOLIFY);
+        when(repository.findById(coolify.getId())).thenReturn(Optional.of(coolify));
+        DeploymentTargetProfileService service = new DeploymentTargetProfileService(
+            provisioningProperties(),
+            repository,
+            new ObjectMapper(),
+            mock(PlatformAuditService.class)
+        );
+
+        assertThatThrownBy(() -> service.updatePlacement(
+            coolify.getId(),
+            new UpdateDeploymentTargetProfilePlacementRequest(
+                "server-new",
+                "destination-new",
+                null,
+                null
+            )
+        ))
+            .hasMessageContaining("Deactivate the target profile");
+    }
+
+    @Test
+    void updatePlacementRejectsStaleExpectedCoordinates() {
+        DeploymentTargetProfileRepository repository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentTargetProfileEntity coolify = profile("dtp-coolify-behavior", DeploymentProviderType.COOLIFY);
+        coolify.setActive(false);
+        coolify.setProviderConfigJson("""
+            {"serverUuid":"server-current","destinationUuid":"destination-current"}
+            """);
+        when(repository.findById(coolify.getId())).thenReturn(Optional.of(coolify));
+        DeploymentTargetProfileService service = new DeploymentTargetProfileService(
+            provisioningProperties(),
+            repository,
+            new ObjectMapper(),
+            mock(PlatformAuditService.class)
+        );
+
+        assertThatThrownBy(() -> service.updatePlacement(
+            coolify.getId(),
+            new UpdateDeploymentTargetProfilePlacementRequest(
+                "server-new",
+                "destination-new",
+                "server-stale",
+                "destination-current"
+            )
+        ))
+            .hasMessageContaining("serverUuid changed before this update");
     }
 
     private static DeploymentTargetProfileEntity profile(String id, DeploymentProviderType providerType) {
