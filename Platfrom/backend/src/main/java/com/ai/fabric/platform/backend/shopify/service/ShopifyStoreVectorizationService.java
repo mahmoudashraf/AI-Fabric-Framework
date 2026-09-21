@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
@@ -31,6 +32,7 @@ import com.ai.fabric.platform.backend.vectorization.model.UpsertVectorizationSou
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationOverviewSummary;
 import com.ai.fabric.platform.backend.vectorization.model.VectorizationRunSummary;
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
@@ -52,6 +54,8 @@ public class ShopifyStoreVectorizationService {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
     private static final String BRIDGE_ADMIN_AUTH_HEADER_NAME = "X-BRIDGE-API-KEY";
+    private static final String SHOPIFY_CATALOG_DATASET_ID = "shopify-catalog";
+    private static final String SHOPIFY_POLICIES_DATASET_ID = "shopify-policies";
 
     private final ShopifyStoreConnectionRepository repository;
     private final DeploymentRepository deploymentRepository;
@@ -353,7 +357,7 @@ public class ShopifyStoreVectorizationService {
             "PLATFORM_MANAGED_AUTO",
             connection.id(),
             buildEntityScope(store),
-            buildMappingConfig(store),
+            buildMappingConfig(store, deployment),
             buildExecutionConfig(store)
         );
         if (trustedCaller) {
@@ -424,7 +428,9 @@ public class ShopifyStoreVectorizationService {
         return datasets;
     }
 
-    private ObjectNode buildMappingConfig(ShopifyStoreConnectionEntity store) {
+    private ObjectNode buildMappingConfig(ShopifyStoreConnectionEntity store,
+                                          DeploymentEntity deployment) {
+        Map<String, String> datasetHandles = resolveMarketplaceDatasetHandles(deployment);
         ObjectNode mapping = JSON.objectNode();
         ObjectNode sourceCategories = mapping.putObject("sourceCategories");
         sourceCategories.put("productsEnabled", store.isProductsEnabled());
@@ -468,6 +474,17 @@ public class ShopifyStoreVectorizationService {
         productMetadata.put("totalInventory", "totalInventory");
         productMetadata.put("availableVariantCount", "availableVariantCount");
         productMetadata.put("updatedAt", "updatedAt");
+        if (ShopifyCompanionPluginSelection.requiresCatalogData(store)) {
+            productMapping.putObject("metadataStaticValues").put(
+                "knowledgeSourceHandleRef",
+                requireDatasetHandle(
+                    datasetHandles,
+                    ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID,
+                    SHOPIFY_CATALOG_DATASET_ID,
+                    ShopifyCompanionPluginSelection.ENTITY_TYPE_PRODUCT
+                )
+            );
+        }
 
         ObjectNode supportPolicyMapping = entityMappings.putObject("support-policy");
         supportPolicyMapping.put("dataset", "support-policy");
@@ -488,6 +505,17 @@ public class ShopifyStoreVectorizationService {
         supportPolicyMetadata.put("definitionName", "definitionName");
         supportPolicyMetadata.put("storefrontUrl", "storefrontUrl");
         supportPolicyMetadata.put("updatedAt", "updatedAt");
+        if (ShopifyCompanionPluginSelection.requiresPoliciesData(store)) {
+            supportPolicyMapping.putObject("metadataStaticValues").put(
+                "knowledgeSourceHandleRef",
+                requireDatasetHandle(
+                    datasetHandles,
+                    ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID,
+                    SHOPIFY_POLICIES_DATASET_ID,
+                    ShopifyCompanionPluginSelection.ENTITY_TYPE_SUPPORT_POLICY
+                )
+            );
+        }
 
         ObjectNode datasets = mapping.putObject("datasets");
         if (ShopifyCompanionPluginSelection.requiresCatalogData(store)) {
@@ -497,6 +525,49 @@ public class ShopifyStoreVectorizationService {
             datasets.put("support-policy", ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID + "/shopify-policies");
         }
         return mapping;
+    }
+
+    private Map<String, String> resolveMarketplaceDatasetHandles(DeploymentEntity deployment) {
+        DeploymentDraftResponse draft = deploymentService.getActiveDraftForDeploymentForTrustedCaller(deployment.getId());
+        JsonNode datasets = draft == null || draft.marketplaceDatasetConfig() == null
+            ? null
+            : draft.marketplaceDatasetConfig().path("datasets");
+        LinkedHashMap<String, String> handles = new LinkedHashMap<>();
+        if (datasets == null || !datasets.isArray()) {
+            return handles;
+        }
+        for (JsonNode dataset : datasets) {
+            String pluginId = blankToNull(dataset.path("marketplacePluginId").asText(null));
+            String datasetId = blankToNull(dataset.path("datasetId").asText(null));
+            String entityType = blankToNull(dataset.path("entityType").asText(null));
+            String handleRef = blankToNull(dataset.path("handleRef").asText(null));
+            if (pluginId == null || datasetId == null || entityType == null || handleRef == null) {
+                continue;
+            }
+            handles.put(datasetHandleKey(pluginId, datasetId, entityType), handleRef);
+        }
+        return handles;
+    }
+
+    private String requireDatasetHandle(Map<String, String> handles,
+                                        String pluginId,
+                                        String datasetId,
+                                        String entityType) {
+        String handleRef = handles.get(datasetHandleKey(pluginId, datasetId, entityType));
+        if (handleRef == null) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Shopify vectorization cannot be configured until marketplace dataset "
+                    + pluginId + "/" + datasetId + " is compiled for deployment retrieval."
+            );
+        }
+        return handleRef;
+    }
+
+    private String datasetHandleKey(String pluginId, String datasetId, String entityType) {
+        return normalizePluginId(pluginId)
+            + "/" + datasetId.trim().toLowerCase(Locale.ROOT)
+            + "/" + ShopifyStoreVectorizationConstants.normalizeEntityType(entityType);
     }
 
     private ObjectNode buildExecutionConfig(ShopifyStoreConnectionEntity store) {

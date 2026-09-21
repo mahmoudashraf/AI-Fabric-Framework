@@ -250,7 +250,7 @@
       },
       "expectedBehavior": "honest_medical_claim_gap",
       "requiredConcepts": [],
-      "forbiddenClaims": ["treat knee pain", "medical advice"],
+      "forbiddenClaims": ["yes, it can treat", "clinically proven", "recommended treatment", "medical advice"],
       "expectedDenial": false,
       "groundingRequired": false
     },

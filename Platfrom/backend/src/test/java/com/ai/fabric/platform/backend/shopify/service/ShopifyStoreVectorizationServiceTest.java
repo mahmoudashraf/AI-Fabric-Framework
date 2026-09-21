@@ -4,6 +4,7 @@ import com.ai.fabric.platform.backend.audit.service.PlatformAuditService;
 import com.ai.fabric.platform.backend.config.ShopifyCompanionBootstrapProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentReleaseEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentDraftResponse;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentRepository;
 import com.ai.fabric.platform.backend.deployment.repository.DeploymentReleaseRepository;
 import com.ai.fabric.platform.backend.deployment.service.DeploymentService;
@@ -402,10 +403,14 @@ class ShopifyStoreVectorizationServiceTest {
                 && request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("firstAvailableVariantId").isMissingNode()
                 && "totalInventory".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("totalInventory").asText())
                 && "availableVariantCount".equals(request.mappingConfig().path("entityMappings").path("product").path("metadataFieldMappings").path("availableVariantCount").asText())
+                && "plugin/mkp-data-shopify-catalog/tenant/ten-123/shopify-catalog/catalog-hash/product"
+                    .equals(request.mappingConfig().path("entityMappings").path("product").path("metadataStaticValues").path("knowledgeSourceHandleRef").asText())
                 && "content".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("entityFieldMappings").path("content").asText())
                 && "content".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("entityFieldMappings").path("description").asText())
                 && "title".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataFieldMappings").path("title").asText())
                 && "sourceCategory".equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataFieldMappings").path("scope").asText())
+                && "plugin/mkp-data-shopify-policies/tenant/ten-123/shopify-policies/policies-hash/support-policy"
+                    .equals(request.mappingConfig().path("entityMappings").path("support-policy").path("metadataStaticValues").path("knowledgeSourceHandleRef").asText())
                 && request.executionConfig().path("batchSize").asInt() == 50
         ));
         verify(installService).createInstall(eq("dep-123"), argThat((CreateDeploymentMarketplaceInstallRequest request) ->
@@ -938,8 +943,23 @@ class ShopifyStoreVectorizationServiceTest {
                                                      VectorizationService vectorizationService,
             ShopifyStoreVectorizationPolicyService policyService,
             ShopifyStoreVectorizationFieldCatalogService fieldCatalogService,
-            ShopifyStoreVectorizationEventService eventService,
+                                                     ShopifyStoreVectorizationEventService eventService,
                                                      PlatformAuditService auditService) {
+        var marketplaceDatasetConfig = JSON.objectNode();
+        var datasets = marketplaceDatasetConfig.putArray("datasets");
+        datasets.addObject()
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.DATA_CATALOG_PLUGIN_ID)
+            .put("datasetId", "shopify-catalog")
+            .put("entityType", ShopifyCompanionPluginSelection.ENTITY_TYPE_PRODUCT)
+            .put("handleRef", "plugin/mkp-data-shopify-catalog/tenant/ten-123/shopify-catalog/catalog-hash/product");
+        datasets.addObject()
+            .put("marketplacePluginId", ShopifyCompanionPluginSelection.DATA_POLICIES_PLUGIN_ID)
+            .put("datasetId", "shopify-policies")
+            .put("entityType", ShopifyCompanionPluginSelection.ENTITY_TYPE_SUPPORT_POLICY)
+            .put("handleRef", "plugin/mkp-data-shopify-policies/tenant/ten-123/shopify-policies/policies-hash/support-policy");
+        DeploymentDraftResponse deploymentDraft = mock(DeploymentDraftResponse.class);
+        when(deploymentDraft.marketplaceDatasetConfig()).thenReturn(marketplaceDatasetConfig);
+        when(deploymentService.getActiveDraftForDeploymentForTrustedCaller(any())).thenReturn(deploymentDraft);
         return new ShopifyStoreVectorizationService(
             repository,
             deploymentRepository,
