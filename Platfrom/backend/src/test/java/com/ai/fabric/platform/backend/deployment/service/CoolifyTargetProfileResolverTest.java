@@ -101,9 +101,15 @@ class CoolifyTargetProfileResolverTest {
         when(coolifyApiClient.getServer(any(), eq("server"))).thenReturn(objectMapper.readTree("""
             {"name":"behavior-worker","settings":{"is_reachable":true,"is_usable":true}}
             """));
-        when(coolifyApiClient.getDestination(any(), eq("destination"))).thenReturn(objectMapper.readTree("""
-            {"uuid":"destination","server_uuid":"another-server"}
-            """));
+        when(coolifyApiClient.resolveDestinationPlacement(any(), eq("server"), eq("destination")))
+            .thenReturn(Optional.of(new CoolifyDestinationPlacement(
+                "destination",
+                "another-server",
+                "DESTINATION_ENDPOINT",
+                objectMapper.readTree("""
+                    {"uuid":"destination","server_uuid":"another-server"}
+                    """)
+            )));
 
         CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
             credentialRepository,
@@ -143,6 +149,36 @@ class CoolifyTargetProfileResolverTest {
     }
 
     @Test
+    void preflightFailsCleanlyWhenConfiguredDestinationCannotBeVerified() throws Exception {
+        DeploymentProviderCredentialRepository credentialRepository = mock(DeploymentProviderCredentialRepository.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+
+        when(credentialRepository.findById("dpc-coolify-staging")).thenReturn(Optional.of(credential()));
+        when(platformSecretService.resolveSecret("COOLIFY_STAGING_API_TOKEN")).thenReturn("mock-token");
+        when(coolifyApiClient.version(any())).thenReturn("4.0.0");
+        when(coolifyApiClient.getServer(any(), eq("server"))).thenReturn(objectMapper.readTree("""
+            {"name":"behavior-worker","settings":{"is_reachable":true,"is_usable":true}}
+            """));
+        when(coolifyApiClient.resolveDestinationPlacement(any(), eq("server"), eq("destination")))
+            .thenReturn(Optional.empty());
+
+        CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
+            credentialRepository,
+            platformSecretService,
+            coolifyApiClient,
+            objectMapper
+        );
+
+        DeploymentProviderPreflightSummary summary = resolver.preflight(profile());
+
+        assertThat(summary.status()).isEqualTo("FAILED");
+        assertThat(summary.message()).contains("destination").contains("verified");
+        assertThat(summary.checks()).contains("server_ready", "destination_not_found");
+        assertThat(summary.details().path("destinationVerificationSource").asText()).isEqualTo("NOT_FOUND");
+    }
+
+    @Test
     void nonGroupedProfileStillRequiresEnvironmentUuid() {
         CoolifyTargetProfileResolver resolver = new CoolifyTargetProfileResolver(
             mock(DeploymentProviderCredentialRepository.class),
@@ -176,9 +212,15 @@ class CoolifyTargetProfileResolverTest {
             when(coolifyApiClient.getServer(any(), eq("server"))).thenReturn(objectMapper.readTree("""
                 {"name":"behavior-worker","settings":{"is_reachable":true,"is_usable":true}}
                 """));
-            when(coolifyApiClient.getDestination(any(), eq("destination"))).thenReturn(objectMapper.readTree("""
-                {"uuid":"destination","server_uuid":"server"}
-                """));
+            when(coolifyApiClient.resolveDestinationPlacement(any(), eq("server"), eq("destination")))
+                .thenReturn(Optional.of(new CoolifyDestinationPlacement(
+                    "destination",
+                    "server",
+                    "DESTINATION_ENDPOINT",
+                    objectMapper.readTree("""
+                        {"uuid":"destination","server_uuid":"server"}
+                        """)
+                )));
         } catch (Exception ex) {
             throw new IllegalStateException(ex);
         }

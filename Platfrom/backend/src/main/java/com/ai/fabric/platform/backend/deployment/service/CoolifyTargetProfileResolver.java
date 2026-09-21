@@ -109,9 +109,23 @@ public class CoolifyTargetProfileResolver {
                 checks.add("version_endpoint_ok");
                 checks.add("version_endpoint_used_for_liveness");
                 JsonNode server = coolifyApiClient.getServer(connection, connection.config().serverUuid());
+                if (server == null || server.isMissingNode() || server.isNull() || !server.isObject()) {
+                    checks.add("server_not_found");
+                    details.put("attempts", attempt);
+                    details.put("serverUuid", connection.config().serverUuid());
+                    return new DeploymentProviderPreflightSummary(
+                        profile.getId(),
+                        profile.getProviderType(),
+                        "FAILED",
+                        "Configured Coolify deployment server was not found.",
+                        connection.baseUrl(),
+                        version,
+                        List.copyOf(checks),
+                        details,
+                        checkedAt
+                    );
+                }
                 checks.add("server_endpoint_ok");
-                JsonNode destination = coolifyApiClient.getDestination(connection, connection.config().destinationUuid());
-                checks.add("destination_endpoint_ok");
                 details.put("attempts", attempt);
                 details.put("projectUuid", connection.config().projectUuid());
                 details.put("environmentUuid", connection.config().environmentUuid());
@@ -137,8 +151,30 @@ public class CoolifyTargetProfileResolver {
                     );
                 }
                 checks.add("server_ready");
-                String destinationServerUuid = text(destination, "server_uuid");
+                CoolifyDestinationPlacement destination = coolifyApiClient.resolveDestinationPlacement(
+                    connection,
+                    connection.config().serverUuid(),
+                    connection.config().destinationUuid()
+                ).orElse(null);
+                if (destination == null) {
+                    checks.add("destination_not_found");
+                    details.put("destinationVerificationSource", "NOT_FOUND");
+                    return new DeploymentProviderPreflightSummary(
+                        profile.getId(),
+                        profile.getProviderType(),
+                        "FAILED",
+                        "Configured Coolify destination could not be verified for the deployment server.",
+                        connection.baseUrl(),
+                        version,
+                        List.copyOf(checks),
+                        details,
+                        checkedAt
+                    );
+                }
+                checks.add(destinationVerificationCheck(destination.verificationSource()));
+                String destinationServerUuid = destination.serverUuid();
                 details.put("destinationServerUuid", destinationServerUuid);
+                details.put("destinationVerificationSource", destination.verificationSource());
                 if (!connection.config().serverUuid().equals(destinationServerUuid)) {
                     checks.add("destination_server_mismatch");
                     return new DeploymentProviderPreflightSummary(
@@ -202,6 +238,15 @@ public class CoolifyTargetProfileResolver {
             details,
             checkedAt
         );
+    }
+
+    private String destinationVerificationCheck(String verificationSource) {
+        return switch (verificationSource) {
+            case "DESTINATION_ENDPOINT" -> "destination_endpoint_ok";
+            case "SERVER_DESTINATION_INVENTORY" -> "destination_server_inventory_ok";
+            case "RESOURCE_INVENTORY" -> "destination_resource_inventory_ok";
+            default -> "destination_verified";
+        };
     }
 
     private boolean isTransientPreflightFailure(RuntimeException ex) {

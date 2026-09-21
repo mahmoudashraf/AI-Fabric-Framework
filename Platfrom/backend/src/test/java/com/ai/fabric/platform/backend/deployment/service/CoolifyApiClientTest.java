@@ -382,6 +382,26 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void placementPreflightFallsBackToResourceInventoryForCoolifyWithoutDestinationEndpoints() throws Exception {
+        HttpServer server = destinationResourceFallbackServer();
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            CoolifyDestinationPlacement placement = client.resolveDestinationPlacement(
+                connection(server),
+                "server-uuid",
+                "destination-uuid"
+            ).orElseThrow();
+
+            assertThat(placement.destinationUuid()).isEqualTo("destination-uuid");
+            assertThat(placement.serverUuid()).isEqualTo("server-uuid");
+            assertThat(placement.verificationSource()).isEqualTo("RESOURCE_INVENTORY");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void transportFailuresUseCoolifyUpstreamExceptionContract() {
         CoolifyApiClient client = new CoolifyApiClient(objectMapper);
 
@@ -686,6 +706,28 @@ class CoolifyApiClientTest {
                 }
                 """);
         });
+        server.start();
+        return server;
+    }
+
+    private HttpServer destinationResourceFallbackServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/destinations/destination-uuid", exchange ->
+            sendJson(exchange, 404, "{\"message\":\"Not found.\"}"));
+        server.createContext("/api/v1/servers/server-uuid/destinations", exchange ->
+            sendJson(exchange, 404, "{\"message\":\"Not found.\"}"));
+        server.createContext("/api/v1/applications", exchange -> sendJson(exchange, 200, """
+            [
+              {
+                "uuid": "app-uuid",
+                "destination": {
+                  "uuid": "destination-uuid",
+                  "server": {"uuid": "server-uuid"}
+                }
+              }
+            ]
+            """));
+        server.createContext("/api/v1/databases", exchange -> sendJson(exchange, 200, "[]"));
         server.start();
         return server;
     }

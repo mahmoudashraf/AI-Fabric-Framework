@@ -74,6 +74,47 @@ public class CoolifyApiClient {
         );
     }
 
+    public Optional<CoolifyDestinationPlacement> resolveDestinationPlacement(CoolifyConnection connection,
+                                                                              String serverUuid,
+                                                                              String destinationUuid) {
+        Optional<CoolifyDestinationPlacement> direct = destinationPlacement(
+            getDestination(connection, destinationUuid),
+            destinationUuid,
+            "DESTINATION_ENDPOINT"
+        );
+        if (direct.isPresent()) {
+            return direct;
+        }
+
+        JsonNode serverDestinations = requestJson(
+            connection,
+            "GET",
+            "/servers/" + encodePath(serverUuid) + "/destinations",
+            null,
+            false
+        );
+        Optional<CoolifyDestinationPlacement> serverInventory = destinationPlacementFromArray(
+            serverDestinations,
+            destinationUuid,
+            "SERVER_DESTINATION_INVENTORY"
+        );
+        if (serverInventory.isPresent()) {
+            return serverInventory;
+        }
+
+        Optional<CoolifyDestinationPlacement> applicationInventory = destinationPlacementFromResources(
+            requestJson(connection, "GET", "/applications", null, true),
+            destinationUuid
+        );
+        if (applicationInventory.isPresent()) {
+            return applicationInventory;
+        }
+        return destinationPlacementFromResources(
+            requestJson(connection, "GET", "/databases", null, true),
+            destinationUuid
+        );
+    }
+
     public List<CoolifyApplicationSummary> listApplications(CoolifyConnection connection) {
         JsonNode response = requestJson(connection, "GET", "/applications", null, true);
         List<CoolifyApplicationSummary> applications = new ArrayList<>();
@@ -790,6 +831,65 @@ public class CoolifyApiClient {
             textFirst(node, "description"),
             node
         );
+    }
+
+    private Optional<CoolifyDestinationPlacement> destinationPlacementFromArray(JsonNode destinations,
+                                                                                 String destinationUuid,
+                                                                                 String verificationSource) {
+        if (destinations == null || !destinations.isArray()) {
+            return Optional.empty();
+        }
+        for (JsonNode destination : destinations) {
+            Optional<CoolifyDestinationPlacement> placement = destinationPlacement(
+                destination,
+                destinationUuid,
+                verificationSource
+            );
+            if (placement.isPresent()) {
+                return placement;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<CoolifyDestinationPlacement> destinationPlacementFromResources(JsonNode resources,
+                                                                                     String destinationUuid) {
+        if (resources == null || !resources.isArray()) {
+            return Optional.empty();
+        }
+        for (JsonNode resource : resources) {
+            Optional<CoolifyDestinationPlacement> placement = destinationPlacement(
+                resource.path("destination"),
+                destinationUuid,
+                "RESOURCE_INVENTORY"
+            );
+            if (placement.isPresent()) {
+                return placement;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<CoolifyDestinationPlacement> destinationPlacement(JsonNode destination,
+                                                                        String destinationUuid,
+                                                                        String verificationSource) {
+        if (destination == null || destination.isMissingNode() || destination.isNull() || !destination.isObject()) {
+            return Optional.empty();
+        }
+        String resolvedDestinationUuid = textFirst(destination, "uuid");
+        if (!StringUtils.hasText(resolvedDestinationUuid) || !resolvedDestinationUuid.equals(destinationUuid)) {
+            return Optional.empty();
+        }
+        String resolvedServerUuid = firstNonBlank(
+            textFirst(destination, "server_uuid", "serverUuid"),
+            textFirst(destination.path("server"), "uuid")
+        );
+        return Optional.of(new CoolifyDestinationPlacement(
+            resolvedDestinationUuid,
+            resolvedServerUuid,
+            verificationSource,
+            destination
+        ));
     }
 
     private JsonNode readJson(String value) {
