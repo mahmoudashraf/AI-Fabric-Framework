@@ -76,7 +76,7 @@ class DeploymentBehaviorReadinessServiceTest {
         assertThat(result.effectiveMaturity()).isEqualTo("HOSTED_PROVEN");
         assertThat(result.templatePluginId()).isEqualTo("mkp-template-conversational-assistant");
         assertThat(result.templatePluginVersion()).isEqualTo("1.0.1");
-        assertThat(result.frameworkVersion()).isEqualTo("0.7.1");
+        assertThat(result.frameworkVersion()).isEqualTo("0.8.1");
         assertThat(result.hostedProofs()).hasSize(1);
         assertThat(result.hostedProofs().get(0).path("environment").asText()).isEqualTo("staging");
         assertThat(result.hostedProofs().get(0).path("expiresAt").asText()).isNotBlank();
@@ -311,7 +311,7 @@ class DeploymentBehaviorReadinessServiceTest {
         version.setId("ver-1");
         version.setDeploymentId(deployment.getId());
         version.setStatus("PUBLISHED");
-        version.setAiFabricFrameworkVersion("0.7.1");
+        version.setAiFabricFrameworkVersion("0.8.1");
         version.setCompositionProvenanceJson("""
             {
               "deploymentBehaviorType": "CONVERSATIONAL",
@@ -347,7 +347,7 @@ class DeploymentBehaviorReadinessServiceTest {
         JsonNode capabilityManifest = objectMapper.readTree("""
             {
               "schemaVersion": "loomai-runtime-capabilities-v1",
-              "aiFabricVersion": "0.7.1",
+              "aiFabricVersion": "0.8.1",
               "supportedBehaviorTypes": ["CONVERSATIONAL"],
               "supportedActivationSources": ["AUTHENTICATED_INTERACTIVE"],
               "supportedChannelBindings": ["BACKEND_API"],
@@ -411,7 +411,7 @@ class DeploymentBehaviorReadinessServiceTest {
         entity.setTemplatePluginVersion("1.0.1");
         entity.setCompositionHash("a".repeat(64));
         entity.setMaterialHash("sha256:" + "b".repeat(64));
-        entity.setFrameworkVersion("0.7.1");
+        entity.setFrameworkVersion("0.8.1");
         entity.setSourceArtifactId("art-1");
         entity.setSourceCommit("c".repeat(40));
         entity.setImageDigest("sha256:" + "d".repeat(64));
