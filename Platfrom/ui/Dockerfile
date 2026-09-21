@@ -19,6 +19,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+RUN apk add --no-cache curl
+
 ENV NODE_ENV=production
 
 COPY --from=build /workspace/Platfrom/ui/dist /app/dist
