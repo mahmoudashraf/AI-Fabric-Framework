@@ -425,6 +425,7 @@ public class RailwayProvisioningPlanService {
         addRuntimeMcpGatewayEnv(runtimeEnv, deployment, actionsConfig);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
+        addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig);
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
         addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
@@ -675,6 +676,37 @@ public class RailwayProvisioningPlanService {
             case "default", "commerce", "support" -> normalized;
             default -> null;
         };
+    }
+
+    private void addRuntimeReadActionResolutionEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                                   JsonNode actionsConfig) {
+        if (actionsConfig == null || !actionsConfig.path("actions").isArray()) {
+            return;
+        }
+        LinkedHashSet<String> eligibleActions = new LinkedHashSet<>();
+        for (JsonNode action : actionsConfig.path("actions")) {
+            if (action == null
+                || !action.path("groundingEligible").asBoolean(false)
+                || !action.path("readActionResolutionEligible").asBoolean(false)) {
+                continue;
+            }
+            String accessMode = text(action, "accessMode");
+            if (!"READ".equalsIgnoreCase(accessMode) && !"READ_ONLY".equalsIgnoreCase(accessMode)) {
+                continue;
+            }
+            String actionName = text(action, "name");
+            if (StringUtils.hasText(actionName)) {
+                eligibleActions.add(actionName.trim());
+            }
+        }
+        if (eligibleActions.isEmpty()) {
+            return;
+        }
+        addOptionalEnv(
+            runtimeEnv,
+            "LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS",
+            String.join(",", eligibleActions.stream().sorted().toList())
+        );
     }
 
     private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider, String vectorStrategy) {

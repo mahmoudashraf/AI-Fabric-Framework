@@ -897,6 +897,21 @@ public class ShopifyStorefrontChatService {
         if (selectedAction == null) {
             return null;
         }
+        if (CUSTOMER_ACCOUNT_RETURN_ACTION_IDS.contains(selectedAction)
+            && missingRequiredParameter(response, "order_number")) {
+            CustomerAccountAuthCopy authCopy = customerAccountAuthCopy(selectedAction);
+            return policyStorefrontAnswer(
+                authCopy.message(),
+                "CUSTOMER_ACCOUNT_AUTH_REQUIRED",
+                authCopy.reason()
+            );
+        }
+        if ("shopify_create_cart".equals(selectedAction)
+            && missingRequiredParameter(response, "add_items")) {
+            return policyStorefrontAnswer(
+                "I need an exact product variant before I can add it to your cart. Open the product page or choose a variant, then ask me to add it."
+            );
+        }
         if (MARKETPLACE_ORDER_SELF_SERVICE_ACTION_IDS.contains(selectedAction)
             && !orderMutationSelfServiceApproved(billingSummary)) {
             return policyStorefrontAnswer(
@@ -917,6 +932,28 @@ public class ShopifyStorefrontChatService {
             );
         }
         return null;
+    }
+
+    private boolean missingRequiredParameter(JsonNode response, String parameterName) {
+        if (!StringUtils.hasText(parameterName)) {
+            return false;
+        }
+        for (String path : List.of(
+            "actions.0.missingRequiredParameters",
+            "result.data.missingRequiredParameters",
+            "result.sanitizedPayload.data.missingRequiredParameters"
+        )) {
+            JsonNode missing = nestedNode(response, path);
+            if (missing == null || !missing.isArray()) {
+                continue;
+            }
+            for (JsonNode value : missing) {
+                if (parameterName.equalsIgnoreCase(value.asText(""))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private CustomerAccountAuthCopy customerAccountAuthCopy(String selectedAction) {
@@ -1320,12 +1357,12 @@ public class ShopifyStorefrontChatService {
             return data.deepCopy();
         }
         ObjectNode safe = objectMapper.createObjectNode();
-        copySafeValue(data, safe, "answer");
+        copySafeSummaryValue(data, safe, "answer");
         copySafeValue(data, safe, "query");
-        copySafeValue(data, safe, "response");
+        copySafeSummaryValue(data, safe, "response");
         copySafeValue(data, safe, "action");
         copySafeValue(data, safe, "actionId");
-        copySafeValue(data, safe, "message");
+        copySafeSummaryValue(data, safe, "message");
         copySafeValue(data, safe, "errorCode");
         copySafeValue(data, safe, "customerAccountAuthRequired");
         copySafeValue(data, safe, "requiresConfirmation");
@@ -1371,7 +1408,7 @@ public class ShopifyStorefrontChatService {
         }
         ObjectNode safe = objectMapper.createObjectNode();
         copySafeValue(actionResult, safe, "success");
-        copySafeValue(actionResult, safe, "message");
+        copySafeSummaryValue(actionResult, safe, "message");
         copySafeValue(actionResult, safe, "errorCode");
         JsonNode data = actionResult.get("data");
         if (data != null && !data.isNull()) {
@@ -1537,6 +1574,16 @@ public class ShopifyStorefrontChatService {
         target.set(field, value.deepCopy());
     }
 
+    private void copySafeSummaryValue(JsonNode source, ObjectNode target, String field) {
+        if (source == null || target == null || !source.has(field)) {
+            return;
+        }
+        String value = trimToNull(textOrNull(source, field));
+        if (value != null) {
+            target.put(field, summarizeMcpToolText(value));
+        }
+    }
+
     private String extractAnswer(JsonNode response) {
         for (String path : List.of(
             "safeSummary",
@@ -1553,7 +1600,7 @@ public class ShopifyStorefrontChatService {
         )) {
             String value = nestedText(response, path);
             if (value != null && !genericMcpToolResult(value)) {
-                return value;
+                return summarizeMcpToolText(value);
             }
         }
         return extractMcpToolTextAnswer(response);
@@ -1599,24 +1646,75 @@ public class ShopifyStorefrontChatService {
                 return error;
             }
             String cartSummary = cartSummary(parsed.path("cart"));
-            return cartSummary != null ? cartSummary : normalized;
+            if (cartSummary != null) {
+                return cartSummary;
+            }
+            String resultSummary = structuredResultSummary(parsed);
+            if (resultSummary != null) {
+                return resultSummary;
+            }
+            return parsed.path("ucp").path("status").asText("").equalsIgnoreCase("error")
+                ? "The store could not complete that request."
+                : "The store returned a result that could not be displayed safely.";
         } catch (Exception ignored) {
-            return normalized;
+            return "The store returned a result that could not be displayed safely.";
         }
     }
 
     private String firstMcpErrorMessage(JsonNode parsed) {
-        JsonNode errors = parsed != null ? parsed.path("errors") : null;
-        if (errors == null || !errors.isArray() || errors.isEmpty()) {
+        if (parsed == null) {
             return null;
         }
-        for (JsonNode error : errors) {
-            String message = trimToNull(textOrNull(error, "message"));
-            if (message != null) {
-                return message;
+        for (String field : List.of("errors", "messages")) {
+            JsonNode errors = parsed.path(field);
+            if (!errors.isArray() || errors.isEmpty()) {
+                continue;
+            }
+            for (JsonNode error : errors) {
+                String message = firstNonBlank(
+                    textOrNull(error, "message"),
+                    textOrNull(error, "content")
+                );
+                if (message != null) {
+                    return message;
+                }
             }
         }
         return null;
+    }
+
+    private String structuredResultSummary(JsonNode parsed) {
+        String directSummary = firstNonBlank(
+            textOrNull(parsed, "safeSummary"),
+            textOrNull(parsed, "answer"),
+            textOrNull(parsed, "message")
+        );
+        if (directSummary != null) {
+            return directSummary;
+        }
+        JsonNode items = firstArrayNode(
+            parsed.path("_items"),
+            parsed.path("documents"),
+            parsed.path("results"),
+            parsed.path("products")
+        );
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        List<String> labels = new ArrayList<>();
+        for (JsonNode item : items) {
+            String label = firstNonBlank(textOrNull(item, "title"), textOrNull(item, "name"));
+            if (label != null) {
+                labels.add(label);
+            }
+            if (labels.size() >= 5) {
+                break;
+            }
+        }
+        if (labels.isEmpty()) {
+            return "The store returned " + items.size() + " results.";
+        }
+        return "Found " + items.size() + " store results: " + String.join(", ", labels) + ".";
     }
 
     private String cartSummary(JsonNode cart) {

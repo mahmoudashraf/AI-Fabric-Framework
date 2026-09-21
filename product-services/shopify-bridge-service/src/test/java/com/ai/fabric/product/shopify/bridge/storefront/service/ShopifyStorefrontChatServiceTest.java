@@ -642,6 +642,143 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void queryReplacesCartResolverParameterClarificationWithShopperCopy() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary());
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":false,
+              "type":"CLARIFICATION_REQUIRED",
+              "answer":"To proceed, please provide: add_items.",
+              "safeSummary":"To proceed, please provide: add_items.",
+              "conversationId":"conv-1",
+              "fallbackReason":"CLARIFICATION_REQUIRED",
+              "actions":[
+                {
+                  "action":"shopify_create_cart",
+                  "missingRequiredParameters":["add_items"]
+                }
+              ]
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Add Selling Plans Ski Wax to my cart.",
+                  "mode":"executor",
+                  "context":{"pageType":"cart","shopifySurfaceEntry":"max-mode"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("safeSummary").asText())
+            .contains("product variant", "cart")
+            .doesNotContain("add_items");
+    }
+
+    @Test
+    void queryReplacesReturnParameterClarificationWithCustomerAccountCopy() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);
+        ShopifyBridgeBillingService billingService = mock(ShopifyBridgeBillingService.class);
+        ShopifyStorefrontChatService service = service(platformClient, installCredentialService, billingService);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        when(installCredentialService.resolvePersistedMaterial("alpha.myshopify.com")).thenReturn(Optional.empty());
+        when(billingService.summarizeForShop("alpha.myshopify.com", null)).thenReturn(eliteTierSummary(List.of("order-self-service")));
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(objectMapper.readTree("""
+            {
+              "success":false,
+              "type":"CLARIFICATION_REQUIRED",
+              "answer":"To proceed, please provide: order_number.",
+              "safeSummary":"To proceed, please provide: order_number.",
+              "conversationId":"conv-1",
+              "fallbackReason":"CLARIFICATION_REQUIRED",
+              "actions":[
+                {
+                  "action":"shopify_request_return",
+                  "missingRequiredParameters":["order_number"]
+                }
+              ]
+            }
+            """));
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"I want to return my last order",
+                  "mode":"executor",
+                  "context":{"pageType":"account","shopifySurfaceEntry":"max-mode"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("safeSummary").asText())
+            .contains("Connect your store account", "start a return")
+            .doesNotContain("order_number");
+        assertThat(response.path("actions").path(0).path("customerAccountAuthRequired").asBoolean()).isTrue();
+    }
+
+    @Test
+    void querySummarizesUcpErrorPayloadWithoutExposingProtocolJson() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+        String toolPayload = objectMapper.writeValueAsString(objectMapper.readTree("""
+            {
+              "ucp":{"status":"error"},
+              "messages":[
+                {
+                  "type":"error",
+                  "code":"cart_not_found",
+                  "content":"The requested cart does not exist"
+                }
+              ]
+            }
+            """));
+        var upstreamResponse = objectMapper.createObjectNode();
+        upstreamResponse.put("success", false);
+        upstreamResponse.put("type", "ERROR");
+        upstreamResponse.put("answer", toolPayload);
+        upstreamResponse.put("safeSummary", toolPayload);
+        upstreamResponse.put("conversationId", "conv-1");
+        var action = upstreamResponse.putArray("actions").addObject();
+        action.put("action", "shopify_get_cart");
+        action.put("errorCode", "MCP_TOOL_REPORTED_ERROR");
+        action.putObject("actionResult")
+            .put("success", false)
+            .put("errorCode", "MCP_TOOL_REPORTED_ERROR")
+            .put("message", toolPayload);
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(upstreamResponse);
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"What's in my cart?",
+                  "context":{"pageType":"cart","cartId":"gid://shopify/Cart/not-real"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("safeSummary").asText())
+            .isEqualTo("The requested cart does not exist")
+            .doesNotContain("ucp", "{", "capabilities");
+        assertThat(response.path("actions").path(0).path("actionResult").path("message").asText())
+            .isEqualTo("The requested cart does not exist");
+    }
+
+    @Test
     void suggestionsNormalizesStorefrontContextBeforeForwarding() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyStorefrontChatService service = service(platformClient);

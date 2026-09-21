@@ -207,6 +207,21 @@ ai:
         retrieval-allowlist-required: false
         vector-space-selection-required: false
         information-mode: LLM_DRIVEN
+      navigator_deep:
+        read-action-resolution:
+          allowed-read-actions: ${LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS:}
+      executor:
+        read-action-resolution:
+          allowed-read-actions: ${LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS:}
+      cart_assistant:
+        read-action-resolution:
+          allowed-read-actions: ${LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS:}
+      resolver_assistant:
+        read-action-resolution:
+          allowed-read-actions: ${LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS:}
+      thinker:
+        read-action-resolution:
+          allowed-read-actions: ${LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS:}
       deployment_knowledge:
         actions-enabled: false
         retrieval-enabled: true

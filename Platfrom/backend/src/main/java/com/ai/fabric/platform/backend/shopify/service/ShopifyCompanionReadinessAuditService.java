@@ -69,7 +69,6 @@ public class ShopifyCompanionReadinessAuditService {
                 "Current product:",
                 "Product handle:",
                 "Product vendor:",
-                "Product type:",
                 "Product price cents:",
                 "Page title:"
             ),

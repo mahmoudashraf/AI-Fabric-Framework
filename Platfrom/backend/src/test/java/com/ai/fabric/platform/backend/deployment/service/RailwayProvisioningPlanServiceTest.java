@@ -779,6 +779,71 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanCompilesDeploymentEligibleReadActionsIntoRuntimeAllowlist() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        DeploymentVersionEntity version = version();
+        version.setActionsConfigJson("""
+            {
+              "actions": [
+                {
+                  "name": "shopify_search_catalog",
+                  "accessMode": "READ",
+                  "groundingEligible": true,
+                  "readActionResolutionEligible": true
+                },
+                {
+                  "name": "shopify_get_cart",
+                  "accessMode": "READ_ONLY",
+                  "groundingEligible": true,
+                  "readActionResolutionEligible": true
+                },
+                {
+                  "name": "shopify_create_cart",
+                  "accessMode": "WRITE_ONLY",
+                  "groundingEligible": false,
+                  "readActionResolutionEligible": false
+                },
+                {
+                  "name": "unapproved_read",
+                  "accessMode": "READ",
+                  "groundingEligible": true,
+                  "readActionResolutionEligible": false
+                }
+              ]
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv).containsEntry(
+            "LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS",
+            "shopify_get_cart,shopify_search_catalog"
+        );
+    }
+
+    @Test
     void buildPlanCompilesManagedAnthropicAndQdrantSettingsIntoLiveEnv() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
