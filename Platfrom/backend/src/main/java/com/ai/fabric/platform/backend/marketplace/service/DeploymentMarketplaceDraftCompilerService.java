@@ -51,6 +51,7 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String DEFAULT_MARKETPLACE_DATASET_CONTRACT_VERSION = "MARKETPLACE_DATASET_CONFIG_V1";
     private static final String DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION = "MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1";
     private static final String MARKETPLACE_INFERENCE_FIELD = "marketplaceInference";
+    private static final String KNOWLEDGE_SOURCE_HANDLE_REF_FIELD = "knowledgeSourceHandleRef";
     private static final Set<String> GREENFIELD_SHOPIFY_MCP_ACTION_PLUGIN_IDS = Set.of(
         "mkp-action-shopify-storefront-read-mcp",
         "mkp-action-shopify-cart-mcp",
@@ -999,16 +1000,30 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
             String handleRef = text(sourceEntry, "handleRef");
             String datasetRef = text(sourceEntry, "datasetRef");
+            MarketplaceManifestService.ParsedMarketplaceDatasetDefinition resolvedDataset = null;
             if (!StringUtils.hasText(datasetRef) && parsed.datasets().size() == 1) {
                 datasetRef = parsed.datasets().getFirst().datasetId();
             }
             if (StringUtils.hasText(datasetRef)) {
                 compiled.put("datasetRef", datasetRef);
-                MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset = datasetsById.get(datasetRef);
-                if (dataset != null && !StringUtils.hasText(handleRef)) {
-                    ObjectNode resolvedSyncConnector = resolveSyncConnector(dataset, installConfig, installSecretRefs);
-                    String datasetHash = datasetHash(plugin, version, install, dataset, installConfig, installSecretRefs, resolvedSyncConnector);
-                    handleRef = marketplaceDatasetHandleResolver.resolveHandleRef(deployment, plugin, dataset, datasetHash);
+                resolvedDataset = datasetsById.get(datasetRef);
+                if (resolvedDataset != null && !StringUtils.hasText(handleRef)) {
+                    ObjectNode resolvedSyncConnector = resolveSyncConnector(resolvedDataset, installConfig, installSecretRefs);
+                    String datasetHash = datasetHash(
+                        plugin,
+                        version,
+                        install,
+                        resolvedDataset,
+                        installConfig,
+                        installSecretRefs,
+                        resolvedSyncConnector
+                    );
+                    handleRef = marketplaceDatasetHandleResolver.resolveHandleRef(
+                        deployment,
+                        plugin,
+                        resolvedDataset,
+                        datasetHash
+                    );
                 }
             }
             if (!StringUtils.hasText(handleRef) && "shared-index".equalsIgnoreCase(compiled.path("adapterType").asText(""))) {
@@ -1019,8 +1034,13 @@ public class DeploymentMarketplaceDraftCompilerService {
                 ObjectNode filters = sourceEntry.path("filters").isObject()
                     ? (ObjectNode) sourceEntry.path("filters").deepCopy()
                     : objectMapper.createObjectNode();
-                filters.put("knowledgeSourceHandleRef", handleRef);
+                filters.put(KNOWLEDGE_SOURCE_HANDLE_REF_FIELD, handleRef);
                 compiled.set("filters", filters);
+                String entityType = text(compiled, "entityType");
+                if (!StringUtils.hasText(entityType) && resolvedDataset != null) {
+                    entityType = resolvedDataset.entityType();
+                }
+                ensureKnowledgeSourceHandleMetadataProjection(entityRoot, entityType);
             }
             if (sourceEntry.path("enabled").isBoolean()) {
                 compiled.put("enabled", sourceEntry.path("enabled").asBoolean());
@@ -1453,6 +1473,64 @@ public class DeploymentMarketplaceDraftCompilerService {
             applyMarketplaceProvenance(compiled, install, plugin, version);
             targetEntities.set(entityType, compiled);
         }
+    }
+
+    void ensureKnowledgeSourceHandleMetadataProjection(ObjectNode entityRoot, String entityType) {
+        if (entityRoot == null || !StringUtils.hasText(entityType)) {
+            return;
+        }
+        JsonNode entityNode = entityRoot.path("ai-entities").path(entityType.trim());
+        if (!(entityNode instanceof ObjectNode entity)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace shared-index source requires an entity contract for: " + entityType.trim()
+            );
+        }
+        ArrayNode metadataFields = ensureArray(entity, "metadata-fields");
+        for (JsonNode fieldNode : metadataFields) {
+            if (!(fieldNode instanceof ObjectNode field)
+                || !KNOWLEDGE_SOURCE_HANDLE_REF_FIELD.equalsIgnoreCase(field.path("name").asText(""))) {
+                continue;
+            }
+            ArrayNode destinations = field.path("destinations") instanceof ArrayNode existing
+                ? existing
+                : field.putArray("destinations");
+            boolean projectsToVectorMetadata = false;
+            for (JsonNode destination : destinations) {
+                if ("VECTOR_METADATA".equalsIgnoreCase(destination.asText(""))) {
+                    projectsToVectorMetadata = true;
+                    break;
+                }
+            }
+            if (!projectsToVectorMetadata) {
+                destinations.add("VECTOR_METADATA");
+            }
+            if (!StringUtils.hasText(field.path("data-type").asText(""))) {
+                field.put("data-type", "STRING");
+            }
+            if (!StringUtils.hasText(field.path("description").asText(""))) {
+                field.put("description", "Platform-owned shared-index knowledge source handle.");
+            }
+            if (!field.path("priority").canConvertToInt()) {
+                field.put("priority", 100);
+            }
+            if (!field.path("required").isBoolean()) {
+                field.put("required", false);
+            }
+            if (!field.path("sanitize-pii").isBoolean()) {
+                field.put("sanitize-pii", false);
+            }
+            return;
+        }
+
+        ObjectNode field = metadataFields.addObject();
+        field.put("name", KNOWLEDGE_SOURCE_HANDLE_REF_FIELD);
+        field.put("data-type", "STRING");
+        field.put("description", "Platform-owned shared-index knowledge source handle.");
+        field.putArray("destinations").add("VECTOR_METADATA");
+        field.put("priority", 100);
+        field.put("required", false);
+        field.put("sanitize-pii", false);
     }
 
     private ObjectNode normalizeKnowledgeSourceRoot(JsonNode candidate) {

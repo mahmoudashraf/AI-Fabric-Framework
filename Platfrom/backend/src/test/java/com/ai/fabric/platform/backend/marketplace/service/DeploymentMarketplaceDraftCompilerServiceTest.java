@@ -390,6 +390,29 @@ class DeploymentMarketplaceDraftCompilerServiceTest {
         assertThat(actions).hasSize(1);
     }
 
+    @Test
+    void sharedIndexHandleProjectionIsDeclaredOnceAsVectorMetadata() {
+        ObjectNode entityRoot = objectMapper.createObjectNode();
+        ObjectNode product = entityRoot.putObject("ai-entities").putObject("product");
+        ArrayNode metadataFields = product.putArray("metadata-fields");
+        metadataFields.addObject()
+            .put("name", "knowledgeSourceHandleRef")
+            .put("data-type", "STRING")
+            .putArray("destinations")
+            .add("LLM_CONTEXT");
+
+        compilerService.ensureKnowledgeSourceHandleMetadataProjection(entityRoot, "product");
+        compilerService.ensureKnowledgeSourceHandleMetadataProjection(entityRoot, "product");
+
+        assertThat(metadataFields).hasSize(1);
+        JsonNode handleField = metadataFields.get(0);
+        assertThat(handleField.path("name").asText()).isEqualTo("knowledgeSourceHandleRef");
+        assertThat(handleField.path("destinations")).extracting(JsonNode::asText)
+            .containsExactly("LLM_CONTEXT", "VECTOR_METADATA");
+        assertThat(handleField.path("required").asBoolean()).isFalse();
+        assertThat(handleField.path("sanitize-pii").asBoolean()).isFalse();
+    }
+
     private DeploymentMarketplacePluginInstallEntity install() {
         DeploymentMarketplacePluginInstallEntity install = new DeploymentMarketplacePluginInstallEntity();
         install.setId("mpi-test");
