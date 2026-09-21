@@ -385,3 +385,8 @@ Current P0 cleanup items:
   approved maintenance cutover or owner-approved extra/expanded capacity.
   Stopped production image canaries and exact copied configuration are
   preparation evidence, not a completed production release.
+- 2026-09-21: Recovery was held through nine consecutive production liveness
+  and readiness passes before temporary access was closed. Staging rollout
+  tokens were revoked, their session and local files were retired, and both
+  production firewalls again contain no operator-IP rule. A healthy recovered
+  canonical app must not be confused with the still-pending image cutover.

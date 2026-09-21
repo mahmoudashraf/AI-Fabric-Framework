@@ -2656,5 +2656,15 @@ Critical fixes that made the gate pass:
   cutover with the old backend stopped or owner-approved extra/expanded
   capacity. No paid Hetzner capacity was created. Temporary firewall access
   was removed after every operation.
+- Final recovery observation recorded nine consecutive production liveness and
+  readiness `200` / `UP` checks from `02:17:44Z` through `02:19:11Z`; aggregate
+  backend, `api.loomai.pro`, console, canonical staging, and staging image
+  canaries were green afterward. The brief `404` seen during the last recovery
+  restart cleared once the existing backend completed startup and does not
+  change the production-capacity conclusion.
+- Temporary staging Coolify tokens `18` and `19` were revoked and verified to
+  return `401`; the temporary browser session was logged out and local token
+  files removed. Production firewalls `10915120` and `10918233` were restored
+  with zero operator-IP rules, and direct Coolify API access is blocked again.
 - Production Platform placement/backend UI changes are not canonical live yet.
   Do not treat app Git pin `567282757` as successful deployment evidence.

@@ -690,6 +690,18 @@ This plan is complete when:
   isolated CPU `3` did not remove the failure: canonical liveness returned
   `502` twice, the guard stopped the canary, and all canonical probes then
   recovered to HTTP `200` / `UP`.
+- The final recovery audit observed nine consecutive production liveness and
+  readiness passes from `02:17:44Z` through `02:19:11Z`; aggregate backend,
+  canonical API, console, canonical staging, and both staging image-canary
+  health checks were also HTTP `200` / `UP`. A transient `404` during the
+  backend's last recovery restart cleared after startup completed. This is
+  recovery evidence for the existing canonical app, not evidence that the new
+  image app is live.
+- Temporary staging Coolify tokens `18` and `19` were revoked and each former
+  credential now returns HTTP `401`. The temporary UI session was logged out
+  and its local credential files were removed. Both production Hetzner
+  firewalls were restored to their exact pre-check rules, contain zero rules
+  for the operator IP, and direct production Coolify access is blocked again.
 - Do not retry blue/green backend startup on the same host. Production rollout
   now requires an owner-approved choice between a short maintenance cutover
   with the old backend stopped first, or additional/expanded production
