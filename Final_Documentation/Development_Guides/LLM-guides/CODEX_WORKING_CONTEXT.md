@@ -2614,3 +2614,47 @@ Critical fixes that made the gate pass:
   and one published Generic Conversational template deployed from a clean
   staging tenant through the existing Marketplace/V04 lifecycle. ProdUS and
   Shopify assignments must not be changed to manufacture this evidence.
+
+## 2026-09-21 Governed Placement And Immutable Core Image Checkpoint
+
+- Production Agentic exact-template certification passed for
+  `mkp-template-agentic-specialist-team@1.0.4`: suite `vsr-51202473`, stage
+  `vss-21cd0164`, deployment `dep-650df1e0`, version `ver-959204de`, release
+  `rel-d2e65013`, runtime `dprh-475f26b9`, database `dprh-0e98054a`, and
+  candidate `brr-76153ef2-076`. Its maturity is `HOSTED_PROVEN`.
+- Commits `0a2f0b6e3` and `567282757` add governed Coolify target placement and
+  a Coolify 4.0-compatible destination inventory fallback. The full backend
+  suite passed `788` tests. Staging backend/UI deployed exact `567282757`, and
+  live `dtp-coolify-staging` preflight passed through `RESOURCE_INVENTORY`.
+- Commit `45ea82ab1` adds off-host GHCR publication for Platform backend/UI.
+  Commits `803fc0a9a` and `154f6552d` add the health-check client to both UI
+  runtime Dockerfiles after a real Coolify canary proved the release image was
+  missing `curl`.
+- Final source `154f6552d98fb6b32f2ed3874534da65dedc18df` published backend
+  digest `sha256:243cad95815e1a2dd9a3b44eae174c0b8936616d53bcf67fa6c186ba56bf4f66`
+  and UI digest
+  `sha256:64453037efe7c11a276c6fe16c8a15bc082ee8210fe46ded989027b3cba4d9bc`.
+  GitHub Actions run `35551505376` passed.
+- Staging image canaries are backend `awocqyg4kxeyw3ol2nfjhmrp` / deployment
+  `l3kne30vhiorqe72muyahs7o` and UI `u67gepsowf7oo90dwjdx018r` / deployment
+  `r9o1xrgog5lwdhpz28vxao1u`. Both are `running:healthy` and both exact
+  deployments are `finished`. Backend liveness/readiness/aggregate health,
+  authenticated Coolify preflight, UI health, runtime config, and placement
+  contract passed; canonical staging remained healthy.
+- Production stopped image canaries exist as backend
+  `sbdv2pkkqrbsy9m59034hb5j` and UI `a6fz2ncuzzulg6lrzzwrjshu`. Exact secret
+  and environment transfer was verified without printing values: backend
+  `84/84`, UI `4/4`. The UI canary was not started.
+- Production backend duplicate starts are unsafe on the current four-core
+  host. First deployment `jmds7ookbdrihfpifsitjjlb` was cancelled. A second
+  attempt pinned to isolated CPU `3` (`yyfsh0q2jp4r6qs7ztyizj8r`) still made
+  canonical liveness return `502` twice; the guard stopped the canary. All
+  canonical backend, API, and console probes recovered to HTTP `200` / `UP`.
+  Both deployment records are terminal `cancelled-by-user`.
+- Production source builds and duplicate backend startup are now prohibited on
+  the current host. Finish production through either an approved maintenance
+  cutover with the old backend stopped or owner-approved extra/expanded
+  capacity. No paid Hetzner capacity was created. Temporary firewall access
+  was removed after every operation.
+- Production Platform placement/backend UI changes are not canonical live yet.
+  Do not treat app Git pin `567282757` as successful deployment evidence.

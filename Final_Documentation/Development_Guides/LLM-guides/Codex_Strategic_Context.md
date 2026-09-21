@@ -372,3 +372,16 @@ Current P0 cleanup items:
   hosted Conversational Human Review, bounded Agentic, and deployment-local
   read-only Smart Brain. Reuse the current Marketplace/V04 lifecycle and do
   not modify ProdUS or Shopify assignments to create generic evidence.
+- 2026-09-21: Platform core services must be built off-host as immutable GHCR
+  images. Source builds on the four-core production control-plane host can
+  starve every public service. The published image pair at source
+  `154f6552d98fb6b32f2ed3874534da65dedc18df` is staging-proven with terminal
+  Coolify deployments, health, configuration, UI, and placement-preflight
+  evidence.
+- 2026-09-21: Blue/green production backend startup is also beyond the current
+  host's spare capacity. Even a second JVM isolated to CPU `3` caused two
+  canonical `502` liveness checks and was automatically stopped; canonical
+  services recovered. Never retry a duplicate backend on that host. Use an
+  approved maintenance cutover or owner-approved extra/expanded capacity.
+  Stopped production image canaries and exact copied configuration are
+  preparation evidence, not a completed production release.

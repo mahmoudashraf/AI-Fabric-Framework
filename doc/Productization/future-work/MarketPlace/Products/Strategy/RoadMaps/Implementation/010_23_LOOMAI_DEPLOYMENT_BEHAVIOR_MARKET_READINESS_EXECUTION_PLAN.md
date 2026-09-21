@@ -1,6 +1,6 @@
 # 010.23 LoomAI Deployment Behavior Market Readiness Execution Plan
 
-- **Status:** Proposed execution baseline; market-readiness implementation not started
+- **Status:** Execution in progress; staging immutable control-plane canary complete, production capacity decision required
 - **Date:** 2026-09-20
 - **Active AI Fabric baseline:** `0.7.1`
 - **Depends on:** `010.21` architecture and `010.22` productization implementation
@@ -640,3 +640,72 @@ This plan is complete when:
 6. only approved exact versions are marked `MARKET_READY`;
 7. the customer application remains the final authority for identity,
    authorization, validation, transactions, and system-of-record writes.
+
+## 16. 2026-09-21 Execution Checkpoint
+
+### Completed evidence
+
+- Production exact-template Agentic certification passed for
+  `mkp-template-agentic-specialist-team@1.0.4`: deployment `dep-650df1e0`,
+  version `ver-959204de`, release `rel-d2e65013`, runtime
+  `dprh-475f26b9`, database `dprh-0e98054a`, suite `vsr-51202473`, and
+  stage `vss-21cd0164`. Candidate `brr-76153ef2-076` remains
+  `HOSTED_PROVEN`, not `MARKET_READY`.
+- Governed Coolify target placement is implemented in `0a2f0b6e3`; legacy
+  Coolify destination discovery is fixed in `567282757`. The complete
+  Platform backend suite passed `788` tests, including PostgreSQL migrations.
+- Staging source-backed Platform backend and UI reached terminal Coolify
+  success on `567282757`. Live `dtp-coolify-staging` preflight is `PASSED`
+  through the version-tolerant `RESOURCE_INVENTORY` destination proof.
+- Immutable Platform core images are published by
+  `.github/workflows/publish-platform-core-images.yml`. Exact source
+  `154f6552d98fb6b32f2ed3874534da65dedc18df` produced backend digest
+  `sha256:243cad95815e1a2dd9a3b44eae174c0b8936616d53bcf67fa6c186ba56bf4f66`
+  and UI digest
+  `sha256:64453037efe7c11a276c6fe16c8a15bc082ee8210fe46ded989027b3cba4d9bc`.
+- The staging image canaries are application `awocqyg4kxeyw3ol2nfjhmrp`
+  (backend, deployment `l3kne30vhiorqe72muyahs7o`) and application
+  `u67gepsowf7oo90dwjdx018r` (UI, deployment
+  `r9o1xrgog5lwdhpz28vxao1u`). Both deployments finished; both resources are
+  healthy on the exact source tag. Backend liveness, readiness, aggregate
+  health, authenticated target preflight, UI health, runtime API config, and
+  placement UI contract passed.
+- The canary found and fixed a real release-image defect: Coolify health
+  checks require `curl` or `wget` inside Dockerfile/image deployments. Both
+  Platform UI runtime Dockerfiles now include `curl`; the published GHCR image
+  was independently pulled and inspected before the successful hosted retry.
+
+### Production boundary
+
+- Production image applications were created with exact copied environment
+  values and remain non-canonical: backend `sbdv2pkkqrbsy9m59034hb5j` and UI
+  `a6fz2ncuzzulg6lrzzwrjshu`. Environment comparison passed `84/84` for the
+  backend and `4/4` for the UI without logging secret values.
+- The production UI canary has not been started. The backend canary was
+  stopped after two guarded attempts. Deployment `jmds7ookbdrihfpifsitjjlb`
+  was cancelled; deployment `yyfsh0q2jp4r6qs7ztyizj8r` was safety-stopped.
+  Both deployment records are terminal `cancelled-by-user`.
+- The current four-core production host cannot keep the canonical Platform
+  backend responsive while a second backend JVM starts. Pinning the canary to
+  isolated CPU `3` did not remove the failure: canonical liveness returned
+  `502` twice, the guard stopped the canary, and all canonical probes then
+  recovered to HTTP `200` / `UP`.
+- Do not retry blue/green backend startup on the same host. Production rollout
+  now requires an owner-approved choice between a short maintenance cutover
+  with the old backend stopped first, or additional/expanded production
+  capacity. Creating or resizing paid Hetzner capacity remains an explicit
+  approval boundary.
+- Production placement code and the new Platform UI are therefore not yet
+  canonical live evidence. Do not infer deployment from the configured Git
+  pin or from the successful staging image canaries.
+
+### Next execution order
+
+1. Obtain the production capacity or maintenance-window decision.
+2. Finish the immutable production backend/UI cutover with rollback domains
+   and exact Coolify terminal evidence.
+3. Update Platform core-service ownership to the final image application UUIDs.
+4. Provision the isolated production behavior worker only after explicit paid
+   infrastructure approval.
+5. Run the Smart Brain exact-template proof, remaining lifecycle matrix, and
+   full release gates without weakening the deferred Shopify truth.
