@@ -100,7 +100,8 @@ class MarketplaceIntegrationTest {
     @Sql({
         "classpath:db/migration/V131__shopify_storefront_current_ucp_actions.sql",
         "classpath:db/migration/V142__shopify_ucp_create_cart_logical_argument_gate.sql",
-        "classpath:db/migration/V143__shopify_ucp_create_cart_compact_manifest_gate.sql"
+        "classpath:db/migration/V143__shopify_ucp_create_cart_compact_manifest_gate.sql",
+        "classpath:db/migration/V144__shopify_ucp_cart_logical_and_rendered_argument_gates.sql"
     })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void catalogEndpointsExposeSeededMarketplacePluginsAndVersions() throws Exception {
@@ -178,7 +179,7 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-cart-mcp")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-cart-mcp")))
-            .andExpect(jsonPath("$.versions[0].version", is("2.0.1")))
+            .andExpect(jsonPath("$.versions[0].version", is("2.0.2")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_cart")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_create_cart")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_update_cart")));
@@ -187,17 +188,29 @@ class MarketplaceIntegrationTest {
                 get(
                     "/api/marketplace/plugins/{pluginId}/versions/{version}",
                     "mkp-action-shopify-cart-mcp",
-                    "2.0.1"
+                    "2.0.2"
                 )
             ))
             .andExpect(status().isOk())
             .andExpect(jsonPath(
-                "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.requiredAnyArguments",
+                "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.requiredAnyParams",
                 is(List.of(List.of("add_items")))
+            ))
+            .andExpect(jsonPath(
+                "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.requiredAnyArguments",
+                is(List.of(List.of("cart.line_items")))
             ))
             .andExpect(jsonPath(
                 "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.argumentTemplate.cart.line_items",
                 is(List.of("{{params.line_items}}"))
+            ))
+            .andExpect(jsonPath(
+                "$.manifest.contributions.actions[?(@.actionId=='shopify_update_cart')].execution.mcp.requiredAnyParams",
+                is(List.of(List.of("add_items", "update_items", "remove_line_ids")))
+            ))
+            .andExpect(jsonPath(
+                "$.manifest.contributions.actions[?(@.actionId=='shopify_update_cart')].execution.mcp.requiredAnyArguments",
+                is(List.of(List.of("cart.line_items")))
             ));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-customer-account-mcp")))
@@ -270,7 +283,8 @@ class MarketplaceIntegrationTest {
         "classpath:db/migration/V131__shopify_storefront_current_ucp_actions.sql",
         "classpath:db/test-migration/V142_1__compact_shopify_cart_manifest_test.sql",
         "classpath:db/migration/V142__shopify_ucp_create_cart_logical_argument_gate.sql",
-        "classpath:db/migration/V143__shopify_ucp_create_cart_compact_manifest_gate.sql"
+        "classpath:db/migration/V143__shopify_ucp_create_cart_compact_manifest_gate.sql",
+        "classpath:db/migration/V144__shopify_ucp_cart_logical_and_rendered_argument_gates.sql"
     })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void compactShopifyCartManifestMigrationRepairsLogicalArgumentGate() throws Exception {
@@ -278,14 +292,18 @@ class MarketplaceIntegrationTest {
                 get(
                     "/api/marketplace/plugins/{pluginId}/versions/{version}",
                     "mkp-action-shopify-cart-mcp",
-                    "2.0.1"
+                    "2.0.2"
                 )
             ))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.manifest.version", is("2.0.1")))
+            .andExpect(jsonPath("$.manifest.version", is("2.0.2")))
+            .andExpect(jsonPath(
+                "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.requiredAnyParams",
+                is(List.of(List.of("add_items")))
+            ))
             .andExpect(jsonPath(
                 "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.requiredAnyArguments",
-                is(List.of(List.of("add_items")))
+                is(List.of(List.of("cart.line_items")))
             ))
             .andExpect(jsonPath(
                 "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.argumentTemplate.cart.line_items",

@@ -132,11 +132,16 @@ class MarketplaceManifestServiceTest {
                     "adapterType": "mcp-tool",
                     "description": "Search catalog",
                     "readOnly": true,
+                    "params": [
+                      {"name": "query", "type": "STRING", "required": true}
+                    ],
                     "execution": {
                       "adapterType": "mcp-tool",
                       "mcp": {
                         "serverRef": "shopify-storefront-ucp",
                         "toolName": "search_catalog",
+                        "requiredAnyParams": ["query"],
+                        "requiredAnyArguments": ["catalog.query"],
                         "argumentTemplate": {
                           "catalog": {
                             "query": "{{params.query}}"
@@ -154,6 +159,78 @@ class MarketplaceManifestServiceTest {
             service.parseAndValidate(actionPlugin(), version(manifest));
 
         assertThat(parsed.contributions().actionIds()).containsExactly("shopify_search_catalog");
+    }
+
+    @Test
+    void mcpToolActionRejectsRequiredAnyParamsThatAreNotDeclared() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "adapterType": "mcp-tool",
+                    "readOnly": true,
+                    "params": [{"name": "query", "type": "STRING"}],
+                    "execution": {
+                      "adapterType": "mcp-tool",
+                      "mcp": {
+                        "serverRef": "inventory-mcp",
+                        "toolName": "inventory.search",
+                        "requiredAnyParams": ["missing_query"],
+                        "argumentTemplate": {"query": "{{params.query}}"}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("requiredAnyParams references undeclared action parameter 'missing_query'");
+    }
+
+    @Test
+    void mcpToolActionRejectsRequiredAnyArgumentsMissingFromRenderedTemplate() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "adapterType": "mcp-tool",
+                    "readOnly": true,
+                    "params": [{"name": "query", "type": "STRING"}],
+                    "execution": {
+                      "adapterType": "mcp-tool",
+                      "mcp": {
+                        "serverRef": "inventory-mcp",
+                        "toolName": "inventory.search",
+                        "requiredAnyArguments": ["catalog.query"],
+                        "argumentTemplate": {"query": "{{params.query}}"}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("requiredAnyArguments path 'catalog.query' is not emitted");
     }
 
     @Test

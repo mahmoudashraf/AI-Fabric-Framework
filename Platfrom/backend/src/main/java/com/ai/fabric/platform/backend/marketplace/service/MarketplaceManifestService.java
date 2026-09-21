@@ -530,13 +530,67 @@ public class MarketplaceManifestService {
         validateMcpSchemaHash(plugin, version, mcp.path("toolSchemaHash"), "action '" + actionId + "' execution.mcp.toolSchemaHash");
         validateMcpSchemaDriftPolicy(plugin, version, firstText(mcp, "schemaDriftPolicy"), "action '" + actionId + "' execution.mcp.schemaDriftPolicy");
         validateMcpResponseMapping(plugin, version, mcp.path("responseMapping"), "action '" + actionId + "' execution.mcp.responseMapping");
-        validateMcpRequiredAnyArguments(plugin, version, mcp.path("requiredAnyArguments"), "action '" + actionId + "' execution.mcp.requiredAnyArguments");
+        validateMcpRequiredAnyParams(
+            plugin,
+            version,
+            action.path("params"),
+            mcp.path("requiredAnyParams"),
+            "action '" + actionId + "' execution.mcp.requiredAnyParams"
+        );
+        validateMcpRequiredAnyArguments(
+            plugin,
+            version,
+            action.path("params"),
+            argumentTemplate,
+            mcp.path("requiredAnyArguments"),
+            "action '" + actionId + "' execution.mcp.requiredAnyArguments"
+        );
+    }
+
+    private void validateMcpRequiredAnyParams(MarketplacePluginEntity plugin,
+                                              MarketplacePluginVersionEntity version,
+                                              JsonNode params,
+                                              JsonNode node,
+                                              String label) {
+        validateMcpRequiredPathList(plugin, version, node, label);
+        if (node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        Set<String> declaredParams = declaredActionParamNames(params);
+        for (JsonNode entry : node) {
+            String rootParam = rootPathSegment(normalizedMcpPath(entry.asText(""), true));
+            if (!declaredParams.contains(rootParam)) {
+                throw invalid(plugin, version, label + " references undeclared action parameter '" + rootParam + "'.");
+            }
+        }
     }
 
     private void validateMcpRequiredAnyArguments(MarketplacePluginEntity plugin,
                                                  MarketplacePluginVersionEntity version,
+                                                 JsonNode params,
+                                                 JsonNode argumentTemplate,
                                                  JsonNode node,
                                                  String label) {
+        validateMcpRequiredPathList(plugin, version, node, label);
+        if (node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        Set<String> declaredParams = declaredActionParamNames(params);
+        for (JsonNode entry : node) {
+            String configuredPath = entry.asText("").trim();
+            boolean declared = argumentTemplate.isObject()
+                ? templateDeclaresPath(argumentTemplate, configuredPath)
+                : declaredParams.contains(rootPathSegment(normalizedMcpPath(configuredPath, false)));
+            if (!declared) {
+                throw invalid(plugin, version, label + " path '" + configuredPath + "' is not emitted by execution.mcp.argumentTemplate.");
+            }
+        }
+    }
+
+    private void validateMcpRequiredPathList(MarketplacePluginEntity plugin,
+                                             MarketplacePluginVersionEntity version,
+                                             JsonNode node,
+                                             String label) {
         if (node.isMissingNode() || node.isNull()) {
             return;
         }
@@ -556,6 +610,66 @@ public class MarketplaceManifestService {
                 throw invalid(plugin, version, label + " contains an invalid argument name.");
             }
         }
+    }
+
+    private Set<String> declaredActionParamNames(JsonNode params) {
+        if (!params.isArray()) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (JsonNode param : params) {
+            String name = firstText(param, "name");
+            if (StringUtils.hasText(name)) {
+                names.add(name.trim());
+            }
+        }
+        return names;
+    }
+
+    private boolean templateDeclaresPath(JsonNode template, String configuredPath) {
+        String path = normalizedMcpPath(configuredPath, false)
+            .replaceAll("\\[([0-9]+)]", ".$1");
+        JsonNode current = template;
+        for (String segment : path.split("\\.")) {
+            if (!StringUtils.hasText(segment)) {
+                continue;
+            }
+            if (current.isArray() && segment.chars().allMatch(Character::isDigit)) {
+                int index = Integer.parseInt(segment);
+                if (index >= current.size()) {
+                    return false;
+                }
+                current = current.get(index);
+            } else if (current.isObject() && current.has(segment)) {
+                current = current.get(segment);
+            } else {
+                return false;
+            }
+        }
+        return current != null && !current.isMissingNode();
+    }
+
+    private String normalizedMcpPath(String configuredPath, boolean actionParamPath) {
+        String path = configuredPath == null ? "" : configuredPath.trim();
+        if (path.startsWith("$.")) {
+            path = path.substring(2);
+        } else if (path.startsWith("$")) {
+            path = path.substring(1);
+        }
+        if (actionParamPath && path.startsWith("params.")) {
+            path = path.substring("params.".length());
+        }
+        return path;
+    }
+
+    private String rootPathSegment(String path) {
+        if (!StringUtils.hasText(path)) {
+            return "";
+        }
+        int dot = path.indexOf('.');
+        int bracket = path.indexOf('[');
+        int end = dot < 0 ? bracket : bracket < 0 ? dot : Math.min(dot, bracket);
+        return end < 0 ? path : path.substring(0, end);
     }
 
     private Set<String> parseMcpServerContributions(MarketplacePluginEntity plugin,

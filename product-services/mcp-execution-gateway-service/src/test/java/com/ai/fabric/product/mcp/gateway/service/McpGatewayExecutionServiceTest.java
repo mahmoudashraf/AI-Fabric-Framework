@@ -391,6 +391,8 @@ class McpGatewayExecutionServiceTest {
                         "serverRef", "shopify-storefront-ucp",
                         "endpointKind", "UCP_CATALOG",
                         "toolName", "search_catalog",
+                        "requiredAnyParams", List.of("query"),
+                        "requiredAnyArguments", List.of("catalog.query"),
                         "argumentTemplate", Map.of(
                             "meta", Map.of("ucp-agent", Map.of("profileRef", "MCP_PROFILE_SHOPIFY_UCP_AGENT")),
                             "catalog", Map.of("query", "{{params.query}}")
