@@ -97,7 +97,10 @@ class MarketplaceIntegrationTest {
     private PlatformManagedInferenceEndpointRepository platformManagedInferenceEndpointRepository;
 
     @Test
-    @Sql("classpath:db/migration/V131__shopify_storefront_current_ucp_actions.sql")
+    @Sql({
+        "classpath:db/migration/V131__shopify_storefront_current_ucp_actions.sql",
+        "classpath:db/migration/V142__shopify_ucp_create_cart_logical_argument_gate.sql"
+    })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void catalogEndpointsExposeSeededMarketplacePluginsAndVersions() throws Exception {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins")))
@@ -174,10 +177,27 @@ class MarketplaceIntegrationTest {
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-cart-mcp")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.plugin.id", is("mkp-action-shopify-cart-mcp")))
-            .andExpect(jsonPath("$.versions[0].version", is("2.0.0")))
+            .andExpect(jsonPath("$.versions[0].version", is("2.0.1")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_get_cart")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_create_cart")))
             .andExpect(jsonPath("$.versions[0].contributions.actionIds", hasItem("shopify_update_cart")));
+
+        mockMvc.perform(asAdmin(
+                get(
+                    "/api/marketplace/plugins/{pluginId}/versions/{version}",
+                    "mkp-action-shopify-cart-mcp",
+                    "2.0.1"
+                )
+            ))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath(
+                "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.requiredAnyArguments",
+                is(List.of(List.of("add_items")))
+            ))
+            .andExpect(jsonPath(
+                "$.manifest.contributions.actions[?(@.actionId=='shopify_create_cart')].execution.mcp.argumentTemplate.cart.line_items",
+                is(List.of("{{params.line_items}}"))
+            ));
 
         mockMvc.perform(asAdmin(get("/api/marketplace/plugins/{pluginId}", "mkp-action-shopify-customer-account-mcp")))
             .andExpect(status().isOk())
