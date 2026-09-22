@@ -30,6 +30,11 @@ public final class TraceContextSupport {
     public static final List<String> TEMPLATE_TRACE_KEYS = List.of(
         "requestId",
         "conversationId",
+        "userId",
+        "sessionId",
+        "shopDomain",
+        "actionConfig",
+        "mcpSecretValues",
         "authContext.subjectId",
         "authContext.subjectType",
         "authContext.authMode",
@@ -97,6 +102,15 @@ public final class TraceContextSupport {
 
         putIfTextObject(out, "requestId", trace.requestId());
         putIfTextObject(out, "conversationId", trace.conversationId());
+        putIfTextObject(out, "userId", trace.userId());
+        putIfTextObject(out, "sessionId", trace.sessionId());
+        putIfTextObject(out, "shopDomain", trace.shopDomain());
+        if (trace.actionConfig() != null && !trace.actionConfig().isEmpty()) {
+            out.put("actionConfig", new LinkedHashMap<>(trace.actionConfig()));
+        }
+        if (trace.mcpSecretValues() != null && !trace.mcpSecretValues().isEmpty()) {
+            out.put("mcpSecretValues", new LinkedHashMap<>(trace.mcpSecretValues()));
+        }
 
         VerifiedAuthContextDto auth = trace.authContext();
         if (auth != null && StringUtils.hasText(auth.subjectId())) {

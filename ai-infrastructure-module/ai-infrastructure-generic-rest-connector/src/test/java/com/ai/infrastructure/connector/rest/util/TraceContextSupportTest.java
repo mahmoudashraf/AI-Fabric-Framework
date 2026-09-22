@@ -2,6 +2,7 @@ package com.ai.infrastructure.connector.rest.util;
 
 import com.ai.infrastructure.connector.rest.api.TraceContextDto;
 import com.ai.infrastructure.connector.rest.api.VerifiedAuthContextDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,6 +11,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TraceContextSupportTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
     void forwardsVerifiedAuthHeadersOnly() {
@@ -83,5 +86,44 @@ class TraceContextSupportTest {
         assertThat(((Map<?, ?>) templateMap.get("authContext")).get("subjectId")).isEqualTo("anon-session-1");
         assertThat(((Map<?, ?>) templateMap.get("authContext")).get("sessionId")).isEqualTo("anon-session-1");
         assertThat(((Map<?, ?>) templateMap.get("authContext")).get("audiences")).isEqualTo(List.of("storefront-chat"));
+    }
+
+    @Test
+    void preservesRuntimeActionExecutionTraceForRouteTemplates() throws Exception {
+        Map<String, Object> actionConfig = Map.of(
+            "adapterType", "mcp-tool",
+            "execution", Map.of("mcp", Map.of(
+                "dispatchMode", "CONNECTOR",
+                "toolName", "create_cart"
+            ))
+        );
+        TraceContextDto trace = OBJECT_MAPPER.readValue("""
+            {
+              "requestId":"req_3",
+              "conversationId":"chat_3",
+              "userId":"shopper-1",
+              "sessionId":"session-1",
+              "shopDomain":"shop.example",
+              "actionConfig":{
+                "adapterType":"mcp-tool",
+                "execution":{"mcp":{"dispatchMode":"CONNECTOR","toolName":"create_cart"}}
+              },
+              "mcpSecretValues":{"MCP_PROFILE_REF":"profile-value"}
+            }
+            """, TraceContextDto.class);
+
+        Map<String, Object> templateMap = TraceContextSupport.templateMap(trace);
+
+        assertThat(templateMap)
+            .containsEntry("requestId", "req_3")
+            .containsEntry("conversationId", "chat_3")
+            .containsEntry("userId", "shopper-1")
+            .containsEntry("sessionId", "session-1")
+            .containsEntry("shopDomain", "shop.example")
+            .containsEntry("actionConfig", actionConfig)
+            .containsEntry("mcpSecretValues", Map.of("MCP_PROFILE_REF", "profile-value"));
+        assertThat(trace.toString())
+            .contains("mcpSecretValueRefs=[MCP_PROFILE_REF]")
+            .doesNotContain("profile-value");
     }
 }

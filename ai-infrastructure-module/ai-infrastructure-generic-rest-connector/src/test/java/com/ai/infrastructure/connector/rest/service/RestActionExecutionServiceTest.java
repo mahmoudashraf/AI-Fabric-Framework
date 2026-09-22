@@ -147,6 +147,64 @@ class RestActionExecutionServiceTest {
         assertThat(result.message()).contains("Verified auth context is required");
     }
 
+    @Test
+    void executeForwardsRuntimeActionConfigThroughTraceBodyTemplate() throws Exception {
+        AtomicReference<JsonNode> upstreamPayload = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/orders/ORD-1/cancel", exchange -> {
+            upstreamPayload.set(OBJECT_MAPPER.readTree(exchange.getRequestBody()));
+            respond(exchange, 200, "{\"status\":\"cancelled\"}");
+        });
+        server.setExecutor(Executors.newCachedThreadPool());
+        server.start();
+
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.getAuthz().setEnabled(false);
+        route.getRequest().setBody(Map.of(
+            "actionId", "{{actionId}}",
+            "params", "{{params}}",
+            "trace", "{{trace}}"
+        ));
+        RestActionExecutionService service = service(config);
+        Map<String, Object> actionConfig = Map.of(
+            "adapterType", "mcp-tool",
+            "execution", Map.of("mcp", Map.of(
+                "dispatchMode", "CONNECTOR",
+                "toolName", "create_cart"
+            ))
+        );
+        TraceContextDto trace = new TraceContextDto(
+            "req-connector",
+            "chat-connector",
+            null,
+            "shopper-1",
+            "session-1",
+            "shop.example",
+            actionConfig,
+            Map.of("MCP_PROFILE_REF", "profile-value")
+        );
+
+        ActionResultDto result = service.execute(new ActionExecuteRequestDto(
+            "cancel_order",
+            Map.of("orderId", "ORD-1"),
+            "idem-1",
+            trace
+        ));
+
+        assertThat(result.success()).isTrue();
+        JsonNode payload = upstreamPayload.get();
+        assertThat(payload).isNotNull();
+        assertThat(payload.path("trace").path("shopDomain").asText()).isEqualTo("shop.example");
+        assertThat(payload.path("trace").path("sessionId").asText()).isEqualTo("session-1");
+        assertThat(payload.path("trace").path("actionConfig").path("execution").path("mcp").path("dispatchMode").asText())
+            .isEqualTo("CONNECTOR");
+        assertThat(payload.path("trace").path("actionConfig").path("execution").path("mcp").path("toolName").asText())
+            .isEqualTo("create_cart");
+        assertThat(payload.path("trace").path("mcpSecretValues").path("MCP_PROFILE_REF").asText())
+            .isEqualTo("profile-value");
+    }
+
     private RestActionExecutionService service(RestRoutingConfig config) {
         TemplateEngine templateEngine = new TemplateEngine();
         RestAuthzProxyService authzProxyService = new RestAuthzProxyService(config);
