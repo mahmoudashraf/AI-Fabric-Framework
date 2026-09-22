@@ -552,3 +552,25 @@ In this codebase, high-quality progress means:
 - safer operational behavior
 - better operator usability
 - simpler, more intentional system shape
+
+## 13. Current-Only Version Policy
+
+LoomAI is a green-field platform. Support exactly one current framework,
+runtime, and Platform contract at a time.
+
+- Do not add compatibility branches, parallel old/new execution, legacy mode
+  aliases, or multi-version deployment matrices unless they are required for
+  one bounded migration into the current state.
+- Historical tags, stopped applications, exports, and configuration snapshots
+  are recovery evidence. They are not supported customer/runtime versions.
+- Upgrade the canonical deployment in place. A planned maintenance window is
+  acceptable when duplicate capacity would be unsafe or wasteful.
+- Reject retired selectors and stale contracts after migration. Translate only
+  current UI vocabulary into the current runtime contract at an explicit
+  boundary.
+- Verification and product claims must target the current immutable release;
+  a pass on an older release does not count as current evidence.
+
+As of 2026-09-22, the supported AI Fabric baseline is `0.8.4`. The matching
+LoomAI Platform/runtime rollout and its latest green release gate are recorded
+in `CODEX_WORKING_CONTEXT.md` and the private session handoff.

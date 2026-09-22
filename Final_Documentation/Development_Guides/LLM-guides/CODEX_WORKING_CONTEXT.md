@@ -2668,3 +2668,56 @@ Critical fixes that made the gate pass:
   with zero operator-IP rules, and direct Coolify API access is blocked again.
 - Production Platform placement/backend UI changes are not canonical live yet.
   Do not treat app Git pin `567282757` as successful deployment evidence.
+
+## 2026-09-22 AI Fabric 0.8.4 Latest-Only Platform Closure
+
+- The owner confirmed a current-only green-field policy: LoomAI supports one
+  framework/runtime/Platform contract. Do not preserve compatibility paths or
+  run parallel old/new stacks merely to support retired versions. Historical
+  artifacts remain recovery evidence only.
+- AI Fabric `0.8.4` is the supported immutable framework release: tag
+  `ai-fabric-framework-v0.8.4`, public commit
+  `0ccbf43efd96d808c2bf1de170085a8855c45150`. Central publication and
+  clean-cache Central-only Platform/consumer resolution passed.
+- Private Platform commits `df512b046`, `8697496e9`, `5c2dfa4bb`, and
+  `3e20ccfae` are pushed on `Platform-V11`. They upgrade the Platform to
+  `0.8.4`, preserve governed connector action traces, return safe generated
+  Shopify cart summaries, and align the current Shopify shell mode with the
+  runtime contract.
+- The mode fix is intentionally not a legacy alias. Marketplace shell config
+  uses `thinker_deep`; the generic Platform query boundary maps that current UI
+  selector to runtime selector `thinker`. Retired `shopify-companion` remains
+  unsupported and fails closed. Migration `V146` updates all three current
+  Shopify templates. A PostgreSQL migration test and focused query test pass;
+  the full Platform backend suite also passes.
+- GitHub image workflow run `35685594154` published immutable Platform images
+  for exact source `3e20ccfaee845952e93b369621992f8880bd7197`.
+  Staging backend `lnlgausj8hzrim7f5fa8pmpx` deployed that commit as Coolify
+  deployment `shdi67hpj0diya5g075nnirr`; liveness, readiness, aggregate health,
+  and Coolify health passed.
+- Production used the approved maintenance route, with no duplicate backend.
+  Canonical image app `sbdv2pkkqrbsy9m59034hb5j` was stopped, moved to image
+  tag `3e20ccfaee845952e93b369621992f8880bd7197`, and started through Coolify
+  deployment `c4habvtyp9yv0gut0fsagf6s`. It is `running:healthy`; three
+  consecutive liveness/readiness/aggregate rounds passed. The stopped source
+  app is recovery material, not a supported Platform version.
+- Shopify deployment `dep-8c3e7259` now uses published version
+  `ver-6c851e0e` (`v26`, AI Fabric `0.8.4`, config hash
+  `5eef04e468a85846af5d64055b29406bc7698e2a1e0108c4c8d28ea279e7e847`).
+  Release `rel-6763c7e2` is `APPLIED_VERIFIED`, provisioning `ACTIVE`, and
+  verification `PASSED`; runtime health is fully `UP`, Platform workspace
+  reports `28 passed, 0 failed, 1 skipped`, and no reindex was required.
+- All live Shopify template manifests now expose `thinker_deep`. Standalone
+  Partner run `vsr-4a6e9d02` passed the strict Max widget path that previously
+  failed on the retired selector. Thinker/Resolver run `vsr-f0508665` passed.
+- Full release run `vsr-e8c40e4a` passed all 13 blocking stages. Release gate
+  status is `READY` through `2026-09-22T16:43:23.124771Z`. Shopify Companion,
+  MCP Gateway, first-product audit (`11/11`, `DESIGN_PARTNER_READY`), Partner,
+  Thinker/Resolver, Marketplace hosted (`41` passes), and Ecommerce hosted
+  (`43` passes) all passed. Optional historical Qdrant deployment
+  `dep-72f212c7` remains non-blocking `MIGRATION_REQUIRED`; it is not an active
+  supported vector path.
+- Production firewall IDs `10915120` and `10918233` were restored exactly from
+  their pre-maintenance snapshots. The operator IP has zero matching rules,
+  direct production Coolify access returns HTTP `000`, and public API,
+  Console, and Partner health still return HTTP `200`.

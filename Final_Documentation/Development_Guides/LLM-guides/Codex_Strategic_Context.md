@@ -390,3 +390,24 @@ Current P0 cleanup items:
   tokens were revoked, their session and local files were retired, and both
   production firewalls again contain no operator-IP rule. A healthy recovered
   canonical app must not be confused with the still-pending image cutover.
+- 2026-09-22: AI Fabric `0.8.4` is the sole supported framework baseline. The
+  matching LoomAI runtime and Platform contract are current-only: no legacy
+  selector aliases, parallel old/new runtime matrix, or backward-compatibility
+  product promise. Historical releases and stopped apps are recovery evidence,
+  not supported execution targets.
+- 2026-09-22: The production Platform backend image cutover is complete and
+  supersedes the pending statement above. Canonical app
+  `sbdv2pkkqrbsy9m59034hb5j` runs exact private source `3e20ccfae` after a
+  single-app maintenance cutover; staging runs the same source. Production
+  source builds and duplicate backend starts remain prohibited on the current
+  host.
+- 2026-09-22: Shopify uses one current mode contract. Shells publish
+  `thinker_deep`; the Platform boundary translates it to runtime selector
+  `thinker`. The retired `shopify-companion` selector is not accepted.
+  Deployment `dep-8c3e7259` is active on `v26`, AI Fabric `0.8.4`, verified
+  release `rel-6763c7e2`.
+- 2026-09-22: Full release run `vsr-e8c40e4a` passed every blocking stage and
+  the Platform release gate is `READY`. Partner Max, Thinker/Resolver, Shopify
+  Companion, Shopify MCP, first-product quality, Marketplace, and Ecommerce
+  are green. The old optional Qdrant fixture remains non-blocking and is not a
+  reason to preserve an older supported contract.
