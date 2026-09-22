@@ -850,7 +850,15 @@ public class DeploymentPocChatService {
                 body.put("mode", defaultConversationMode);
             }
         }
+        String effectiveConversationMode = trimToNull(textOrNull(body, "mode"));
+        if (StringUtils.hasText(effectiveConversationMode)) {
+            body.put("mode", runtimeConversationMode(effectiveConversationMode));
+        }
         return new QueryPayload(body, promptPreview, promptPreviewSource);
+    }
+
+    private String runtimeConversationMode(String conversationMode) {
+        return "thinker_deep".equalsIgnoreCase(conversationMode) ? "thinker" : conversationMode;
     }
 
     private String defaultConversationMode(DeploymentEntity deployment) {

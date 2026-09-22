@@ -287,6 +287,50 @@ class DeploymentPocChatServiceTest {
     }
 
     @Test
+    void queryMapsVersionedThinkerDeepShellModeToRuntimeThinkerSelector() throws Exception {
+        AtomicReference<String> capturedBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            server.createContext("/api/chat/me/query", exchange -> {
+                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(
+                    exchange,
+                    200,
+                    """
+                        {
+                          "success": true,
+                          "type": "INFORMATION_PROVIDED",
+                          "answer": "Hello from Thinker.",
+                          "safeSummary": "Hello from Thinker.",
+                          "conversationId": "chat-thinker-default"
+                        }
+                        """
+                );
+            });
+            server.start();
+
+            DeploymentPocChatService service = serviceFor(
+                server,
+                null,
+                "trusted-backend-key",
+                "thinker_deep"
+            );
+            authenticateOperator();
+
+            DeploymentPocChatQueryResponse response = service.query(
+                "dep-123",
+                new DeploymentPocChatQueryRequest("Hello", null, null, null, null, null)
+            );
+
+            JsonNode requestBody = objectMapper.readTree(capturedBody.get());
+            assertThat(requestBody.path("mode").asText()).isEqualTo("thinker");
+            assertThat(response.success()).isTrue();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void queryProjectsCanonicalRuntimeChatResponseIntoPlatformPocContract() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         try {
