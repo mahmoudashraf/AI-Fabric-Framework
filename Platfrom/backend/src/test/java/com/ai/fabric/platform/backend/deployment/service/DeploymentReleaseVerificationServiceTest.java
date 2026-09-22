@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 
 class DeploymentReleaseVerificationServiceTest {
 
-    private static final String AI_FABRIC_VERSION = "0.8.3";
+    private static final String AI_FABRIC_VERSION = "0.8.4";
     private static final String ENTITY_CONFIG_CONTRACT_VERSION =
         "AI_ENTITY_CONFIG_V0_4";
     private static final String ENTITY_CONFIG_HASH = "entity-hash-123";
@@ -219,7 +219,7 @@ class DeploymentReleaseVerificationServiceTest {
                     """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.3",
+                          "aiFabricFrameworkVersion": "0.8.4",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -605,7 +605,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ? """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.3",
+                          "aiFabricFrameworkVersion": "0.8.4",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-old",
@@ -676,7 +676,7 @@ class DeploymentReleaseVerificationServiceTest {
                     ) : """
                         {
                           "success": true,
-                          "aiFabricFrameworkVersion": "0.8.3",
+                          "aiFabricFrameworkVersion": "0.8.4",
                           "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                           "entityConfigHash": "entity-hash-123",
                           "deploymentVersionId": "ver-123",
@@ -2589,7 +2589,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.3",
+                      "aiFabricFrameworkVersion": "0.8.4",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",
@@ -2703,7 +2703,7 @@ class DeploymentReleaseVerificationServiceTest {
                 """
                     {
                       "success": true,
-                      "aiFabricFrameworkVersion": "0.8.3",
+                      "aiFabricFrameworkVersion": "0.8.4",
                       "entityConfigContractVersion": "AI_ENTITY_CONFIG_V0_4",
                       "entityConfigHash": "entity-hash-123",
                       "deploymentVersionId": "ver-123",

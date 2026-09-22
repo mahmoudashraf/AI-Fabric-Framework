@@ -140,6 +140,7 @@ class MarketplaceManifestServiceTest {
                       "mcp": {
                         "serverRef": "shopify-storefront-ucp",
                         "toolName": "search_catalog",
+                        "dispatchMode": "CONNECTOR",
                         "requiredAnyParams": ["query"],
                         "requiredAnyArguments": ["catalog.query"],
                         "argumentTemplate": {
@@ -159,6 +160,40 @@ class MarketplaceManifestServiceTest {
             service.parseAndValidate(actionPlugin(), version(manifest));
 
         assertThat(parsed.contributions().actionIds()).containsExactly("shopify_search_catalog");
+    }
+
+    @Test
+    void mcpToolActionRejectsUnknownDispatchMode() {
+        String manifest = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true},
+              "contributions": {
+                "actions": [
+                  {
+                    "actionId": "inventory_search",
+                    "adapterType": "mcp-tool",
+                    "readOnly": true,
+                    "execution": {
+                      "adapterType": "mcp-tool",
+                      "mcp": {
+                        "serverRef": "inventory-mcp",
+                        "toolName": "inventory.search",
+                        "dispatchMode": "UNSAFE_FALLBACK"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(manifest)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("execution.mcp.dispatchMode must be DIRECT_GATEWAY or CONNECTOR");
     }
 
     @Test

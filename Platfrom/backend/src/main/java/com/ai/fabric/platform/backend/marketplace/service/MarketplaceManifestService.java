@@ -85,6 +85,10 @@ public class MarketplaceManifestService {
     private static final Set<String> SUPPORTED_DATASET_UPDATE_STRATEGIES = Set.of("UPSERT_BY_ID");
     private static final Set<String> SUPPORTED_SYNC_CONNECTOR_TYPES = Set.of("SQL_QUERY", "FILE_FOLDER");
     private static final String ACTION_ADAPTER_TYPE_MCP_TOOL = "mcp-tool";
+    private static final Set<String> SUPPORTED_MCP_DISPATCH_MODES = Set.of(
+        "DIRECT_GATEWAY",
+        "CONNECTOR"
+    );
     private static final Set<String> SUPPORTED_MCP_TRANSPORTS = Set.of("STREAMABLE_HTTP");
     private static final Set<String> SUPPORTED_MCP_SCHEMA_DRIFT_POLICIES = Set.of(
         "WARN_ONLY",
@@ -522,6 +526,15 @@ public class MarketplaceManifestService {
         }
         if (!MCP_TOOL_NAME_PATTERN.matcher(toolName.trim()).matches()) {
             throw invalid(plugin, version, "action '" + actionId + "' execution.mcp.toolName is invalid.");
+        }
+        String dispatchMode = firstText(mcp, "dispatchMode");
+        if (StringUtils.hasText(dispatchMode)
+            && !SUPPORTED_MCP_DISPATCH_MODES.contains(dispatchMode.trim().toUpperCase(Locale.ROOT))) {
+            throw invalid(
+                plugin,
+                version,
+                "action '" + actionId + "' execution.mcp.dispatchMode must be DIRECT_GATEWAY or CONNECTOR."
+            );
         }
         JsonNode argumentTemplate = mcp.path("argumentTemplate");
         if (!argumentTemplate.isMissingNode() && !argumentTemplate.isNull() && !argumentTemplate.isObject()) {
