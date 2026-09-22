@@ -411,3 +411,16 @@ Current P0 cleanup items:
   Companion, Shopify MCP, first-product quality, Marketplace, and Ecommerce
   are green. The old optional Qdrant fixture remains non-blocking and is not a
   reason to preserve an older supported contract.
+- 2026-09-22: File document indexing is a planned reusable Platform
+  capability named **Document Knowledge Operations**, not a deployment
+  behavior or new plugin type. AI Fabric `0.8.4` supplies trusted text/JSON
+  preparation, plans, content-free manifests, canonical queue work,
+  versioned identity, reconciliation, and exact deletion. LoomAI must supply
+  customer-storage connectors, runtime persistence/APIs, Marketplace `DATA`
+  and `TEMPLATE` composition, V04 compilation, operations UI, and verification.
+  Customer-provided S3-compatible storage is production-primary; a read-only
+  mounted folder is allowed only for small data/demos. LoomAI does not
+  provision, back up, bill for, or delete customer source storage. Source bytes
+  flow from that storage directly to the exact deployment; Platform remains
+  the deterministic control plane. The canonical plan is
+  `010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md`.

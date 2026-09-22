@@ -5,9 +5,10 @@ Status: canonical consolidated plan created on 2026-08-01, corrected to deployme
 The historical filename is retained so existing documentation links do not break. The architecture below explicitly rejects a separate `Product Profile` aggregate.
 
 Version note: references to `0.7.0` below identify the release that introduced
-the declarative-chain and durable-review contracts. The active compatible
-runtime baseline is `0.7.1`; new implementation and verification must target
-`0.7.1`, not the superseded patch level.
+the declarative-chain and durable-review contracts. Those references are
+historical contract lineage, not a supported-version matrix. AI Fabric `0.8.4`
+is the sole current framework/runtime/Platform baseline; all new implementation
+and verification must target `0.8.4`.
 
 This document consolidates and judges:
 
@@ -21,6 +22,7 @@ Related LoomAI sources:
 - [010.16 Practical Dev, Staging, And Production Deployment Model](010_16_PRACTICAL_DEV_STAGING_PRODUCTION_DEPLOYMENT_MODEL.md)
 - [010.17 Read Action Grounding And LLM Facts Plan](010_17_GROUNDING_ELIGIBLE_READ_ACTION_POST_ACTION_GENERATION_AND_LLM_FACTS_PLAN.md)
 - [010.18 Shopify Companion Production Release And Listing Readiness](010_18_SHOPIFY_COMPANION_PRODUCTION_RELEASE_AND_APP_LISTING_READINESS_PLAN.md)
+- [010.24 File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 - [009.1 Marketplace Config-Driven MCP Capability Architecture](009_1_MARKETPLACE_CONFIG_DRIVEN_MCP_CAPABILITY_ARCHITECTURE.md)
 - [009.2 MCP Execution Gateway Extraction Plan](009_2_MCP_EXECUTION_GATEWAY_EXTRACTION_PLAN.md)
 - [AI Fabric Platform Product Philosophy](../../../../../../../../Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_PLATFORM_PRODUCT_PHILOSOPHY.md)

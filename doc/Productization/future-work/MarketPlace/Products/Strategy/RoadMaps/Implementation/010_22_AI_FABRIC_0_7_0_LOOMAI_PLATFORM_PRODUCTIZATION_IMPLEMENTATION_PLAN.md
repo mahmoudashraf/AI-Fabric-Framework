@@ -9,10 +9,12 @@ Canonical architecture:
 Focused market-readiness execution:
 
 - [010.23 LoomAI Deployment Behavior Market Readiness Execution Plan](010_23_LOOMAI_DEPLOYMENT_BEHAVIOR_MARKET_READINESS_EXECUTION_PLAN.md)
+- [010.24 File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 
 The filename retains the `0.7.0` contract lineage so existing links remain
-valid. All new builds, deployments, and verification in this plan use the
-compatible production patch `0.7.1`.
+valid. The `0.7.x` references below record the behavior-contract implementation
+lineage. AI Fabric `0.8.4` is the sole current framework/runtime/Platform
+baseline, and all new builds, deployments, and verification use `0.8.4`.
 
 Release foundation:
 

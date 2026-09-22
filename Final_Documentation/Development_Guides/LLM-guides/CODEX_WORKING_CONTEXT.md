@@ -2722,3 +2722,39 @@ Critical fixes that made the gate pass:
   their pre-maintenance snapshots. The operator IP has zero matching rules,
   direct production Coolify access returns HTTP `000`, and public API,
   Console, and Partner health still return HTTP `200`.
+
+## 2026-09-22 File Document Indexing Platform Support Plan
+
+- Added canonical implementation plan
+  `doc/Productization/future-work/MarketPlace/Products/Strategy/RoadMaps/Implementation/010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md`.
+- AI Fabric `0.8.4` contains the released governed document-indexing core, but
+  LoomAI has not yet released a document-ingestion capability. Current
+  support is dependency-level only; existing Shopify and Marketplace
+  "documents" remain structured Data Sync records.
+- Productize file indexing as the reusable **Document Knowledge Operations**
+  capability. Reuse Marketplace `DATA` and `TEMPLATE`, V04 deployment
+  draft/version/release/apply/verification, current provider/target profiles,
+  deployment resource handles, runtime capability manifests, export/import,
+  and the deployment workspace. Do not add a plugin type, deployment behavior,
+  central document data plane, or parallel lifecycle.
+- The planned first release is deployment-local and limited to trusted text
+  and approved JSON. It introduces the proposed DATA mode
+  `EXTERNAL_DOCUMENT_STORAGE` with `VERSIONED_REPLACE`, a customer-owned
+  S3-compatible source connector, runtime PostgreSQL
+  source/content-free-manifest state, deployment-local APIs, active-version
+  retrieval, and exact indexed-manifest deletion.
+- Customer-provided object storage is the production source of truth. Platform
+  binds a least-privilege read/list credential and displays bounded connector
+  and indexing status; it does not provision, back up, bill for, or delete the
+  source storage, and source bytes never transit the Platform control plane.
+- A read-only folder may optionally be mounted into one deployment for small
+  data, internal canaries, and demos. This mode has no managed-storage, HA,
+  backup, or customer production claim.
+- Document source versions are content revisions, not framework versions.
+  Current-only release policy remains unchanged. Versioning is retained for
+  idempotency, failed-replacement safety, exact index deletion, and evidence.
+- Removing or decommissioning a LoomAI document source deletes only indexed
+  evidence and deployment-local lifecycle state. The customer object remains
+  unchanged; storage retention and source deletion remain customer-owned.
+- Begin with a new generic canary. Do not alter or reindex Shopify, ProdUS, or
+  existing structured datasets to prove this capability.
