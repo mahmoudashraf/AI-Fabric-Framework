@@ -642,6 +642,68 @@ class ShopifyStorefrontChatServiceTest {
     }
 
     @Test
+    void querySummarizesConnectorWrappedUcpCartResultForShoppers() throws Exception {
+        PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
+        ShopifyStorefrontChatService service = service(platformClient);
+        when(platformClient.getStore("alpha.myshopify.com")).thenReturn(store("INSTALLED", "READY"));
+
+        String toolPayload = objectMapper.writeValueAsString(objectMapper.readTree("""
+            {
+              "ucp":{"version":"2026-08-25","status":"success"},
+              "id":"gid://shopify/Cart/c1-test?key=cart-key",
+              "line_items":[
+                {
+                  "quantity":1,
+                  "item":{
+                    "id":"gid://shopify/ProductVariant/1",
+                    "title":"Selling Plans Ski Wax"
+                  }
+                }
+              ],
+              "continue_url":"https://shop.example/cart/c/test"
+            }
+            """));
+        var upstreamResponse = objectMapper.createObjectNode();
+        upstreamResponse.put("success", true);
+        upstreamResponse.put("type", "ACTION_EXECUTED");
+        upstreamResponse.put("answer", "Action executed.");
+        upstreamResponse.put("safeSummary", "Action executed.");
+        upstreamResponse.put("conversationId", "conv-1");
+        var action = upstreamResponse.putArray("actions").addObject();
+        action.put("action", "shopify_create_cart");
+        var actionResult = action.putObject("actionResult");
+        actionResult.put("success", true);
+        actionResult.put("message", "Action executed.");
+        var connectorEnvelope = actionResult.putObject("data");
+        connectorEnvelope.put("success", true);
+        connectorEnvelope.put("message", toolPayload);
+        connectorEnvelope.putObject("data")
+            .putObject("toolResult")
+            .putArray("content")
+            .addObject()
+            .put("type", "text")
+            .put("text", toolPayload);
+        when(platformClient.queryConsumerBridgeChat(anyString(), any(), any())).thenReturn(upstreamResponse);
+
+        JsonNode response = service.query(
+            "alpha.myshopify.com",
+            objectMapper.readTree("""
+                {
+                  "query":"Yes, confirm",
+                  "context":{"pageType":"cart"}
+                }
+                """),
+            "shopper-session-1"
+        );
+
+        assertThat(response.path("safeSummary").asText())
+            .contains("Cart updated", "1 x Selling Plans Ski Wax", "https://shop.example/cart/c/test")
+            .doesNotContain("{", "MCP tool result", "Action executed");
+        assertThat(response.path("actions").path(0).path("actionResult").path("data").path("message").asText())
+            .isEqualTo(response.path("safeSummary").asText());
+    }
+
+    @Test
     void queryReplacesCartResolverParameterClarificationWithShopperCopy() throws Exception {
         PlatformShopifyStoreClient platformClient = mock(PlatformShopifyStoreClient.class);
         ShopifyBridgeInstallCredentialService installCredentialService = mock(ShopifyBridgeInstallCredentialService.class);

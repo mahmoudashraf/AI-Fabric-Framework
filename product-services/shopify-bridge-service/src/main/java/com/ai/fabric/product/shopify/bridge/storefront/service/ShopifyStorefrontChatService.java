@@ -1585,6 +1585,7 @@ public class ShopifyStorefrontChatService {
     }
 
     private String extractAnswer(JsonNode response) {
+        String genericFallback = null;
         for (String path : List.of(
             "safeSummary",
             "answer",
@@ -1600,18 +1601,27 @@ public class ShopifyStorefrontChatService {
         )) {
             String value = nestedText(response, path);
             if (value != null && !genericMcpToolResult(value)) {
-                return summarizeMcpToolText(value);
+                String summary = summarizeMcpToolText(value);
+                if (genericActionExecutionSummary(summary)) {
+                    genericFallback = summary;
+                    continue;
+                }
+                return summary;
             }
         }
-        return extractMcpToolTextAnswer(response);
+        String toolAnswer = extractMcpToolTextAnswer(response);
+        return toolAnswer != null ? toolAnswer : genericFallback;
     }
 
     private String extractMcpToolTextAnswer(JsonNode response) {
         for (String path : List.of(
             "actions.0.actionResult.data.toolResult.content",
+            "actions.0.actionResult.data.data.toolResult.content",
             "actions.0.toolResult.content",
             "result.data.actionResult.data.toolResult.content",
+            "result.data.actionResult.data.data.toolResult.content",
             "result.sanitizedPayload.data.actionResult.data.toolResult.content",
+            "result.sanitizedPayload.data.actionResult.data.data.toolResult.content",
             "result.data.toolResult.content",
             "result.sanitizedPayload.data.toolResult.content"
         )) {
@@ -1646,6 +1656,9 @@ public class ShopifyStorefrontChatService {
                 return error;
             }
             String cartSummary = cartSummary(parsed.path("cart"));
+            if (cartSummary == null && looksLikeCart(parsed)) {
+                cartSummary = cartSummary(parsed);
+            }
             if (cartSummary != null) {
                 return cartSummary;
             }
@@ -1722,22 +1735,56 @@ public class ShopifyStorefrontChatService {
             return null;
         }
         List<String> parts = new ArrayList<>();
-        String lineSummary = cartLineSummary(cart.path("lines"));
+        JsonNode lines = firstArrayNode(cart.path("lines"), cart.path("line_items"), cart.path("lineItems"));
+        String lineSummary = cartLineSummary(lines);
         if (lineSummary != null) {
             parts.add("Cart updated: " + lineSummary + ".");
         } else {
             int totalQuantity = cart.path("total_quantity").asInt(-1);
+            if (totalQuantity < 0) {
+                totalQuantity = totalQuantity(lines);
+            }
             parts.add(totalQuantity >= 0 ? "Cart updated. Total quantity: " + totalQuantity + "." : "Cart updated.");
         }
         String total = moneySummary(cart.path("cost").path("total_amount"));
         if (total != null) {
             parts.add("Total: " + total + ".");
         }
-        String checkoutUrl = trimToNull(textOrNull(cart, "checkout_url"));
+        String checkoutUrl = firstNonBlank(
+            textOrNull(cart, "checkout_url"),
+            textOrNull(cart, "continue_url")
+        );
         if (checkoutUrl != null) {
             parts.add("Checkout: " + checkoutUrl);
         }
         return String.join(" ", parts);
+    }
+
+    private boolean looksLikeCart(JsonNode value) {
+        return value != null
+            && value.isObject()
+            && (value.path("line_items").isArray()
+                || value.path("lineItems").isArray()
+                || value.path("lines").isArray())
+            && (StringUtils.hasText(textOrNull(value, "id"))
+                || StringUtils.hasText(textOrNull(value, "continue_url"))
+                || StringUtils.hasText(textOrNull(value, "checkout_url")));
+    }
+
+    private int totalQuantity(JsonNode lines) {
+        if (lines == null || !lines.isArray()) {
+            return -1;
+        }
+        int total = 0;
+        boolean found = false;
+        for (JsonNode line : lines) {
+            int quantity = line == null ? -1 : line.path("quantity").asInt(-1);
+            if (quantity >= 0) {
+                total += quantity;
+                found = true;
+            }
+        }
+        return found ? total : -1;
     }
 
     private String cartLineSummary(JsonNode lines) {
@@ -1752,7 +1799,9 @@ public class ShopifyStorefrontChatService {
             }
             String title = firstNonBlank(
                 textOrNull(line.path("merchandise").path("product"), "title"),
-                textOrNull(line.path("merchandise"), "title")
+                textOrNull(line.path("merchandise"), "title"),
+                textOrNull(line.path("item").path("product"), "title"),
+                textOrNull(line.path("item"), "title")
             );
             int quantity = line.path("quantity").asInt(0);
             if (title == null || quantity <= 0) {
@@ -1788,6 +1837,12 @@ public class ShopifyStorefrontChatService {
 
     private boolean genericMcpToolResult(String value) {
         return "MCP tool result".equalsIgnoreCase(value == null ? "" : value.trim());
+    }
+
+    private boolean genericActionExecutionSummary(String value) {
+        String normalized = value == null ? "" : value.trim();
+        return "Action executed.".equalsIgnoreCase(normalized)
+            || "Action executed".equalsIgnoreCase(normalized);
     }
 
     private String nestedText(JsonNode node, String dottedPath) {
