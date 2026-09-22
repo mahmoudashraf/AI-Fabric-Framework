@@ -2689,7 +2689,8 @@ Critical fixes that made the gate pass:
   selector to runtime selector `thinker`. Retired `shopify-companion` remains
   unsupported and fails closed. Migration `V146` updates all three current
   Shopify templates. A PostgreSQL migration test and focused query test pass;
-  the full Platform backend suite also passes.
+  the full Platform backend suite passes `798/798` with no failures, errors,
+  or skipped tests.
 - GitHub image workflow run `35685594154` published immutable Platform images
   for exact source `3e20ccfaee845952e93b369621992f8880bd7197`.
   Staging backend `lnlgausj8hzrim7f5fa8pmpx` deployed that commit as Coolify
