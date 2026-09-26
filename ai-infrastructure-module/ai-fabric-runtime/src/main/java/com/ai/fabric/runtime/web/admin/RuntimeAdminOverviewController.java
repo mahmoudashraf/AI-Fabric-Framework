@@ -319,6 +319,7 @@ public class RuntimeAdminOverviewController {
             case "ai-action-proposal-receipt" -> "ai-action-proposal-receipt-v1";
             case "ai-review-task" -> "ai-review-task-v1";
             case "ai-review-dispatch" -> "ai-review-dispatch-v1";
+            case "loomai-document-ingestion" -> "loomai-document-ingestion-v1";
             default -> slug + "-v" + version.trim();
         };
     }

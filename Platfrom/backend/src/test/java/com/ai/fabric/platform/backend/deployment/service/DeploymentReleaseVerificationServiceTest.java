@@ -495,7 +495,7 @@ class DeploymentReleaseVerificationServiceTest {
             assertThat(checkStatus(run, "document_source_connector_ready")).isEqualTo("PASSED");
             assertThat(assertionClaims.get()).isNotNull();
             assertThat(assertionClaims.get().path("iss").asText())
-                .isEqualTo("platform-document-release-verification");
+                .isEqualTo("platform-release-verification");
             assertThat(StreamSupport.stream(assertionClaims.get().path("scopes").spliterator(), false)
                 .map(JsonNode::asText)
                 .toList())

@@ -906,9 +906,9 @@ public class DeploymentReleaseVerificationService {
             platformSecretService,
             objectMapper,
             deployment,
-            "platform-document-release-verification",
+            "platform-release-verification",
             "document-release-verification-" + blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
-            "platform-document-release-verification",
+            "platform-release-verification",
             RuntimePrivateAccessSupport.documentReadScopes(),
             Duration.ofMinutes(15)
         );

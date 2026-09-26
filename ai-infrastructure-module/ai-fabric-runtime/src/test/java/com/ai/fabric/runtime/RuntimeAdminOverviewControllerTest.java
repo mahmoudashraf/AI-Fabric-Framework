@@ -65,6 +65,37 @@ import static org.mockito.Mockito.when;
 class RuntimeAdminOverviewControllerTest {
 
     @Test
+    void mapsDocumentFlywayMigrationToStableCapabilityId() {
+        RuntimeAuthProperties authProperties = new RuntimeAuthProperties();
+        RuntimeAdminOverviewController controller = instantiateController(
+            mock(AIActionRegistry.class),
+            mock(RuntimeActionCatalogGateway.class),
+            mock(AIEntityConfigurationLoader.class),
+            new TestVectorDatabaseService(),
+            authProperties,
+            new RuntimeRequestAuthResolver(
+                authProperties,
+                new RuntimePrivateAssertionService(authProperties),
+                null
+            ),
+            emptyProvider(ConfirmationInterceptorCatalogProvider.class),
+            emptyProvider(ConnectorActionWebhookPolicyCatalog.class),
+            emptyProvider(RuntimeDeploymentKnowledgeSourceConfigService.class),
+            emptyProvider(RuntimeDeploymentShellConfigService.class),
+            emptyProvider(SearchSourceRegistry.class)
+        );
+
+        String migrationId = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+            controller,
+            "semanticMigrationId",
+            "loomai document ingestion",
+            "9"
+        );
+
+        assertThat(migrationId).isEqualTo("loomai-document-ingestion-v1");
+    }
+
+    @Test
     void overviewIncludesVectorScopeDiagnostics() {
         AIActionRegistry actionRegistry = mock(AIActionRegistry.class);
         AIEntityConfigurationLoader entityConfigurationLoader = mock(AIEntityConfigurationLoader.class);
