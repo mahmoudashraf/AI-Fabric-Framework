@@ -23,6 +23,8 @@ import com.ai.fabric.platform.backend.vectorization.service.VectorizationRunnerP
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -42,12 +44,24 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 @Service
 public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider {
 
+    private static final Logger log = LoggerFactory.getLogger(CoolifyDeploymentProvider.class);
+    private static final Duration TRACKED_STEP_HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
+    private static final ScheduledExecutorService TRACKED_STEP_HEARTBEAT_EXECUTOR =
+        Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "coolify-provisioning-heartbeat");
+            thread.setDaemon(true);
+            return thread;
+        });
     private static final String RESOURCE_KIND_APPLICATION = "APPLICATION";
     private static final String RESOURCE_KIND_CONNECTOR_APPLICATION = "CONNECTOR_APPLICATION";
     private static final String RESOURCE_KIND_VECTORIZATION_RUNNER_APPLICATION = "VECTORIZATION_RUNNER_APPLICATION";
@@ -3088,8 +3102,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private <T> T tracked(ProvisioningProgressTracker progressTracker,
                           String key,
                           String description,
-                          java.util.function.Supplier<T> supplier) {
+                          Supplier<T> supplier) {
+        return trackedWithHeartbeat(
+            progressTracker,
+            key,
+            description,
+            supplier,
+            TRACKED_STEP_HEARTBEAT_INTERVAL
+        );
+    }
+
+    <T> T trackedWithHeartbeat(ProvisioningProgressTracker progressTracker,
+                               String key,
+                               String description,
+                               Supplier<T> supplier,
+                               Duration heartbeatInterval) {
         progressTracker.stepStarted(key, description);
+        ScheduledFuture<?> heartbeat = TRACKED_STEP_HEARTBEAT_EXECUTOR.scheduleWithFixedDelay(
+            () -> emitHeartbeat(progressTracker, key),
+            heartbeatInterval.toMillis(),
+            heartbeatInterval.toMillis(),
+            TimeUnit.MILLISECONDS
+        );
         try {
             T result = supplier.get();
             progressTracker.stepCompleted(key, description);
@@ -3097,6 +3131,16 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         } catch (RuntimeException ex) {
             progressTracker.stepFailed(key, description, ex.getMessage());
             throw ex;
+        } finally {
+            heartbeat.cancel(false);
+        }
+    }
+
+    private void emitHeartbeat(ProvisioningProgressTracker progressTracker, String stepKey) {
+        try {
+            progressTracker.heartbeat();
+        } catch (RuntimeException ex) {
+            log.warn("Failed to record Coolify provisioning heartbeat for step '{}'.", stepKey, ex);
         }
     }
 }

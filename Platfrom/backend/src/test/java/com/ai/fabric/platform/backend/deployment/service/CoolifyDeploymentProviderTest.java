@@ -24,10 +24,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +49,57 @@ import static org.mockito.Mockito.when;
 class CoolifyDeploymentProviderTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void heartbeatsWhileTrackedCoolifyOperationIsStillRunning() {
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            mock(DeploymentTargetProfileRepository.class),
+            mock(DeploymentProviderResourceHandleRepository.class),
+            mock(DeploymentSourceArtifactService.class),
+            mock(RailwayProvisioningPlanService.class),
+            mock(CoolifyTargetProfileResolver.class),
+            mock(CoolifyApiClient.class),
+            objectMapper
+        );
+        AtomicInteger heartbeats = new AtomicInteger();
+        ProvisioningProgressTracker tracker = new ProvisioningProgressTracker() {
+            @Override
+            public void stepStarted(String key, String description) {
+            }
+
+            @Override
+            public void stepCompleted(String key, String description) {
+            }
+
+            @Override
+            public void stepFailed(String key, String description, String errorMessage) {
+            }
+
+            @Override
+            public void heartbeat() {
+                heartbeats.incrementAndGet();
+            }
+        };
+
+        String result = provider.trackedWithHeartbeat(
+            tracker,
+            "configure_coolify_runtime_environment",
+            "Update runtime environment variables in Coolify.",
+            () -> {
+                try {
+                    Thread.sleep(90);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(ex);
+                }
+                return "completed";
+            },
+            Duration.ofMillis(20)
+        );
+
+        assertThat(result).isEqualTo("completed");
+        assertThat(heartbeats.get()).isGreaterThanOrEqualTo(2);
+    }
 
     @Test
     void reconcilesMountedDocumentStorageOnlyForTheExplicitDemoConnector() {

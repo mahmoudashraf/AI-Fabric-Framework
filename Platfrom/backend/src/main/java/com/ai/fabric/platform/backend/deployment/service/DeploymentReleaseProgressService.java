@@ -100,9 +100,9 @@ public class DeploymentReleaseProgressService {
 
     @Transactional
     public void heartbeat(String releaseId) {
-        DeploymentReleaseEntity release = getRelease(releaseId);
-        release.setUpdatedAt(Instant.now());
-        releaseRepository.save(release);
+        if (releaseRepository.touchUpdatedAt(releaseId, Instant.now()) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Deployment release not found: " + releaseId);
+        }
     }
 
     @Transactional
