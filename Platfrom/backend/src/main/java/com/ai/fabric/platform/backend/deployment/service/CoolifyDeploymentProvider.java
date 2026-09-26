@@ -619,7 +619,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     finalConnectorApplication.uuid(),
                     resourceDefaults,
                     finalConnectorApplication,
-                    finalConnectorDeployResponse
+                    finalConnectorDeployResponse,
+                    progressTracker
                 )
             );
         }
@@ -644,7 +645,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     finalVectorizationRunnerApplication.uuid(),
                     resourceDefaults,
                     finalVectorizationRunnerApplication,
-                    finalVectorizationRunnerDeployResponse
+                    finalVectorizationRunnerDeployResponse,
+                    progressTracker
                 )
             );
         }
@@ -665,7 +667,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 runtimeApplication.uuid(),
                 resourceDefaults,
                 runtimeApplication,
-                runtimeDeployResponse
+                runtimeDeployResponse,
+                progressTracker
             )
         );
 
@@ -2375,7 +2378,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                               String applicationUuid,
                                                               JsonNode resourceDefaults,
                                                               CoolifyApplicationSummary fallback,
-                                                              CoolifyActionResponse deployResponse) {
+                                                              CoolifyActionResponse deployResponse,
+                                                              ProvisioningProgressTracker progressTracker) {
         Duration timeout = durationSeconds(
             resourceDefaults,
             "deploySettleTimeoutSeconds",
@@ -2391,6 +2395,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         String deploymentUuid = deployResponse == null ? null : deployResponse.deploymentUuid();
         CoolifyDeploymentSummary deployment = observeCoolifyDeployment(connection, deploymentUuid);
         while (!coolifyDeploymentReady(deployment, deploymentUuid) && Instant.now().isBefore(deadline)) {
+            progressTracker.heartbeat();
             try {
                 Thread.sleep(pollInterval.toMillis());
             } catch (InterruptedException ex) {
@@ -2418,6 +2423,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         latest = observeCoolifyApplication(connection, applicationUuid).orElse(latest);
         while (!applicationReady(latest) && Instant.now().isBefore(deadline)) {
+            progressTracker.heartbeat();
             try {
                 Thread.sleep(pollInterval.toMillis());
             } catch (InterruptedException ex) {

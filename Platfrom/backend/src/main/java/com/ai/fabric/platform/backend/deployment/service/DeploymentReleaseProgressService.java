@@ -99,6 +99,13 @@ public class DeploymentReleaseProgressService {
     }
 
     @Transactional
+    public void heartbeat(String releaseId) {
+        DeploymentReleaseEntity release = getRelease(releaseId);
+        release.setUpdatedAt(Instant.now());
+        releaseRepository.save(release);
+    }
+
+    @Transactional
     public void mergeProvisioningDetails(String releaseId, String detailsJson) {
         DeploymentReleaseEntity release = getRelease(releaseId);
         ObjectNode merged = ensureObject(release.getProvisioningDetailsJson());
@@ -138,6 +145,11 @@ public class DeploymentReleaseProgressService {
             @Override
             public void stepFailed(String key, String description, String errorMessage) {
                 DeploymentReleaseProgressService.this.stepFailed(releaseId, key, description, errorMessage);
+            }
+
+            @Override
+            public void heartbeat() {
+                DeploymentReleaseProgressService.this.heartbeat(releaseId);
             }
 
             @Override
