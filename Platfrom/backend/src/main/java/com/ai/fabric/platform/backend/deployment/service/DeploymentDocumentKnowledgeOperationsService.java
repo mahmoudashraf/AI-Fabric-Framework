@@ -303,7 +303,7 @@ public class DeploymentDocumentKnowledgeOperationsService {
                 deployment.getId(),
                 deployment.getCustomerId(),
                 deployment.getTenantId(),
-                "platform-document-operations",
+                RuntimePrivateAccessSupport.ISSUER_PLATFORM_DOCUMENT_OPERATIONS,
                 Instant.now().plus(Duration.ofMinutes(5)),
                 List.of(deployment.getId()),
                 scopes

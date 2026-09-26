@@ -18,6 +18,7 @@ public final class RuntimePrivateAccessSupport {
     public static final String TRUSTED_BACKEND_SECRET_NAME = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
     public static final String TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     public static final String PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
+    public static final String ISSUER_PLATFORM_DOCUMENT_OPERATIONS = "platform-document-operations";
 
     public static final String SCOPE_RUNTIME_ADMIN_OVERVIEW = "runtime:admin:overview";
     public static final String SCOPE_RUNTIME_AUTH_OVERVIEW = "runtime:admin:auth-overview";

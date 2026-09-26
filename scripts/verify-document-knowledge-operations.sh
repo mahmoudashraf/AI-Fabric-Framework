@@ -69,8 +69,8 @@ trim_slash() {
 }
 
 is_true() {
-  case "${1,,}" in
-    true|1|yes|on) return 0 ;;
+  case "$1" in
+    [Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Oo][Nn]) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -171,19 +171,22 @@ platform_http() {
   local attempt=1
   local status=""
   while true; do
-    local cookie_args=()
+    local curl_args=(
+      -sS
+      --connect-timeout "${PLATFORM_CURL_CONNECT_TIMEOUT_SECONDS}"
+      --max-time "${PLATFORM_CURL_MAX_TIME_SECONDS}"
+      -o "${output_file}"
+      -w '%{http_code}'
+      -X "${method}"
+      "${headers[@]}"
+    )
     if [[ -s "${PLATFORM_COOKIE_JAR}" ]]; then
-      cookie_args=(-b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}")
+      curl_args+=(-b "${PLATFORM_COOKIE_JAR}" -c "${PLATFORM_COOKIE_JAR}")
     fi
-    local body_args=()
     if [[ -n "${body}" ]]; then
-      body_args=(--data "${body}")
+      curl_args+=(--data "${body}")
     fi
-    status="$(curl -sS \
-      --connect-timeout "${PLATFORM_CURL_CONNECT_TIMEOUT_SECONDS}" \
-      --max-time "${PLATFORM_CURL_MAX_TIME_SECONDS}" \
-      -o "${output_file}" -w '%{http_code}' -X "${method}" \
-      "${headers[@]}" "${cookie_args[@]}" "${body_args[@]}" "$@" "${url}" || true)"
+    status="$(curl "${curl_args[@]}" "$@" "${url}" || true)"
     if [[ ( "${status}" == "000" || "${status}" == "502" || "${status}" == "503" || "${status}" == "504" ) \
         && "${attempt}" -lt "${PLATFORM_HTTP_RETRY_ATTEMPTS}" ]]; then
       sleep "${PLATFORM_HTTP_RETRY_SLEEP_SECONDS}"
@@ -481,8 +484,14 @@ require_value DOCUMENT_TEXT_RETRIEVAL_QUERY
 require_value DOCUMENT_JSON_OBJECT_REFERENCE
 require_value DOCUMENT_JSON_RETRIEVAL_QUERY
 
-[[ "${DOCUMENT_TEXT_OBJECT_REFERENCE,,}" == *.txt ]] || fail "Text verification object must end in .txt"
-[[ "${DOCUMENT_JSON_OBJECT_REFERENCE,,}" == *.json ]] || fail "JSON verification object must end in .json"
+case "${DOCUMENT_TEXT_OBJECT_REFERENCE}" in
+  *.[Tt][Xx][Tt]) ;;
+  *) fail "Text verification object must end in .txt" ;;
+esac
+case "${DOCUMENT_JSON_OBJECT_REFERENCE}" in
+  *.[Jj][Ss][Oo][Nn]) ;;
+  *) fail "JSON verification object must end in .json" ;;
+esac
 
 PLATFORM_BASE_URL="$(trim_slash "${PLATFORM_BASE_URL}")"
 TMP_DIR="$(mktemp -d)"

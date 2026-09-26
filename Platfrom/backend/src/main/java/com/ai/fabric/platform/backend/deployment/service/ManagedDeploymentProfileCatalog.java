@@ -1,5 +1,6 @@
 package com.ai.fabric.platform.backend.deployment.service;
 
+import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.LinkedHashMap;
@@ -138,6 +139,7 @@ public final class ManagedDeploymentProfileCatalog {
         "platform-poc:API_KEY",
         "platform-poc:SYSTEM",
         "platform-release-verification",
+        RuntimePrivateAccessSupport.ISSUER_PLATFORM_DOCUMENT_OPERATIONS,
         "platform-vectorization-verification",
         "platform-runtime-coverage"
     );

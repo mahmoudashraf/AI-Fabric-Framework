@@ -531,7 +531,7 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
             .containsEntry(
                 "AI_FABRIC_RUNTIME_AUTH_ACCEPTED_ISSUERS",
-                "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-release-verification,platform-vectorization-verification,platform-runtime-coverage"
+                "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-release-verification,platform-document-operations,platform-vectorization-verification,platform-runtime-coverage"
             )
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_ACCEPTED_AUDIENCES", "dep-123")
             .containsEntry(

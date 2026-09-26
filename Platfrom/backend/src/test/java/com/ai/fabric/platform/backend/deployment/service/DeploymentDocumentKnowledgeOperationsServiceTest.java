@@ -78,6 +78,8 @@ class DeploymentDocumentKnowledgeOperationsServiceTest {
         verify(assertionSigningService).toAuthorizationHeaderValue(claims.capture());
         assertThat(claims.getValue().audiences()).containsExactly("dep-1");
         assertThat(claims.getValue().tenantId()).isEqualTo("tenant-1");
+        assertThat(claims.getValue().issuer())
+            .isEqualTo(RuntimePrivateAccessSupport.ISSUER_PLATFORM_DOCUMENT_OPERATIONS);
         assertThat(claims.getValue().grantedScopes()).containsExactly("documents:index");
         verify(auditService).record(eq("DOCUMENT_SOURCE_INDEX_REQUESTED"), eq("DEPLOYMENT"), eq("dep-1"), any());
     }
