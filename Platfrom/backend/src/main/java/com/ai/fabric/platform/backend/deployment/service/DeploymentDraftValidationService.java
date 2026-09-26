@@ -148,6 +148,7 @@ public class DeploymentDraftValidationService {
             validateMarketplaceDatasetConfig(marketplaceDatasetNode, issues);
             validateKnowledgeSourceDatasetRefs(knowledgeSourceNode, marketplaceDatasetNode, issues);
             validateBehavior(behaviorNode, expectedBehaviorType, issues);
+            validateMarketplaceRequirements(behaviorNode, issues);
 
             int errorCount = countBySeverity(issues, "ERROR");
             int warningCount = countBySeverity(issues, "WARNING");
@@ -180,6 +181,35 @@ public class DeploymentDraftValidationService {
                 Instant.now(),
                 issues
             );
+        }
+    }
+
+    private void validateMarketplaceRequirements(JsonNode behaviorNode,
+                                                 List<DraftValidationIssue> issues) {
+        JsonNode requirements = behaviorNode == null
+            ? null
+            : behaviorNode.path("marketplaceRequirements");
+        if (requirements == null || requirements.isMissingNode() || requirements.isNull()) {
+            return;
+        }
+        JsonNode unresolved = requirements.path("unresolvedRequiredPluginRefs");
+        if (!unresolved.isArray() || unresolved.isEmpty()) {
+            return;
+        }
+        List<String> refs = new ArrayList<>();
+        unresolved.forEach(node -> {
+            String ref = node.asText("").trim();
+            if (!ref.isEmpty()) {
+                refs.add(ref);
+            }
+        });
+        if (!refs.isEmpty()) {
+            issues.add(error(
+                "behavior",
+                "MARKETPLACE_REQUIRED_PLUGIN_CONFIGURATION_REQUIRED",
+                "$.behaviorConfig.marketplaceRequirements.unresolvedRequiredPluginRefs",
+                "Configure and enable required Marketplace plugins before publication: " + String.join(", ", refs) + "."
+            ));
         }
     }
 

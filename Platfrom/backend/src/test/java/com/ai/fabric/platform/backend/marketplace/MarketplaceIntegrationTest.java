@@ -1050,6 +1050,71 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
+    @Sql("classpath:db/migration/V148__document_knowledge_marketplace_products.sql")
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void templateBootstrapDefersDeploymentScopedRequiredPluginInputsAndBlocksPublication() throws Exception {
+        String response = mockMvc.perform(asAdmin(
+                post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-document-knowledge-assistant")
+                    .contentType(APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "pluginVersion", "1.0.0",
+                        "name", "Document Knowledge Setup Required",
+                        "environment", "dev",
+                        "templateId", "custom-start-from-scratch",
+                        "vectorProvisioningMode", "NONE"
+                    )))
+            ))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", notNullValue()))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String deploymentId = objectMapper.readTree(response).path("id").asText();
+        String draftResponse = mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/draft", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath(
+                "$.behaviorConfig.marketplaceRequirements.requiredPluginRefs[0]",
+                is("mkp-data-document-knowledge-s3@1.0.0")
+            ))
+            .andExpect(jsonPath(
+                "$.behaviorConfig.marketplaceRequirements.unresolvedRequiredPluginRefs[0]",
+                is("mkp-data-document-knowledge-s3@1.0.0")
+            ))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+        String draftId = objectMapper.readTree(draftResponse).path("id").asText();
+
+        mockMvc.perform(asAdmin(get("/api/deployments/{deploymentId}/marketplace-installs", deploymentId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath(
+                "$[?(@.pluginId=='mkp-template-document-knowledge-assistant')].status",
+                is(List.of("BOOTSTRAPPED"))
+            ))
+            .andExpect(jsonPath(
+                "$[?(@.pluginId=='mkp-data-document-knowledge-s3')].status",
+                is(List.of("DISABLED"))
+            ))
+            .andExpect(jsonPath(
+                "$[?(@.pluginId=='mkp-data-document-knowledge-s3')].readinessStatus",
+                is(List.of("MISSING_INPUTS"))
+            ));
+
+        mockMvc.perform(asAdmin(post("/api/deployment-drafts/{draftId}/validate", draftId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.publishReady", is(false)))
+            .andExpect(jsonPath(
+                "$.issues[?(@.code=='MARKETPLACE_REQUIRED_PLUGIN_CONFIGURATION_REQUIRED')].severity",
+                is(List.of("ERROR"))
+            ));
+
+        mockMvc.perform(asAdmin(post("/api/deployment-drafts/{draftId}/publish", draftId)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message", containsString("Configure and enable required Marketplace plugins")));
+    }
+
+    @Test
     @Sql({
         "classpath:db/migration/V133__behavior_marketplace_templates_and_specialists.sql",
         "classpath:db/migration/V135__verified_authz_behavior_template_versions.sql",

@@ -125,7 +125,7 @@ public class DeploymentMarketplaceInstallService {
     public DeploymentMarketplaceInstallSummary createInstall(String deploymentId,
                                                              CreateDeploymentMarketplaceInstallRequest request) {
         DeploymentEntity deployment = requireDeploymentEditor(deploymentId);
-        return createInstallForDeployment(deployment, request, false, true);
+        return createInstallForDeployment(deployment, request, false, true, false);
     }
 
     /**
@@ -135,7 +135,7 @@ public class DeploymentMarketplaceInstallService {
     @Transactional
     public DeploymentMarketplaceInstallSummary createInstallForTrustedCaller(DeploymentEntity deployment,
                                                                             CreateDeploymentMarketplaceInstallRequest request) {
-        return createInstallForDeployment(deployment, request, true, true);
+        return createInstallForDeployment(deployment, request, true, true, false);
     }
 
     /**
@@ -147,13 +147,27 @@ public class DeploymentMarketplaceInstallService {
         DeploymentEntity deployment,
         CreateDeploymentMarketplaceInstallRequest request
     ) {
-        return createInstallForDeployment(deployment, request, true, false);
+        return createInstallForDeployment(deployment, request, true, false, false);
+    }
+
+    /**
+     * Installs a template dependency before deployment-scoped resources can be configured. Dependencies with
+     * complete inputs remain enabled; dependencies that still need setup are recorded disabled and cannot compile
+     * or publish until the operator supplies their required inputs and enables them.
+     */
+    @Transactional
+    public DeploymentMarketplaceInstallSummary createInstallForTrustedTemplateBootstrap(
+        DeploymentEntity deployment,
+        CreateDeploymentMarketplaceInstallRequest request
+    ) {
+        return createInstallForDeployment(deployment, request, true, false, true);
     }
 
     private DeploymentMarketplaceInstallSummary createInstallForDeployment(DeploymentEntity deployment,
                                                                           CreateDeploymentMarketplaceInstallRequest request,
                                                                           boolean trustedCaller,
-                                                                          boolean syncDraft) {
+                                                                          boolean syncDraft,
+                                                                          boolean deferMissingInputs) {
         MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(request.pluginId());
         MarketplacePluginVersionEntity version = marketplaceCatalogService.requirePluginVersionEntity(
             plugin.getId(),
@@ -163,14 +177,21 @@ public class DeploymentMarketplaceInstallService {
             marketplaceManifestService.parseAndValidate(plugin, version);
         validateInstallable(plugin, version, deployment.getId(), null);
         DeploymentDraftEntity activeDraft = resolveActiveDraft(deployment);
-        validateInstallInputs(
+        JsonNode config = normalizeObject(request.config(), "config");
+        JsonNode secretRefs = normalizeObject(request.secretRefs(), "secretRefs");
+        InstallEvaluation initialEvaluation = evaluateInstall(
             deployment,
             activeDraft,
+            null,
             parsed,
-            normalizeObject(request.config(), "config"),
-            normalizeObject(request.secretRefs(), "secretRefs"),
+            config,
+            secretRefs,
             STATUS_ENABLED
         );
+        String initialStatus = deferMissingInputs && "MISSING_INPUTS".equals(initialEvaluation.readinessStatus())
+            ? STATUS_DISABLED
+            : STATUS_ENABLED;
+        validateInstallInputs(deployment, activeDraft, parsed, config, secretRefs, initialStatus);
         installRepository.findByDeploymentIdAndPluginId(deployment.getId(), plugin.getId())
             .ifPresent(existing -> {
                 throw new ResponseStatusException(
@@ -185,9 +206,9 @@ public class DeploymentMarketplaceInstallService {
         install.setDeploymentId(deployment.getId());
         install.setPluginId(plugin.getId());
         install.setPluginVersionId(version.getId());
-        install.setStatus(STATUS_ENABLED);
-        install.setConfigJson(writeJson(normalizeObject(request.config(), "config")));
-        install.setSecretRefsJson(writeJson(normalizeObject(request.secretRefs(), "secretRefs")));
+        install.setStatus(initialStatus);
+        install.setConfigJson(writeJson(config));
+        install.setSecretRefsJson(writeJson(secretRefs));
         install.setCreatedAt(now);
         install.setUpdatedAt(now);
         installRepository.save(install);

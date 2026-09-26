@@ -51,6 +51,11 @@ public class DeploymentMarketplaceDraftCompilerService {
     private static final String DEFAULT_MARKETPLACE_DATASET_CONTRACT_VERSION = "MARKETPLACE_DATASET_CONFIG_V1";
     private static final String DEFAULT_MARKETPLACE_INFERENCE_CONTRACT_VERSION = "MARKETPLACE_INFERENCE_PROVIDER_CONFIG_V1";
     private static final String MARKETPLACE_INFERENCE_FIELD = "marketplaceInference";
+    private static final String MARKETPLACE_REQUIREMENTS_FIELD = "marketplaceRequirements";
+    private static final String REQUIRED_PLUGIN_REFS_FIELD = "requiredPluginRefs";
+    private static final String UNRESOLVED_REQUIRED_PLUGIN_REFS_FIELD = "unresolvedRequiredPluginRefs";
+    private static final String REQUIRED_PLUGIN_CONFIGURATION_ISSUE =
+        "MARKETPLACE_REQUIRED_PLUGIN_CONFIGURATION_REQUIRED";
     private static final String KNOWLEDGE_SOURCE_HANDLE_REF_FIELD = "knowledgeSourceHandleRef";
     private static final String TENANT_ID_FIELD = "tenantId";
     private static final String DEPLOYMENT_ID_FIELD = "deploymentId";
@@ -175,6 +180,7 @@ public class DeploymentMarketplaceDraftCompilerService {
         stripMarketplaceManagedDatasets(marketplaceDatasetRoot);
         stripMarketplaceManagedInference(providerRoot);
         stripMarketplaceManagedSpecialistBundles(behaviorRoot);
+        behaviorRoot.remove(MARKETPLACE_REQUIREMENTS_FIELD);
 
         Set<String> existingActionNames = actionNames(actionsRoot.path("actions"));
         Set<String> existingEntityTypes = entityTypes(entityRoot.path("ai-entities"));
@@ -257,6 +263,8 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
         }
 
+        applyTemplateRequirements(behaviorRoot, installs);
+
         synchronizeEntityVectorDimensions(entityRoot, providerRoot);
         boolean routingChanged = pruneRoutesWithoutActions(routingRoot, actionNames(actionsRoot.path("actions")));
         if (!EntityConfigContractService.CONTRACT_VERSION_V04.equals(draft.entityConfigContractVersion())) {
@@ -292,6 +300,12 @@ public class DeploymentMarketplaceDraftCompilerService {
         DraftValidationResponse validation = deploymentDraftValidationService.validate(asDraftEntity(updated));
         Set<String> introducedErrors = blockingIssueKeys(validation);
         introducedErrors.removeAll(baselineErrors);
+        if (tolerateBaselineErrors) {
+            validation.issues().stream()
+                .filter(issue -> REQUIRED_PLUGIN_CONFIGURATION_ISSUE.equals(issue.code()))
+                .map(this::blockingIssueKey)
+                .forEach(introducedErrors::remove);
+        }
         if (!validation.publishReady() && (!tolerateBaselineErrors || !introducedErrors.isEmpty())) {
             throw new ResponseStatusException(
                 CONFLICT,
@@ -306,6 +320,52 @@ public class DeploymentMarketplaceDraftCompilerService {
             );
         }
         return updated;
+    }
+
+    private void applyTemplateRequirements(ObjectNode behaviorRoot,
+                                           List<DeploymentMarketplacePluginInstallEntity> installs) {
+        LinkedHashSet<String> requiredPluginRefs = new LinkedHashSet<>();
+        for (DeploymentMarketplacePluginInstallEntity install : installs) {
+            if (!isEnabledForCompilation(install.getStatus())) {
+                continue;
+            }
+            MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+            MarketplacePluginVersionEntity version =
+                marketplaceCatalogService.requirePluginVersionEntityById(install.getPluginVersionId());
+            MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+                marketplaceManifestService.parseAndValidate(plugin, version);
+            if ("TEMPLATE".equals(parsed.pluginType())) {
+                requiredPluginRefs.addAll(parsed.contributions().templateRequiredPluginRefs());
+            }
+        }
+        if (requiredPluginRefs.isEmpty()) {
+            return;
+        }
+
+        LinkedHashSet<String> resolvedPluginRefs = new LinkedHashSet<>();
+        for (DeploymentMarketplacePluginInstallEntity install : installs) {
+            if (!"ENABLED".equalsIgnoreCase(install.getStatus())) {
+                continue;
+            }
+            MarketplacePluginVersionEntity version =
+                marketplaceCatalogService.requirePluginVersionEntityById(install.getPluginVersionId());
+            MarketplacePluginEntity plugin = marketplaceCatalogService.requirePluginEntity(install.getPluginId());
+            MarketplaceManifestService.ParsedMarketplaceManifest parsed =
+                marketplaceManifestService.parseAndValidate(plugin, version);
+            if (marketplaceEntitlementService.evaluate(
+                parsed,
+                marketplaceEntitlementService.findByInstallId(install.getId())
+            ).entitledForCompilation()) {
+                resolvedPluginRefs.add(plugin.getId() + "@" + version.getVersion());
+            }
+        }
+
+        ObjectNode requirements = behaviorRoot.putObject(MARKETPLACE_REQUIREMENTS_FIELD);
+        requirements.set(REQUIRED_PLUGIN_REFS_FIELD, toStringArray(requiredPluginRefs));
+        requirements.set(
+            UNRESOLVED_REQUIRED_PLUGIN_REFS_FIELD,
+            toStringArray(requiredPluginRefs.stream().filter(ref -> !resolvedPluginRefs.contains(ref)).toList())
+        );
     }
 
     private Set<String> blockingIssueKeys(DraftValidationResponse validation) {

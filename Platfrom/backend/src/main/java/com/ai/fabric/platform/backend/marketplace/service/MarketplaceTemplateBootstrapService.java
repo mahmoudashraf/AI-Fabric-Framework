@@ -137,7 +137,7 @@ public class MarketplaceTemplateBootstrapService {
             int separator = requiredPluginRef.lastIndexOf('@');
             String requiredPluginId = requiredPluginRef.substring(0, separator);
             String requiredVersion = requiredPluginRef.substring(separator + 1);
-            deploymentMarketplaceInstallService.createInstallForTrustedCallerWithoutDraftSync(
+            deploymentMarketplaceInstallService.createInstallForTrustedTemplateBootstrap(
                 deploymentEntity,
                 new CreateDeploymentMarketplaceInstallRequest(
                     requiredPluginId,
