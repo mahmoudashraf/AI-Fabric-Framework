@@ -10,12 +10,14 @@ import ai.fabric.vector.milvus.MilvusVectorAutoConfiguration;
 import ai.fabric.vector.pinecone.PineconeVectorAutoConfiguration;
 import ai.fabric.vector.qdrant.QdrantVectorAutoConfiguration;
 import ai.fabric.vector.weaviate.WeaviateVectorAutoConfiguration;
+import io.pinecone.proto.VectorServiceOuterClass;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.annotation.ImportCandidates;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 class RuntimePackagingCoverageTest {
 
@@ -62,5 +64,11 @@ class RuntimePackagingCoverageTest {
         assertThat(DocumentIndexingQueueAdapter.class).isNotNull();
         assertThat(SpringAiDocumentReaderFactory.class).isNotNull();
         assertThat(S3Client.class).isNotNull();
+    }
+
+    @Test
+    void runtimeClasspathCanInitializePineconeGeneratedDescriptors() {
+        assertThatCode(VectorServiceOuterClass::getDescriptor)
+            .doesNotThrowAnyException();
     }
 }

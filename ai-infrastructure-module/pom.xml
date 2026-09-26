@@ -39,8 +39,8 @@
         <javafaker.version>1.0.2</javafaker.version>
         <!-- Align gRPC versions across vector DB SDKs (Qdrant/Pinecone/Weaviate/Milvus). -->
         <grpc.version>1.68.2</grpc.version>
-        <!-- Align protobuf across SDKs (Pinecone/Milvus/Qdrant/Weaviate) to avoid runtime CNF errors. -->
-        <protobuf.version>3.25.3</protobuf.version>
+        <!-- Keep generated provider descriptors aligned with the Spring Boot 4 dependency set. -->
+        <protobuf.version>4.34.2</protobuf.version>
         <aws.sdk.version>2.55.6</aws.sdk.version>
     </properties>
 
