@@ -13,6 +13,7 @@ Related plans and evidence:
 - [010.21 Consolidated LoomAI AI Enablement Product Profile And Deployment Architecture](010_21_CONSOLIDATED_LOOMAI_AI_ENABLEMENT_PRODUCT_PROFILE_AND_DEPLOYMENT_ARCHITECTURE.md)
 - [010.23 LoomAI Deployment Behavior Market Readiness Execution Plan](010_23_LOOMAI_DEPLOYMENT_BEHAVIOR_MARKET_READINESS_EXECUTION_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
+- [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
 
 Quality and verification references in the public framework repository:
 
@@ -580,12 +581,21 @@ document, not fake buttons.
 
 #### Mode A: Auto Trader sandbox
 
-Use when Auto Trader grants sandbox credentials and the exact data usage is
-approved before the meeting.
+Use only after Auto Trader Connect partner onboarding provisions sandbox
+credentials, endpoint details, exact capability grants, and an authorized test
+advertiser, and the exact data usage is approved before the meeting. The
+reviewed official documentation describes credentialed sandbox testing and
+Integration Manager validation; it does not expose anonymous credentials or a
+public self-service sandbox flow.
 
 - Install the Auto Trader stock DATA and discovery ACTION plugins.
+- Bind sandbox credential references in deployment secrets; never place values
+  in plugin manifests, exports, browser state, screenshots, or demo logs.
 - Show the exact advertiser binding and sandbox source label.
 - Exercise real baseline, reads, and any available webhook test.
+- Account for documented sandbox limits: newer vehicles and recent plate
+  changes may be absent, while metrics and valuations may use datasets that
+  differ from production.
 - Make clear that sandbox is not production certification.
 
 #### Mode B: approved dealership demonstration dataset
@@ -780,12 +790,16 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 
 ### Workstream E: Auto Trader activation
 
-- Replace the meeting DATA source only after sandbox/production grant.
+- Complete partner onboarding and obtain separate sandbox endpoint,
+  credential, capability, advertiser, stock-fixture, and webhook-test details.
+- Replace the meeting DATA source only after the exact sandbox grant.
 - Bind the approved credential secret and exact advertiser ID.
 - Run advertiser preflight.
 - Run baseline and reconcile counts.
 - Register and verify the deployment-specific webhook URL when granted.
 - Execute the applicable Auto Trader go-live checks.
+- Obtain separate production credentials, advertiser membership, rights, and
+  approval before replacing the sandbox bindings or making a production claim.
 - Preserve the demo source as a separate non-production composition, never as a
   silent fallback for an Auto Trader deployment.
 
@@ -885,7 +899,8 @@ does not mean Auto Trader production integration is approved.
 The first production dealership release additionally requires:
 
 1. written Auto Trader capability and data-use approval;
-2. production credentials bound through secrets;
+2. production credentials bound through secrets, independently of any sandbox
+   credentials;
 3. exact production advertiser membership proof;
 4. successful advertiser-scoped baseline and reconciliation;
 5. verified hash-authenticated stock notifications where granted;
@@ -896,6 +911,10 @@ The first production dealership release additionally requires:
 10. cost and rate limits;
 11. Platform staging and production release gates; and
 12. owner approval of the exact immutable template and plugin versions.
+
+Sandbox verification is required evidence for the provider integration, but it
+does not satisfy any production credential, advertiser, licensing, or go-live
+item in this gate.
 
 ## 17. Implementation Order
 
@@ -938,6 +957,9 @@ The first production dealership release additionally requires:
 - [Auto Trader Connect Developer API](https://developers.autotrader.co.uk/api#introduction)
 - [Integration Fundamentals](https://help.autotrader.co.uk/hc/en-gb/articles/21791620456221-Integration-Fundamentals)
 - [Integration Fundamentals Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22645899163933-Go-Live-checks-for-Integration-Fundamentals)
+- [Vehicle Check Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22676578750237-Go-Live-checks-for-Vehicle-Check)
+- [Vehicle Metrics Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673426185501-Go-Live-checks-for-Vehicle-Metrics)
+- [Response Metrics](https://help.autotrader.co.uk/hc/en-gb/articles/21871963006237-Introduction-to-Response-Metrics)
 - [Stock Sync](https://help.autotrader.co.uk/hc/en-gb/articles/21846314775453-Introduction-to-Stock-Sync)
 - [Stock Sync Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673947111325-Go-Live-checks-for-Stock-Sync)
 - [Search](https://help.autotrader.co.uk/hc/en-gb/articles/21946045692445-Introduction-to-Search)

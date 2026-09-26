@@ -11,6 +11,7 @@ Related LoomAI plans:
 - [010.21 Consolidated LoomAI AI Enablement Product Profile And Deployment Architecture](010_21_CONSOLIDATED_LOOMAI_AI_ENABLEMENT_PRODUCT_PROFILE_AND_DEPLOYMENT_ARCHITECTURE.md)
 - [010.23 LoomAI Deployment Behavior Market Readiness Execution Plan](010_23_LOOMAI_DEPLOYMENT_BEHAVIOR_MARKET_READINESS_EXECUTION_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
+- [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
 - [Marketplace Plugin Manifest Reference](../../../../../../../../Final_Documentation/Development_Guides/MARKETPLACE_PLUGIN_MANIFEST_REFERENCE.md)
 - [Generic REST API Connector Guide](../../../../../../../../Final_Documentation/Development_Guides/GENERIC_REST_API_CONNECTOR_GUIDE.md)
 
@@ -136,6 +137,39 @@ Auto Trader Connect documents many capabilities, but production access and
 go-live checks are capability-specific. Every LoomAI template must compile from
 the exact capabilities approved for that integration. Missing capability scope
 must fail preflight and must not silently degrade to invented or stale data.
+
+### 3.4 Sandbox access is partner-provisioned
+
+Auto Trader's official material explicitly describes a sandbox environment,
+but the reviewed public documentation does not expose anonymous credentials or
+a self-service sandbox signup flow. It refers to API tokens obtained with
+provided credentials, capability-specific testing, call-log validation, and an
+Integration Manager who runs the go-live checks. LoomAI must therefore treat
+sandbox access as a partner-onboarding dependency, not as a public development
+utility.
+
+Before claiming an Auto Trader sandbox integration, LoomAI must receive and
+record, without exposing secret values:
+
+- sandbox API/client credentials and the sandbox authentication/base URLs;
+- the exact capability grants enabled for those credentials;
+- at least one test integration and advertiser ID authorized for LoomAI;
+- representative stock and any capability-specific test vehicles or VRMs;
+- webhook registration, authentication material, and a supported test-event or
+  replay procedure where notifications are included; and
+- the applicable sandbox validation and production go-live process.
+
+Sandbox data is not production truth. Auto Trader states that newer vehicles or
+recent plate changes may not be reflected in sandbox and that sandbox metrics
+or valuations can differ because they use different datasets. A successful
+sandbox canary proves only the exact tested sandbox capability. It does not
+prove production credentials, production advertiser membership, production
+data rights, or production certification.
+
+If partner sandbox access has not been granted, LoomAI may demonstrate its own
+deployment and plugin behavior with a clearly labelled dealership-owned or
+invented dataset. That demonstration must not be described as an Auto Trader
+integration test.
 
 ## 4. Auto Trader Capability Map
 
@@ -312,8 +346,9 @@ reviewed provider-specific values.
 
 ### 7.3 Current reusable capability and gaps
 
-`HTTP_JSON` and `PAGED_REST` below are proposed contract names, not currently
-supported manifest values.
+`EXTERNAL_SYNC_HTTP` and `HTTP_JSON` below are proposed canonical contract
+names, not currently supported manifest values. Pagination is a typed
+`HTTP_JSON` sub-contract rather than a second top-level ingestion mode.
 
 | Capability | Current state | Required change |
 | --- | --- | --- |
@@ -324,7 +359,7 @@ supported manifest values.
 | Idempotency, timeout, bounded retry | Supported at MVP level | Make durable/provider-scoped where the production contract requires it |
 | OAuth2 client credentials | Not implemented in the Generic REST Connector | Add provider-neutral auth profiles with token reuse and expiry |
 | Server-owned trusted parameters | Partial through trace/config | Add explicit deployment-binding injection that callers and models cannot override |
-| HTTP DATA synchronization | Not supported; DATA currently supports `SQL_QUERY` and `FILE_FOLDER` | Add bounded `HTTP_JSON`/`PAGED_REST` sync connector mode |
+| HTTP DATA synchronization | Not supported; DATA currently supports `SQL_QUERY` and `FILE_FOLDER` | Add `ingestionMode=EXTERNAL_SYNC_HTTP` with bounded `connectorType=HTTP_JSON` and typed pagination |
 | Inbound provider webhooks | Not supported | Add generic plugin-configured hash-authenticated webhook ingress |
 | Webhook-to-CloudEvent mapping | Not supported | Add schema-bound declarative transformation and forwarding |
 | Provider/service fair-usage control | Partial HTTP retry only | Add shared provider/service rate and pause policy |
@@ -655,6 +690,12 @@ licence to reuse or transform data.
 
 - Which capabilities can LoomAI receive in sandbox and production for the first
   dealer?
+- Is sandbox access available only after Auto Trader Connect partner onboarding,
+  and who sponsors or approves that onboarding?
+- Will Auto Trader issue separate sandbox credentials, base URLs, integration
+  identity, and advertiser membership for LoomAI?
+- Can Auto Trader provide one representative sandbox advertiser with baseline
+  stock and capability-specific test records?
 - Is LoomAI the integration partner, is the dealer the contracting customer, or
   is a website/DMS provider expected to sponsor the integration?
 - How is each advertiser added to and removed from the integration?
@@ -669,7 +710,8 @@ licence to reuse or transform data.
 - Confirm whether production requires IP allowlisting, mTLS, or additional
   network controls.
 - Confirm per-integration and per-capability rate limits and retry guidance.
-- Confirm sandbox data realism and any differences from production.
+- Confirm sandbox data realism, known dataset lag, and differences from
+  production, including metrics and valuations.
 
 ### 15.3 Search and vehicle evidence
 
@@ -716,6 +758,10 @@ licence to reuse or transform data.
 
 - Can Auto Trader supply one realistic test advertiser with stock, deal,
   webhook, vehicle-check, finance, and error-path fixtures?
+- How are sandbox webhook endpoints registered, authenticated, and sent test or
+  replay events?
+- Which sandbox calls and demonstrations count toward the capability go-live
+  checks, and which checks must be repeated against production?
 - Can call-log validation be automated from a LoomAI verification pack?
 - What support and incident route exists for token, rate-limit, data-quality,
   and webhook failures?
@@ -726,13 +772,17 @@ licence to reuse or transform data.
 ### Phase 0: Contract and capability approval
 
 - Select one design-partner dealer and exact advertiser IDs.
-- Obtain sandbox credentials and written capability scope.
+- Complete Auto Trader Connect partner onboarding and obtain provisioned
+  sandbox credentials, endpoint details, test advertiser membership, and
+  written capability scope.
 - Resolve LLM, cache, vector, display, retention, attribution, and data-sharing
   rights.
 - Map Auto Trader go-live checks to LoomAI verification IDs.
 - Freeze the first release scope; do not implement speculative APIs.
 
-Exit: approved capability matrix, data classification, and test advertiser.
+Exit: approved capability matrix, data classification, provisioned sandbox
+identity, and authorized test advertiser. Public documentation alone does not
+satisfy this gate.
 
 ### Phase 1: Generic outbound action substrate
 
@@ -880,6 +930,20 @@ The Auto Trader verification pack must include:
 - dealer offboarding and data deletion; and
 - full Platform release-readiness plus applicable Auto Trader go-live checks.
 
+### 17.6 External-access evidence gates
+
+- sandbox credentials are provisioned through the approved partner process and
+  are not copied into source, manifests, exports, logs, or browser state;
+- live sandbox authentication succeeds and token reuse/expiry behavior is
+  observed against the granted environment;
+- the bound test advertiser is returned by or accepted through the approved
+  advertiser-membership contract;
+- each claimed capability is exercised against sandbox and linked to its
+  capability grant and Auto Trader validation evidence;
+- known sandbox dataset differences are visible in test expectations; and
+- production readiness remains blocked until separate production credentials,
+  advertiser membership, data rights, and go-live approval exist.
+
 No template is `MARKET_READY` because a chat response looks good. The exact
 immutable composition must pass all applicable gates with real providers and
 approved Auto Trader capabilities.
@@ -985,6 +1049,8 @@ Primary sources used for this analysis:
 - [Auto Trader Connect Developer API directory](https://developers.autotrader.co.uk/api#introduction)
 - [Integration Fundamentals](https://help.autotrader.co.uk/hc/en-gb/articles/21791620456221-Integration-Fundamentals)
 - [Integration Fundamentals Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22645899163933-Go-Live-checks-for-Integration-Fundamentals)
+- [Vehicle Check Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22676578750237-Go-Live-checks-for-Vehicle-Check)
+- [Vehicle Metrics Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673426185501-Go-Live-checks-for-Vehicle-Metrics)
 - [Search](https://help.autotrader.co.uk/hc/en-gb/articles/21946045692445-Introduction-to-Search)
 - [Search Adverts](https://help.autotrader.co.uk/hc/en-gb/articles/21945940067229-Introduction-to-Search-Adverts)
 - [Search Finance](https://help.autotrader.co.uk/hc/en-gb/articles/21946004293021-Introduction-to-Search-Finance)
