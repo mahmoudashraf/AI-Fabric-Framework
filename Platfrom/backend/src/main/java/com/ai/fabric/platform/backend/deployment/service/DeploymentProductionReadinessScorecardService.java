@@ -106,13 +106,19 @@ public class DeploymentProductionReadinessScorecardService {
             deployment,
             latestVersion == null ? readJson(draft.getEntityConfigJson()) : readJson(latestVersion.getEntityConfigJson())
         );
+        JsonNode marketplaceDatasetConfig = latestVersion == null
+            ? readJson(draft.getMarketplaceDatasetConfigJson())
+            : readJson(latestVersion.getMarketplaceDatasetConfigJson());
 
         DeploymentProductionReadinessAreaSummary configArea = configurationArea(serviceConfig);
         DeploymentProductionReadinessAreaSummary securityArea = securityArea(security, secretUsage);
         DeploymentProductionReadinessAreaSummary providerConnectivityArea = providerConnectivityArea(draft, latestVerification);
         DeploymentProductionReadinessAreaSummary managedVectorArea = managedVectorArea(deployment, draft);
         DeploymentProductionReadinessAreaSummary tenantScopeArea = tenantScopeArea(tenantScopedVector);
-        DeploymentProductionReadinessAreaSummary vectorizationArea = vectorizationArea(vectorization);
+        DeploymentProductionReadinessAreaSummary vectorizationArea = vectorizationArea(
+            vectorization,
+            marketplaceDatasetConfig
+        );
         DeploymentProductionReadinessAreaSummary verificationArea = verificationArea(deployment, latestVerification, latestRelease);
         DeploymentProductionReadinessAreaSummary serviceHealthArea = serviceHealthArea(deployment, latestRelease);
         DeploymentProductionReadinessOwnerSummary ownership = ownership(assignments);
@@ -257,7 +263,10 @@ public class DeploymentProductionReadinessScorecardService {
         );
     }
 
-    private DeploymentProductionReadinessAreaSummary vectorizationArea(DeploymentVectorizationVerificationSummary vectorization) {
+    private DeploymentProductionReadinessAreaSummary vectorizationArea(
+        DeploymentVectorizationVerificationSummary vectorization,
+        JsonNode marketplaceDatasetConfig
+    ) {
         String status;
         String message;
         java.time.Instant now = java.time.Instant.now();
@@ -265,6 +274,12 @@ public class DeploymentProductionReadinessScorecardService {
         if (!vectorization.planPresent() && !vectorization.sourceConnectionPresent() && !vectorization.runnerPresent()) {
             status = "READY";
             message = "Vectorization is not configured for this deployment yet.";
+        } else if (DeploymentReleaseVerificationService.documentIngestionOwnsVectorization(
+            marketplaceDatasetConfig,
+            vectorization
+        )) {
+            status = "READY";
+            message = "Deployment-local document ingestion owns source discovery, versioning, chunking, and vector writes; a classic Data Sync source connection is not required.";
         } else if (!vectorization.configured()) {
             status = "BLOCKED";
             message = "Vectorization control plane is partially configured. Source connection, active revision, and linked plan state must all be present.";

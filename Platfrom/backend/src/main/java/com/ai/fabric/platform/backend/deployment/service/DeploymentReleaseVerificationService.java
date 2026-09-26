@@ -377,7 +377,12 @@ public class DeploymentReleaseVerificationService {
         verifyPlatformAuthenticatedRuntimeTokenIssuance(checks, deployment);
         verifyAuthzDeployability(checks, providerConfig, securityConfig);
         verifyTenantScopedSharedStorage(checks, deployment, providerConfig);
-        verifyVectorizationControlPlane(checks, deployment, readJson(version.getEntityConfigJson()));
+        verifyVectorizationControlPlane(
+            checks,
+            deployment,
+            readJson(version.getEntityConfigJson()),
+            readJson(version.getMarketplaceDatasetConfigJson())
+        );
         verifyVectorizationRunnerRegistration(checks, deployment, readJson(version.getEntityConfigJson()), false);
         verifyManagedVectorProvisioning(checks, providerConfig, version.getEntityConfigJson());
         verifyProviderConnectivity(checks, version, providerConfig);
@@ -570,7 +575,12 @@ public class DeploymentReleaseVerificationService {
                 "Connector action validation is not required for a runtime-only image deployment without actions."
             );
         }
-        verifyVectorizationControlPlane(checks, deployment, expectations.entityConfig());
+        verifyVectorizationControlPlane(
+            checks,
+            deployment,
+            expectations.entityConfig(),
+            expectations.marketplaceDatasetConfig()
+        );
         verifyVectorizationRunnerRegistration(checks, deployment, expectations.entityConfig(), true);
         verifyVectorizationRunnerServiceProvisioning(checks, deployment, release, expectations.entityConfig());
     }
@@ -713,7 +723,8 @@ public class DeploymentReleaseVerificationService {
 
     private void verifyVectorizationControlPlane(ArrayNode checks,
                                                  DeploymentEntity deployment,
-                                                 JsonNode entityConfig) {
+                                                 JsonNode entityConfig,
+                                                 JsonNode marketplaceDatasetConfig) {
         DeploymentVectorizationVerificationSummary summary = deploymentVectorizationVerificationService.build(deployment, entityConfig);
         if (!summary.planPresent() && !summary.sourceConnectionPresent() && !summary.runnerPresent()) {
             addSkippedCheck(
@@ -741,6 +752,18 @@ public class DeploymentReleaseVerificationService {
             details.put("sourceAdapter", blankToFallback(summary.sourceConnection().adapterType(), "UNKNOWN"));
             details.put("sourceAuthMode", blankToFallback(summary.sourceConnection().authMode(), "UNKNOWN"));
             details.put("sourceStatus", blankToFallback(summary.sourceConnection().status(), "UNKNOWN"));
+        }
+
+        if (documentIngestionOwnsVectorization(marketplaceDatasetConfig, summary)) {
+            details.put("documentIngestionOwned", true);
+            addCheck(
+                checks,
+                "vectorization_control_plane_ready",
+                "PASSED",
+                "Deployment-local document ingestion owns source discovery, versioning, chunking, and vector writes; a classic Data Sync source connection is not required.",
+                details
+            );
+            return;
         }
 
         boolean passed = summary.configured()
@@ -2578,6 +2601,26 @@ public class DeploymentReleaseVerificationService {
             }
         }
         return false;
+    }
+
+    static boolean documentIngestionOwnsVectorization(JsonNode marketplaceDatasetConfig,
+                                                      DeploymentVectorizationVerificationSummary summary) {
+        if (!hasExternalDocumentDataset(marketplaceDatasetConfig)
+            || summary == null
+            || !summary.planPresent()
+            || summary.plan() == null
+            || summary.sourceConnectionPresent()
+            || summary.sourceConnection() != null
+            || summary.runnerRequired()
+            || !"ACTIVE".equalsIgnoreCase(summary.plan().status())
+            || summary.plan().runnerMode() == null
+            || summary.plan().runnerMode().isBlank()
+            || summary.entityScope() == null
+            || summary.entityScope().isEmpty()) {
+            return false;
+        }
+        return summary.entityScope().stream()
+            .allMatch(entityType -> entityType != null && "document".equalsIgnoreCase(entityType.trim()));
     }
 
     private boolean runtimePromptConfigMatchesExpected(JsonProbeResult probe,

@@ -74,6 +74,33 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void documentIngestionOwnsDocumentOnlyVectorizationWithoutClassicSourceConnection() throws Exception {
+        JsonNode documentDatasets = objectMapper.readTree("""
+            {
+              "datasets": [
+                {
+                  "datasetId": "document-knowledge",
+                  "ingestionMode": "EXTERNAL_DOCUMENT_STORAGE"
+                }
+              ]
+            }
+            """);
+
+        assertThat(DeploymentReleaseVerificationService.documentIngestionOwnsVectorization(
+            documentDatasets,
+            externalDocumentVectorizationSummary(List.of("document"))
+        )).isTrue();
+        assertThat(DeploymentReleaseVerificationService.documentIngestionOwnsVectorization(
+            documentDatasets,
+            externalDocumentVectorizationSummary(List.of("document", "product"))
+        )).isFalse();
+        assertThat(DeploymentReleaseVerificationService.documentIngestionOwnsVectorization(
+            objectMapper.readTree("{\"datasets\":[]}"),
+            externalDocumentVectorizationSummary(List.of("document"))
+        )).isFalse();
+    }
+
+    @Test
     void verifyChecksRuntimeAndConnectorAdminStateAgainstPublishedVersion() throws Exception {
         HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
         HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
@@ -3772,6 +3799,44 @@ class DeploymentReleaseVerificationServiceTest {
             List.of(),
             null,
             null,
+            null
+        );
+    }
+
+    private DeploymentVectorizationVerificationSummary externalDocumentVectorizationSummary(List<String> entityScope) {
+        return new DeploymentVectorizationVerificationSummary(
+            "dep-123",
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            List.of("document"),
+            entityScope,
+            null,
+            new VectorizationPlanSummary(
+                "vpl-document",
+                "dep-123",
+                "Document ingestion vectorization",
+                "ACTIVE",
+                "PLATFORM_MANAGED_AUTO",
+                "BOOTSTRAP_REQUIRED",
+                List.of("BOOTSTRAP_REQUIRED"),
+                json("{}"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Instant.parse("2026-09-26T00:00:00Z"),
+                Instant.parse("2026-09-26T00:00:00Z")
+            ),
             null
         );
     }
