@@ -2830,9 +2830,43 @@ Critical fixes that made the gate pass:
   PostgreSQL 16 migrations through `V148`, Platform UI production build,
   verification-script syntax, `git diff --check`, and common secret-pattern
   scan.
-- Canonical plan `010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md`
-  now marks WP0-WP5 `IMPLEMENTED_LOCAL_VERIFIED`. WP6 remains
-  `HOSTED_PROOF_PENDING`. Do not claim `HOSTED_PROVEN` or `MARKET_READY` until
-  an external S3-compatible staging/production canary, isolation/restart/
-  failure/lifecycle gates, and the full live Platform release gate pass. Do not
-  use Shopify or ProdUS as the document-indexing canary.
+- At this source-only checkpoint, canonical plan
+  `010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md` marked WP0-WP5
+  `IMPLEMENTED_LOCAL_VERIFIED` and WP6 `HOSTED_PROOF_PENDING`. The immediately
+  following hosted-closure record supersedes that temporary status. Shopify and
+  ProdUS were not used as document-indexing canaries.
+
+## 2026-09-26 File Document Indexing Hosted Proof And Cleanup
+
+- Document Knowledge Operations is now `IMPLEMENTED_HOSTED_PROVEN` for its
+  bounded AI Fabric `0.8.4` contract: trusted `.txt` and configured `.json`
+  objects from customer-provided S3-compatible storage, deployment-local
+  processing/state, existing inference/vector profiles, and no Platform relay
+  or ownership of source bytes.
+- Final private source is
+  `ceca664c88fe79559f216f5fdf99c1af535090d3`. GitHub Actions run
+  `36238988182` passed, and the final backend verification passed `832` tests
+  across `152` suites. The Coolify provisioning heartbeat now keeps tracked
+  long-running steps fresh; a hosted reapply crossed the former stale window
+  and completed successfully.
+- Staging hosted pack `vsr-77312f59` passed discovery, preview, indexing,
+  active-version retrieval, replacement, restart durability, deterministic
+  recovery/reindex, exact deletion, retention, two-tenant/two-deployment
+  isolation, failure cases, source preservation, and export/import. Controlled
+  production runs `vsr-e39c0216` and `vsr-e74bf17d` passed real Pinecone,
+  restart, and durability proof.
+- Exact deletion reduced retrieval evidence to zero while preserving both
+  source objects. Hard decommission then removed temporary bindings, vector
+  resources, secrets, Coolify applications/databases, and the Pinecone index.
+  Staging canaries were also hard-decommissioned. The disposable source fixture
+  was retired only after object-preservation evidence was recorded.
+- No ProdUS deployment, Shopify assignment, or customer source dataset was
+  changed. All twelve framework demos were restored to `running:healthy`,
+  temporary rollout tokens were revoked, and both Hetzner firewall rule sets
+  were restored to their exact pre-proof snapshots.
+- Keep the global Platform `MARKET_READY` claim qualified. Staging full run
+  `vsr-87bc4b58` and Partner run `vsr-c2c5fac1` retain the known retired
+  Shopify-mode failure. Production full run `vsr-aba87784` passed preceding
+  stages but failed one of eleven Shopify first-product language checks. These
+  are unrelated to document indexing and must not be hidden or represented as
+  a green aggregate release gate.

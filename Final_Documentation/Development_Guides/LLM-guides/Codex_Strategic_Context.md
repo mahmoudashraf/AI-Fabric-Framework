@@ -439,9 +439,10 @@ Current P0 cleanup items:
   `010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md`;
   only exact sandbox-verified or production-approved compositions may carry the
   corresponding claim.
-- 2026-09-26: Document Knowledge Operations is now source-complete and locally
-  verified on AI Fabric `0.8.4`, while its hosted claim remains deliberately
-  open. Reuse Marketplace DATA/TEMPLATE, V04, deployment-local runtime state,
+- 2026-09-26 source checkpoint: Document Knowledge Operations was
+  source-complete and locally verified on AI Fabric `0.8.4`, while its hosted
+  claim remained deliberately open. Reuse Marketplace DATA/TEMPLATE, V04,
+  deployment-local runtime state,
   existing inference/vector profiles, target-scoped external bindings, and the
   deployment workspace. Production source storage is customer-owned
   S3-compatible storage; Platform stores references and lifecycle evidence but
@@ -452,6 +453,19 @@ Current P0 cleanup items:
   retention, export/import boundaries, capability readback, and the
   `document-knowledge-operations-v1` pack are implemented. Local runtime,
   Platform, PostgreSQL migration, UI, syntax, and hygiene gates pass. Keep the
-  capability below `HOSTED_PROVEN` until external-storage staging and controlled
-  production evidence plus the full release gate pass; do not alter ProdUS or
-  Shopify to manufacture that evidence.
+  The following hosted-closure record supersedes this checkpoint. ProdUS and
+  Shopify were not altered to manufacture the evidence.
+- 2026-09-26: Document Knowledge Operations has now passed its external-storage
+  staging and controlled-production gates and is
+  `IMPLEMENTED_HOSTED_PROVEN` for trusted TXT and configured JSON in
+  customer-owned S3-compatible storage. Real-provider proof covers indexing,
+  active-version retrieval, replacement, restart durability, reindex/recovery,
+  exact index deletion, source preservation, tenant/deployment isolation,
+  export/import boundaries, and hard decommission. Temporary canary resources
+  were removed, all framework demos were restored, rollout access was closed,
+  and neither ProdUS nor Shopify was changed. This supersedes only the prior
+  hosted-pending statement; it does not create a managed-storage, additional
+  format, public-upload, or unconditional global `MARKET_READY` claim. The full
+  Platform gate still records unrelated deferred Shopify mode/output-quality
+  failures, which must remain visible until separately resolved or explicitly
+  dispositioned by the owner.

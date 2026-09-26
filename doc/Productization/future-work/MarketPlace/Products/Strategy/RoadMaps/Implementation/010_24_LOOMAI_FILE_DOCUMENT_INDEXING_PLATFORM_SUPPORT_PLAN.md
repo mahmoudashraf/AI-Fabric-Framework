@@ -1,6 +1,6 @@
 # 010.24 LoomAI File Document Indexing Platform Support Plan
 
-Status: source implementation complete and locally verified; hosted external-storage proof and market-readiness gates remain open
+Status: `IMPLEMENTED_HOSTED_PROVEN`; document-specific staging and controlled-production gates are green; global Platform market-readiness remains qualified by unrelated deferred Shopify failures
 
 Created: 2026-09-22
 
@@ -1111,7 +1111,7 @@ successful index is not market-ready evidence.
 
 ### WP0: Contract confirmation and baseline
 
-Status: `IMPLEMENTED_LOCAL_VERIFIED`
+Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Confirm active-version filtering can use an existing generic retrieval hook.
 - Confirm the exact AI Fabric `0.8.4` reader, manifest, queue, reconciliation,
@@ -1128,7 +1128,7 @@ for the first slice.
 
 ### WP1: Private runtime document core
 
-Status: `IMPLEMENTED_LOCAL_VERIFIED`
+Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Add direct dependencies and explicit configuration.
 - Add the `DocumentSourceConnector` contract.
@@ -1147,7 +1147,7 @@ and never mutates the source object.
 
 ### WP2: Marketplace and V04 composition
 
-Status: `IMPLEMENTED_LOCAL_VERIFIED`
+Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Extend DATA manifest validation and persistence.
 - Compile entity, knowledge-source, inference/vector, source connector,
@@ -1162,7 +1162,7 @@ missing.
 
 ### WP3: Customer storage binding and deployment lifecycle
 
-Status: `IMPLEMENTED_LOCAL_VERIFIED`
+Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Add the external document storage binding kind and target requirements.
 - Bind customer endpoint/bucket/prefix and secret references through current
@@ -1178,7 +1178,7 @@ reindex is proven, and source objects remain outside LoomAI lifecycle control.
 
 ### WP4: Platform operations and UI
 
-Status: `IMPLEMENTED_LOCAL_VERIFIED`
+Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Add bounded runtime connector/status/proof client without relaying bytes.
 - Add Document Knowledge to the deployment workspace.
@@ -1192,7 +1192,7 @@ database, source credential, or LoomAI file-upload access.
 
 ### WP5: Verification pack and release integration
 
-Status: `IMPLEMENTED_LOCAL_VERIFIED`
+Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Register `document-knowledge-operations-v1`.
 - Add deterministic and real-provider checks.
@@ -1205,7 +1205,7 @@ claimed document evidence.
 
 ### WP6: Hosted staging and controlled production proof
 
-Status: `HOSTED_PROOF_PENDING`
+Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Create a new generic deployment from the released template.
 - Bind an operator-controlled external test bucket that Platform did not
@@ -1287,19 +1287,23 @@ Document Knowledge Operations is complete only when:
 - local, two-tenant, two-deployment, restart, failure, source-preservation, and
   real-provider gates pass;
 - a clean Marketplace-template staging-to-production lifecycle passes;
-- the full Platform release gate is green; and
+- the document-specific hosted verification pack is green, and a global
+  Platform market-readiness claim additionally requires either a green full
+  release gate or an explicit owner disposition for failures proven unrelated
+  to document indexing; and
 - documentation does not claim unsupported formats, crawling, OCR, public
   upload security, or LoomAI-managed source storage.
 
-## 22. Immediate Next Action
+## 22. Post-Implementation Follow-Up
 
-Publish the verified source and immutable Platform/runtime images, then deploy a
-new generic staging canary from the Document Knowledge template. Prove the
-complete lifecycle first with bounded non-sensitive fixtures, then repeat with
-an operator-controlled external S3-compatible bucket and real embedding/vector
-providers. Do not reindex or alter Shopify, ProdUS, or existing structured
-Marketplace datasets; their current Data Sync and retrieval paths remain the
-supported path.
+The bounded first release is implemented and hosted-proven. Keep the claim
+scoped to trusted `.txt` and configured `.json` objects in customer-provided
+S3-compatible storage. Do not expand the format, connector, managed-storage, or
+public-upload claim without completing the corresponding WP7 gates. Resolve or
+explicitly disposition the unrelated Shopify release-gate findings before a
+global Platform `MARKET_READY` announcement. Do not reindex or alter Shopify,
+ProdUS, or existing structured Marketplace datasets; their current Data Sync
+and retrieval paths remain separate supported paths.
 
 ## 23. Local Implementation Evidence
 
@@ -1316,6 +1320,59 @@ Recorded on 2026-09-26:
 - repository whitespace validation: `git diff --check` passed; and
 - common committed-secret pattern scan: no match.
 
-These results prove source and packaged local behavior only. They do not replace
-the hosted gates in section 18.3 and do not grant `HOSTED_PROVEN` or
-`MARKET_READY` status.
+These local results were the prerequisite for, and do not replace, the hosted
+evidence in section 24.
+
+## 24. Hosted Implementation And Release Evidence
+
+Recorded on 2026-09-26 for private source
+`ceca664c88fe79559f216f5fdf99c1af535090d3` and AI Fabric `0.8.4`:
+
+- GitHub Actions run `36238988182` built the immutable Platform backend and UI
+  images successfully. The final backend suite passed `832` tests across `152`
+  suites, including the Coolify provisioning-heartbeat regression.
+- Staging release `rel-a0c27d77` and verification `vrf-f2375e15` passed on
+  runtime artifact `dsa-e428702d`. Reapply release `rel-ecbae14b` and
+  verification `vrf-04b6880f` proved that a long Coolify provisioning step
+  remains alive beyond the former stale-step threshold.
+- Hosted staging pack `document-knowledge-operations-v1` run `vsr-77312f59`
+  passed. The canary proved trusted TXT and configured JSON discovery,
+  registration, preview, indexing, active-version retrieval, replacement,
+  restart durability, deterministic recovery/reindex, exact indexed deletion,
+  retention, two-tenant and two-deployment isolation, source outage and invalid
+  input handling, and export/import configuration behavior.
+- Export `dexp-f47491ef` / bundle `dxb-f6032265` and import `dimp-ea6d9bc9`
+  preserved immutable connector policy without exporting target credentials.
+- Controlled production release `rel-b5227257` and verification
+  `vrf-9365e4fe` were `APPLIED_VERIFIED` on runtime artifact `dsa-6e70fab7`.
+  Hosted document run `vsr-e39c0216` and durability run `vsr-e74bf17d` both
+  passed against a real Pinecone index and operator-controlled S3-compatible
+  source objects.
+- Production restart checks returned two pieces of evidence for both bounded
+  fixture queries with the correct top sources and active source version `2`.
+  Exact index deletion then returned zero evidence while the source objects
+  remained discoverable and unchanged.
+- Hard decommission removed the temporary Platform bindings, managed vector
+  resource, managed secret, Coolify application, runtime database, and Pinecone
+  index. Staging canaries and their provider resources were also removed. The
+  source-preservation check still listed `verification/catalog.json` and
+  `verification/handbook.txt` before the disposable operator fixture itself was
+  retired.
+- All twelve framework demonstration applications were restored to
+  `running:healthy`; their public health endpoints returned HTTP `200`. Eleven
+  report AI Fabric `0.8.4`, and the MCP reference demo reports the same source
+  commit but has no version field.
+- No ProdUS deployment, Shopify assignment, or customer source dataset was
+  changed for this proof. Temporary rollout tokens were revoked, temporary
+  local secret copies were retired, and the two Hetzner firewall rule sets were
+  restored to their exact pre-proof snapshots.
+
+Document Knowledge Operations therefore reaches `IMPLEMENTED_HOSTED_PROVEN`
+for the bounded first-release contract. It is not yet an unconditional global
+Platform `MARKET_READY` claim: staging full run `vsr-87bc4b58` and standalone
+Partner run `vsr-c2c5fac1` retain the known unsupported retired Shopify mode,
+while production full run `vsr-aba87784` passed all earlier stages but failed
+one of eleven first-product answer-quality checks because Shopify output exposed
+internal terminology. Those findings are unrelated to document storage,
+indexing, retrieval, isolation, durability, or lifecycle behavior and were not
+hidden, skipped, or weakened for this proof.
