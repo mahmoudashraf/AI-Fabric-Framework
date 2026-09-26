@@ -1050,18 +1050,21 @@ class MarketplaceIntegrationTest {
     }
 
     @Test
-    @Sql("classpath:db/migration/V148__document_knowledge_marketplace_products.sql")
+    @Sql({
+        "classpath:db/migration/V148__document_knowledge_marketplace_products.sql",
+        "classpath:db/migration/V149__document_knowledge_durable_vector_template.sql"
+    })
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void templateBootstrapDefersDeploymentScopedRequiredPluginInputsAndBlocksPublication() throws Exception {
         String response = mockMvc.perform(asAdmin(
                 post("/api/marketplace/templates/{pluginId}/bootstrap", "mkp-template-document-knowledge-assistant")
                     .contentType(APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(java.util.Map.of(
-                        "pluginVersion", "1.0.0",
+                        "pluginVersion", "1.1.0",
                         "name", "Document Knowledge Setup Required",
                         "environment", "dev",
-                        "templateId", "custom-start-from-scratch",
-                        "vectorProvisioningMode", "NONE"
+                        "templateId", "dev-openai-pinecone",
+                        "vectorProvisioningMode", "PLATFORM_MANAGED"
                     )))
             ))
             .andExpect(status().isCreated())
@@ -1075,11 +1078,11 @@ class MarketplaceIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath(
                 "$.behaviorConfig.marketplaceRequirements.requiredPluginRefs[0]",
-                is("mkp-data-document-knowledge-s3@1.0.0")
+                is("mkp-data-document-knowledge-s3@1.1.0")
             ))
             .andExpect(jsonPath(
                 "$.behaviorConfig.marketplaceRequirements.unresolvedRequiredPluginRefs[0]",
-                is("mkp-data-document-knowledge-s3@1.0.0")
+                is("mkp-data-document-knowledge-s3@1.1.0")
             ))
             .andReturn()
             .getResponse()

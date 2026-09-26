@@ -22,6 +22,60 @@ class DeploymentDraftValidationServiceTest {
     private final DeploymentDraftValidationService service = new DeploymentDraftValidationService(new ObjectMapper());
 
     @Test
+    void validateRequiresDurableVectorStorageForCustomerDocumentStorage() {
+        DeploymentDraftEntity draft = draft(
+            "{\"actions\":[]}",
+            "{\"ai-config\":{\"vector-dimensions\":1024},\"ai-entities\":{}}",
+            "{\"connector\":{\"inbound-auth\":{\"allow-unauthenticated\":false}},\"authz\":{\"enabled\":false}}",
+            "{\"llmProvider\":\"openai\",\"embeddingProvider\":\"openai\",\"vectorStrategy\":\"lucene\",\"runtimeProfile\":\"runtime-managed\",\"connectorProfile\":\"connector-hosted\",\"openaiEmbeddingDimensions\":1024}",
+            "{\"authzMode\":\"ALLOW_VERIFIED\",\"adminApiKeyEnabled\":true,\"connectorApiKeyEnabled\":true}"
+        );
+        draft.setMarketplaceDatasetConfigJson(documentDatasetConfig("S3_COMPATIBLE_OBJECT_STORAGE"));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("DOCUMENT_DURABLE_VECTOR_REQUIRED");
+    }
+
+    @Test
+    void validateAllowsDurableVectorStorageForCustomerDocumentStorage() {
+        DeploymentDraftEntity draft = draft(
+            "{\"actions\":[]}",
+            "{\"ai-config\":{\"vector-dimensions\":1024},\"ai-entities\":{}}",
+            "{\"connector\":{\"inbound-auth\":{\"allow-unauthenticated\":false}},\"authz\":{\"enabled\":false}}",
+            "{\"llmProvider\":\"openai\",\"embeddingProvider\":\"openai\",\"vectorStrategy\":\"pinecone\",\"vectorProvisioningMode\":\"PLATFORM_MANAGED\",\"runtimeProfile\":\"runtime-managed\",\"connectorProfile\":\"connector-hosted\",\"openaiEmbeddingDimensions\":1024,\"pineconeManagedIndexEnabled\":true,\"pineconeIndexName\":\"document-knowledge-test\",\"pineconeCloud\":\"aws\",\"pineconeRegion\":\"us-east-1\",\"pineconeMetric\":\"cosine\",\"pineconeDimensions\":1024}",
+            "{\"authzMode\":\"ALLOW_VERIFIED\",\"adminApiKeyEnabled\":true,\"connectorApiKeyEnabled\":true}"
+        );
+        draft.setMarketplaceDatasetConfigJson(documentDatasetConfig("S3_COMPATIBLE_OBJECT_STORAGE"));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("DOCUMENT_DURABLE_VECTOR_REQUIRED");
+    }
+
+    @Test
+    void validateKeepsLocalVectorAvailableForMountedDocumentDemo() {
+        DeploymentDraftEntity draft = draft(
+            "{\"actions\":[]}",
+            "{\"ai-config\":{\"vector-dimensions\":1024},\"ai-entities\":{}}",
+            "{\"connector\":{\"inbound-auth\":{\"allow-unauthenticated\":false}},\"authz\":{\"enabled\":false}}",
+            "{\"llmProvider\":\"openai\",\"embeddingProvider\":\"openai\",\"vectorStrategy\":\"lucene\",\"runtimeProfile\":\"runtime-managed\",\"connectorProfile\":\"connector-hosted\",\"openaiEmbeddingDimensions\":1024}",
+            "{\"authzMode\":\"ALLOW_VERIFIED\",\"adminApiKeyEnabled\":true,\"connectorApiKeyEnabled\":true}"
+        );
+        draft.setMarketplaceDatasetConfigJson(documentDatasetConfig("MOUNTED_FOLDER"));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("DOCUMENT_DURABLE_VECTOR_REQUIRED");
+    }
+
+    @Test
     void validateAcceptsPublishableRoutingDraft() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -3834,5 +3888,33 @@ class DeploymentDraftValidationServiceTest {
     private DeploymentDraftValidationService service(PlatformManagedInferenceEndpointService endpointService,
                                                      PlatformManagedInferenceServiceService inferenceService) {
         return new DeploymentDraftValidationService(new ObjectMapper(), endpointService, inferenceService);
+    }
+
+    private String documentDatasetConfig(String connectorType) {
+        return """
+            {
+              "contractVersion": "MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets": [{
+                "datasetId": "document-knowledge",
+                "entityType": "document",
+                "storageScope": "CUSTOMER_MANAGED",
+                "sharingScope": "DEPLOYMENT_ONLY",
+                "ingestionMode": "EXTERNAL_DOCUMENT_STORAGE",
+                "updateStrategy": "VERSIONED_REPLACE",
+                "handleRef": "documents/{deploymentId}/document-knowledge",
+                "datasetHash": "test-document-dataset",
+                "sourceConnector": {
+                  "connectorType": "%s",
+                  "bindingRef": "dsh-test",
+                  "deleteSourceOnRemoval": false
+                },
+                "documentPolicy": {
+                  "evidenceRetentionDays": 30,
+                  "commandRetentionDays": 30,
+                  "retentionBatchSize": 100
+                }
+              }]
+            }
+            """.formatted(connectorType);
     }
 }

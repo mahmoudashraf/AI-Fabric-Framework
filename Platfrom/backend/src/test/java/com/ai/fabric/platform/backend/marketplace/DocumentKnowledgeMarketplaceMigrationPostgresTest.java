@@ -37,6 +37,12 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
             .target(MigrationVersion.fromVersion("148"))
             .load()
             .migrate();
+        Flyway.configure()
+            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+            .locations("classpath:db/migration")
+            .target(MigrationVersion.fromVersion("149"))
+            .load()
+            .migrate();
 
         try (Connection connection = POSTGRES.createConnection("");
              Statement statement = connection.createStatement()) {
@@ -56,6 +62,11 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
             );
 
             var s3 = parse(seeds.get("mkp-data-document-knowledge-s3"));
+            assertThat(seeds.get("mkp-data-document-knowledge-s3").version()).isEqualTo("1.1.0");
+            assertThat(s3.manifest().path("compatibility").path("supportedDeploymentTargets"))
+                .extracting(value -> value.asText())
+                .contains("dev-openai-pinecone")
+                .doesNotContain("dev-openai-lucene", "dev-openai-memory");
             assertThat(s3.datasets()).singleElement().satisfies(dataset -> {
                 assertThat(dataset.ingestionMode()).isEqualTo("EXTERNAL_DOCUMENT_STORAGE");
                 assertThat(dataset.storageScope()).isEqualTo("CUSTOMER_MANAGED");
@@ -73,9 +84,15 @@ class DocumentKnowledgeMarketplaceMigrationPostgresTest {
 
             var template = parse(seeds.get("mkp-template-document-knowledge-assistant"));
             assertThat(template.pluginType()).isEqualTo("TEMPLATE");
+            assertThat(seeds.get("mkp-template-document-knowledge-assistant").version()).isEqualTo("1.1.0");
+            assertThat(template.manifest().path("compatibility").path("supportedDeploymentTargets"))
+                .extracting(value -> value.asText())
+                .containsExactly("dev-openai-pinecone");
+            assertThat(template.manifest().path("contributions").path("template").path("templateId").asText())
+                .isEqualTo("dev-openai-pinecone");
             assertThat(template.manifest().path("contributions").path("template").path("requiredPluginRefs"))
                 .extracting(value -> value.asText())
-                .containsExactly("mkp-data-document-knowledge-s3@1.0.0");
+                .containsExactly("mkp-data-document-knowledge-s3@1.1.0");
         }
     }
 

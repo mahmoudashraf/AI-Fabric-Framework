@@ -145,7 +145,7 @@ public class DeploymentDraftValidationService {
             validatePrompts(promptNode, issues);
             validateKnowledgeSources(knowledgeSourceNode, providerNode, issues);
             validateShellConfig(shellNode, issues);
-            validateMarketplaceDatasetConfig(marketplaceDatasetNode, issues);
+            validateMarketplaceDatasetConfig(marketplaceDatasetNode, providerNode, issues);
             validateKnowledgeSourceDatasetRefs(knowledgeSourceNode, marketplaceDatasetNode, issues);
             validateBehavior(behaviorNode, expectedBehaviorType, issues);
             validateMarketplaceRequirements(behaviorNode, issues);
@@ -590,6 +590,7 @@ public class DeploymentDraftValidationService {
     }
 
     private void validateMarketplaceDatasetConfig(JsonNode marketplaceDatasetNode,
+                                                  JsonNode providerNode,
                                                   List<DraftValidationIssue> issues) {
         if (marketplaceDatasetNode == null || !marketplaceDatasetNode.isObject()) {
             issues.add(error(
@@ -727,6 +728,16 @@ public class DeploymentDraftValidationService {
                     }
                     if (sourceConnector.path("deleteSourceOnRemoval").asBoolean(false)) {
                         issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_DELETE_FORBIDDEN", basePath + ".sourceConnector.deleteSourceOnRemoval", "LoomAI document removal may not delete customer source objects."));
+                    }
+                    String vectorStrategy = ManagedDeploymentProfileCatalog.resolveVectorStrategy(providerNode);
+                    if ("S3_COMPATIBLE_OBJECT_STORAGE".equals(connectorType)
+                        && Set.of("memory", "lucene").contains(vectorStrategy)) {
+                        issues.add(error(
+                            "marketplaceDatasets",
+                            "DOCUMENT_DURABLE_VECTOR_REQUIRED",
+                            "$.providerConfig.vectorStrategy",
+                            "Customer-storage Document Knowledge requires a durable external vector provider. Local memory and unmounted Lucene do not survive runtime replacement."
+                        ));
                     }
                 }
                 JsonNode documentPolicy = dataset.path("documentPolicy");
