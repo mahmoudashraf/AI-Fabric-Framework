@@ -51,6 +51,7 @@ public class DeploymentDeletionExecutionService {
     private final DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService;
     private final VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService;
     private final DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService;
+    private final DeploymentDocumentStorageBindingService deploymentDocumentStorageBindingService;
     private final PlatformAuditService platformAuditService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
@@ -70,6 +71,7 @@ public class DeploymentDeletionExecutionService {
                                               DeploymentTenantScopedVectorRegistryService deploymentTenantScopedVectorRegistryService,
                                               VectorizationDeploymentCleanupService vectorizationDeploymentCleanupService,
                                               DeploymentProviderSecretOverrideService deploymentProviderSecretOverrideService,
+                                              DeploymentDocumentStorageBindingService deploymentDocumentStorageBindingService,
                                               PlatformAuditService platformAuditService,
                                               ObjectMapper objectMapper,
                                               PlatformTransactionManager transactionManager,
@@ -88,6 +90,7 @@ public class DeploymentDeletionExecutionService {
         this.deploymentTenantScopedVectorRegistryService = deploymentTenantScopedVectorRegistryService;
         this.vectorizationDeploymentCleanupService = vectorizationDeploymentCleanupService;
         this.deploymentProviderSecretOverrideService = deploymentProviderSecretOverrideService;
+        this.deploymentDocumentStorageBindingService = deploymentDocumentStorageBindingService;
         this.platformAuditService = platformAuditService;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -171,6 +174,11 @@ public class DeploymentDeletionExecutionService {
 
         deploymentTenantScopedVectorRegistryService.detachForDeletedDeployment(deployment, context.operation().getRequestReason());
         vectorizationDeploymentCleanupService.deleteForDeployment(deployment);
+        int documentStorageBindingCount = deploymentDocumentStorageBindingService.cleanupForDeletedDeployment(deployment);
+        resultDetails.put("documentStorageBindingCleanup", Map.of(
+            "bindingCount", documentStorageBindingCount,
+            "sourceObjectsDeleted", false
+        ));
         DeploymentProviderSecretOverrideCleanupSummary overrideCleanupSummary =
             deploymentProviderSecretOverrideService.cleanupForHardDelete(deployment.getId(), context.operation().getRequestReason());
         resultDetails.put("providerSecretOverrideCleanup", summarizeOverrideCleanup(overrideCleanupSummary));

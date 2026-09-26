@@ -38,6 +38,9 @@ public class MarketplaceDatasetHandleEntity {
     @Column(nullable = false)
     private String sharingScope;
 
+    @Column(nullable = false, length = 128)
+    private String scopeKey;
+
     @Column(nullable = false)
     private String handleRef;
 
@@ -131,6 +134,14 @@ public class MarketplaceDatasetHandleEntity {
 
     public void setSharingScope(String sharingScope) {
         this.sharingScope = sharingScope;
+    }
+
+    public String getScopeKey() {
+        return scopeKey;
+    }
+
+    public void setScopeKey(String scopeKey) {
+        this.scopeKey = scopeKey;
     }
 
     public String getHandleRef() {

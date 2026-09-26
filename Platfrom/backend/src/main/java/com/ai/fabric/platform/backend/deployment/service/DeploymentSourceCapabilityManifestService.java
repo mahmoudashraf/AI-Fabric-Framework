@@ -26,6 +26,24 @@ import java.util.regex.Pattern;
 public class DeploymentSourceCapabilityManifestService {
 
     public static final String SCHEMA_VERSION = "loomai-runtime-capabilities-v1";
+    public static final List<String> DOCUMENT_KNOWLEDGE_CAPABILITIES = List.of(
+        "document-ingestion-core",
+        "document-source-connectors",
+        "document-version-lifecycle"
+    );
+    public static final List<String> DOCUMENT_KNOWLEDGE_ENDPOINT_CLASSES = List.of(
+        "document-connector-status",
+        "document-source-discovery",
+        "document-source-register-refresh",
+        "document-source-list-detail",
+        "document-preview",
+        "document-index-reconcile",
+        "document-delete-index",
+        "document-retrieval-proof",
+        "document-retention-status-cleanup"
+    );
+    public static final String DOCUMENT_KNOWLEDGE_MIGRATION_ID = "loomai-document-ingestion-v1";
+    public static final String DOCUMENT_KNOWLEDGE_VERIFICATION_PACK_ID = "document-knowledge-operations-v1";
     private static final Pattern CONTENT_HASH = Pattern.compile("sha256:[a-f0-9]{64}");
     private static final Pattern RESOURCE_REF = Pattern.compile("[a-z][a-z0-9-]{1,79}@[A-Za-z0-9][A-Za-z0-9._-]{0,39}");
     private static final Set<String> MANIFEST_FIELDS = Set.of(
@@ -151,6 +169,31 @@ public class DeploymentSourceCapabilityManifestService {
             "verificationPackIds"
         );
         requireSpecialistBundles(manifest.path("specialistBundles"), requirements.specialistBundles());
+    }
+
+    public void requireDocumentKnowledgeSupport(JsonNode manifest) {
+        if (manifest == null || !manifest.isObject() || manifest.isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Document Knowledge Operations requires a reviewed source capability manifest."
+            );
+        }
+        requireContains(manifest.path("capabilities"), DOCUMENT_KNOWLEDGE_CAPABILITIES, "capabilities");
+        requireContains(
+            manifest.path("endpointClasses"),
+            DOCUMENT_KNOWLEDGE_ENDPOINT_CLASSES,
+            "endpointClasses"
+        );
+        requireContains(
+            manifest.path("migrationIds"),
+            List.of(DOCUMENT_KNOWLEDGE_MIGRATION_ID),
+            "migrationIds"
+        );
+        requireContains(
+            manifest.path("verificationPackIds"),
+            List.of(DOCUMENT_KNOWLEDGE_VERIFICATION_PACK_ID),
+            "verificationPackIds"
+        );
     }
 
     private ArrayNode normalizeSpecialistBundles(JsonNode node) {

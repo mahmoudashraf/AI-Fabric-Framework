@@ -10,7 +10,9 @@ import ai.fabric.rag.source.SearchSource;
 import ai.fabric.rag.source.SearchSourceRegistry;
 import com.ai.fabric.runtime.auth.RuntimeScopeCatalog;
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigService;
+import com.ai.fabric.runtime.documents.DocumentActiveVersionFilter;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -40,6 +42,7 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
     private final RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService;
     private final AISearchService searchService;
     private final VectorDatabaseService vectorDatabaseService;
+    private final DocumentActiveVersionFilter documentActiveVersionFilter;
 
     private volatile List<ResolvedKnowledgeSource> configuredSources = List.of();
     private final ConcurrentMap<String, SearchSourceHealthState> sourceHealth = new ConcurrentHashMap<>();
@@ -50,9 +53,18 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
     public RuntimeDeploymentSearchSourceRegistry(RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService,
                                                  AISearchService searchService,
                                                  VectorDatabaseService vectorDatabaseService) {
+        this(knowledgeSourceConfigService, searchService, vectorDatabaseService, null);
+    }
+
+    @Autowired
+    public RuntimeDeploymentSearchSourceRegistry(RuntimeDeploymentKnowledgeSourceConfigService knowledgeSourceConfigService,
+                                                 AISearchService searchService,
+                                                 VectorDatabaseService vectorDatabaseService,
+                                                 DocumentActiveVersionFilter documentActiveVersionFilter) {
         this.knowledgeSourceConfigService = knowledgeSourceConfigService;
         this.searchService = searchService;
         this.vectorDatabaseService = vectorDatabaseService;
+        this.documentActiveVersionFilter = documentActiveVersionFilter;
     }
 
     @PostConstruct
@@ -108,7 +120,8 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
         resolved.add(new DeploymentPrivateVectorSearchSource(
             withTrustedBoundary(configuredDefaultPrivateSource, trustedBoundaryFilters),
             searchService,
-            vectorDatabaseService
+            vectorDatabaseService,
+            documentActiveVersionFilter
         ));
         configuredSources.stream()
             .filter(source -> KnowledgeSourceAdapterType.DEPLOYMENT_PRIVATE_VECTOR.wireValue().equals(source.getAdapterType()))
@@ -116,7 +129,8 @@ public class RuntimeDeploymentSearchSourceRegistry implements SearchSourceRegist
             .map(source -> new DeploymentPrivateVectorSearchSource(
                 withTrustedBoundary(source, trustedBoundaryFilters),
                 searchService,
-                vectorDatabaseService
+                vectorDatabaseService,
+                documentActiveVersionFilter
             ))
             .forEach(resolved::add);
         if (!deploymentKnowledgeRequest) {

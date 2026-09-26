@@ -24,6 +24,7 @@ public class PlatformVerificationSuiteCatalog {
     public static final String THINKER_RESOLVER_READINESS_SUITE_KEY = "thinker-resolver-readiness";
     public static final String COOLIFY_PROVIDER_VERIFICATION_SUITE_KEY = "coolify-provider-verification";
     public static final String DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY = "deployment-behavior-market-readiness";
+    public static final String DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY = "document-knowledge-operations-v1";
     public static final String SHARED_INFERENCE_SERVICE_REF = "openai-cloud-orchestration";
     public static final String CANONICAL_FLEET_TARGET_REF = "canonical-verification-fleet";
     public static final List<String> CANONICAL_ROLLOUT_ORDER = List.of(
@@ -44,7 +45,8 @@ public class PlatformVerificationSuiteCatalog {
             partnerEnablementVerification(),
             thinkerResolverReadiness(),
             coolifyProviderVerification(),
-            deploymentBehaviorMarketReadiness()
+            deploymentBehaviorMarketReadiness(),
+            documentKnowledgeOperations()
         );
     }
 
@@ -414,6 +416,25 @@ public class PlatformVerificationSuiteCatalog {
                     PlatformVerificationSuiteScriptContextService.SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS,
                     true,
                     "Bootstrap, publish, apply, execute, verify, and record hosted proof for one exact behavior-template release."
+                )
+            )
+        );
+    }
+
+    private PlatformVerificationSuiteDefinitionSummary documentKnowledgeOperations() {
+        return new PlatformVerificationSuiteDefinitionSummary(
+            DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY,
+            "Document Knowledge Operations",
+            "Deployment-local connector, preview, index, retrieval-evidence, exact-index-deletion, and customer-source-preservation verification.",
+            false,
+            List.of(
+                new PlatformVerificationSuiteStageDefinitionSummary(
+                    DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY,
+                    "Document Knowledge Operations",
+                    "SCRIPT_VERIFICATION",
+                    PlatformVerificationSuiteScriptContextService.SCRIPT_DOCUMENT_KNOWLEDGE_OPERATIONS,
+                    true,
+                    "Verify the bounded text-object lifecycle through backend-mediated deployment-local document APIs."
                 )
             )
         );

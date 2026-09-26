@@ -72,6 +72,34 @@ class DeploymentSourceCapabilityManifestServiceTest {
             .hasMessageContaining("Unsupported specialist bundle field: inlinePrompt");
     }
 
+    @Test
+    void exactDocumentKnowledgeContractSatisfiesCapabilityGate() throws Exception {
+        JsonNode candidate = manifest(AGENTIC_BUNDLE_HASH);
+        addDocumentKnowledgeContract(candidate);
+        var normalized = service.normalize(candidate);
+
+        service.requireDocumentKnowledgeSupport(normalized.manifest());
+
+        assertThat(normalized.manifest().path("capabilities"))
+            .extracting(JsonNode::asText)
+            .containsAll(DeploymentSourceCapabilityManifestService.DOCUMENT_KNOWLEDGE_CAPABILITIES);
+    }
+
+    @Test
+    void incompleteDocumentKnowledgeContractFailsClosed() throws Exception {
+        JsonNode candidate = manifest(AGENTIC_BUNDLE_HASH);
+        addDocumentKnowledgeContract(candidate);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) candidate.path("endpointClasses"))
+            .removeAll()
+            .add("document-source-discovery");
+        var normalized = service.normalize(candidate);
+
+        assertThatThrownBy(() -> service.requireDocumentKnowledgeSupport(normalized.manifest()))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("missing endpointClasses")
+            .hasMessageContaining("document-delete-index");
+    }
+
     private JsonNode manifest(String bundleHash) throws Exception {
         return objectMapper.readTree("""
             {
@@ -104,6 +132,18 @@ class DeploymentSourceCapabilityManifestServiceTest {
               }]
             }
             """.formatted(bundleHash));
+    }
+
+    private void addDocumentKnowledgeContract(JsonNode candidate) {
+        var root = (com.fasterxml.jackson.databind.node.ObjectNode) candidate;
+        var capabilities = (com.fasterxml.jackson.databind.node.ArrayNode) root.path("capabilities");
+        DeploymentSourceCapabilityManifestService.DOCUMENT_KNOWLEDGE_CAPABILITIES.forEach(capabilities::add);
+        var endpoints = (com.fasterxml.jackson.databind.node.ArrayNode) root.path("endpointClasses");
+        DeploymentSourceCapabilityManifestService.DOCUMENT_KNOWLEDGE_ENDPOINT_CLASSES.forEach(endpoints::add);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) root.path("migrationIds"))
+            .add(DeploymentSourceCapabilityManifestService.DOCUMENT_KNOWLEDGE_MIGRATION_ID);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) root.path("verificationPackIds"))
+            .add(DeploymentSourceCapabilityManifestService.DOCUMENT_KNOWLEDGE_VERIFICATION_PACK_ID);
     }
 
     private DeploymentBehaviorCatalogService.RuntimeRequirements requirements() {

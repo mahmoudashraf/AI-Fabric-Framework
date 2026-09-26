@@ -300,6 +300,45 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void reconcilesTheExactPersistentDirectoryStorageIdempotently() throws Exception {
+        AtomicReference<String> observedBody = new AtomicReference<>();
+        AtomicInteger getRequests = new AtomicInteger();
+        AtomicInteger postRequests = new AtomicInteger();
+        HttpServer server = storageServer(observedBody, getRequests, postRequests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            CoolifyApplicationStorageSummary created = client.reconcilePersistentDirectoryStorage(
+                connection(server),
+                "app-uuid",
+                "loomai-documents-dep-docs-profile-staging",
+                "/srv/loomai/document-sources/dep-docs/profile-staging",
+                "/app/document-sources"
+            );
+            CoolifyApplicationStorageSummary reused = client.reconcilePersistentDirectoryStorage(
+                connection(server),
+                "app-uuid",
+                "loomai-documents-dep-docs-profile-staging",
+                "/srv/loomai/document-sources/dep-docs/profile-staging",
+                "/app/document-sources"
+            );
+
+            assertThat(created.uuid()).isEqualTo("storage-uuid");
+            assertThat(reused.uuid()).isEqualTo("storage-uuid");
+            assertThat(postRequests).hasValue(1);
+            assertThat(getRequests.get()).isGreaterThanOrEqualTo(3);
+            JsonNode body = objectMapper.readTree(observedBody.get());
+            assertThat(body.path("type").asText()).isEqualTo("persistent");
+            assertThat(body.path("name").asText()).isEqualTo("loomai-documents-dep-docs-profile-staging");
+            assertThat(body.path("host_path").asText())
+                .isEqualTo("/srv/loomai/document-sources/dep-docs/profile-staging");
+            assertThat(body.path("mount_path").asText()).isEqualTo("/app/document-sources");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void updateEnvironmentVariablesDeletesOlderDuplicateRuntimeRowsForUpdatedKeys() throws Exception {
         AtomicInteger deleteRequests = new AtomicInteger();
         AtomicReference<String> deletedPath = new AtomicReference<>();
@@ -585,6 +624,45 @@ class CoolifyApiClientTest {
                 return;
             }
             exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer storageServer(AtomicReference<String> observedBody,
+                                     AtomicInteger getRequests,
+                                     AtomicInteger postRequests) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/storages", exchange -> {
+            if ("POST".equals(exchange.getRequestMethod())) {
+                postRequests.incrementAndGet();
+                observedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                sendJson(exchange, 201, "{}");
+                return;
+            }
+            if ("GET".equals(exchange.getRequestMethod())) {
+                int attempt = getRequests.incrementAndGet();
+                if (attempt == 1) {
+                    sendJson(exchange, 200, "{\"persistent_storages\":[],\"file_storages\":[]}");
+                } else {
+                    sendJson(exchange, 200, """
+                        {
+                          "persistent_storages": [
+                            {
+                              "uuid": "storage-uuid",
+                              "name": "loomai-documents-dep-docs-profile-staging",
+                              "host_path": "/srv/loomai/document-sources/dep-docs/profile-staging",
+                              "mount_path": "/app/document-sources"
+                            }
+                          ],
+                          "file_storages": []
+                        }
+                        """);
+                }
+                return;
+            }
+            exchange.sendResponseHeaders(405, -1);
             exchange.close();
         });
         server.start();

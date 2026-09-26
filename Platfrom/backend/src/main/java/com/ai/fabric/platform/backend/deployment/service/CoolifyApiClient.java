@@ -335,6 +335,72 @@ public class CoolifyApiClient {
         return updated;
     }
 
+    public CoolifyApplicationStorageSummary reconcilePersistentDirectoryStorage(
+        CoolifyConnection connection,
+        String applicationUuid,
+        String name,
+        String hostPath,
+        String mountPath
+    ) {
+        String safeApplicationUuid = requireText(applicationUuid, "application UUID");
+        String safeName = requireText(name, "storage name");
+        String safeHostPath = requireAbsolutePath(hostPath, "storage host path");
+        String safeMountPath = requireAbsolutePath(mountPath, "storage mount path");
+        List<CoolifyApplicationStorageSummary> existing = listApplicationStorages(connection, safeApplicationUuid);
+        Optional<CoolifyApplicationStorageSummary> exact = existing.stream()
+            .filter(storage -> safeMountPath.equals(storage.mountPath()))
+            .filter(storage -> "persistent".equals(storage.type()))
+            .filter(storage -> safeHostPath.equals(storage.hostPath()))
+            .findFirst();
+        if (exact.isPresent()) {
+            return exact.get();
+        }
+        if (existing.stream().anyMatch(storage -> safeMountPath.equals(storage.mountPath()))) {
+            throw new IllegalStateException(
+                "Coolify application already has a different storage mapped at " + safeMountPath + "."
+            );
+        }
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("type", "persistent");
+        body.put("name", safeName);
+        body.put("host_path", safeHostPath);
+        body.put("mount_path", safeMountPath);
+        requestJson(
+            connection,
+            "POST",
+            "/applications/" + encodePath(safeApplicationUuid) + "/storages",
+            body,
+            true
+        );
+
+        return listApplicationStorages(connection, safeApplicationUuid).stream()
+            .filter(storage -> safeMountPath.equals(storage.mountPath()))
+            .filter(storage -> "persistent".equals(storage.type()))
+            .filter(storage -> safeHostPath.equals(storage.hostPath()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "Coolify did not expose the reconciled document source storage mapping."
+            ));
+    }
+
+    public List<CoolifyApplicationStorageSummary> listApplicationStorages(
+        CoolifyConnection connection,
+        String applicationUuid
+    ) {
+        JsonNode response = requestJson(
+            connection,
+            "GET",
+            "/applications/" + encodePath(requireText(applicationUuid, "application UUID")) + "/storages",
+            null,
+            true
+        );
+        List<CoolifyApplicationStorageSummary> storages = new ArrayList<>();
+        appendStorages(storages, response.path("persistent_storages"), "persistent");
+        appendStorages(storages, response.path("file_storages"), "file");
+        return List.copyOf(storages);
+    }
+
     private int updateEnvironmentVariablesBulk(CoolifyConnection connection, String uuid, List<CoolifyEnvVar> envVars) {
         ObjectNode body = objectMapper.createObjectNode();
         ArrayNode data = body.putArray("data");
@@ -763,6 +829,23 @@ public class CoolifyApiClient {
         }
     }
 
+    private void appendStorages(List<CoolifyApplicationStorageSummary> target, JsonNode values, String type) {
+        if (values == null || !values.isArray()) {
+            return;
+        }
+        for (JsonNode value : values) {
+            target.add(new CoolifyApplicationStorageSummary(
+                textFirst(value, "uuid", "id"),
+                type,
+                textFirst(value, "name"),
+                textFirst(value, "mount_path", "mountPath"),
+                firstNonBlank(textFirst(value, "host_path", "hostPath"), textFirst(value, "fs_path", "fsPath")),
+                value.path("is_directory").asBoolean(false),
+                value
+            ));
+        }
+    }
+
     private URI endpoint(CoolifyConnection connection, String path) {
         String baseUrl = connection.baseUrl();
         if (baseUrl.endsWith("/")) {
@@ -949,6 +1032,21 @@ public class CoolifyApiClient {
         if (value != null) {
             body.put(field, value);
         }
+    }
+
+    private String requireText(String value, String field) {
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalArgumentException("Coolify " + field + " is required.");
+        }
+        return value.trim();
+    }
+
+    private String requireAbsolutePath(String value, String field) {
+        String candidate = requireText(value, field);
+        if (!candidate.startsWith("/") || candidate.contains("..") || candidate.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException("Coolify " + field + " must be an absolute normalized path.");
+        }
+        return candidate.replaceAll("/+$", "");
     }
 
     private String encodePath(String value) {

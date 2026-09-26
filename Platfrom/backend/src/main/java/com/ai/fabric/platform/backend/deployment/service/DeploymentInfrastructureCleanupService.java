@@ -304,6 +304,9 @@ public class DeploymentInfrastructureCleanupService {
         List<String> deletedHandleIds = new ArrayList<>();
         Map<String, String> failures = new LinkedHashMap<>();
         for (DeploymentProviderResourceHandleEntity handle : handles) {
+            if (DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind())) {
+                continue;
+            }
             try {
                 providerRegistry.require(handle.getProviderType()).delete(handle, defaultReason(reason));
                 deletedHandleIds.add(handle.getId());

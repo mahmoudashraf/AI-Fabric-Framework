@@ -2758,3 +2758,81 @@ Critical fixes that made the gate pass:
   unchanged; storage retention and source deletion remain customer-owned.
 - Begin with a new generic canary. Do not alter or reindex Shopify, ProdUS, or
   existing structured datasets to prove this capability.
+
+## 2026-09-25 Auto Trader Sandbox And Platform Readiness Planning
+
+- Official Auto Trader documentation confirms a sandbox exists and describes
+  credentialed token use, capability-specific testing, call-log validation,
+  demonstrations, database checks, and Integration Manager involvement. The
+  reviewed public material exposes no anonymous credentials or self-service
+  sandbox enrollment. Treat Auto Trader Connect partner onboarding, exact
+  capability grants, an authorized test advertiser, sandbox credentials, and
+  webhook test support as external P0 dependencies.
+- Updated `010_25_AUTOTRADER_CONNECT_LOOMAI_CAPABILITY_PRODUCTIZATION_ANALYSIS.md`
+  with the partner-provisioned sandbox model, documented sandbox data limits,
+  concrete onboarding questions, external-access verification gates, and the
+  canonical proposed `EXTERNAL_SYNC_HTTP` plus `HTTP_JSON` DATA contract.
+- Updated `010_26_AUTOTRADER_DEALERSHIP_FIRST_RELEASE_AND_MEETING_DEMO_PLAN.md`
+  so sandbox mode requires provisioned access and exact grants, while the
+  approved demonstration-data mode remains valid LoomAI evidence but never
+  Auto Trader evidence. Sandbox and production credential/grant gates are
+  explicitly separate.
+- Added canonical readiness plan
+  `010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md`.
+  It defines `DEALERSHIP_DEMO_READY`, `AUTOTRADER_SANDBOX_ENABLED`,
+  `AUTOTRADER_SANDBOX_VERIFIED`, and `AUTOTRADER_PRODUCTION_READY` as distinct
+  evidence states.
+- Source audit found that the deployment runtime Data Sync/indexing and
+  Marketplace secret-reference/lifecycle primitives are reusable. Blocking
+  product gaps are provider-neutral OAuth2 client credentials, immutable
+  trusted advertiser injection, deployment-local paged HTTP DATA sync, generic
+  inbound provider webhooks, durable sync/reconciliation state, fair-usage
+  controls, backend-only Data Sync/work/readiness discovery, exact Auto Trader
+  packages, and hosted sandbox evidence.
+- Preserve the no-bridge architecture: Auto Trader DATA/ACTION plugins compile
+  into each dealership deployment; the deployment-local Generic REST Connector
+  handles provider traffic, baseline sync, and verified events; runtime Data
+  Sync owns indexing; Platform remains lifecycle control plane and operational
+  observer rather than a provider traffic or inventory proxy.
+
+## 2026-09-26 File Document Indexing Source Implementation
+
+- Implemented the bounded first release of **Document Knowledge Operations**
+  against AI Fabric `0.8.4`. The private runtime now owns S3-compatible and
+  mounted-demo source connectors, bounded text/approved-JSON preparation,
+  deployment-local source/version/manifest/chunk/work/idempotency state,
+  preview, index/reconcile/refresh, active-version retrieval, exact indexed
+  deletion, retrieval proof, and content-free evidence retention.
+- Runtime APIs are private and exactly scoped with `documents:read`,
+  `documents:register`, `documents:index`, and `documents:delete-index`.
+  Connector policy rejects non-HTTPS production endpoints, userinfo,
+  query/fragment injection, and non-public endpoint resolution. Source bytes
+  never cross the Platform control plane and no lifecycle path deletes the
+  customer object.
+- Marketplace/V04 now supports DATA mode `EXTERNAL_DOCUMENT_STORAGE` with
+  `VERSIONED_REPLACE`, immutable connector/document policy, deployment-only
+  dataset handles, target-scoped storage bindings, secret references, and
+  reviewed first-party S3 DATA, mounted-demo DATA, and Conversational TEMPLATE
+  versions in additive migrations `V147` and `V148`.
+- Platform backend and UI now expose Document Knowledge binding, discovery,
+  registration, preview, indexing, reconciliation, refresh, exact index
+  removal, retrieval proof, and internal retention operations. Coolify can
+  reconcile the bounded demo mount; current Coolify application storage APIs do
+  not attest a read-only mount flag, so mounted mode remains an operator-owned
+  internal canary/demo path, never a customer production storage claim.
+- Added runtime capability/migration/readback enforcement and reusable blocking
+  verification pack `document-knowledge-operations-v1`. Export/import preserves
+  immutable connector policy while credentials remain environment-bound;
+  deployment clone clears target-scoped binding references; hard decommission
+  removes Platform binding state without touching source objects.
+- Clean local gates passed on 2026-09-26: generic REST connector `12/12`,
+  private runtime `207/207`, relay `35/35`, Platform backend `825/825`, fresh
+  PostgreSQL 16 migrations through `V148`, Platform UI production build,
+  verification-script syntax, `git diff --check`, and common secret-pattern
+  scan.
+- Canonical plan `010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md`
+  now marks WP0-WP5 `IMPLEMENTED_LOCAL_VERIFIED`. WP6 remains
+  `HOSTED_PROOF_PENDING`. Do not claim `HOSTED_PROVEN` or `MARKET_READY` until
+  an external S3-compatible staging/production canary, isolation/restart/
+  failure/lifecycle gates, and the full live Platform release gate pass. Do not
+  use Shopify or ProdUS as the document-indexing canary.

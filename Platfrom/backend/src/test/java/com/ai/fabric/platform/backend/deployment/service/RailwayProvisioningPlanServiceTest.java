@@ -5,7 +5,9 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentArtifactBundleSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningPlanSummary;
@@ -29,6 +31,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1772,6 +1775,117 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("LOOMAI_DEPLOYMENT_MANIFEST_URL", "https://platform.example/manifest.json")
             .containsEntry("LOOMAI_DEPLOYMENT_BEHAVIOR_TYPE", "SMART_BRAIN");
         assertThat(smartBrainEnv).doesNotContainKey("AI_SPECIALIST_CHAIN_ENCRYPTION_SECRET");
+    }
+
+    @Test
+    void buildPlanCompilesTargetScopedDocumentBindingWithoutExposingSecretValues() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        when(secretService.isSecretPresent(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        DeploymentProviderResourceHandleRepository handleRepository =
+            mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentProviderResourceHandleEntity binding = new DeploymentProviderResourceHandleEntity();
+        binding.setId("dsh-docs");
+        binding.setDeploymentId("dep-123");
+        binding.setTargetProfileId("profile-docs");
+        binding.setResourceKind(DeploymentDocumentStorageBindingService.RESOURCE_KIND);
+        binding.setMetadataJson("""
+            {
+              "connectorType": "S3_COMPATIBLE_OBJECT_STORAGE",
+              "endpointHost": "objects.customer.example",
+              "pathStyleAccess": true,
+              "objectVersioningAvailable": true,
+              "allowInsecureEndpoint": false,
+              "privateEndpointApproved": false
+            }
+            """);
+        when(handleRepository.findById("dsh-docs")).thenReturn(Optional.of(binding));
+
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            secretService,
+            new ObjectMapper()
+        );
+        ReflectionTestUtils.setField(service, "deploymentProviderResourceHandleRepository", handleRepository);
+
+        DeploymentVersionEntity documentVersion = version();
+        documentVersion.setMarketplaceDatasetConfigJson("""
+            {
+              "datasets": [
+                {
+                  "datasetId": "document-knowledge",
+                  "entityType": "document",
+                  "ingestionMode": "EXTERNAL_DOCUMENT_STORAGE",
+                  "handleRef": "documents/dep-123/document-knowledge",
+                  "sourceConnector": {
+                    "connectorType": "S3_COMPATIBLE_OBJECT_STORAGE",
+                    "bindingRef": "dsh-docs"
+                  },
+                  "documentPolicy": {
+                    "allowedExtensions": [".txt", ".json"],
+                    "allowedMediaTypes": ["text/plain", "application/json"],
+                    "jsonContentKeys": ["content", "text", "body"],
+                    "allowedMetadataKeys": ["originalFilename", "locale", "sourceCategory"],
+                    "maxSourceBytes": 1048576,
+                    "maxSources": 100,
+                    "maxTotalIndexedBytes": 104857600,
+                    "maxChunksPerSource": 100,
+                    "maxChunkCharacters": 8000,
+                    "maxTotalCharacters": 250000,
+                    "previewMaxChunks": 10,
+                    "previewMaxCharactersPerChunk": 500,
+                    "evidenceRetentionDays": 30,
+                    "commandRetentionDays": 30,
+                    "retentionBatchSize": 100,
+                    "trustedAutoIndexingAllowed": false
+                  }
+                }
+              ]
+            }
+            """);
+
+        Map<String, String> runtimeEnv = envMap(
+            service.buildPlan(deployment(), documentVersion, null, "profile-docs").services().runtime().env()
+        );
+        String managedPrefix = DeploymentDocumentStorageBindingService.secretKey("dep-123", "profile-docs");
+        assertThat(runtimeEnv)
+            .containsEntry("LOOMAI_DOCUMENTS_ENABLED", "true")
+            .containsEntry("LOOMAI_DOCUMENTS_ENTITY_TYPE", "document")
+            .containsEntry("LOOMAI_DOCUMENTS_ALLOWED_DATASET_IDS", "document-knowledge")
+            .containsEntry("LOOMAI_DOCUMENTS_DATASET_HANDLE_REFS_JSON", "{\"document-knowledge\":\"documents/dep-123/document-knowledge\"}")
+            .containsEntry("LOOMAI_DOCUMENTS_CONNECTOR_TYPE", "S3_COMPATIBLE_OBJECT_STORAGE")
+            .containsEntry("LOOMAI_DOCUMENTS_BINDING_REF", "dsh-docs")
+            .containsEntry("LOOMAI_DOCUMENTS_S3_ENDPOINT", "${secret:" + managedPrefix + "_ENDPOINT}")
+            .containsEntry("LOOMAI_DOCUMENTS_S3_ACCESS_KEY", "${secret:" + managedPrefix + "_ACCESS_KEY}")
+            .containsEntry("LOOMAI_DOCUMENTS_S3_SECRET_KEY", "${secret:" + managedPrefix + "_SECRET_KEY}")
+            .containsEntry("LOOMAI_DOCUMENTS_S3_ALLOWED_ENDPOINT_HOST", "objects.customer.example")
+            .containsEntry("LOOMAI_DOCUMENTS_S3_ALLOW_PRIVATE_ENDPOINT", "false")
+            .containsEntry("LOOMAI_DOCUMENTS_MAX_SOURCE_BYTES", "1048576")
+            .containsEntry("LOOMAI_DOCUMENTS_EVIDENCE_RETENTION", "P30D")
+            .containsEntry("LOOMAI_DOCUMENTS_COMMAND_RETENTION", "P30D")
+            .containsEntry("LOOMAI_DOCUMENTS_RETENTION_BATCH_SIZE", "100")
+            .containsEntry("LOOMAI_DOCUMENTS_TRUSTED_AUTO_INDEXING_ALLOWED", "false");
+        assertThat(runtimeEnv.values()).noneMatch(value -> value.contains("actual-secret-value"));
+
+        assertThatThrownBy(() -> service.buildPlan(deployment(), documentVersion, null, "profile-other"))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("not configured for target profile profile-other");
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

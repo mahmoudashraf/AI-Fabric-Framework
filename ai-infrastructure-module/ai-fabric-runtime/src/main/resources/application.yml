@@ -128,6 +128,33 @@ ai:
   data-sync:
     enabled: true
 
+  indexing:
+    enabled: true
+    documents:
+      enabled: true
+      max-documents-per-plan: 20
+      max-chunks-per-plan: ${LOOMAI_DOCUMENTS_MAX_CHUNKS_PER_SOURCE:100}
+      max-content-length-per-chunk: ${LOOMAI_DOCUMENTS_MAX_CHUNK_CHARACTERS:8000}
+      max-total-content-length: ${LOOMAI_DOCUMENTS_MAX_TOTAL_CHARACTERS:250000}
+      max-metadata-entries-per-chunk: 24
+      max-metadata-value-length: 256
+      default-splitter:
+        enabled: true
+        chunk-size: 800
+        min-chunk-size-chars: 200
+        min-chunk-length-to-embed: 5
+      metadata:
+        allowed-application-keys:
+          - originalFilename
+          - locale
+          - sourceCategory
+          - tenantId
+          - customerId
+          - deploymentId
+          - datasetId
+          - knowledgeSourceHandleRef
+        warn-on-drop: true
+
   execution:
     enabled: ${AI_EXECUTION_ENABLED:true}
     output-finalization:
@@ -295,6 +322,51 @@ app:
 loomai:
   deployment:
     manifest-url: ${LOOMAI_DEPLOYMENT_MANIFEST_URL:}
+  documents:
+    enabled: ${LOOMAI_DOCUMENTS_ENABLED:false}
+    entity-type: ${LOOMAI_DOCUMENTS_ENTITY_TYPE:document}
+    allowed-dataset-ids: ${LOOMAI_DOCUMENTS_ALLOWED_DATASET_IDS:document-knowledge}
+    dataset-handle-refs-json: '${LOOMAI_DOCUMENTS_DATASET_HANDLE_REFS_JSON:{}}'
+    temp-root: ${LOOMAI_DOCUMENTS_TEMP_ROOT:./data/document-temp}
+    reconcile-interval: ${LOOMAI_DOCUMENTS_RECONCILE_INTERVAL:PT15S}
+    temp-retention: ${LOOMAI_DOCUMENTS_TEMP_RETENTION:PT1H}
+    evidence-retention: ${LOOMAI_DOCUMENTS_EVIDENCE_RETENTION:P30D}
+    command-retention: ${LOOMAI_DOCUMENTS_COMMAND_RETENTION:P30D}
+    retention-batch-size: ${LOOMAI_DOCUMENTS_RETENTION_BATCH_SIZE:100}
+    max-automatic-delete-attempts: ${LOOMAI_DOCUMENTS_MAX_AUTOMATIC_DELETE_ATTEMPTS:3}
+    connector:
+      type: ${LOOMAI_DOCUMENTS_CONNECTOR_TYPE:}
+      binding-ref: ${LOOMAI_DOCUMENTS_BINDING_REF:}
+      s3:
+        endpoint: ${LOOMAI_DOCUMENTS_S3_ENDPOINT:}
+        region: ${LOOMAI_DOCUMENTS_S3_REGION:us-east-1}
+        bucket: ${LOOMAI_DOCUMENTS_S3_BUCKET:}
+        prefix: ${LOOMAI_DOCUMENTS_S3_PREFIX:}
+        access-key: ${LOOMAI_DOCUMENTS_S3_ACCESS_KEY:}
+        secret-key: ${LOOMAI_DOCUMENTS_S3_SECRET_KEY:}
+        session-token: ${LOOMAI_DOCUMENTS_S3_SESSION_TOKEN:}
+        path-style-access: ${LOOMAI_DOCUMENTS_S3_PATH_STYLE_ACCESS:true}
+        allow-insecure-endpoint: ${LOOMAI_DOCUMENTS_S3_ALLOW_INSECURE_ENDPOINT:false}
+        allowed-endpoint-host: ${LOOMAI_DOCUMENTS_S3_ALLOWED_ENDPOINT_HOST:}
+        allow-private-endpoint: ${LOOMAI_DOCUMENTS_S3_ALLOW_PRIVATE_ENDPOINT:false}
+        object-versioning-available: ${LOOMAI_DOCUMENTS_S3_OBJECT_VERSIONING_AVAILABLE:false}
+      mounted-folder:
+        root: ${LOOMAI_DOCUMENTS_MOUNTED_ROOT:}
+    policy:
+      max-source-bytes: ${LOOMAI_DOCUMENTS_MAX_SOURCE_BYTES:1048576}
+      max-sources: ${LOOMAI_DOCUMENTS_MAX_SOURCES:100}
+      max-total-indexed-bytes: ${LOOMAI_DOCUMENTS_MAX_TOTAL_INDEXED_BYTES:104857600}
+      max-chunks-per-source: ${LOOMAI_DOCUMENTS_MAX_CHUNKS_PER_SOURCE:100}
+      max-chunk-characters: ${LOOMAI_DOCUMENTS_MAX_CHUNK_CHARACTERS:8000}
+      max-total-characters: ${LOOMAI_DOCUMENTS_MAX_TOTAL_CHARACTERS:250000}
+      preview-max-chunks: ${LOOMAI_DOCUMENTS_PREVIEW_MAX_CHUNKS:10}
+      preview-max-characters-per-chunk: ${LOOMAI_DOCUMENTS_PREVIEW_MAX_CHARACTERS:500}
+      discovery-page-size: ${LOOMAI_DOCUMENTS_DISCOVERY_PAGE_SIZE:50}
+      trusted-auto-indexing-allowed: ${LOOMAI_DOCUMENTS_TRUSTED_AUTO_INDEXING_ALLOWED:false}
+      allowed-extensions: ${LOOMAI_DOCUMENTS_ALLOWED_EXTENSIONS:.txt,.json}
+      allowed-media-types: ${LOOMAI_DOCUMENTS_ALLOWED_MEDIA_TYPES:text/plain,application/json}
+      json-content-keys: ${LOOMAI_DOCUMENTS_JSON_CONTENT_KEYS:content,text,body}
+      allowed-metadata-keys: ${LOOMAI_DOCUMENTS_ALLOWED_METADATA_KEYS:originalFilename,locale,sourceCategory}
   smart-brain:
     enabled: ${LOOMAI_SMART_BRAIN_ENABLED:false}
     encryption-secret: ${LOOMAI_SMART_BRAIN_ENCRYPTION_SECRET:}

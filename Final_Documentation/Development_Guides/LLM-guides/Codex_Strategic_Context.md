@@ -424,3 +424,34 @@ Current P0 cleanup items:
   flow from that storage directly to the exact deployment; Platform remains
   the deterministic control plane. The canonical plan is
   `010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md`.
+- 2026-09-25: Auto Trader support remains a planned deployment-local
+  Marketplace composition, not a released Platform capability. Use one
+  dealership, one deployment, and one server-owned advertiser scope. Auto
+  Trader semantics belong in DATA/ACTION/TEMPLATE packages executed by the
+  deployment-local Generic REST Connector; do not add an Auto Trader plugin
+  type, standalone bridge, or central Platform data proxy. The official
+  material confirms a credentialed sandbox and capability-specific validation,
+  but no public self-service credential flow was identified, so partner
+  onboarding, exact grants, a test advertiser, and sandbox credentials are an
+  external P0 gate. LoomAI may separately prove a clearly labelled dealership
+  demo with approved demo data, but that is not Auto Trader evidence. Required
+  generic gaps and claim gates are canonicalized in
+  `010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md`;
+  only exact sandbox-verified or production-approved compositions may carry the
+  corresponding claim.
+- 2026-09-26: Document Knowledge Operations is now source-complete and locally
+  verified on AI Fabric `0.8.4`, while its hosted claim remains deliberately
+  open. Reuse Marketplace DATA/TEMPLATE, V04, deployment-local runtime state,
+  existing inference/vector profiles, target-scoped external bindings, and the
+  deployment workspace. Production source storage is customer-owned
+  S3-compatible storage; Platform stores references and lifecycle evidence but
+  never relays bytes, provisions the bucket, or deletes source objects. The
+  mounted-folder connector is only an internal canary/demo option because the
+  current Coolify storage API does not attest a read-only mount. Exact scopes,
+  active-version filtering, exact indexed deletion, internal evidence
+  retention, export/import boundaries, capability readback, and the
+  `document-knowledge-operations-v1` pack are implemented. Local runtime,
+  Platform, PostgreSQL migration, UI, syntax, and hygiene gates pass. Keep the
+  capability below `HOSTED_PROVEN` until external-storage staging and controlled
+  production evidence plus the full release gate pass; do not alter ProdUS or
+  Shopify to manufacture that evidence.

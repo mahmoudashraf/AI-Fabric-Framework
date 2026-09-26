@@ -941,7 +941,17 @@ public class DeploymentMarketplaceDraftCompilerService {
                 compiledDataset.put("vectorizationProfile", dataset.vectorizationProfile());
             }
             ObjectNode resolvedSyncConnector = resolveSyncConnector(dataset, installConfig, installSecretRefs);
-            String datasetHash = datasetHash(plugin, version, install, dataset, installConfig, installSecretRefs, resolvedSyncConnector);
+            ObjectNode resolvedSourceConnector = resolveSourceConnector(dataset, installConfig, installSecretRefs);
+            String datasetHash = datasetHash(
+                plugin,
+                version,
+                install,
+                dataset,
+                installConfig,
+                installSecretRefs,
+                resolvedSyncConnector,
+                resolvedSourceConnector
+            );
             String resolvedHandleRef = marketplaceDatasetHandleResolver.resolveHandleRef(deployment, plugin, dataset, datasetHash);
             compiledDataset.put("handleRef", resolvedHandleRef);
             compiledDataset.put("datasetHash", datasetHash);
@@ -953,6 +963,12 @@ public class DeploymentMarketplaceDraftCompilerService {
             }
             if (!resolvedSyncConnector.isEmpty()) {
                 compiledDataset.set("syncConnector", resolvedSyncConnector);
+            }
+            if (!resolvedSourceConnector.isEmpty()) {
+                compiledDataset.set("sourceConnector", resolvedSourceConnector);
+            }
+            if (dataset.documentPolicy() != null && dataset.documentPolicy().isObject()) {
+                compiledDataset.set("documentPolicy", dataset.documentPolicy().deepCopy());
             }
             if (installConfig != null && installConfig.isObject() && !installConfig.isEmpty()) {
                 compiledDataset.set("config", installConfig.deepCopy());
@@ -1011,6 +1027,7 @@ public class DeploymentMarketplaceDraftCompilerService {
                 resolvedDataset = datasetsById.get(datasetRef);
                 if (resolvedDataset != null && !StringUtils.hasText(handleRef)) {
                     ObjectNode resolvedSyncConnector = resolveSyncConnector(resolvedDataset, installConfig, installSecretRefs);
+                    ObjectNode resolvedSourceConnector = resolveSourceConnector(resolvedDataset, installConfig, installSecretRefs);
                     String datasetHash = datasetHash(
                         plugin,
                         version,
@@ -1018,7 +1035,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                         resolvedDataset,
                         installConfig,
                         installSecretRefs,
-                        resolvedSyncConnector
+                        resolvedSyncConnector,
+                        resolvedSourceConnector
                     );
                     handleRef = marketplaceDatasetHandleResolver.resolveHandleRef(
                         deployment,
@@ -1670,6 +1688,28 @@ public class DeploymentMarketplaceDraftCompilerService {
         return resolved;
     }
 
+    private ObjectNode resolveSourceConnector(MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
+                                              JsonNode installConfig,
+                                              JsonNode installSecretRefs) {
+        ObjectNode resolved = dataset.sourceConnector() != null && dataset.sourceConnector().isObject()
+            ? (ObjectNode) dataset.sourceConnector().deepCopy()
+            : objectMapper.createObjectNode();
+        if (!"EXTERNAL_DOCUMENT_STORAGE".equals(dataset.ingestionMode())) {
+            return resolved;
+        }
+        String bindingRef = resolveConfiguredReference(
+            resolved,
+            "bindingRef",
+            dataset.connectionRefField(),
+            installConfig,
+            installSecretRefs
+        );
+        if (StringUtils.hasText(bindingRef)) {
+            resolved.put("bindingRef", bindingRef);
+        }
+        return resolved;
+    }
+
     private String resolveConfiguredReference(ObjectNode connector,
                                               String directField,
                                               String installField,
@@ -1696,7 +1736,8 @@ public class DeploymentMarketplaceDraftCompilerService {
                                MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
                                JsonNode installConfig,
                                JsonNode installSecretRefs,
-                               JsonNode resolvedSyncConnector) {
+                               JsonNode resolvedSyncConnector,
+                               JsonNode resolvedSourceConnector) {
         ObjectNode payload = objectMapper.createObjectNode();
         payload.put("pluginId", plugin.getId());
         payload.put("pluginVersion", version.getVersion());
@@ -1712,6 +1753,12 @@ public class DeploymentMarketplaceDraftCompilerService {
         payload.put("seedDatasetRef", blankToNull(dataset.seedDatasetRef()));
         if (resolvedSyncConnector != null && !resolvedSyncConnector.isEmpty()) {
             payload.set("syncConnector", resolvedSyncConnector.deepCopy());
+        }
+        if (resolvedSourceConnector != null && !resolvedSourceConnector.isEmpty()) {
+            payload.set("sourceConnector", resolvedSourceConnector.deepCopy());
+        }
+        if (dataset.documentPolicy() != null && dataset.documentPolicy().isObject()) {
+            payload.set("documentPolicy", dataset.documentPolicy().deepCopy());
         }
         payload.set("config", installConfig == null ? objectMapper.createObjectNode() : installConfig.deepCopy());
         payload.set("secretRefs", installSecretRefs == null ? objectMapper.createObjectNode() : installSecretRefs.deepCopy());

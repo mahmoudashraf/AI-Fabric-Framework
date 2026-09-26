@@ -703,6 +703,8 @@ export type DeploymentWorkspaceSummary = {
   versionCount: number
   releaseCount: number
   verificationRunCount: number
+  documentKnowledgeConfigured: boolean
+  documentKnowledgeLive: boolean
 }
 
 export type MarketplacePluginContributionSummary = {
@@ -1993,6 +1995,184 @@ export type UpdateDeploymentMarketplaceEntitlementRequest = {
   graceEndsAt?: string | null
   accessEndsAt?: string | null
   note?: string | null
+}
+
+export type DocumentStorageBindingSummary = {
+  bindingRef: string
+  deploymentId: string
+  targetProfileId: string
+  connectorType: 'S3_COMPATIBLE_OBJECT_STORAGE' | 'MOUNTED_FOLDER' | string
+  status: string
+  credentialsPresent: boolean
+  safeMetadata: Record<string, unknown>
+  updatedAt: string
+}
+
+export type UpsertDocumentStorageBindingRequest = {
+  targetProfileId: string
+  connectorType: 'S3_COMPATIBLE_OBJECT_STORAGE' | 'MOUNTED_FOLDER'
+  endpoint?: string
+  region?: string
+  bucket?: string
+  prefix?: string
+  accessKey?: string
+  secretKey?: string
+  sessionToken?: string
+  pathStyleAccess?: boolean
+  objectVersioningAvailable?: boolean
+  allowInsecureEndpoint?: boolean
+  mountedRoot?: string
+}
+
+export type DocumentConnectorStatus = {
+  ready: boolean
+  connectorType: string
+  bindingRef: string | null
+  scopeDigest: string | null
+  objectVersioningAvailable: boolean
+  errorCode: string | null
+  checkedAt: string
+}
+
+export type DiscoveredDocumentSource = {
+  objectReference: string
+  displayName: string
+  mediaType: string
+  contentLength: number
+  providerVersionDigest: string | null
+  etagDigest: string | null
+  lastModified: string | null
+  providerRevisionFingerprint: string
+  registeredSourceId: string | null
+}
+
+export type DocumentDiscoveryResult = {
+  sources: DiscoveredDocumentSource[]
+  nextCursor: string | null
+}
+
+export type DocumentSourceSummary = {
+  sourceId: string
+  datasetId: string
+  displayName: string
+  objectLocatorDigest: string
+  connectorType: string
+  connectorBindingRef: string | null
+  mediaType: string
+  contentLength: number
+  candidateVersion: number
+  activeVersion: number | null
+  providerRevisionFingerprint: string
+  providerVersionDigest: string | null
+  etagDigest: string | null
+  providerLastModified: string | null
+  visibility: string
+  status: string
+  failureCode: string | null
+  failureMessage: string | null
+  updatedAt: string
+}
+
+export type DocumentWorkSummary = {
+  workId: string
+  operation: string
+  submissionAttempt: number
+  state: string
+  terminal: boolean
+  successful: boolean
+  failureCode: string | null
+  failureMessage: string | null
+  lastObservedAt: string
+}
+
+export type DocumentManifestSummary = {
+  manifestId: string
+  sourceVersion: number
+  providerRevisionFingerprint: string
+  state: string
+  chunkCount: number
+  acceptedIndexWorkCount: number
+  acceptedDeleteWorkCount: number
+  indexSubmissionAttempt: number
+  deleteSubmissionAttempt: number
+  deletePurpose: string | null
+  warnings: unknown[]
+  failureCode: string | null
+  failureMessage: string | null
+  createdAt: string
+  activatedAt: string | null
+  supersededAt: string | null
+  deletedAt: string | null
+  work: DocumentWorkSummary[]
+}
+
+export type DocumentSourceDetail = {
+  source: DocumentSourceSummary
+  manifests: DocumentManifestSummary[]
+}
+
+export type DocumentPreviewResult = {
+  planId: string
+  source: DocumentSourceSummary
+  documentCount: number
+  chunkCount: number
+  totalContentLength: number
+  chunksTruncated: boolean
+  chunks: Array<{
+    sourceDocumentId: string
+    chunkId: string
+    chunkIndex: number
+    chunkCount: number
+    entityId: string
+    contentPreview: string
+    contentLength: number
+    truncated: boolean
+    contentFingerprint: string
+    warnings: unknown[]
+  }>
+  warnings: unknown[]
+}
+
+export type DocumentOperationResult = {
+  outcome: string
+  source: DocumentSourceSummary
+  manifest: DocumentManifestSummary | null
+}
+
+export type DocumentRetrievalProof = {
+  query: string
+  evidenceCount: number
+  evidence: Array<{
+    entityId: string
+    sourceId: string
+    sourceVersion: number
+    sourceName: string
+    chunkId: string
+    chunkIndex: number
+    content: string
+    score: number
+    metadata: Record<string, unknown>
+  }>
+  processingTimeMs: number
+}
+
+export type DocumentRetentionCleanupResult = {
+  scope: string
+  evidenceCutoff: string
+  commandCutoff: string
+  manifestsDeleted: number
+  chunksDeleted: number
+  workDeleted: number
+  commandsDeleted: number
+  completedAt: string
+  customerSourceObjectsDeleted: boolean
+}
+
+export type DocumentRetentionStatus = {
+  evidenceRetention: string
+  commandRetention: string
+  batchSize: number
+  lastCleanup: DocumentRetentionCleanupResult | null
 }
 
 export type CreateMarketplaceTemplateBootstrapRequest = {
@@ -5057,6 +5237,134 @@ export function resolveDeploymentMarketplaceInstall(deploymentId: string, instal
   )
 }
 
+export function fetchDocumentStorageBindings(deploymentId: string) {
+  return request<DocumentStorageBindingSummary[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-storage-bindings`,
+  )
+}
+
+export function upsertDocumentStorageBinding(
+  deploymentId: string,
+  payload: UpsertDocumentStorageBindingRequest,
+) {
+  return request<DocumentStorageBindingSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-storage-bindings`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function deleteDocumentStorageBinding(deploymentId: string, bindingRef: string) {
+  return request<void>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-storage-bindings/${encodeURIComponent(bindingRef)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export function fetchDocumentConnectorStatus(deploymentId: string) {
+  return request<DocumentConnectorStatus>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/connector`,
+  )
+}
+
+export function discoverDocumentSources(
+  deploymentId: string,
+  payload: { datasetId: string; cursor?: string; limit?: number },
+) {
+  return request<DocumentDiscoveryResult>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/discover`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchDocumentSources(deploymentId: string) {
+  return request<DocumentSourceSummary[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources`,
+  )
+}
+
+export function registerDocumentSource(
+  deploymentId: string,
+  payload: { datasetId: string; objectReference: string; visibility?: string; metadata?: Record<string, unknown> },
+) {
+  return request<DocumentSourceSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources`,
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function fetchDocumentSourceDetail(deploymentId: string, sourceId: string) {
+  return request<DocumentSourceDetail>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}`,
+  )
+}
+
+export function previewDocumentSource(deploymentId: string, sourceId: string) {
+  return request<DocumentPreviewResult>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}/preview`,
+  )
+}
+
+function documentCommand(
+  deploymentId: string,
+  sourceId: string,
+  operation: 'refresh' | 'index' | 'reconcile',
+) {
+  return request<DocumentOperationResult>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}/${operation}`,
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: '{}',
+    },
+  )
+}
+
+export function refreshDocumentSource(deploymentId: string, sourceId: string) {
+  return documentCommand(deploymentId, sourceId, 'refresh')
+}
+
+export function indexDocumentSource(deploymentId: string, sourceId: string) {
+  return documentCommand(deploymentId, sourceId, 'index')
+}
+
+export function reconcileDocumentSource(deploymentId: string, sourceId: string) {
+  return documentCommand(deploymentId, sourceId, 'reconcile')
+}
+
+export function removeDocumentIndex(deploymentId: string, sourceId: string) {
+  return request<DocumentOperationResult>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/sources/${encodeURIComponent(sourceId)}`,
+    { method: 'DELETE', headers: { 'Idempotency-Key': crypto.randomUUID() } },
+  )
+}
+
+export function verifyDocumentRetrieval(
+  deploymentId: string,
+  payload: { query: string; limit?: number },
+) {
+  return request<DocumentRetrievalProof>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/retrieval-proof`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function fetchDocumentRetentionStatus(deploymentId: string) {
+  return request<DocumentRetentionStatus>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/retention`,
+  )
+}
+
+export function cleanupDocumentRetention(deploymentId: string) {
+  return request<DocumentRetentionCleanupResult>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/retention/cleanup`,
+    { method: 'POST', body: '{}' },
+  )
+}
+
 export function fetchDeploymentConfigDiffCenter(deploymentId: string) {
   return request<DeploymentConfigDiffCenterSummary>(`/api/deployments/${deploymentId}/config-diff-center`)
 }
@@ -5927,6 +6235,16 @@ export function dispatchPlatformVerificationSuiteRun(
       environment: 'staging' | 'production'
       keepDeployment: boolean
     }
+    documentKnowledgeExpectations?: {
+      deploymentId: string
+      datasetId: string
+      textObjectReference: string
+      textRetrievalQuery: string
+      jsonObjectReference: string
+      jsonRetrievalQuery: string
+      expectedConnectorType: 'S3_COMPATIBLE_OBJECT_STORAGE' | 'MOUNTED_FOLDER' | ''
+      cleanupIndex: boolean
+    }
   },
 ) {
   return request<PlatformVerificationSuiteDispatchSummary>(`/api/verification-suites/${suiteKey}/runs`, {
@@ -5934,6 +6252,7 @@ export function dispatchPlatformVerificationSuiteRun(
     body: JSON.stringify({
       allowControlPlaneRepair: payload?.allowControlPlaneRepair ?? false,
       deploymentBehaviorExpectations: payload?.deploymentBehaviorExpectations,
+      documentKnowledgeExpectations: payload?.documentKnowledgeExpectations,
     }),
   })
 }

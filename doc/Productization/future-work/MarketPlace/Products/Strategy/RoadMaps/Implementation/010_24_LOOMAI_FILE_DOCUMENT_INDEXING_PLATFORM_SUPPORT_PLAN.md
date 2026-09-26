@@ -1,6 +1,6 @@
 # 010.24 LoomAI File Document Indexing Platform Support Plan
 
-Status: implementation plan approved for planning; source implementation and hosted proof have not started
+Status: source implementation complete and locally verified; hosted external-storage proof and market-readiness gates remain open
 
 Created: 2026-09-22
 
@@ -130,22 +130,29 @@ LoomAI already has the primitives needed around the framework core:
 - Platform release verification suites and deployment workspace UI; and
 - provider secret binding and target-profile placement.
 
-### 3.3 Missing LoomAI productization
+### 3.3 Implemented LoomAI productization
 
-The current runtime contains the framework indexing classes transitively but
-does not use the document lifecycle. LoomAI currently has no:
+The private runtime and Platform now implement the first bounded release:
 
-- direct document-indexing dependencies in the private runtime;
-- customer-storage connector abstraction and deployment binding;
-- source/version/manifest/work persistence;
-- discover/register, preview, index, refresh, status, or exact-delete API;
-- active-version retrieval enforcement;
-- Marketplace document-file ingestion mode;
-- customer-storage binding and optional demo-folder requirement in target
-  profiles;
-- document capability in runtime capability readback;
-- document operations page in Platform UI; or
-- hosted document lifecycle verification pack.
+- direct AI Fabric document-indexing dependencies and configuration;
+- deployment-local S3-compatible and mounted-folder source connectors;
+- source, version, content-free manifest, exact chunk, work, and idempotency
+  persistence;
+- connector status, discover/register, preview, index, refresh, reconcile,
+  retrieval-proof, exact-delete-index, and internal-retention APIs;
+- active-version filtering on deployment-private vector retrieval;
+- Marketplace `EXTERNAL_DOCUMENT_STORAGE` DATA contracts and a compatible
+  Conversational TEMPLATE;
+- target-scoped customer-storage bindings and demo-folder mount reconciliation;
+- document capabilities, endpoint classes, migration, and verification pack in
+  runtime capability readback;
+- deployment workspace operations and Platform UI; and
+- the `document-knowledge-operations-v1` reusable verification suite.
+
+This is source-complete and locally verified. It is not yet a hosted-production
+claim: external S3-compatible staging and controlled-production canaries,
+isolation/restart/failure/lifecycle evidence, and the full live Platform release
+gate remain mandatory.
 
 Existing Marketplace and Shopify records called "documents" are already-shaped
 Data Sync records. They do not prove raw file parsing, chunk manifests, file
@@ -269,6 +276,9 @@ type, size, and reader selection using server-owned policy.
           "maxTotalCharacters": 250000,
           "previewMaxChunks": 10,
           "previewMaxCharactersPerChunk": 500,
+          "evidenceRetentionDays": 30,
+          "commandRetentionDays": 30,
+          "retentionBatchSize": 100,
           "allowedMetadataKeys": ["originalFilename", "locale", "sourceCategory"],
           "initialIndexRequiresConfirmation": true
         }
@@ -366,7 +376,8 @@ adapters:
      a filesystem resource, then removes it.
 2. `MOUNTED_FOLDER`
    - optional for small data, internal canaries and demos;
-   - operator mounts a read-only folder at a configured trusted root;
+   - operator mounts a folder at a configured trusted root and the runtime
+     connector exposes list/read behavior only;
    - runtime accepts only normalized paths below that root;
    - no horizontal-scale, managed backup, storage SLA, or customer storage
      product claim.
@@ -777,8 +788,10 @@ prefix. Write and delete permission are neither required nor accepted as part
 of the product contract.
 
 `MOUNTED_FOLDER` is represented by target-profile mount configuration, not an
-object-storage resource handle. The mount must be read-only and limited to an
-operator-controlled folder.
+object-storage resource handle. The runtime connector is list/read-only and is
+limited to an operator-controlled folder. Coolify's current application-storage
+API does not expose a read-only mount flag, so host filesystem permissions are
+an operator responsibility and this mode remains demo/internal-canary only.
 
 ### 13.2 Target profile requirements
 
@@ -867,7 +880,9 @@ Release-blocking rules:
    The released S3-compatible contract requires list/read, not write/delete.
 4. Endpoint validation and network policy prevent arbitrary URL/SSRF behavior.
 5. Mounted-folder mode rejects traversal, out-of-root paths, and unsafe
-   symlinks, and the filesystem mount is read-only.
+   symlinks. The runtime never writes through the source connector. Because the
+   current Coolify storage API cannot attest a read-only mount, the mode is not
+   a production storage claim.
 6. Object/file type and size are validated before and during streaming.
 7. Tenant/deployment/source ownership is checked on every operation.
 8. Metadata is allowlist-only; object or parser metadata cannot override
@@ -1096,7 +1111,7 @@ successful index is not market-ready evidence.
 
 ### WP0: Contract confirmation and baseline
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_LOCAL_VERIFIED`
 
 - Confirm active-version filtering can use an existing generic retrieval hook.
 - Confirm the exact AI Fabric `0.8.4` reader, manifest, queue, reconciliation,
@@ -1104,7 +1119,7 @@ Status: `PLANNED`
 - Confirm the approved S3-compatible client, object-version evidence, and
   temporary-resource handoff to Spring AI readers.
 - Confirm current external secret/resource binding support on Coolify and
-  Railway and the read-only mounted-folder target-profile boundary.
+  Railway and the mounted-folder demo target-profile boundary.
 - Freeze DATA mode, connector type, policy, capability, and endpoint names.
 - Record exact current runtime/Platform baseline and clean-tree state.
 
@@ -1113,7 +1128,7 @@ for the first slice.
 
 ### WP1: Private runtime document core
 
-Status: `NOT_STARTED`
+Status: `IMPLEMENTED_LOCAL_VERIFIED`
 
 - Add direct dependencies and explicit configuration.
 - Add the `DocumentSourceConnector` contract.
@@ -1132,7 +1147,7 @@ and never mutates the source object.
 
 ### WP2: Marketplace and V04 composition
 
-Status: `NOT_STARTED`
+Status: `IMPLEMENTED_LOCAL_VERIFIED`
 
 - Extend DATA manifest validation and persistence.
 - Compile entity, knowledge-source, inference/vector, source connector,
@@ -1147,13 +1162,14 @@ missing.
 
 ### WP3: Customer storage binding and deployment lifecycle
 
-Status: `NOT_STARTED`
+Status: `IMPLEMENTED_LOCAL_VERIFIED`
 
 - Add the external document storage binding kind and target requirements.
 - Bind customer endpoint/bucket/prefix and secret references through current
   provider paths; never provision the bucket.
 - Add runtime-network connector preflight and terminal deployment polling.
-- Add optional read-only demo-folder mount configuration.
+- Add optional demo-folder mount configuration with a list/read-only runtime
+  connector and explicit provider mount limitation.
 - Add runtime-state recovery/reindex, rollback, and decommission operations.
 - Prove source objects remain customer-owned and unchanged across all paths.
 
@@ -1162,7 +1178,7 @@ reindex is proven, and source objects remain outside LoomAI lifecycle control.
 
 ### WP4: Platform operations and UI
 
-Status: `NOT_STARTED`
+Status: `IMPLEMENTED_LOCAL_VERIFIED`
 
 - Add bounded runtime connector/status/proof client without relaying bytes.
 - Add Document Knowledge to the deployment workspace.
@@ -1176,7 +1192,7 @@ database, source credential, or LoomAI file-upload access.
 
 ### WP5: Verification pack and release integration
 
-Status: `NOT_STARTED`
+Status: `IMPLEMENTED_LOCAL_VERIFIED`
 
 - Register `document-knowledge-operations-v1`.
 - Add deterministic and real-provider checks.
@@ -1189,7 +1205,7 @@ claimed document evidence.
 
 ### WP6: Hosted staging and controlled production proof
 
-Status: `NOT_STARTED`
+Status: `HOSTED_PROOF_PENDING`
 
 - Create a new generic deployment from the released template.
 - Bind an operator-controlled external test bucket that Platform did not
@@ -1277,8 +1293,29 @@ Document Knowledge Operations is complete only when:
 
 ## 22. Immediate Next Action
 
-Begin WP0 by freezing the DATA connector contract and proving a read-only
-S3-compatible binding from one generic deployment. Then implement WP1 against a
-new canary deployment. Do not reindex or alter Shopify, ProdUS, or existing
-structured Marketplace datasets; their current Data Sync and retrieval paths
-remain the supported path.
+Publish the verified source and immutable Platform/runtime images, then deploy a
+new generic staging canary from the Document Knowledge template. Prove the
+complete lifecycle first with bounded non-sensitive fixtures, then repeat with
+an operator-controlled external S3-compatible bucket and real embedding/vector
+providers. Do not reindex or alter Shopify, ProdUS, or existing structured
+Marketplace datasets; their current Data Sync and retrieval paths remain the
+supported path.
+
+## 23. Local Implementation Evidence
+
+Recorded on 2026-09-26:
+
+- private product-services reactor `mvn clean verify`: passed;
+- generic REST connector: `12` tests passed;
+- private runtime: `207` tests passed;
+- relay: `35` tests passed;
+- Platform backend `mvn clean verify`: `825` tests passed;
+- fresh PostgreSQL 16 Marketplace migration proof: passed through `V148`;
+- Platform UI production build: passed;
+- verification script shell syntax: passed;
+- repository whitespace validation: `git diff --check` passed; and
+- common committed-secret pattern scan: no match.
+
+These results prove source and packaged local behavior only. They do not replace
+the hosted gates in section 18.3 and do not grant `HOSTED_PROVEN` or
+`MARKET_READY` status.

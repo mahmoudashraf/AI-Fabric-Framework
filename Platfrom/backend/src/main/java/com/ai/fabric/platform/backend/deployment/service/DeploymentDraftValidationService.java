@@ -617,21 +617,21 @@ public class DeploymentDraftValidationService {
             String storageScope = dataset.path("storageScope").asText("").trim();
             if (storageScope.isEmpty()) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_REQUIRED", basePath + ".storageScope", "marketplaceDatasetConfig.datasets[].storageScope is required."));
-            } else if (!"PLUGIN_SCOPED".equalsIgnoreCase(storageScope)) {
-                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_UNSUPPORTED", basePath + ".storageScope", "Supported marketplace dataset storageScope values: PLUGIN_SCOPED."));
+            } else if (!Set.of("PLUGIN_SCOPED", "CUSTOMER_MANAGED").contains(storageScope.toUpperCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_STORAGE_SCOPE_UNSUPPORTED", basePath + ".storageScope", "Supported marketplace dataset storageScope values: PLUGIN_SCOPED, CUSTOMER_MANAGED."));
             }
 
             String sharingScope = dataset.path("sharingScope").asText("").trim();
             if (sharingScope.isEmpty()) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SHARING_SCOPE_REQUIRED", basePath + ".sharingScope", "marketplaceDatasetConfig.datasets[].sharingScope is required."));
-            } else if (!"TENANT_SHARED".equalsIgnoreCase(sharingScope)) {
-                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SHARING_SCOPE_UNSUPPORTED", basePath + ".sharingScope", "Supported marketplace dataset sharingScope values: TENANT_SHARED."));
+            } else if (!Set.of("TENANT_SHARED", "DEPLOYMENT_ONLY").contains(sharingScope.toUpperCase(Locale.ROOT))) {
+                issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SHARING_SCOPE_UNSUPPORTED", basePath + ".sharingScope", "Supported marketplace dataset sharingScope values: TENANT_SHARED, DEPLOYMENT_ONLY."));
             }
 
             String ingestionMode = dataset.path("ingestionMode").asText("").trim();
             if (ingestionMode.isEmpty()) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_REQUIRED", basePath + ".ingestionMode", "marketplaceDatasetConfig.datasets[].ingestionMode is required."));
-            } else if (!Set.of("PACKAGED_SEED", "EXTERNAL_SYNC_SQL", "EXTERNAL_SYNC_FOLDER").contains(ingestionMode.toUpperCase(Locale.ROOT))) {
+            } else if (!Set.of("PACKAGED_SEED", "EXTERNAL_SYNC_SQL", "EXTERNAL_SYNC_FOLDER", "EXTERNAL_DOCUMENT_STORAGE").contains(ingestionMode.toUpperCase(Locale.ROOT))) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_UNSUPPORTED", basePath + ".ingestionMode", "Unsupported marketplace dataset ingestionMode: " + ingestionMode));
             }
 
@@ -672,6 +672,75 @@ public class DeploymentDraftValidationService {
                     issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_FOLDER_REF_REQUIRED", basePath + ".syncConnector.folderRef", "EXTERNAL_SYNC_FOLDER datasets require syncConnector.folderRef."));
                 }
             }
+            if ("EXTERNAL_DOCUMENT_STORAGE".equalsIgnoreCase(ingestionMode)) {
+                if (!"document".equals(entityType)
+                    || !"CUSTOMER_MANAGED".equalsIgnoreCase(storageScope)
+                    || !"DEPLOYMENT_ONLY".equalsIgnoreCase(sharingScope)
+                    || !"VERSIONED_REPLACE".equalsIgnoreCase(updateStrategy)) {
+                    issues.add(error(
+                        "marketplaceDatasets",
+                        "DOCUMENT_DATASET_BOUNDARY_INVALID",
+                        basePath,
+                        "EXTERNAL_DOCUMENT_STORAGE requires entityType=document, CUSTOMER_MANAGED storage, DEPLOYMENT_ONLY sharing, and VERSIONED_REPLACE updates."
+                    ));
+                }
+                JsonNode sourceConnector = dataset.path("sourceConnector");
+                if (!sourceConnector.isObject()) {
+                    issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_CONNECTOR_REQUIRED", basePath + ".sourceConnector", "Document datasets require sourceConnector."));
+                } else {
+                    String connectorType = sourceConnector.path("connectorType").asText("").trim().toUpperCase(Locale.ROOT);
+                    if (!Set.of("S3_COMPATIBLE_OBJECT_STORAGE", "MOUNTED_FOLDER").contains(connectorType)) {
+                        issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_CONNECTOR_UNSUPPORTED", basePath + ".sourceConnector.connectorType", "Unsupported document source connector type."));
+                    }
+                    if (sourceConnector.path("bindingRef").asText("").trim().isEmpty()) {
+                        issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_BINDING_REQUIRED", basePath + ".sourceConnector.bindingRef", "Document source connector bindingRef is required."));
+                    }
+                    if (sourceConnector.path("deleteSourceOnRemoval").asBoolean(false)) {
+                        issues.add(error("marketplaceDatasets", "DOCUMENT_SOURCE_DELETE_FORBIDDEN", basePath + ".sourceConnector.deleteSourceOnRemoval", "LoomAI document removal may not delete customer source objects."));
+                    }
+                }
+                JsonNode documentPolicy = dataset.path("documentPolicy");
+                if (!documentPolicy.isObject()) {
+                    issues.add(error("marketplaceDatasets", "DOCUMENT_POLICY_REQUIRED", basePath + ".documentPolicy", "Document datasets require a bounded documentPolicy."));
+                } else {
+                    requirePositiveDocumentPolicy(
+                        documentPolicy,
+                        "evidenceRetentionDays",
+                        basePath + ".documentPolicy.evidenceRetentionDays",
+                        issues
+                    );
+                    requirePositiveDocumentPolicy(
+                        documentPolicy,
+                        "commandRetentionDays",
+                        basePath + ".documentPolicy.commandRetentionDays",
+                        issues
+                    );
+                    requirePositiveDocumentPolicy(
+                        documentPolicy,
+                        "retentionBatchSize",
+                        basePath + ".documentPolicy.retentionBatchSize",
+                        issues
+                    );
+                }
+                if (dataset.path("syncConnector").isObject() || dataset.hasNonNull("seedDatasetRef")) {
+                    issues.add(error("marketplaceDatasets", "DOCUMENT_CONTROL_PLANE_SYNC_FORBIDDEN", basePath, "Document datasets may not use Platform-side seed or sync connectors."));
+                }
+            }
+        }
+    }
+
+    private void requirePositiveDocumentPolicy(JsonNode policy,
+                                               String field,
+                                               String path,
+                                               List<DraftValidationIssue> issues) {
+        JsonNode value = policy.path(field);
+        if (!value.isIntegralNumber() || value.asLong() <= 0) {
+            issues.add(error(
+                "marketplaceDatasets",
+                "DOCUMENT_RETENTION_POLICY_INVALID",
+                path,
+                "Document retention policy values must be positive integers."
+            ));
         }
     }
 

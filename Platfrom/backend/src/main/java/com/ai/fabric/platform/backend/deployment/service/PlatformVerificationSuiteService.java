@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunStageEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorVerificationExpectationOverrides;
+import com.ai.fabric.platform.backend.deployment.model.DocumentKnowledgeVerificationExpectationOverrides;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDefinitionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
@@ -189,6 +190,7 @@ public class PlatformVerificationSuiteService {
                                                              PlatformVerificationSuiteDispatchRequest request) {
         PlatformVerificationSuiteDefinitionSummary definition = catalog.requireDefinition(suiteKey);
         validateBehaviorExpectations(definition, request);
+        validateDocumentKnowledgeExpectations(definition, request);
         recoverStaleRuns(runRepository.findAllByOrderByCreatedAtDesc().stream().limit(suiteProperties.maxRecentRuns()).toList());
         if (runRepository.existsBySuiteKeyAndStatusIn(definition.key(), ACTIVE_STATUSES)) {
             throw new ResponseStatusException(CONFLICT, "A verification suite run is already queued or running for " + definition.label() + ".");
@@ -228,7 +230,10 @@ public class PlatformVerificationSuiteService {
                     : request.shopifyCompanionExpectations().toEnvironmentOverrides().toString(),
                 "deploymentBehaviorExpectationOverrides", request == null || request.deploymentBehaviorExpectations() == null
                     ? ""
-                    : request.deploymentBehaviorExpectations().toEnvironmentOverrides().toString()
+                    : request.deploymentBehaviorExpectations().toEnvironmentOverrides().toString(),
+                "documentKnowledgeExpectationOverrides", request == null || request.documentKnowledgeExpectations() == null
+                    ? ""
+                    : request.documentKnowledgeExpectations().toEnvironmentOverrides().toString()
             ))
         );
         executionService.execute(run.getId(), allowControlPlaneRepair);
@@ -301,6 +306,14 @@ public class PlatformVerificationSuiteService {
             );
             return details;
         }
+        if (PlatformVerificationSuiteScriptContextService.SCRIPT_DOCUMENT_KNOWLEDGE_OPERATIONS
+            .equalsIgnoreCase(stage.targetRef())) {
+            details.set(
+                "scriptEnvironmentOverrides",
+                objectMapper.valueToTree(request.documentKnowledgeExpectations().toEnvironmentOverrides())
+            );
+            return details;
+        }
         ShopifyCompanionVerificationExpectationOverrides expectations = expectationsForStage(stage.targetRef(), request);
         if (expectations == null
             || expectations.isEmpty()
@@ -358,6 +371,68 @@ public class PlatformVerificationSuiteService {
         }
         if (!Set.of("staging", "production").contains(environment.get("VALIDATION_ENVIRONMENT").toLowerCase())) {
             throw new ResponseStatusException(BAD_REQUEST, "Behavior verification environment must be staging or production.");
+        }
+    }
+
+    private void validateDocumentKnowledgeExpectations(
+        PlatformVerificationSuiteDefinitionSummary definition,
+        PlatformVerificationSuiteDispatchRequest request
+    ) {
+        if (!PlatformVerificationSuiteCatalog.DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY
+            .equalsIgnoreCase(definition.key())) {
+            return;
+        }
+        DocumentKnowledgeVerificationExpectationOverrides expectations = request == null
+            ? null
+            : request.documentKnowledgeExpectations();
+        if (expectations == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification inputs are required.");
+        }
+        Map<String, String> environment = expectations.toEnvironmentOverrides();
+        for (String required : List.of(
+            "DOCUMENT_DEPLOYMENT_ID",
+            "DOCUMENT_DATASET_ID",
+            "DOCUMENT_TEXT_OBJECT_REFERENCE",
+            "DOCUMENT_TEXT_RETRIEVAL_QUERY",
+            "DOCUMENT_JSON_OBJECT_REFERENCE",
+            "DOCUMENT_JSON_RETRIEVAL_QUERY"
+        )) {
+            if (!environment.containsKey(required)) {
+                throw new ResponseStatusException(BAD_REQUEST, "Missing Document Knowledge verification input: " + required);
+            }
+        }
+        if (!environment.get("DOCUMENT_DEPLOYMENT_ID").matches("[A-Za-z0-9][A-Za-z0-9._-]{1,63}")) {
+            throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification deploymentId is invalid.");
+        }
+        if (!environment.get("DOCUMENT_DATASET_ID").matches("[A-Za-z0-9][A-Za-z0-9._-]{1,127}")) {
+            throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification datasetId is invalid.");
+        }
+        for (String key : List.of("DOCUMENT_TEXT_OBJECT_REFERENCE", "DOCUMENT_JSON_OBJECT_REFERENCE")) {
+            String objectReference = environment.get(key);
+            if (objectReference.length() > 1024
+                || objectReference.chars().anyMatch(Character::isISOControl)
+                || objectReference.startsWith("/")
+                || objectReference.contains("://")
+                || List.of(objectReference.split("/", -1)).stream()
+                    .anyMatch(segment -> segment.isBlank() || ".".equals(segment) || "..".equals(segment))) {
+                throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification objectReference is invalid.");
+            }
+        }
+        if (!environment.get("DOCUMENT_TEXT_OBJECT_REFERENCE").toLowerCase().endsWith(".txt")) {
+            throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge text verification object must use the .txt contract.");
+        }
+        if (!environment.get("DOCUMENT_JSON_OBJECT_REFERENCE").toLowerCase().endsWith(".json")) {
+            throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge JSON verification object must use the .json contract.");
+        }
+        for (String key : List.of("DOCUMENT_TEXT_RETRIEVAL_QUERY", "DOCUMENT_JSON_RETRIEVAL_QUERY")) {
+            if (environment.get(key).length() > 1000) {
+                throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification retrievalQuery is too long.");
+            }
+        }
+        String connectorType = environment.get("DOCUMENT_EXPECTED_CONNECTOR_TYPE");
+        if (connectorType != null
+            && !Set.of("S3_COMPATIBLE_OBJECT_STORAGE", "MOUNTED_FOLDER").contains(connectorType.toUpperCase())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Document Knowledge verification connector type is invalid.");
         }
     }
 

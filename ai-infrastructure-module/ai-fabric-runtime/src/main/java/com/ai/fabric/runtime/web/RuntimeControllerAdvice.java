@@ -4,6 +4,7 @@ import ai.fabric.chat.exception.ChatSessionAccessDeniedException;
 import ai.fabric.chat.exception.ChatSessionNotFoundException;
 import com.ai.fabric.runtime.specialist.DeploymentKnowledgeSpecialistService.DeploymentKnowledgeInvocationException;
 import com.ai.fabric.runtime.specialist.DeploymentKnowledgeSpecialistService;
+import com.ai.fabric.runtime.documents.DocumentKnowledgeException;
 import com.ai.fabric.runtime.web.dto.DeploymentKnowledgeQueryResponse;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,15 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class RuntimeControllerAdvice {
+
+    @ExceptionHandler(DocumentKnowledgeException.class)
+    public ResponseEntity<Map<String, Object>> handleDocumentKnowledge(DocumentKnowledgeException ex) {
+        return ResponseEntity.status(ex.status()).body(Map.of(
+            "success", false,
+            "errorCode", ex.code(),
+            "message", ex.getMessage()
+        ));
+    }
 
     @ExceptionHandler(DeploymentKnowledgeInvocationException.class)
     public ResponseEntity<DeploymentKnowledgeQueryResponse>

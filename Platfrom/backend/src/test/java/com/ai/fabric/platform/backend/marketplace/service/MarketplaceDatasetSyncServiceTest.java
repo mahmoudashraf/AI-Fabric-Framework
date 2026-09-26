@@ -505,6 +505,79 @@ class MarketplaceDatasetSyncServiceTest {
         verify(runtimeSyncClient, never()).upsertDocuments(any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void externalDocumentDatasetsCreateDeploymentScopedHandlesWithoutRelayingSourceBytes() {
+        DeploymentEntity firstDeployment = deployment("dep-doc-a");
+        DeploymentEntity secondDeployment = deployment("dep-doc-b");
+        String config = datasetConfig("""
+            {
+              "contractVersion":"MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets":[
+                {
+                  "marketplaceInstallId":"mpi-documents",
+                  "marketplacePluginId":"mkp-data-document-knowledge-s3",
+                  "marketplacePluginVersionId":"mkv-data-document-knowledge-s3-v1",
+                  "datasetId":"document-knowledge",
+                  "entityType":"document",
+                  "storageScope":"CUSTOMER_MANAGED",
+                  "sharingScope":"DEPLOYMENT_ONLY",
+                  "ingestionMode":"EXTERNAL_DOCUMENT_STORAGE",
+                  "updateStrategy":"VERSIONED_REPLACE",
+                  "handleRef":"documents/{deploymentId}/document-knowledge",
+                  "datasetHash":"hash-document-knowledge",
+                  "sourceConnector":{"connectorType":"S3_COMPATIBLE_OBJECT_STORAGE","bindingRef":"dsh-test"},
+                  "documentPolicy":{"maxSourceBytes":1048576}
+                }
+              ]
+            }
+            """);
+        DeploymentMarketplacePluginInstallEntity install = install(
+            "mpi-documents",
+            "mkv-data-document-knowledge-s3-v1"
+        );
+        MarketplacePluginDatasetEntity definition = pluginDataset(
+            "mkp-data-document-knowledge-s3",
+            "document-knowledge",
+            "document"
+        );
+        definition.setStorageScope("CUSTOMER_MANAGED");
+        definition.setSharingScope("DEPLOYMENT_ONLY");
+
+        when(installRepository.findById("mpi-documents")).thenReturn(Optional.of(install));
+        when(pluginDatasetRepository.findByPluginVersionIdAndDatasetId(
+            "mkv-data-document-knowledge-s3-v1",
+            "document-knowledge"
+        )).thenReturn(Optional.of(definition));
+        when(datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetIdAndScopeKey(
+            "mkp-data-document-knowledge-s3", "ten-1", "document-knowledge", "dep-doc-a"
+        )).thenReturn(Optional.empty());
+        when(datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetIdAndScopeKey(
+            "mkp-data-document-knowledge-s3", "ten-1", "document-knowledge", "dep-doc-b"
+        )).thenReturn(Optional.empty());
+
+        MarketplaceDatasetSyncService.DatasetSyncSummary first = service.syncReleaseDatasets(
+            firstDeployment,
+            version(config.replace("{deploymentId}", "dep-doc-a")),
+            release("rel-doc-a")
+        );
+        MarketplaceDatasetSyncService.DatasetSyncSummary second = service.syncReleaseDatasets(
+            secondDeployment,
+            version(config.replace("{deploymentId}", "dep-doc-b")),
+            release("rel-doc-b")
+        );
+
+        assertThat(first.skippedDatasets()).isEqualTo(1);
+        assertThat(second.skippedDatasets()).isEqualTo(1);
+        ArgumentCaptor<MarketplaceDatasetHandleEntity> handles = ArgumentCaptor.forClass(MarketplaceDatasetHandleEntity.class);
+        verify(datasetHandleRepository, atLeastOnce()).save(handles.capture());
+        assertThat(handles.getAllValues())
+            .filteredOn(handle -> "document-knowledge".equals(handle.getDatasetId()))
+            .extracting(MarketplaceDatasetHandleEntity::getScopeKey)
+            .contains("dep-doc-a", "dep-doc-b");
+        verify(runtimeSyncClient, never()).upsertDocuments(any(), any(), any(), any(), any(), any());
+        verify(datasetDocumentRepository, never()).saveAll(anyCollection());
+    }
+
     private DeploymentEntity deployment(String id) {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId(id);

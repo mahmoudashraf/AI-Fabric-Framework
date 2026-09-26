@@ -13,6 +13,56 @@ ai-entities:
         priority: 100
         required: true
     metadata-fields:
+      - name: _aiDocumentSourceId
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 100
+        required: false
+      - name: _aiDocumentSourceVersion
+        data-type: NUMBER
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 100
+        required: false
+      - name: _aiDocumentSourceName
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 90
+        required: false
+      - name: _aiDocumentId
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 90
+        required: false
+      - name: _aiDocumentChunkId
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 100
+        required: false
+      - name: _aiDocumentChunkIndex
+        data-type: NUMBER
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+        required: false
+      - name: _aiDocumentChunkCount
+        data-type: NUMBER
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+        required: false
+      - name: _aiDocumentContentFingerprint
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+        required: false
+      - name: _aiDocumentTenantId
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 100
+        required: false
+      - name: _aiDocumentVisibility
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+        required: false
       - name: tenantId
         data-type: ID
         destinations: [VECTOR_METADATA]
@@ -27,4 +77,34 @@ ai-entities:
         data-type: STRING
         destinations: [VECTOR_METADATA, API_RESPONSE]
         priority: 80
+        required: false
+      - name: customerId
+        data-type: ID
+        destinations: [VECTOR_METADATA]
+        priority: 100
+        required: false
+      - name: datasetId
+        data-type: ID
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 90
+        required: false
+      - name: knowledgeSourceHandleRef
+        data-type: ID
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 90
+        required: false
+      - name: originalFilename
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 80
+        required: false
+      - name: locale
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 60
+        required: false
+      - name: sourceCategory
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 60
         required: false

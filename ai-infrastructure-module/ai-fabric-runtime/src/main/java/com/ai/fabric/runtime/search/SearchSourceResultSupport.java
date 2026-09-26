@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 final class SearchSourceResultSupport {
 
@@ -58,12 +59,22 @@ final class SearchSourceResultSupport {
     static AISearchResponse filterAndDecorate(AISearchResponse response,
                                               ResolvedKnowledgeSource source,
                                               Map<String, Object> requiredMetadata) {
+        return filterAndDecorate(response, source, requiredMetadata, ignored -> true);
+    }
+
+    static AISearchResponse filterAndDecorate(AISearchResponse response,
+                                              ResolvedKnowledgeSource source,
+                                              Map<String, Object> requiredMetadata,
+                                              Predicate<Map<String, Object>> resultFilter) {
         Map<String, Object> effectiveRequiredMetadata = requiredMetadataWithSourceHandle(source, requiredMetadata);
         List<Map<String, Object>> filteredResults = new ArrayList<>();
         if (response.getResults() != null) {
             for (Map<String, Object> result : response.getResults()) {
                 Map<String, Object> metadata = normalizeMetadata(result.get("metadata"));
                 if (!matchesFilters(metadata, effectiveRequiredMetadata)) {
+                    continue;
+                }
+                if (resultFilter != null && !resultFilter.test(metadata)) {
                     continue;
                 }
                 if (DEPLOYMENT_PRIVATE_VECTOR_ADAPTER.equalsIgnoreCase(source.getAdapterType())

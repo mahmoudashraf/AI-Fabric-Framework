@@ -10,5 +10,12 @@ public interface MarketplaceDatasetHandleRepository extends JpaRepository<Market
 
     Optional<MarketplaceDatasetHandleEntity> findByPluginIdAndTenantIdAndDatasetId(String pluginId, String tenantId, String datasetId);
 
+    Optional<MarketplaceDatasetHandleEntity> findByPluginIdAndTenantIdAndDatasetIdAndScopeKey(
+        String pluginId,
+        String tenantId,
+        String datasetId,
+        String scopeKey
+    );
+
     List<MarketplaceDatasetHandleEntity> findByDeploymentIdOrderByUpdatedAtDesc(String deploymentId);
 }

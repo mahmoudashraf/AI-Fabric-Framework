@@ -28,6 +28,7 @@ public final class RuntimePrivateAccessSupport {
     public static final String SCOPE_RUNTIME_INDEXING_VECTORS = "runtime:index:vectors";
     public static final String SCOPE_RUNTIME_CONNECTOR_READ = "runtime:connector:read";
     public static final String SCOPE_RUNTIME_MIGRATION_CLEAR = "runtime:migration:clear";
+    public static final String SCOPE_DOCUMENTS_READ = "documents:read";
 
     private RuntimePrivateAccessSupport() {
     }
@@ -42,6 +43,10 @@ public final class RuntimePrivateAccessSupport {
             SCOPE_RUNTIME_INDEXING_VECTORS,
             SCOPE_RUNTIME_CONNECTOR_READ
         );
+    }
+
+    public static List<String> documentReadScopes() {
+        return List.of(SCOPE_DOCUMENTS_READ);
     }
 
     public static boolean isConfigured(PlatformSecretService platformSecretService, ObjectMapper objectMapper) {

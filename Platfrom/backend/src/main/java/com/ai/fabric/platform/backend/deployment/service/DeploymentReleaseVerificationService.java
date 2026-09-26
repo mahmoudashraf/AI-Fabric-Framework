@@ -443,6 +443,8 @@ public class DeploymentReleaseVerificationService {
                 "Runtime actions overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "runtime_indexing_overview_http_probe",
                 "Runtime indexing overview probe skipped because the deployment is still using stub provisioning.");
+            addSkippedCheck(checks, "document_source_connector_ready",
+                "Document source connector readiness skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_admin_overview_http_probe",
                 "Connector admin overview probe skipped because the deployment is still using stub provisioning.");
             addSkippedCheck(checks, "connector_actions_overview_http_probe",
@@ -536,6 +538,7 @@ public class DeploymentReleaseVerificationService {
         );
         addProbeCheck(checks, "runtime_indexing_overview_http_probe", "Runtime indexing overview", runtimeIndexingOverview);
         validateRuntimeIndexing(checks, runtimeIndexingOverview, expectations);
+        verifyDocumentSourceConnector(checks, deployment, expectations);
 
         if (connectorVerificationRequired) {
             JsonProbeResult connectorOverview = settledOverviews.connectorOverview();
@@ -898,6 +901,100 @@ public class DeploymentReleaseVerificationService {
         );
     }
 
+    private Map<String, String> runtimeDocumentReadHeaders(DeploymentEntity deployment) {
+        return RuntimePrivateAccessSupport.issueSystemHeaders(
+            platformSecretService,
+            objectMapper,
+            deployment,
+            "platform-document-release-verification",
+            "document-release-verification-" + blankToFallback(deployment == null ? null : deployment.getId(), "unknown"),
+            "platform-document-release-verification",
+            RuntimePrivateAccessSupport.documentReadScopes(),
+            Duration.ofMinutes(15)
+        );
+    }
+
+    private void verifyDocumentSourceConnector(ArrayNode checks,
+                                               DeploymentEntity deployment,
+                                               VerificationExpectations expectations) {
+        if (!hasExternalDocumentDataset(expectations.marketplaceDatasetConfig())) {
+            addSkippedCheck(
+                checks,
+                "document_source_connector_ready",
+                "Document source connector readiness is not required because the immutable version does not claim external document storage."
+            );
+            return;
+        }
+
+        JsonProbeResult probe = awaitSuccessfulJsonProbe(
+            deployment.getRuntimeBaseUrl(),
+            "/api/documents/source-connector/status",
+            runtimeDocumentReadHeaders(deployment)
+        );
+        Set<String> expectedConnectorTypes = expectedDocumentSourceConnectorValues(
+            expectations.marketplaceDatasetConfig(),
+            "connectorType"
+        );
+        Set<String> expectedBindingRefs = expectedDocumentSourceConnectorValues(
+            expectations.marketplaceDatasetConfig(),
+            "bindingRef"
+        );
+        JsonNode body = probe.body();
+        String actualConnectorType = body == null ? "" : body.path("connectorType").asText("");
+        String actualBindingRef = body == null ? "" : body.path("bindingRef").asText("");
+        boolean passed = probe.success()
+            && body != null
+            && body.path("ready").asBoolean(false)
+            && expectedConnectorTypes.size() == 1
+            && expectedConnectorTypes.contains(actualConnectorType)
+            && expectedBindingRefs.size() == 1
+            && expectedBindingRefs.contains(actualBindingRef)
+            && hasText(body.path("scopeDigest").asText(""))
+            && !hasText(body.path("errorCode").asText(""));
+
+        ObjectNode details = objectMapper.createObjectNode();
+        if (probe.httpStatus() != null) {
+            details.put("httpStatus", probe.httpStatus());
+        }
+        details.put("ready", body != null && body.path("ready").asBoolean(false));
+        details.put("actualConnectorType", actualConnectorType);
+        details.put("actualBindingRef", actualBindingRef);
+        details.set("expectedConnectorTypes", toArrayNode(expectedConnectorTypes));
+        details.set("expectedBindingRefs", toArrayNode(expectedBindingRefs));
+        if (probe.errorMessage() != null) {
+            details.put("error", probe.errorMessage());
+        }
+        if (body != null && hasText(body.path("errorCode").asText(""))) {
+            details.put("connectorErrorCode", body.path("errorCode").asText());
+        }
+        addCheck(
+            checks,
+            "document_source_connector_ready",
+            passed ? "PASSED" : "FAILED",
+            passed
+                ? "Deployment-local document source connector is ready and matches the immutable source binding."
+                : "Deployment-local document source connector is unavailable or does not match the immutable source binding.",
+            details
+        );
+    }
+
+    private Set<String> expectedDocumentSourceConnectorValues(JsonNode marketplaceDatasetConfig, String field) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        if (marketplaceDatasetConfig == null || !marketplaceDatasetConfig.path("datasets").isArray()) {
+            return Set.of();
+        }
+        for (JsonNode dataset : marketplaceDatasetConfig.path("datasets")) {
+            if (!"EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText(""))) {
+                continue;
+            }
+            String value = dataset.path("sourceConnector").path(field).asText("").trim();
+            if (hasText(value)) {
+                values.add(value);
+            }
+        }
+        return Set.copyOf(values);
+    }
+
     private VerificationExpectations buildExpectations(DeploymentVersionEntity version,
                                                        DeploymentReleaseEntity release,
                                                        DeploymentArtifactBundleSummary artifacts) {
@@ -985,9 +1082,14 @@ public class DeploymentReleaseVerificationService {
         Set<String> expectedActionNamesWithPostActionWebhookPolicies = expectedActionNamesWithArrayField(actionsConfig.path("actions"), "postPolicies");
         Set<String> expectedWebhookTargetIds = textSet(actionsConfig.path("webhookTargets"), "id");
         int expectedPostActionWebhookPoliciesCount = expectedPostActionWebhookPoliciesCount(actionsConfig.path("actions"));
-        Set<String> expectedRuntimeMigrationIds = Set.copyOf(
+        LinkedHashSet<String> expectedRuntimeMigrationIds = new LinkedHashSet<>(
             deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig).migrationIds()
         );
+        if (hasExternalDocumentDataset(marketplaceDatasetConfig)) {
+            expectedRuntimeMigrationIds.add(
+                DeploymentSourceCapabilityManifestService.DOCUMENT_KNOWLEDGE_MIGRATION_ID
+            );
+        }
 
         boolean expectedAuthzEnabled = routingConfig.path("authz").path("enabled").asBoolean(false);
         boolean expectedRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
@@ -2464,6 +2566,18 @@ public class DeploymentReleaseVerificationService {
     static boolean expectsSpecialistChains(JsonNode behaviorConfig) {
         return behaviorConfig != null
             && "AGENTIC_SPECIALIST_TEAM".equals(behaviorConfig.path("type").asText(""));
+    }
+
+    static boolean hasExternalDocumentDataset(JsonNode marketplaceDatasetConfig) {
+        if (marketplaceDatasetConfig == null || !marketplaceDatasetConfig.path("datasets").isArray()) {
+            return false;
+        }
+        for (JsonNode dataset : marketplaceDatasetConfig.path("datasets")) {
+            if ("EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText(""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean runtimePromptConfigMatchesExpected(JsonProbeResult probe,

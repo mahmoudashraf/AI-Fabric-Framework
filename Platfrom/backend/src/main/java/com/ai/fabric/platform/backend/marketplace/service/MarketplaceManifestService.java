@@ -75,15 +75,70 @@ public class MarketplaceManifestService {
         "MONTHLY",
         "YEARLY"
     );
-    private static final Set<String> SUPPORTED_DATASET_STORAGE_SCOPES = Set.of("PLUGIN_SCOPED");
-    private static final Set<String> SUPPORTED_DATASET_SHARING_SCOPES = Set.of("TENANT_SHARED");
+    private static final Set<String> SUPPORTED_DATASET_STORAGE_SCOPES = Set.of(
+        "PLUGIN_SCOPED",
+        "CUSTOMER_MANAGED"
+    );
+    private static final Set<String> SUPPORTED_DATASET_SHARING_SCOPES = Set.of(
+        "TENANT_SHARED",
+        "DEPLOYMENT_ONLY"
+    );
     private static final Set<String> SUPPORTED_DATASET_INGESTION_MODES = Set.of(
         "PACKAGED_SEED",
         "EXTERNAL_SYNC_SQL",
-        "EXTERNAL_SYNC_FOLDER"
+        "EXTERNAL_SYNC_FOLDER",
+        "EXTERNAL_DOCUMENT_STORAGE"
     );
-    private static final Set<String> SUPPORTED_DATASET_UPDATE_STRATEGIES = Set.of("UPSERT_BY_ID");
+    private static final Set<String> SUPPORTED_DATASET_UPDATE_STRATEGIES = Set.of(
+        "UPSERT_BY_ID",
+        "VERSIONED_REPLACE"
+    );
     private static final Set<String> SUPPORTED_SYNC_CONNECTOR_TYPES = Set.of("SQL_QUERY", "FILE_FOLDER");
+    private static final Set<String> SUPPORTED_DOCUMENT_CONNECTOR_TYPES = Set.of(
+        "S3_COMPATIBLE_OBJECT_STORAGE",
+        "MOUNTED_FOLDER"
+    );
+    private static final Set<String> DOCUMENT_SOURCE_CONNECTOR_FIELDS = Set.of(
+        "connectorType",
+        "storageOwnership",
+        "bindingRefField",
+        "allowedOperations",
+        "deleteSourceOnRemoval"
+    );
+    private static final Set<String> DOCUMENT_POLICY_FIELDS = Set.of(
+        "allowedMediaTypes",
+        "allowedExtensions",
+        "jsonContentKeys",
+        "maxSourceBytes",
+        "maxSources",
+        "maxTotalIndexedBytes",
+        "maxChunksPerSource",
+        "maxChunkCharacters",
+        "maxTotalCharacters",
+        "previewMaxChunks",
+        "previewMaxCharactersPerChunk",
+        "evidenceRetentionDays",
+        "commandRetentionDays",
+        "retentionBatchSize",
+        "allowedMetadataKeys",
+        "initialIndexRequiresConfirmation",
+        "trustedAutoIndexingAllowed"
+    );
+    private static final Set<String> DOCUMENT_PROTECTED_METADATA_KEYS = Set.of(
+        "tenantId",
+        "customerId",
+        "deploymentId",
+        "datasetId",
+        "knowledgeSourceHandleRef",
+        "sourceId",
+        "sourceVersion",
+        "sourceName",
+        "sourceDocumentId",
+        "chunkId",
+        "chunkIndex",
+        "chunkCount",
+        "contentFingerprint"
+    );
     private static final String ACTION_ADAPTER_TYPE_MCP_TOOL = "mcp-tool";
     private static final Set<String> SUPPORTED_MCP_DISPATCH_MODES = Set.of(
         "DIRECT_GATEWAY",
@@ -1412,10 +1467,28 @@ public class MarketplaceManifestService {
             }
             String seedDatasetRef = blankToNull(dataset.path("seedDatasetRef").asText(""));
             JsonNode syncConnector = dataset.path("syncConnector");
+            JsonNode sourceConnector = dataset.path("sourceConnector");
+            JsonNode documentPolicy = dataset.path("documentPolicy");
             String connectorType = null;
             String connectionRefField = null;
             String folderRefField = null;
-            if ("PACKAGED_SEED".equals(ingestionMode)) {
+            if ("EXTERNAL_DOCUMENT_STORAGE".equals(ingestionMode)) {
+                validateDocumentDataset(
+                    plugin,
+                    version,
+                    datasetId,
+                    entityType,
+                    storageScope,
+                    sharingScope,
+                    updateStrategy,
+                    seedDatasetRef,
+                    syncConnector,
+                    sourceConnector,
+                    documentPolicy
+                );
+                connectorType = normalizeUppercaseValue(sourceConnector.path("connectorType").asText(""));
+                connectionRefField = blankToNull(sourceConnector.path("bindingRefField").asText(""));
+            } else if ("PACKAGED_SEED".equals(ingestionMode)) {
                 if (!StringUtils.hasText(seedDatasetRef)) {
                     throw invalid(plugin, version, "PACKAGED_SEED dataset '" + datasetId + "' must declare seedDatasetRef.");
                 }
@@ -1461,10 +1534,172 @@ public class MarketplaceManifestService {
                 connectorType,
                 connectionRefField,
                 folderRefField,
-                syncConnector != null && syncConnector.isObject() ? syncConnector.deepCopy() : null
+                syncConnector != null && syncConnector.isObject() ? syncConnector.deepCopy() : null,
+                sourceConnector != null && sourceConnector.isObject() ? sourceConnector.deepCopy() : null,
+                documentPolicy != null && documentPolicy.isObject() ? documentPolicy.deepCopy() : null
             ));
         }
         return List.copyOf(datasets);
+    }
+
+    private void validateDocumentDataset(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         String datasetId,
+                                         String entityType,
+                                         String storageScope,
+                                         String sharingScope,
+                                         String updateStrategy,
+                                         String seedDatasetRef,
+                                         JsonNode syncConnector,
+                                         JsonNode sourceConnector,
+                                         JsonNode documentPolicy) {
+        String prefix = "document dataset '" + datasetId + "' ";
+        if (!"document".equals(entityType)) {
+            throw invalid(plugin, version, prefix + "must declare entityType=document.");
+        }
+        if (!"CUSTOMER_MANAGED".equals(storageScope)
+            || !"DEPLOYMENT_ONLY".equals(sharingScope)
+            || !"VERSIONED_REPLACE".equals(updateStrategy)) {
+            throw invalid(plugin, version, prefix
+                + "must use storageScope=CUSTOMER_MANAGED, sharingScope=DEPLOYMENT_ONLY, and updateStrategy=VERSIONED_REPLACE.");
+        }
+        if (StringUtils.hasText(seedDatasetRef) || syncConnector.isObject()) {
+            throw invalid(plugin, version, prefix + "must not declare seedDatasetRef or syncConnector.");
+        }
+        if (!sourceConnector.isObject()) {
+            throw invalid(plugin, version, prefix + "must declare sourceConnector.");
+        }
+        rejectUnknownFields(
+            plugin,
+            version,
+            sourceConnector,
+            DOCUMENT_SOURCE_CONNECTOR_FIELDS,
+            prefix + "sourceConnector"
+        );
+        String connectorType = normalizeUppercaseValue(sourceConnector.path("connectorType").asText(""));
+        if (!SUPPORTED_DOCUMENT_CONNECTOR_TYPES.contains(connectorType)) {
+            throw invalid(plugin, version, prefix + "declares unsupported sourceConnector.connectorType.");
+        }
+        if (!"CUSTOMER_MANAGED".equals(normalizeUppercaseValue(
+            sourceConnector.path("storageOwnership").asText("")
+        ))) {
+            throw invalid(plugin, version, prefix + "must declare sourceConnector.storageOwnership=CUSTOMER_MANAGED.");
+        }
+        String bindingRefField = blankToNull(sourceConnector.path("bindingRefField").asText(""));
+        if (!StringUtils.hasText(bindingRefField) || bindingRefField.length() > 128) {
+            throw invalid(plugin, version, prefix + "must declare a bounded sourceConnector.bindingRefField.");
+        }
+        if (sourceConnector.path("deleteSourceOnRemoval").asBoolean(false)) {
+            throw invalid(plugin, version, prefix + "cannot request source-object deletion.");
+        }
+        if (!sourceConnector.has("deleteSourceOnRemoval")
+            || !sourceConnector.path("deleteSourceOnRemoval").isBoolean()) {
+            throw invalid(plugin, version, prefix + "must explicitly declare sourceConnector.deleteSourceOnRemoval=false.");
+        }
+        JsonNode allowedOperations = sourceConnector.path("allowedOperations");
+        if (!allowedOperations.isArray()) {
+            throw invalid(plugin, version, prefix + "sourceConnector.allowedOperations must be an array.");
+        }
+        Set<String> normalizedOperations = new LinkedHashSet<>();
+        for (JsonNode operation : allowedOperations) {
+            String value = normalizeUppercaseValue(operation.asText(""));
+            if (!Set.of("LIST", "READ", "HEAD").contains(value)) {
+                throw invalid(plugin, version, prefix + "source connector may request only LIST, READ, and HEAD operations.");
+            }
+            normalizedOperations.add(value);
+        }
+        if (!normalizedOperations.equals(Set.of("LIST", "READ", "HEAD"))) {
+            throw invalid(plugin, version, prefix + "source connector must declare exactly LIST, READ, and HEAD operations.");
+        }
+        if (!documentPolicy.isObject()) {
+            throw invalid(plugin, version, prefix + "must declare documentPolicy.");
+        }
+        rejectUnknownFields(
+            plugin,
+            version,
+            documentPolicy,
+            DOCUMENT_POLICY_FIELDS,
+            prefix + "documentPolicy"
+        );
+        requireExactStringSet(plugin, version, prefix + "documentPolicy.allowedMediaTypes",
+            documentPolicy.path("allowedMediaTypes"), Set.of("text/plain", "application/json"));
+        requireExactStringSet(plugin, version, prefix + "documentPolicy.allowedExtensions",
+            documentPolicy.path("allowedExtensions"), Set.of(".txt", ".json"));
+        JsonNode jsonContentKeys = documentPolicy.path("jsonContentKeys");
+        if (!jsonContentKeys.isArray() || jsonContentKeys.isEmpty() || jsonContentKeys.size() > 8) {
+            throw invalid(plugin, version, prefix + "documentPolicy.jsonContentKeys must contain between 1 and 8 keys.");
+        }
+        Set<String> normalizedJsonKeys = new LinkedHashSet<>();
+        for (JsonNode key : jsonContentKeys) {
+            String value = key.asText("").trim();
+            if (!value.matches("[A-Za-z][A-Za-z0-9._-]{0,63}") || !normalizedJsonKeys.add(value)) {
+                throw invalid(plugin, version, prefix + "documentPolicy.jsonContentKeys contains an invalid or duplicate key.");
+            }
+        }
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxSourceBytes", 1, 10 * 1024 * 1024);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxSources", 1, 10_000);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxTotalIndexedBytes", 1, 10L * 1024 * 1024 * 1024);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxChunksPerSource", 1, 10_000);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxChunkCharacters", 50, 100_000);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "maxTotalCharacters", 50, 10_000_000);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "previewMaxChunks", 1, 100);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "previewMaxCharactersPerChunk", 50, 2_000);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "evidenceRetentionDays", 1, 3_650);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "commandRetentionDays", 1, 3_650);
+        requirePositiveBound(plugin, version, prefix, documentPolicy, "retentionBatchSize", 1, 1_000);
+        JsonNode metadataKeys = documentPolicy.path("allowedMetadataKeys");
+        if (!metadataKeys.isArray() || metadataKeys.size() > 16) {
+            throw invalid(plugin, version, prefix + "documentPolicy.allowedMetadataKeys must be an array with at most 16 entries.");
+        }
+        for (JsonNode key : metadataKeys) {
+            String value = key.asText("").trim();
+            if (!value.matches("[A-Za-z][A-Za-z0-9._-]{0,63}")
+                || DOCUMENT_PROTECTED_METADATA_KEYS.contains(value)) {
+                throw invalid(plugin, version, prefix + "documentPolicy.allowedMetadataKeys contains an invalid or protected key.");
+            }
+        }
+        if (!documentPolicy.path("initialIndexRequiresConfirmation").isBoolean()
+            || !documentPolicy.path("initialIndexRequiresConfirmation").asBoolean()) {
+            throw invalid(plugin, version, prefix + "must require explicit initial indexing confirmation in the first release.");
+        }
+        if (!documentPolicy.path("trustedAutoIndexingAllowed").isBoolean()
+            || documentPolicy.path("trustedAutoIndexingAllowed").asBoolean()) {
+            throw invalid(plugin, version, prefix + "must disable trusted auto-indexing in the first release.");
+        }
+    }
+
+    private void requireExactStringSet(MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       String field,
+                                       JsonNode node,
+                                       Set<String> supported) {
+        if (!node.isArray() || node.isEmpty()) {
+            throw invalid(plugin, version, field + " must be a non-empty array.");
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        for (JsonNode entry : node) {
+            String value = entry.asText("").trim().toLowerCase(Locale.ROOT);
+            if (!supported.contains(value) || !normalized.add(value)) {
+                throw invalid(plugin, version, field + " contains an unsupported first-release value.");
+            }
+        }
+        if (!normalized.equals(supported)) {
+            throw invalid(plugin, version, field + " must declare the complete first-release value set.");
+        }
+    }
+
+    private void requirePositiveBound(MarketplacePluginEntity plugin,
+                                      MarketplacePluginVersionEntity version,
+                                      String prefix,
+                                      JsonNode policy,
+                                      String field,
+                                      long minimum,
+                                      long maximum) {
+        JsonNode value = policy.path(field);
+        if (!value.isIntegralNumber() || value.asLong() < minimum || value.asLong() > maximum) {
+            throw invalid(plugin, version, prefix + "documentPolicy." + field
+                + " must be between " + minimum + " and " + maximum + ".");
+        }
     }
 
     private void validateEntityContribution(MarketplacePluginEntity plugin,
@@ -1889,7 +2124,9 @@ public class MarketplaceManifestService {
         String connectorType,
         String connectionRefField,
         String folderRefField,
-        JsonNode syncConnector
+        JsonNode syncConnector,
+        JsonNode sourceConnector,
+        JsonNode documentPolicy
     ) {
     }
 }

@@ -61,6 +61,8 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private static final String DEFAULT_SERVICE_HEALTH_CHECK_PATH = "/actuator/health/liveness";
     private static final String RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES = "COOLIFY_POSTGRES";
     private static final String DEFAULT_SERVICE_NAME = "ai-fabric-runtime";
+    private static final String DOCUMENT_SOURCE_MOUNT_PATH = "/app/document-sources";
+    private static final String DOCUMENT_SOURCE_HOST_ROOT = "/srv/loomai/document-sources";
     private static final String DEFAULT_PROMOTION_CHANNEL = "staging";
     private static final Duration DEFAULT_DEPLOY_SETTLE_TIMEOUT = Duration.ofMinutes(6);
     private static final Duration DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL = Duration.ofSeconds(10);
@@ -343,6 +345,21 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 0,
                 null
             )
+        );
+        tracked(
+            progressTracker,
+            "reconcile_coolify_document_source_storage",
+            "Create or verify the optional Coolify mounted document source directory for non-production demos.",
+            () -> {
+                reconcileMountedDocumentSourceStorage(
+                    connection,
+                    deployment,
+                    profile,
+                    runtimeApplication,
+                    source.runtimePlan()
+                );
+                return null;
+            }
         );
 
         CoolifyApplicationSummary connectorApplication = null;
@@ -755,6 +772,55 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             connectorBaseUrl,
             details
         );
+    }
+
+    void reconcileMountedDocumentSourceStorage(
+        CoolifyConnection connection,
+        DeploymentEntity deployment,
+        DeploymentTargetProfileEntity profile,
+        CoolifyApplicationSummary runtimeApplication,
+        RailwayServicePlanSummary runtimePlan
+    ) {
+        if (!hasEnvironmentValue(
+            runtimePlan,
+            "LOOMAI_DOCUMENTS_CONNECTOR_TYPE",
+            DeploymentDocumentStorageBindingService.MOUNTED_CONNECTOR
+        )) {
+            return;
+        }
+        if ("production".equalsIgnoreCase(profile.getEnvironmentName())
+            || "production".equalsIgnoreCase(deployment.getEnvironmentName())) {
+            throw new IllegalStateException("Mounted document source storage is not supported for production deployments.");
+        }
+        String deploymentSegment = safePathSegment(deployment.getId());
+        String profileSegment = safePathSegment(profile.getId());
+        coolifyApiClient.reconcilePersistentDirectoryStorage(
+            connection,
+            runtimeApplication.uuid(),
+            "loomai-documents-" + deploymentSegment + "-" + profileSegment,
+            DOCUMENT_SOURCE_HOST_ROOT + "/" + deploymentSegment + "/" + profileSegment,
+            DOCUMENT_SOURCE_MOUNT_PATH
+        );
+    }
+
+    private boolean hasEnvironmentValue(RailwayServicePlanSummary plan, String key, String expectedValue) {
+        if (plan == null || plan.env() == null) {
+            return false;
+        }
+        return plan.env().stream().anyMatch(item -> item != null
+            && key.equals(item.key())
+            && expectedValue.equalsIgnoreCase(item.value()));
+    }
+
+    private String safePathSegment(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalStateException("Document source storage identity is missing.");
+        }
+        String safe = value.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "-");
+        if (safe.isBlank()) {
+            throw new IllegalStateException("Document source storage identity is invalid.");
+        }
+        return safe.length() <= 64 ? safe : safe.substring(0, 64);
     }
 
     @Override
@@ -1744,9 +1810,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                                JsonNode providerConfigOverride) {
         String sourceStrategy = resolveSourceStrategy(profile, resourceDefaults);
         if ("GIT_SOURCE".equals(sourceStrategy)) {
-            RailwayProvisioningPlanSummary plan = providerConfigOverride == null
-                ? railwayProvisioningPlanService.buildPlan(deployment, version)
-                : railwayProvisioningPlanService.buildPlan(deployment, version, providerConfigOverride);
+            RailwayProvisioningPlanSummary plan = railwayProvisioningPlanService.buildPlan(
+                deployment,
+                version,
+                providerConfigOverride,
+                profile.getId()
+            );
             RailwayServicePlanSummary runtime = plan.services() == null ? null : plan.services().runtime();
             if (runtime == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coolify Git source requires a runtime service plan.");
@@ -1777,9 +1846,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
         if ("IMAGE_SOURCE".equals(sourceStrategy)) {
-            RailwayProvisioningPlanSummary plan = providerConfigOverride == null
-                ? railwayProvisioningPlanService.buildPlan(deployment, version)
-                : railwayProvisioningPlanService.buildPlan(deployment, version, providerConfigOverride);
+            RailwayProvisioningPlanSummary plan = railwayProvisioningPlanService.buildPlan(
+                deployment,
+                version,
+                providerConfigOverride,
+                profile.getId()
+            );
             RailwayServicePlanSummary runtime = plan.services() == null ? null : plan.services().runtime();
             if (runtime == null) {
                 throw new ResponseStatusException(

@@ -136,6 +136,7 @@ public class DeploymentProviderResourceActionService {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceStatusSummary status(String handleId) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
+        requireProviderManagedLifecycle(handle);
         DeploymentProviderResourceStatusSummary status = providerRegistry.require(handle.getProviderType()).status(handle);
         handle.setStatus(status.status());
         handle.setLastObservedStatus(status.observedStatus());
@@ -149,6 +150,7 @@ public class DeploymentProviderResourceActionService {
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public DeploymentProviderResourceLogsSummary logs(String handleId, int lines) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
+        requireProviderManagedLifecycle(handle);
         DeploymentProviderResourceLogsSummary logs = providerRegistry.require(handle.getProviderType()).logs(handle, lines);
         platformAuditService.record(
             "DEPLOYMENT_PROVIDER_RESOURCE_LOGS_VIEWED",
@@ -225,6 +227,7 @@ public class DeploymentProviderResourceActionService {
                                                                  DeploymentProviderResourceActionRequest request,
                                                                  ResourceActionInvoker invoker) {
         DeploymentProviderResourceHandleEntity handle = requireHandle(handleId);
+        requireProviderManagedLifecycle(handle);
         DeploymentProviderResourceActionSummary result = invoker.invoke(handle);
         String normalizedStatus = "DELETE".equals(action) ? "DELETE_REQUESTED" : action + "_REQUESTED";
         handle.setStatus(normalizedStatus);
@@ -263,6 +266,9 @@ public class DeploymentProviderResourceActionService {
     }
 
     private void refreshHandleSafely(DeploymentProviderResourceHandleEntity handle) {
+        if (DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind())) {
+            return;
+        }
         try {
             DeploymentProviderResourceStatusSummary status = providerRegistry.require(handle.getProviderType()).status(handle);
             handle.setStatus(status.status());
@@ -279,6 +285,15 @@ public class DeploymentProviderResourceActionService {
                 handle.getProviderType(),
                 handle.getResourceKind(),
                 ex.getMessage()
+            );
+        }
+    }
+
+    private void requireProviderManagedLifecycle(DeploymentProviderResourceHandleEntity handle) {
+        if (DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind())) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Customer-owned document storage bindings are configured references, not provider-managed lifecycle resources."
             );
         }
     }

@@ -6,6 +6,7 @@ import com.ai.fabric.platform.backend.config.PlatformProvisioningProperties;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationProperties;
 import com.ai.fabric.platform.backend.config.PlatformVectorizationRunnerProvisioningProperties;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentEntity;
+import com.ai.fabric.platform.backend.deployment.entity.DeploymentProviderResourceHandleEntity;
 import com.ai.fabric.platform.backend.deployment.entity.DeploymentVersionEntity;
 import com.ai.fabric.platform.backend.deployment.model.RailwayArtifactUrlsSummary;
 import com.ai.fabric.platform.backend.deployment.model.RailwayEnvVarSummary;
@@ -15,6 +16,7 @@ import com.ai.fabric.platform.backend.deployment.model.RailwayProvisioningStepSu
 import com.ai.fabric.platform.backend.deployment.model.RailwayServicePlanSummary;
 import com.ai.fabric.platform.backend.productservice.entity.PlatformManagedProductServiceEntity;
 import com.ai.fabric.platform.backend.productservice.repository.PlatformManagedProductServiceRepository;
+import com.ai.fabric.platform.backend.deployment.repository.DeploymentProviderResourceHandleRepository;
 import com.ai.fabric.platform.backend.security.RuntimePrivateAccessSupport;
 import com.ai.fabric.platform.backend.secret.service.DeploymentProviderSecretResolutionService;
 import com.ai.fabric.platform.backend.secret.service.PlatformSecretService;
@@ -25,6 +27,7 @@ import com.ai.fabric.platform.backend.vectorization.repository.VectorizationPlan
 import com.ai.fabric.platform.backend.vectorization.service.VectorizationManagedSecretNames;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -33,6 +36,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -66,6 +70,9 @@ public class RailwayProvisioningPlanService {
 
     @Autowired(required = false)
     private PlatformManagedProductServiceRepository platformManagedProductServiceRepository;
+
+    @Autowired(required = false)
+    private DeploymentProviderResourceHandleRepository deploymentProviderResourceHandleRepository;
 
     RailwayProvisioningPlanService(PlatformProvisioningProperties provisioningProperties,
                                    PlatformDeliveryProperties deliveryProperties,
@@ -216,12 +223,19 @@ public class RailwayProvisioningPlanService {
     }
 
     public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment, DeploymentVersionEntity version) {
-        return buildPlan(deployment, version, null);
+        return buildPlan(deployment, version, null, null);
     }
 
     public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment,
                                                     DeploymentVersionEntity version,
                                                     JsonNode providerConfigOverride) {
+        return buildPlan(deployment, version, providerConfigOverride, null);
+    }
+
+    public RailwayProvisioningPlanSummary buildPlan(DeploymentEntity deployment,
+                                                    DeploymentVersionEntity version,
+                                                    JsonNode providerConfigOverride,
+                                                    String targetProfileId) {
         String sourceRepository = deploymentSourceResolver.resolveRepository(deployment);
         String sourceBranch = deploymentSourceResolver.resolveBranch(deployment);
         String runtimeBaseUrl = deployment.getRuntimeBaseUrl() != null
@@ -237,6 +251,7 @@ public class RailwayProvisioningPlanService {
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
+        JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
         JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
 
         var artifacts = artifactService.toBundleSummary(version);
@@ -421,6 +436,7 @@ public class RailwayProvisioningPlanService {
         addOptionalEnv(runtimeEnv, "AI_SHELL_DEPLOYMENT_CONFIG_FILE", artifactUrls.shell());
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
+        addDocumentKnowledgeEnv(runtimeEnv, deployment, marketplaceDatasetConfig, targetProfileId);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
         addRuntimeMcpGatewayEnv(runtimeEnv, deployment, actionsConfig);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
@@ -660,6 +676,203 @@ public class RailwayProvisioningPlanService {
         addPurposeSpecificLlmEnv(runtimeEnv, providerConfig);
         addOnnxEnv(runtimeEnv, providerConfig, embeddingProvider);
         addVectorBackendEnv(runtimeEnv, deployment, providerConfig, vectorStrategy, vectorDimensions);
+    }
+
+    private void addDocumentKnowledgeEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                         DeploymentEntity deployment,
+                                         JsonNode marketplaceDatasetConfig,
+                                         String targetProfileId) {
+        if (marketplaceDatasetConfig == null || !marketplaceDatasetConfig.path("datasets").isArray()) {
+            return;
+        }
+        List<JsonNode> documentDatasets = new ArrayList<>();
+        for (JsonNode dataset : marketplaceDatasetConfig.path("datasets")) {
+            if ("EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText(""))) {
+                documentDatasets.add(dataset);
+            }
+        }
+        if (documentDatasets.isEmpty()) {
+            return;
+        }
+        if (deploymentProviderResourceHandleRepository == null) {
+            throw new IllegalStateException("Document storage resource bindings are unavailable.");
+        }
+
+        JsonNode first = documentDatasets.getFirst();
+        JsonNode sourceConnector = first.path("sourceConnector");
+        String bindingRef = requireDocumentValue(sourceConnector, "bindingRef");
+        String connectorType = requireDocumentValue(sourceConnector, "connectorType").toUpperCase(Locale.ROOT);
+        JsonNode policy = first.path("documentPolicy");
+        LinkedHashSet<String> datasetIds = new LinkedHashSet<>();
+        ObjectNode datasetHandleRefs = objectMapper.createObjectNode();
+        for (JsonNode dataset : documentDatasets) {
+            String datasetId = requireDocumentValue(dataset, "datasetId");
+            datasetIds.add(datasetId);
+            datasetHandleRefs.put(datasetId, requireDocumentValue(dataset, "handleRef"));
+            if (!bindingRef.equals(dataset.path("sourceConnector").path("bindingRef").asText(""))
+                || !connectorType.equalsIgnoreCase(dataset.path("sourceConnector").path("connectorType").asText(""))
+                || !Objects.equals(policy, dataset.path("documentPolicy"))) {
+                throw new IllegalStateException(
+                    "All document datasets in one runtime must use the same source binding, connector type, and policy."
+                );
+            }
+        }
+
+        DeploymentProviderResourceHandleEntity binding = deploymentProviderResourceHandleRepository.findById(bindingRef)
+            .filter(handle -> deployment.getId().equals(handle.getDeploymentId()))
+            .filter(handle -> DeploymentDocumentStorageBindingService.RESOURCE_KIND.equals(handle.getResourceKind()))
+            .orElseThrow(() -> new IllegalStateException("Document storage binding is missing for this deployment."));
+        if (StringUtils.hasText(targetProfileId)
+            && !targetProfileId.trim().equals(binding.getTargetProfileId())) {
+            throw new IllegalStateException(
+                "Document storage binding is not configured for target profile " + targetProfileId.trim() + "."
+            );
+        }
+        JsonNode safeBinding = readJson(binding.getMetadataJson());
+        if (!connectorType.equalsIgnoreCase(safeBinding.path("connectorType").asText(""))) {
+            throw new IllegalStateException("Document storage connector type does not match its binding.");
+        }
+
+        String secretKey = DeploymentDocumentStorageBindingService.secretKey(
+            deployment.getId(),
+            binding.getTargetProfileId()
+        );
+        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_ENABLED", "true"));
+        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_ENTITY_TYPE", "document"));
+        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_ALLOWED_DATASET_IDS", String.join(",", datasetIds)));
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_DOCUMENTS_DATASET_HANDLE_REFS_JSON",
+            writeJson(datasetHandleRefs)
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_CONNECTOR_TYPE", connectorType));
+        runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_BINDING_REF", bindingRef));
+
+        addDocumentPolicyEnv(runtimeEnv, policy);
+        if (DeploymentDocumentStorageBindingService.S3_CONNECTOR.equals(connectorType)) {
+            requireDocumentSecret(secretKey + "_ENDPOINT");
+            requireDocumentSecret(secretKey + "_REGION");
+            requireDocumentSecret(secretKey + "_BUCKET");
+            requireDocumentSecret(secretKey + "_ACCESS_KEY");
+            requireDocumentSecret(secretKey + "_SECRET_KEY");
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_ENDPOINT", "${secret:" + secretKey + "_ENDPOINT}"));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_REGION", "${secret:" + secretKey + "_REGION}"));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_BUCKET", "${secret:" + secretKey + "_BUCKET}"));
+            if (platformSecretService.isSecretPresent(secretKey + "_PREFIX")) {
+                runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_PREFIX", "${secret:" + secretKey + "_PREFIX}"));
+            }
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_ACCESS_KEY", "${secret:" + secretKey + "_ACCESS_KEY}"));
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_SECRET_KEY", "${secret:" + secretKey + "_SECRET_KEY}"));
+            if (platformSecretService.isSecretPresent(secretKey + "_SESSION_TOKEN")) {
+                runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_SESSION_TOKEN", "${secret:" + secretKey + "_SESSION_TOKEN}"));
+            }
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_DOCUMENTS_S3_PATH_STYLE_ACCESS",
+                Boolean.toString(safeBinding.path("pathStyleAccess").asBoolean(true))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_DOCUMENTS_S3_OBJECT_VERSIONING_AVAILABLE",
+                Boolean.toString(safeBinding.path("objectVersioningAvailable").asBoolean(false))
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_DOCUMENTS_S3_ALLOW_INSECURE_ENDPOINT",
+                Boolean.toString(safeBinding.path("allowInsecureEndpoint").asBoolean(false))
+            ));
+            String endpointHost = safeBinding.path("endpointHost").asText("").trim();
+            if (endpointHost.isEmpty()) {
+                throw new IllegalStateException("Document storage endpoint host is missing from its binding.");
+            }
+            runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_DOCUMENTS_S3_ALLOWED_ENDPOINT_HOST", endpointHost));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_DOCUMENTS_S3_ALLOW_PRIVATE_ENDPOINT",
+                Boolean.toString(safeBinding.path("privateEndpointApproved").asBoolean(false))
+            ));
+        } else if (DeploymentDocumentStorageBindingService.MOUNTED_CONNECTOR.equals(connectorType)) {
+            requireDocumentSecret(secretKey + "_MOUNTED_ROOT");
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "LOOMAI_DOCUMENTS_MOUNTED_ROOT",
+                "${secret:" + secretKey + "_MOUNTED_ROOT}"
+            ));
+        } else {
+            throw new IllegalStateException("Unsupported document storage connector type: " + connectorType);
+        }
+    }
+
+    private void addDocumentPolicyEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode policy) {
+        if (policy == null || !policy.isObject()) {
+            throw new IllegalStateException("Document policy is missing from immutable deployment configuration.");
+        }
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "maxSourceBytes", "LOOMAI_DOCUMENTS_MAX_SOURCE_BYTES");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "maxSources", "LOOMAI_DOCUMENTS_MAX_SOURCES");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "maxTotalIndexedBytes", "LOOMAI_DOCUMENTS_MAX_TOTAL_INDEXED_BYTES");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "maxChunksPerSource", "LOOMAI_DOCUMENTS_MAX_CHUNKS_PER_SOURCE");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "maxChunkCharacters", "LOOMAI_DOCUMENTS_MAX_CHUNK_CHARACTERS");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "maxTotalCharacters", "LOOMAI_DOCUMENTS_MAX_TOTAL_CHARACTERS");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "previewMaxChunks", "LOOMAI_DOCUMENTS_PREVIEW_MAX_CHUNKS");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "previewMaxCharactersPerChunk", "LOOMAI_DOCUMENTS_PREVIEW_MAX_CHARACTERS");
+        addDocumentRetentionDaysEnv(runtimeEnv, policy, "evidenceRetentionDays", "LOOMAI_DOCUMENTS_EVIDENCE_RETENTION");
+        addDocumentRetentionDaysEnv(runtimeEnv, policy, "commandRetentionDays", "LOOMAI_DOCUMENTS_COMMAND_RETENTION");
+        addRequiredDocumentPolicyEnv(runtimeEnv, policy, "retentionBatchSize", "LOOMAI_DOCUMENTS_RETENTION_BATCH_SIZE");
+        addDocumentArrayEnv(runtimeEnv, policy, "allowedExtensions", "LOOMAI_DOCUMENTS_ALLOWED_EXTENSIONS");
+        addDocumentArrayEnv(runtimeEnv, policy, "allowedMediaTypes", "LOOMAI_DOCUMENTS_ALLOWED_MEDIA_TYPES");
+        addDocumentArrayEnv(runtimeEnv, policy, "jsonContentKeys", "LOOMAI_DOCUMENTS_JSON_CONTENT_KEYS");
+        addDocumentArrayEnv(runtimeEnv, policy, "allowedMetadataKeys", "LOOMAI_DOCUMENTS_ALLOWED_METADATA_KEYS");
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "LOOMAI_DOCUMENTS_TRUSTED_AUTO_INDEXING_ALLOWED",
+            Boolean.toString(policy.path("trustedAutoIndexingAllowed").asBoolean(false))
+        ));
+    }
+
+    private void addRequiredDocumentPolicyEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                              JsonNode policy,
+                                              String field,
+                                              String envName) {
+        JsonNode value = policy.path(field);
+        if (!value.isIntegralNumber() || value.asLong() <= 0) {
+            throw new IllegalStateException("Document policy is missing a positive " + field + ".");
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(envName, Long.toString(value.asLong())));
+    }
+
+    private void addDocumentRetentionDaysEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                             JsonNode policy,
+                                             String field,
+                                             String envName) {
+        JsonNode value = policy.path(field);
+        if (!value.isIntegralNumber() || value.asLong() <= 0 || value.asLong() > 3_650) {
+            throw new IllegalStateException("Document policy is missing a bounded positive " + field + ".");
+        }
+        runtimeEnv.add(new RailwayEnvVarSummary(envName, "P" + value.asLong() + "D"));
+    }
+
+    private void addDocumentArrayEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                     JsonNode policy,
+                                     String field,
+                                     String envName) {
+        JsonNode values = policy.path(field);
+        if (!values.isArray() || values.isEmpty()) {
+            return;
+        }
+        List<String> normalized = new ArrayList<>();
+        values.forEach(value -> {
+            if (StringUtils.hasText(value.asText(""))) {
+                normalized.add(value.asText().trim());
+            }
+        });
+        addOptionalEnv(runtimeEnv, envName, String.join(",", normalized));
+    }
+
+    private void requireDocumentSecret(String name) {
+        if (!platformSecretService.isSecretPresent(name)) {
+            throw new IllegalStateException("Document storage binding secret is missing: " + name);
+        }
+    }
+
+    private String requireDocumentValue(JsonNode node, String field) {
+        String value = text(node, field);
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalStateException("Document deployment configuration is missing " + field + ".");
+        }
+        return value;
     }
 
     private String resolveRuntimeCuratedPack(JsonNode providerConfig) {
@@ -1613,6 +1826,14 @@ public class RailwayProvisioningPlanService {
             return value;
         }
         return fallback;
+    }
+
+    private String writeJson(JsonNode value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to serialize document dataset routing.", exception);
+        }
     }
 
     private void addOptionalIntEnv(List<RailwayEnvVarSummary> env, String key, int value) {

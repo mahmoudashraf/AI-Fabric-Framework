@@ -50,6 +50,7 @@ import { HostedVerificationRunHistory } from '../components/HostedVerificationRu
 
 const FULL_PLATFORM_RELEASE_READINESS_SUITE_KEY = 'full-platform-release-readiness'
 const DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY = 'deployment-behavior-market-readiness'
+const DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY = 'document-knowledge-operations-v1'
 const SHARED_INFERENCE_SERVICE_REF = 'shared-ollama-orchestration'
 const ROLLOUT_RUN_ORDER = ['marketplace', 'ecommerce', 'qdrant', 'pinecone', 'milvus', 'weaviate'] as const
 const ACTIVE_SUITE_STATUSES = ['QUEUED', 'RUNNING'] as const
@@ -301,8 +302,19 @@ export function VerificationOpsPage() {
   const [behaviorTargetProfileId, setBehaviorTargetProfileId] = useState('')
   const [behaviorSourceArtifactId, setBehaviorSourceArtifactId] = useState('')
   const [keepBehaviorDeployment, setKeepBehaviorDeployment] = useState(true)
+  const [documentDeploymentId, setDocumentDeploymentId] = useState('')
+  const [documentDatasetId, setDocumentDatasetId] = useState('document-knowledge')
+  const [documentTextObjectReference, setDocumentTextObjectReference] = useState('')
+  const [documentTextRetrievalQuery, setDocumentTextRetrievalQuery] = useState('')
+  const [documentJsonObjectReference, setDocumentJsonObjectReference] = useState('')
+  const [documentJsonRetrievalQuery, setDocumentJsonRetrievalQuery] = useState('')
+  const [documentExpectedConnectorType, setDocumentExpectedConnectorType] = useState<
+    'S3_COMPATIBLE_OBJECT_STORAGE' | 'MOUNTED_FOLDER' | ''
+  >('S3_COMPATIBLE_OBJECT_STORAGE')
+  const [documentCleanupIndex, setDocumentCleanupIndex] = useState(true)
   const canManageHostedVerification = auth.session?.enabled ? auth.session.canManageUsers : true
   const behaviorSuiteSelected = selectedSuiteKey === DEPLOYMENT_BEHAVIOR_MARKET_READINESS_SUITE_KEY
+  const documentKnowledgeSuiteSelected = selectedSuiteKey === DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY
 
   const verificationSuiteDefinitionsQuery = useQuery({
     queryKey: ['verification-suites', 'definitions'],
@@ -412,6 +424,15 @@ export function VerificationOpsPage() {
   const manualOpsLocked = activeSelectedSuiteRun != null
   const behaviorVerificationInputsReady = !behaviorSuiteSelected
     || (behaviorTargetProfileId.length > 0 && behaviorSourceArtifactId.length > 0)
+  const documentKnowledgeInputsReady = !documentKnowledgeSuiteSelected || (
+    documentDeploymentId.trim().length > 0
+    && documentDatasetId.trim().length > 0
+    && documentTextObjectReference.trim().toLowerCase().endsWith('.txt')
+    && documentTextRetrievalQuery.trim().length > 0
+    && documentJsonObjectReference.trim().toLowerCase().endsWith('.json')
+    && documentJsonRetrievalQuery.trim().length > 0
+  )
+  const selectedSuiteInputsReady = behaviorVerificationInputsReady && documentKnowledgeInputsReady
 
   const verificationRolloutsQuery = useQuery({
     queryKey: ['deployment-verification-rollouts'],
@@ -582,6 +603,18 @@ export function VerificationOpsPage() {
             sourceArtifactId: behaviorSourceArtifactId,
             environment: behaviorVerificationEnvironment,
             keepDeployment: keepBehaviorDeployment,
+          },
+        } : {}),
+        ...(documentKnowledgeSuiteSelected ? {
+          documentKnowledgeExpectations: {
+            deploymentId: documentDeploymentId.trim(),
+            datasetId: documentDatasetId.trim(),
+            textObjectReference: documentTextObjectReference.trim(),
+            textRetrievalQuery: documentTextRetrievalQuery.trim(),
+            jsonObjectReference: documentJsonObjectReference.trim(),
+            jsonRetrievalQuery: documentJsonRetrievalQuery.trim(),
+            expectedConnectorType: documentExpectedConnectorType,
+            cleanupIndex: documentCleanupIndex,
           },
         } : {}),
       })
@@ -1071,6 +1104,92 @@ export function VerificationOpsPage() {
               </Box>
             ) : null}
 
+            {documentKnowledgeSuiteSelected ? (
+              <Box component="section">
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+                  Document lifecycle candidate
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Deployment ID"
+                      value={documentDeploymentId}
+                      onChange={(event) => setDocumentDeploymentId(event.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Dataset ID"
+                      value={documentDatasetId}
+                      onChange={(event) => setDocumentDatasetId(event.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Connector"
+                      value={documentExpectedConnectorType}
+                      onChange={(event) => setDocumentExpectedConnectorType(event.target.value as typeof documentExpectedConnectorType)}
+                    >
+                      <MenuItem value="S3_COMPATIBLE_OBJECT_STORAGE">S3-compatible object storage</MenuItem>
+                      <MenuItem value="MOUNTED_FOLDER">Mounted demo folder</MenuItem>
+                      <MenuItem value="">Any reviewed connector</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Text object reference"
+                      value={documentTextObjectReference}
+                      onChange={(event) => setDocumentTextObjectReference(event.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Text retrieval query"
+                      value={documentTextRetrievalQuery}
+                      onChange={(event) => setDocumentTextRetrievalQuery(event.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="JSON object reference"
+                      value={documentJsonObjectReference}
+                      onChange={(event) => setDocumentJsonObjectReference(event.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="JSON retrieval query"
+                      value={documentJsonRetrievalQuery}
+                      onChange={(event) => setDocumentJsonRetrievalQuery(event.target.value)}
+                    />
+                  </Grid>
+                </Grid>
+                <FormControlLabel
+                  sx={{ mt: 1 }}
+                  control={(
+                    <Switch
+                      checked={documentCleanupIndex}
+                      onChange={(event) => setDocumentCleanupIndex(event.target.checked)}
+                    />
+                  )}
+                  label="Remove verified indexes after the run"
+                />
+                {!documentKnowledgeInputsReady ? (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    Select a document-enabled deployment and provide both text and JSON canary objects with retrieval queries.
+                  </Alert>
+                ) : null}
+              </Box>
+            ) : null}
+
             <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ xs: 'stretch', lg: 'center' }}>
               <FormControlLabel
                 control={(
@@ -1089,7 +1208,7 @@ export function VerificationOpsPage() {
                   selectedSuiteDefinition == null
                   || dispatchCanonicalReleaseSuiteMutation.isPending
                   || manualOpsLocked
-                  || !behaviorVerificationInputsReady
+                  || !selectedSuiteInputsReady
                 }
                 onClick={() => dispatchCanonicalReleaseSuiteMutation.mutate()}
               >

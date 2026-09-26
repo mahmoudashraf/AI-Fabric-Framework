@@ -485,6 +485,72 @@ class MarketplaceManifestServiceTest {
             .hasMessageContaining("LEGACY_ENTITY_PROPERTY_REMOVED");
     }
 
+    @Test
+    void documentDataManifestAcceptsOnlyTheBoundedCustomerStorageContract() {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(validDocumentDataManifest())
+        );
+
+        assertThat(parsed.datasets()).singleElement().satisfies(dataset -> {
+            assertThat(dataset.entityType()).isEqualTo("document");
+            assertThat(dataset.storageScope()).isEqualTo("CUSTOMER_MANAGED");
+            assertThat(dataset.sharingScope()).isEqualTo("DEPLOYMENT_ONLY");
+            assertThat(dataset.ingestionMode()).isEqualTo("EXTERNAL_DOCUMENT_STORAGE");
+            assertThat(dataset.updateStrategy()).isEqualTo("VERSIONED_REPLACE");
+            assertThat(dataset.connectorType()).isEqualTo("S3_COMPATIBLE_OBJECT_STORAGE");
+            assertThat(dataset.connectionRefField()).isEqualTo("documentStorageBindingRef");
+            assertThat(dataset.sourceConnector().path("deleteSourceOnRemoval").asBoolean()).isFalse();
+            assertThat(dataset.documentPolicy().path("maxSourceBytes").asLong()).isEqualTo(1_048_576L);
+        });
+    }
+
+    @Test
+    void documentDataManifestRejectsWriteAuthorityAndStaticConnectorEndpoint() throws Exception {
+        ObjectNode writeManifest = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
+        ObjectNode connector = (ObjectNode) writeManifest.path("contributions").path("datasets").get(0)
+            .path("sourceConnector");
+        connector.withArray("allowedOperations").add("DELETE");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(writeManifest))
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("only LIST, READ, and HEAD");
+
+        ObjectNode endpointManifest = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
+        ((ObjectNode) endpointManifest.path("contributions").path("datasets").get(0).path("sourceConnector"))
+            .put("endpoint", "https://storage.example");
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(endpointManifest))
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("unsupported field: endpoint");
+    }
+
+    @Test
+    void documentDataManifestRejectsProtectedMetadataAndUnconfirmedIndexing() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
+        ObjectNode policy = (ObjectNode) manifest.path("contributions").path("datasets").get(0)
+            .path("documentPolicy");
+        policy.withArray("allowedMetadataKeys").add("sourceVersion");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(manifest))
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("invalid or protected key");
+
+        ObjectNode noConfirmation = (ObjectNode) objectMapper.readTree(validDocumentDataManifest());
+        ((ObjectNode) noConfirmation.path("contributions").path("datasets").get(0).path("documentPolicy"))
+            .put("initialIndexRequiresConfirmation", false);
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(noConfirmation))
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("explicit initial indexing confirmation");
+    }
+
     private MarketplacePluginEntity actionPlugin() {
         MarketplacePluginEntity plugin = new MarketplacePluginEntity();
         plugin.setId("mkp-action-test");
@@ -647,6 +713,100 @@ class MarketplaceManifestServiceTest {
                     "datasetRef": "policy-seed",
                     "entityType": "support-policy",
                     "attributionLabel": "Policy data"
+                  }
+                ]
+              }
+            }
+            """;
+    }
+
+    private String validDocumentDataManifest() {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "DATA",
+              "compatibility": {"requiredCapabilities": ["knowledgeSources"]},
+              "pricing": {"pricingModel": "FREE"},
+              "installForm": [
+                {"id": "documentStorageBindingRef", "label": "Binding", "type": "text", "required": true}
+              ],
+              "permissions": {
+                "contributesKnowledgeSources": true,
+                "requiresSharedDatasetAccess": false
+              },
+              "contributions": {
+                "entityConfig": {
+                  "ai-entities": {
+                    "document": {
+                      "indexing": {"enabled": true, "max-characters": 8000},
+                      "analysis": {"enabled": false, "after": []},
+                      "searchable-fields": [
+                        {
+                          "name": "content",
+                          "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                          "preprocessing": "CLEAN",
+                          "max-length": 8000,
+                          "priority": 100,
+                          "required": true
+                        }
+                      ],
+                      "metadata-fields": [
+                        {
+                          "name": "tenantId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 100,
+                          "required": true,
+                          "sanitize-pii": false
+                        }
+                      ]
+                    }
+                  }
+                },
+                "datasets": [
+                  {
+                    "datasetId": "document-knowledge",
+                    "entityType": "document",
+                    "storageScope": "CUSTOMER_MANAGED",
+                    "sharingScope": "DEPLOYMENT_ONLY",
+                    "ingestionMode": "EXTERNAL_DOCUMENT_STORAGE",
+                    "updateStrategy": "VERSIONED_REPLACE",
+                    "handleTemplate": "documents/{deploymentId}/document-knowledge",
+                    "sourceConnector": {
+                      "connectorType": "S3_COMPATIBLE_OBJECT_STORAGE",
+                      "storageOwnership": "CUSTOMER_MANAGED",
+                      "bindingRefField": "documentStorageBindingRef",
+                      "allowedOperations": ["LIST", "READ", "HEAD"],
+                      "deleteSourceOnRemoval": false
+                    },
+                    "documentPolicy": {
+                      "allowedMediaTypes": ["text/plain", "application/json"],
+                      "allowedExtensions": [".txt", ".json"],
+                      "jsonContentKeys": ["content", "text", "body"],
+                      "maxSourceBytes": 1048576,
+                      "maxSources": 100,
+                      "maxTotalIndexedBytes": 104857600,
+                      "maxChunksPerSource": 100,
+                      "maxChunkCharacters": 8000,
+                      "maxTotalCharacters": 250000,
+                      "previewMaxChunks": 10,
+                      "previewMaxCharactersPerChunk": 500,
+                      "evidenceRetentionDays": 30,
+                      "commandRetentionDays": 30,
+                      "retentionBatchSize": 100,
+                      "allowedMetadataKeys": ["originalFilename", "locale", "sourceCategory"],
+                      "initialIndexRequiresConfirmation": true,
+                      "trustedAutoIndexingAllowed": false
+                    }
+                  }
+                ],
+                "knowledgeSources": [
+                  {
+                    "sourceType": "deployment-private-vector",
+                    "sourceKey": "document-knowledge",
+                    "datasetRef": "document-knowledge",
+                    "entityType": "document",
+                    "attributionLabel": "Approved documents"
                   }
                 ]
               }

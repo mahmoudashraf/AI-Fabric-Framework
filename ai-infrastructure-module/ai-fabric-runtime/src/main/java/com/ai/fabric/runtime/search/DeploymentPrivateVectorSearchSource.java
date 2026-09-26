@@ -7,6 +7,7 @@ import ai.fabric.dto.RAGRequest;
 import ai.fabric.rag.VectorDatabaseService;
 import ai.fabric.rag.source.ResolvedKnowledgeSource;
 import ai.fabric.rag.source.SearchSource;
+import com.ai.fabric.runtime.documents.DocumentActiveVersionFilter;
 
 import java.util.List;
 
@@ -15,13 +16,22 @@ final class DeploymentPrivateVectorSearchSource implements SearchSource {
     private final ResolvedKnowledgeSource source;
     private final AISearchService searchService;
     private final VectorDatabaseService vectorDatabaseService;
+    private final DocumentActiveVersionFilter activeVersionFilter;
 
     DeploymentPrivateVectorSearchSource(ResolvedKnowledgeSource source,
                                         AISearchService searchService,
                                         VectorDatabaseService vectorDatabaseService) {
+        this(source, searchService, vectorDatabaseService, null);
+    }
+
+    DeploymentPrivateVectorSearchSource(ResolvedKnowledgeSource source,
+                                        AISearchService searchService,
+                                        VectorDatabaseService vectorDatabaseService,
+                                        DocumentActiveVersionFilter activeVersionFilter) {
         this.source = source;
         this.searchService = searchService;
         this.vectorDatabaseService = vectorDatabaseService;
+        this.activeVersionFilter = activeVersionFilter;
     }
 
     @Override
@@ -53,7 +63,12 @@ final class DeploymentPrivateVectorSearchSource implements SearchSource {
                 .build();
         }
         AISearchResponse response = executeSearch(queryVector, ragRequest, scopedRequest);
-        return SearchSourceResultSupport.filterAndDecorate(response, source, source.getFilters());
+        return SearchSourceResultSupport.filterAndDecorate(
+            response,
+            source,
+            source.getFilters(),
+            activeVersionFilter == null ? ignored -> true : activeVersionFilter::accepts
+        );
     }
 
     private AISearchResponse executeSearch(List<Double> queryVector, RAGRequest ragRequest, AISearchRequest scopedRequest) {

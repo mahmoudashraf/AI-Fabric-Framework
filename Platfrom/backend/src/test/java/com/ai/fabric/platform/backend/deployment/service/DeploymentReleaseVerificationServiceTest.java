@@ -36,10 +36,12 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -156,7 +158,7 @@ class DeploymentReleaseVerificationServiceTest {
             DeploymentVerificationRunEntity run = service.verify(deployment, version, release, "POST_DEPLOY");
 
             assertThat(run.getStatus()).isEqualTo("PASSED");
-            assertThat(run.getSummaryMessage()).isEqualTo("28 passed, 0 failed, 1 skipped");
+            assertThat(run.getSummaryMessage()).isEqualTo("28 passed, 0 failed, 2 skipped");
 
             JsonNode checks = objectMapper.readTree(run.getChecksJson());
             Map<String, String> statuses = StreamSupport.stream(checks.spliterator(), false)
@@ -167,7 +169,7 @@ class DeploymentReleaseVerificationServiceTest {
                     LinkedHashMap::new
                 ));
 
-            assertThat(statuses).hasSize(29);
+            assertThat(statuses).hasSize(30);
             assertThat(statuses.values()).contains("SKIPPED");
             assertThat(statuses)
                 .containsEntry("runtime_admin_overview_http_probe", "PASSED")
@@ -184,6 +186,7 @@ class DeploymentReleaseVerificationServiceTest {
                 .containsEntry("connector_config_matches_expected", "PASSED")
                 .containsEntry("connector_actions_match_expected", "PASSED")
                 .containsEntry("connector_authz_configuration_matches_expected", "PASSED")
+                .containsEntry("document_source_connector_ready", "SKIPPED")
                 .containsEntry("marketplace_dataset_sync_matches_expected", "SKIPPED")
                 .containsEntry("vectorization_control_plane_ready", "PASSED")
                 .containsEntry("vectorization_runner_registration_ready", "PASSED")
@@ -451,6 +454,90 @@ class DeploymentReleaseVerificationServiceTest {
             assertThat(checkStatus(run, "connector_authz_configuration_matches_expected")).isEqualTo("SKIPPED");
             assertThat(checkStatus(run, "connector_actions_overview_http_probe")).isEqualTo("SKIPPED");
             assertThat(checkStatus(run, "connector_actions_match_expected")).isEqualTo("SKIPPED");
+        } finally {
+            runtimeServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyRequiresReadyDocumentConnectorWithExactReadOnlyScopeAndBinding() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        AtomicReference<JsonNode> assertionClaims = new AtomicReference<>();
+        try {
+            DeploymentArtifactBundleSummary artifacts = artifactBundle();
+            registerRuntimeOnlyImageHandlers(runtimeServer, artifacts);
+            registerDocumentConnectorStatusHandler(
+                runtimeServer,
+                true,
+                "S3_COMPATIBLE_OBJECT_STORAGE",
+                "documents-primary",
+                assertionClaims
+            );
+            runtimeServer.start();
+
+            PlatformSecretService platformSecretService = runtimePrivateSecrets();
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            DeploymentReleaseVerificationService service = releaseVerificationService(
+                platformSecretService,
+                artifactService
+            );
+
+            String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment(runtimeBaseUrl, runtimeBaseUrl),
+                documentEnabledRuntimeOnlyVersion(),
+                runtimeOnlyImageRelease(),
+                "POST_DEPLOY"
+            );
+
+            assertThat(run.getStatus()).isEqualTo("PASSED");
+            assertThat(checkStatus(run, "document_source_connector_ready")).isEqualTo("PASSED");
+            assertThat(assertionClaims.get()).isNotNull();
+            assertThat(assertionClaims.get().path("iss").asText())
+                .isEqualTo("platform-document-release-verification");
+            assertThat(StreamSupport.stream(assertionClaims.get().path("scopes").spliterator(), false)
+                .map(JsonNode::asText)
+                .toList())
+                .containsExactly(RuntimePrivateAccessSupport.SCOPE_DOCUMENTS_READ);
+        } finally {
+            runtimeServer.stop(0);
+        }
+    }
+
+    @Test
+    void verifyFailsDocumentConnectorReadinessWhenImmutableBindingDoesNotMatch() throws Exception {
+        HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
+        try {
+            DeploymentArtifactBundleSummary artifacts = artifactBundle();
+            registerRuntimeOnlyImageHandlers(runtimeServer, artifacts);
+            registerDocumentConnectorStatusHandler(
+                runtimeServer,
+                true,
+                "S3_COMPATIBLE_OBJECT_STORAGE",
+                "wrong-binding",
+                new AtomicReference<>()
+            );
+            runtimeServer.start();
+
+            PlatformSecretService platformSecretService = runtimePrivateSecrets();
+            DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+            when(artifactService.toBundleSummary(any())).thenReturn(artifacts);
+            DeploymentReleaseVerificationService service = releaseVerificationService(
+                platformSecretService,
+                artifactService
+            );
+
+            String runtimeBaseUrl = "http://127.0.0.1:" + runtimeServer.getAddress().getPort();
+            DeploymentVerificationRunEntity run = service.verify(
+                deployment(runtimeBaseUrl, runtimeBaseUrl),
+                documentEnabledRuntimeOnlyVersion(),
+                runtimeOnlyImageRelease(),
+                "POST_DEPLOY"
+            );
+
+            assertThat(run.getStatus()).isEqualTo("FAILED");
+            assertThat(checkStatus(run, "document_source_connector_ready")).isEqualTo("FAILED");
         } finally {
             runtimeServer.stop(0);
         }
@@ -2574,6 +2661,58 @@ class DeploymentReleaseVerificationServiceTest {
         );
     }
 
+    private void registerDocumentConnectorStatusHandler(HttpServer server,
+                                                        boolean ready,
+                                                        String connectorType,
+                                                        String bindingRef,
+                                                        AtomicReference<JsonNode> assertionClaims) {
+        server.createContext("/api/documents/source-connector/status", exchange -> {
+            String trustedBackend = exchange.getRequestHeaders()
+                .getFirst(RuntimePrivateAccessSupport.TRUSTED_BACKEND_API_KEY_HEADER);
+            String authorization = exchange.getRequestHeaders()
+                .getFirst(RuntimePrivateAccessSupport.PRIVATE_AUTHORIZATION_HEADER);
+            if (!"trusted-backend-secret".equals(trustedBackend)
+                || authorization == null
+                || !authorization.startsWith("Bearer rpa1.")) {
+                writeJson(exchange, 401, """
+                    {"success":false,"message":"Unauthorized"}
+                    """);
+                return;
+            }
+            try {
+                String[] tokenParts = authorization.substring("Bearer ".length()).split("\\.");
+                if (tokenParts.length != 3) {
+                    throw new IllegalArgumentException("Malformed private assertion");
+                }
+                JsonNode claims = objectMapper.readTree(Base64.getUrlDecoder().decode(tokenParts[1]));
+                assertionClaims.set(claims);
+                List<String> scopes = StreamSupport.stream(claims.path("scopes").spliterator(), false)
+                    .map(JsonNode::asText)
+                    .toList();
+                if (!scopes.equals(List.of(RuntimePrivateAccessSupport.SCOPE_DOCUMENTS_READ))) {
+                    writeJson(exchange, 403, """
+                        {"success":false,"message":"Insufficient scope"}
+                        """);
+                    return;
+                }
+            } catch (Exception ex) {
+                writeJson(exchange, 401, """
+                    {"success":false,"message":"Invalid private assertion"}
+                    """);
+                return;
+            }
+            writeJson(exchange, 200, """
+                {
+                  "ready": %s,
+                  "connectorType": "%s",
+                  "bindingRef": "%s",
+                  "scopeDigest": "scope-digest-123",
+                  "errorCode": ""
+                }
+                """.formatted(ready, connectorType, bindingRef));
+        });
+    }
+
     private void registerRuntimeOnlyImageHandlers(HttpServer server, DeploymentArtifactBundleSummary artifacts) {
         registerRuntimeHandlers(server, artifacts);
         server.removeContext("/api/admin/overview");
@@ -2600,7 +2739,7 @@ class DeploymentReleaseVerificationServiceTest {
                         "compositionHash": "",
                         "specialistChainsEnabled": false
                       },
-                      "runtimeMigrations": {"appliedMigrationIds": []},
+                      "runtimeMigrations": {"appliedMigrationIds": ["loomai-document-ingestion-v1"]},
                       "runtimeCapabilityManifestHash": "",
                       "productSourceCommit": "",
                       "aifabricEntities": {
@@ -2714,7 +2853,7 @@ class DeploymentReleaseVerificationServiceTest {
                         "compositionHash": "",
                         "specialistChainsEnabled": false
                       },
-                      "runtimeMigrations": {"appliedMigrationIds": []},
+                      "runtimeMigrations": {"appliedMigrationIds": ["loomai-document-ingestion-v1"]},
                       "runtimeCapabilityManifestHash": "",
                       "productSourceCommit": "",
                       "aifabricEntities": {
@@ -3087,6 +3226,53 @@ class DeploymentReleaseVerificationServiceTest {
         return deployment;
     }
 
+    private DeploymentArtifactBundleSummary artifactBundle() {
+        return new DeploymentArtifactBundleSummary(
+            "dep-123",
+            "ver-123",
+            "v1",
+            "hash-123",
+            "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-actions.yml",
+            "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-entity-config.yml",
+            "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/actions-routing.yml",
+            "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/ai-prompt-config.json",
+            "https://platform.example/api/deployments/dep-123/versions/ver-123/artifacts/deployment-manifest.json"
+        );
+    }
+
+    private PlatformSecretService runtimePrivateSecrets() {
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+        when(platformSecretService.resolveSecret(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
+            .thenReturn("trusted-backend-secret");
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
+            .thenReturn("private-assertion-secret");
+        when(platformSecretService.isSecretPresent(RuntimePrivateAccessSupport.TRUSTED_BACKEND_SECRET_NAME))
+            .thenReturn(true);
+        when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY"))
+            .thenReturn(true);
+        return platformSecretService;
+    }
+
+    private DeploymentReleaseVerificationService releaseVerificationService(
+        PlatformSecretService platformSecretService,
+        DeploymentArtifactService artifactService
+    ) {
+        DeploymentVectorizationVerificationService vectorizationVerificationService =
+            mock(DeploymentVectorizationVerificationService.class);
+        when(vectorizationVerificationService.build(any(), any())).thenReturn(notConfiguredVectorizationSummary());
+        return new DeploymentReleaseVerificationService(
+            objectMapper,
+            verificationProperties(Duration.ofMillis(100)),
+            platformSecretService,
+            new DeploymentConfigCompiler(objectMapper),
+            artifactService,
+            mock(RailwayPreflightService.class),
+            mock(DeploymentProviderConnectivityService.class),
+            mock(DeploymentTenantScopedVectorService.class),
+            vectorizationVerificationService
+        );
+    }
+
     private DeploymentVersionEntity version() {
         return version("""
             {
@@ -3253,6 +3439,28 @@ class DeploymentReleaseVerificationServiceTest {
             """);
         version.setKnowledgeSourceConfigJson(null);
         version.setShellConfigJson(null);
+        return version;
+    }
+
+    private DeploymentVersionEntity documentEnabledRuntimeOnlyVersion() {
+        DeploymentVersionEntity version = runtimeOnlyImageVersion();
+        version.setMarketplaceDatasetConfigJson("""
+            {
+              "contractVersion": "MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets": [
+                {
+                  "datasetId": "documents-primary",
+                  "handleRef": "documents-primary",
+                  "datasetHash": "document-dataset-hash-123",
+                  "ingestionMode": "EXTERNAL_DOCUMENT_STORAGE",
+                  "sourceConnector": {
+                    "connectorType": "S3_COMPATIBLE_OBJECT_STORAGE",
+                    "bindingRef": "documents-primary"
+                  }
+                }
+              ]
+            }
+            """);
         return version;
     }
 

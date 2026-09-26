@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
 @Service
 public class MarketplaceDatasetSyncService {
 
+    private static final String TENANT_SHARED_SCOPE_KEY = "__TENANT_SHARED__";
+
     private static final String DATASET_CONTRACT_VERSION = "MARKETPLACE_DATASET_CONFIG_V1";
     private static final String STATUS_READY = "READY";
     private static final String STATUS_FAILED = "FAILED";
@@ -156,6 +158,9 @@ public class MarketplaceDatasetSyncService {
                                DeploymentReleaseEntity release,
                                ObjectNode dataset,
                                SyncTrigger trigger) {
+        if ("EXTERNAL_DOCUMENT_STORAGE".equals(requiredText(dataset, "ingestionMode"))) {
+            return bindExternalDocumentDataset(deployment, release, dataset, trigger);
+        }
         boolean systemManaged = isSystemManagedDataset(dataset);
         String installId = systemManaged ? text(dataset, "marketplaceInstallId") : requiredText(dataset, "marketplaceInstallId");
         String pluginId = requiredText(dataset, "marketplacePluginId");
@@ -189,6 +194,7 @@ public class MarketplaceDatasetSyncService {
         handle.setTenantId(deployment.getTenantId());
         handle.setStorageScope(requiredText(dataset, "storageScope"));
         handle.setSharingScope(requiredText(dataset, "sharingScope"));
+        handle.setScopeKey(TENANT_SHARED_SCOPE_KEY);
         handle.setHandleRef(handleRef);
         handle.setEntityType(entityType);
         handle.setUpdatedAt(Instant.now());
@@ -276,6 +282,73 @@ public class MarketplaceDatasetSyncService {
         return STATUS_READY;
     }
 
+    private String bindExternalDocumentDataset(DeploymentEntity deployment,
+                                               DeploymentReleaseEntity release,
+                                               ObjectNode dataset,
+                                               SyncTrigger trigger) {
+        boolean systemManaged = isSystemManagedDataset(dataset);
+        String installId = systemManaged ? text(dataset, "marketplaceInstallId") : requiredText(dataset, "marketplaceInstallId");
+        String pluginId = requiredText(dataset, "marketplacePluginId");
+        String pluginVersionId = requiredPluginVersionId(dataset, installId, systemManaged);
+        String datasetId = requiredText(dataset, "datasetId");
+        String handleRef = requiredText(dataset, "handleRef");
+        String datasetHash = requiredText(dataset, "datasetHash");
+
+        final DeploymentMarketplacePluginInstallEntity install;
+        final MarketplacePluginDatasetEntity pluginDataset;
+        if (systemManaged) {
+            install = null;
+            pluginDataset = null;
+        } else {
+            install = installRepository.findById(installId)
+                .orElseThrow(() -> new IllegalStateException("Marketplace dataset references unknown install: " + installId));
+            pluginDataset = pluginDatasetRepository.findByPluginVersionIdAndDatasetId(pluginVersionId, datasetId)
+                .orElseThrow(() -> new IllegalStateException(
+                    "Marketplace document dataset definition missing for install " + installId + " dataset " + datasetId
+                ));
+        }
+
+        MarketplaceDatasetHandleEntity handle = datasetHandleRepository
+            .findByPluginIdAndTenantIdAndDatasetIdAndScopeKey(
+                pluginId,
+                deployment.getTenantId(),
+                datasetId,
+                deployment.getId()
+            )
+            .orElseGet(() -> systemManaged
+                ? newSystemManagedHandle(deployment, dataset, pluginId, pluginVersionId)
+                : newHandle(deployment, install, pluginDataset));
+        handle.setPluginId(pluginId);
+        handle.setPluginVersionId(pluginVersionId);
+        handle.setDeploymentId(deployment.getId());
+        handle.setCustomerId(deployment.getCustomerId());
+        handle.setTenantId(deployment.getTenantId());
+        handle.setStorageScope(requiredText(dataset, "storageScope"));
+        handle.setSharingScope(requiredText(dataset, "sharingScope"));
+        handle.setScopeKey(deployment.getId());
+        handle.setHandleRef(handleRef);
+        handle.setEntityType(requiredText(dataset, "entityType"));
+        handle.setDatasetHash(datasetHash);
+        handle.setStatus(STATUS_READY);
+        handle.setLastSyncAt(Instant.now());
+        handle.setLastError(null);
+        handle.setUpdatedAt(Instant.now());
+        datasetHandleRepository.save(handle);
+
+        MarketplaceDatasetSyncRunEntity run = newRun(handle, deployment, release, dataset, STATUS_SKIPPED);
+        run.setDocumentCount(0);
+        run.setStartedAt(Instant.now());
+        run.setCompletedAt(Instant.now());
+        run.setDetailsJson(writeJson(Map.of(
+            "reason", "customer-owned source is indexed inside the deployment runtime",
+            "sourceBytesProcessedByPlatform", false,
+            "handleRef", handleRef,
+            "trigger", trigger.name()
+        )));
+        syncRunRepository.save(run);
+        return STATUS_SKIPPED;
+    }
+
     private boolean isSharedVectorRootCurrent(DeploymentEntity deployment,
                                               MarketplaceDatasetHandleEntity handle,
                                               ObjectNode dataset) {
@@ -305,11 +378,20 @@ public class MarketplaceDatasetSyncService {
         String datasetId = text(dataset, "datasetId");
         String pluginId = text(dataset, "marketplacePluginId");
         String pluginVersionId = requiredPluginVersionId(dataset, installId, isSystemManagedDataset(dataset));
-        MarketplaceDatasetHandleEntity handle = datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId(
+        boolean deploymentOnly = "DEPLOYMENT_ONLY".equalsIgnoreCase(text(dataset, "sharingScope"));
+        Optional<MarketplaceDatasetHandleEntity> existingHandle = deploymentOnly
+            ? datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetIdAndScopeKey(
+                pluginId,
+                deployment.getTenantId(),
+                datasetId,
+                deployment.getId()
+            )
+            : datasetHandleRepository.findByPluginIdAndTenantIdAndDatasetId(
                 pluginId,
                 deployment.getTenantId(),
                 datasetId
-            )
+            );
+        MarketplaceDatasetHandleEntity handle = existingHandle
             .orElseGet(() -> {
                 MarketplaceDatasetHandleEntity created = new MarketplaceDatasetHandleEntity();
                 created.setId("mdh-" + UUID.randomUUID().toString().substring(0, 8));
@@ -321,6 +403,7 @@ public class MarketplaceDatasetSyncService {
                 created.setTenantId(deployment.getTenantId());
                 created.setStorageScope(text(dataset, "storageScope"));
                 created.setSharingScope(text(dataset, "sharingScope"));
+                created.setScopeKey(deploymentOnly ? deployment.getId() : TENANT_SHARED_SCOPE_KEY);
                 created.setHandleRef(text(dataset, "handleRef"));
                 created.setEntityType(text(dataset, "entityType"));
                 created.setCreatedAt(Instant.now());
@@ -354,6 +437,9 @@ public class MarketplaceDatasetSyncService {
         handle.setTenantId(deployment.getTenantId());
         handle.setStorageScope(pluginDataset.getStorageScope());
         handle.setSharingScope(pluginDataset.getSharingScope());
+        handle.setScopeKey("DEPLOYMENT_ONLY".equalsIgnoreCase(pluginDataset.getSharingScope())
+            ? deployment.getId()
+            : TENANT_SHARED_SCOPE_KEY);
         handle.setEntityType(pluginDataset.getEntityType());
         handle.setStatus("PENDING");
         handle.setDatasetHash(pluginDataset.getDatasetHash());
@@ -376,6 +462,9 @@ public class MarketplaceDatasetSyncService {
         handle.setTenantId(deployment.getTenantId());
         handle.setStorageScope(requiredText(dataset, "storageScope"));
         handle.setSharingScope(requiredText(dataset, "sharingScope"));
+        handle.setScopeKey("DEPLOYMENT_ONLY".equalsIgnoreCase(text(dataset, "sharingScope"))
+            ? deployment.getId()
+            : TENANT_SHARED_SCOPE_KEY);
         handle.setHandleRef(requiredText(dataset, "handleRef"));
         handle.setEntityType(requiredText(dataset, "entityType"));
         handle.setStatus("PENDING");

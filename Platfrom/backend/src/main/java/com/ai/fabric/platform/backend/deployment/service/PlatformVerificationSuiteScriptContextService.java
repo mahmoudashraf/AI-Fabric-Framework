@@ -31,6 +31,7 @@ public class PlatformVerificationSuiteScriptContextService {
     public static final String SCRIPT_THINKER_RESOLVER_READINESS = "thinker-resolver-readiness";
     public static final String SCRIPT_COOLIFY_PROVIDER_VERIFICATION = "coolify-provider-verification";
     public static final String SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS = "deployment-behavior-market-readiness";
+    public static final String SCRIPT_DOCUMENT_KNOWLEDGE_OPERATIONS = "document-knowledge-operations-v1";
 
     private static final String PLATFORM_OPERATOR_API_KEY_SECRET_NAME = "PLATFORM_OPERATOR_API_KEY";
     private static final String PLATFORM_ADMIN_API_KEY_SECRET_NAME = "PLATFORM_ADMIN_API_KEY";
@@ -81,6 +82,7 @@ public class PlatformVerificationSuiteScriptContextService {
             case SCRIPT_THINKER_RESOLVER_READINESS -> buildThinkerResolverReadiness();
             case SCRIPT_COOLIFY_PROVIDER_VERIFICATION -> buildCoolifyProviderVerification();
             case SCRIPT_DEPLOYMENT_BEHAVIOR_MARKET_READINESS -> buildDeploymentBehaviorMarketReadiness();
+            case SCRIPT_DOCUMENT_KNOWLEDGE_OPERATIONS -> buildDocumentKnowledgeOperations();
             default -> throw new ResponseStatusException(BAD_REQUEST, "Unsupported verification suite script: " + scriptKey);
         };
         if (environmentOverrides == null || environmentOverrides.isEmpty()) {
@@ -392,6 +394,20 @@ public class PlatformVerificationSuiteScriptContextService {
         );
     }
 
+    private PlatformVerificationScriptContextSummary buildDocumentKnowledgeOperations() {
+        Map<String, String> environment = basePlatformEnvironment();
+        environment.put("DOCUMENT_RECONCILE_ATTEMPTS", "60");
+        environment.put("DOCUMENT_RECONCILE_SLEEP_SECONDS", "2");
+
+        return new PlatformVerificationScriptContextSummary(
+            "scripts/verify-document-knowledge-operations.sh",
+            environment,
+            basePlatformAdminSecretEnvironment(),
+            Duration.ofMinutes(20),
+            40_000
+        );
+    }
+
     private Map<String, String> basePlatformEnvironment() {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("PLATFORM_BASE_URL", requireValue(
@@ -452,7 +468,7 @@ public class PlatformVerificationSuiteScriptContextService {
         }
         throw new ResponseStatusException(
             BAD_REQUEST,
-            "Partner Enablement verification requires PLATFORM_ADMIN_API_KEY or bootstrap admin login for partner privilege proof."
+            "Platform admin verification requires PLATFORM_ADMIN_API_KEY or bootstrap admin login."
         );
     }
 

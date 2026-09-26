@@ -19,6 +19,10 @@ public final class RuntimeScopeCatalog {
         "review:action-proposals:create";
     public static final String REVIEW_TASK_VIEW = "review:tasks:view";
     public static final String REVIEW_TASK_DECIDE = "review:tasks:decide";
+    public static final String DOCUMENTS_READ = "documents:read";
+    public static final String DOCUMENTS_REGISTER = "documents:register";
+    public static final String DOCUMENTS_INDEX = "documents:index";
+    public static final String DOCUMENTS_DELETE_INDEX = "documents:delete-index";
 
     private RuntimeScopeCatalog() {
     }

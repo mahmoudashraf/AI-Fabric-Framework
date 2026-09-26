@@ -53,6 +53,12 @@ public class MarketplacePluginDatasetEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String connectorConfigJson;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String sourceConnectorConfigJson = "{}";
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String documentPolicyJson = "{}";
+
     @Column(nullable = false, length = 128)
     private String datasetHash;
 
@@ -172,6 +178,22 @@ public class MarketplacePluginDatasetEntity {
 
     public void setConnectorConfigJson(String connectorConfigJson) {
         this.connectorConfigJson = connectorConfigJson;
+    }
+
+    public String getSourceConnectorConfigJson() {
+        return sourceConnectorConfigJson;
+    }
+
+    public void setSourceConnectorConfigJson(String sourceConnectorConfigJson) {
+        this.sourceConnectorConfigJson = sourceConnectorConfigJson;
+    }
+
+    public String getDocumentPolicyJson() {
+        return documentPolicyJson;
+    }
+
+    public void setDocumentPolicyJson(String documentPolicyJson) {
+        this.documentPolicyJson = documentPolicyJson;
     }
 
     public String getDatasetHash() {

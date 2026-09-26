@@ -124,10 +124,14 @@ class DeploymentInfrastructureCleanupServiceTest {
         release.setProvisioningDetailsJson("{}");
         DeploymentProviderResourceHandleEntity runtimeHandle = providerHandle("dprh-runtime", "APPLICATION");
         DeploymentProviderResourceHandleEntity connectorHandle = providerHandle("dprh-connector", "CONNECTOR_APPLICATION");
+        DeploymentProviderResourceHandleEntity documentBinding = providerHandle(
+            "dsh-documents",
+            DeploymentDocumentStorageBindingService.RESOURCE_KIND
+        );
 
         when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
         when(providerResourceHandleRepository.findByDeploymentIdOrderByUpdatedAtDesc("dep-cleanup"))
-            .thenReturn(List.of(runtimeHandle, connectorHandle));
+            .thenReturn(List.of(runtimeHandle, connectorHandle, documentBinding));
         when(providerRegistry.require(DeploymentProviderType.COOLIFY)).thenReturn(coolifyProvider);
 
         DeploymentInfrastructureCleanupService.DeploymentInfrastructureCleanupResult result =
@@ -137,6 +141,7 @@ class DeploymentInfrastructureCleanupServiceTest {
             .containsExactly("dprh-runtime", "dprh-connector");
         verify(coolifyProvider).delete(runtimeHandle, "retire deployment");
         verify(coolifyProvider).delete(connectorHandle, "retire deployment");
+        verify(coolifyProvider, never()).delete(documentBinding, "retire deployment");
         verify(railwayGraphqlClient, never()).deleteProject(any());
     }
 

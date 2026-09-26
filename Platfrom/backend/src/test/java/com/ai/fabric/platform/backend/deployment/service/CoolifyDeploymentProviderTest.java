@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -46,6 +47,57 @@ import static org.mockito.Mockito.when;
 class CoolifyDeploymentProviderTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void reconcilesMountedDocumentStorageOnlyForTheExplicitDemoConnector() {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            objectMapper
+        );
+        DeploymentEntity deployment = deployment();
+        DeploymentTargetProfileEntity profile = profile();
+        CoolifyConnection connection = connection();
+        CoolifyApplicationSummary runtime = new CoolifyApplicationSummary(
+            "runtime-uuid",
+            "runtime-dep-123",
+            "https://runtime.example",
+            "running",
+            null,
+            null,
+            objectMapper.createObjectNode()
+        );
+        RailwayServicePlanSummary mountedPlan = new RailwayServicePlanSummary(
+            "runtime",
+            "/",
+            "/Dockerfile",
+            null,
+            List.of(new RailwayEnvVarSummary(
+                "LOOMAI_DOCUMENTS_CONNECTOR_TYPE",
+                "MOUNTED_FOLDER"
+            ))
+        );
+
+        provider.reconcileMountedDocumentSourceStorage(connection, deployment, profile, runtime, mountedPlan);
+
+        verify(coolifyApiClient).reconcilePersistentDirectoryStorage(
+            connection,
+            "runtime-uuid",
+            "loomai-documents-dep-123-dtp-coolify-staging",
+            "/srv/loomai/document-sources/dep-123/dtp-coolify-staging",
+            "/app/document-sources"
+        );
+    }
 
     @Test
     void confirmsApplicationIsAbsentBeforeReportingDeleteComplete() {
@@ -184,7 +236,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -285,7 +337,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -384,7 +436,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of(new CoolifyProjectSummary(
             "customer-project",
@@ -495,7 +547,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -617,7 +669,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-production"),
@@ -766,7 +818,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-production")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-production"),
@@ -877,7 +929,7 @@ class CoolifyDeploymentProviderTest {
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(managedVectorProvisioningService.requiresProvisioning(any())).thenReturn(true);
         when(managedVectorProvisioningService.ensureProvisioned(any(), any())).thenReturn(managedVectorResult);
-        when(railwayProvisioningPlanService.buildPlan(any(), any(), eq(effectiveProviderConfig))).thenReturn(plan);
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), eq(effectiveProviderConfig), anyString())).thenReturn(plan);
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -912,7 +964,7 @@ class CoolifyDeploymentProviderTest {
 
         ProvisioningResult result = provider.provision(deployment(), version(), release, ProvisioningProgressTracker.noop());
 
-        verify(railwayProvisioningPlanService).buildPlan(any(), any(), eq(effectiveProviderConfig));
+        verify(railwayProvisioningPlanService).buildPlan(any(), any(), eq(effectiveProviderConfig), anyString());
         verify(managedVectorResourceService).syncProvisionedResources(any(), any(), any(), eq(managedVectorResult));
         ArgumentCaptor<List<CoolifyEnvVar>> env = ArgumentCaptor.forClass(List.class);
         verify(coolifyApiClient).updateEnvironmentVariables(eq(connection), eq("app-uuid"), env.capture());
@@ -982,7 +1034,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of());
         when(coolifyApiClient.createProject(eq(connection), eq("customer-shopping-companion-test"), anyString()))
@@ -1115,7 +1167,7 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
         when(sourceArtifactService.require("dsa-123")).thenReturn(artifact());
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlan());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString())).thenReturn(railwayPlan());
         when(platformCustomerRepository.findById("customer")).thenReturn(Optional.of(customer));
         when(coolifyApiClient.listProjects(connection)).thenReturn(List.of());
         when(coolifyApiClient.createProject(eq(connection), eq("customer-acme"), anyString()))
@@ -1228,7 +1280,8 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlanWithConnectorAndSecrets());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+            .thenReturn(railwayPlanWithConnectorAndSecrets());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),
@@ -1398,7 +1451,8 @@ class CoolifyDeploymentProviderTest {
         when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
         when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
         when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
-        when(railwayProvisioningPlanService.buildPlan(any(), any())).thenReturn(railwayPlanWithConnectorRunnerAndSecrets());
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+            .thenReturn(railwayPlanWithConnectorRunnerAndSecrets());
         when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
             eq("dep-123"),
             eq("dtp-coolify-staging"),

@@ -30,6 +30,9 @@
     "action-proposal-human-review",
     "cloudevents-ingress",
     "deployment-result-store",
+    "document-ingestion-core",
+    "document-source-connectors",
+    "document-version-lifecycle",
     "jdbc-review-state",
     "jdbc-specialist-chain-state",
     "smart-brain-durable-operations",
@@ -50,6 +53,15 @@
     "review-outcome",
     "trigger-submit",
     "session-management"
+    ,"document-connector-status"
+    ,"document-source-discovery"
+    ,"document-source-register-refresh"
+    ,"document-source-list-detail"
+    ,"document-preview"
+    ,"document-index-reconcile"
+    ,"document-delete-index"
+    ,"document-retrieval-proof"
+    ,"document-retention-status-cleanup"
   ],
   "migrationIds": [
     "ai-action-proposal-receipt-v1",
@@ -60,12 +72,14 @@
     "loomai-smart-brain-delivery-v1",
     "loomai-smart-brain-operation-v1",
     "loomai-smart-brain-scheduler-v1"
+    ,"loomai-document-ingestion-v1"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",
     "conversational-behavior-v1",
     "human-review-action-proposal-v1",
     "smart-brain-behavior-v1"
+    ,"document-knowledge-operations-v1"
   ],
   "specialistBundles": [
     {

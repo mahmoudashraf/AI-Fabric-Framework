@@ -41,6 +41,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/approvals': 'Approvals',
   '/access': 'Access',
   '/knowledge': 'Knowledge',
+  '/document-knowledge': 'Document Knowledge',
   '/poc': 'POC',
   '/prompts': 'Prompts',
   '/providers': 'Providers',

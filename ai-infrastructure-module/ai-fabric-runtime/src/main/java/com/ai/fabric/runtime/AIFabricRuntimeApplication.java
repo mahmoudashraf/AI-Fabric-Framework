@@ -3,6 +3,7 @@ package com.ai.fabric.runtime;
 import com.ai.fabric.runtime.config.RuntimeDeploymentPromptConfigProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentKnowledgeSourceConfigProperties;
 import com.ai.fabric.runtime.config.RuntimeDeploymentShellConfigProperties;
+import com.ai.fabric.runtime.documents.DocumentKnowledgeProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -13,7 +14,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableConfigurationProperties({
     RuntimeDeploymentPromptConfigProperties.class,
     RuntimeDeploymentKnowledgeSourceConfigProperties.class,
-    RuntimeDeploymentShellConfigProperties.class
+    RuntimeDeploymentShellConfigProperties.class,
+    DocumentKnowledgeProperties.class
 })
 public class AIFabricRuntimeApplication {
 

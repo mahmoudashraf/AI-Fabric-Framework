@@ -1,6 +1,8 @@
 package com.ai.fabric.runtime;
 
 import ai.fabric.provider.onnx.ONNXAutoConfiguration;
+import ai.fabric.indexing.document.DocumentIndexingQueueAdapter;
+import ai.fabric.indexing.document.springai.SpringAiDocumentReaderFactory;
 import ai.fabric.provider.springai.SpringAiProviderAutoConfiguration;
 import ai.fabric.vector.lucene.LuceneVectorAutoConfiguration;
 import ai.fabric.vector.memory.MemoryVectorAutoConfiguration;
@@ -11,6 +13,7 @@ import ai.fabric.vector.weaviate.WeaviateVectorAutoConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.annotation.ImportCandidates;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,5 +55,12 @@ class RuntimePackagingCoverageTest {
             .isNotNull();
         assertThat(RuntimePackagingCoverageTest.class.getClassLoader().getResource("ai-curated/packs/support.yml"))
             .isNotNull();
+    }
+
+    @Test
+    void runtimeClasspathIncludesDocumentIndexingAndS3ConnectorContracts() {
+        assertThat(DocumentIndexingQueueAdapter.class).isNotNull();
+        assertThat(SpringAiDocumentReaderFactory.class).isNotNull();
+        assertThat(S3Client.class).isNotNull();
     }
 }

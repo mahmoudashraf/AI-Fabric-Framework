@@ -5,6 +5,7 @@ import com.ai.fabric.platform.backend.config.PlatformVerificationSuiteProperties
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunEntity;
 import com.ai.fabric.platform.backend.deployment.entity.PlatformVerificationSuiteRunStageEntity;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBehaviorVerificationExpectationOverrides;
+import com.ai.fabric.platform.backend.deployment.model.DocumentKnowledgeVerificationExpectationOverrides;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchRequest;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationSuiteDispatchSummary;
 import com.ai.fabric.platform.backend.deployment.model.PlatformVerificationReleaseGateSummary;
@@ -298,6 +299,71 @@ class PlatformVerificationSuiteServiceTest {
         assertThat(readinessAuditStage.getDetailsJson()).contains("ELITE");
         assertThat(readinessAuditStage.getDetailsJson()).contains("RECENT_ORDER_ONLY");
         assertThat(readinessAuditStage.getDetailsJson()).contains("comparison,contextual-pill,order-lookup,policy-strip,product-faq,product-insight");
+    }
+
+    @Test
+    void dispatchRequiresAndPersistsExactDocumentKnowledgeVerificationInputs() {
+        PlatformVerificationSuiteRunRepository runRepository = mock(PlatformVerificationSuiteRunRepository.class);
+        PlatformVerificationSuiteRunStageRepository stageRepository = mock(PlatformVerificationSuiteRunStageRepository.class);
+        PlatformVerificationSuiteExecutionService executionService = mock(PlatformVerificationSuiteExecutionService.class);
+        PlatformAuditService auditService = mock(PlatformAuditService.class);
+
+        when(runRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+        when(runRepository.existsBySuiteKeyAndStatusIn(any(), any())).thenReturn(false);
+        when(runRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stageRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PlatformVerificationSuiteService service = new PlatformVerificationSuiteService(
+            new PlatformVerificationSuiteCatalog(),
+            runRepository,
+            stageRepository,
+            executionService,
+            new PlatformVerificationSuiteProperties(Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75), Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000, "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test", "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"),
+            auditService,
+            new ObjectMapper()
+        );
+
+        assertThatThrownBy(() -> service.dispatch(
+            PlatformVerificationSuiteCatalog.DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY,
+            new PlatformVerificationSuiteDispatchRequest(false, null, null, null, null)
+        ))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("Document Knowledge verification inputs are required");
+
+        PlatformVerificationSuiteDispatchSummary summary = service.dispatch(
+            PlatformVerificationSuiteCatalog.DOCUMENT_KNOWLEDGE_OPERATIONS_SUITE_KEY,
+            new PlatformVerificationSuiteDispatchRequest(
+                false,
+                null,
+                null,
+                null,
+                new DocumentKnowledgeVerificationExpectationOverrides(
+                    "dep-documents",
+                    "dealer-documents",
+                    "verification/operating-hours.txt",
+                    "What are the Saturday opening hours?",
+                    "verification/service-policy.json",
+                    "What does the service policy cover?",
+                    "S3_COMPATIBLE_OBJECT_STORAGE",
+                    true
+                )
+            )
+        );
+
+        assertThat(summary.run().releaseBlocking()).isFalse();
+        assertThat(summary.run().stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.targetRef())
+                .isEqualTo(PlatformVerificationSuiteScriptContextService.SCRIPT_DOCUMENT_KNOWLEDGE_OPERATIONS);
+            assertThat(stage.details().path("scriptEnvironmentOverrides").path("DOCUMENT_DEPLOYMENT_ID").asText())
+                .isEqualTo("dep-documents");
+            assertThat(stage.details().path("scriptEnvironmentOverrides").path("DOCUMENT_TEXT_OBJECT_REFERENCE").asText())
+                .isEqualTo("verification/operating-hours.txt");
+            assertThat(stage.details().path("scriptEnvironmentOverrides").path("DOCUMENT_JSON_OBJECT_REFERENCE").asText())
+                .isEqualTo("verification/service-policy.json");
+            assertThat(stage.details().path("scriptEnvironmentOverrides").path("DOCUMENT_CLEANUP_INDEX").asText())
+                .isEqualTo("true");
+        });
+        verify(executionService).execute(summary.run().id(), false);
     }
 
     @Test

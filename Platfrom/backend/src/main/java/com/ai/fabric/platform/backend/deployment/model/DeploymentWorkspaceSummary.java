@@ -11,6 +11,8 @@ public record DeploymentWorkspaceSummary(
     DeploymentVerificationRunSummary latestVerificationRun,
     int versionCount,
     int releaseCount,
-    int verificationRunCount
+    int verificationRunCount,
+    boolean documentKnowledgeConfigured,
+    boolean documentKnowledgeLive
 ) {
 }

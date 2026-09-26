@@ -354,8 +354,9 @@ public class DeploymentService {
                                            DeploymentVersionEntity version,
                                            DeploymentBehaviorCatalogService.RuntimeRequirements requirements) {
         try {
+            boolean documentKnowledgeRequired = requiresDocumentKnowledge(version);
             if (artifact.capabilityManifest() == null || artifact.capabilityManifest().isEmpty()) {
-                return !requirements.capabilityManifestRequired();
+                return !requirements.capabilityManifestRequired() && !documentKnowledgeRequired;
             }
             DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
                 sourceCapabilityManifestService.normalize(artifact.capabilityManifest());
@@ -369,6 +370,9 @@ public class DeploymentService {
                 return false;
             }
             sourceCapabilityManifestService.requireSupports(artifact.capabilityManifest(), requirements);
+            if (documentKnowledgeRequired) {
+                sourceCapabilityManifestService.requireDocumentKnowledgeSupport(artifact.capabilityManifest());
+            }
             return true;
         } catch (RuntimeException ignored) {
             return false;
@@ -488,7 +492,9 @@ public class DeploymentService {
             verificationRuns.stream().findFirst().map(this::toVerificationRunSummary).orElse(null),
             versions.size(),
             releases.size(),
-            verificationRuns.size()
+            verificationRuns.size(),
+            hasExternalDocumentDataset(readJson(draft.getMarketplaceDatasetConfigJson())),
+            liveVersion != null && requiresDocumentKnowledge(liveVersion)
         );
     }
 
@@ -1662,7 +1668,8 @@ public class DeploymentService {
         DeploymentBehaviorType behaviorType = DeploymentBehaviorType.require(deployment.getBehaviorType());
         DeploymentBehaviorCatalogService.RuntimeRequirements requirements =
             deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig);
-        if (!requirements.capabilityManifestRequired()) {
+        boolean documentKnowledgeRequired = requiresDocumentKnowledge(version);
+        if (!requirements.capabilityManifestRequired() && !documentKnowledgeRequired) {
             if (!StringUtils.hasText(sourceArtifactId)) {
                 return;
             }
@@ -1694,7 +1701,7 @@ public class DeploymentService {
         String runtimeDatabaseMode = readJson(targetProfile.getResourceDefaultsJson())
             .path("runtimeDatabaseMode")
             .asText("");
-        if (!requirements.migrationIds().isEmpty()
+        if ((!requirements.migrationIds().isEmpty() || documentKnowledgeRequired)
             && !"COOLIFY_POSTGRES".equalsIgnoreCase(runtimeDatabaseMode)) {
             throw new ResponseStatusException(
                 CONFLICT,
@@ -1736,6 +1743,25 @@ public class DeploymentService {
             manifest,
             requirements
         );
+        if (documentKnowledgeRequired) {
+            sourceCapabilityManifestService.requireDocumentKnowledgeSupport(manifest);
+        }
+    }
+
+    private boolean requiresDocumentKnowledge(DeploymentVersionEntity version) {
+        return hasExternalDocumentDataset(readJson(version.getMarketplaceDatasetConfigJson()));
+    }
+
+    private boolean hasExternalDocumentDataset(JsonNode config) {
+        if (!config.path("datasets").isArray()) {
+            return false;
+        }
+        for (JsonNode dataset : config.path("datasets")) {
+            if ("EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText(""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String expectedPromotionChannel(String environmentName) {

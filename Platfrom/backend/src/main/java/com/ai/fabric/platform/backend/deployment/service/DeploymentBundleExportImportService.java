@@ -115,6 +115,7 @@ public class DeploymentBundleExportImportService {
         "PLATFORM_ADMIN_API_KEY",
         "PLATFORM_OPERATOR_API_KEY"
     );
+    private static final String DOCUMENT_STORAGE_SECRET_PREFIX = "MANAGED_DOCUMENT_STORAGE_DEP_";
 
     private final ObjectMapper objectMapper;
     private final DeploymentRepository deploymentRepository;
@@ -694,6 +695,8 @@ public class DeploymentBundleExportImportService {
         node.put("seedDatasetRef", dataset.getSeedDatasetRef());
         node.put("connectorType", dataset.getConnectorType());
         node.set("connectorConfig", readJson(dataset.getConnectorConfigJson()));
+        node.set("sourceConnectorConfig", readJson(dataset.getSourceConnectorConfigJson()));
+        node.set("documentPolicy", readJson(dataset.getDocumentPolicyJson()));
         node.put("datasetHash", dataset.getDatasetHash());
         node.put("createdAt", stringTime(dataset.getCreatedAt()));
         node.put("updatedAt", stringTime(dataset.getUpdatedAt()));
@@ -1016,6 +1019,11 @@ public class DeploymentBundleExportImportService {
         String normalized = secretName == null ? "" : secretName.trim().toUpperCase(Locale.ROOT);
         if (normalized.isBlank()) {
             return SecretClassification.MISSING_REFERENCE;
+        }
+        if (normalized.startsWith(DOCUMENT_STORAGE_SECRET_PREFIX)) {
+            return entity != null && StringUtils.hasText(entity.getSecretValue())
+                ? SecretClassification.ENVIRONMENT_BOUND
+                : SecretClassification.MISSING_REFERENCE;
         }
         if (FORBIDDEN_SECRET_NAMES.contains(normalized)
             || normalized.contains("OAUTH")
@@ -1536,12 +1544,54 @@ public class DeploymentBundleExportImportService {
             dataset.setConnectorConfigJson(writeJson(
                 datasetNode.path("connectorConfig").isMissingNode() ? objectMapper.createObjectNode() : datasetNode.path("connectorConfig")
             ));
+            dataset.setSourceConnectorConfigJson(writeJson(
+                datasetNode.path("sourceConnectorConfig").isMissingNode()
+                    ? objectMapper.createObjectNode()
+                    : clearPortableDocumentBindingRefs(datasetNode.path("sourceConnectorConfig"))
+            ));
+            dataset.setDocumentPolicyJson(writeJson(
+                datasetNode.path("documentPolicy").isMissingNode()
+                    ? objectMapper.createObjectNode()
+                    : datasetNode.path("documentPolicy")
+            ));
             dataset.setDatasetHash(firstNonBlank(datasetNode.path("datasetHash").asText(null), "imported-" + datasetId));
             if (dataset.getCreatedAt() == null) {
                 dataset.setCreatedAt(timeOrNow(datasetNode.path("createdAt").asText(null)));
             }
             dataset.setUpdatedAt(now);
             marketplacePluginDatasetRepository.save(dataset);
+        }
+    }
+
+    private JsonNode clearPortableDocumentBindingRefs(JsonNode source) {
+        JsonNode copy = source == null ? objectMapper.createObjectNode() : source.deepCopy();
+        clearPortableDocumentBindingRefsInPlace(copy);
+        return copy;
+    }
+
+    private void clearPortableDocumentBindingRefsInPlace(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(this::clearPortableDocumentBindingRefsInPlace);
+            return;
+        }
+        if (!node.isObject()) {
+            return;
+        }
+        ObjectNode objectNode = (ObjectNode) node;
+        List<String> fields = new ArrayList<>();
+        objectNode.fieldNames().forEachRemaining(fields::add);
+        for (String field : fields) {
+            JsonNode value = objectNode.path(field);
+            if (("bindingRef".equals(field) || "documentStorageBindingRef".equals(field))
+                && value.isTextual()
+                && value.asText("").startsWith("dsh-")) {
+                objectNode.put(field, "");
+            } else {
+                clearPortableDocumentBindingRefsInPlace(value);
+            }
         }
     }
 
@@ -1620,7 +1670,12 @@ public class DeploymentBundleExportImportService {
             List<String> fieldNames = new ArrayList<>();
             objectNode.fieldNames().forEachRemaining(fieldNames::add);
             for (String fieldName : fieldNames) {
-                objectNode.set(fieldName, rewriteConfigNode(objectNode.path(fieldName), rewrite));
+                JsonNode value = objectNode.path(fieldName);
+                if (isSourceDocumentBindingField(fieldName, value, rewrite)) {
+                    objectNode.put(fieldName, "");
+                } else {
+                    objectNode.set(fieldName, rewriteConfigNode(value, rewrite));
+                }
             }
             return objectNode;
         }
@@ -1630,6 +1685,20 @@ public class DeploymentBundleExportImportService {
             }
         }
         return node;
+    }
+
+    private boolean isSourceDocumentBindingField(String fieldName,
+                                                 JsonNode value,
+                                                 ImportConfigRewrite rewrite) {
+        if (rewrite == null
+            || !StringUtils.hasText(rewrite.sourceDeploymentId())
+            || !StringUtils.hasText(rewrite.targetDeploymentId())
+            || rewrite.sourceDeploymentId().equals(rewrite.targetDeploymentId())
+            || !("bindingRef".equals(fieldName) || "documentStorageBindingRef".equals(fieldName))
+            || !value.isTextual()) {
+            return false;
+        }
+        return value.asText("").startsWith("dsh-");
     }
 
     private String rewriteConfigText(String value, ImportConfigRewrite rewrite) {

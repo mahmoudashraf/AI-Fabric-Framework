@@ -54,6 +54,8 @@ public class MarketplacePluginDatasetDefinitionService {
             entity.setSeedDatasetRef(dataset.seedDatasetRef());
             entity.setConnectorType(dataset.connectorType());
             entity.setConnectorConfigJson(writeJson(dataset.syncConnector()));
+            entity.setSourceConnectorConfigJson(writeJson(dataset.sourceConnector()));
+            entity.setDocumentPolicyJson(writeJson(dataset.documentPolicy()));
             entity.setDatasetHash(hashDatasetDefinition(dataset));
             entity.setUpdatedAt(now);
             datasetRepository.save(entity);

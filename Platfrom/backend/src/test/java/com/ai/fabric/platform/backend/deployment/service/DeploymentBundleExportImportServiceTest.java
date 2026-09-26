@@ -15,6 +15,7 @@ import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.De
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ExportMode;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ExportRecipient;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.ImportMode;
+import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.SecretClassification;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentBundleModels.DeploymentImportRequest;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentProviderType;
 import com.ai.fabric.platform.backend.deployment.model.DeploymentSummary;
@@ -195,6 +196,45 @@ class DeploymentBundleExportImportServiceTest {
             .get(0)
             .path("value")
             .asText()).isEqualTo("super-secret-value");
+    }
+
+    @Test
+    void sealedExportKeepsDocumentStorageCredentialsEnvironmentBound() throws Exception {
+        DeploymentBundleExportImportService service = service();
+        DeploymentEntity deployment = deployment();
+        DeploymentDraftEntity draft = draft(deployment.getId());
+        String managedName = DeploymentDocumentStorageBindingService.secretKey(
+            deployment.getId(),
+            "dtp-coolify-staging"
+        ) + "_SECRET_KEY";
+        PlatformSecretEntity secret = deploymentSecret(managedName, "customer-storage-secret", deployment.getId());
+        stubExportState(deployment, draft, secret);
+        KeyPair keyPair = rsaKeyPair();
+
+        var summary = service.exportDeployment(
+            deployment.getId(),
+            new DeploymentExportRequest(
+                ExportMode.SEALED_BACKUP,
+                "document storage portability",
+                new ExportRecipient(OPERATOR_PUBLIC_KEY, publicKeyPem(keyPair)),
+                true,
+                true
+            )
+        );
+
+        assertThat(summary.secretSummary().environmentBound()).isEqualTo(1);
+        assertThat(summary.secretSummary().includedValues()).isZero();
+        assertThat(summary.secretSummary().items())
+            .filteredOn(item -> managedName.equals(item.secretName()))
+            .singleElement()
+            .satisfies(item -> {
+                assertThat(item.classification()).isEqualTo(SecretClassification.ENVIRONMENT_BOUND);
+                assertThat(item.restorePolicy()).isEqualTo("REMAP_OR_SUPPLY_IN_TARGET_ENVIRONMENT");
+                assertThat(item.valueIncluded()).isFalse();
+            });
+        assertThat(summary.bundle().toString()).doesNotContain("customer-storage-secret");
+        assertThat(sealingService.unseal(summary.bundle().path("secretEnvelope"), privateKeyPem(keyPair))
+            .path("secrets")).isEmpty();
     }
 
     @Test
@@ -868,6 +908,9 @@ class DeploymentBundleExportImportServiceTest {
             "produs-safe-service-category",
             "service-category"
         );
+        dataDataset.setIngestionMode("EXTERNAL_DOCUMENT_STORAGE");
+        dataDataset.setSourceConnectorConfigJson("{\"connectorType\":\"S3_COMPATIBLE_OBJECT_STORAGE\",\"bindingRef\":\"dsh-source-documents\"}");
+        dataDataset.setDocumentPolicyJson("{\"allowedExtensions\":[\".txt\",\".json\"],\"maxSourceBytes\":1048576}");
         MarketplacePluginEntity actionPlugin = marketplacePlugin(
             "mkp-action-produs-productization-read-mcp",
             "produs-productization-read-mcp",
@@ -939,6 +982,8 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(export.bundle().path("manifest").path("marketplaceCatalog").path("datasets"))
             .extracting(node -> node.path("datasetId").asText())
             .containsExactly("produs-safe-service-category");
+        assertThat(export.bundle().path("manifest").path("marketplaceCatalog").path("datasets").get(0)
+            .path("sourceConnectorConfig").path("bindingRef").asText()).isEqualTo("dsh-source-documents");
 
         DeploymentEntity importedDeployment = deployment();
         importedDeployment.setId("dep-imported");
@@ -1037,6 +1082,9 @@ class DeploymentBundleExportImportServiceTest {
         assertThat(savedDataset.getPluginVersionId()).isEqualTo("mkv-safe-knowledge-v1");
         assertThat(savedDataset.getDatasetId()).isEqualTo("produs-safe-service-category");
         assertThat(savedDataset.getEntityType()).isEqualTo("service-category");
+        assertThat(savedDataset.getSourceConnectorConfigJson()).contains("S3_COMPATIBLE_OBJECT_STORAGE");
+        assertThat(savedDataset.getSourceConnectorConfigJson()).doesNotContain("dsh-source-documents");
+        assertThat(savedDataset.getDocumentPolicyJson()).contains("maxSourceBytes", ".txt", ".json");
 
         ArgumentCaptor<DeploymentDraftEntity> draftCaptor = ArgumentCaptor.forClass(DeploymentDraftEntity.class);
         verify(draftRepository).save(draftCaptor.capture());

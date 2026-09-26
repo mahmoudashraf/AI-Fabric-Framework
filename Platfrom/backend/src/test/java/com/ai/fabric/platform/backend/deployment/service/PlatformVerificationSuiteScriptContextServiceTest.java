@@ -741,4 +741,49 @@ class PlatformVerificationSuiteScriptContextServiceTest {
         assertThat(context.maxOutputCharactersOverride()).isEqualTo(40_000);
     }
 
+    @Test
+    void buildsDocumentKnowledgeOperationsContextWithAdminAuthAndOverrides() {
+        PlatformSecretService secretService = mock(PlatformSecretService.class);
+        DeploymentVerificationRolloutService rolloutService = mock(DeploymentVerificationRolloutService.class);
+        when(secretService.resolveSecret("PLATFORM_ADMIN_API_KEY")).thenReturn("admin-key");
+
+        PlatformVerificationSuiteScriptContextService service = new PlatformVerificationSuiteScriptContextService(
+            new PlatformVerificationSuiteProperties(
+                Duration.ofMinutes(60), Duration.ofMinutes(12), Duration.ofMinutes(20), Duration.ofMinutes(75),
+                Duration.ofHours(12), Duration.ofSeconds(3), 20, 12_000, 80_000,
+                "https://platform-ui.example.test", "weaviate.example.test", "https://bridge.example.test",
+                "shop.example.test", "shopify-bridge-prod", null, "https://partner-ui.example.test"
+            ),
+            new PlatformDeliveryProperties("https://platform.example.test", true, Duration.ofDays(1)),
+            new PlatformAuthProperties(
+                true, "X-PLATFORM-API-KEY", true, true, "sid", Duration.ofHours(8), true, "Lax",
+                null, null, false, null, null, null
+            ),
+            secretService,
+            rolloutService
+        );
+
+        PlatformVerificationScriptContextSummary context = service.build(
+            PlatformVerificationSuiteScriptContextService.SCRIPT_DOCUMENT_KNOWLEDGE_OPERATIONS,
+            Map.of(
+                "DOCUMENT_DEPLOYMENT_ID", "dep-documents",
+                "DOCUMENT_DATASET_ID", "dealer-documents",
+                "DOCUMENT_TEXT_OBJECT_REFERENCE", "verification/opening-hours.txt",
+                "DOCUMENT_JSON_OBJECT_REFERENCE", "verification/policy.json"
+            )
+        );
+
+        assertThat(context.scriptPath()).isEqualTo("scripts/verify-document-knowledge-operations.sh");
+        assertThat(context.environment())
+            .containsEntry("PLATFORM_BASE_URL", "https://platform.example.test")
+            .containsEntry("DOCUMENT_DEPLOYMENT_ID", "dep-documents")
+            .containsEntry("DOCUMENT_TEXT_OBJECT_REFERENCE", "verification/opening-hours.txt")
+            .containsEntry("DOCUMENT_JSON_OBJECT_REFERENCE", "verification/policy.json")
+            .containsEntry("DOCUMENT_RECONCILE_ATTEMPTS", "60")
+            .containsEntry("DOCUMENT_RECONCILE_SLEEP_SECONDS", "2");
+        assertThat(context.secretEnvironment()).containsEntry("PLATFORM_API_KEY", "admin-key");
+        assertThat(context.timeoutOverride()).isEqualTo(Duration.ofMinutes(20));
+        assertThat(context.maxOutputCharactersOverride()).isEqualTo(40_000);
+    }
+
 }
