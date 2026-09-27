@@ -2,6 +2,9 @@
 
 - **Status:** Product and integration analysis; proposed packages and generic connector extensions are not implemented or hosted-proven
 - **Date:** 2026-09-25
+- **Generic-contract alignment:** reviewed 2026-09-27; `010.27` is canonical
+  for token exchange, protected resources, HTTP sync, inbound events,
+  persistence, and internal service-auth contracts
 - **Decision scope:** UK automotive retail integrations using Auto Trader Connect
 - **Current LoomAI baseline:** AI Fabric `0.8.4`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Compatibility posture:** current-only greenfield design; no legacy runtime or plugin compatibility path
@@ -59,8 +62,10 @@ The integration should therefore reuse:
 - governed read actions and post-action generation from normalized facts;
 - Human Review for sensitive proposed writes;
 - the existing deployment-local Generic REST Connector for outbound actions;
-- generic HTTP data synchronization and webhook-to-CloudEvent handling;
-- deployment-local CloudEvents ingress and typed result delivery; and
+- proposed generic HTTP data synchronization and webhook-to-CloudEvent
+  handling defined canonically in `010.27`;
+- proposed deployment-local inbound event handling plus existing typed result
+  delivery; and
 - deployment-local persistence, secrets, traces, limits, and audit receipts.
 
 No `AUTOTRADER` plugin type, parallel deployment lifecycle, central Auto Trader
@@ -357,9 +362,9 @@ names, not currently supported manifest values. Pagination is a typed
 | Static API-key/bearer auth | Supported | Reuse where applicable |
 | ActionResult normalization | Supported at MVP level | Add structured JSON-path/list/warning/cursor/evidence mapping |
 | Idempotency, timeout, bounded retry | Supported at MVP level | Make durable/provider-scoped where the production contract requires it |
-| OAuth2 client credentials | Not implemented in the Generic REST Connector | Add provider-neutral auth profiles with token reuse and expiry |
-| Server-owned trusted parameters | Partial through trace/config | Add explicit deployment-binding injection that callers and models cannot override |
-| HTTP DATA synchronization | Not supported; DATA currently supports `SQL_QUERY` and `FILE_FOLDER` | Add `ingestionMode=EXTERNAL_SYNC_HTTP` with bounded `connectorType=HTTP_JSON` and typed pagination |
+| Credential token exchange | Connector supports only `NONE`/`API_KEY`; Auto Trader currently uses form `POST /authenticate` with `key`/`secret`, not OAuth2 client credentials | Add bounded provider-neutral token-exchange profiles with token reuse, absolute/relative expiry, and no provider wire constants in generic code |
+| Server-owned trusted parameters | Partial through trace/config; document storage now provides a source-specific binding precedent | Add generic protected-resource binding/injection that callers and models cannot override; Auto Trader maps its package resource to `advertiserId` |
+| HTTP DATA synchronization | Not supported; DATA now also supports `EXTERNAL_DOCUMENT_STORAGE`, but no deployment-local paged HTTP mode | Add `ingestionMode=EXTERNAL_SYNC_HTTP` with bounded `connectorType=HTTP_JSON` and typed pagination |
 | Inbound provider webhooks | Not supported | Add generic plugin-configured hash-authenticated webhook ingress |
 | Webhook-to-CloudEvent mapping | Not supported | Add schema-bound declarative transformation and forwarding |
 | Provider/service fair-usage control | Partial HTTP retry only | Add shared provider/service rate and pause policy |

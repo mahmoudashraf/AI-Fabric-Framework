@@ -2783,12 +2783,14 @@ Critical fixes that made the gate pass:
   `AUTOTRADER_SANDBOX_VERIFIED`, and `AUTOTRADER_PRODUCTION_READY` as distinct
   evidence states.
 - Source audit found that the deployment runtime Data Sync/indexing and
-  Marketplace secret-reference/lifecycle primitives are reusable. Blocking
-  product gaps are provider-neutral OAuth2 client credentials, immutable
-  trusted advertiser injection, deployment-local paged HTTP DATA sync, generic
+  Marketplace secret-reference/lifecycle primitives are reusable. This initial
+  assessment was superseded by the 2026-09-27 contract review below: the
+  blocking auth gap is bounded form-token exchange, not OAuth2 client
+  credentials, and the generic boundary is a protected resource rather than a
+  trusted advertiser field. Deployment-local paged HTTP DATA sync, generic
   inbound provider webhooks, durable sync/reconciliation state, fair-usage
-  controls, backend-only Data Sync/work/readiness discovery, exact Auto Trader
-  packages, and hosted sandbox evidence.
+  controls, scoped service discovery, exact Auto Trader packages, and hosted
+  sandbox evidence remain gaps.
 - Preserve the no-bridge architecture: Auto Trader DATA/ACTION plugins compile
   into each dealership deployment; the deployment-local Generic REST Connector
   handles provider traffic, baseline sync, and verified events; runtime Data
@@ -2870,3 +2872,31 @@ Critical fixes that made the gate pass:
   stages but failed one of eleven Shopify first-product language checks. These
   are unrelated to document indexing and must not be hidden or represented as
   a green aggregate release gate.
+
+## 2026-09-27 Auto Trader Plan Generic-Substrate Correction
+
+- Corrected canonical plan `010_27` after source and current official-contract
+  review. Auto Trader does not use standard OAuth2 client credentials for its
+  current API token flow: its package must declare a bounded form-token exchange
+  using `POST /authenticate`, secret-backed `key`/`secret`, `access_token`, and
+  absolute `expires_at` mapping. These names remain immutable package data, not
+  generic Java or Platform fields.
+- Generic Platform/product-service contracts now use connection profiles,
+  protected resource bindings (`resourceType`/`resourceId`), typed HTTP DATA
+  sync, verifier profiles, generic error classes, configurable rate policies,
+  and schema-driven labels. `advertiserId`, stock lifecycle values,
+  `AutoTrader-Signature`, `CF-Ray`, and Auto Trader retry policies belong only
+  to the Auto Trader DATA/ACTION/TEMPLATE composition and its verification.
+- No standalone bridge or extra provider-specific process is planned. The
+  existing per-deployment Generic REST Connector becomes the one generic
+  external-integration host for actions, sync, and inbound events.
+- Durable connector state reuses the deployment PostgreSQL resource through an
+  isolated `integration_connector` schema, connector-owned Flyway history, and
+  restricted database role. Connector-to-runtime Data Sync uses a private
+  deployment-scoped service identity; public assignment discovery is optional
+  only for immutable templates that authorize an external customer backend.
+- The plan now reuses the Document Knowledge binding/lifecycle precedent,
+  requires two materially different neutral provider fixtures, and bans Auto
+  Trader constants from generic source. This is a corrected plan, not an
+  implementation or readiness claim; sandbox access, generic substrate,
+  Marketplace packages, and hosted evidence remain pending.

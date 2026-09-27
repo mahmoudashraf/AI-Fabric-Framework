@@ -469,3 +469,17 @@ Current P0 cleanup items:
   Platform gate still records unrelated deferred Shopify mode/output-quality
   failures, which must remain visible until separately resolved or explicitly
   dispositioned by the owner.
+- 2026-09-27: Auto Trader remains a provider-specific Marketplace composition
+  on a generic deployment-local external-integration substrate. The corrected
+  architecture uses the existing per-deployment connector process, generic
+  bounded token exchange, protected resource bindings, HTTP DATA sync, inbound
+  verifier profiles, durable connector state, classified failures, and
+  schema-driven operations. Auto Trader's form `/authenticate` wire contract,
+  advertiser mapping, stock lifecycle, signature header/HMAC profile, rate
+  policy, labels, rights, and claim gates live only in immutable
+  DATA/ACTION/TEMPLATE packages and provider verification. Connector state
+  shares the deployment PostgreSQL resource through an isolated schema/role;
+  connector-to-runtime Data Sync is private and scoped, not routed through
+  public consumer assignment. No bridge, new plugin type, central data proxy,
+  or provider constants in generic code are permitted. The plan is corrected;
+  implementation, sandbox access, and hosted proof are still pending.
