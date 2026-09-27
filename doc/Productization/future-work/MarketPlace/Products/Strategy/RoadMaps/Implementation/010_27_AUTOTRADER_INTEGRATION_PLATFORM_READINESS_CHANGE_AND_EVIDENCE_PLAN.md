@@ -1,8 +1,9 @@
 # 010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan
 
-- **Status:** Reviewed and ready for phased implementation; the generic
-  external-provider substrate remains unimplemented and LoomAI is not yet
-  entitled to claim Auto Trader integration readiness
+- **Status:** Generic external-provider substrate implemented and locally
+  verified; hosted neutral proof, the dealership demo, and all partner-gated
+  Auto Trader evidence remain open. LoomAI is not yet entitled to claim Auto
+  Trader integration readiness.
 - **Date:** 2026-09-25
 - **Last contract review:** 2026-09-27
 - **Current LoomAI baseline:** AI Fabric `0.8.4`, Platform `Platform-V11`, V04
@@ -24,11 +25,11 @@ Related plans:
 
 ## 1. Executive Verdict
 
-LoomAI has enough existing primitives to build an honest dealership experience,
-but it is not yet ready to claim that the Platform supports an Auto Trader
-integration.
+LoomAI now has a source-complete, provider-neutral substrate for deployment-local
+external HTTP integrations. It is still not ready to claim that the Platform
+supports an Auto Trader integration.
 
-Existing reusable foundations include:
+Implemented foundations now include:
 
 - Marketplace `TEMPLATE`, `DATA`, `ACTION`, and `INFERENCE_PROFILE` packages;
 - the V04 draft, validate, version, release, apply, verify, export, import, and
@@ -37,28 +38,35 @@ Existing reusable foundations include:
 - deployment-local conversational orchestration, Data Sync, indexing, vector
   retrieval, structured action results, confirmation, and persistence;
 - deployment and Marketplace secret-reference models;
-- runtime indexing-work status and administrative diagnostics; and
-- customer/backend assignment discovery for current chat and behavior URLs.
+- bounded API-key and form-token connection profiles with approved hosts,
+  token caching/refresh, fair-usage controls, and typed provider failures;
+- immutable protected-resource bindings and server-owned path/query/header/body
+  injection;
+- Marketplace `EXTERNAL_SYNC_HTTP`/`HTTP_JSON`, durable paged/cursor sync,
+  tombstones, runtime Data Sync, and indexing-work reconciliation;
+- raw-body HMAC webhook verification, deduplication, retry, replay, dead-letter,
+  and baseline convergence;
+- connector-owned PostgreSQL schema/Flyway state and a restricted deployment-
+  scoped role whose privileged bootstrap credentials are removed after setup;
+- private connector/runtime networking and deployment-scoped service auth;
+- opt-in customer-backend ingestion discovery, safe readiness/work projections,
+  Platform operations APIs, and an Integrations workspace; and
+- DRAFT-only provider package reservations that deliberately contain no
+  executable or published Auto Trader contract.
 
-The missing production substrate is material:
+The remaining evidence/product work is material:
 
 1. Auto Trader sandbox access is partner-provisioned and LoomAI does not yet
    have recorded sandbox credentials, grants, test advertiser, or test stock.
-2. The Generic REST Connector has no bounded credential-token-exchange
-   lifecycle. Auto Trader's current contract is a form-encoded
-   `POST /authenticate` using `key` and `secret`, not OAuth2 client credentials.
-3. It has no generic immutable trusted-resource binding and injection contract.
-4. Marketplace DATA ingestion does not support a deployment-local paged HTTP
-   source.
-5. There is no generic inbound provider-webhook contract.
-6. Connector rate/fair-usage policy, structured mapping, deployment-local
-   persistence, and durable sync state are not sufficient for the provider
-   contract.
-7. Connector-to-runtime Data Sync has no dedicated private service-auth
-   contract. Optional customer-backend ingestion discovery is also absent.
-8. Auto Trader-specific Marketplace packages and verification packs do not
-   exist.
-9. No real Auto Trader sandbox canary has passed.
+2. A hosted neutral deployment has not yet passed the complete restart,
+   two-deployment isolation, webhook, recovery, rollback, and decommission
+   evidence pack.
+3. The approved dealership dataset, ordinary customer demo application, and
+   hosted meeting deployment do not yet exist.
+4. Exact Auto Trader DATA/ACTION/TEMPLATE versions cannot be authored or
+   published responsibly until the granted routes, schemas, advertiser,
+   webhook rules, data rights, and validation requirements are supplied.
+5. No real Auto Trader sandbox or production canary has passed.
 
 Therefore:
 
@@ -159,10 +167,9 @@ block:
 The fallback is a clearly labelled dealership demonstration dataset, not a
 mocked Auto Trader connection.
 
-## 4. Current LoomAI Source Audit
+## 4. Current LoomAI Implementation Audit
 
-This audit was refreshed against source present on 2026-09-27, after Document
-Knowledge Operations reached hosted proof.
+This audit was refreshed against the implementation present on 2026-09-27.
 
 | Area | Current evidence | Verdict for Auto Trader |
 | --- | --- | --- |
@@ -170,21 +177,55 @@ Knowledge Operations reached hosted proof.
 | Marketplace plugin types | `TEMPLATE`, `ACTION`, `DATA`, `INFERENCE_PROFILE`, and governed specialist support exist | Reuse; no `AUTOTRADER` plugin type |
 | Plugin secret references | Install forms and install records support `secretRef` values | Reuse, then verify external-provider provisioning and redaction end to end |
 | Connector routes | `RestRoutingConfig.ActionRoute` supports bounded method/path, query/body/header templates, timeout, response projection, and authz preflight | Reuse and harden |
-| Connector upstream auth | `RestRoutingConfig.UpstreamAuth.AuthType` contains only `NONE` and `API_KEY` | Blocking: add a bounded provider-neutral token-exchange strategy; Auto Trader uses form `key`/`secret` exchange, not OAuth2 client credentials |
-| Connector idempotency | Current store is in-memory | Suitable only for limited reads; blocking for durable external writes and stateful sync |
-| Connector retry | Bounded retry status/backoff exists | Extend with provider/service pause and fair-usage policy |
-| Connector persistence | Connector module has no JDBC/Flyway dependencies and receives no deployment database configuration | Blocking: add a connector-owned schema, migration history, restricted database role, and lifecycle provisioning |
-| Marketplace DATA modes | Manifest supports `PACKAGED_SEED`, `EXTERNAL_SYNC_SQL`, `EXTERNAL_SYNC_FOLDER`, and the new `EXTERNAL_DOCUMENT_STORAGE`; no `EXTERNAL_SYNC_HTTP` exists | Reuse current DATA/V04 patterns; HTTP baseline pull remains blocking |
-| Existing DATA execution location | Current Marketplace dataset loading and tracking are Platform-backend driven | Must not become the normal Auto Trader data plane; add deployment-local HTTP sync execution |
+| Connector upstream auth | Typed deployment-local profiles support API key and bounded form-token exchange, absolute/relative expiry, single-flight refresh, approved token host, and secret references | Implemented locally; exact Auto Trader profile remains package/external evidence |
+| Connector state | Sync cursor/source version, record identity/fingerprint, indexing work, webhook dedupe/replay/dead-letter, and provider correlation are JDBC/Flyway-backed | Implemented locally; hosted restart/restore evidence pending |
+| Connector fair usage | Per-profile concurrency, interval, retry status/backoff, and `429`/`503` pauses are bounded and package-configured | Implemented locally; exact provider policy pending written confirmation |
+| Connector persistence | Deployment PostgreSQL is reused through connector-owned schema/role; every expected standard/preview bootstrap row must be found, deleted, and proven absent before connector restart on its restricted role | Implemented for Coolify; hosted lifecycle/backup/restore evidence pending |
+| Marketplace DATA modes | `EXTERNAL_SYNC_HTTP` with `HTTP_JSON` is validated, compiled, hashed, exported/imported, provisioned, and capability-gated | Implemented locally |
+| HTTP DATA execution | Page/size and cursor sources execute in the deployment connector, validate every record against the protected resource, and push only normalized operations to the colocated runtime | Implemented locally; hosted two-deployment proof pending |
 | External binding precedent | Document Knowledge Operations now provides target-scoped customer-storage bindings, secret references, safe readback, export/import boundaries, lifecycle cleanup, and operations UI | Reuse/generalize the lifecycle pattern; do not overload the document-storage-specific contract |
 | Runtime Data Sync | Deployment runtime exposes batch/upsert/delete and vector-space contracts | Reuse as the normalized indexing boundary |
 | Index work reconciliation | Runtime admin exposes per-work indexing status and vector overview | Reuse with customer-safe projection |
-| Provider inbound webhook | No generic deployment-local provider ingress exists | Blocking for Stock Sync notifications |
+| Provider inbound webhook | Deployment connector exposes per-source signed ingress with raw-body verification, replay-window checks, durable dedupe, bounded reconciliation, retry, replay, and dead-letter state | Implemented locally; hosted signed-event proof pending |
 | Existing runtime webhook code | Current runtime webhook tables/admin surface manage outbound action-result delivery | Do not misrepresent as inbound provider webhook support |
-| Assignment endpoint catalog | `PublicRuntimeEndpointsSummary` exposes chat, operational, agentic, Smart Brain, and review URLs | Keep internal connector-to-runtime discovery separate; add opt-in scoped customer-backend ingestion URLs only for templates that require them |
-| Protected resource binding | Generic deployment/install config and a document-storage-specific binding precedent exist, but no typed immutable provider-resource binding is compiled | Blocking generic substrate; Auto Trader's one-advertiser rule belongs in its template/package |
-| Auto Trader packages | No published DATA/ACTION/TEMPLATE packages | Blocking |
+| Assignment endpoint catalog | Internal connector/runtime traffic stays private; templates may opt in to backend-only ingestion batch, work-status, and readiness URLs with exact operation flags | Implemented locally; browser exposure is prohibited |
+| Protected resource binding | Typed immutable profile/resource/grant contracts compile server-owned values into provider requests; records and events must match the same binding | Implemented locally; Auto Trader's one-advertiser rule remains package-owned |
+| Operations | Runtime proxy, Platform operations API, audit events, and Integrations UI expose bounded source/auth/index/webhook state plus controlled reconcile/replay; source record IDs and payload/resource fingerprints are omitted | Implemented locally |
+| Rejected webhook retention | Invalid/unauthenticated attempts increment durable fixed-cardinality source/error counters without storing attacker-controlled event rows, payloads, identities, or hashes | Implemented locally; hosted abuse/restart proof pending |
+| Generated-secret cleanup | Hard delete clears deployment-generated connector service/database credentials after infrastructure cleanup succeeds | Implemented locally; hosted decommission proof pending |
+| Auto Trader packages | DRAFT catalog reservations exist, with no executable versions | Correctly blocked pending partner grants and schemas |
 | Auto Trader hosted evidence | None | Blocking |
+
+### 4.1 Implementation checkpoint
+
+The implementation checkpoint includes:
+
+- generic code only: no Auto Trader route, field, signature header, retry
+  duration, or business constant is compiled into Java;
+- strict Marketplace submission, V04 draft, compiler, secret usage,
+  capability-manifest, and provisioning validation;
+- runtime integration-service auth and opt-in trusted customer-ingestion auth;
+- connector JDBC migration plus real PostgreSQL Testcontainers proof;
+- provider fixture coverage for form-token/page sync and API-key/cursor sync;
+- boundary tests for host allowlists, capability grants, auth-header collisions,
+  protected path placeholders, record/resource mismatch, malformed/oversized
+  responses, cursor-version reset, tombstones, retry safety, webhook signatures,
+  duplicates, replay, dead-letter behavior, bounded rejection aggregation,
+  bootstrap readback, and generated-secret cleanup; and
+- production UI compilation for the deployment Integrations workspace.
+
+This is implementation and local verification evidence. It is not hosted
+neutral evidence, dealership demo evidence, or Auto Trader evidence.
+
+Final clean local gate on 2026-09-27:
+
+- Generic REST Connector: `35` tests across `10` suites, zero failures/errors;
+- AI Fabric Runtime: `221` tests across `53` suites, zero failures/errors;
+- Platform backend: `856` tests across `153` suites, zero failures/errors;
+- Platform UI: production TypeScript/Vite build passed;
+- runtime capability manifest JSON and whitespace checks passed; and
+- generic Java source scan found no Auto Trader, advertiser, signature-header,
+  or provider-correlation constants.
 
 ## 5. Target Deployment-Local Architecture
 
@@ -275,7 +316,7 @@ integration actions, sync workers, and inbound events. Its product/module name
 may be updated in the same current-only change to reflect that wider role, but
 there is still exactly one generic connector process per deployment.
 
-## 6. Required Platform And Product Changes
+## 6. Platform And Product Change Contract
 
 ### 6.1 Workstream A: provider-neutral connection profiles
 
@@ -586,29 +627,28 @@ The plugin must compile the approved field policy. Fields outside that policy
 must never enter model context, vector content, metadata, traces, or support
 exports.
 
-## 8. Concrete Source Change Map
+## 8. Implemented Source Change Map
 
-The exact class split may change during implementation, but ownership must
-remain as follows.
+The source implementation uses the following ownership boundaries.
 
 | Area | Primary current source | Required direction |
 | --- | --- | --- |
-| Connector config | `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/.../RestRoutingConfig.java` | Add typed connection/auth/rate/data/webhook contracts |
-| Connector validation | `.../RestConnectorStartupValidator.java` | Fail closed on hosts, bindings, secrets, token exchange, pagination, mapping, and webhook policy |
-| Connector execution | `.../RestActionExecutionService.java` | Apply token service, trusted bindings, classified provider errors, bounded mapping |
+| Connector config | `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/.../RestRoutingConfig.java` | Typed connection/auth/rate/data/webhook contracts |
+| Connector validation | `.../RestConnectorStartupValidator.java` | Fail-closed hosts, bindings, secrets, token exchange, pagination, mapping, and webhook policy |
+| Connector execution | `.../RestActionExecutionService.java` | Token service, trusted bindings, classified provider errors, bounded mapping |
 | Token lifecycle | New provider-neutral connector service | Execute the implemented bounded auth strategies; first release covers API key and form token exchange, including cache, refresh, redaction, and safe posture |
-| Durable integration state | New connector-owned entities/Flyway migrations in schema `integration_connector` | Token metadata only, cursors, events, dedupe, reconciliation, dead letters; never store token/credential values |
+| Durable integration state | Connector persistence package and `db/migration/integration/V1__integration_connector_state.sql` in schema `integration_connector` | Cursors, source fingerprints, work, events, dedupe, reconciliation, and dead letters; never token/credential values |
 | Connector database provisioning | `RailwayProvisioningPlanService`, `CoolifyDeploymentProvider`, provider secret/resource services | Reuse the deployment PostgreSQL resource; create a restricted connector role/schema, inject JDBC config, verify readback, and include lifecycle cleanup |
-| DATA manifest validation | `Platfrom/backend/.../MarketplaceManifestService.java` | Validate `EXTERNAL_SYNC_HTTP` and typed HTTP connector contribution |
-| DATA compilation | `.../DeploymentMarketplaceDraftCompilerService.java` | Compile source, mapping, binding, and capability refs into V04 artifacts |
-| DATA execution | New deployment-local connector sync worker | Pull provider data and push to local runtime Data Sync |
+| DATA manifest validation | `Platfrom/backend/.../MarketplaceManifestService.java` | Validates `EXTERNAL_SYNC_HTTP` and typed HTTP connector contribution |
+| DATA compilation | `.../DeploymentMarketplaceDraftCompilerService.java` and `DeploymentConfigCompiler.java` | Compile immutable source, mapping, binding, capability, secret, and webhook refs into V04 artifacts |
+| DATA execution | `HttpDataSyncService` and `RuntimeDataSyncClient` | Pull provider data, normalize it, and push to private local runtime Data Sync |
 | Existing Platform dataset sync | `.../MarketplaceDatasetSyncService.java` | Do not route provider data through it; retain current modes only |
 | Draft validation | `Platfrom/backend/.../DeploymentDraftValidationService.java` | Validate immutable protected-resource/capability/connection bindings and package-specific cardinality |
 | Secret/resource lifecycle | Marketplace install, provider secret services, and the document-storage binding lifecycle precedent | Generalize target-scoped reference/readback/rotation/export/decommission patterns without coupling to document storage |
 | Internal service auth | Provisioning plans plus runtime ingress authorization | Inject private runtime URL and generated connector identity scoped only to Data Sync writes/deletes and work reads |
-| Optional assignment response | `PublicRuntimeEndpointsSummary.java` and `DeploymentAssignmentService.java` | Add scoped backend ingestion/work/readiness group only when enabled by the immutable template; never use it for internal connector discovery |
-| Runtime indexing | Existing `/api/ai/data-sync/*` and `/api/admin/indexing/work/{workId}` | Reuse; add only safe customer projection where needed |
-| Platform operations UI | Deployment workspace integration/data surfaces | Render real runtime/connector state and recovery actions |
+| Optional assignment response | `PublicCustomerBackendIngestionSummary.java` and `PublicProvisioningApiService.java` | Scoped backend ingestion/work/readiness group only when enabled by immutable dataset contract; never internal connector discovery |
+| Runtime indexing | `RuntimeIntegrationDataSyncController`, `RuntimeIntegrationIndexingController`, and `RuntimeCustomerIngestionController` | Private connector boundary plus opt-in customer-safe projection |
+| Platform operations UI | `DeploymentIntegrationOperationsService`, controller, and `IntegrationsPage.tsx` | Real runtime/connector state, reconcile, webhook events, and controlled replay |
 | Verification | Platform backend suites and release-readiness scripts | Add neutral substrate, sandbox, isolation, lifecycle, and production gates |
 
 No provider-specific route or field may be added to AI Fabric framework core,
@@ -617,6 +657,23 @@ details live in immutable Marketplace package data and provider-specific
 verification fixtures.
 
 ## 9. Implementation Sequence
+
+Current execution status:
+
+| Phase | Status | Honest checkpoint |
+| --- | --- | --- |
+| 0 | `PARTIAL_EXTERNAL_BLOCKER` | Generic contracts are frozen; partner identity, grants, test advertiser, credentials, webhook details, and data rights are still required |
+| 1 | `IMPLEMENTED_LOCAL_VERIFIED` | Generic profiles, auth, protected resources, mapping, fair usage, JDBC state, fail-closed bootstrap scrub, generated-secret cleanup, and neutral fixtures pass locally; hosted lifecycle proof remains |
+| 2 | `IMPLEMENTED_LOCAL_VERIFIED` | Marketplace compile/provisioning, private Data Sync, cursor/version handling, tombstones, and work reconciliation pass locally; hosted isolation remains |
+| 3 | `IMPLEMENTED_LOCAL_VERIFIED` | Signed ingress, dedupe, replay, retry, dead-letter, and baseline convergence pass locally; hosted ingress evidence remains |
+| 4 | `IMPLEMENTED_LOCAL_VERIFIED` | Scoped discovery, runtime/Platform operations APIs, audit, public webhook projection, and Integrations UI compile and pass locally |
+| 5 | `NOT_STARTED` | Requires an approved demo dataset, dealership-owned lead boundary, ordinary customer demo app, and hosted deployment |
+| 6 | `BLOCKED_EXTERNAL` | Requires Auto Trader partner sandbox identity, exact grants, advertiser, schemas, events, and validation support |
+| 7 | `BLOCKED_EXTERNAL` | Requires production approval, rights, bindings, go-live validation, and controlled production proof |
+
+`IMPLEMENTED_LOCAL_VERIFIED` does not satisfy a phase exit that explicitly
+requires hosted evidence. The remaining phases must not be collapsed into a
+paper pass.
 
 ### Phase 0: freeze contracts and obtain access
 
@@ -636,7 +693,8 @@ external blocker. Demo-only work may continue when access is blocked.
 ### Phase 1: neutral connector foundation
 
 - Add the connector-owned database schema, restricted role, Flyway history,
-  provisioning, backup/restore, and decommission behavior.
+  provisioning, backup/restore, bootstrap-secret proof, and decommission
+  behavior.
 - Implement typed connection profiles and bounded token exchange, including
   absolute and relative expiry.
 - Implement trusted binding injection.

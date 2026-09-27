@@ -66,6 +66,52 @@ public class RuntimeAuthStartupValidator implements SmartInitializingSingleton {
             );
         }
 
+        RuntimeAuthProperties.IntegrationService integrationService = ingress.getIntegrationService();
+        if (integrationService != null && integrationService.isEnabled()
+            && (!StringUtils.hasText(integrationService.getApiKeyHeader())
+                || !StringUtils.hasText(integrationService.getApiKeyValue())
+                || !StringUtils.hasText(integrationService.getDeploymentId())
+                || !StringUtils.hasText(integrationService.getTenantId()))) {
+            errors.add(
+                "Runtime integration-service ingress is enabled without a complete API-key and deployment identity. "
+                    + "Configure ai.fabric.runtime.auth.ingress.integration-service before enabling deployment-local integration sync."
+            );
+        }
+
+        RuntimeAuthProperties.CustomerIngestion customerIngestion = ingress.getCustomerIngestion();
+        if (customerIngestion != null && customerIngestion.isEnabled()) {
+            if (!StringUtils.hasText(customerIngestion.getDeploymentId())
+                || !StringUtils.hasText(customerIngestion.getTenantId())) {
+                errors.add(
+                    "Runtime customer-ingestion ingress is enabled without deployment and tenant ownership. "
+                        + "Configure ai.fabric.runtime.auth.ingress.customer-ingestion deployment-id and tenant-id."
+                );
+            }
+            if (isEmpty(customerIngestion.getAllowedUpsertEntityTypes())
+                && isEmpty(customerIngestion.getAllowedDeleteEntityTypes())
+                && !customerIngestion.isWorkStatusEnabled()
+                && !customerIngestion.isReadinessEnabled()) {
+                errors.add(
+                    "Runtime customer-ingestion ingress is enabled without any allowed operation or entity type."
+                );
+            }
+            if (customerIngestion.isWorkStatusEnabled()
+                && isEmpty(customerIngestion.getAllowedWorkStatusEntityTypes())) {
+                errors.add(
+                    "Runtime customer-ingestion indexing-work status is enabled without any allowed entity type."
+                );
+            }
+            if (!StringUtils.hasText(ingress.getTrustedBackend().getApiKeyValue())
+                || !StringUtils.hasText(ingress.getPrivateAssertions().getSigningKey())
+                || isEmpty(ingress.getAcceptedIssuers())
+                || isEmpty(ingress.getAcceptedAudiences())) {
+                errors.add(
+                    "Runtime customer-ingestion ingress requires trusted-backend authentication, private assertion signing, "
+                        + "and explicit accepted issuer and audience policies."
+                );
+            }
+        }
+
         boolean publicRuntimeConfigured = StringUtils.hasText(publicTokens.getSigningKey());
         if (publicRuntimeConfigured && isEmpty(publicTokens.getAcceptedIssuers())) {
             errors.add(

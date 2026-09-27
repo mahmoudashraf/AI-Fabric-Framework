@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -65,6 +66,29 @@ class CoolifyApiClientTest {
             assertThat(body.path("dockerfile_location").asText()).isEqualTo("/runtime/Dockerfile");
             assertThat(body.path("domains").asText()).isEqualTo("http://dep-123.example.test");
             assertThat(body.path("is_auto_deploy_enabled").asBoolean()).isFalse();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void configuresStablePrivateApplicationNetworkIdentity() throws Exception {
+        AtomicReference<String> observedBody = new AtomicReference<>();
+        HttpServer server = patchServer(observedBody);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            client.configurePrivateApplicationNetwork(
+                connection(server),
+                "app-uuid",
+                "loomai-runtime-dep-123"
+            );
+
+            JsonNode body = objectMapper.readTree(observedBody.get());
+            assertThat(body.path("is_consistent_container_name_enabled").asBoolean()).isTrue();
+            assertThat(body.path("custom_internal_name").asText()).isEqualTo("loomai-runtime-dep-123");
+            assertThat(body.path("connect_to_docker_network").asBoolean()).isTrue();
+            assertThat(body.size()).isEqualTo(3);
         } finally {
             server.stop(0);
         }
@@ -368,6 +392,71 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void deleteEnvironmentVariablesByKeyRemovesEveryMatchingStandardAndPreviewRow() throws Exception {
+        AtomicInteger deleteRequests = new AtomicInteger();
+        List<String> deletedPaths = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer server = environmentBootstrapCleanupServer(deleteRequests, deletedPaths);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            int deleted = client.deleteEnvironmentVariablesByKey(
+                connection(server),
+                "app-uuid",
+                Set.of("REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD", "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME")
+            );
+
+            assertThat(deleted).isEqualTo(3);
+            assertThat(deleteRequests).hasValue(3);
+            assertThat(deletedPaths).containsExactlyInAnyOrder(
+                "/api/v1/applications/app-uuid/envs/env-password",
+                "/api/v1/applications/app-uuid/envs/env-password-preview",
+                "/api/v1/applications/app-uuid/envs/env-username"
+            );
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void deleteEnvironmentVariablesByKeyFailsWhenCoolifyStillReturnsBootstrapRows() throws Exception {
+        HttpServer server = environmentBootstrapCleanupUnverifiedServer();
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            assertThatThrownBy(() -> client.deleteEnvironmentVariablesByKey(
+                connection(server),
+                "app-uuid",
+                Set.of("REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD")
+            ))
+                .isInstanceOf(CoolifyApiException.class)
+                .hasMessageContaining("could not be verified");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void deleteEnvironmentVariablesByKeyFailsWhenExpectedBootstrapKeyIsMissing() throws Exception {
+        HttpServer server = environmentBootstrapCleanupUnverifiedServer();
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            assertThatThrownBy(() -> client.deleteEnvironmentVariablesByKey(
+                connection(server),
+                "app-uuid",
+                Set.of(
+                    "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD",
+                    "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME"
+                )
+            ))
+                .isInstanceOf(CoolifyApiException.class)
+                .hasMessageContaining("every expected credential key");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void logsRetriesTransientRateLimitResponses() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         HttpServer server = logsRateLimitServer(requests);
@@ -621,6 +710,74 @@ class CoolifyApiClientTest {
                 deleteRequests.incrementAndGet();
                 deletedPath.set(path);
                 sendJson(exchange, 200, "{\"message\":\"deleted\"}");
+                return;
+            }
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer environmentBootstrapCleanupServer(
+        AtomicInteger deleteRequests,
+        List<String> deletedPaths
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if ("GET".equals(exchange.getRequestMethod()) && "/api/v1/applications/app-uuid/envs".equals(path)) {
+                var rows = objectMapper.createArrayNode();
+                if (!deletedPaths.contains("/api/v1/applications/app-uuid/envs/env-password")) {
+                    rows.addObject()
+                        .put("uuid", "env-password")
+                        .put("key", "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD")
+                        .put("is_preview", false);
+                }
+                if (!deletedPaths.contains("/api/v1/applications/app-uuid/envs/env-password-preview")) {
+                    rows.addObject()
+                        .put("uuid", "env-password-preview")
+                        .put("key", "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD")
+                        .put("is_preview", true);
+                }
+                if (!deletedPaths.contains("/api/v1/applications/app-uuid/envs/env-username")) {
+                    rows.addObject()
+                        .put("uuid", "env-username")
+                        .put("key", "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME")
+                        .put("is_preview", false);
+                }
+                rows.addObject()
+                    .put("uuid", "env-operational")
+                    .put("key", "REST_CONNECTOR_JDBC_PASSWORD")
+                    .put("is_preview", false);
+                sendJson(exchange, 200, rows.toString());
+                return;
+            }
+            if ("DELETE".equals(exchange.getRequestMethod()) && path.contains("/envs/env-")) {
+                deleteRequests.incrementAndGet();
+                deletedPaths.add(path);
+                sendJson(exchange, 200, "{\"message\":\"deleted\"}");
+                return;
+            }
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer environmentBootstrapCleanupUnverifiedServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if ("GET".equals(exchange.getRequestMethod()) && "/api/v1/applications/app-uuid/envs".equals(path)) {
+                sendJson(exchange, 200, """
+                    [{"uuid":"env-password","key":"REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD","is_preview":false}]
+                    """);
+                return;
+            }
+            if ("DELETE".equals(exchange.getRequestMethod()) && path.endsWith("/env-password")) {
+                sendJson(exchange, 200, "{\"message\":\"accepted but not removed\"}");
                 return;
             }
             exchange.sendResponseHeaders(404, -1);

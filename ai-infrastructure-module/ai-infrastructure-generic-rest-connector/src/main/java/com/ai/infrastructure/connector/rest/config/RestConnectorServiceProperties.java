@@ -12,4 +12,20 @@ public class RestConnectorServiceProperties {
      * {@code classpath:}, {@code file:}, and absolute {@code http(s)} URLs.
      */
     private String routingConfigLocation = "classpath:actions-routing.yml";
+
+    private Persistence persistence = new Persistence();
+
+    @Data
+    public static class Persistence {
+        private boolean enabled = false;
+        private String jdbcUrl;
+        private String username;
+        private String password;
+        private String schema = "integration_connector";
+        private String bootstrapJdbcUrl;
+        private String bootstrapUsername;
+        private String bootstrapPassword;
+        private String roleName;
+        private int maximumPoolSize = 4;
+    }
 }

@@ -42,6 +42,7 @@ const sectionLabels: Record<(typeof DEPLOYMENT_WORKSPACE_PATHS)[number], string>
   '/access': 'Access',
   '/knowledge': 'Knowledge',
   '/document-knowledge': 'Document Knowledge',
+  '/integrations': 'External Integrations',
   '/poc': 'POC',
   '/prompts': 'Prompts',
   '/providers': 'Providers',

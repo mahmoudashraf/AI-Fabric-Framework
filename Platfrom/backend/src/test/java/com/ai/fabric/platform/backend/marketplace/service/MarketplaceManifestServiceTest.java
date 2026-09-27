@@ -447,6 +447,44 @@ class MarketplaceManifestServiceTest {
     }
 
     @Test
+    void providerActionManifestRequiresRelativeBoundedAuthorityRoute() {
+        String valid = """
+            {
+              "schemaVersion": 1,
+              "pluginType": "ACTION",
+              "compatibility": {"requiredCapabilities": ["actions"]},
+              "pricing": {"pricingModel": "FREE"},
+              "permissions": {"contributesActions": true, "requiresExternalHttpExecution": true},
+              "contributions": {"actions": [{
+                "actionId": "neutral_search",
+                "adapterType": "connector-http",
+                "readOnly": true,
+                "route": {
+                  "method": "GET",
+                  "path": "/scopes/{scope}/search",
+                  "connectionProfileRef": "neutral-provider",
+                  "protectedResourceBindingRef": "neutral-scope",
+                  "requiredCapabilityGrants": ["records:read"],
+                  "trustedResourcePlacements": [{"target": "PATH", "field": "scope"}],
+                  "request": {"query": {"q": "{{params.query}}"}}
+                }
+              }]}
+            }
+            """;
+
+        assertThat(service.parseAndValidate(actionPlugin(), version(valid)).contributions().actionIds())
+            .containsExactly("neutral_search");
+
+        String unsafe = valid.replace(
+            "\"path\": \"/scopes/{scope}/search\"",
+            "\"url\": \"https://caller-selected.invalid/search\""
+        );
+        assertThatThrownBy(() -> service.parseAndValidate(actionPlugin(), version(unsafe)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("must use a relative path");
+    }
+
+    @Test
     void dataManifestAcceptsTypedV04EntityContributionWithTenantMetadata() {
         MarketplaceManifestService.ParsedMarketplaceManifest parsed =
             service.parseAndValidate(
@@ -549,6 +587,197 @@ class MarketplaceManifestServiceTest {
             dataVersion(objectMapper.writeValueAsString(noConfirmation))
         )).isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("explicit initial indexing confirmation");
+    }
+
+    @Test
+    void externalHttpDataManifestAcceptsBoundedNeutralProviderContract() {
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(validHttpDataManifest())
+        );
+
+        assertThat(parsed.datasets()).singleElement().satisfies(dataset -> {
+            assertThat(dataset.ingestionMode()).isEqualTo("EXTERNAL_SYNC_HTTP");
+            assertThat(dataset.connectorType()).isEqualTo("HTTP_JSON");
+            assertThat(dataset.syncConnector().path("connectionProfile").path("profileId").asText())
+                .isEqualTo("neutral-provider");
+            assertThat(dataset.syncConnector().path("connectionProfile").path("auth").path("tokenBaseUrl").asText())
+                .isEqualTo("https://auth.fixture.invalid");
+            assertThat(dataset.syncConnector().path("webhook").path("orderingPolicy").asText())
+                .isEqualTo("RECONCILE_LATEST_STATE");
+        });
+    }
+
+    @Test
+    void dataManifestAcceptsExplicitCustomerBackendIngestionContract() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode ingestion = ((ObjectNode) manifest.path("contributions").path("datasets").get(0))
+            .putObject("customerBackendIngestion");
+        ingestion.put("enabled", true);
+        ingestion.putArray("operations").add("UPSERT").add("DELETE").add("WORK_STATUS").add("READINESS");
+
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(manifest))
+        );
+
+        assertThat(parsed.datasets()).singleElement().satisfies(dataset ->
+            assertThat(dataset.customerBackendIngestion().path("operations").toString())
+                .isEqualTo("[\"UPSERT\",\"DELETE\",\"WORK_STATUS\",\"READINESS\"]")
+        );
+    }
+
+    @Test
+    void dataManifestRejectsUnboundedCustomerBackendIngestionContract() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode ingestion = ((ObjectNode) manifest.path("contributions").path("datasets").get(0))
+            .putObject("customerBackendIngestion");
+        ingestion.put("enabled", true);
+        ingestion.putArray("operations").add("ARBITRARY_WRITE");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(manifest))
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("unsupported operation: ARBITRARY_WRITE");
+    }
+
+    @Test
+    void externalHttpDataManifestRejectsHostAndPlacementOutsideReviewedContract() throws Exception {
+        ObjectNode hostManifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode profile = (ObjectNode) hostManifest.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("connectionProfile");
+        profile.putArray("allowedHosts").add("different.fixture.invalid");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(hostManifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("must contain the base URL host");
+
+        ObjectNode placementManifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) placementManifest.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("httpSource").path("trustedResourcePlacements").get(0))
+            .put("target", "METADATA");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(placementManifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("placement target is unsupported");
+    }
+
+    @Test
+    void externalHttpDataManifestRejectsUnboundPathAndAuthHeaderPlacement() throws Exception {
+        ObjectNode unboundPath = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) unboundPath.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("httpSource").path("trustedResourcePlacements").get(0))
+            .put("target", "QUERY");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(unboundPath))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("unbound protected path placeholder");
+
+        ObjectNode authHeader = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode source = (ObjectNode) authHeader.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("httpSource");
+        source.put("path", "/records");
+        ObjectNode placement = (ObjectNode) source.path("trustedResourcePlacements").get(0);
+        placement.put("target", "HEADER");
+        placement.put("field", "Authorization");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(authHeader))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("must not target the provider authentication header");
+    }
+
+    @Test
+    void externalHttpDataManifestRejectsMissingOrMismatchedCapabilityGrants() throws Exception {
+        ObjectNode missingGrants = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) missingGrants.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("connectionProfile")).remove("capabilityGrants");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(missingGrants))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("connectionProfile.capabilityGrants");
+
+        ObjectNode mismatchedGrants = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) mismatchedGrants.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("protectedResource"))
+            .putArray("capabilityGrants")
+            .add("records:metadata");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(mismatchedGrants))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("requires capability grants absent");
+    }
+
+    @Test
+    void externalHttpDataManifestRejectsUnboundedPaginationAndMapping() throws Exception {
+        ObjectNode paginationManifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) paginationManifest.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("httpSource").path("pagination"))
+            .put("maxPages", 10_001);
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(paginationManifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("pagination.maxPages must be an integer between 1 and 10000");
+
+        ObjectNode mappingManifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) mappingManifest.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("httpSource").path("mapping"))
+            .put("maxResponseBytes", 50 * 1_024 * 1_024 + 1);
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(mappingManifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("mapping.maxResponseBytes must be an integer between 1024 and 52428800");
+    }
+
+    @Test
+    void externalHttpDataManifestRejectsUnsafeProviderUrlAndWebhookHeader() throws Exception {
+        ObjectNode urlManifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) urlManifest.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("connectionProfile"))
+            .put("baseUrl", "https://operator@provider.fixture.invalid");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(urlManifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("absolute HTTPS URL without credentials");
+
+        ObjectNode webhookManifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ((ObjectNode) webhookManifest.path("contributions").path("datasets").get(0)
+            .path("syncConnector").path("webhook").path("verification"))
+            .put("signatureHeader", "X-Bad\nHeader");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(webhookManifest))
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("not a valid HTTP header name");
     }
 
     private MarketplacePluginEntity actionPlugin() {
@@ -809,6 +1038,165 @@ class MarketplaceManifestServiceTest {
                     "attributionLabel": "Approved documents"
                   }
                 ]
+              }
+            }
+            """;
+    }
+
+    private String validHttpDataManifest() {
+        return """
+            {
+              "schemaVersion": 1,
+              "pluginType": "DATA",
+              "compatibility": {"requiredCapabilities": ["knowledgeSources"]},
+              "pricing": {"pricingModel": "FREE"},
+              "installForm": [
+                {"id": "providerKey", "label": "Provider key", "type": "secretref", "required": true},
+                {"id": "providerSecret", "label": "Provider secret", "type": "secretref", "required": true},
+                {"id": "webhookSecret", "label": "Webhook secret", "type": "secretref", "required": true},
+                {"id": "scopeId", "label": "Scope", "type": "text", "required": true}
+              ],
+              "permissions": {
+                "contributesKnowledgeSources": true,
+                "requiresSharedDatasetAccess": false
+              },
+              "contributions": {
+                "entityConfig": {
+                  "ai-entities": {
+                    "neutral-record": {
+                      "indexing": {"enabled": true, "max-characters": 8000},
+                      "analysis": {"enabled": false, "after": []},
+                      "searchable-fields": [{
+                        "name": "content",
+                        "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                        "preprocessing": "CLEAN",
+                        "max-length": 8000,
+                        "priority": 100,
+                        "required": true
+                      }],
+                      "metadata-fields": [{
+                        "name": "tenantId",
+                        "data-type": "ID",
+                        "destinations": ["VECTOR_METADATA"],
+                        "priority": 100,
+                        "required": true,
+                        "sanitize-pii": false
+                      }]
+                    }
+                  }
+                },
+                "datasets": [{
+                  "datasetId": "neutral-http-records",
+                  "entityType": "neutral-record",
+                  "storageScope": "CUSTOMER_MANAGED",
+                  "sharingScope": "DEPLOYMENT_ONLY",
+                  "ingestionMode": "EXTERNAL_SYNC_HTTP",
+                  "updateStrategy": "UPSERT_BY_ID",
+                  "syncConnector": {
+                    "connectorType": "HTTP_JSON",
+                    "connectionProfile": {
+                      "profileId": "neutral-provider",
+                      "environment": "sandbox",
+                      "baseUrl": "https://provider.fixture.invalid",
+                      "allowedHosts": ["provider.fixture.invalid", "auth.fixture.invalid"],
+                      "auth": {
+                        "strategy": "FORM_TOKEN_EXCHANGE",
+                        "tokenBaseUrl": "https://auth.fixture.invalid",
+                        "tokenPath": "/authenticate",
+                        "tokenMethod": "POST",
+                        "credentialFields": [
+                          {"name": "key", "secretRefField": "providerKey"},
+                          {"name": "secret", "secretRefField": "providerSecret"}
+                        ],
+                        "tokenJsonPointer": "/token",
+                        "relativeExpiryJsonPointer": "/expiresIn",
+                        "authorizationHeader": "Authorization",
+                        "authorizationScheme": "Bearer"
+                      },
+                      "ratePolicy": {
+                        "maxConcurrent": 2,
+                        "maxAttempts": 2,
+                        "retryBackoffMs": 100,
+                        "retryStatuses": [429, 503]
+                      },
+                      "errorMappings": [{
+                        "status": 403,
+                        "bodyJsonPointer": "/code",
+                        "equalsValue": "MISSING_CAPABILITY",
+                        "errorClass": "CAPABILITY_DENIED"
+                      }],
+                      "capabilityGrants": ["records:read"],
+                      "correlationResponseHeaders": ["X-Fixture-Request"]
+                    },
+                    "protectedResource": {
+                      "bindingId": "neutral-scope",
+                      "environment": "sandbox",
+                      "resourceType": "scope",
+                      "resourceIdField": "scopeId",
+                      "policyRef": "single-scope",
+                      "capabilityGrants": ["records:read"]
+                    },
+                    "httpSource": {
+                      "sourceId": "neutral-record-source",
+                      "path": "/scopes/{scope}/records",
+                      "method": "GET",
+                      "trustedResourcePlacements": [{"target": "PATH", "field": "scope"}],
+                      "requiredCapabilityGrants": ["records:read"],
+                      "pagination": {
+                        "strategy": "CURSOR",
+                        "cursorQuery": "after",
+                        "nextCursorJsonPointer": "/next",
+                        "maxPages": 100
+                      },
+                      "mapping": {
+                        "recordsJsonPointer": "/records",
+                        "idJsonPointer": "/id",
+                        "resourceJsonPointer": "/scope",
+                        "contentFields": {"title": "/title"},
+                        "entityFields": {"title": "/title"},
+                        "metadataFields": {"updatedAt": "/updatedAt"},
+                        "maxRecords": 10000,
+                        "maxResponseBytes": 1048576
+                      },
+                      "tombstonePolicy": {
+                        "strategy": "FIELD_VALUE",
+                        "operationJsonPointer": "/state",
+                        "deleteValues": ["deleted"]
+                      },
+                      "scheduleSeconds": 900
+                    },
+                    "webhook": {
+                      "sourceId": "neutral-record-events",
+                      "method": "POST",
+                      "allowedContentTypes": ["application/json"],
+                      "verification": {
+                        "strategy": "HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY",
+                        "signatureHeader": "X-Fixture-Signature",
+                        "secretRefField": "webhookSecret",
+                        "timestampComponent": "t",
+                        "signatureComponent": "v1",
+                        "replayWindowSeconds": 300
+                      },
+                      "eventIdJsonPointer": "/eventId",
+                      "eventTypeJsonPointer": "/eventType",
+                      "resourceJsonPointer": "/scope",
+                      "allowedEventTypes": ["record.changed"],
+                      "maxBodyBytes": 1048576,
+                      "maxReconcileAttempts": 3,
+                      "retryDelaySeconds": 30,
+                      "registrationExpected": true,
+                      "manualReplayEnabled": true,
+                      "orderingPolicy": "RECONCILE_LATEST_STATE"
+                    }
+                  }
+                }],
+                "knowledgeSources": [{
+                  "sourceType": "deployment-private-vector",
+                  "sourceKey": "neutral-records",
+                  "datasetRef": "neutral-http-records",
+                  "entityType": "neutral-record",
+                  "attributionLabel": "Neutral provider records"
+                }]
               }
             }
             """;

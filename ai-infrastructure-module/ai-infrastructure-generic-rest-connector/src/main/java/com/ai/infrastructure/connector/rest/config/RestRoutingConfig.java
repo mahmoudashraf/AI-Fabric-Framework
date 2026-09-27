@@ -22,6 +22,21 @@ public class RestRoutingConfig {
     @Valid
     private Map<String, ActionRoute> actions = new LinkedHashMap<>();
 
+    @Valid
+    private Map<String, ConnectionProfile> connectionProfiles = new LinkedHashMap<>();
+
+    @Valid
+    private Map<String, ProtectedResourceBinding> protectedResources = new LinkedHashMap<>();
+
+    @Valid
+    private Map<String, HttpDataSource> dataSources = new LinkedHashMap<>();
+
+    @Valid
+    private Map<String, WebhookSource> webhooks = new LinkedHashMap<>();
+
+    @Valid
+    private RuntimeDataSync runtimeDataSync = new RuntimeDataSync();
+
     @Data
     public static class Connector {
         @Valid
@@ -167,6 +182,17 @@ public class RestRoutingConfig {
 
         private Integer timeoutMs;
 
+        private String connectionProfileRef;
+
+        private String protectedResourceBindingRef;
+
+        private List<String> requiredCapabilityGrants = new ArrayList<>();
+
+        private String idempotencyHeader;
+
+        @Valid
+        private List<ResourcePlacement> trustedResourcePlacements = new ArrayList<>();
+
         private Map<String, String> headers = new LinkedHashMap<>();
 
         @Valid
@@ -239,5 +265,268 @@ public class RestRoutingConfig {
          * Optional pinned targets template.
          */
         private Object pinnedTargets;
+    }
+
+    @Data
+    public static class ConnectionProfile {
+        private String environment;
+        private String baseUrl;
+        private List<String> allowedHosts = new ArrayList<>();
+
+        @Valid
+        private ProviderAuth auth = new ProviderAuth();
+
+        @Valid
+        private RatePolicy ratePolicy = new RatePolicy();
+
+        @Valid
+        private List<ErrorMapping> errorMappings = new ArrayList<>();
+
+        private List<String> capabilityGrants = new ArrayList<>();
+        private List<String> correlationResponseHeaders = new ArrayList<>();
+    }
+
+    @Data
+    public static class ProviderAuth {
+        private Strategy strategy = Strategy.NONE;
+        private String apiKeyHeader = "Authorization";
+        private String apiKeyValue;
+        private String tokenBaseUrl;
+        private String tokenPath;
+        private String tokenMethod = "POST";
+        private Map<String, String> credentialFields = new LinkedHashMap<>();
+        private Map<String, String> staticFields = new LinkedHashMap<>();
+        private String tokenJsonPointer;
+        private String absoluteExpiryJsonPointer;
+        private String relativeExpiryJsonPointer;
+        private String authorizationHeader = "Authorization";
+        private String authorizationScheme = "Bearer";
+        @Min(0)
+        @Max(3600)
+        private int expirySkewSeconds = 60;
+        @Min(100)
+        @Max(120_000)
+        private int timeoutMs = 5000;
+
+        public enum Strategy {
+            NONE,
+            API_KEY,
+            FORM_TOKEN_EXCHANGE
+        }
+    }
+
+    @Data
+    public static class RatePolicy {
+        @Min(1)
+        @Max(100)
+        private int maxConcurrent = 4;
+        @Min(0)
+        @Max(60_000)
+        private int minIntervalMs = 0;
+        @Min(0)
+        @Max(3_600_000)
+        private int rateLimitedPauseMs = 30_000;
+        @Min(0)
+        @Max(3_600_000)
+        private int unavailablePauseMs = 5_000;
+        @Min(1)
+        @Max(5)
+        private int maxAttempts = 1;
+        @Min(0)
+        @Max(30_000)
+        private int retryBackoffMs = 200;
+        private List<Integer> retryStatuses = new ArrayList<>(List.of(429, 502, 503, 504));
+    }
+
+    @Data
+    public static class ErrorMapping {
+        @Min(100)
+        @Max(599)
+        private int status;
+        private String bodyJsonPointer;
+        private String equalsValue;
+        private ErrorClass errorClass;
+
+        public enum ErrorClass {
+            BAD_REQUEST,
+            AUTHENTICATION_REQUIRED,
+            RESOURCE_ACCESS_DENIED,
+            CAPABILITY_DENIED,
+            RATE_LIMITED,
+            SERVICE_UNAVAILABLE,
+            TIMEOUT,
+            MALFORMED_RESPONSE
+        }
+    }
+
+    @Data
+    public static class ProtectedResourceBinding {
+        private String connectionProfileRef;
+        private String environment;
+        private String resourceType;
+        private String resourceId;
+        private String displayValue;
+        private String policyRef;
+        private List<String> capabilityGrants = new ArrayList<>();
+    }
+
+    @Data
+    public static class ResourcePlacement {
+        private Target target;
+        private String field;
+        private String jsonPointer;
+
+        public enum Target {
+            QUERY,
+            PATH,
+            HEADER,
+            BODY
+        }
+    }
+
+    @Data
+    public static class HttpDataSource {
+        private boolean enabled = true;
+        private String sourceVersion;
+        private String connectionProfileRef;
+        private String protectedResourceBindingRef;
+        private List<String> requiredCapabilityGrants = new ArrayList<>();
+        private String path;
+        private String method = "GET";
+        private Map<String, Object> query = new LinkedHashMap<>();
+        private Map<String, String> headers = new LinkedHashMap<>();
+        @Valid
+        private List<ResourcePlacement> trustedResourcePlacements = new ArrayList<>();
+        @Valid
+        private Pagination pagination = new Pagination();
+        @Valid
+        private RecordMapping mapping = new RecordMapping();
+        @Valid
+        private TombstonePolicy tombstonePolicy = new TombstonePolicy();
+        private String vectorSpace;
+        private String entityType;
+        @Min(10)
+        @Max(86_400)
+        private int scheduleSeconds = 900;
+    }
+
+    @Data
+    public static class Pagination {
+        private Strategy strategy = Strategy.NONE;
+        private String pageQuery = "page";
+        private String sizeQuery = "pageSize";
+        @Min(0)
+        @Max(1_000_000)
+        private int startPage = 1;
+        @Min(1)
+        @Max(1000)
+        private int pageSize = 100;
+        @Min(1)
+        @Max(10_000)
+        private int maxPages = 100;
+        private String cursorQuery = "cursor";
+        private String nextCursorJsonPointer;
+
+        public enum Strategy {
+            NONE,
+            PAGE_SIZE,
+            CURSOR
+        }
+    }
+
+    @Data
+    public static class RecordMapping {
+        private String recordsJsonPointer = "";
+        private String idJsonPointer;
+        private String resourceJsonPointer;
+        private Map<String, String> contentFields = new LinkedHashMap<>();
+        private Map<String, String> entityFields = new LinkedHashMap<>();
+        private Map<String, String> metadataFields = new LinkedHashMap<>();
+        @Min(1)
+        @Max(100_000)
+        private int maxRecords = 10_000;
+        @Min(1024)
+        @Max(50 * 1024 * 1024)
+        private int maxResponseBytes = 5 * 1024 * 1024;
+    }
+
+    @Data
+    public static class TombstonePolicy {
+        private Strategy strategy = Strategy.NONE;
+        private String operationJsonPointer;
+        private List<String> deleteValues = new ArrayList<>();
+
+        public enum Strategy {
+            NONE,
+            ABSENT_FROM_SNAPSHOT,
+            FIELD_VALUE,
+            ABSENT_OR_FIELD_VALUE
+        }
+    }
+
+    @Data
+    public static class RuntimeDataSync {
+        private boolean enabled = false;
+        private String baseUrl;
+        private String apiKeyHeader = "X-AIFABRIC-INTEGRATION-KEY";
+        private String apiKeyValue;
+        private String deploymentId;
+        private String tenantId;
+        @Min(100)
+        @Max(120_000)
+        private int timeoutMs = 15_000;
+        @Min(100)
+        @Max(60_000)
+        private int workPollIntervalMs = 500;
+        @Min(1)
+        @Max(600)
+        private int workPollAttempts = 60;
+    }
+
+    @Data
+    public static class WebhookSource {
+        private boolean enabled = true;
+        private boolean registrationExpected = false;
+        private boolean manualReplayEnabled = false;
+        private String method = "PUT";
+        private List<String> allowedContentTypes = new ArrayList<>(List.of("application/json"));
+        private String protectedResourceBindingRef;
+        @Valid
+        private WebhookVerification verification = new WebhookVerification();
+        private String eventIdJsonPointer;
+        private String eventTypeJsonPointer;
+        private String resourceJsonPointer;
+        private List<String> allowedEventTypes = new ArrayList<>();
+        private String reconcileDataSourceRef;
+        @Min(1024)
+        @Max(10 * 1024 * 1024)
+        private int maxBodyBytes = 1024 * 1024;
+        @Min(1)
+        @Max(20)
+        private int maxReconcileAttempts = 3;
+        @Min(1)
+        @Max(86_400)
+        private int retryDelaySeconds = 30;
+        private OrderingPolicy orderingPolicy = OrderingPolicy.RECONCILE_LATEST_STATE;
+
+        public enum OrderingPolicy {
+            RECONCILE_LATEST_STATE
+        }
+    }
+
+    @Data
+    public static class WebhookVerification {
+        private Strategy strategy;
+        private String signatureHeader;
+        private String secret;
+        private String timestampComponent = "t";
+        private String signatureComponent = "v1";
+        @Min(0)
+        @Max(86_400)
+        private int replayWindowSeconds = 300;
+
+        public enum Strategy {
+            HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY
+        }
     }
 }

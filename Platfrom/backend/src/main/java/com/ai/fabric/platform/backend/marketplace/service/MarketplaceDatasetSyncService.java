@@ -161,6 +161,11 @@ public class MarketplaceDatasetSyncService {
         if ("EXTERNAL_DOCUMENT_STORAGE".equals(requiredText(dataset, "ingestionMode"))) {
             return bindExternalDocumentDataset(deployment, release, dataset, trigger);
         }
+        if ("EXTERNAL_SYNC_HTTP".equals(requiredText(dataset, "ingestionMode"))) {
+            // HTTP provider ingestion executes in the deployment-local connector. The Platform
+            // only compiles, provisions, and observes this source; it never becomes its data plane.
+            return STATUS_SKIPPED;
+        }
         boolean systemManaged = isSystemManagedDataset(dataset);
         String installId = systemManaged ? text(dataset, "marketplaceInstallId") : requiredText(dataset, "marketplaceInstallId");
         String pluginId = requiredText(dataset, "marketplacePluginId");

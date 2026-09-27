@@ -13,6 +13,7 @@ import { CustomersPage } from './pages/CustomersPage'
 import { DeploymentsPage } from './pages/DeploymentsPage'
 import { DiagnosticsPage } from './pages/DiagnosticsPage'
 import { DocumentKnowledgePage } from './pages/DocumentKnowledgePage'
+import { IntegrationsPage } from './pages/IntegrationsPage'
 import { KnowledgePage } from './pages/KnowledgePage'
 import { MarketplacePage } from './pages/MarketplacePage'
 import { InferenceServicesPage } from './pages/InferenceServicesPage'
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="/access" element={<AccessPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/document-knowledge" element={<DocumentKnowledgePage />} />
+          <Route path="/integrations" element={<IntegrationsPage />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/inference-services" element={<InferenceServicesPage />} />
           <Route path="/product-services" element={<ProductServicesPage />} />

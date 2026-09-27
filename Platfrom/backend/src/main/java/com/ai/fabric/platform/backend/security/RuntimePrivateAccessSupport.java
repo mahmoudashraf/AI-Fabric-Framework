@@ -19,6 +19,7 @@ public final class RuntimePrivateAccessSupport {
     public static final String TRUSTED_BACKEND_API_KEY_HEADER = "X-AIFABRIC-RUNTIME-API-KEY";
     public static final String PRIVATE_AUTHORIZATION_HEADER = RuntimePrivateAssertionSigningService.AUTHORIZATION_HEADER;
     public static final String ISSUER_PLATFORM_DOCUMENT_OPERATIONS = "platform-document-operations";
+    public static final String ISSUER_PLATFORM_INTEGRATION_OPERATIONS = "platform-integration-operations";
 
     public static final String SCOPE_RUNTIME_ADMIN_OVERVIEW = "runtime:admin:overview";
     public static final String SCOPE_RUNTIME_AUTH_OVERVIEW = "runtime:admin:auth-overview";
@@ -28,6 +29,7 @@ public final class RuntimePrivateAccessSupport {
     public static final String SCOPE_RUNTIME_INDEXING_OVERVIEW = "runtime:index:overview";
     public static final String SCOPE_RUNTIME_INDEXING_VECTORS = "runtime:index:vectors";
     public static final String SCOPE_RUNTIME_CONNECTOR_READ = "runtime:connector:read";
+    public static final String SCOPE_RUNTIME_CONNECTOR_WRITE = "runtime:connector:write";
     public static final String SCOPE_RUNTIME_MIGRATION_CLEAR = "runtime:migration:clear";
     public static final String SCOPE_DOCUMENTS_READ = "documents:read";
 

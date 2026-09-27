@@ -80,6 +80,178 @@ class DeploymentConfigCompilerTest {
     }
 
     @Test
+    void compileProjectsExternalHttpDatasetIntoDeploymentLocalConnectorArtifact() throws Exception {
+        DeploymentEntity deployment = deployment();
+        deployment.setTenantId("tenant-neutral");
+        DeploymentDraftEntity draft = draft(
+            """
+                {"actions":[{
+                  "name":"neutral_search",
+                  "route":{
+                    "method":"GET",
+                    "path":"/scopes/{scope}/search",
+                    "connectionProfileRef":"neutral-provider",
+                    "protectedResourceBindingRef":"neutral-scope",
+                    "requiredCapabilityGrants":["records:read"],
+                    "trustedResourcePlacements":[{"target":"PATH","field":"scope"}]
+                  }
+                }]}
+                """,
+            "{}",
+            "{\"connectorApiKeyEnabled\":true}"
+        );
+        draft.setMarketplaceDatasetConfigJson(
+            """
+                {
+                  "datasets": [{
+                    "datasetId": "neutral-records",
+                    "entityType": "neutral-record",
+                    "ingestionMode": "EXTERNAL_SYNC_HTTP",
+                    "datasetHash": "fixture-dataset-hash",
+                    "syncConnector": {
+                      "connectorType": "HTTP_JSON",
+                      "connectionProfile": {
+                        "profileId": "neutral-provider",
+                        "environment": "sandbox",
+                        "baseUrl": "https://provider.fixture.invalid",
+                        "allowedHosts": ["provider.fixture.invalid"],
+                        "auth": {
+                          "strategy": "FORM_TOKEN_EXCHANGE",
+                          "tokenPath": "/authenticate",
+                          "credentialFields": {"key": "${FIXTURE_KEY}", "secret": "${FIXTURE_SECRET}"},
+                          "tokenJsonPointer": "/token",
+                          "relativeExpiryJsonPointer": "/expiresIn"
+                        },
+                        "ratePolicy": {"maxAttempts": 2, "retryStatuses": [429, 503]},
+                        "errorMappings": [{
+                          "status": 403,
+                          "bodyJsonPointer": "/code",
+                          "equalsValue": "MISSING_CAPABILITY",
+                          "errorClass": "CAPABILITY_DENIED"
+                        }],
+                        "capabilityGrants": ["records:read"]
+                      },
+                      "protectedResource": {
+                        "bindingId": "neutral-scope",
+                        "connectionProfileRef": "neutral-provider",
+                        "environment": "sandbox",
+                        "resourceType": "scope",
+                        "resourceId": "scope-7",
+                        "capabilityGrants": ["records:read"]
+                      },
+                      "httpSource": {
+                        "sourceId": "neutral-source",
+                        "connectionProfileRef": "neutral-provider",
+                        "protectedResourceBindingRef": "neutral-scope",
+                        "path": "/scopes/{scope}/records",
+                        "trustedResourcePlacements": [{"target": "PATH", "field": "scope"}],
+                        "pagination": {"strategy": "CURSOR", "cursorQuery": "after", "nextCursorJsonPointer": "/next"},
+                        "mapping": {
+                          "recordsJsonPointer": "/records",
+                          "idJsonPointer": "/id",
+                          "contentFields": {"title": "/title"}
+                        },
+                        "tombstonePolicy": {
+                          "strategy": "FIELD_VALUE",
+                          "operationJsonPointer": "/state",
+                          "deleteValues": ["deleted"]
+                        },
+                        "vectorSpace": "neutral-record",
+                        "entityType": "neutral-record"
+                      },
+                      "webhook": {
+                        "sourceId": "neutral-events",
+                        "method": "POST",
+                        "protectedResourceBindingRef": "neutral-scope",
+                        "verification": {
+                          "strategy": "HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY",
+                          "signatureHeader": "X-Fixture-Signature",
+                          "secret": "${FIXTURE_WEBHOOK_SECRET}"
+                        },
+                        "eventIdJsonPointer": "/eventId",
+                        "eventTypeJsonPointer": "/eventType",
+                        "resourceJsonPointer": "/scope",
+                        "allowedEventTypes": ["record.changed"],
+                        "registrationExpected": true,
+                        "manualReplayEnabled": true,
+                        "reconcileDataSourceRef": "neutral-source"
+                      }
+                    }
+                  }]
+                }
+                """
+        );
+
+        DeploymentConfigCompiler.CompiledDeploymentVersion compiled = compiler.compile(
+            deployment,
+            draft,
+            "ver-http",
+            "http-v1",
+            false
+        );
+
+        JsonNode routing = yamlMapper.readTree(compiled.routingArtifactYaml());
+        assertThat(routing.path("connection-profiles").path("neutral-provider").path("auth")
+            .path("credential-fields").path("key").asText()).isEqualTo("${FIXTURE_KEY}");
+        assertThat(routing.path("connection-profiles").path("neutral-provider").path("error-mappings")
+            .get(0).path("error-class").asText()).isEqualTo("CAPABILITY_DENIED");
+        assertThat(routing.path("protected-resources").path("neutral-scope").path("resource-id").asText())
+            .isEqualTo("scope-7");
+        assertThat(routing.path("data-sources").path("neutral-source").path("vector-space").asText())
+            .isEqualTo("neutral-record");
+        assertThat(routing.path("data-sources").path("neutral-source").path("source-version").asText())
+            .isEqualTo("fixture-dataset-hash");
+        assertThat(routing.path("data-sources").path("neutral-source").path("tombstone-policy")
+            .path("strategy").asText()).isEqualTo("FIELD_VALUE");
+        assertThat(routing.path("data-sources").path("neutral-source").path("tombstone-policy")
+            .path("operation-json-pointer").asText()).isEqualTo("/state");
+        assertThat(routing.path("data-sources").path("neutral-source").path("tombstone-policy")
+            .path("delete-values").get(0).asText()).isEqualTo("deleted");
+        assertThat(routing.path("webhooks").path("neutral-events").path("reconcile-data-source-ref").asText())
+            .isEqualTo("neutral-source");
+        assertThat(routing.path("webhooks").path("neutral-events").path("registration-expected").asBoolean())
+            .isTrue();
+        assertThat(routing.path("webhooks").path("neutral-events").path("manual-replay-enabled").asBoolean())
+            .isTrue();
+        assertThat(routing.path("runtime-data-sync").path("enabled").asBoolean()).isTrue();
+        assertThat(routing.path("runtime-data-sync").path("deployment-id").asText()).isEqualTo("dep-1");
+        assertThat(routing.path("runtime-data-sync").path("tenant-id").asText()).isEqualTo("tenant-neutral");
+        assertThat(routing.path("actions").path("neutral_search").path("connection-profile-ref").asText())
+            .isEqualTo("neutral-provider");
+    }
+
+    @Test
+    void compileRejectsProviderActionWithoutCompiledAuthority() {
+        DeploymentDraftEntity draft = draft(
+            """
+                {"actions":[{
+                  "name":"unbound_provider_search",
+                  "route":{
+                    "method":"GET",
+                    "path":"/records",
+                    "connectionProfileRef":"missing-profile",
+                    "protectedResourceBindingRef":"missing-binding",
+                    "requiredCapabilityGrants":["records:read"],
+                    "trustedResourcePlacements":[{"target":"QUERY","field":"scopeId"}]
+                  }
+                }]}
+                """,
+            "{}",
+            "{\"connectorApiKeyEnabled\":true}"
+        );
+
+        assertThatThrownBy(() -> compiler.compile(
+            deployment(),
+            draft,
+            "ver-unbound",
+            "unbound",
+            false
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("references an unavailable connection profile");
+    }
+
+    @Test
     void compileMergesExplicitRoutingOverridesOverInlineActionRoute() throws Exception {
         DeploymentConfigCompiler.CompiledDeploymentVersion compiled = compiler.compile(
             deployment(),

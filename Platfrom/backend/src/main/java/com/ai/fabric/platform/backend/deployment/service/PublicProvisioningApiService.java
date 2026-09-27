@@ -17,6 +17,7 @@ import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentC
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentStatusResponse;
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerDeploymentSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicConsumerRuntimeAssignmentResponse;
+import com.ai.fabric.platform.backend.deployment.model.PublicCustomerBackendIngestionSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentAccessSummary;
 import com.ai.fabric.platform.backend.deployment.model.PublicCreateDeploymentRequest;
 import com.ai.fabric.platform.backend.deployment.model.PublicDeploymentCredentialsResponse;
@@ -45,7 +46,11 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -275,7 +280,10 @@ public class PublicProvisioningApiService {
     public PublicConsumerRuntimeAssignmentResponse getConsumerRuntimeAssignment(String consumerId) {
         PlatformCustomerConsumerService.ResolvedPublicConsumer resolved = platformCustomerConsumerService.resolvePublicConsumer(consumerId);
         DeploymentOverviewSummary overview = overviewForResolvedConsumer(resolved);
-        com.fasterxml.jackson.databind.JsonNode securityConfig = latestPublishedSecurityConfig(overview.id());
+        DeploymentVersionEntity assignmentVersion = assignmentVersion(resolved, overview);
+        com.fasterxml.jackson.databind.JsonNode securityConfig = assignmentVersion == null
+            ? objectMapper.createObjectNode()
+            : readJson(assignmentVersion.getSecurityConfigJson());
         PublicDeploymentAccessSummary access = accessSummary(overview, securityConfig);
         PublicDeploymentIntegrationSummary integration = integrationSummary(access);
         String issuer = preferredPrivateRuntimeIssuer(securityConfig);
@@ -284,6 +292,13 @@ public class PublicProvisioningApiService {
         boolean externalIntegrationReady = access.trustedBackend().externalIntegrationReady()
             && csvValues(ManagedDeploymentProfileCatalog.privateRuntimeAcceptedIssuers(securityConfig)).contains(issuer)
             && csvValues(ManagedDeploymentProfileCatalog.privateRuntimeAcceptedAudiences(securityConfig)).contains(audience);
+        PublicCustomerBackendIngestionSummary customerBackendIngestion = customerBackendIngestionSummary(
+            overview.runtimeBaseUrl(),
+            assignmentVersion == null
+                ? objectMapper.createObjectNode()
+                : readJson(assignmentVersion.getMarketplaceDatasetConfigJson()),
+            externalIntegrationReady
+        );
         String revision = assignmentRevision(
             resolved.consumer().getConsumerId(),
             overview.id(),
@@ -291,7 +306,8 @@ public class PublicProvisioningApiService {
             integration.preferredIntegrationMode(),
             access.posture().runtimeAuthMode(),
             issuer,
-            audience
+            audience,
+            customerBackendIngestion
         );
         return new PublicConsumerRuntimeAssignmentResponse(
             resolved.consumer().getConsumerId(),
@@ -306,6 +322,7 @@ public class PublicProvisioningApiService {
             access.trustedBackend().assertionAuthorizationHeader(),
             access.trustedBackend().assertionTokenScheme(),
             externalIntegrationReady,
+            customerBackendIngestion,
             revision,
             RUNTIME_ASSIGNMENT_CACHE_TTL_SECONDS,
             access.runtime(),
@@ -569,6 +586,88 @@ public class PublicProvisioningApiService {
             .findFirst()
             .orElse(null);
         return version == null ? objectMapper.createObjectNode() : readJson(version.getBehaviorConfigJson());
+    }
+
+    private DeploymentVersionEntity assignmentVersion(
+        PlatformCustomerConsumerService.ResolvedPublicConsumer resolved,
+        DeploymentOverviewSummary overview
+    ) {
+        String versionId = resolved.release() != null
+            ? blankToNull(resolved.release().getDeploymentVersionId())
+            : blankToNull(resolved.deployment().getActiveVersionId());
+        if (versionId == null && overview.latestRelease() != null) {
+            versionId = blankToNull(overview.latestRelease().versionId());
+        }
+        if (versionId != null) {
+            return deploymentVersionRepository.findById(versionId)
+                .filter(candidate -> overview.id().equals(candidate.getDeploymentId()))
+                .orElse(null);
+        }
+        return deploymentVersionRepository.findByDeploymentIdOrderByPublishedAtDesc(overview.id()).stream()
+            .findFirst()
+            .orElse(null);
+    }
+
+    private PublicCustomerBackendIngestionSummary customerBackendIngestionSummary(
+        String runtimeBaseUrl,
+        JsonNode datasetConfig,
+        boolean externalIntegrationReady
+    ) {
+        LinkedHashMap<String, List<String>> operationsByEntityType = new LinkedHashMap<>();
+        LinkedHashSet<String> operations = new LinkedHashSet<>();
+        JsonNode datasets = datasetConfig == null ? null : datasetConfig.path("datasets");
+        if (datasets != null && datasets.isArray()) {
+            for (JsonNode dataset : datasets) {
+                JsonNode contract = dataset.path("customerBackendIngestion");
+                String entityType = dataset.path("entityType").asText("").trim();
+                if (!contract.path("enabled").asBoolean(false) || entityType.isBlank()) {
+                    continue;
+                }
+                List<String> entityOperations = textValues(contract.path("operations")).stream()
+                    .map(value -> value.trim().toUpperCase(java.util.Locale.ROOT))
+                    .filter(value -> Set.of("UPSERT", "DELETE", "WORK_STATUS", "READINESS").contains(value))
+                    .toList();
+                if (!entityOperations.isEmpty()) {
+                    operationsByEntityType.put(entityType, entityOperations);
+                    operations.addAll(entityOperations);
+                }
+            }
+        }
+        boolean configured = !operationsByEntityType.isEmpty();
+        String baseUrl = blankToNull(runtimeBaseUrl);
+        boolean available = configured && externalIntegrationReady && baseUrl != null;
+        boolean batchConfigured = operations.contains("UPSERT") || operations.contains("DELETE");
+        boolean workStatusConfigured = operations.contains("WORK_STATUS");
+        boolean readinessConfigured = operations.contains("READINESS");
+        LinkedHashSet<String> requiredScopes = new LinkedHashSet<>();
+        if (operations.contains("UPSERT")) {
+            requiredScopes.add("data-sync:upsert");
+        }
+        if (operations.contains("DELETE")) {
+            requiredScopes.add("data-sync:delete");
+        }
+        if (workStatusConfigured || readinessConfigured) {
+            requiredScopes.add("runtime:index:overview");
+        }
+        String guidance;
+        if (!configured) {
+            guidance = "Customer-backend ingestion is not enabled by the immutable DATA package composition.";
+        } else if (!available) {
+            guidance = "Customer-backend ingestion is configured, but private runtime issuer/audience and trusted-backend access must be ready before endpoint discovery is enabled.";
+        } else {
+            guidance = "Backend only. Use the trusted-backend API key and a short-lived signed private assertion for this deployment and tenant. Never expose these credentials or ingestion endpoints to browser code.";
+        }
+        return new PublicCustomerBackendIngestionSummary(
+            configured,
+            available,
+            List.copyOf(operationsByEntityType.keySet()),
+            java.util.Collections.unmodifiableMap(new LinkedHashMap<>(operationsByEntityType)),
+            available && batchConfigured ? baseUrl + "/api/private/ingestion/data-sync/batch" : null,
+            available && workStatusConfigured ? baseUrl + "/api/private/ingestion/indexing/work/{workId}" : null,
+            available && readinessConfigured ? baseUrl + "/api/private/ingestion/readiness" : null,
+            List.copyOf(requiredScopes),
+            guidance
+        );
     }
 
     private PublicDeploymentAccessSummary accessSummary(DeploymentOverviewSummary overview,
@@ -886,7 +985,7 @@ public class PublicProvisioningApiService {
                 }
             });
         }
-        return java.util.Set.copyOf(result);
+        return java.util.Collections.unmodifiableSet(result);
     }
 
     private PublicTrustedBackendAccessSummary emptyTrustedBackend() {
@@ -1097,7 +1196,8 @@ public class PublicProvisioningApiService {
                                       String preferredIntegrationMode,
                                       String runtimeAuthMode,
                                       String issuer,
-                                      String audience) {
+                                      String audience,
+                                      PublicCustomerBackendIngestionSummary customerBackendIngestion) {
         String material = String.join("|",
             blankToEmpty(consumerId),
             blankToEmpty(deploymentId),
@@ -1105,7 +1205,9 @@ public class PublicProvisioningApiService {
             blankToEmpty(preferredIntegrationMode),
             blankToEmpty(runtimeAuthMode),
             blankToEmpty(issuer),
-            blankToEmpty(audience)
+            blankToEmpty(audience),
+            customerBackendIngestion == null ? "" : Boolean.toString(customerBackendIngestion.available()),
+            customerBackendIngestion == null ? "" : customerBackendIngestion.operationsByEntityType().toString()
         );
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(material.getBytes(StandardCharsets.UTF_8));

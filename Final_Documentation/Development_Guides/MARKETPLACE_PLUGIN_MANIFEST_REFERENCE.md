@@ -1,6 +1,6 @@
 # Marketplace Plugin Manifest Reference
 
-Status: strict current-branch reference (2026-04-15)
+Status: strict current-branch reference (2026-09-27)
 
 This document describes the marketplace manifest contract enforced by the current platform implementation.
 
@@ -381,20 +381,25 @@ Current supported values:
 
 - `storageScope`
   - `PLUGIN_SCOPED`
+  - `CUSTOMER_MANAGED`
 - `sharingScope`
   - `TENANT_SHARED`
+  - `DEPLOYMENT_ONLY`
 - `ingestionMode`
   - `PACKAGED_SEED`
   - `EXTERNAL_SYNC_SQL`
   - `EXTERNAL_SYNC_FOLDER`
+  - `EXTERNAL_SYNC_HTTP`
+  - `EXTERNAL_DOCUMENT_STORAGE`
 - `updateStrategy`
   - `UPSERT_BY_ID`
+  - `VERSIONED_REPLACE`
 
 For `PACKAGED_SEED`:
 
 - `seedDatasetRef` required
 
-For external sync modes:
+For `EXTERNAL_SYNC_SQL`, `EXTERNAL_SYNC_FOLDER`, and `EXTERNAL_SYNC_HTTP`:
 
 - `syncConnector` required
 
@@ -402,6 +407,11 @@ Supported sync connector types:
 
 - `SQL_QUERY`
 - `FILE_FOLDER`
+- `HTTP_JSON`
+
+`EXTERNAL_SYNC_HTTP` requires `syncConnector.connectorType=HTTP_JSON`.
+`EXTERNAL_DOCUMENT_STORAGE` uses its separate bounded `sourceConnector` and
+`documentPolicy` contract described in the Document Knowledge Operations plan.
 
 ### 9.2 Knowledge source contract
 
@@ -467,6 +477,74 @@ Example:
   }
 }
 ```
+
+---
+
+### 9.3 `EXTERNAL_SYNC_HTTP` contract
+
+An HTTP dataset contains:
+
+- `syncConnector.connectionProfile`
+- `syncConnector.protectedResource`
+- `syncConnector.httpSource`
+- optional `syncConnector.webhook`
+- optional dataset-level `customerBackendIngestion`
+
+Connection profiles support `API_KEY` and `FORM_TOKEN_EXCHANGE`. They must
+declare an HTTPS base URL, an allowlist containing every provider/token host,
+capability grants, secret-reference fields, and bounded auth/rate/error policy.
+Resolved secret values are deployment configuration and never manifest data.
+
+The protected resource declares `bindingId`, environment, `resourceType`, an
+install field containing the resource ID, and capability grants. The ID is
+compiled into the deployment and inserted server-side. It is never accepted
+from model/action input.
+
+The HTTP source declares:
+
+- stable `sourceId`, relative path, and `GET` or `POST`;
+- at least one trusted resource placement;
+- grants present on both profile and protected resource;
+- `NONE`, `PAGE_SIZE`, or `CURSOR` pagination;
+- record, identity, protected-resource, content, entity, and metadata JSON
+  Pointer mappings;
+- record/response/page bounds and schedule; and
+- optional field/snapshot tombstone policy.
+
+Every protected path placeholder must have a matching server-owned `PATH`
+placement. Header placement cannot overwrite the provider auth header. Every
+record must project the exact protected-resource ID or the entire sync fails
+closed before indexing.
+
+Optional provider webhooks support only the reviewed raw-body
+`HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY` verifier in this release. They declare a
+signature secret-reference field, event/resource JSON Pointers, allowed event
+and content types, replay window, reconciliation attempts, retry delay,
+registration expectation, and optional operator replay. Webhook processing
+always reconciles the latest provider state; event payloads are not treated as
+authoritative records.
+
+`customerBackendIngestion`, when explicitly enabled by the immutable dataset,
+may grant only these operations:
+
+- `UPSERT`
+- `DELETE`
+- `WORK_STATUS`
+- `READINESS`
+
+This emits backend-only deployment URLs and exact operation flags in assignment
+discovery. It does not expose the private connector/runtime channel and must not
+be placed in browser configuration.
+
+`UPSERT`, `DELETE`, and `WORK_STATUS` authorization is compiled per dataset
+entity type. Enabling work-status lookup for one entity type does not authorize
+inspection of work created for another entity type. `READINESS` is a bounded
+deployment posture projection and does not return source records or provider
+payloads.
+
+The complete executable schema is enforced by `MarketplaceManifestService`;
+tests use a provider-neutral manifest so provider-specific field and route names
+cannot leak into generic code.
 
 ---
 

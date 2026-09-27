@@ -22,6 +22,8 @@ public class RuntimeAuthProperties {
         private List<String> acceptedIssuers = new ArrayList<>();
         private List<String> acceptedAudiences = new ArrayList<>();
         private TrustedBackend trustedBackend = new TrustedBackend();
+        private IntegrationService integrationService = new IntegrationService();
+        private CustomerIngestion customerIngestion = new CustomerIngestion();
         private PrivateAssertions privateAssertions = new PrivateAssertions();
     }
 
@@ -29,6 +31,27 @@ public class RuntimeAuthProperties {
     public static class TrustedBackend {
         private String apiKeyHeader = "X-AIFABRIC-RUNTIME-API-KEY";
         private String apiKeyValue;
+    }
+
+    @Data
+    public static class IntegrationService {
+        private boolean enabled = false;
+        private String apiKeyHeader = "X-AIFABRIC-INTEGRATION-KEY";
+        private String apiKeyValue;
+        private String deploymentId;
+        private String tenantId;
+    }
+
+    @Data
+    public static class CustomerIngestion {
+        private boolean enabled = false;
+        private String deploymentId;
+        private String tenantId;
+        private List<String> allowedUpsertEntityTypes = new ArrayList<>();
+        private List<String> allowedDeleteEntityTypes = new ArrayList<>();
+        private List<String> allowedWorkStatusEntityTypes = new ArrayList<>();
+        private boolean workStatusEnabled = false;
+        private boolean readinessEnabled = false;
     }
 
     @Data

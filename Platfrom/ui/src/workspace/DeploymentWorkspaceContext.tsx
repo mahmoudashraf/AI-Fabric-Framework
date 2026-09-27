@@ -23,6 +23,7 @@ export const DEPLOYMENT_WORKSPACE_PATHS = [
   '/access',
   '/knowledge',
   '/document-knowledge',
+  '/integrations',
   '/poc',
   '/prompts',
   '/providers',

@@ -7,6 +7,7 @@ import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded'
 import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded'
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded'
 import DatasetLinkedRoundedIcon from '@mui/icons-material/DatasetLinkedRounded'
+import CableRoundedIcon from '@mui/icons-material/CableRounded'
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded'
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined'
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded'
@@ -62,6 +63,7 @@ const navItems = [
   { label: 'Customers', path: '/customers', icon: <ApartmentRoundedIcon />, customerManagement: true },
   { label: 'Knowledge', path: '/knowledge', icon: <DatasetLinkedRoundedIcon /> },
   { label: 'Document Knowledge', path: '/document-knowledge', icon: <DescriptionRoundedIcon />, documentKnowledgeOnly: true },
+  { label: 'External Integrations', path: '/integrations', icon: <CableRoundedIcon />, externalIntegrationOnly: true },
   { label: 'Marketplace', path: '/marketplace', icon: <StorefrontRoundedIcon /> },
   { label: 'Inference Services', path: '/inference-services', icon: <MemoryRoundedIcon />, platformAdminOnly: true },
   { label: 'Product Services', path: '/product-services', icon: <PrecisionManufacturingRoundedIcon />, platformAdminOnly: true },
@@ -106,6 +108,9 @@ export function AppShell({ children, session, onSignOut }: AppShellProps) {
     }
     if (item.documentKnowledgeOnly) {
       return workspace.workspace?.documentKnowledgeConfigured ?? false
+    }
+    if (item.externalIntegrationOnly) {
+      return workspace.workspace?.externalIntegrationConfigured ?? false
     }
     if (item.platformAdminOnly) {
       return session?.enabled ? session.canManageUsers : true

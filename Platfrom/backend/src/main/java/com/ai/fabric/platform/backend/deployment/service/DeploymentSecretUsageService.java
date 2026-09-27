@@ -50,6 +50,7 @@ public class DeploymentSecretUsageService {
         JsonNode routingConfig = readJson(draft.getRoutingConfigJson());
         JsonNode providerConfig = readJson(draft.getProviderConfigJson());
         JsonNode securityConfig = readJson(draft.getSecurityConfigJson());
+        JsonNode marketplaceDatasetConfig = readJson(draft.getMarketplaceDatasetConfigJson());
 
         Map<String, PlatformSecretSummary> secretCatalog = platformSecretService.listSecrets().stream()
             .collect(LinkedHashMap::new, (map, item) -> map.put(item.name(), item), Map::putAll);
@@ -162,6 +163,8 @@ public class DeploymentSecretUsageService {
             null
         );
 
+        registerHttpIntegrationSecrets(usages, literalRisks, secretCatalog, marketplaceDatasetConfig);
+
         List<DeploymentSecretUsageItemSummary> secrets = usages.entrySet().stream()
             .map(entry -> toItemSummary(deploymentId, secretCatalog.get(entry.getKey()), entry.getKey(), entry.getValue()))
             .toList();
@@ -187,6 +190,48 @@ public class DeploymentSecretUsageService {
             literalRiskCount,
             summaryMessage
         );
+    }
+
+    private void registerHttpIntegrationSecrets(
+        Map<String, UsageAccumulator> usages,
+        List<DeploymentSecretLiteralRiskSummary> literalRisks,
+        Map<String, PlatformSecretSummary> secretCatalog,
+        JsonNode marketplaceDatasetConfig
+    ) {
+        JsonNode datasets = marketplaceDatasetConfig.path("datasets");
+        if (!datasets.isArray()) {
+            return;
+        }
+        for (int index = 0; index < datasets.size(); index++) {
+            JsonNode dataset = datasets.get(index);
+            if (!"EXTERNAL_SYNC_HTTP".equalsIgnoreCase(dataset.path("ingestionMode").asText(""))) {
+                continue;
+            }
+            String base = "$.marketplaceDatasetConfig.datasets[" + index + "].syncConnector";
+            JsonNode connector = dataset.path("syncConnector");
+            JsonNode auth = connector.path("connectionProfile").path("auth");
+            registerFromDraftValue(
+                usages, literalRisks, secretCatalog,
+                auth.path("apiKeyValue").asText(""),
+                "REST connector", base + ".connectionProfile.auth.apiKeyValue",
+                "External-provider API-key auth must reference a deployment secret.", null
+            );
+            JsonNode credentialFields = auth.path("credentialFields");
+            if (credentialFields.isObject()) {
+                credentialFields.fields().forEachRemaining(entry -> registerFromDraftValue(
+                    usages, literalRisks, secretCatalog,
+                    entry.getValue().asText(""),
+                    "REST connector", base + ".connectionProfile.auth.credentialFields." + entry.getKey(),
+                    "External-provider token credentials must reference deployment secrets.", null
+                ));
+            }
+            registerFromDraftValue(
+                usages, literalRisks, secretCatalog,
+                connector.path("webhook").path("verification").path("secret").asText(""),
+                "REST connector", base + ".webhook.verification.secret",
+                "External-provider webhook verification must reference a deployment secret.", null
+            );
+        }
     }
 
     private void registerFromDraftValue(Map<String, UsageAccumulator> usages,

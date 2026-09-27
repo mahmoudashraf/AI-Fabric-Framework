@@ -45,6 +45,7 @@ public class DeploymentExecutionSecretService {
 
     public Set<String> requiredSecretNames(DeploymentEntity deployment, DeploymentVersionEntity version) {
         JsonNode behavior = readJson(version.getBehaviorConfigJson());
+        JsonNode marketplaceDatasets = readJson(version.getMarketplaceDatasetConfigJson());
         String behaviorType = behavior.path("type").asText(deployment.getBehaviorType());
         LinkedHashSet<String> names = new LinkedHashSet<>();
         if ("AGENTIC_SPECIALIST_TEAM".equals(behaviorType)) {
@@ -64,7 +65,37 @@ public class DeploymentExecutionSecretService {
             names.add(reviewEncryptionSecretName(deployment.getId()));
             names.add(reviewFingerprintSecretName(deployment.getId()));
         }
+        if (hasExternalHttpDataset(marketplaceDatasets)) {
+            names.add(integrationServiceApiKeyName(deployment.getId()));
+            names.add(integrationConnectorDatabasePasswordName(deployment.getId()));
+        }
         return Set.copyOf(names);
+    }
+
+    public static String integrationServiceApiKeyName(String deploymentId) {
+        return managedName("INTEGRATION_SERVICE_API_KEY", deploymentId);
+    }
+
+    public static String integrationConnectorDatabasePasswordName(String deploymentId) {
+        return managedName("INTEGRATION_CONNECTOR_DATABASE_PASSWORD", deploymentId);
+    }
+
+    public static Set<String> deploymentManagedSecretNames(String deploymentId) {
+        return Set.of(
+            chainEncryptionSecretName(deploymentId),
+            chainFingerprintSecretName(deploymentId),
+            smartBrainJobEncryptionSecretName(deploymentId),
+            smartBrainJobFingerprintSecretName(deploymentId),
+            smartBrainEncryptionSecretName(deploymentId),
+            smartBrainFingerprintSecretName(deploymentId),
+            smartBrainDeliverySigningSecretName(deploymentId),
+            actionReceiptEncryptionSecretName(deploymentId),
+            actionReceiptFingerprintSecretName(deploymentId),
+            reviewEncryptionSecretName(deploymentId),
+            reviewFingerprintSecretName(deploymentId),
+            integrationServiceApiKeyName(deploymentId),
+            integrationConnectorDatabasePasswordName(deploymentId)
+        );
     }
 
     public static String chainEncryptionSecretName(String deploymentId) {
@@ -124,6 +155,19 @@ public class DeploymentExecutionSecretService {
         }
         for (JsonNode value : values) {
             if (expected.equals(value.asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasExternalHttpDataset(JsonNode config) {
+        JsonNode datasets = config.path("datasets");
+        if (!datasets.isArray()) {
+            return false;
+        }
+        for (JsonNode dataset : datasets) {
+            if ("EXTERNAL_SYNC_HTTP".equals(dataset.path("ingestionMode").asText(""))) {
                 return true;
             }
         }

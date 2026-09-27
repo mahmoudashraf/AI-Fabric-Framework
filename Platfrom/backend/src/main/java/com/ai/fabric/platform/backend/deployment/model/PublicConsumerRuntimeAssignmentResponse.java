@@ -13,6 +13,7 @@ public record PublicConsumerRuntimeAssignmentResponse(
     String privateAssertionAuthorizationHeader,
     String privateAssertionTokenScheme,
     boolean externalIntegrationReady,
+    PublicCustomerBackendIngestionSummary customerBackendIngestion,
     String assignmentRevision,
     int cacheTtlSeconds,
     PublicRuntimeEndpointsSummary endpoints,

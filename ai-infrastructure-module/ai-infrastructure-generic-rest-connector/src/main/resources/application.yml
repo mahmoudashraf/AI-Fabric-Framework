@@ -21,6 +21,17 @@ rest-connector:
   # pointing at a versioned platform artifact. The classpath default remains a neutral
   # safe-by-default fallback so packaging-only images still boot deterministically.
   routing-config-location: classpath:actions-routing.yml
+  persistence:
+    enabled: ${REST_CONNECTOR_PERSISTENCE_ENABLED:false}
+    jdbc-url: ${REST_CONNECTOR_JDBC_URL:}
+    username: ${REST_CONNECTOR_JDBC_USERNAME:}
+    password: ${REST_CONNECTOR_JDBC_PASSWORD:}
+    schema: ${REST_CONNECTOR_PERSISTENCE_SCHEMA:integration_connector}
+    bootstrap-jdbc-url: ${REST_CONNECTOR_BOOTSTRAP_JDBC_URL:}
+    bootstrap-username: ${REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME:}
+    bootstrap-password: ${REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD:}
+    role-name: ${REST_CONNECTOR_DATABASE_ROLE:}
+    maximum-pool-size: ${REST_CONNECTOR_DB_POOL_SIZE:4}
 
 app:
   cors:

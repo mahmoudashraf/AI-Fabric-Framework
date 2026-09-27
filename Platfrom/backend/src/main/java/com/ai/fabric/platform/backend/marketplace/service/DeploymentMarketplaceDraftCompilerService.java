@@ -1030,6 +1030,12 @@ public class DeploymentMarketplaceDraftCompilerService {
             if (dataset.documentPolicy() != null && dataset.documentPolicy().isObject()) {
                 compiledDataset.set("documentPolicy", dataset.documentPolicy().deepCopy());
             }
+            if (dataset.customerBackendIngestion() != null && dataset.customerBackendIngestion().isObject()) {
+                compiledDataset.set(
+                    "customerBackendIngestion",
+                    dataset.customerBackendIngestion().deepCopy()
+                );
+            }
             if (installConfig != null && installConfig.isObject() && !installConfig.isEmpty()) {
                 compiledDataset.set("config", installConfig.deepCopy());
             }
@@ -1745,7 +1751,101 @@ public class DeploymentMarketplaceDraftCompilerService {
                 resolved.put("folderRef", folderRef);
             }
         }
+        if ("HTTP_JSON".equals(dataset.connectorType())) {
+            resolveHttpSyncConnector(resolved, dataset, installConfig, installSecretRefs);
+        }
         return resolved;
+    }
+
+    private void resolveHttpSyncConnector(ObjectNode connector,
+                                          MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
+                                          JsonNode installConfig,
+                                          JsonNode installSecretRefs) {
+        ObjectNode profile = requireObject(connector, "connectionProfile", dataset.datasetId());
+        ObjectNode auth = requireObject(profile, "auth", dataset.datasetId());
+        String strategy = auth.path("strategy").asText("").trim().toUpperCase(java.util.Locale.ROOT);
+        if ("API_KEY".equals(strategy)) {
+            String secretRefField = text(auth, "apiKeySecretRefField");
+            auth.put("apiKeyValue", secretPlaceholder(installSecretRefs, secretRefField, dataset.datasetId()));
+            auth.remove("apiKeySecretRefField");
+        }
+        if ("FORM_TOKEN_EXCHANGE".equals(strategy)) {
+            ArrayNode credentialDefinitions = auth.path("credentialFields") instanceof ArrayNode array
+                ? array
+                : objectMapper.createArrayNode();
+            ObjectNode credentialFields = objectMapper.createObjectNode();
+            for (JsonNode credential : credentialDefinitions) {
+                String name = text(credential, "name");
+                String secretRefField = text(credential, "secretRefField");
+                if (StringUtils.hasText(name)) {
+                    credentialFields.put(name, secretPlaceholder(installSecretRefs, secretRefField, dataset.datasetId()));
+                }
+            }
+            auth.set("credentialFields", credentialFields);
+        }
+
+        ObjectNode protectedResource = requireObject(connector, "protectedResource", dataset.datasetId());
+        String resourceIdField = text(protectedResource, "resourceIdField");
+        String resourceId = StringUtils.hasText(resourceIdField)
+            ? installConfig.path(resourceIdField).asText("").trim()
+            : "";
+        if (!StringUtils.hasText(resourceId)) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace HTTP dataset " + dataset.datasetId() + " requires install config field " + resourceIdField + "."
+            );
+        }
+        protectedResource.put("resourceId", resourceId);
+        protectedResource.remove("resourceIdField");
+        String displayValueField = text(protectedResource, "displayValueField");
+        if (StringUtils.hasText(displayValueField)) {
+            String displayValue = installConfig.path(displayValueField).asText("").trim();
+            if (StringUtils.hasText(displayValue)) {
+                protectedResource.put("displayValue", displayValue);
+            }
+            protectedResource.remove("displayValueField");
+        }
+        protectedResource.put("connectionProfileRef", profile.path("profileId").asText(""));
+
+        ObjectNode source = requireObject(connector, "httpSource", dataset.datasetId());
+        source.put("connectionProfileRef", profile.path("profileId").asText(""));
+        source.put("protectedResourceBindingRef", protectedResource.path("bindingId").asText(""));
+        source.put("vectorSpace", dataset.entityType());
+        source.put("entityType", dataset.entityType());
+
+        JsonNode webhookNode = connector.path("webhook");
+        if (webhookNode instanceof ObjectNode webhook) {
+            ObjectNode verification = requireObject(webhook, "verification", dataset.datasetId());
+            String secretRefField = text(verification, "secretRefField");
+            verification.put("secret", secretPlaceholder(installSecretRefs, secretRefField, dataset.datasetId()));
+            verification.remove("secretRefField");
+            webhook.put("protectedResourceBindingRef", protectedResource.path("bindingId").asText(""));
+            webhook.put("reconcileDataSourceRef", source.path("sourceId").asText(""));
+        }
+    }
+
+    private ObjectNode requireObject(ObjectNode parent, String field, String datasetId) {
+        JsonNode node = parent.path(field);
+        if (node instanceof ObjectNode object) {
+            return object;
+        }
+        throw new ResponseStatusException(
+            CONFLICT,
+            "Marketplace HTTP dataset " + datasetId + " has no compiled " + field + " object."
+        );
+    }
+
+    private String secretPlaceholder(JsonNode installSecretRefs, String field, String datasetId) {
+        String secretName = StringUtils.hasText(field) && installSecretRefs != null
+            ? installSecretRefs.path(field).asText("").trim()
+            : "";
+        if (!StringUtils.hasText(secretName) || !secretName.matches("[A-Z][A-Z0-9_]{1,127}")) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Marketplace HTTP dataset " + datasetId + " requires a valid deployment secret reference for " + field + "."
+            );
+        }
+        return "${" + secretName + "}";
     }
 
     private ObjectNode resolveSourceConnector(MarketplaceManifestService.ParsedMarketplaceDatasetDefinition dataset,
@@ -1819,6 +1919,12 @@ public class DeploymentMarketplaceDraftCompilerService {
         }
         if (dataset.documentPolicy() != null && dataset.documentPolicy().isObject()) {
             payload.set("documentPolicy", dataset.documentPolicy().deepCopy());
+        }
+        if (dataset.customerBackendIngestion() != null && dataset.customerBackendIngestion().isObject()) {
+            payload.set(
+                "customerBackendIngestion",
+                dataset.customerBackendIngestion().deepCopy()
+            );
         }
         payload.set("config", installConfig == null ? objectMapper.createObjectNode() : installConfig.deepCopy());
         payload.set("secretRefs", installSecretRefs == null ? objectMapper.createObjectNode() : installSecretRefs.deepCopy());

@@ -545,6 +545,8 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
             .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
         assertThat(connectorEnv)
+            .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-AIFABRIC-RUNTIME-API-KEY");
     }
@@ -1886,6 +1888,85 @@ class RailwayProvisioningPlanServiceTest {
         assertThatThrownBy(() -> service.buildPlan(deployment(), documentVersion, null, "profile-other"))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("not configured for target profile profile-other");
+    }
+
+    @Test
+    void buildPlanCreatesDeploymentScopedIntegrationServiceAndPersistenceBindings() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        DeploymentVersionEntity integrationVersion = version();
+        integrationVersion.setMarketplaceDatasetConfigJson(
+            """
+                {
+                  "datasets": [{
+                    "datasetId": "neutral-records",
+                    "entityType": "neutral-record",
+                    "ingestionMode": "EXTERNAL_SYNC_HTTP",
+                    "customerBackendIngestion": {
+                      "enabled": true,
+                      "operations": ["UPSERT", "DELETE", "WORK_STATUS", "READINESS"]
+                    }
+                  }]
+                }
+                """
+        );
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), integrationVersion);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_HEADER", "X-AIFABRIC-INTEGRATION-KEY")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_VALUE",
+                "${secret:" + DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-123") + "}"
+            )
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_DEPLOYMENT_ID", "dep-123")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_TENANT_ID", "tenant-default")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_DEPLOYMENT_ID", "dep-123")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_TENANT_ID", "tenant-default")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_UPSERT_ENTITY_TYPES", "neutral-record")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_DELETE_ENTITY_TYPES", "neutral-record")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_WORK_STATUS_ENTITY_TYPES", "neutral-record")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_WORK_STATUS_ENABLED", "true")
+            .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_READINESS_ENABLED", "true")
+            .containsEntry("AI_DATA_SYNC_ALLOW_TRUSTED_PLATFORM_INTERNAL_SYNC_BYPASS", "true");
+        assertThat(connectorEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL", "https://runtime-dep-123.placeholder.local")
+            .containsEntry(
+                "AI_FABRIC_RUNTIME_INTEGRATION_SERVICE_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-123") + "}"
+            )
+            .containsEntry("REST_CONNECTOR_PERSISTENCE_ENABLED", "true")
+            .containsEntry("REST_CONNECTOR_PERSISTENCE_SCHEMA", "integration_connector")
+            .containsEntry("REST_CONNECTOR_DATABASE_ROLE", "integration_dep_123")
+            .containsEntry("REST_CONNECTOR_JDBC_USERNAME", "integration_dep_123")
+            .containsEntry(
+                "REST_CONNECTOR_JDBC_PASSWORD",
+                "${secret:" + DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-123") + "}"
+            );
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

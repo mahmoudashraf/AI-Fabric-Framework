@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -82,6 +83,12 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private static final Duration DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL = Duration.ofSeconds(10);
     private static final Duration DEFAULT_STALE_DELETE_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration DEFAULT_STALE_DELETE_POLL_INTERVAL = Duration.ofSeconds(5);
+    private static final Set<String> CONNECTOR_DATABASE_BOOTSTRAP_ENV_KEYS = Set.of(
+        "REST_CONNECTOR_BOOTSTRAP_JDBC_URL",
+        "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME",
+        "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD",
+        "REST_CONNECTOR_DATABASE_ROLE"
+    );
     private static final SecureRandom SECRET_RANDOM = new SecureRandom();
 
     private final DeploymentTargetProfileRepository targetProfileRepository;
@@ -516,12 +523,64 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         String connectorBaseUrl = connectorApplication == null
             ? runtimeBaseUrl
             : normalizeRuntimeBaseUrl(connectorApplication.fqdn());
+        String connectorRuntimeBaseUrl;
+        String runtimeConnectorBaseUrl = connectorBaseUrl;
+        if (hasExternalHttpDataset(version) && connectorApplication != null) {
+            String runtimeInternalName = integrationInternalName(deployment, SERVICE_ROLE_RUNTIME);
+            String connectorInternalName = integrationInternalName(deployment, SERVICE_ROLE_CONNECTOR);
+            CoolifyApplicationSummary finalConnectorApplication = connectorApplication;
+            tracked(
+                progressTracker,
+                "configure_coolify_runtime_private_network",
+                "Configure the deployment runtime with a stable private Coolify network identity.",
+                () -> {
+                    coolifyApiClient.configurePrivateApplicationNetwork(
+                        connection,
+                        runtimeApplication.uuid(),
+                        runtimeInternalName
+                    );
+                    return null;
+                }
+            );
+            tracked(
+                progressTracker,
+                "configure_coolify_connector_private_network",
+                "Attach the deployment connector to the private Coolify application network.",
+                () -> {
+                    coolifyApiClient.configurePrivateApplicationNetwork(
+                        connection,
+                        finalConnectorApplication.uuid(),
+                        connectorInternalName
+                    );
+                    return null;
+                }
+            );
+            connectorRuntimeBaseUrl = "http://" + runtimeInternalName + ":" + internalServicePort(
+                runtimePortsExposes,
+                runtimeHealthCheckPort,
+                DEFAULT_RUNTIME_PORT
+            );
+            runtimeConnectorBaseUrl = "http://" + connectorInternalName + ":" + internalServicePort(
+                connectorPortsExposes,
+                connectorHealthCheckPort,
+                DEFAULT_CONNECTOR_PORT
+            );
+        } else {
+            connectorRuntimeBaseUrl = runtimeBaseUrl;
+        }
+        String resolvedRuntimeConnectorBaseUrl = runtimeConnectorBaseUrl;
         CoolifyRuntimeDatabaseBinding runtimeDatabaseBinding = tracked(
             progressTracker,
             "reconcile_coolify_runtime_database",
             "Create or reuse the profile-managed runtime PostgreSQL database when production profile requires durable chat storage.",
             () -> reconcileRuntimeDatabaseBinding(connection, resourceScope, deployment, profile, resourceDefaults)
         );
+        if (hasExternalHttpDataset(version) && runtimeDatabaseBinding == null) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "EXTERNAL_SYNC_HTTP requires a target profile with managed Coolify PostgreSQL enabled."
+            );
+        }
         DeploymentProviderResourceHandleEntity provisionalRuntimeDatabaseHandle = runtimeDatabaseBinding == null ? null : tracked(
             progressTracker,
             "record_coolify_runtime_database_handle_provisional",
@@ -553,6 +612,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     source.runtimePlan(),
                     SERVICE_ROLE_RUNTIME,
                     runtimeBaseUrl,
+                    resolvedRuntimeConnectorBaseUrl,
                     connectorBaseUrl,
                     runtimeDatabaseBinding
                 )
@@ -578,9 +638,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                         source,
                         source.connectorPlan(),
                         SERVICE_ROLE_CONNECTOR,
-                        runtimeBaseUrl,
+                        connectorRuntimeBaseUrl,
                         connectorBaseUrl,
-                        null
+                        connectorBaseUrl,
+                        runtimeDatabaseBinding
                     )
                 )
             );
@@ -606,6 +667,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                         vectorizationRunnerPlan,
                         SERVICE_ROLE_VECTORIZATION_RUNNER,
                         runtimeBaseUrl,
+                        connectorBaseUrl,
                         connectorBaseUrl,
                         null
                     )
@@ -637,6 +699,40 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     progressTracker
                 )
             );
+            if (hasExternalHttpDataset(version) && runtimeDatabaseBinding != null) {
+                int removedBootstrapVariables = tracked(
+                    progressTracker,
+                    "remove_coolify_connector_database_bootstrap_credentials",
+                    "Remove one-time database bootstrap credentials after the restricted connector role is ready.",
+                    () -> coolifyApiClient.deleteEnvironmentVariablesByKey(
+                        connection,
+                        finalConnectorApplication.uuid(),
+                        CONNECTOR_DATABASE_BOOTSTRAP_ENV_KEYS
+                    )
+                );
+                if (removedBootstrapVariables > 0) {
+                    connectorDeployResponse = tracked(
+                        progressTracker,
+                        "redeploy_coolify_connector_without_database_bootstrap_credentials",
+                        "Redeploy the connector using only its restricted database role.",
+                        () -> coolifyApiClient.start(connection, finalConnectorApplication.uuid(), true, true)
+                    );
+                    CoolifyActionResponse scrubbedConnectorDeployResponse = connectorDeployResponse;
+                    observedConnector = tracked(
+                        progressTracker,
+                        "wait_for_coolify_connector_after_database_credential_scrub",
+                        "Verify the connector starts after privileged database credentials are removed.",
+                        () -> waitForApplicationReady(
+                            connection,
+                            finalConnectorApplication.uuid(),
+                            resourceDefaults,
+                            finalConnectorApplication,
+                            scrubbedConnectorDeployResponse,
+                            progressTracker
+                        )
+                    );
+                }
+            }
         }
 
         CoolifyActionResponse vectorizationRunnerDeployResponse = null;
@@ -1963,6 +2059,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                                                  String serviceRole,
                                                  String runtimeBaseUrl,
                                                  String connectorBaseUrl,
+                                                 String publicConnectorBaseUrl,
                                                  CoolifyRuntimeDatabaseBinding runtimeDatabaseBinding) {
         LinkedHashMap<String, CoolifyEnvVar> env = new LinkedHashMap<>();
         if (servicePlan != null && servicePlan.env() != null) {
@@ -2016,6 +2113,20 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             putEnv(env, "PLATFORM_RUNTIME_DATABASE_MODE", runtimeDatabaseBinding.mode());
             putEnv(env, "PLATFORM_RUNTIME_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
             putEnv(env, "PLATFORM_RUNTIME_DATABASE_PASSWORD_SECRET", runtimeDatabaseBinding.passwordSecretName(), true);
+        }
+        if (SERVICE_ROLE_RUNTIME.equals(serviceRole)
+            && hasExternalHttpDataset(version)
+            && StringUtils.hasText(publicConnectorBaseUrl)) {
+            putEnv(env, "AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL", publicConnectorBaseUrl);
+        }
+        if (SERVICE_ROLE_CONNECTOR.equals(serviceRole)
+            && runtimeDatabaseBinding != null
+            && hasExternalHttpDataset(version)) {
+            putEnv(env, "REST_CONNECTOR_JDBC_URL", runtimeDatabaseBinding.jdbcUrl());
+            putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_URL", runtimeDatabaseBinding.jdbcUrl());
+            putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_USERNAME", runtimeDatabaseBinding.username(), true);
+            putEnv(env, "REST_CONNECTOR_BOOTSTRAP_JDBC_PASSWORD", runtimeDatabaseBinding.password(), true);
+            putEnv(env, "PLATFORM_INTEGRATION_DATABASE_RESOURCE_UUID", runtimeDatabaseBinding.database().uuid());
         }
         putEnv(env, "PLATFORM_ENVIRONMENT_NAME", profile.getEnvironmentName());
         return withPreviewEnvironment(new ArrayList<>(env.values()));
@@ -2564,6 +2675,37 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         normalized = normalized.replaceAll("[^a-z0-9-]+", "-").replaceAll("-{2,}", "-");
         normalized = normalized.replaceAll("^-+", "").replaceAll("-+$", "");
         return normalized.length() > 48 ? normalized.substring(0, 48).replaceAll("-+$", "") : normalized;
+    }
+
+    private boolean hasExternalHttpDataset(DeploymentVersionEntity version) {
+        if (version == null) {
+            return false;
+        }
+        JsonNode config = readJson(version.getMarketplaceDatasetConfigJson());
+        JsonNode datasets = config.path("datasets");
+        if (!datasets.isArray()) {
+            return false;
+        }
+        for (JsonNode dataset : datasets) {
+            if ("EXTERNAL_SYNC_HTTP".equals(dataset.path("ingestionMode").asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String integrationInternalName(DeploymentEntity deployment, String serviceRole) {
+        return normalizeName("loomai-" + serviceRole + "-" + deployment.getId());
+    }
+
+    private String internalServicePort(String portsExposes, String healthCheckPort, String fallback) {
+        String candidate = StringUtils.hasText(portsExposes)
+            ? portsExposes.split(",", 2)[0].trim()
+            : StringUtils.hasText(healthCheckPort) ? healthCheckPort.trim() : fallback;
+        if (candidate.contains(":")) {
+            candidate = candidate.substring(candidate.lastIndexOf(':') + 1).trim();
+        }
+        return candidate.matches("[0-9]{1,5}") ? candidate : fallback;
     }
 
     private String normalizeScopedName(String value, int maxLength) {

@@ -15,20 +15,61 @@ Code:
 
 ---
 
-## Status (as of 2026-02-19)
+## Status (as of 2026-09-27)
 
-- **Implemented (MVP):**
+- **Implemented:**
   - `/actions/execute` connector endpoint (runtime-compatible)
   - File-based routing config (`actions-routing.yml`)
   - API-key inbound auth (fail-closed by default)
   - Upstream HTTP execution with timeouts + optional bounded retries
   - Idempotency (in-memory) keyed by `idempotencyKey` + params fingerprint
   - Response normalization to `ActionResult` payload rules (object vs list payload)
-- **Not implemented yet (planned):**
-  - DB-backed routing/action registry (register/deregister/list)
-  - OAuth2 client credentials to upstream
-  - mTLS inbound auth
-  - Per-tenant routing/secrets (multi-tenant mode)
+  - Provider-neutral connection profiles with approved HTTPS hosts
+  - API-key and bounded form-token-exchange provider authentication
+  - Immutable protected-resource bindings with server-owned path, query,
+    header, or body placement
+  - Capability-grant checks at profile, binding, and route/source boundaries
+  - Deployment-local `HTTP_JSON` baseline synchronization with page/size or
+    cursor pagination
+  - Record projection, protected-resource equality, tombstones, bounded
+    response sizes, and runtime Data Sync/index-work reconciliation
+  - Raw-body HMAC provider webhooks with replay-window checks, durable dedupe,
+    retry, controlled replay, and dead-letter status
+  - PostgreSQL/Flyway integration state in a connector-owned schema and
+    restricted role
+  - Safe integration posture, source/work status, bounded webhook event
+    summaries, and authorized reconcile/replay operations
+- **Intentionally package-owned or out of scope:**
+  - Provider route names, token field names, resource semantics, schemas,
+    signature header names, and exact retry durations
+  - Arbitrary auth protocols, arbitrary webhook code, or arbitrary plugin code
+  - A central Platform data proxy or shared provider bridge
+  - Browser access to provider credentials or connector/runtime service keys
+
+The external-provider substrate is generic and locally verified. A specific
+provider is supported only after its immutable Marketplace package and hosted
+provider evidence pass their own release gates.
+
+### Current external-integration topology
+
+```text
+provider API/event
+  <-> deployment-local Generic REST Connector
+       -> connector-owned PostgreSQL schema
+       -> private deployment-local runtime Data Sync and indexing status
+
+Platform control plane
+  -> validates, compiles, provisions, observes, reconciles, and retires
+  -> does not proxy routine provider records or events
+```
+
+The connector and runtime use stable private service names on Coolify for
+`EXTERNAL_SYNC_HTTP`. The connector receives privileged database bootstrap
+credentials for its first start only. After it creates the restricted role and
+schema, Platform inventories standard and preview environment rows, requires
+every expected bootstrap key to exist, deletes every matching row, verifies by
+readback that none remain, redeploys it, and requires it to become healthy
+using only the restricted role.
 
 ---
 
@@ -160,6 +201,79 @@ Notes:
 - If the placeholder is part of a larger string, it is interpolated as text.
 - Unsupported roots fail fast (mapping error).
 
+### 3.4 External HTTP integration contract
+
+Marketplace compiles reviewed DATA/ACTION contributions into these connector
+sections:
+
+- `connection-profiles`: environment, HTTPS base/token origins, host allowlist,
+  auth strategy, grants, rate policy, error mappings, and safe correlation
+  response headers;
+- `protected-resources`: immutable resource ID, environment, type, grants, and
+  connection-profile ownership;
+- `data-sources`: method/path, server-owned resource placements, pagination,
+  projections, source version, schedule, limits, and tombstone policy;
+- `webhooks`: method/content type, raw-body verifier, resource/event pointers,
+  allowed event types, retry/dead-letter policy, and optional operator replay;
+  and
+- `runtime-data-sync`: private runtime URL, deployment-scoped API key,
+  deployment/tenant identity, and bounded indexing-work polling.
+
+Safety rules:
+
+- provider and token origins must be clean HTTPS URLs on the profile allowlist;
+- package input can reference secrets but cannot contain resolved credential
+  values;
+- all required grants must exist on both profile and protected resource;
+- every protected path placeholder must be bound server-side;
+- a resource placement cannot target the provider authentication header;
+- every provider record and accepted event must carry the exact protected
+  resource ID before it can reach Data Sync;
+- cursor state is reused only while the immutable source version is unchanged;
+- absent-record deletion is allowed only for a proven-complete snapshot, never
+  an incremental cursor feed; and
+- provider and runtime response bodies are size bounded before JSON parsing.
+
+Supported provider auth strategies in this release:
+
+- `API_KEY`
+- `FORM_TOKEN_EXCHANGE`
+
+`FORM_TOKEN_EXCHANGE` is deliberately bounded to a package-declared `POST`,
+secret-backed form fields, a token JSON Pointer, exactly one absolute or
+relative expiry pointer, an approved token host, and a configured authorization
+header/scheme. Token values are held in memory and are not written to connector
+state or admin responses.
+
+### 3.5 Durable integration state
+
+Enable durable state with:
+
+```bash
+REST_CONNECTOR_PERSISTENCE_ENABLED=true
+REST_CONNECTOR_JDBC_URL=jdbc:postgresql://<private-db>:5432/<database>
+REST_CONNECTOR_JDBC_USERNAME=<restricted-role>
+REST_CONNECTOR_JDBC_PASSWORD=<restricted-role-secret>
+REST_CONNECTOR_PERSISTENCE_SCHEMA=integration_connector
+```
+
+The one-time bootstrap URL/user/password/role variables are provisioning-only.
+They must be removed after the first healthy start. The connector must then be
+restarted and verified with only its restricted operational role.
+
+Durable state contains source cursors/versions/counts, source record IDs and
+fingerprints, indexing work references, provider correlation evidence, and
+webhook lifecycle metadata. It does not contain provider credential or access
+token values. Invalid or unauthenticated webhook attempts are retained only as
+fixed-cardinality counters by source and error class; their payloads, event
+identities, hashes, and resource fingerprints are never persisted.
+
+Hard deployment deletion removes the connector/database resources and clears
+the deployment-generated connector service credential and restricted database
+password from the Platform secret store. Provider credentials supplied through
+customer/deployment secret references retain their existing owner and cleanup
+policy.
+
 ---
 
 ## 4) Execution flow (who talks to whom)
@@ -225,6 +339,28 @@ Runtime-first recommendation:
   - `GET /api/admin/connector/overview`
   - `GET /api/admin/connector/actions/overview`
 - direct connector admin routes should be treated as compatibility or internal-only access
+
+External-integration operations are exposed through the runtime-backed admin
+surface and Platform deployment workspace:
+
+- `GET /api/admin/connector/integrations`
+- `GET /api/admin/connector/integrations/sources/{sourceId}`
+- `POST /api/admin/connector/integrations/sources/{sourceId}/reconcile`
+- `GET /api/admin/connector/integrations/webhooks/{sourceId}/events`
+- `POST /api/admin/connector/integrations/webhooks/{sourceId}/events/{eventId}/replay`
+
+The public provider callback is deployment-specific:
+
+- `{connectorPublicBaseUrl}/integrations/webhooks/{sourceId}`
+
+The callback URL is safe to display to an operator. Its verifier secret is not.
+Manual replay must be enabled by the immutable package contract and never
+replays rejected/unauthenticated payload evidence.
+
+Operator projections deliberately omit source record IDs, source payload
+hashes, and protected-resource fingerprints from indexing-work and webhook
+event rows. They expose only the bounded state needed to diagnose freshness,
+completion, classified failure, duplicate, replay, and dead-letter behavior.
 
 ### 6.4 Optional: Runtime Proxy (Indexing Alias)
 

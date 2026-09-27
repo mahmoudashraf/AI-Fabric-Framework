@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 
@@ -75,7 +76,14 @@ public class DeploymentConfigCompiler {
             JsonNode shellNode = objectMapper.readTree(draft.getShellConfigJson());
             JsonNode marketplaceDatasetNode = objectMapper.readTree(draft.getMarketplaceDatasetConfigJson());
             JsonNode behaviorNode = objectMapper.readTree(draft.getBehaviorConfigJson());
-            JsonNode effectiveRoutingNode = compileRoutingConfig(actionsNode, routingNode, securityNode);
+            JsonNode effectiveRoutingNode = compileRoutingConfig(
+                actionsNode,
+                routingNode,
+                securityNode,
+                marketplaceDatasetNode,
+                deployment.getId(),
+                deployment.getTenantId()
+            );
             EntityConfigValidationContext entityContext = new EntityConfigValidationContext(
                 false,
                 ManagedDeploymentProfileCatalog.sharedVectorStorageRequested(providerNode)
@@ -193,6 +201,22 @@ public class DeploymentConfigCompiler {
     }
 
     JsonNode compileRoutingConfig(JsonNode actionsNode, JsonNode routingNode, JsonNode securityNode) {
+        return compileRoutingConfig(
+            actionsNode,
+            routingNode,
+            securityNode,
+            objectMapper.createObjectNode(),
+            null,
+            null
+        );
+    }
+
+    JsonNode compileRoutingConfig(JsonNode actionsNode,
+                                  JsonNode routingNode,
+                                  JsonNode securityNode,
+                                  JsonNode marketplaceDatasetNode,
+                                  String deploymentId,
+                                  String tenantId) {
         ObjectNode root = routingNode != null && routingNode.isObject()
             ? routingNode.deepCopy()
             : objectMapper.createObjectNode();
@@ -202,6 +226,8 @@ public class DeploymentConfigCompiler {
         ObjectNode actions = object(root, "actions");
 
         applyInlineActionRoutes(actionsNode, actions);
+        applyHttpDataSources(root, marketplaceDatasetNode, deploymentId, tenantId);
+        validateProviderActionRoutes(root);
 
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityNode);
         inboundAuth.put("allow-unauthenticated", !connectorApiKeyEnabled);
@@ -211,6 +237,189 @@ public class DeploymentConfigCompiler {
         }
         apiKey.put("value", connectorApiKeyEnabled ? "${CONNECTOR_API_KEY}" : "");
         return root;
+    }
+
+    private void validateProviderActionRoutes(ObjectNode root) {
+        JsonNode actions = root.path("actions");
+        JsonNode profiles = root.path("connection-profiles");
+        JsonNode resources = root.path("protected-resources");
+        if (!actions.isObject()) {
+            return;
+        }
+        actions.fields().forEachRemaining(entry -> {
+            String actionId = entry.getKey();
+            JsonNode route = entry.getValue();
+            String profileRef = route.path("connection-profile-ref").asText("").trim();
+            if (!StringUtils.hasText(profileRef)) {
+                return;
+            }
+            JsonNode profile = profiles.path(profileRef);
+            if (!profile.isObject()) {
+                throw new IllegalStateException(
+                    "Provider action '" + actionId + "' references an unavailable connection profile: " + profileRef
+                );
+            }
+            String bindingRef = route.path("protected-resource-binding-ref").asText("").trim();
+            JsonNode binding = resources.path(bindingRef);
+            if (!StringUtils.hasText(bindingRef) || !binding.isObject()) {
+                throw new IllegalStateException(
+                    "Provider action '" + actionId + "' references an unavailable protected resource binding."
+                );
+            }
+            if (!profileRef.equals(binding.path("connection-profile-ref").asText(""))) {
+                throw new IllegalStateException(
+                    "Provider action '" + actionId + "' uses a protected resource from a different connection profile."
+                );
+            }
+            String path = route.path("path").asText("").trim();
+            if (!StringUtils.hasText(path) || !path.startsWith("/") || path.contains("://")) {
+                throw new IllegalStateException("Provider action '" + actionId + "' must use a relative path.");
+            }
+            String method = route.path("method").asText("").trim().toUpperCase(java.util.Locale.ROOT);
+            if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE").contains(method)) {
+                throw new IllegalStateException("Provider action '" + actionId + "' uses an unsupported HTTP method.");
+            }
+            JsonNode placements = route.path("trusted-resource-placements");
+            if (!placements.isArray() || placements.isEmpty()) {
+                throw new IllegalStateException(
+                    "Provider action '" + actionId + "' must declare a server-owned protected resource placement."
+                );
+            }
+            Set<String> required = stringSet(route.path("required-capability-grants"));
+            if (required.isEmpty()
+                || !stringSet(profile.path("capability-grants")).containsAll(required)
+                || !stringSet(binding.path("capability-grants")).containsAll(required)) {
+                throw new IllegalStateException(
+                    "Provider action '" + actionId + "' requires capability grants absent from its compiled authority."
+                );
+            }
+        });
+    }
+
+    private Set<String> stringSet(JsonNode node) {
+        if (!node.isArray()) {
+            return Set.of();
+        }
+        java.util.LinkedHashSet<String> values = new java.util.LinkedHashSet<>();
+        node.forEach(value -> {
+            String normalized = value.asText("").trim();
+            if (StringUtils.hasText(normalized)) {
+                values.add(normalized);
+            }
+        });
+        return Set.copyOf(values);
+    }
+
+    private void applyHttpDataSources(ObjectNode root,
+                                      JsonNode marketplaceDatasetNode,
+                                      String deploymentId,
+                                      String tenantId) {
+        JsonNode datasets = marketplaceDatasetNode != null ? marketplaceDatasetNode.path("datasets") : null;
+        if (datasets == null || !datasets.isArray()) {
+            return;
+        }
+        ObjectNode profiles = object(root, "connection-profiles");
+        ObjectNode resources = object(root, "protected-resources");
+        ObjectNode sources = object(root, "data-sources");
+        ObjectNode webhooks = object(root, "webhooks");
+        boolean configured = false;
+        for (JsonNode dataset : datasets) {
+            if (!"EXTERNAL_SYNC_HTTP".equalsIgnoreCase(dataset.path("ingestionMode").asText(""))) {
+                continue;
+            }
+            JsonNode connector = dataset.path("syncConnector");
+            JsonNode profile = connector.path("connectionProfile");
+            JsonNode resource = connector.path("protectedResource");
+            JsonNode source = connector.path("httpSource");
+            String profileId = profile.path("profileId").asText("").trim();
+            String bindingId = resource.path("bindingId").asText("").trim();
+            String sourceId = source.path("sourceId").asText("").trim();
+            if (!StringUtils.hasText(profileId) || !StringUtils.hasText(bindingId) || !StringUtils.hasText(sourceId)) {
+                throw new IllegalStateException("Compiled EXTERNAL_SYNC_HTTP dataset is missing profile, binding, or source identity.");
+            }
+            putUniqueIntegrationConfig(profiles, profileId, withoutIdentity(profile, "profileId"), "connection profile");
+            putUniqueIntegrationConfig(resources, bindingId, withoutIdentity(resource, "bindingId"), "protected resource");
+            ObjectNode compiledSource = withoutIdentity(source, "sourceId");
+            String sourceVersion = dataset.path("datasetHash").asText("").trim();
+            if (StringUtils.hasText(sourceVersion)) {
+                compiledSource.put("source-version", sourceVersion);
+            }
+            putUniqueIntegrationConfig(sources, sourceId, compiledSource, "HTTP data source");
+            JsonNode webhook = connector.path("webhook");
+            if (webhook.isObject()) {
+                String webhookId = webhook.path("sourceId").asText("").trim();
+                if (!StringUtils.hasText(webhookId)) {
+                    throw new IllegalStateException("Compiled integration webhook is missing sourceId.");
+                }
+                putUniqueIntegrationConfig(webhooks, webhookId, withoutIdentity(webhook, "sourceId"), "webhook source");
+            }
+            configured = true;
+        }
+        if (!configured) {
+            return;
+        }
+        ObjectNode runtimeDataSync = object(root, "runtime-data-sync");
+        runtimeDataSync.put("enabled", true);
+        runtimeDataSync.put("base-url", "${AI_FABRIC_RUNTIME_INTERNAL_BASE_URL:http://runtime:8080}");
+        runtimeDataSync.put("api-key-header", "X-AIFABRIC-INTEGRATION-KEY");
+        runtimeDataSync.put("api-key-value", "${AI_FABRIC_RUNTIME_INTEGRATION_SERVICE_API_KEY}");
+        if (StringUtils.hasText(deploymentId)) {
+            runtimeDataSync.put("deployment-id", deploymentId);
+        }
+        if (StringUtils.hasText(tenantId)) {
+            runtimeDataSync.put("tenant-id", tenantId);
+        }
+        runtimeDataSync.put("timeout-ms", 15000);
+        runtimeDataSync.put("work-poll-interval-ms", 500);
+        runtimeDataSync.put("work-poll-attempts", 60);
+    }
+
+    private ObjectNode withoutIdentity(JsonNode node, String identityField) {
+        ObjectNode copy = node instanceof ObjectNode objectNode
+            ? objectNode.deepCopy()
+            : objectMapper.createObjectNode();
+        copy.remove(identityField);
+        return kebabize(copy, false);
+    }
+
+    private void putUniqueIntegrationConfig(ObjectNode target,
+                                            String id,
+                                            ObjectNode value,
+                                            String label) {
+        JsonNode existing = target.get(id);
+        if (existing != null && !canonicalize(existing).equals(canonicalize(value))) {
+            throw new IllegalStateException("Conflicting Marketplace " + label + " id: " + id);
+        }
+        target.set(id, value);
+    }
+
+    private ObjectNode kebabize(ObjectNode source, boolean preserveKeys) {
+        ObjectNode out = objectMapper.createObjectNode();
+        source.fields().forEachRemaining(entry -> {
+            String field = preserveKeys ? entry.getKey() : camelToKebab(entry.getKey());
+            boolean preserveChildren = Set.of(
+                "credentialFields", "staticFields", "query", "headers",
+                "contentFields", "entityFields", "metadataFields"
+            ).contains(entry.getKey());
+            out.set(field, kebabizeValue(entry.getValue(), preserveChildren));
+        });
+        return out;
+    }
+
+    private JsonNode kebabizeValue(JsonNode value, boolean preserveKeys) {
+        if (value instanceof ObjectNode objectNode) {
+            return kebabize(objectNode, preserveKeys);
+        }
+        if (value instanceof ArrayNode arrayNode) {
+            ArrayNode out = objectMapper.createArrayNode();
+            arrayNode.forEach(item -> out.add(kebabizeValue(item, false)));
+            return out;
+        }
+        return value.deepCopy();
+    }
+
+    private String camelToKebab(String value) {
+        return value.replaceAll("([a-z0-9])([A-Z])", "$1-$2").toLowerCase(java.util.Locale.ROOT);
     }
 
     private void applyInlineActionRoutes(JsonNode actionsNode, ObjectNode compiledActions) {
@@ -238,6 +447,14 @@ public class DeploymentConfigCompiler {
     }
 
     private void normalizeRouteTarget(ObjectNode route) {
+        rename(route, "connectionProfileRef", "connection-profile-ref");
+        rename(route, "protectedResourceBindingRef", "protected-resource-binding-ref");
+        rename(route, "requiredCapabilityGrants", "required-capability-grants");
+        rename(route, "idempotencyHeader", "idempotency-header");
+        JsonNode placements = route.remove("trustedResourcePlacements");
+        if (placements instanceof ArrayNode arrayNode) {
+            route.set("trusted-resource-placements", kebabizeValue(arrayNode, false));
+        }
         String url = route.path("url").asText("").trim();
         String path = route.path("path").asText("").trim();
         if (StringUtils.hasText(url)) {
@@ -246,6 +463,13 @@ public class DeploymentConfigCompiler {
         }
         if (StringUtils.hasText(path)) {
             route.remove("url");
+        }
+    }
+
+    private void rename(ObjectNode node, String from, String to) {
+        JsonNode value = node.remove(from);
+        if (value != null && !node.has(to)) {
+            node.set(to, value);
         }
     }
 

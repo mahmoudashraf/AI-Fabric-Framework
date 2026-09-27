@@ -153,6 +153,34 @@ class RuntimeConnectorAdminProxyControllerTest {
         verifyNoInteractions(proxyService);
     }
 
+    @Test
+    void integrationsAddsTheDeploymentSpecificPublicWebhookUrl() {
+        RuntimeConnectorAdminProxyService proxyService = mock(RuntimeConnectorAdminProxyService.class);
+        when(proxyService.forwardGet("/api/admin/integrations"))
+            .thenReturn(proxyResponse(
+                200,
+                "{\"success\":true,\"webhooks\":[{\"sourceId\":\"inventory-events\"}]}",
+                "application/json"
+            ));
+
+        RuntimeAuthProperties authProperties = authProperties();
+        RuntimeConnectorAdminProxyController controller = new RuntimeConnectorAdminProxyController(
+            proxyService,
+            new RuntimeRequestAuthResolver(authProperties, new RuntimePrivateAssertionService(authProperties), null)
+        );
+        ReflectionTestUtils.setField(controller, "publicConnectorBaseUrl", "https://connector.example.test/");
+
+        ResponseEntity<String> response = controller.integrations(
+            authorizedRequest(authProperties, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ)
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains(
+            "\"publicUrl\":\"https://connector.example.test/integrations/webhooks/inventory-events\""
+        );
+        verify(proxyService).forwardGet("/api/admin/integrations");
+    }
+
     private RuntimeConnectorAdminProxyService.ProxyResponse proxyResponse(int status, String body, String contentType) {
         try {
             Class<?> proxyResponseClass = Class.forName("com.ai.fabric.runtime.admin.RuntimeConnectorAdminProxyService$ProxyResponse");

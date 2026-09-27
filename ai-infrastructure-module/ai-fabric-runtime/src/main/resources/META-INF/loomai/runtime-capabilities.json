@@ -29,14 +29,18 @@
     "ai-fabric-execution",
     "action-proposal-human-review",
     "cloudevents-ingress",
+    "customer-backend-ingestion",
     "deployment-result-store",
+    "deployment-local-provider-sync",
     "document-ingestion-core",
     "document-source-connectors",
     "document-version-lifecycle",
+    "external-http-integration",
     "jdbc-review-state",
     "jdbc-specialist-chain-state",
     "smart-brain-durable-operations",
-    "specialist-chains"
+    "specialist-chains",
+    "provider-webhook-ingress"
   ],
   "endpointClasses": [
     "chat-query",
@@ -62,6 +66,13 @@
     ,"document-delete-index"
     ,"document-retrieval-proof"
     ,"document-retention-status-cleanup"
+    ,"integration-data-sync-service"
+    ,"integration-indexing-service"
+    ,"customer-ingestion-data-sync"
+    ,"customer-ingestion-indexing-status"
+    ,"customer-ingestion-readiness"
+    ,"integration-operations"
+    ,"provider-webhook-ingress"
   ],
   "migrationIds": [
     "ai-action-proposal-receipt-v1",
@@ -73,6 +84,7 @@
     "loomai-smart-brain-operation-v1",
     "loomai-smart-brain-scheduler-v1"
     ,"loomai-document-ingestion-v1"
+    ,"integration-connector-state-v1"
   ],
   "verificationPackIds": [
     "agentic-specialist-team-v1",
@@ -80,6 +92,7 @@
     "human-review-action-proposal-v1",
     "smart-brain-behavior-v1"
     ,"document-knowledge-operations-v1"
+    ,"external-http-integration-v1"
   ],
   "specialistBundles": [
     {

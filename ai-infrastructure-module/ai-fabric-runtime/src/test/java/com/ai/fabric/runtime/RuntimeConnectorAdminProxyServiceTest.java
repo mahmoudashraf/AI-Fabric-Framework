@@ -106,6 +106,30 @@ class RuntimeConnectorAdminProxyServiceTest {
         assertThat(proxyResponseValue(response, "body").toString()).contains("baseUrl is not configured");
     }
 
+    @Test
+    void rejectsOversizedConnectorAdminResponses() throws Exception {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/admin/integrations", exchange ->
+            writeJson(exchange, 200, "x".repeat(2 * 1024 * 1024 + 1))
+        );
+        server.start();
+
+        RuntimeConnectorAdminProxyService service = instantiateService(
+            "http://localhost:" + server.getAddress().getPort(),
+            Duration.ofSeconds(2),
+            Duration.ofSeconds(2),
+            "X-AIFABRIC-API-KEY",
+            "connector-secret",
+            null,
+            null
+        );
+
+        Object response = service.forwardGet("/api/admin/integrations");
+
+        assertThat(proxyResponseValue(response, "status")).isEqualTo(502);
+        assertThat(proxyResponseValue(response, "body").toString()).contains("exceeded the runtime boundary");
+    }
+
     private RuntimeConnectorAdminProxyService instantiateService(String baseUrl,
                                                                  Duration connectTimeout,
                                                                  Duration readTimeout,

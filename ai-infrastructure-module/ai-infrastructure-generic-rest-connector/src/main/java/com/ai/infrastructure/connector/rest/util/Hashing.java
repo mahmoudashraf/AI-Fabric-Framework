@@ -9,9 +9,13 @@ public final class Hashing {
     }
 
     public static String sha256Hex(String input) {
+        return sha256Hex((input != null ? input : "").getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static String sha256Hex(byte[] input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest((input != null ? input : "").getBytes(StandardCharsets.UTF_8));
+            byte[] bytes = digest.digest(input != null ? input : new byte[0]);
             StringBuilder sb = new StringBuilder(bytes.length * 2);
             for (byte b : bytes) {
                 sb.append(String.format("%02x", b));
@@ -22,4 +26,3 @@ public final class Hashing {
         }
     }
 }
-

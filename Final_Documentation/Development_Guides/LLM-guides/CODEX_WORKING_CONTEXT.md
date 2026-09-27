@@ -2900,3 +2900,52 @@ Critical fixes that made the gate pass:
   Trader constants from generic source. This is a corrected plan, not an
   implementation or readiness claim; sandbox access, generic substrate,
   Marketplace packages, and hosted evidence remain pending.
+
+## 2026-09-27 Generic External Provider Substrate Implementation
+
+- Implemented provider-neutral `EXTERNAL_SYNC_HTTP` / `HTTP_JSON` through
+  Marketplace manifest validation, V04 draft compilation, immutable dataset
+  hashing, deployment compilation, secret usage, capability manifests,
+  provisioning plans, assignment discovery, runtime contracts, Platform
+  operations, and deployment UI.
+- Generic REST Connector now supports typed connection profiles, API-key and
+  bounded form-token exchange, approved provider/token hosts, single-flight
+  token refresh, capability grants, immutable protected-resource placement,
+  bounded page/cursor sync, source-version cursor reset, record projections,
+  protected-resource equality, tombstones, classified provider errors,
+  fair-usage pauses/retries, and response bounds.
+- Added raw-body HMAC provider webhook ingress with timestamp replay checks,
+  resource/event validation, durable dedupe, latest-state reconciliation,
+  retry, manual replay opt-in, dead-letter status, and safe public callback URL
+  projection.
+- Connector durable state uses a connector-owned Flyway schema and restricted
+  database role on the deployment PostgreSQL resource. Coolify first starts
+  with one-time bootstrap values, removes every standard/preview bootstrap
+  environment row, redeploys, and verifies health using only the restricted
+  role. Runtime/connector Data Sync uses stable private Coolify network names
+  and a deployment-scoped service credential.
+- Added opt-in trusted customer-backend ingestion for exact UPSERT, DELETE,
+  WORK_STATUS, and READINESS operations. Assignment returns this group only
+  when the immutable DATA contract enables it. The browser must never receive
+  assertion signing material or integration service credentials.
+- Added runtime-backed integration status/reconcile/webhook event/replay APIs,
+  Platform access/audit proxy, and the deployment Integrations workspace.
+- Added DRAFT-only Auto Trader/dealership package reservations in migration
+  `V150`. No version is created or published because partner grants, exact
+  schemas, advertiser, webhook contract, data rights, and hosted evidence are
+  absent.
+- Local tests cover two neutral provider styles, real PostgreSQL connector
+  state, token refresh, restart-safe cursor/version behavior, resource
+  isolation, tombstones, rate/retry safety, signed event failure/replay, config
+  compilation, scoped assignment, private runtime auth, Platform operations,
+  bootstrap credential cleanup, and UI production compilation.
+- Canonical plan `010_27` now records Phases 1-4 as
+  `IMPLEMENTED_LOCAL_VERIFIED`; their hosted exit evidence remains pending.
+  Phase 5 is not started. Phases 6-7 remain externally blocked. Do not claim
+  `DEALERSHIP_DEMO_READY`, `AUTOTRADER_SANDBOX_VERIFIED`, or
+  `AUTOTRADER_PRODUCTION_READY` from this source checkpoint.
+- Final clean gate: Generic REST Connector `35/35` across `10` suites, Runtime
+  `221/221` across `53` suites, Platform backend `856/856` across `153` suites,
+  and the Platform UI production build passed. Runtime capability JSON,
+  whitespace, and provider-coupling scans also passed. These are local source
+  gates only; they do not replace the hosted neutral or provider evidence.

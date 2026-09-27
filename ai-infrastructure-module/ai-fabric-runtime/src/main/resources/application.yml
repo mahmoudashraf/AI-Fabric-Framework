@@ -51,6 +51,21 @@ ai:
           trusted-backend:
             api-key-header: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY_HEADER:X-AIFABRIC-RUNTIME-API-KEY}
             api-key-value: ${AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY:}
+          integration-service:
+            enabled: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_ENABLED:false}
+            api-key-header: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_HEADER:X-AIFABRIC-INTEGRATION-KEY}
+            api-key-value: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_VALUE:}
+            deployment-id: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_DEPLOYMENT_ID:}
+            tenant-id: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_TENANT_ID:}
+          customer-ingestion:
+            enabled: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ENABLED:false}
+            deployment-id: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_DEPLOYMENT_ID:}
+            tenant-id: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_TENANT_ID:}
+            allowed-upsert-entity-types: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_UPSERT_ENTITY_TYPES:}
+            allowed-delete-entity-types: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_DELETE_ENTITY_TYPES:}
+            allowed-work-status-entity-types: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_WORK_STATUS_ENTITY_TYPES:}
+            work-status-enabled: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_WORK_STATUS_ENABLED:false}
+            readiness-enabled: ${AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_READINESS_ENABLED:false}
           private-assertions:
             authorization-header: ${AI_FABRIC_RUNTIME_PRIVATE_AUTHORIZATION_HEADER:X-AIFABRIC-RUNTIME-AUTHORIZATION}
             token-scheme: ${AI_FABRIC_RUNTIME_PRIVATE_TOKEN_SCHEME:Bearer}
@@ -278,6 +293,7 @@ ai:
         optional: true
     connector:
       base-url: ${ACTIONS_CONNECTOR_BASE_URL:}
+      public-base-url: ${AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL:}
       api-key:
         value: ${ACTIONS_CONNECTOR_API_KEY:}
 

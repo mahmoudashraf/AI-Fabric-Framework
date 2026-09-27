@@ -44,6 +44,27 @@ public class DeploymentSourceCapabilityManifestService {
     );
     public static final String DOCUMENT_KNOWLEDGE_MIGRATION_ID = "loomai-document-ingestion-v1";
     public static final String DOCUMENT_KNOWLEDGE_VERIFICATION_PACK_ID = "document-knowledge-operations-v1";
+    public static final List<String> EXTERNAL_HTTP_INTEGRATION_CAPABILITIES = List.of(
+        "deployment-local-provider-sync",
+        "external-http-integration",
+        "provider-webhook-ingress"
+    );
+    public static final List<String> EXTERNAL_HTTP_INTEGRATION_ENDPOINT_CLASSES = List.of(
+        "integration-data-sync-service",
+        "integration-indexing-service",
+        "integration-operations",
+        "provider-webhook-ingress"
+    );
+    public static final String EXTERNAL_HTTP_INTEGRATION_MIGRATION_ID = "integration-connector-state-v1";
+    public static final String EXTERNAL_HTTP_INTEGRATION_VERIFICATION_PACK_ID = "external-http-integration-v1";
+    public static final List<String> CUSTOMER_BACKEND_INGESTION_CAPABILITIES = List.of(
+        "customer-backend-ingestion"
+    );
+    public static final List<String> CUSTOMER_BACKEND_INGESTION_ENDPOINT_CLASSES = List.of(
+        "customer-ingestion-data-sync",
+        "customer-ingestion-indexing-status",
+        "customer-ingestion-readiness"
+    );
     private static final Pattern CONTENT_HASH = Pattern.compile("sha256:[a-f0-9]{64}");
     private static final Pattern RESOURCE_REF = Pattern.compile("[a-z][a-z0-9-]{1,79}@[A-Za-z0-9][A-Za-z0-9._-]{0,39}");
     private static final Set<String> MANIFEST_FIELDS = Set.of(
@@ -193,6 +214,46 @@ public class DeploymentSourceCapabilityManifestService {
             manifest.path("verificationPackIds"),
             List.of(DOCUMENT_KNOWLEDGE_VERIFICATION_PACK_ID),
             "verificationPackIds"
+        );
+    }
+
+    public void requireExternalHttpIntegrationSupport(JsonNode manifest) {
+        if (manifest == null || !manifest.isObject() || manifest.isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "External HTTP integrations require a reviewed source capability manifest."
+            );
+        }
+        requireContains(manifest.path("capabilities"), EXTERNAL_HTTP_INTEGRATION_CAPABILITIES, "capabilities");
+        requireContains(
+            manifest.path("endpointClasses"),
+            EXTERNAL_HTTP_INTEGRATION_ENDPOINT_CLASSES,
+            "endpointClasses"
+        );
+        requireContains(
+            manifest.path("migrationIds"),
+            List.of(EXTERNAL_HTTP_INTEGRATION_MIGRATION_ID),
+            "migrationIds"
+        );
+        requireContains(
+            manifest.path("verificationPackIds"),
+            List.of(EXTERNAL_HTTP_INTEGRATION_VERIFICATION_PACK_ID),
+            "verificationPackIds"
+        );
+    }
+
+    public void requireCustomerBackendIngestionSupport(JsonNode manifest) {
+        if (manifest == null || !manifest.isObject() || manifest.isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Customer-backend ingestion requires a reviewed source capability manifest."
+            );
+        }
+        requireContains(manifest.path("capabilities"), CUSTOMER_BACKEND_INGESTION_CAPABILITIES, "capabilities");
+        requireContains(
+            manifest.path("endpointClasses"),
+            CUSTOMER_BACKEND_INGESTION_ENDPOINT_CLASSES,
+            "endpointClasses"
         );
     }
 

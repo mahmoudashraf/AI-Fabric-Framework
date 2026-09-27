@@ -62,6 +62,52 @@ class RuntimeAuthStartupValidatorTest {
     }
 
     @Test
+    void failsWhenIntegrationServiceHasNoServerOwnedDeploymentIdentity() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().getIntegrationService().setEnabled(true);
+        properties.getIngress().getIntegrationService().setApiKeyValue("integration-key");
+
+        RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
+
+        assertThat(validator.validationErrors())
+            .anyMatch(message -> message.contains("deployment identity"));
+    }
+
+    @Test
+    void failsWhenCustomerIngestionDoesNotHaveOwnedScopeAndPrivateAuthPolicy() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().getCustomerIngestion().setEnabled(true);
+
+        RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
+
+        assertThat(validator.validationErrors())
+            .anyMatch(message -> message.contains("deployment and tenant ownership"))
+            .anyMatch(message -> message.contains("without any allowed operation"))
+            .anyMatch(message -> message.contains("requires trusted-backend authentication"));
+    }
+
+    @Test
+    void acceptsExplicitlyScopedCustomerIngestion() {
+        RuntimeAuthProperties properties = new RuntimeAuthProperties();
+        properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);
+        properties.getIngress().getTrustedBackend().setApiKeyValue("trusted-backend-key");
+        properties.getIngress().getPrivateAssertions().setSigningKey("private-assertion-key");
+        properties.getIngress().setAcceptedIssuers(java.util.List.of("customer-backend"));
+        properties.getIngress().setAcceptedAudiences(java.util.List.of("consumer-neutral"));
+        RuntimeAuthProperties.CustomerIngestion ingestion = properties.getIngress().getCustomerIngestion();
+        ingestion.setEnabled(true);
+        ingestion.setDeploymentId("dep-neutral");
+        ingestion.setTenantId("tenant-neutral");
+        ingestion.setAllowedUpsertEntityTypes(java.util.List.of("inventory-item"));
+        ingestion.setAllowedWorkStatusEntityTypes(java.util.List.of("inventory-item"));
+        ingestion.setWorkStatusEnabled(true);
+
+        RuntimeAuthStartupValidator validator = new RuntimeAuthStartupValidator(properties);
+
+        assertThat(validator.validationErrors()).isEmpty();
+    }
+
+    @Test
     void staysQuietForFullyConfiguredStrictRuntimePosture() {
         RuntimeAuthProperties properties = new RuntimeAuthProperties();
         properties.getIngress().setMode(RuntimeAuthIngressMode.VERIFIED_CONTEXT_REQUIRED);

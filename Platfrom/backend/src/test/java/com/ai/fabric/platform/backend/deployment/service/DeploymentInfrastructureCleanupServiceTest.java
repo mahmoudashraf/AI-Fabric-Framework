@@ -72,11 +72,21 @@ class DeploymentInfrastructureCleanupServiceTest {
             """);
 
         when(managedVectorResourceService.listResources("dep-cleanup")).thenReturn(List.of());
+        String integrationServiceKey = DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-cleanup");
+        String integrationDatabasePassword = DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-cleanup");
+        when(platformSecretService.resolveSecret(integrationServiceKey)).thenReturn("present");
+        when(platformSecretService.resolveSecret(integrationDatabasePassword)).thenReturn("present");
         DeploymentInfrastructureCleanupService.DeploymentInfrastructureCleanupResult result =
             service.cleanupForHardDelete(deployment, release, "retire deployment");
 
         assertThat(result.railway().projectDeleted()).isTrue();
         assertThat(result.railway().deletedServiceIds()).containsExactlyInAnyOrder("svc-runtime", "svc-rest");
+        assertThat(result.clearedDeploymentExecutionSecrets()).containsExactlyInAnyOrder(
+            integrationServiceKey,
+            integrationDatabasePassword
+        );
+        verify(platformSecretService).clearManagedSecret(eq(integrationServiceKey), any());
+        verify(platformSecretService).clearManagedSecret(eq(integrationDatabasePassword), any());
         verify(railwayGraphqlClient).deleteProject("proj-1");
         verify(railwayGraphqlClient, never()).deleteService("svc-runtime");
         verify(railwayGraphqlClient, never()).deleteService("svc-rest");

@@ -72,6 +72,21 @@ public class RuntimeRequestAuthResolver {
         }
     }
 
+    public void requireIntegrationServiceIngress(HttpServletRequest request, String surface) {
+        RuntimeAuthProperties.IntegrationService integration = properties.getIngress().getIntegrationService();
+        String expectedValue = integration != null ? trimToNull(integration.getApiKeyValue()) : null;
+        if (integration == null || !integration.isEnabled() || !StringUtils.hasText(expectedValue)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime integration-service authentication is not configured.");
+        }
+        String provided = trimHeader(request, integration.getApiKeyHeader());
+        if (!StringUtils.hasText(provided) || !constantTimeEquals(expectedValue, provided)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Runtime integration-service authentication failed.");
+        }
+        if (StringUtils.hasText(surface)) {
+            log.debug("Runtime integration-service ingress authorized for surface={}", surface.trim());
+        }
+    }
+
     public void requireScope(RuntimeResolvedIdentity identity, String requiredScope, String surface) {
         if (!StringUtils.hasText(requiredScope) || identity == null || identity.getAuthContext() == null) {
             return;

@@ -662,7 +662,7 @@ public class DeploymentDraftValidationService {
             String ingestionMode = dataset.path("ingestionMode").asText("").trim();
             if (ingestionMode.isEmpty()) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_REQUIRED", basePath + ".ingestionMode", "marketplaceDatasetConfig.datasets[].ingestionMode is required."));
-            } else if (!Set.of("PACKAGED_SEED", "EXTERNAL_SYNC_SQL", "EXTERNAL_SYNC_FOLDER", "EXTERNAL_DOCUMENT_STORAGE").contains(ingestionMode.toUpperCase(Locale.ROOT))) {
+            } else if (!Set.of("PACKAGED_SEED", "EXTERNAL_SYNC_SQL", "EXTERNAL_SYNC_FOLDER", "EXTERNAL_SYNC_HTTP", "EXTERNAL_DOCUMENT_STORAGE").contains(ingestionMode.toUpperCase(Locale.ROOT))) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_INGESTION_MODE_UNSUPPORTED", basePath + ".ingestionMode", "Unsupported marketplace dataset ingestionMode: " + ingestionMode));
             }
 
@@ -686,7 +686,9 @@ public class DeploymentDraftValidationService {
             if ("PACKAGED_SEED".equalsIgnoreCase(ingestionMode) && dataset.path("seedDatasetRef").asText("").trim().isEmpty()) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SEED_REF_REQUIRED", basePath + ".seedDatasetRef", "PACKAGED_SEED datasets require seedDatasetRef."));
             }
-            if (("EXTERNAL_SYNC_SQL".equalsIgnoreCase(ingestionMode) || "EXTERNAL_SYNC_FOLDER".equalsIgnoreCase(ingestionMode))
+            if (("EXTERNAL_SYNC_SQL".equalsIgnoreCase(ingestionMode)
+                || "EXTERNAL_SYNC_FOLDER".equalsIgnoreCase(ingestionMode)
+                || "EXTERNAL_SYNC_HTTP".equalsIgnoreCase(ingestionMode))
                 && !dataset.path("syncConnector").isObject()) {
                 issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_SYNC_CONNECTOR_REQUIRED", basePath + ".syncConnector", "External sync datasets require a syncConnector object."));
             }
@@ -701,6 +703,28 @@ public class DeploymentDraftValidationService {
             if ("EXTERNAL_SYNC_FOLDER".equalsIgnoreCase(ingestionMode) && dataset.path("syncConnector").isObject()) {
                 if (dataset.path("syncConnector").path("folderRef").asText("").trim().isEmpty()) {
                     issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_FOLDER_REF_REQUIRED", basePath + ".syncConnector.folderRef", "EXTERNAL_SYNC_FOLDER datasets require syncConnector.folderRef."));
+                }
+            }
+            if ("EXTERNAL_SYNC_HTTP".equalsIgnoreCase(ingestionMode)) {
+                JsonNode syncConnector = dataset.path("syncConnector");
+                if (!syncConnector.isObject()) {
+                    issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HTTP_CONNECTOR_REQUIRED", basePath + ".syncConnector", "EXTERNAL_SYNC_HTTP datasets require a compiled HTTP_JSON syncConnector."));
+                } else {
+                    if (!"HTTP_JSON".equalsIgnoreCase(syncConnector.path("connectorType").asText(""))) {
+                        issues.add(error("marketplaceDatasets", "MARKETPLACE_DATASET_HTTP_CONNECTOR_INVALID", basePath + ".syncConnector.connectorType", "EXTERNAL_SYNC_HTTP datasets require connectorType=HTTP_JSON."));
+                    }
+                    JsonNode profile = syncConnector.path("connectionProfile");
+                    JsonNode resource = syncConnector.path("protectedResource");
+                    JsonNode source = syncConnector.path("httpSource");
+                    if (!profile.isObject() || profile.path("profileId").asText("").isBlank()) {
+                        issues.add(error("marketplaceDatasets", "MARKETPLACE_HTTP_PROFILE_REQUIRED", basePath + ".syncConnector.connectionProfile", "HTTP DATA sync requires a compiled connection profile."));
+                    }
+                    if (!resource.isObject() || resource.path("resourceId").asText("").isBlank()) {
+                        issues.add(error("marketplaceDatasets", "MARKETPLACE_HTTP_RESOURCE_REQUIRED", basePath + ".syncConnector.protectedResource", "HTTP DATA sync requires one compiled protected resource binding."));
+                    }
+                    if (!source.isObject() || source.path("sourceId").asText("").isBlank()) {
+                        issues.add(error("marketplaceDatasets", "MARKETPLACE_HTTP_SOURCE_REQUIRED", basePath + ".syncConnector.httpSource", "HTTP DATA sync requires a compiled deployment-local source."));
+                    }
                 }
             }
             if ("EXTERNAL_DOCUMENT_STORAGE".equalsIgnoreCase(ingestionMode)) {

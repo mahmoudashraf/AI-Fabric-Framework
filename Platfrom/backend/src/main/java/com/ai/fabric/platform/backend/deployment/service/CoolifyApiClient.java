@@ -313,6 +313,22 @@ public class CoolifyApiClient {
         );
     }
 
+    public void configurePrivateApplicationNetwork(CoolifyConnection connection,
+                                                   String uuid,
+                                                   String internalName) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("is_consistent_container_name_enabled", true);
+        body.put("custom_internal_name", requireText(internalName, "custom internal name"));
+        body.put("connect_to_docker_network", true);
+        requestJson(
+            connection,
+            "PATCH",
+            "/applications/" + encodePath(uuid),
+            body,
+            true
+        );
+    }
+
     public int updateEnvironmentVariables(CoolifyConnection connection, String uuid, List<CoolifyEnvVar> envVars) {
         if (envVars == null || envVars.isEmpty()) {
             return 0;
@@ -333,6 +349,74 @@ public class CoolifyApiClient {
         }
         deduplicateEnvironmentVariables(connection, uuid, envVars);
         return updated;
+    }
+
+    public int deleteEnvironmentVariablesByKey(
+        CoolifyConnection connection,
+        String uuid,
+        Set<String> keys
+    ) {
+        Set<String> normalizedKeys = keys == null
+            ? Set.of()
+            : keys.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .collect(Collectors.toSet());
+        if (normalizedKeys.isEmpty()) {
+            return 0;
+        }
+        JsonNode response = requestJson(
+            connection,
+            "GET",
+            "/applications/" + encodePath(uuid) + "/envs",
+            null,
+            true
+        );
+        if (response == null || !response.isArray()) {
+            throw new CoolifyApiException(
+                "Coolify environment inventory is unavailable for bootstrap cleanup.",
+                502,
+                "/applications/" + encodePath(uuid) + "/envs"
+            );
+        }
+        int deleted = 0;
+        Set<String> observedKeys = new java.util.HashSet<>();
+        for (JsonNode item : response) {
+            String envUuid = textFirst(item, "uuid", "id");
+            String key = textFirst(item, "key");
+            if (!StringUtils.hasText(envUuid) || !normalizedKeys.contains(key)) {
+                continue;
+            }
+            observedKeys.add(key);
+            deleteEnvironmentVariable(connection, uuid, envUuid);
+            deleted++;
+        }
+        if (!observedKeys.containsAll(normalizedKeys)) {
+            throw new CoolifyApiException(
+                "Coolify bootstrap environment cleanup could not find every expected credential key.",
+                409,
+                "/applications/" + encodePath(uuid) + "/envs"
+            );
+        }
+        JsonNode remaining = requestJson(
+            connection,
+            "GET",
+            "/applications/" + encodePath(uuid) + "/envs",
+            null,
+            true
+        );
+        if (remaining != null && remaining.isArray()) {
+            for (JsonNode item : remaining) {
+                if (normalizedKeys.contains(textFirst(item, "key"))) {
+                    throw new CoolifyApiException(
+                        "Coolify bootstrap environment cleanup could not be verified.",
+                        409,
+                        "/applications/" + encodePath(uuid) + "/envs"
+                    );
+                }
+            }
+        }
+        return deleted;
     }
 
     public CoolifyApplicationStorageSummary reconcilePersistentDirectoryStorage(

@@ -100,6 +100,38 @@ class DeploymentSourceCapabilityManifestServiceTest {
             .hasMessageContaining("document-delete-index");
     }
 
+    @Test
+    void externalIntegrationAndCustomerIngestionContractsSatisfyCapabilityGates() throws Exception {
+        JsonNode candidate = manifest(AGENTIC_BUNDLE_HASH);
+        var root = (com.fasterxml.jackson.databind.node.ObjectNode) candidate;
+        var capabilities = (com.fasterxml.jackson.databind.node.ArrayNode) root.path("capabilities");
+        DeploymentSourceCapabilityManifestService.EXTERNAL_HTTP_INTEGRATION_CAPABILITIES.forEach(capabilities::add);
+        DeploymentSourceCapabilityManifestService.CUSTOMER_BACKEND_INGESTION_CAPABILITIES.forEach(capabilities::add);
+        var endpoints = (com.fasterxml.jackson.databind.node.ArrayNode) root.path("endpointClasses");
+        DeploymentSourceCapabilityManifestService.EXTERNAL_HTTP_INTEGRATION_ENDPOINT_CLASSES.forEach(endpoints::add);
+        DeploymentSourceCapabilityManifestService.CUSTOMER_BACKEND_INGESTION_ENDPOINT_CLASSES.forEach(endpoints::add);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) root.path("migrationIds"))
+            .add(DeploymentSourceCapabilityManifestService.EXTERNAL_HTTP_INTEGRATION_MIGRATION_ID);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) root.path("verificationPackIds"))
+            .add(DeploymentSourceCapabilityManifestService.EXTERNAL_HTTP_INTEGRATION_VERIFICATION_PACK_ID);
+        var normalized = service.normalize(candidate);
+
+        service.requireExternalHttpIntegrationSupport(normalized.manifest());
+        service.requireCustomerBackendIngestionSupport(normalized.manifest());
+    }
+
+    @Test
+    void customerIngestionContractFailsWithoutDeploymentLocalEndpoints() throws Exception {
+        JsonNode candidate = manifest(AGENTIC_BUNDLE_HASH);
+        ((com.fasterxml.jackson.databind.node.ArrayNode) candidate.path("capabilities"))
+            .add("customer-backend-ingestion");
+        var normalized = service.normalize(candidate);
+
+        assertThatThrownBy(() -> service.requireCustomerBackendIngestionSupport(normalized.manifest()))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("customer-ingestion-data-sync");
+    }
+
     private JsonNode manifest(String bundleHash) throws Exception {
         return objectMapper.readTree("""
             {

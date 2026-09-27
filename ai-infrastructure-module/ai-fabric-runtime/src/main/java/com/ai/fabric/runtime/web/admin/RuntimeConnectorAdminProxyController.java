@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriUtils;
@@ -31,6 +32,8 @@ public class RuntimeConnectorAdminProxyController {
     private final RuntimeRequestAuthResolver runtimeRequestAuthResolver;
     @Value("${ai.actions.connector.base-url:}")
     private String connectorBaseUrl;
+    @Value("${ai.actions.connector.public-base-url:}")
+    private String publicConnectorBaseUrl;
 
     @GetMapping("/overview")
     public ResponseEntity<String> overview(HttpServletRequest httpRequest) {
@@ -72,6 +75,50 @@ public class RuntimeConnectorAdminProxyController {
         }
         String encodedActionId = UriUtils.encodePathSegment(actionId.trim(), StandardCharsets.UTF_8);
         return toResponse(proxyService.forwardGet("/api/admin/actions/" + encodedActionId));
+    }
+
+    @GetMapping("/integrations")
+    public ResponseEntity<String> integrations(HttpServletRequest request) {
+        authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ, "/api/admin/connector/integrations");
+        return toResponse(enrichIntegrationOverview(proxyService.forwardGet("/api/admin/integrations")));
+    }
+
+    @GetMapping("/integrations/sources/{sourceId}")
+    public ResponseEntity<String> integrationSource(@PathVariable String sourceId, HttpServletRequest request) {
+        authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ, "/api/admin/connector/integrations/sources/{sourceId}");
+        return toResponse(proxyService.forwardGet(
+            "/api/admin/integrations/sources/" + encoded(sourceId)
+        ));
+    }
+
+    @PostMapping("/integrations/sources/{sourceId}/reconcile")
+    public ResponseEntity<String> reconcileIntegrationSource(@PathVariable String sourceId, HttpServletRequest request) {
+        authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_WRITE, "/api/admin/connector/integrations/sources/{sourceId}/reconcile");
+        return toResponse(proxyService.forwardPost(
+            "/api/admin/integrations/sources/" + encoded(sourceId) + "/reconcile",
+            "{}"
+        ));
+    }
+
+    @GetMapping("/integrations/webhooks/{sourceId}/events")
+    public ResponseEntity<String> integrationWebhookEvents(@PathVariable String sourceId, HttpServletRequest request) {
+        authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ, "/api/admin/connector/integrations/webhooks/{sourceId}/events");
+        return toResponse(proxyService.forwardGet(
+            "/api/admin/integrations/webhooks/" + encoded(sourceId) + "/events"
+        ));
+    }
+
+    @PostMapping("/integrations/webhooks/{sourceId}/events/{eventId}/replay")
+    public ResponseEntity<String> replayIntegrationWebhook(
+        @PathVariable String sourceId,
+        @PathVariable String eventId,
+        HttpServletRequest request
+    ) {
+        authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_WRITE, "/api/admin/connector/integrations/webhooks/{sourceId}/events/{eventId}/replay");
+        return toResponse(proxyService.forwardPost(
+            "/api/admin/integrations/webhooks/" + encoded(sourceId) + "/events/" + encoded(eventId) + "/replay",
+            "{}"
+        ));
     }
 
     private ResponseEntity<String> toResponse(RuntimeConnectorAdminProxyService.ProxyResponse response) {
@@ -123,11 +170,60 @@ public class RuntimeConnectorAdminProxyController {
         }
     }
 
+    private RuntimeConnectorAdminProxyService.ProxyResponse enrichIntegrationOverview(
+        RuntimeConnectorAdminProxyService.ProxyResponse response
+    ) {
+        if (response == null
+            || response.status() < 200
+            || response.status() >= 300
+            || !StringUtils.hasText(response.body())
+            || !StringUtils.hasText(publicConnectorBaseUrl)) {
+            return response;
+        }
+        try {
+            JsonNode parsed = OBJECT_MAPPER.readTree(response.body());
+            if (!(parsed instanceof ObjectNode objectNode) || !objectNode.path("webhooks").isArray()) {
+                return response;
+            }
+            String baseUrl = publicConnectorBaseUrl.trim().replaceAll("/+$", "");
+            for (JsonNode webhookNode : objectNode.path("webhooks")) {
+                if (!(webhookNode instanceof ObjectNode webhook)) {
+                    continue;
+                }
+                String sourceId = webhook.path("sourceId").asText("").trim();
+                if (StringUtils.hasText(sourceId)) {
+                    webhook.put(
+                        "publicUrl",
+                        baseUrl + "/integrations/webhooks/" + encoded(sourceId)
+                    );
+                }
+            }
+            return new RuntimeConnectorAdminProxyService.ProxyResponse(
+                response.status(),
+                OBJECT_MAPPER.writeValueAsString(objectNode),
+                response.contentType()
+            );
+        } catch (Exception ignored) {
+            return response;
+        }
+    }
+
     private void authorize(HttpServletRequest request, String surface) {
+        authorize(request, RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ, surface);
+    }
+
+    private void authorize(HttpServletRequest request, String scope, String surface) {
         runtimeRequestAuthResolver.requireScope(
             runtimeRequestAuthResolver.resolveVerifiedPrivateContext(request, surface),
-            RuntimeAdminScopeCatalog.RUNTIME_CONNECTOR_READ,
+            scope,
             surface
         );
+    }
+
+    private String encoded(String value) {
+        if (!StringUtils.hasText(value) || value.length() > 160) {
+            throw new IllegalArgumentException("Integration resource identifier is invalid.");
+        }
+        return UriUtils.encodePathSegment(value.trim(), StandardCharsets.UTF_8);
     }
 }

@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -47,6 +48,8 @@ public class RestActionExecutionService {
     private final ObjectMapper objectMapper;
     private final IdempotencyStore idempotencyStore;
     private final RestAuthzProxyService authzProxyService;
+    private final ProviderHttpClient providerHttpClient;
+    private final ProtectedResourceService protectedResourceService;
 
     private final HttpClient httpClient;
 
@@ -55,11 +58,24 @@ public class RestActionExecutionService {
                                      ObjectMapper objectMapper,
                                      IdempotencyStore idempotencyStore,
                                      RestAuthzProxyService authzProxyService) {
+        this(config, templateEngine, objectMapper, idempotencyStore, authzProxyService, null, null);
+    }
+
+    @Autowired
+    public RestActionExecutionService(RestRoutingConfig config,
+                                     TemplateEngine templateEngine,
+                                     ObjectMapper objectMapper,
+                                     IdempotencyStore idempotencyStore,
+                                     RestAuthzProxyService authzProxyService,
+                                     ProviderHttpClient providerHttpClient,
+                                     ProtectedResourceService protectedResourceService) {
         this.config = config;
         this.templateEngine = templateEngine;
         this.objectMapper = objectMapper;
         this.idempotencyStore = idempotencyStore;
         this.authzProxyService = authzProxyService;
+        this.providerHttpClient = providerHttpClient;
+        this.protectedResourceService = protectedResourceService;
 
         Duration connectTimeout = Duration.ofMillis(Math.max(100, config != null && config.getConnector() != null && config.getConnector().getHttp() != null
             ? config.getConnector().getHttp().getConnectTimeoutMs()
@@ -104,6 +120,10 @@ public class RestActionExecutionService {
             return authzResult;
         }
 
+        if (StringUtils.hasText(route.getConnectionProfileRef())) {
+            return executeProviderRoute(route, request, ctx, startMs);
+        }
+
         URI uri = buildUpstreamUri(resolved, route, ctx);
         String method = StringUtils.hasText(route.getMethod()) ? route.getMethod().trim().toUpperCase(Locale.ROOT) : "POST";
 
@@ -130,7 +150,16 @@ public class RestActionExecutionService {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-                ActionResultDto out = normalizeResponse(route, request, response, ctx, startMs);
+                ActionResultDto out = normalizeResponse(
+                    route,
+                    request,
+                    response.statusCode(),
+                    response.body(),
+                    null,
+                    Map.of(),
+                    ctx,
+                    startMs
+                );
 
                 if (attempt < maxAttempts && shouldRetryResponse(retry, response)) {
                     sleep(backoffMs, attempt);
@@ -153,6 +182,84 @@ public class RestActionExecutionService {
         }
 
         return ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Upstream service unavailable.");
+    }
+
+    private ActionResultDto executeProviderRoute(
+        RestRoutingConfig.ActionRoute route,
+        ActionExecuteRequestDto request,
+        Map<String, Object> ctx,
+        long startMs
+    ) {
+        if (providerHttpClient == null || protectedResourceService == null) {
+            return ActionResultDto.failure(ERROR_SERVICE_UNAVAILABLE, "Provider integration services are unavailable.");
+        }
+        try {
+            Object resolvedQuery = route.getRequest() != null
+                ? templateEngine.resolve(route.getRequest().getQuery(), ctx)
+                : Map.of();
+            Map<String, Object> query = resolvedQuery instanceof Map<?, ?> map ? toStringObjectMap(map) : Map.of();
+            Object body = route.getRequest() != null && route.getRequest().getBody() != null
+                ? templateEngine.resolve(route.getRequest().getBody(), ctx)
+                : null;
+            Map<String, String> headers = new LinkedHashMap<>();
+            if (route.getHeaders() != null) {
+                route.getHeaders().forEach((name, template) -> {
+                    Object value = templateEngine.resolve(template, ctx);
+                    if (StringUtils.hasText(name) && value != null) {
+                        headers.put(name.trim(), value.toString());
+                    }
+                });
+            }
+            if (request != null && request.trace() != null) {
+                headers.putAll(TraceContextSupport.forwardHeaders(request.trace()));
+            }
+            boolean forwardsIdempotency = request != null
+                && StringUtils.hasText(request.idempotencyKey())
+                && StringUtils.hasText(route.getIdempotencyHeader());
+            if (forwardsIdempotency) {
+                headers.put(route.getIdempotencyHeader().trim(), request.idempotencyKey().trim());
+            }
+            ProtectedResourceService.BoundRequest bound = protectedResourceService.apply(
+                route.getProtectedResourceBindingRef(),
+                route.getConnectionProfileRef(),
+                route.getRequiredCapabilityGrants(),
+                route.getTrustedResourcePlacements(),
+                route.getPath(),
+                query,
+                headers,
+                body,
+                request != null ? request.params() : Map.of()
+            );
+            int timeoutMs = route.getTimeoutMs() != null
+                ? route.getTimeoutMs()
+                : config.getConnector().getHttp().getTimeoutMs();
+            ProviderHttpClient.ProviderResponse response = providerHttpClient.execute(new ProviderHttpClient.ProviderRequest(
+                route.getConnectionProfileRef(),
+                route.getMethod(),
+                bound.path(),
+                bound.query(),
+                bound.headers(),
+                bound.body() != null ? writeJson(bound.body()) : null,
+                timeoutMs,
+                5 * 1024 * 1024,
+                isSafeMethod(route.getMethod()) || forwardsIdempotency
+            ));
+            String errorCode = response.successful()
+                ? null
+                : providerHttpClient.classify(route.getConnectionProfileRef(), response.status(), response.body()).name();
+            return normalizeResponse(
+                route,
+                request,
+                response.status(),
+                response.body(),
+                errorCode,
+                response.correlationHeaders(),
+                ctx,
+                startMs
+            );
+        } catch (ProviderCallException ex) {
+            return ActionResultDto.failure(ex.errorClass().name(), ex.getMessage());
+        }
     }
 
     private ActionResultDto authorizeAction(RestRoutingConfig.ActionRoute route,
@@ -256,12 +363,12 @@ public class RestActionExecutionService {
 
     private ActionResultDto normalizeResponse(RestRoutingConfig.ActionRoute route,
                                               ActionExecuteRequestDto request,
-                                              HttpResponse<String> response,
+                                              int status,
+                                              String rawBody,
+                                              String classifiedError,
+                                              Map<String, String> providerCorrelation,
                                               Map<String, Object> ctx,
                                               long startMs) {
-        int status = response != null ? response.statusCode() : 0;
-        String rawBody = response != null ? response.body() : null;
-
         RestRoutingConfig.Response responseConfig = route.getResponse();
         boolean success = isSuccessStatus(responseConfig, status);
 
@@ -276,6 +383,11 @@ public class RestActionExecutionService {
             data = normalizeToDataMap(templated);
         } else {
             data = normalizeToDataMap(parsedBody);
+        }
+        if (providerCorrelation != null && !providerCorrelation.isEmpty()) {
+            Map<String, Object> withEvidence = new LinkedHashMap<>(data);
+            withEvidence.put("providerCorrelation", Map.copyOf(providerCorrelation));
+            data = Map.copyOf(withEvidence);
         }
 
         String message;
@@ -294,13 +406,15 @@ public class RestActionExecutionService {
 
         String errorCode = null;
         if (!success) {
-            errorCode = status > 0 ? ("UPSTREAM_HTTP_" + status) : ERROR_SERVICE_UNAVAILABLE;
+            errorCode = StringUtils.hasText(classifiedError)
+                ? classifiedError
+                : status > 0 ? ("UPSTREAM_HTTP_" + status) : ERROR_SERVICE_UNAVAILABLE;
         }
 
         long tookMs = System.currentTimeMillis() - startMs;
         log.info("Action '{}' -> {} {} (status={}, success={}, tookMs={})",
             request != null ? request.actionId() : "unknown",
-            response != null ? "upstream" : "upstream",
+            "upstream",
             route.getMethod(),
             status,
             success,

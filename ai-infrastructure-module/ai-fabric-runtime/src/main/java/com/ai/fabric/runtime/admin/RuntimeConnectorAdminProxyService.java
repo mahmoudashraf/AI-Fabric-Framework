@@ -5,6 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -14,6 +15,8 @@ import java.time.Duration;
 
 @Service
 public class RuntimeConnectorAdminProxyService {
+
+    private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
     private final AIActionConnectorProperties connectorProperties;
     private final HttpClient httpClient;
@@ -29,6 +32,14 @@ public class RuntimeConnectorAdminProxyService {
     }
 
     public ProxyResponse forwardGet(String upstreamPath) {
+        return forward("GET", upstreamPath, null);
+    }
+
+    public ProxyResponse forwardPost(String upstreamPath, String body) {
+        return forward("POST", upstreamPath, body);
+    }
+
+    private ProxyResponse forward(String method, String upstreamPath, String body) {
         String baseUrl = trimToNull(connectorProperties.getBaseUrl());
         if (!StringUtils.hasText(baseUrl)) {
             return ProxyResponse.json(503, "{\"success\":false,\"message\":\"Connector admin proxy baseUrl is not configured.\"}");
@@ -42,8 +53,13 @@ public class RuntimeConnectorAdminProxyService {
         }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(target)
-            .timeout(connectorProperties.getReadTimeout() != null ? connectorProperties.getReadTimeout() : Duration.ofSeconds(15))
-            .GET();
+            .timeout(connectorProperties.getReadTimeout() != null ? connectorProperties.getReadTimeout() : Duration.ofSeconds(15));
+        if ("POST".equals(method)) {
+            builder.header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                .POST(HttpRequest.BodyPublishers.ofString(StringUtils.hasText(body) ? body : "{}"));
+        } else {
+            builder.GET();
+        }
         String authHeader = null;
         String authValue = null;
         if (connectorProperties.getAdmin() != null
@@ -65,14 +81,22 @@ public class RuntimeConnectorAdminProxyService {
         }
 
         try {
-            HttpResponse<String> response = httpClient.send(
+            HttpResponse<InputStream> response = httpClient.send(
                 builder.build(),
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+                HttpResponse.BodyHandlers.ofInputStream()
             );
+            String responseBody;
+            try (InputStream input = response.body()) {
+                byte[] bytes = input.readNBytes(MAX_RESPONSE_BYTES + 1);
+                if (bytes.length > MAX_RESPONSE_BYTES) {
+                    return ProxyResponse.json(502, "{\"success\":false,\"message\":\"Connector admin response exceeded the runtime boundary.\"}");
+                }
+                responseBody = new String(bytes, StandardCharsets.UTF_8);
+            }
             String contentType = response.headers()
                 .firstValue("Content-Type")
                 .orElse(MediaType.APPLICATION_JSON_VALUE);
-            return new ProxyResponse(response.statusCode(), response.body(), contentType);
+            return new ProxyResponse(response.statusCode(), responseBody, contentType);
         } catch (java.net.http.HttpTimeoutException ex) {
             return ProxyResponse.json(504, "{\"success\":false,\"message\":\"Connector admin request timed out.\"}");
         } catch (InterruptedException ex) {

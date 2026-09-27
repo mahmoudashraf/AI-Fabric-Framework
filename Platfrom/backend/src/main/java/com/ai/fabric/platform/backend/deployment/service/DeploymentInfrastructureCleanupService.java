@@ -152,6 +152,7 @@ public class DeploymentInfrastructureCleanupService {
         ManagedVectorCleanupResult managedVector = cleanupManagedVectorResources(deployment, reason);
         RailwayCleanupResult railway = cleanupRailwayResources(deployment, latestRelease);
         ProviderResourceCleanupResult providerResources = cleanupProviderResources(deployment, reason);
+        List<String> executionSecrets = cleanupDeploymentExecutionSecrets(deployment, reason);
         platformAuditService.record(
             "DEPLOYMENT_HARD_DELETE_INFRASTRUCTURE_CLEANED",
             "DEPLOYMENT",
@@ -159,12 +160,32 @@ public class DeploymentInfrastructureCleanupService {
             Map.of(
                 "reason", defaultReason(reason),
                 "managedVectorResourceCount", managedVector.cleanedResourceIds().size(),
+                "deploymentExecutionSecretCount", executionSecrets.size(),
                 "railwayDeletedProject", railway.projectDeleted(),
                 "railwayDeletedServiceCount", railway.deletedServiceIds().size(),
                 "providerResourceDeleteCount", providerResources.deletedHandleIds().size()
             )
         );
-        return new DeploymentInfrastructureCleanupResult(managedVector, railway, providerResources);
+        return new DeploymentInfrastructureCleanupResult(managedVector, railway, providerResources, executionSecrets);
+    }
+
+    private List<String> cleanupDeploymentExecutionSecrets(DeploymentEntity deployment, String reason) {
+        List<String> cleared = new ArrayList<>();
+        for (String secretName : DeploymentExecutionSecretService.deploymentManagedSecretNames(deployment.getId())) {
+            if (!StringUtils.hasText(platformSecretService.resolveSecret(secretName))) {
+                continue;
+            }
+            platformSecretService.clearManagedSecret(
+                secretName,
+                Map.of(
+                    "deploymentId", deployment.getId(),
+                    "reason", defaultReason(reason),
+                    "action", "HARD_DELETE_DEPLOYMENT"
+                )
+            );
+            cleared.add(secretName);
+        }
+        return List.copyOf(cleared);
     }
 
     private ManagedVectorCleanupResult cleanupManagedVectorResources(DeploymentEntity deployment,
@@ -744,7 +765,8 @@ public class DeploymentInfrastructureCleanupService {
     public record DeploymentInfrastructureCleanupResult(
         ManagedVectorCleanupResult managedVector,
         RailwayCleanupResult railway,
-        ProviderResourceCleanupResult providerResources
+        ProviderResourceCleanupResult providerResources,
+        List<String> clearedDeploymentExecutionSecrets
     ) {
     }
 }

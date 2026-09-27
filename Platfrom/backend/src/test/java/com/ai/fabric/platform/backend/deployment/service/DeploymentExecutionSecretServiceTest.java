@@ -59,6 +59,29 @@ class DeploymentExecutionSecretServiceTest {
         );
     }
 
+    @Test
+    void externalHttpDatasetAddsDeploymentLocalIntegrationSecrets() {
+        DeploymentVersionEntity version = version("""
+            {"type":"CONVERSATIONAL","executionExtensions":[]}
+            """);
+        version.setMarketplaceDatasetConfigJson("""
+            {"datasets":[{"ingestionMode":"EXTERNAL_SYNC_HTTP"}]}
+            """);
+
+        assertThat(service.requiredSecretNames(deployment(), version)).containsExactlyInAnyOrder(
+            DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-1")
+        );
+    }
+
+    @Test
+    void cleanupCatalogIncludesEveryDeploymentGeneratedIntegrationSecret() {
+        assertThat(DeploymentExecutionSecretService.deploymentManagedSecretNames("dep-1")).contains(
+            DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-1")
+        );
+    }
+
     private DeploymentEntity deployment() {
         DeploymentEntity deployment = new DeploymentEntity();
         deployment.setId("dep-1");

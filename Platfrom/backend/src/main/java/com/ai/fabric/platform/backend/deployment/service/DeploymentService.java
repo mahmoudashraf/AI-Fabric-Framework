@@ -355,8 +355,13 @@ public class DeploymentService {
                                            DeploymentBehaviorCatalogService.RuntimeRequirements requirements) {
         try {
             boolean documentKnowledgeRequired = requiresDocumentKnowledge(version);
+            boolean externalHttpIntegrationRequired = requiresExternalHttpIntegration(version);
+            boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
             if (artifact.capabilityManifest() == null || artifact.capabilityManifest().isEmpty()) {
-                return !requirements.capabilityManifestRequired() && !documentKnowledgeRequired;
+                return !requirements.capabilityManifestRequired()
+                    && !documentKnowledgeRequired
+                    && !externalHttpIntegrationRequired
+                    && !customerBackendIngestionRequired;
             }
             DeploymentSourceCapabilityManifestService.NormalizedCapabilityManifest normalized =
                 sourceCapabilityManifestService.normalize(artifact.capabilityManifest());
@@ -372,6 +377,12 @@ public class DeploymentService {
             sourceCapabilityManifestService.requireSupports(artifact.capabilityManifest(), requirements);
             if (documentKnowledgeRequired) {
                 sourceCapabilityManifestService.requireDocumentKnowledgeSupport(artifact.capabilityManifest());
+            }
+            if (externalHttpIntegrationRequired) {
+                sourceCapabilityManifestService.requireExternalHttpIntegrationSupport(artifact.capabilityManifest());
+            }
+            if (customerBackendIngestionRequired) {
+                sourceCapabilityManifestService.requireCustomerBackendIngestionSupport(artifact.capabilityManifest());
             }
             return true;
         } catch (RuntimeException ignored) {
@@ -494,7 +505,9 @@ public class DeploymentService {
             releases.size(),
             verificationRuns.size(),
             hasExternalDocumentDataset(readJson(draft.getMarketplaceDatasetConfigJson())),
-            liveVersion != null && requiresDocumentKnowledge(liveVersion)
+            liveVersion != null && requiresDocumentKnowledge(liveVersion),
+            hasExternalHttpDataset(readJson(draft.getMarketplaceDatasetConfigJson())),
+            liveVersion != null && requiresExternalHttpIntegration(liveVersion)
         );
     }
 
@@ -1669,7 +1682,12 @@ public class DeploymentService {
         DeploymentBehaviorCatalogService.RuntimeRequirements requirements =
             deploymentBehaviorCatalogService.releaseRequirements(behaviorConfig);
         boolean documentKnowledgeRequired = requiresDocumentKnowledge(version);
-        if (!requirements.capabilityManifestRequired() && !documentKnowledgeRequired) {
+        boolean externalHttpIntegrationRequired = requiresExternalHttpIntegration(version);
+        boolean customerBackendIngestionRequired = requiresCustomerBackendIngestion(version);
+        if (!requirements.capabilityManifestRequired()
+            && !documentKnowledgeRequired
+            && !externalHttpIntegrationRequired
+            && !customerBackendIngestionRequired) {
             if (!StringUtils.hasText(sourceArtifactId)) {
                 return;
             }
@@ -1701,7 +1719,7 @@ public class DeploymentService {
         String runtimeDatabaseMode = readJson(targetProfile.getResourceDefaultsJson())
             .path("runtimeDatabaseMode")
             .asText("");
-        if ((!requirements.migrationIds().isEmpty() || documentKnowledgeRequired)
+        if ((!requirements.migrationIds().isEmpty() || documentKnowledgeRequired || externalHttpIntegrationRequired)
             && !"COOLIFY_POSTGRES".equalsIgnoreCase(runtimeDatabaseMode)) {
             throw new ResponseStatusException(
                 CONFLICT,
@@ -1746,6 +1764,12 @@ public class DeploymentService {
         if (documentKnowledgeRequired) {
             sourceCapabilityManifestService.requireDocumentKnowledgeSupport(manifest);
         }
+        if (externalHttpIntegrationRequired) {
+            sourceCapabilityManifestService.requireExternalHttpIntegrationSupport(manifest);
+        }
+        if (customerBackendIngestionRequired) {
+            sourceCapabilityManifestService.requireCustomerBackendIngestionSupport(manifest);
+        }
     }
 
     private boolean requiresDocumentKnowledge(DeploymentVersionEntity version) {
@@ -1758,6 +1782,35 @@ public class DeploymentService {
         }
         for (JsonNode dataset : config.path("datasets")) {
             if ("EXTERNAL_DOCUMENT_STORAGE".equals(dataset.path("ingestionMode").asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean requiresExternalHttpIntegration(DeploymentVersionEntity version) {
+        return hasExternalHttpDataset(readJson(version.getMarketplaceDatasetConfigJson()));
+    }
+
+    private boolean requiresCustomerBackendIngestion(DeploymentVersionEntity version) {
+        JsonNode datasets = readJson(version.getMarketplaceDatasetConfigJson()).path("datasets");
+        if (!datasets.isArray()) {
+            return false;
+        }
+        for (JsonNode dataset : datasets) {
+            if (dataset.path("customerBackendIngestion").path("enabled").asBoolean(false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasExternalHttpDataset(JsonNode config) {
+        if (!config.path("datasets").isArray()) {
+            return false;
+        }
+        for (JsonNode dataset : config.path("datasets")) {
+            if ("EXTERNAL_SYNC_HTTP".equals(dataset.path("ingestionMode").asText(""))) {
                 return true;
             }
         }

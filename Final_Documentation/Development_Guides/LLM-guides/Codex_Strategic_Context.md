@@ -483,3 +483,26 @@ Current P0 cleanup items:
   public consumer assignment. No bridge, new plugin type, central data proxy,
   or provider constants in generic code are permitted. The plan is corrected;
   implementation, sandbox access, and hosted proof are still pending.
+- 2026-09-27 implementation checkpoint: the provider-neutral external HTTP
+  integration substrate is now source-complete and locally verified. Reuse the
+  existing Marketplace DATA/ACTION/TEMPLATE and V04 lifecycle; the new DATA
+  mode is `EXTERNAL_SYNC_HTTP` with `HTTP_JSON`. The deployment-local
+  connector owns bounded API-key/form-token auth, approved hosts, immutable
+  protected-resource injection, paged/cursor sync, record-boundary checks,
+  tombstones, signed inbound events, durable reconciliation, and a restricted
+  PostgreSQL schema/role. Connector/runtime traffic is private and scoped.
+  Optional customer-backend ingestion is immutable-template opt-in and
+  backend-only. Platform exposes bounded operations and an Integrations
+  workspace, but never proxies routine provider data. Auto Trader catalog
+  entries remain DRAFT reservations with no versions. This supersedes the
+  prior statement that generic implementation was pending; hosted neutral,
+  dealership-demo, sandbox, rights, exact packages, and production evidence
+  remain open and must not be implied.
+- 2026-09-27 final local verification: clean Connector `35`, Runtime `221`, and
+  Platform backend `856` test gates plus the production UI build passed. The
+  hardened contract proves full Coolify bootstrap-key removal by readback,
+  stores rejected webhook attempts only as bounded counters, scopes indexing
+  work reads per entity type, omits source identifiers/fingerprints from
+  operator rows, and clears generated integration credentials on hard delete.
+  This strengthens the source-complete claim only; hosted neutral, demo, and
+  Auto Trader partner gates remain unchanged.

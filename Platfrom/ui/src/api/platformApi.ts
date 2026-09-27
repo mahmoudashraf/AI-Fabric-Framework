@@ -705,6 +705,8 @@ export type DeploymentWorkspaceSummary = {
   verificationRunCount: number
   documentKnowledgeConfigured: boolean
   documentKnowledgeLive: boolean
+  externalIntegrationConfigured: boolean
+  externalIntegrationLive: boolean
 }
 
 export type MarketplacePluginContributionSummary = {
@@ -2173,6 +2175,125 @@ export type DocumentRetentionStatus = {
   commandRetention: string
   batchSize: number
   lastCleanup: DocumentRetentionCleanupResult | null
+}
+
+export type IntegrationSyncCounts = {
+  sourceCount: number
+  normalizedCount: number
+  indexedCount: number
+  deletedCount: number
+  acceptedWorkCount: number
+  completedWorkCount: number
+  failedWorkCount: number
+}
+
+export type IntegrationSyncState = {
+  sourceId: string
+  status: string
+  cursor: string | null
+  sourceVersion: string | null
+  providerCorrelationHeader: string | null
+  providerCorrelationValue: string | null
+  counts: IntegrationSyncCounts
+  lastStartedAt: string | null
+  lastSuccessAt: string | null
+  lastErrorAt: string | null
+  errorClass: string | null
+  errorMessage: string | null
+  updatedAt: string | null
+}
+
+export type IntegrationWorkState = {
+  workId: string
+  sourceId: string
+  operation: string
+  status: string
+  errorCode: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type IntegrationSourceSummary = {
+  sourceId: string
+  enabled: boolean
+  connectionProfileRef: string
+  protectedResourceBindingRef: string
+  vectorSpace: string
+  entityType: string
+  scheduleSeconds: number
+  state: IntegrationSyncState
+  lagSeconds?: number
+  freshnessState: string
+  preflightState: string
+  work?: IntegrationWorkState[]
+}
+
+export type IntegrationWebhookEvent = {
+  sourceId: string
+  eventId: string
+  eventType: string
+  status: string
+  attemptCount: number
+  duplicateCount: number
+  replayCount: number
+  errorClass: string | null
+  receivedAt: string
+  updatedAt: string
+}
+
+export type IntegrationWebhookSummary = {
+  sourceId: string
+  publicUrl?: string
+  enabled: boolean
+  registrationState: string
+  manualReplayEnabled: boolean
+  method: string
+  signatureHeader: string
+  verificationConfigured: boolean
+  reconcileDataSourceRef: string
+  counts: {
+    expected: number
+    received: number
+    rejected: number
+    duplicate: number
+    replayed: number
+    deadLetter: number
+  }
+  recentEvents: IntegrationWebhookEvent[]
+}
+
+export type DeploymentIntegrationOverview = {
+  success: boolean
+  persistence: { enabled: boolean; schema: string }
+  connectionProfiles: Array<{
+    profileId: string
+    environment: string
+    baseUrl: string
+    approvedHosts: string[]
+    authStrategy: string
+    capabilityGrants: string[]
+  }>
+  protectedResources: Array<{
+    bindingId: string
+    connectionProfileRef: string
+    environment: string
+    resourceType: string
+    displayValue?: string
+    fingerprint: string
+    capabilityGrants: string[]
+  }>
+  tokenPosture: Record<string, {
+    status: string
+    expiresAt: string | null
+    lastErrorClass: string | null
+  }>
+  sources: IntegrationSourceSummary[]
+  webhooks: IntegrationWebhookSummary[]
+  runtimeDataSync: {
+    enabled: boolean
+    baseUrlConfigured: boolean
+    serviceCredentialConfigured: boolean
+  }
 }
 
 export type CreateMarketplaceTemplateBootstrapRequest = {
@@ -5361,6 +5482,42 @@ export function fetchDocumentRetentionStatus(deploymentId: string) {
 export function cleanupDocumentRetention(deploymentId: string) {
   return request<DocumentRetentionCleanupResult>(
     `/api/deployments/${encodeURIComponent(deploymentId)}/document-knowledge/retention/cleanup`,
+    { method: 'POST', body: '{}' },
+  )
+}
+
+export function fetchDeploymentIntegrations(deploymentId: string) {
+  return request<DeploymentIntegrationOverview>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations`,
+  )
+}
+
+export function fetchDeploymentIntegrationSource(deploymentId: string, sourceId: string) {
+  return request<IntegrationSourceSummary>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/sources/${encodeURIComponent(sourceId)}`,
+  )
+}
+
+export function reconcileDeploymentIntegrationSource(deploymentId: string, sourceId: string) {
+  return request<IntegrationSyncState>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/sources/${encodeURIComponent(sourceId)}/reconcile`,
+    { method: 'POST', body: '{}' },
+  )
+}
+
+export function fetchDeploymentIntegrationWebhookEvents(deploymentId: string, sourceId: string) {
+  return request<IntegrationWebhookEvent[]>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/webhooks/${encodeURIComponent(sourceId)}/events`,
+  )
+}
+
+export function replayDeploymentIntegrationWebhook(
+  deploymentId: string,
+  sourceId: string,
+  eventId: string,
+) {
+  return request<{ accepted: boolean; duplicate: boolean; status: string; eventId: string; errorClass: string | null }>(
+    `/api/deployments/${encodeURIComponent(deploymentId)}/integrations/webhooks/${encodeURIComponent(sourceId)}/events/${encodeURIComponent(eventId)}/replay`,
     { method: 'POST', body: '{}' },
   )
 }

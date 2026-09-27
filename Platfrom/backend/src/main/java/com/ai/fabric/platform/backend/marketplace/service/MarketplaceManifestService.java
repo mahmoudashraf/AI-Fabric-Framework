@@ -24,12 +24,14 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -87,13 +89,58 @@ public class MarketplaceManifestService {
         "PACKAGED_SEED",
         "EXTERNAL_SYNC_SQL",
         "EXTERNAL_SYNC_FOLDER",
+        "EXTERNAL_SYNC_HTTP",
         "EXTERNAL_DOCUMENT_STORAGE"
     );
     private static final Set<String> SUPPORTED_DATASET_UPDATE_STRATEGIES = Set.of(
         "UPSERT_BY_ID",
         "VERSIONED_REPLACE"
     );
-    private static final Set<String> SUPPORTED_SYNC_CONNECTOR_TYPES = Set.of("SQL_QUERY", "FILE_FOLDER");
+    private static final Set<String> SUPPORTED_SYNC_CONNECTOR_TYPES = Set.of("SQL_QUERY", "FILE_FOLDER", "HTTP_JSON");
+    private static final Set<String> HTTP_SYNC_CONNECTOR_FIELDS = Set.of(
+        "connectorType", "connectionProfile", "protectedResource", "httpSource", "webhook"
+    );
+    private static final Set<String> HTTP_CONNECTION_PROFILE_FIELDS = Set.of(
+        "profileId", "environment", "baseUrl", "allowedHosts", "auth", "ratePolicy",
+        "errorMappings", "capabilityGrants", "correlationResponseHeaders"
+    );
+    private static final Set<String> HTTP_AUTH_FIELDS = Set.of(
+        "strategy", "apiKeyHeader", "apiKeySecretRefField", "tokenBaseUrl", "tokenPath", "tokenMethod",
+        "credentialFields", "staticFields", "tokenJsonPointer", "absoluteExpiryJsonPointer",
+        "relativeExpiryJsonPointer", "authorizationHeader", "authorizationScheme",
+        "expirySkewSeconds", "timeoutMs"
+    );
+    private static final Set<String> HTTP_PROTECTED_RESOURCE_FIELDS = Set.of(
+        "bindingId", "environment", "resourceType", "resourceIdField", "displayValueField",
+        "policyRef", "capabilityGrants"
+    );
+    private static final Set<String> HTTP_SOURCE_FIELDS = Set.of(
+        "sourceId", "path", "method", "query", "headers", "trustedResourcePlacements",
+        "requiredCapabilityGrants", "pagination", "mapping", "tombstonePolicy", "scheduleSeconds"
+    );
+    private static final Set<String> HTTP_WEBHOOK_FIELDS = Set.of(
+        "sourceId", "method", "verification", "eventIdJsonPointer", "eventTypeJsonPointer",
+        "resourceJsonPointer", "allowedEventTypes", "allowedContentTypes", "maxBodyBytes",
+        "maxReconcileAttempts", "retryDelaySeconds", "orderingPolicy", "registrationExpected",
+        "manualReplayEnabled"
+    );
+    private static final Set<String> HTTP_RATE_POLICY_FIELDS = Set.of(
+        "maxConcurrent", "minIntervalMs", "rateLimitedPauseMs", "unavailablePauseMs",
+        "maxAttempts", "retryBackoffMs", "retryStatuses"
+    );
+    private static final Set<String> HTTP_ERROR_MAPPING_FIELDS = Set.of(
+        "status", "bodyJsonPointer", "equalsValue", "errorClass"
+    );
+    private static final Set<String> HTTP_ERROR_CLASSES = Set.of(
+        "BAD_REQUEST", "AUTHENTICATION_REQUIRED", "RESOURCE_ACCESS_DENIED", "CAPABILITY_DENIED",
+        "RATE_LIMITED", "SERVICE_UNAVAILABLE", "TIMEOUT", "MALFORMED_RESPONSE"
+    );
+    private static final Set<String> CUSTOMER_BACKEND_INGESTION_FIELDS = Set.of(
+        "enabled", "operations"
+    );
+    private static final Set<String> CUSTOMER_BACKEND_INGESTION_OPERATIONS = Set.of(
+        "UPSERT", "DELETE", "WORK_STATUS", "READINESS"
+    );
     private static final Set<String> SUPPORTED_DOCUMENT_CONNECTOR_TYPES = Set.of(
         "S3_COMPATIBLE_OBJECT_STORAGE",
         "MOUNTED_FOLDER"
@@ -499,6 +546,9 @@ public class MarketplaceManifestService {
                 if (!StringUtils.hasText(url) && !StringUtils.hasText(path)) {
                     throw invalid(plugin, version, "action route must declare url or path when route is present.");
                 }
+                if (StringUtils.hasText(route.path("connectionProfileRef").asText(""))) {
+                    validateProviderActionRoute(plugin, version, actionId.trim(), route);
+                }
             }
             validateActionPostPolicies(plugin, version, action.path("postPolicies"), webhookTargetIds, actionId);
             actionIds.add(actionId.trim());
@@ -530,6 +580,63 @@ public class MarketplaceManifestService {
             List.of(),
             List.of()
         );
+    }
+
+    private void validateProviderActionRoute(MarketplacePluginEntity plugin,
+                                             MarketplacePluginVersionEntity version,
+                                             String actionId,
+                                             JsonNode route) {
+        String prefix = "action '" + actionId + "' provider route ";
+        if (StringUtils.hasText(route.path("url").asText(""))) {
+            throw invalid(plugin, version, prefix + "must use a relative path, not an absolute URL.");
+        }
+        requireIdentifier(
+            plugin,
+            version,
+            route.path("connectionProfileRef").asText(""),
+            prefix + "connectionProfileRef"
+        );
+        requireIdentifier(
+            plugin,
+            version,
+            route.path("protectedResourceBindingRef").asText(""),
+            prefix + "protectedResourceBindingRef"
+        );
+        requireRelativePath(plugin, version, route.path("path").asText(""), prefix + "path");
+        String method = normalizeUppercaseValue(route.path("method").asText(""));
+        if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE").contains(method)) {
+            throw invalid(plugin, version, prefix + "method is unsupported.");
+        }
+        requireCapabilityArray(
+            plugin,
+            version,
+            route.path("requiredCapabilityGrants"),
+            prefix + "requiredCapabilityGrants"
+        );
+        validateResourcePlacements(
+            plugin,
+            version,
+            route.path("trustedResourcePlacements"),
+            route.path("path").asText(""),
+            prefix
+        );
+        if (StringUtils.hasText(route.path("idempotencyHeader").asText(""))) {
+            requireHttpHeaderName(
+                plugin,
+                version,
+                route.path("idempotencyHeader").asText(""),
+                prefix + "idempotencyHeader"
+            );
+        }
+        validateOptionalIntegerRange(plugin, version, route, "timeoutMs", 100, 120_000, prefix);
+        validateStaticHeaders(plugin, version, route.path("headers"), prefix + "headers");
+        JsonNode request = route.path("request");
+        if (!request.isMissingNode() && !request.isNull()) {
+            if (!request.isObject()) {
+                throw invalid(plugin, version, prefix + "request must be an object.");
+            }
+            validateStaticQuery(plugin, version, request.path("query"), prefix + "request.query");
+        }
     }
 
     private void validateActionExecutionContribution(MarketplacePluginEntity plugin,
@@ -1469,6 +1576,13 @@ public class MarketplaceManifestService {
             JsonNode syncConnector = dataset.path("syncConnector");
             JsonNode sourceConnector = dataset.path("sourceConnector");
             JsonNode documentPolicy = dataset.path("documentPolicy");
+            JsonNode customerBackendIngestion = dataset.path("customerBackendIngestion");
+            validateCustomerBackendIngestion(
+                plugin,
+                version,
+                datasetId,
+                customerBackendIngestion
+            );
             String connectorType = null;
             String connectionRefField = null;
             String folderRefField = null;
@@ -1506,6 +1620,12 @@ public class MarketplaceManifestService {
                 if ("EXTERNAL_SYNC_FOLDER".equals(ingestionMode) && !"FILE_FOLDER".equals(connectorType)) {
                     throw invalid(plugin, version, "dataset '" + datasetId + "' must use syncConnector.connectorType=FILE_FOLDER for EXTERNAL_SYNC_FOLDER.");
                 }
+                if ("EXTERNAL_SYNC_HTTP".equals(ingestionMode) && !"HTTP_JSON".equals(connectorType)) {
+                    throw invalid(plugin, version, "dataset '" + datasetId + "' must use syncConnector.connectorType=HTTP_JSON for EXTERNAL_SYNC_HTTP.");
+                }
+                if ("EXTERNAL_SYNC_HTTP".equals(ingestionMode)) {
+                    validateHttpSyncDataset(plugin, version, datasetId, entityType, syncConnector);
+                }
                 connectionRefField = blankToNull(syncConnector.path("connectionRefField").asText(""));
                 folderRefField = blankToNull(syncConnector.path("folderRefField").asText(""));
                 String staticConnectionRef = blankToNull(syncConnector.path("connectionRef").asText(""));
@@ -1536,10 +1656,769 @@ public class MarketplaceManifestService {
                 folderRefField,
                 syncConnector != null && syncConnector.isObject() ? syncConnector.deepCopy() : null,
                 sourceConnector != null && sourceConnector.isObject() ? sourceConnector.deepCopy() : null,
-                documentPolicy != null && documentPolicy.isObject() ? documentPolicy.deepCopy() : null
+                documentPolicy != null && documentPolicy.isObject() ? documentPolicy.deepCopy() : null,
+                customerBackendIngestion != null && customerBackendIngestion.isObject()
+                    ? customerBackendIngestion.deepCopy()
+                    : null
             ));
         }
         return List.copyOf(datasets);
+    }
+
+    private void validateCustomerBackendIngestion(MarketplacePluginEntity plugin,
+                                                   MarketplacePluginVersionEntity version,
+                                                   String datasetId,
+                                                   JsonNode contract) {
+        if (contract == null || contract.isMissingNode() || contract.isNull()) {
+            return;
+        }
+        if (!contract.isObject()) {
+            throw invalid(
+                plugin,
+                version,
+                "dataset '" + datasetId + "' customerBackendIngestion must be an object."
+            );
+        }
+        String prefix = "dataset '" + datasetId + "' customerBackendIngestion";
+        rejectUnknownFields(plugin, version, contract, CUSTOMER_BACKEND_INGESTION_FIELDS, prefix);
+        if (!contract.path("enabled").isBoolean()) {
+            throw invalid(plugin, version, prefix + ".enabled must be a boolean.");
+        }
+        JsonNode operations = contract.path("operations");
+        if (!operations.isArray()) {
+            throw invalid(plugin, version, prefix + ".operations must be an array.");
+        }
+        if (contract.path("enabled").asBoolean() && operations.isEmpty()) {
+            throw invalid(plugin, version, prefix + ".operations must not be empty when enabled.");
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        for (JsonNode operation : operations) {
+            String normalized = normalizeUppercaseValue(operation.asText(""));
+            if (!CUSTOMER_BACKEND_INGESTION_OPERATIONS.contains(normalized)) {
+                throw invalid(plugin, version, prefix + " declares unsupported operation: " + operation.asText(""));
+            }
+            if (!seen.add(normalized)) {
+                throw invalid(plugin, version, prefix + " declares duplicate operation: " + normalized);
+            }
+        }
+    }
+
+    private void validateHttpSyncDataset(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         String datasetId,
+                                         String entityType,
+                                         JsonNode connector) {
+        String prefix = "HTTP dataset '" + datasetId + "' ";
+        rejectUnknownFields(plugin, version, connector, HTTP_SYNC_CONNECTOR_FIELDS, prefix + "syncConnector");
+        JsonNode profile = connector.path("connectionProfile");
+        JsonNode resource = connector.path("protectedResource");
+        JsonNode source = connector.path("httpSource");
+        if (!profile.isObject() || !resource.isObject() || !source.isObject()) {
+            throw invalid(plugin, version, prefix + "must declare connectionProfile, protectedResource, and httpSource objects.");
+        }
+        rejectUnknownFields(plugin, version, profile, HTTP_CONNECTION_PROFILE_FIELDS, prefix + "connectionProfile");
+        rejectUnknownFields(plugin, version, resource, HTTP_PROTECTED_RESOURCE_FIELDS, prefix + "protectedResource");
+        rejectUnknownFields(plugin, version, source, HTTP_SOURCE_FIELDS, prefix + "httpSource");
+
+        requireIdentifier(plugin, version, firstText(profile, "profileId"), prefix + "connectionProfile.profileId");
+        requireText(plugin, version, profile, "environment", prefix);
+        requireAbsoluteHttpsUrl(plugin, version, profile.path("baseUrl").asText(""), prefix + "connectionProfile.baseUrl");
+        JsonNode allowedHosts = profile.path("allowedHosts");
+        if (!allowedHosts.isArray() || allowedHosts.isEmpty()) {
+            throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts must be a non-empty array.");
+        }
+        String baseHost = URI.create(profile.path("baseUrl").asText("")).getHost();
+        boolean baseHostAllowed = false;
+        for (JsonNode host : allowedHosts) {
+            String value = host.asText("").trim();
+            if (!StringUtils.hasText(value) || value.contains(":") || value.contains("/")) {
+                throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts entries must be host names.");
+            }
+            baseHostAllowed = baseHostAllowed || value.equalsIgnoreCase(baseHost);
+        }
+        if (!baseHostAllowed) {
+            throw invalid(plugin, version, prefix + "connectionProfile.allowedHosts must contain the base URL host.");
+        }
+        Set<String> profileGrants = requireCapabilityArray(
+            plugin,
+            version,
+            profile.path("capabilityGrants"),
+            prefix + "connectionProfile.capabilityGrants"
+        );
+        JsonNode correlationHeaders = profile.path("correlationResponseHeaders");
+        if (!correlationHeaders.isMissingNode() && !correlationHeaders.isNull()) {
+            if (!correlationHeaders.isArray() || correlationHeaders.size() > 20) {
+                throw invalid(plugin, version, prefix + "connectionProfile.correlationResponseHeaders must be an array with at most 20 entries.");
+            }
+            for (JsonNode header : correlationHeaders) {
+                if (!header.isTextual()
+                    || !header.asText("").trim().matches("[!#$%&'*+.^_`|~0-9A-Za-z-]{1,160}")) {
+                    throw invalid(plugin, version, prefix + "connectionProfile.correlationResponseHeaders contains an invalid header name.");
+                }
+            }
+        }
+        JsonNode auth = profile.path("auth");
+        if (!auth.isObject()) {
+            throw invalid(plugin, version, prefix + "connectionProfile.auth is required.");
+        }
+        rejectUnknownFields(plugin, version, auth, HTTP_AUTH_FIELDS, prefix + "connectionProfile.auth");
+        String strategy = normalizeUppercaseValue(auth.path("strategy").asText(""));
+        if (!Set.of("API_KEY", "FORM_TOKEN_EXCHANGE").contains(strategy)) {
+            throw invalid(plugin, version, prefix + "auth.strategy must be API_KEY or FORM_TOKEN_EXCHANGE.");
+        }
+        if ("API_KEY".equals(strategy)) {
+            requireText(plugin, version, auth, "apiKeyHeader", prefix);
+            requireText(plugin, version, auth, "apiKeySecretRefField", prefix);
+            requireHttpHeaderName(
+                plugin,
+                version,
+                auth.path("apiKeyHeader").asText(""),
+                prefix + "auth.apiKeyHeader"
+            );
+        } else {
+            if (StringUtils.hasText(auth.path("tokenBaseUrl").asText(""))) {
+                requireAbsoluteHttpsUrl(
+                    plugin,
+                    version,
+                    auth.path("tokenBaseUrl").asText(""),
+                    prefix + "auth.tokenBaseUrl"
+                );
+                String tokenHost = URI.create(auth.path("tokenBaseUrl").asText("")).getHost();
+                boolean tokenHostAllowed = false;
+                for (JsonNode host : allowedHosts) {
+                    tokenHostAllowed = tokenHostAllowed || host.asText("").trim().equalsIgnoreCase(tokenHost);
+                }
+                if (!tokenHostAllowed) {
+                    throw invalid(
+                        plugin,
+                        version,
+                        prefix + "connectionProfile.allowedHosts must contain the token base URL host."
+                    );
+                }
+            }
+            requireRelativePath(plugin, version, auth.path("tokenPath").asText(""), prefix + "auth.tokenPath");
+            if (!"POST".equalsIgnoreCase(auth.path("tokenMethod").asText("POST"))) {
+                throw invalid(plugin, version, prefix + "FORM_TOKEN_EXCHANGE tokenMethod must be POST.");
+            }
+            JsonNode credentialFields = auth.path("credentialFields");
+            if (!credentialFields.isArray() || credentialFields.isEmpty() || credentialFields.size() > 20) {
+                throw invalid(plugin, version, prefix + "FORM_TOKEN_EXCHANGE requires credentialFields.");
+            }
+            Set<String> credentialNames = new LinkedHashSet<>();
+            for (JsonNode credential : credentialFields) {
+                if (!credential.isObject()) {
+                    throw invalid(plugin, version, prefix + "credentialFields entries must be objects.");
+                }
+                rejectUnknownFields(plugin, version, credential, Set.of("name", "secretRefField"), prefix + "credentialFields entry");
+                String credentialName = firstText(credential, "name");
+                requireIdentifier(plugin, version, credentialName, prefix + "credential name");
+                if (!credentialNames.add(credentialName)) {
+                    throw invalid(plugin, version, prefix + "credentialFields declares duplicate name: " + credentialName);
+                }
+                requireText(plugin, version, credential, "secretRefField", prefix);
+            }
+            JsonNode staticFields = auth.path("staticFields");
+            if (!staticFields.isMissingNode() && !staticFields.isNull()) {
+                if (!staticFields.isObject() || staticFields.size() > 20) {
+                    throw invalid(plugin, version, prefix + "auth.staticFields must be an object with at most 20 entries.");
+                }
+                staticFields.fields().forEachRemaining(entry -> {
+                    requireIdentifier(plugin, version, entry.getKey(), prefix + "static field name");
+                    if (!entry.getValue().isTextual() || entry.getValue().asText().length() > 500) {
+                        throw invalid(plugin, version, prefix + "auth.staticFields values must be strings of at most 500 characters.");
+                    }
+                    if (credentialNames.contains(entry.getKey())) {
+                        throw invalid(plugin, version, prefix + "auth.staticFields must not redefine credential field " + entry.getKey() + ".");
+                    }
+                });
+            }
+            requireJsonPointer(plugin, version, auth.path("tokenJsonPointer").asText(""), prefix + "auth.tokenJsonPointer");
+            boolean absoluteExpiry = StringUtils.hasText(auth.path("absoluteExpiryJsonPointer").asText(""));
+            boolean relativeExpiry = StringUtils.hasText(auth.path("relativeExpiryJsonPointer").asText(""));
+            if (absoluteExpiry == relativeExpiry) {
+                throw invalid(plugin, version, prefix + "auth must declare exactly one absolute or relative expiry JSON Pointer.");
+            }
+            requireJsonPointer(
+                plugin,
+                version,
+                absoluteExpiry ? auth.path("absoluteExpiryJsonPointer").asText("") : auth.path("relativeExpiryJsonPointer").asText(""),
+                prefix + "auth expiry pointer"
+            );
+            requireHttpHeaderName(
+                plugin,
+                version,
+                auth.path("authorizationHeader").asText("Authorization"),
+                prefix + "auth.authorizationHeader"
+            );
+            String authorizationScheme = auth.path("authorizationScheme").asText("Bearer").trim();
+            if (!authorizationScheme.matches("[A-Za-z][A-Za-z0-9._-]{0,39}")) {
+                throw invalid(plugin, version, prefix + "auth.authorizationScheme is invalid.");
+            }
+            validateOptionalIntegerRange(plugin, version, auth, "expirySkewSeconds", 0, 3600, prefix);
+            validateOptionalIntegerRange(plugin, version, auth, "timeoutMs", 100, 120_000, prefix);
+        }
+
+        JsonNode ratePolicy = profile.path("ratePolicy");
+        if (!ratePolicy.isMissingNode() && !ratePolicy.isNull()) {
+            if (!ratePolicy.isObject()) {
+                throw invalid(plugin, version, prefix + "connectionProfile.ratePolicy must be an object.");
+            }
+            rejectUnknownFields(plugin, version, ratePolicy, HTTP_RATE_POLICY_FIELDS, prefix + "connectionProfile.ratePolicy");
+            validateOptionalIntegerRange(plugin, version, ratePolicy, "maxConcurrent", 1, 100, prefix);
+            validateOptionalIntegerRange(plugin, version, ratePolicy, "minIntervalMs", 0, 60_000, prefix);
+            validateOptionalIntegerRange(plugin, version, ratePolicy, "rateLimitedPauseMs", 0, 3_600_000, prefix);
+            validateOptionalIntegerRange(plugin, version, ratePolicy, "unavailablePauseMs", 0, 3_600_000, prefix);
+            validateOptionalIntegerRange(plugin, version, ratePolicy, "maxAttempts", 1, 5, prefix);
+            validateOptionalIntegerRange(plugin, version, ratePolicy, "retryBackoffMs", 0, 30_000, prefix);
+            JsonNode retryStatuses = ratePolicy.path("retryStatuses");
+            if (!retryStatuses.isMissingNode() && (!retryStatuses.isArray() || retryStatuses.isEmpty())) {
+                throw invalid(plugin, version, prefix + "connectionProfile.ratePolicy.retryStatuses must be a non-empty array.");
+            }
+            for (JsonNode status : retryStatuses) {
+                if (!status.canConvertToInt() || status.asInt() < 100 || status.asInt() > 599) {
+                    throw invalid(plugin, version, prefix + "connectionProfile.ratePolicy.retryStatuses contains an invalid HTTP status.");
+                }
+            }
+        }
+
+        JsonNode errorMappings = profile.path("errorMappings");
+        if (!errorMappings.isMissingNode() && !errorMappings.isNull()) {
+            if (!errorMappings.isArray()) {
+                throw invalid(plugin, version, prefix + "connectionProfile.errorMappings must be an array.");
+            }
+            for (JsonNode mapping : errorMappings) {
+                if (!mapping.isObject()) {
+                    throw invalid(plugin, version, prefix + "connectionProfile.errorMappings entries must be objects.");
+                }
+                rejectUnknownFields(plugin, version, mapping, HTTP_ERROR_MAPPING_FIELDS, prefix + "connectionProfile.errorMapping");
+                if (!mapping.path("status").canConvertToInt()
+                    || mapping.path("status").asInt() < 100
+                    || mapping.path("status").asInt() > 599) {
+                    throw invalid(plugin, version, prefix + "connectionProfile.errorMapping.status must be a valid HTTP status.");
+                }
+                String errorClass = normalizeUppercaseValue(mapping.path("errorClass").asText(""));
+                if (!HTTP_ERROR_CLASSES.contains(errorClass)) {
+                    throw invalid(plugin, version, prefix + "connectionProfile.errorMapping.errorClass is unsupported.");
+                }
+                boolean hasPointer = StringUtils.hasText(mapping.path("bodyJsonPointer").asText(""));
+                boolean hasExpectedValue = mapping.has("equalsValue") && mapping.path("equalsValue").isValueNode();
+                if (hasPointer != hasExpectedValue) {
+                    throw invalid(plugin, version, prefix + "connectionProfile.errorMapping must declare both bodyJsonPointer and equalsValue, or neither.");
+                }
+                if (hasPointer) {
+                    requireJsonPointer(plugin, version, mapping.path("bodyJsonPointer").asText(""), prefix + "connectionProfile.errorMapping.bodyJsonPointer");
+                }
+            }
+        }
+
+        requireIdentifier(plugin, version, firstText(resource, "bindingId"), prefix + "protectedResource.bindingId");
+        requireText(plugin, version, resource, "environment", prefix);
+        requireIdentifier(plugin, version, firstText(resource, "resourceType"), prefix + "protectedResource.resourceType");
+        requireIdentifier(plugin, version, firstText(resource, "resourceIdField"), prefix + "protectedResource.resourceIdField");
+        if (StringUtils.hasText(resource.path("displayValueField").asText(""))) {
+            requireIdentifier(
+                plugin,
+                version,
+                resource.path("displayValueField").asText(""),
+                prefix + "protectedResource.displayValueField"
+            );
+        }
+        if (StringUtils.hasText(resource.path("policyRef").asText(""))) {
+            requireIdentifier(plugin, version, resource.path("policyRef").asText(""), prefix + "protectedResource.policyRef");
+        }
+        if (!resource.path("environment").asText("").trim().equalsIgnoreCase(profile.path("environment").asText("").trim())) {
+            throw invalid(plugin, version, prefix + "protectedResource.environment must match connectionProfile.environment.");
+        }
+        Set<String> resourceGrants = requireCapabilityArray(
+            plugin,
+            version,
+            resource.path("capabilityGrants"),
+            prefix + "protectedResource.capabilityGrants"
+        );
+
+        requireIdentifier(plugin, version, firstText(source, "sourceId"), prefix + "httpSource.sourceId");
+        requireRelativePath(plugin, version, source.path("path").asText(""), prefix + "httpSource.path");
+        String method = source.path("method").asText("GET").trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("GET", "POST").contains(method)) {
+            throw invalid(plugin, version, prefix + "httpSource.method must be GET or POST.");
+        }
+        Set<String> requiredGrants = requireCapabilityArray(
+            plugin,
+            version,
+            source.path("requiredCapabilityGrants"),
+            prefix + "httpSource.requiredCapabilityGrants"
+        );
+        if (!profileGrants.containsAll(requiredGrants) || !resourceGrants.containsAll(requiredGrants)) {
+            throw invalid(plugin, version, prefix + "httpSource requires capability grants absent from the profile or protected resource.");
+        }
+        validateResourcePlacements(
+            plugin,
+            version,
+            source.path("trustedResourcePlacements"),
+            source.path("path").asText(""),
+            prefix
+        );
+        rejectProviderAuthHeaderPlacement(
+            plugin,
+            version,
+            source.path("trustedResourcePlacements"),
+            "API_KEY".equals(strategy)
+                ? auth.path("apiKeyHeader").asText("")
+                : auth.path("authorizationHeader").asText("Authorization"),
+            prefix
+        );
+        validateStaticQuery(plugin, version, source.path("query"), prefix + "httpSource.query");
+        validateStaticHeaders(plugin, version, source.path("headers"), prefix + "httpSource.headers");
+        JsonNode pagination = source.path("pagination");
+        if (!pagination.isObject()) {
+            throw invalid(plugin, version, prefix + "httpSource.pagination is required.");
+        }
+        rejectUnknownFields(
+            plugin, version, pagination,
+            Set.of("strategy", "pageQuery", "sizeQuery", "startPage", "pageSize", "maxPages", "cursorQuery", "nextCursorJsonPointer"),
+            prefix + "pagination"
+        );
+        String paginationStrategy = normalizeUppercaseValue(pagination.path("strategy").asText("NONE"));
+        if (!Set.of("NONE", "PAGE_SIZE", "CURSOR").contains(paginationStrategy)) {
+            throw invalid(plugin, version, prefix + "pagination.strategy is unsupported.");
+        }
+        validateOptionalIntegerRange(plugin, version, pagination, "maxPages", 1, 10_000, prefix + "pagination.");
+        if ("PAGE_SIZE".equals(paginationStrategy)) {
+            requireIdentifier(
+                plugin,
+                version,
+                pagination.path("pageQuery").asText("page"),
+                prefix + "pagination.pageQuery"
+            );
+            requireIdentifier(
+                plugin,
+                version,
+                pagination.path("sizeQuery").asText("pageSize"),
+                prefix + "pagination.sizeQuery"
+            );
+            validateOptionalIntegerRange(plugin, version, pagination, "startPage", 0, 1_000_000, prefix + "pagination.");
+            validateOptionalIntegerRange(plugin, version, pagination, "pageSize", 1, 1_000, prefix + "pagination.");
+        }
+        if ("CURSOR".equals(paginationStrategy)) {
+            requireIdentifier(
+                plugin,
+                version,
+                pagination.path("cursorQuery").asText("cursor"),
+                prefix + "pagination.cursorQuery"
+            );
+            requireJsonPointer(plugin, version, pagination.path("nextCursorJsonPointer").asText(""), prefix + "pagination.nextCursorJsonPointer");
+        }
+        JsonNode mapping = source.path("mapping");
+        if (!mapping.isObject()) {
+            throw invalid(plugin, version, prefix + "httpSource.mapping is required.");
+        }
+        rejectUnknownFields(
+            plugin, version, mapping,
+            Set.of("recordsJsonPointer", "idJsonPointer", "resourceJsonPointer", "contentFields", "entityFields", "metadataFields", "maxRecords", "maxResponseBytes"),
+            prefix + "mapping"
+        );
+        requireJsonPointer(plugin, version, mapping.path("idJsonPointer").asText(""), prefix + "mapping.idJsonPointer");
+        if (StringUtils.hasText(mapping.path("recordsJsonPointer").asText(""))) {
+            requireJsonPointer(plugin, version, mapping.path("recordsJsonPointer").asText(""), prefix + "mapping.recordsJsonPointer");
+        }
+        requireJsonPointer(
+            plugin,
+            version,
+            mapping.path("resourceJsonPointer").asText(""),
+            prefix + "mapping.resourceJsonPointer"
+        );
+        if (!mapping.path("contentFields").isObject() || mapping.path("contentFields").isEmpty()) {
+            throw invalid(plugin, version, prefix + "mapping.contentFields must be a non-empty object.");
+        }
+        validatePointerMap(plugin, version, mapping.path("contentFields"), prefix + "mapping.contentFields");
+        validatePointerMap(plugin, version, mapping.path("entityFields"), prefix + "mapping.entityFields");
+        validatePointerMap(plugin, version, mapping.path("metadataFields"), prefix + "mapping.metadataFields");
+        validateOptionalIntegerRange(plugin, version, mapping, "maxRecords", 1, 100_000, prefix + "mapping.");
+        validateOptionalIntegerRange(
+            plugin,
+            version,
+            mapping,
+            "maxResponseBytes",
+            1_024,
+            50 * 1_024 * 1_024,
+            prefix + "mapping."
+        );
+        validateOptionalIntegerRange(plugin, version, source, "scheduleSeconds", 10, 86_400, prefix + "httpSource.");
+
+        JsonNode tombstonePolicy = source.path("tombstonePolicy");
+        String tombstoneStrategy = "NONE";
+        if (!tombstonePolicy.isMissingNode() && !tombstonePolicy.isNull()) {
+            if (!tombstonePolicy.isObject()) {
+                throw invalid(plugin, version, prefix + "httpSource.tombstonePolicy must be an object.");
+            }
+            rejectUnknownFields(
+                plugin,
+                version,
+                tombstonePolicy,
+                Set.of("strategy", "operationJsonPointer", "deleteValues"),
+                prefix + "tombstonePolicy"
+            );
+            tombstoneStrategy = normalizeUppercaseValue(tombstonePolicy.path("strategy").asText("NONE"));
+            if (!Set.of("NONE", "ABSENT_FROM_SNAPSHOT", "FIELD_VALUE", "ABSENT_OR_FIELD_VALUE")
+                .contains(tombstoneStrategy)) {
+                throw invalid(plugin, version, prefix + "tombstonePolicy.strategy is unsupported.");
+            }
+            boolean deletesByField = Set.of("FIELD_VALUE", "ABSENT_OR_FIELD_VALUE").contains(tombstoneStrategy);
+            if (deletesByField) {
+                requireJsonPointer(
+                    plugin,
+                    version,
+                    tombstonePolicy.path("operationJsonPointer").asText(""),
+                    prefix + "tombstonePolicy.operationJsonPointer"
+                );
+                JsonNode deleteValues = tombstonePolicy.path("deleteValues");
+                if (!deleteValues.isArray() || deleteValues.isEmpty()) {
+                    throw invalid(plugin, version, prefix + "tombstonePolicy.deleteValues must be non-empty.");
+                }
+                for (JsonNode deleteValue : deleteValues) {
+                    if (!deleteValue.isValueNode() || !StringUtils.hasText(deleteValue.asText(""))) {
+                        throw invalid(plugin, version, prefix + "tombstonePolicy.deleteValues must contain scalar values.");
+                    }
+                }
+            }
+        }
+        if ("CURSOR".equals(paginationStrategy)
+            && Set.of("ABSENT_FROM_SNAPSHOT", "ABSENT_OR_FIELD_VALUE").contains(tombstoneStrategy)) {
+            throw invalid(plugin, version, prefix + "cursor pagination cannot delete records by snapshot absence.");
+        }
+
+        JsonNode webhook = connector.path("webhook");
+        if (webhook.isObject()) {
+            rejectUnknownFields(plugin, version, webhook, HTTP_WEBHOOK_FIELDS, prefix + "webhook");
+            requireIdentifier(plugin, version, firstText(webhook, "sourceId"), prefix + "webhook.sourceId");
+            String webhookMethod = webhook.path("method").asText("").trim().toUpperCase(Locale.ROOT);
+            if (!Set.of("POST", "PUT").contains(webhookMethod)) {
+                throw invalid(plugin, version, prefix + "webhook.method must be POST or PUT.");
+            }
+            JsonNode verification = webhook.path("verification");
+            if (!verification.isObject()) {
+                throw invalid(plugin, version, prefix + "webhook.verification is required.");
+            }
+            rejectUnknownFields(
+                plugin, version, verification,
+                Set.of("strategy", "signatureHeader", "secretRefField", "timestampComponent", "signatureComponent", "replayWindowSeconds"),
+                prefix + "webhook.verification"
+            );
+            if (!"HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY".equals(normalizeUppercaseValue(verification.path("strategy").asText("")))) {
+                throw invalid(plugin, version, prefix + "webhook verification strategy is unsupported.");
+            }
+            requireHttpHeaderName(
+                plugin,
+                version,
+                verification.path("signatureHeader").asText(""),
+                prefix + "webhook.verification.signatureHeader"
+            );
+            requireIdentifier(
+                plugin,
+                version,
+                verification.path("secretRefField").asText(""),
+                prefix + "webhook.verification.secretRefField"
+            );
+            requireIdentifier(
+                plugin,
+                version,
+                verification.path("timestampComponent").asText("t"),
+                prefix + "webhook.verification.timestampComponent"
+            );
+            requireIdentifier(
+                plugin,
+                version,
+                verification.path("signatureComponent").asText("v1"),
+                prefix + "webhook.verification.signatureComponent"
+            );
+            validateOptionalIntegerRange(
+                plugin,
+                version,
+                verification,
+                "replayWindowSeconds",
+                0,
+                86_400,
+                prefix + "webhook.verification."
+            );
+            requireJsonPointer(plugin, version, webhook.path("eventIdJsonPointer").asText(""), prefix + "webhook.eventIdJsonPointer");
+            requireJsonPointer(plugin, version, webhook.path("eventTypeJsonPointer").asText(""), prefix + "webhook.eventTypeJsonPointer");
+            requireJsonPointer(plugin, version, webhook.path("resourceJsonPointer").asText(""), prefix + "webhook.resourceJsonPointer");
+            if (!webhook.path("allowedEventTypes").isArray() || webhook.path("allowedEventTypes").isEmpty()) {
+                throw invalid(plugin, version, prefix + "webhook.allowedEventTypes must be non-empty.");
+            }
+            requireCapabilityArray(
+                plugin,
+                version,
+                webhook.path("allowedEventTypes"),
+                prefix + "webhook.allowedEventTypes"
+            );
+            JsonNode contentTypes = webhook.path("allowedContentTypes");
+            if (!contentTypes.isMissingNode() && (!contentTypes.isArray() || contentTypes.isEmpty())) {
+                throw invalid(plugin, version, prefix + "webhook.allowedContentTypes must be a non-empty array.");
+            }
+            for (JsonNode contentType : contentTypes) {
+                String value = contentType.asText("").trim().toLowerCase(Locale.ROOT);
+                if (!value.matches("[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+")) {
+                    throw invalid(plugin, version, prefix + "webhook.allowedContentTypes contains an invalid media type.");
+                }
+            }
+            validateOptionalIntegerRange(plugin, version, webhook, "maxBodyBytes", 1024, 10 * 1024 * 1024, prefix);
+            validateOptionalIntegerRange(plugin, version, webhook, "maxReconcileAttempts", 1, 20, prefix);
+            validateOptionalIntegerRange(plugin, version, webhook, "retryDelaySeconds", 1, 86_400, prefix);
+            validateOptionalBoolean(plugin, version, webhook, "registrationExpected", prefix);
+            validateOptionalBoolean(plugin, version, webhook, "manualReplayEnabled", prefix);
+            String orderingPolicy = normalizeUppercaseValue(webhook.path("orderingPolicy").asText("RECONCILE_LATEST_STATE"));
+            if (!"RECONCILE_LATEST_STATE".equals(orderingPolicy)) {
+                throw invalid(plugin, version, prefix + "webhook.orderingPolicy is unsupported.");
+            }
+        }
+    }
+
+    private void validateOptionalBoolean(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         JsonNode parent,
+                                         String field,
+                                         String prefix) {
+        JsonNode value = parent.path(field);
+        if (!value.isMissingNode() && !value.isNull() && !value.isBoolean()) {
+            throw invalid(plugin, version, prefix + field + " must be a boolean.");
+        }
+    }
+
+    private void validateStaticQuery(MarketplacePluginEntity plugin,
+                                     MarketplacePluginVersionEntity version,
+                                     JsonNode query,
+                                     String path) {
+        if (query.isMissingNode() || query.isNull()) {
+            return;
+        }
+        if (!query.isObject() || query.size() > 50) {
+            throw invalid(plugin, version, path + " must be an object with at most 50 entries.");
+        }
+        query.fields().forEachRemaining(entry -> {
+            requireRequestFieldName(plugin, version, entry.getKey(), path + " field");
+            JsonNode value = entry.getValue();
+            if (!value.isValueNode() || value.isNull() || value.asText("").length() > 2_000) {
+                throw invalid(plugin, version, path + " values must be bounded scalar values.");
+            }
+        });
+    }
+
+    private void validateStaticHeaders(MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       JsonNode headers,
+                                       String path) {
+        if (headers.isMissingNode() || headers.isNull()) {
+            return;
+        }
+        if (!headers.isObject() || headers.size() > 50) {
+            throw invalid(plugin, version, path + " must be an object with at most 50 entries.");
+        }
+        headers.fields().forEachRemaining(entry -> {
+            requireHttpHeaderName(plugin, version, entry.getKey(), path + " field");
+            if (!entry.getValue().isTextual() || entry.getValue().asText().length() > 2_000) {
+                throw invalid(plugin, version, path + " values must be strings of at most 2000 characters.");
+            }
+        });
+    }
+
+    private void requireRequestFieldName(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         String value,
+                                         String path) {
+        if (!StringUtils.hasText(value) || !value.matches("[A-Za-z0-9$][A-Za-z0-9$._-]{0,159}")) {
+            throw invalid(plugin, version, path + " is invalid.");
+        }
+    }
+
+    private Set<String> requireCapabilityArray(MarketplacePluginEntity plugin,
+                                               MarketplacePluginVersionEntity version,
+                                               JsonNode values,
+                                               String path) {
+        if (!values.isArray() || values.isEmpty() || values.size() > 100) {
+            throw invalid(plugin, version, path + " must be a non-empty array with at most 100 entries.");
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        for (JsonNode value : values) {
+            String identifier = value.isTextual() ? value.asText("").trim() : "";
+            if (!identifier.matches("[A-Za-z0-9][A-Za-z0-9:._-]{0,159}") || !normalized.add(identifier)) {
+                throw invalid(plugin, version, path + " contains an invalid or duplicate identifier.");
+            }
+        }
+        return Set.copyOf(normalized);
+    }
+
+    private void validateOptionalIntegerRange(MarketplacePluginEntity plugin,
+                                              MarketplacePluginVersionEntity version,
+                                              JsonNode parent,
+                                              String field,
+                                              int minimum,
+                                              int maximum,
+                                              String prefix) {
+        JsonNode value = parent.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return;
+        }
+        if (!value.canConvertToInt() || value.asInt() < minimum || value.asInt() > maximum) {
+            throw invalid(
+                plugin,
+                version,
+                prefix + field + " must be an integer between " + minimum + " and " + maximum + "."
+            );
+        }
+    }
+
+    private void validateResourcePlacements(MarketplacePluginEntity plugin,
+                                            MarketplacePluginVersionEntity version,
+                                            JsonNode placements,
+                                            String requestPath,
+                                            String prefix) {
+        if (!placements.isArray() || placements.isEmpty()) {
+            throw invalid(plugin, version, prefix + "trustedResourcePlacements must be non-empty.");
+        }
+        Set<String> pathPlacements = new LinkedHashSet<>();
+        for (JsonNode placement : placements) {
+            if (!placement.isObject()) {
+                throw invalid(plugin, version, prefix + "trustedResourcePlacements entries must be objects.");
+            }
+            rejectUnknownFields(plugin, version, placement, Set.of("target", "field", "jsonPointer"), prefix + "trustedResourcePlacement");
+            String target = normalizeUppercaseValue(placement.path("target").asText(""));
+            if (!Set.of("QUERY", "PATH", "HEADER", "BODY").contains(target)) {
+                throw invalid(plugin, version, prefix + "trusted resource placement target is unsupported.");
+            }
+            requireText(plugin, version, placement, "field", prefix);
+            if ("BODY".equals(target)) {
+                requireJsonPointer(plugin, version, placement.path("jsonPointer").asText(""), prefix + "trustedResourcePlacement.jsonPointer");
+            }
+            if ("PATH".equals(target)) {
+                String field = placement.path("field").asText("").trim();
+                if (!requestPath.contains("{" + field + "}")) {
+                    throw invalid(plugin, version, prefix + "PATH trusted resource placement must match a path placeholder.");
+                }
+                pathPlacements.add(field);
+            }
+        }
+        Matcher placeholders = Pattern.compile("\\{([A-Za-z0-9._-]+)}").matcher(requestPath);
+        while (placeholders.find()) {
+            if (!pathPlacements.contains(placeholders.group(1))) {
+                throw invalid(plugin, version, prefix + "contains an unbound protected path placeholder.");
+            }
+        }
+    }
+
+    private void rejectProviderAuthHeaderPlacement(MarketplacePluginEntity plugin,
+                                                   MarketplacePluginVersionEntity version,
+                                                   JsonNode placements,
+                                                   String authenticationHeader,
+                                                   String prefix) {
+        if (!StringUtils.hasText(authenticationHeader) || !placements.isArray()) {
+            return;
+        }
+        for (JsonNode placement : placements) {
+            if ("HEADER".equals(normalizeUppercaseValue(placement.path("target").asText("")))) {
+                requireHttpHeaderName(
+                    plugin,
+                    version,
+                    placement.path("field").asText(""),
+                    prefix + "trustedResourcePlacement.field"
+                );
+                if (authenticationHeader.trim().equalsIgnoreCase(placement.path("field").asText("").trim())) {
+                    throw invalid(
+                        plugin,
+                        version,
+                        prefix + "trusted resource placement must not target the provider authentication header."
+                    );
+                }
+            }
+        }
+    }
+
+    private void validatePointerMap(MarketplacePluginEntity plugin,
+                                    MarketplacePluginVersionEntity version,
+                                    JsonNode map,
+                                    String path) {
+        if (map == null || map.isMissingNode() || map.isNull()) {
+            return;
+        }
+        if (!map.isObject() || map.size() > 100) {
+            throw invalid(plugin, version, path + " must be an object with at most 100 entries.");
+        }
+        map.fields().forEachRemaining(entry -> {
+            requireIdentifier(plugin, version, entry.getKey(), path + " field");
+            if (!entry.getValue().isTextual()) {
+                throw invalid(plugin, version, path + "." + entry.getKey() + " must be a JSON Pointer string.");
+            }
+            requireJsonPointer(plugin, version, entry.getValue().asText(""), path + "." + entry.getKey());
+        });
+    }
+
+    private void requireJsonPointer(MarketplacePluginEntity plugin,
+                                    MarketplacePluginVersionEntity version,
+                                    String value,
+                                    String path) {
+        if (!StringUtils.hasText(value) || !value.startsWith("/")) {
+            throw invalid(plugin, version, path + " must be an absolute JSON Pointer.");
+        }
+    }
+
+    private void requireRelativePath(MarketplacePluginEntity plugin,
+                                     MarketplacePluginVersionEntity version,
+                                     String value,
+                                     String path) {
+        if (!StringUtils.hasText(value) || !value.startsWith("/") || value.contains("://")) {
+            throw invalid(plugin, version, path + " must be a relative path beginning with '/'.");
+        }
+    }
+
+    private void requireAbsoluteHttpsUrl(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         String value,
+                                         String path) {
+        try {
+            java.net.URI uri = java.net.URI.create(value);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                || !StringUtils.hasText(uri.getHost())
+                || uri.getUserInfo() != null
+                || uri.getQuery() != null
+                || uri.getFragment() != null) {
+                throw new IllegalArgumentException();
+            }
+        } catch (Exception ex) {
+            throw invalid(
+                plugin,
+                version,
+                path + " must be an absolute HTTPS URL without credentials, query, or fragment."
+            );
+        }
+    }
+
+    private void requireIdentifier(MarketplacePluginEntity plugin,
+                                   MarketplacePluginVersionEntity version,
+                                   String value,
+                                   String path) {
+        if (!StringUtils.hasText(value) || !value.matches("[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}")) {
+            throw invalid(plugin, version, path + " is invalid.");
+        }
+    }
+
+    private void requireHttpHeaderName(MarketplacePluginEntity plugin,
+                                       MarketplacePluginVersionEntity version,
+                                       String value,
+                                       String path) {
+        if (!StringUtils.hasText(value)
+            || !value.trim().matches("[!#$%&'*+.^_`|~0-9A-Za-z-]{1,160}")) {
+            throw invalid(plugin, version, path + " is not a valid HTTP header name.");
+        }
+    }
+
+    private void requireText(MarketplacePluginEntity plugin,
+                             MarketplacePluginVersionEntity version,
+                             JsonNode node,
+                             String field,
+                             String prefix) {
+        if (!StringUtils.hasText(node.path(field).asText(""))) {
+            throw invalid(plugin, version, prefix + field + " is required.");
+        }
     }
 
     private void validateDocumentDataset(MarketplacePluginEntity plugin,
@@ -2126,7 +3005,8 @@ public class MarketplaceManifestService {
         String folderRefField,
         JsonNode syncConnector,
         JsonNode sourceConnector,
-        JsonNode documentPolicy
+        JsonNode documentPolicy,
+        JsonNode customerBackendIngestion
     ) {
     }
 }

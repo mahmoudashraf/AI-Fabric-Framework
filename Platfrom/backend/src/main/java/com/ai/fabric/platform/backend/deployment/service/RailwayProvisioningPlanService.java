@@ -51,6 +51,8 @@ public class RailwayProvisioningPlanService {
     private static final String SHOPIFY_BRIDGE_TOKEN_BROKER_SECRET_REF =
         "MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY";
     private static final Pattern MCP_SECRET_REF_PATTERN = Pattern.compile("^MCP_SECRET_[A-Z0-9_]+$");
+    private static final Pattern DEPLOYMENT_SECRET_PLACEHOLDER_PATTERN =
+        Pattern.compile("^\\$\\{([A-Z][A-Z0-9_]{1,127})}$");
 
     private final PlatformProvisioningProperties provisioningProperties;
     private final PlatformDeliveryProperties deliveryProperties;
@@ -253,6 +255,10 @@ public class RailwayProvisioningPlanService {
         JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
         JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
         JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
+        boolean externalHttpIntegration = hasExternalHttpDataset(marketplaceDatasetConfig);
+        CustomerBackendIngestionContract customerIngestion = customerBackendIngestionContract(
+            marketplaceDatasetConfig
+        );
 
         var artifacts = artifactService.toBundleSummary(version);
         JsonNode manifest = readJson(version.getManifestJson());
@@ -435,6 +441,12 @@ public class RailwayProvisioningPlanService {
         addOptionalEnv(runtimeEnv, "AI_KNOWLEDGE_SOURCES_DEPLOYMENT_CONFIG_FILE", artifactUrls.knowledgeSources());
         addOptionalEnv(runtimeEnv, "AI_SHELL_DEPLOYMENT_CONFIG_FILE", artifactUrls.shell());
         runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_BASE_URL", connectorBaseUrl));
+        if (externalHttpIntegration) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL",
+                connectorBaseUrl
+            ));
+        }
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addDocumentKnowledgeEnv(runtimeEnv, deployment, marketplaceDatasetConfig, targetProfileId);
         addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
@@ -443,6 +455,68 @@ public class RailwayProvisioningPlanService {
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig);
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
+        if (customerIngestion.enabled()) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ENABLED",
+                "true"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_DEPLOYMENT_ID",
+                deployment.getId()
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_TENANT_ID",
+                deployment.getTenantId()
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_UPSERT_ENTITY_TYPES",
+                String.join(",", customerIngestion.upsertEntityTypes())
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_DELETE_ENTITY_TYPES",
+                String.join(",", customerIngestion.deleteEntityTypes())
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_WORK_STATUS_ENTITY_TYPES",
+                String.join(",", customerIngestion.workStatusEntityTypes())
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_WORK_STATUS_ENABLED",
+                Boolean.toString(customerIngestion.workStatusEnabled())
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_READINESS_ENABLED",
+                Boolean.toString(customerIngestion.readinessEnabled())
+            ));
+        }
+        if (externalHttpIntegration) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_ENABLED",
+                "true"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_HEADER",
+                "X-AIFABRIC-INTEGRATION-KEY"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_API_KEY_VALUE",
+                "${secret:" + DeploymentExecutionSecretService.integrationServiceApiKeyName(deployment.getId()) + "}"
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_DEPLOYMENT_ID",
+                deployment.getId()
+            ));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_AUTH_INGRESS_INTEGRATION_SERVICE_TENANT_ID",
+                deployment.getTenantId()
+            ));
+        }
+        if (externalHttpIntegration || customerIngestion.enabled()) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_DATA_SYNC_ALLOW_TRUSTED_PLATFORM_INTERNAL_SYNC_BYPASS",
+                "true"
+            ));
+        }
         addRuntimePublicTokenValidationEnv(runtimeEnv, securityConfig);
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_RUNTIME_AUTHZ_MODE",
@@ -465,6 +539,30 @@ public class RailwayProvisioningPlanService {
         addConnectorProfileEnv(connectorEnv, providerConfig, runtimeBaseUrl, securityConfig);
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
             connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
+        }
+        if (platformSecretService.isSecretPresent(CONNECTOR_ADMIN_SECRET)) {
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "APP_ADMIN_API_KEY",
+                "${secret:" + CONNECTOR_ADMIN_SECRET + "}"
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+        }
+        if (externalHttpIntegration) {
+            String connectorDatabaseRole = integrationConnectorDatabaseRole(deployment.getId());
+            connectorEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL", runtimeBaseUrl));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "AI_FABRIC_RUNTIME_INTEGRATION_SERVICE_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.integrationServiceApiKeyName(deployment.getId()) + "}"
+            ));
+            connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_PERSISTENCE_ENABLED", "true"));
+            connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_PERSISTENCE_SCHEMA", "integration_connector"));
+            connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_DATABASE_ROLE", connectorDatabaseRole));
+            connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_JDBC_USERNAME", connectorDatabaseRole));
+            connectorEnv.add(new RailwayEnvVarSummary(
+                "REST_CONNECTOR_JDBC_PASSWORD",
+                "${secret:" + DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName(deployment.getId()) + "}"
+            ));
+            addMarketplaceConnectorSecretEnv(connectorEnv, marketplaceDatasetConfig);
         }
         addShopifyBridgeConnectorEnv(connectorEnv, deployment);
         addCorsEnv(connectorEnv, securityConfig);
@@ -1807,6 +1905,109 @@ public class RailwayProvisioningPlanService {
             }
         }
         return false;
+    }
+
+    private boolean hasExternalHttpDataset(JsonNode config) {
+        JsonNode datasets = config == null ? null : config.path("datasets");
+        if (datasets == null || !datasets.isArray()) {
+            return false;
+        }
+        for (JsonNode dataset : datasets) {
+            if ("EXTERNAL_SYNC_HTTP".equals(dataset.path("ingestionMode").asText(""))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private CustomerBackendIngestionContract customerBackendIngestionContract(JsonNode config) {
+        LinkedHashSet<String> upsertEntityTypes = new LinkedHashSet<>();
+        LinkedHashSet<String> deleteEntityTypes = new LinkedHashSet<>();
+        LinkedHashSet<String> workStatusEntityTypes = new LinkedHashSet<>();
+        boolean workStatusEnabled = false;
+        boolean readinessEnabled = false;
+        JsonNode datasets = config == null ? null : config.path("datasets");
+        if (datasets == null || !datasets.isArray()) {
+            return CustomerBackendIngestionContract.disabled();
+        }
+        for (JsonNode dataset : datasets) {
+            if (dataset.path("customerBackendIngestion").path("enabled").asBoolean(false)) {
+                String entityType = dataset.path("entityType").asText("").trim();
+                JsonNode operations = dataset.path("customerBackendIngestion").path("operations");
+                if (StringUtils.hasText(entityType) && operations.isArray()) {
+                    if (contains(operations, "UPSERT")) {
+                        upsertEntityTypes.add(entityType);
+                    }
+                    if (contains(operations, "DELETE")) {
+                        deleteEntityTypes.add(entityType);
+                    }
+                    if (contains(operations, "WORK_STATUS")) {
+                        workStatusEntityTypes.add(entityType);
+                        workStatusEnabled = true;
+                    }
+                    readinessEnabled = readinessEnabled || contains(operations, "READINESS");
+                }
+            }
+        }
+        return new CustomerBackendIngestionContract(
+            List.copyOf(upsertEntityTypes),
+            List.copyOf(deleteEntityTypes),
+            List.copyOf(workStatusEntityTypes),
+            workStatusEnabled,
+            readinessEnabled
+        );
+    }
+
+    private record CustomerBackendIngestionContract(
+        List<String> upsertEntityTypes,
+        List<String> deleteEntityTypes,
+        List<String> workStatusEntityTypes,
+        boolean workStatusEnabled,
+        boolean readinessEnabled
+    ) {
+        private static CustomerBackendIngestionContract disabled() {
+            return new CustomerBackendIngestionContract(List.of(), List.of(), List.of(), false, false);
+        }
+
+        private boolean enabled() {
+            return !upsertEntityTypes.isEmpty()
+                || !deleteEntityTypes.isEmpty()
+                || workStatusEnabled
+                || readinessEnabled;
+        }
+    }
+
+    private String integrationConnectorDatabaseRole(String deploymentId) {
+        String normalized = deploymentId == null ? "unknown" : deploymentId.toLowerCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[^a-z0-9_]+", "_").replaceAll("_{2,}", "_");
+        normalized = normalized.replaceAll("^_+", "").replaceAll("_+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            normalized = "unknown";
+        }
+        String role = "integration_" + normalized;
+        return role.length() > 63 ? role.substring(0, 63).replaceAll("_+$", "") : role;
+    }
+
+    private void addMarketplaceConnectorSecretEnv(List<RailwayEnvVarSummary> connectorEnv, JsonNode config) {
+        LinkedHashSet<String> refs = new LinkedHashSet<>();
+        collectDeploymentSecretPlaceholders(config, refs);
+        for (String ref : refs) {
+            connectorEnv.add(new RailwayEnvVarSummary(ref, "${secret:" + ref + "}"));
+        }
+    }
+
+    private void collectDeploymentSecretPlaceholders(JsonNode node, Set<String> refs) {
+        if (node == null || node.isNull()) {
+            return;
+        }
+        if (node.isTextual()) {
+            java.util.regex.Matcher matcher = DEPLOYMENT_SECRET_PLACEHOLDER_PATTERN.matcher(node.asText());
+            if (matcher.matches()) {
+                refs.add(matcher.group(1));
+            }
+            return;
+        }
+        node.elements().forEachRemaining(child -> collectDeploymentSecretPlaceholders(child, refs));
     }
 
     private String executionManifestLocations(String behaviorType) {

@@ -13,6 +13,8 @@ public record DeploymentWorkspaceSummary(
     int releaseCount,
     int verificationRunCount,
     boolean documentKnowledgeConfigured,
-    boolean documentKnowledgeLive
+    boolean documentKnowledgeLive,
+    boolean externalIntegrationConfigured,
+    boolean externalIntegrationLive
 ) {
 }
