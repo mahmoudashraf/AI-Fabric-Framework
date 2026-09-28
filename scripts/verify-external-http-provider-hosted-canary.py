@@ -1366,8 +1366,6 @@ class HostedCanary:
                 observed_running = observed_running or any(
                     str(status).startswith("running") for status in statuses
                 )
-                if last.get("state") == "complete":
-                    return
                 logs = self.coolify_restore_service_logs(last, target.values())
                 if "LOOMAI_RESTORE_COMPLETED" in logs:
                     return
