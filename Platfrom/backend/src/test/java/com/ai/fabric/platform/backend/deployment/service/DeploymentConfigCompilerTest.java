@@ -108,6 +108,7 @@ class DeploymentConfigCompilerTest {
                     "entityType": "neutral-record",
                     "ingestionMode": "EXTERNAL_SYNC_HTTP",
                     "datasetHash": "fixture-dataset-hash",
+                    "handleRef": "plugin/neutral/tenant/tenant-neutral/neutral-records/fixture/neutral-record",
                     "syncConnector": {
                       "connectorType": "HTTP_JSON",
                       "connectionProfile": {
@@ -201,6 +202,8 @@ class DeploymentConfigCompilerTest {
             .isEqualTo("neutral-record");
         assertThat(routing.path("data-sources").path("neutral-source").path("source-version").asText())
             .isEqualTo("fixture-dataset-hash");
+        assertThat(routing.path("data-sources").path("neutral-source").path("knowledge-source-handle-ref").asText())
+            .isEqualTo("plugin/neutral/tenant/tenant-neutral/neutral-records/fixture/neutral-record");
         assertThat(routing.path("data-sources").path("neutral-source").path("tombstone-policy")
             .path("strategy").asText()).isEqualTo("FIELD_VALUE");
         assertThat(routing.path("data-sources").path("neutral-source").path("tombstone-policy")

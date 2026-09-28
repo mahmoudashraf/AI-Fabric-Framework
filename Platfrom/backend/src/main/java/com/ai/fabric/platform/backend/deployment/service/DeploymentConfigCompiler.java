@@ -344,6 +344,13 @@ public class DeploymentConfigCompiler {
             if (StringUtils.hasText(sourceVersion)) {
                 compiledSource.put("source-version", sourceVersion);
             }
+            String knowledgeSourceHandleRef = dataset.path("handleRef").asText("").trim();
+            if (!StringUtils.hasText(knowledgeSourceHandleRef)) {
+                throw new IllegalStateException(
+                    "Compiled EXTERNAL_SYNC_HTTP dataset is missing its server-owned knowledge source handle."
+                );
+            }
+            compiledSource.put("knowledge-source-handle-ref", knowledgeSourceHandleRef);
             putUniqueIntegrationConfig(sources, sourceId, compiledSource, "HTTP data source");
             JsonNode webhook = connector.path("webhook");
             if (webhook.isObject()) {

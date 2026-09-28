@@ -388,6 +388,7 @@ public class RestRoutingConfig {
     public static class HttpDataSource {
         private boolean enabled = true;
         private String sourceVersion;
+        private String knowledgeSourceHandleRef;
         private String connectionProfileRef;
         private String protectedResourceBindingRef;
         private List<String> requiredCapabilityGrants = new ArrayList<>();

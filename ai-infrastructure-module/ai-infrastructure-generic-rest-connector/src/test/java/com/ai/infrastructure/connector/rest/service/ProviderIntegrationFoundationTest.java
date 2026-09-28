@@ -113,6 +113,8 @@ class ProviderIntegrationFoundationTest {
             assertThat(operation.path("vectorSpace").asText()).isEqualTo("catalog-entry");
             assertThat(operation.path("metadata").path("deploymentId").asText()).isEqualTo("dep-neutral-a");
             assertThat(operation.path("metadata").path("tenantId").asText()).isEqualTo("tenant-neutral-a");
+            assertThat(operation.path("metadata").path("knowledgeSourceHandleRef").asText())
+                .isEqualTo("plugin/fixture/catalog-entry");
             assertThat(operation.path("metadata").path("protectedResourceFingerprint").asText()).hasSize(64);
         });
     }
@@ -569,6 +571,7 @@ class ProviderIntegrationFoundationTest {
         source.setMethod("GET");
         source.setVectorSpace(entityType);
         source.setEntityType(entityType);
+        source.setKnowledgeSourceHandleRef("plugin/fixture/" + entityType);
         source.getMapping().setIdJsonPointer("/id");
         source.getMapping().setContentFields(Map.of("title", "/title", "name", "/name"));
         source.getMapping().setEntityFields(Map.of("title", "/title", "name", "/name"));

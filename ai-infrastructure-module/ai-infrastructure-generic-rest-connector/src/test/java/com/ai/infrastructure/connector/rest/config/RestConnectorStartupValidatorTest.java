@@ -66,6 +66,16 @@ class RestConnectorStartupValidatorTest {
     }
 
     @Test
+    void rejectsDataSourceWithoutServerOwnedKnowledgeSourceHandle() {
+        RestRoutingConfig config = config();
+        config.getDataSources().get("neutral-source").setKnowledgeSourceHandleRef(null);
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("knowledge-source-handle-ref");
+    }
+
+    @Test
     void rejectsProtectedResourcePlacementIntoProviderAuthenticationHeader() {
         RestRoutingConfig config = config();
         config.getDataSources().get("neutral-source").setPath("/records");
@@ -150,6 +160,7 @@ class RestConnectorStartupValidatorTest {
         source.setPath("/records");
         source.setVectorSpace("neutral-record");
         source.setEntityType("neutral-record");
+        source.setKnowledgeSourceHandleRef("plugin/fixture/neutral-record");
         RestRoutingConfig.ResourcePlacement placement = new RestRoutingConfig.ResourcePlacement();
         placement.setTarget(RestRoutingConfig.ResourcePlacement.Target.QUERY);
         placement.setField("scopeId");

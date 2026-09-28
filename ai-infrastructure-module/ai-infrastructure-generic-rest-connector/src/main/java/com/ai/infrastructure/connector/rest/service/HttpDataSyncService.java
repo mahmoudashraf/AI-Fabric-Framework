@@ -288,6 +288,7 @@ public class HttpDataSyncService {
         metadata.put("sourceId", sourceId);
         metadata.put("sourceRecordId", id);
         metadata.put("entityType", source.getEntityType());
+        metadata.put("knowledgeSourceHandleRef", source.getKnowledgeSourceHandleRef());
         metadata.put("protectedResourceType", binding.getResourceType());
         metadata.put("protectedResourceFingerprint", protectedResources.fingerprint(binding));
         if (StringUtils.hasText(config.getRuntimeDataSync().getDeploymentId())) {

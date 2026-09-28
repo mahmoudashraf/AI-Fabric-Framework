@@ -440,6 +440,10 @@ public class RestConnectorStartupValidator {
             requireId(source.getSourceVersion(), "HTTP data source version");
             requireId(source.getVectorSpace(), "HTTP data source vector space");
             requireId(source.getEntityType(), "HTTP data source entity type");
+            requireKnowledgeSourceHandleRef(
+                source.getKnowledgeSourceHandleRef(),
+                "data-sources." + sourceId + ".knowledge-source-handle-ref"
+            );
             requireRelativePath(source.getPath(), "data-sources." + sourceId + ".path");
             if (!("GET".equalsIgnoreCase(source.getMethod()) || "POST".equalsIgnoreCase(source.getMethod()))) {
                 throw new IllegalStateException("HTTP data source '" + sourceId + "' must use GET or POST.");
@@ -791,6 +795,15 @@ public class RestConnectorStartupValidator {
     private void requireId(String value, String label) {
         if (!StringUtils.hasText(value) || !value.matches("[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}")) {
             throw new IllegalStateException(label + " identifier is invalid.");
+        }
+    }
+
+    private void requireKnowledgeSourceHandleRef(String value, String label) {
+        if (!StringUtils.hasText(value)
+            || value.length() > 500
+            || !value.equals(value.trim())
+            || value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalStateException(label + " must be a bounded server-owned handle.");
         }
     }
 
