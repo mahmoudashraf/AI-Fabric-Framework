@@ -181,12 +181,21 @@ def coolify_restore_compose(backup_path: str, database_image: str) -> str:
     restart: \"no\"
     command:
       - /bin/sh
-      - -ec
+      - -c
       - >-
+        set +e;
         pg_restore --clean --if-exists --single-transaction --exit-on-error
         --no-owner --no-acl --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\"
-        --dbname \"$${{PGDATABASE}}\" /backup/input.dmp &&
-        touch /tmp/restore-complete && sleep 3600
+        --dbname \"$${{PGDATABASE}}\" /backup/input.dmp;
+        restore_status=$$?;
+        if [ \"$${{restore_status}}\" -eq 0 ]; then
+          touch /tmp/restore-complete;
+          echo LOOMAI_RESTORE_COMPLETED;
+        else
+          touch /tmp/restore-failed;
+          echo \"LOOMAI_RESTORE_FAILED_EXIT=$${{restore_status}}\";
+        fi;
+        sleep 3600
     environment:
       PGHOST: ${{RESTORE_DB_HOST}}
       PGUSER: ${{RESTORE_DB_USER}}
@@ -1200,13 +1209,32 @@ class HostedCanary:
             for item in [*(body.get("applications") or []), *(body.get("databases") or [])]
             if isinstance(item, dict)
         ]
+        application_uuids = [
+            str(item.get("uuid") or "")
+            for item in (body.get("applications") or [])
+            if isinstance(item, dict) and item.get("uuid")
+        ]
         if statuses and all(status.startswith("running:healthy") for status in statuses):
             state = "complete"
         elif statuses and all(status.startswith(("exited", "dead")) for status in statuses):
             state = "failed"
         else:
             state = "starting"
-        return {"state": state, "statuses": statuses}
+        return {"state": state, "statuses": statuses, "applicationUuids": application_uuids}
+
+    def coolify_restore_service_logs(self, state: dict[str, Any], redactions: Iterable[str]) -> str:
+        require(self.coolify is not None, "Coolify API credentials are required for database restore.")
+        log_chunks: list[str] = []
+        for application_uuid in state.get("applicationUuids") or []:
+            result = self.coolify.request(
+                "GET", f"/api/v1/applications/{application_uuid}/logs?lines=120"
+            )
+            if result.status == 200 and isinstance(result.body, dict):
+                log_chunks.append(str(result.body.get("logs") or ""))
+        logs = "\n".join(log_chunks)
+        for secret in sorted({item for item in redactions if item}, key=len, reverse=True):
+            logs = logs.replace(secret, "[REDACTED]")
+        return logs
 
     def delete_coolify_restore_service(self, service_uuid: str) -> None:
         require(self.coolify is not None, "Coolify API credentials are required for database restore.")
@@ -1279,6 +1307,13 @@ class HostedCanary:
                 last = self.coolify_restore_service_state(service_uuid)
                 if last.get("state") == "complete":
                     return
+                logs = self.coolify_restore_service_logs(last, target.values())
+                if "LOOMAI_RESTORE_COMPLETED" in logs:
+                    return
+                if "LOOMAI_RESTORE_FAILED_EXIT=" in logs:
+                    raise VerificationFailure(
+                        f"Coolify restore helper reported failure: {bounded_json(logs, 2000)}"
+                    )
                 if last.get("state") == "failed" and time.monotonic() - started_at >= 30:
                     raise VerificationFailure(
                         f"Coolify restore helper exited before completion: {bounded_json(last)}"
