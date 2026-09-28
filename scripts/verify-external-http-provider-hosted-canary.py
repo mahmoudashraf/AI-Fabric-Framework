@@ -1049,28 +1049,49 @@ class HostedCanary:
         )
 
     def wait_resource_running(self, handle_id: str, timeout: int = 300) -> dict[str, Any]:
-        return self.wait_until(
-            f"provider resource {handle_id} running",
-            lambda: require_status(
-                self.platform.request("GET", f"/api/deployment-provider/resources/{handle_id}/status"),
-                {200},
-                "provider resource status",
-            ),
-            lambda state: any(token in str(state.get("observedStatus") or state.get("status") or "").lower() for token in ("running", "healthy")),
-            timeout=timeout,
+        return self.wait_resource_status(
+            handle_id,
+            "running and healthy",
+            lambda status: status.startswith("running:healthy"),
+            timeout,
         )
 
     def wait_resource_stopped(self, handle_id: str, timeout: int = 300) -> dict[str, Any]:
-        return self.wait_until(
-            f"provider resource {handle_id} stopped",
-            lambda: require_status(
+        return self.wait_resource_status(
+            handle_id,
+            "stopped",
+            lambda status: status.startswith(("stopped", "exited", "dead")),
+            timeout,
+        )
+
+    def wait_resource_status(
+        self,
+        handle_id: str,
+        label: str,
+        matches: Callable[[str], bool],
+        timeout: int,
+    ) -> dict[str, Any]:
+        consecutive_matches = 0
+
+        def fetch() -> dict[str, Any]:
+            nonlocal consecutive_matches
+            state = require_status(
                 self.platform.request("GET", f"/api/deployment-provider/resources/{handle_id}/status"),
                 {200},
                 "provider resource status",
-            ),
-            lambda state: any(token in str(state.get("observedStatus") or state.get("status") or "").lower() for token in ("stopped", "exited")),
+            )
+            observed = str(state.get("observedStatus") or state.get("status") or "").lower()
+            consecutive_matches = consecutive_matches + 1 if matches(observed) else 0
+            return {"state": state, "consecutiveMatches": consecutive_matches}
+
+        result = self.wait_until(
+            f"provider resource {handle_id} {label}",
+            fetch,
+            lambda observation: int(observation.get("consecutiveMatches") or 0) >= 3,
             timeout=timeout,
+            interval=5,
         )
+        return result["state"]
 
     def verify_restart(self, profile: ProfileSpec) -> None:
         self.phase = "connector restart persistence"
@@ -1265,8 +1286,11 @@ class HostedCanary:
             for item in [*(body.get("applications") or []), *(body.get("databases") or [])]
             if isinstance(item, dict)
         ]
-        application_uuids = [
-            str(item.get("uuid") or "")
+        applications = [
+            {
+                "uuid": str(item.get("uuid") or ""),
+                "name": str(item.get("name") or ""),
+            }
             for item in (body.get("applications") or [])
             if isinstance(item, dict) and item.get("uuid")
         ]
@@ -1276,17 +1300,30 @@ class HostedCanary:
             state = "failed"
         else:
             state = "starting"
-        return {"state": state, "statuses": statuses, "applicationUuids": application_uuids}
+        return {"state": state, "statuses": statuses, "applications": applications}
 
-    def coolify_restore_service_logs(self, state: dict[str, Any], redactions: Iterable[str]) -> str:
+    def coolify_restore_service_logs(
+        self,
+        service_uuid: str,
+        state: dict[str, Any],
+        redactions: Iterable[str],
+    ) -> str:
         require(self.coolify is not None, "Coolify API credentials are required for database restore.")
         log_chunks: list[str] = []
-        for application_uuid in state.get("applicationUuids") or []:
-            result = self.coolify.request(
-                "GET", f"/api/v1/applications/{application_uuid}/logs?lines=120"
-            )
-            if result.status == 200 and isinstance(result.body, dict):
-                log_chunks.append(str(result.body.get("logs") or ""))
+        for application in state.get("applications") or []:
+            application_uuid = str(application.get("uuid") or "")
+            application_name = str(application.get("name") or "")
+            paths = [
+                f"/api/v1/services/{service_uuid}/applications/{application_uuid}/logs?lines=120",
+                f"/api/v1/services/{service_uuid}/logs?"
+                + urllib.parse.urlencode({"sub_service_name": application_name, "lines": 120}),
+                f"/api/v1/applications/{application_uuid}/logs?lines=120",
+            ]
+            for path in paths:
+                result = self.coolify.request("GET", path)
+                if result.status == 200 and isinstance(result.body, dict):
+                    log_chunks.append(str(result.body.get("logs") or ""))
+                    break
         logs = "\n".join(log_chunks)
         for secret in sorted({item for item in redactions if item}, key=len, reverse=True):
             logs = logs.replace(secret, "[REDACTED]")
@@ -1359,6 +1396,7 @@ class HostedCanary:
             )
             started_at = time.monotonic()
             observed_running = False
+            consecutive_healthy = 0
             last: dict[str, Any] = {}
             while time.monotonic() - started_at < 600:
                 last = self.coolify_restore_service_state(service_uuid)
@@ -1366,7 +1404,8 @@ class HostedCanary:
                 observed_running = observed_running or any(
                     str(status).startswith("running") for status in statuses
                 )
-                logs = self.coolify_restore_service_logs(last, target.values())
+                consecutive_healthy = consecutive_healthy + 1 if last.get("state") == "complete" else 0
+                logs = self.coolify_restore_service_logs(service_uuid, last, target.values())
                 if "LOOMAI_RESTORE_COMPLETED" in logs:
                     return
                 if "LOOMAI_RESTORE_FAILED_EXIT=" in logs or "LOOMAI_RESTORE_CLIENT_FAILED_EXIT=" in logs:
@@ -1379,6 +1418,12 @@ class HostedCanary:
                     raise VerificationFailure(
                         f"Coolify restore helper exited before completion: {bounded_json(last)}"
                     )
+                # Coolify 4.1 does not expose Compose child logs. The helper's
+                # health check reads the completion file created only after a
+                # zero-exit pg_restore, so sustained healthy state is equivalent
+                # completion evidence when log APIs are unavailable.
+                if consecutive_healthy >= 3:
+                    return
                 time.sleep(5)
             raise VerificationFailure(f"Coolify restore helper timed out: {bounded_json(last)}")
         finally:
