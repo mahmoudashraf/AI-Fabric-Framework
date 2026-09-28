@@ -212,7 +212,7 @@ def coolify_restore_compose(backup_path: str, database_image: str) -> str:
           touch /tmp/restore-failed;
           echo \"LOOMAI_RESTORE_CLIENT_FAILED_EXIT=$${{client_status}}\";
         else
-          pg_restore --clean --if-exists --single-transaction --exit-on-error --no-owner --no-acl --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\" --dbname \"$${{PGDATABASE}}\" /backup/input.dmp;
+          pg_restore --clean --if-exists --single-transaction --exit-on-error --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\" --dbname \"$${{PGDATABASE}}\" /backup/input.dmp;
           restore_status=$$?;
           if [ \"$${{restore_status}}\" -eq 0 ]; then
             touch /tmp/restore-complete;
