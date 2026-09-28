@@ -683,6 +683,7 @@ class HostedCanary:
                 {
                     "query": question,
                     "conversationId": f"neutral-{profile.key}-{int(time.time())}-{attempt}",
+                    "mode": "thinker",
                     "context": {
                         "vectorSpace": profile.vector_space,
                         "entityType": profile.vector_space,
