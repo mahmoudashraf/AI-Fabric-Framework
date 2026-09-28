@@ -175,9 +175,16 @@ def canonical(value: Any) -> str:
 
 
 def postgres_restore_image(database_image: str) -> str:
+    postgres_restore_client_package(database_image)
+    return "alpine:3.22"
+
+
+def postgres_restore_client_package(database_image: str) -> str:
     match = re.search(r"(?:^|/)postgres:(\d+)", database_image)
-    major = match.group(1) if match else "16"
-    return f"postgres:{major}-alpine"
+    require(match is not None, "Coolify restore target PostgreSQL major version is unavailable.")
+    major = int(match.group(1))
+    require(major in {15, 16, 17}, f"PostgreSQL {major} has no approved Alpine 3.22 restore client.")
+    return f"postgresql{major}-client"
 
 
 def coolify_restore_compose(backup_path: str, database_image: str) -> str:
@@ -189,6 +196,7 @@ def coolify_restore_compose(backup_path: str, database_image: str) -> str:
     )
     volume = json.dumps(f"{backup_path}:/backup/input.dmp:ro")
     image = json.dumps(postgres_restore_image(database_image))
+    client_package = postgres_restore_client_package(database_image)
     return f"""services:
   restore:
     image: {image}
@@ -198,16 +206,23 @@ def coolify_restore_compose(backup_path: str, database_image: str) -> str:
       - -c
       - >-
         set +e;
-        pg_restore --clean --if-exists --single-transaction --exit-on-error
-        --no-owner --no-acl --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\"
-        --dbname \"$${{PGDATABASE}}\" /backup/input.dmp;
-        restore_status=$$?;
-        if [ \"$${{restore_status}}\" -eq 0 ]; then
-          touch /tmp/restore-complete;
-          echo LOOMAI_RESTORE_COMPLETED;
-        else
+        apk add --no-cache {client_package};
+        client_status=$$?;
+        if [ \"$${{client_status}}\" -ne 0 ]; then
           touch /tmp/restore-failed;
-          echo \"LOOMAI_RESTORE_FAILED_EXIT=$${{restore_status}}\";
+          echo \"LOOMAI_RESTORE_CLIENT_FAILED_EXIT=$${{client_status}}\";
+        else
+          pg_restore --clean --if-exists --single-transaction --exit-on-error
+          --no-owner --no-acl --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\"
+          --dbname \"$${{PGDATABASE}}\" /backup/input.dmp;
+          restore_status=$$?;
+          if [ \"$${{restore_status}}\" -eq 0 ]; then
+            touch /tmp/restore-complete;
+            echo LOOMAI_RESTORE_COMPLETED;
+          else
+            touch /tmp/restore-failed;
+            echo \"LOOMAI_RESTORE_FAILED_EXIT=$${{restore_status}}\";
+          fi;
         fi;
         sleep 3600
     environment:
@@ -1353,7 +1368,7 @@ class HostedCanary:
                 logs = self.coolify_restore_service_logs(last, target.values())
                 if "LOOMAI_RESTORE_COMPLETED" in logs:
                     return
-                if "LOOMAI_RESTORE_FAILED_EXIT=" in logs:
+                if "LOOMAI_RESTORE_FAILED_EXIT=" in logs or "LOOMAI_RESTORE_CLIENT_FAILED_EXIT=" in logs:
                     raise VerificationFailure(
                         f"Coolify restore helper reported failure: {bounded_json(logs, 2000)}"
                     )
