@@ -197,6 +197,7 @@ def coolify_restore_compose(backup_path: str, database_image: str) -> str:
     volume = json.dumps(f"{backup_path}:/backup/input.dmp:ro")
     image = json.dumps(postgres_restore_image(database_image))
     client_package = postgres_restore_client_package(database_image)
+    # Restricted runtime and connector roles depend on dump ownership and ACLs.
     return f"""services:
   restore:
     image: {image}

@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "loomai-hosted-generic-substrate-evidence-v1",
+  "startedAt": "2026-09-28T11:17:20.356880Z",
+  "status": "PASSED",
+  "platformBaseUrl": "https://loomai-platform-backend.46.224.145.148.sslip.io",
+  "simulatorBaseUrl": "https://external-vehicle-provider-simulator.46.224.145.148.sslip.io",
+  "sourceCommit": "86abb0320c5af2397231cf40077194ba0435efd2",
+  "targetProfileId": "dtp-coolify-staging-behavior",
+  "checks": [
+    {
+      "name": "platform login",
+      "status": "PASSED",
+      "at": "2026-09-28T11:17:20.635673Z"
+    },
+    {
+      "name": "independent simulator readiness and deterministic reset",
+      "status": "PASSED",
+      "at": "2026-09-28T11:17:21.196760Z",
+      "fixtureVersion": "external-vehicle-provider-v1"
+    },
+    {
+      "name": "immutable internal DATA and TEMPLATE fixtures published",
+      "status": "PASSED",
+      "at": "2026-09-28T11:17:22.326306Z",
+      "fixtureCount": 4
+    },
+    {
+      "name": "deployment-scoped provider secret references created",
+      "status": "PASSED",
+      "at": "2026-09-28T11:17:23.253323Z",
+      "secretReferenceCount": 5
+    },
+    {
+      "name": "profile a isolated deployment bootstrapped",
+      "status": "PASSED",
+      "at": "2026-09-28T11:17:23.934872Z",
+      "deploymentId": "dep-5ddb8a3c"
+    },
+    {
+      "name": "profile b isolated deployment bootstrapped",
+      "status": "PASSED",
+      "at": "2026-09-28T11:17:24.561751Z",
+      "deploymentId": "dep-6a96add0"
+    },
+    {
+      "name": "profile a release applied and verified",
+      "status": "PASSED",
+      "at": "2026-09-28T11:22:38.119184Z",
+      "deploymentId": "dep-5ddb8a3c",
+      "versionId": "ver-182b4370",
+      "releaseId": "rel-b0642553"
+    },
+    {
+      "name": "profile b release applied and verified",
+      "status": "PASSED",
+      "at": "2026-09-28T11:27:19.100547Z",
+      "deploymentId": "dep-6a96add0",
+      "versionId": "ver-253cf005",
+      "releaseId": "rel-2bab0f31"
+    },
+    {
+      "name": "provider credentials deny cross-account reads",
+      "status": "PASSED",
+      "at": "2026-09-28T11:27:19.834013Z"
+    },
+    {
+      "name": "profile a baseline, idempotency, indexing, and retrieval",
+      "status": "PASSED",
+      "at": "2026-09-28T11:27:28.671387Z",
+      "sourceCount": 4,
+      "completedWorkCount": 4
+    },
+    {
+      "name": "profile b baseline, idempotency, indexing, and retrieval",
+      "status": "PASSED",
+      "at": "2026-09-28T11:27:35.359105Z",
+      "sourceCount": 0,
+      "completedWorkCount": 0
+    },
+    {
+      "name": "updates, absence deletion, field tombstone, and scheduled missed-event repair",
+      "status": "PASSED",
+      "at": "2026-09-28T11:28:19.922239Z"
+    },
+    {
+      "name": "authentication, authorization, rate, unavailable, malformed, partial, and timeout failures recover fail-closed",
+      "status": "PASSED",
+      "at": "2026-09-28T11:28:46.652309Z"
+    },
+    {
+      "name": "TLS-originated signed events, duplicate, ordering, rejection, replay, and dead-letter recovery",
+      "status": "PASSED",
+      "at": "2026-09-28T11:29:41.188755Z"
+    },
+    {
+      "name": "connector restart preserves durable sync state",
+      "status": "PASSED",
+      "at": "2026-09-28T11:29:53.926822Z",
+      "deploymentId": "dep-5ddb8a3c",
+      "scheduledReconcileAdvancedCheckpoint": false
+    },
+    {
+      "name": "older immutable deployment version reapplied and verified",
+      "status": "PASSED",
+      "at": "2026-09-28T11:38:43.204461Z",
+      "deploymentId": "dep-6a96add0",
+      "fromVersionId": "ver-afa30694",
+      "restoredVersionId": "ver-253cf005"
+    },
+    {
+      "name": "Coolify PostgreSQL backup, destructive restore, and source convergence",
+      "status": "PASSED",
+      "at": "2026-09-28T11:44:53.236995Z",
+      "deploymentId": "dep-5ddb8a3c",
+      "backupConfigurationId": "s3mw36df3l55julqpozro81z",
+      "backupSize": 542815,
+      "restoreMethod": "COOLIFY_EPHEMERAL_PG_RESTORE",
+      "restoredCheckpointObserved": false
+    },
+    {
+      "name": "temporary deployments, provider resources, backups, and fixture credentials removed",
+      "status": "PASSED",
+      "at": "2026-09-28T11:46:36.434151Z"
+    }
+  ],
+  "deployments": [
+    {
+      "profile": "a",
+      "deploymentId": "dep-5ddb8a3c",
+      "dataPluginId": "mkp-data-neutral-vehicle-profile-a-verification",
+      "templatePluginId": "mkp-template-neutral-vehicle-profile-a-verification"
+    },
+    {
+      "profile": "b",
+      "deploymentId": "dep-6a96add0",
+      "dataPluginId": "mkp-data-neutral-vehicle-profile-b-verification",
+      "templatePluginId": "mkp-template-neutral-vehicle-profile-b-verification"
+    }
+  ],
+  "fixture": {
+    "version": "external-vehicle-provider-v1",
+    "resetId": "a2a919f5-f8f8-4891-b912-aa733f48a3cf"
+  },
+  "cleanup": {
+    "deletedDeploymentIds": [
+      "dep-6a96add0",
+      "dep-5ddb8a3c"
+    ],
+    "providerResourcesAbsent": true,
+    "managedSecretsAutoCleared": true,
+    "failures": []
+  },
+  "claim": "HOSTED_GENERIC_SUBSTRATE_VERIFIED",
+  "completedAt": "2026-09-28T11:46:36.434214Z"
+}

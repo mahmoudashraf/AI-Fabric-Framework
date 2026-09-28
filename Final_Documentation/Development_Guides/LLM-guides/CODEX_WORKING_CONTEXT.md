@@ -2964,3 +2964,55 @@ Critical fixes that made the gate pass:
   Auto Trader sandbox access, schemas, grants, data rights, certification, or
   production readiness. Customer-facing demos remain visibly based on approved
   dealership/demo data, and no customer deployment may depend on the simulator.
+
+## 2026-09-28 Hosted Generic External Provider Proof
+
+- The independent simulator is live on staging at
+  `https://external-vehicle-provider-simulator.46.224.145.148.sslip.io`
+  (Coolify app `e6i3t5mc2nf97a92zwlz796o`). It remains verification-only and
+  outside the Platform and deployment data planes.
+- Exact hosted inputs were staging Platform backend source
+  `a95a2114c57c653939e2232c460da4ebf5b1e686`, verifier source
+  `79b23348f`, and runtime artifact `dsa-74191bb1` at source
+  `86abb0320c5af2397231cf40077194ba0435efd2`, image digest
+  `sha256:a2966baee6d00fe383fbdf29593c2530dc58e772ac6a83223f15d4db3085db41`,
+  capability hash
+  `ccba8fcd82b356083bf13a1f89f3f746936e730118735fd2cdbc0c9a5d377807`.
+- The strict final run created isolated deployments `dep-5ddb8a3c` and
+  `dep-6a96add0` with different authentication, pagination, protected-resource,
+  and credential contracts. Both immutable releases, cross-account denial,
+  baseline/idempotent sync, completed indexing history, and deployment-local
+  grounded retrieval passed.
+- Update, absence deletion, field tombstone, scheduled missed-event repair,
+  authentication/authorization/rate/unavailable/malformed/partial/timeout
+  failure recovery, TLS-originated signatures, duplicates, ordering,
+  rejection, replay, dead-letter recovery, durable connector restart, and
+  immutable rollback passed.
+- Coolify staging is `4.1.1` and does not implement the database import API or
+  Compose-child log APIs used by newer releases. The verifier therefore uses a
+  private ephemeral Alpine/PostgreSQL-client helper attached to the deployment
+  network, mounts only the exact backup file read-only, and gates completion on
+  sustained health backed by a file written only after zero-exit `pg_restore`.
+- Restore lifecycle requests must be serialized: stop connector, prove stopped,
+  stop runtime, prove stopped, restore, start/prove runtime, then start/prove
+  connector. Concurrent application starts can race in Coolify.
+- Database restore must preserve dump ownership and ACLs. Using `--no-owner`
+  or `--no-acl` removed access for the restricted `integration_connector`
+  role and was correctly rejected by the hosted canary. The corrected
+  transactional restore was independently proven with a PostgreSQL 16
+  application-role test before the final hosted run.
+- Final backup size was `542815` bytes and restore method was
+  `COOLIFY_EPHEMERAL_PG_RESTORE`. The scheduled reconciler advanced the
+  restored checkpoint before readback, but the exact post-backup mutation
+  checkpoint was absent and explicit source convergence passed.
+- Final evidence status is `PASSED` with claim
+  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`. The bounded artifact is
+  `verification-support/external-vehicle-provider-simulator/evidence/2026-09-28-hosted-generic-substrate.json`.
+- Both temporary deployments, their applications/databases, backup
+  configuration, restore helper, diagnostic probes, and all five scoped
+  fixture credentials were removed. Platform cleanup reported no failures and
+  direct Coolify readback found no matching temporary resource.
+- This closes only the generic hosted substrate gate. Dealership-demo work and
+  real Auto Trader sandbox credentials, grants, advertiser, schemas, webhook
+  rules, data rights, certification, and production evidence remain open. Do
+  not convert this result into an Auto Trader readiness claim.

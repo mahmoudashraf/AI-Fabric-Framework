@@ -512,3 +512,17 @@ Current P0 cleanup items:
   deterministic mutations/failures, and two isolated deployments over HTTPS.
   Simulator success proves only the generic substrate; the dealership demo and
   real Auto Trader sandbox/production gates remain independent.
+- 2026-09-28 hosted closure: the strict independent-simulator staging run
+  passed and the provider-neutral deployment-local substrate is now
+  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`. Two isolated deployments proved distinct
+  auth/pagination/resource contracts, cross-account denial, sync/index/RAG,
+  mutation/deletion/repair, typed failures, signed-event replay/dead-letter,
+  restart durability, immutable rollback, destructive PostgreSQL restore, and
+  complete hard decommission. Coolify `4.1.1` requires a private ephemeral
+  restore helper because its native import API is absent; restore must preserve
+  ownership/ACLs for restricted deployment roles and application lifecycle
+  recovery must be serialized. Evidence is committed under
+  `verification-support/external-vehicle-provider-simulator/evidence/`.
+  This supersedes only the hosted-generic-pending statement. The dealership
+  demo and every real Auto Trader sandbox/production access, rights, package,
+  validation, and claim gate remain open and independent.

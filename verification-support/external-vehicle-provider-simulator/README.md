@@ -69,6 +69,22 @@ Passing this simulator permits only the
 `HOSTED_GENERIC_SUBSTRATE_VERIFIED` claim. Real provider sandbox and production
 gates remain independent.
 
+## Current hosted evidence
+
+The strict staging canary passed on 2026-09-28 using simulator fixture
+`external-vehicle-provider-v1`, two isolated deployments, runtime source
+`86abb0320c5af2397231cf40077194ba0435efd2`, and verifier source
+`79b23348f`. It covered sync, indexing, retrieval, mutation/deletion, provider
+faults, signed events, replay/dead-letter recovery, restart persistence,
+immutable rollback, destructive PostgreSQL backup/restore, convergence, and
+hard decommission.
+
+The bounded, credential-free result is committed at
+[`evidence/2026-09-28-hosted-generic-substrate.json`](evidence/2026-09-28-hosted-generic-substrate.json).
+The two temporary deployments and every temporary provider resource, backup,
+restore helper, and scoped fixture credential were removed after the pass.
+This evidence is generic and must never be cited as named-provider evidence.
+
 ## Hosted LoomAI canary
 
 After deploying the simulator and the current Platform/runtime source to
