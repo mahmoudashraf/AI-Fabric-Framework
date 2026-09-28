@@ -1257,7 +1257,7 @@ def arguments() -> argparse.Namespace:
     args.coolify_token = env("COOLIFY_API_TOKEN")
     if not args.skip_backup_restore:
         require(bool(args.coolify_url and args.coolify_token), "Coolify credentials are required unless --skip-backup-restore is explicit.")
-    args.target_profile_id = env("DEPLOYMENT_TARGET_PROFILE_ID", "dtp-coolify-staging")
+    args.target_profile_id = env("DEPLOYMENT_TARGET_PROFILE_ID", "dtp-coolify-staging-behavior")
     args.source_artifact_id = env("DEPLOYMENT_SOURCE_ARTIFACT_ID")
     args.source_commit = env("EXPECTED_SOURCE_COMMIT", required=True)
     args.release_timeout = int(env("CANARY_RELEASE_TIMEOUT_SECONDS", "3600"))
