@@ -170,6 +170,8 @@ class ProfileSpec:
     vector_space: str
     account_field: str
     account_id: str
+    baseline_source_count: int | None
+    baseline_upsert_count: int
     secret_values: dict[str, str]
     secret_names: dict[str, str]
     template_version: str = ""
@@ -221,6 +223,8 @@ class HostedCanary:
                 vector_space="verification-vehicle-a",
                 account_field="accountId",
                 account_id=args.profile_a_account,
+                baseline_source_count=4,
+                baseline_upsert_count=4,
                 secret_values={
                     "providerKey": args.profile_a_key,
                     "providerSecret": args.profile_a_secret,
@@ -242,6 +246,8 @@ class HostedCanary:
                 vector_space="verification-vehicle-b",
                 account_field="ownerRef",
                 account_id=args.profile_b_account,
+                baseline_source_count=None,
+                baseline_upsert_count=4,
                 secret_values={
                     "apiKey": args.profile_b_api_key,
                     "webhookSecret": args.profile_b_webhook_secret,
@@ -679,8 +685,27 @@ class HostedCanary:
             f"Profile {profile.key} accepted/completed work counts differ.",
         )
         if expected_source_count is not None:
-            require(int(counts.get("sourceCount") or 0) == expected_source_count, f"Profile {profile.key} source count differs.")
+            actual_source_count = int(counts.get("sourceCount") or 0)
+            require(
+                actual_source_count == expected_source_count,
+                f"Profile {profile.key} source count differs: expected {expected_source_count}, got {actual_source_count}.",
+            )
         return source
+
+    def assert_completed_upsert_history(self, profile: ProfileSpec, source: dict[str, Any]) -> None:
+        work = source.get("work") if isinstance(source.get("work"), list) else []
+        completed_upserts = sum(
+            1
+            for item in work
+            if isinstance(item, dict)
+            and item.get("operation") == "UPSERT"
+            and item.get("status") == "COMPLETED"
+        )
+        require(
+            completed_upserts >= profile.baseline_upsert_count,
+            f"Profile {profile.key} completed upsert history differs: "
+            f"expected at least {profile.baseline_upsert_count}, got {completed_upserts}.",
+        )
 
     def query(self, profile: ProfileSpec, question: str, *, attempts: int = 8) -> dict[str, Any]:
         last: dict[str, Any] = {}
@@ -727,7 +752,8 @@ class HostedCanary:
         self.phase = f"profile {profile.key} baseline indexing"
         first = self.reconcile(profile)
         require_status(first, {200}, f"profile {profile.key} baseline reconcile")
-        source = self.assert_completed_source(profile, expected_source_count=4)
+        source = self.assert_completed_source(profile, expected_source_count=profile.baseline_source_count)
+        self.assert_completed_upsert_history(profile, source)
         counts = (source.get("state") or {}).get("counts") or {}
         second = self.reconcile(profile)
         require_status(second, {200}, f"profile {profile.key} idempotent reconcile")
