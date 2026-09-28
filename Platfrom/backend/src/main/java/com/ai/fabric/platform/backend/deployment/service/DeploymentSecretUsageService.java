@@ -82,10 +82,6 @@ public class DeploymentSecretUsageService {
 
         boolean connectorApiKeyEnabled = ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig);
         boolean connectorRuntimeProxyEnabled = ManagedDeploymentProfileCatalog.connectorRuntimeProxyEnabled(providerConfig);
-        if (connectorApiKeyEnabled) {
-            registerUsage(usages, "ACTIONS_CONNECTOR_API_KEY", true, "Runtime service", "runtime-to-connector");
-            registerUsage(usages, "CONNECTOR_API_KEY", true, "REST connector", "$.securityConfig.connectorApiKeyEnabled");
-        }
 
         if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)) {
             registerUsage(
@@ -139,16 +135,17 @@ public class DeploymentSecretUsageService {
         }
 
         JsonNode inboundAuthApiKey = routingConfig.path("connector").path("inbound-auth").path("api-key");
-        if (connectorApiKeyEnabled) {
+        String inboundAuthValue = inboundAuthApiKey.path("value").asText("${CONNECTOR_API_KEY}");
+        if (connectorApiKeyEnabled && !isPlatformManagedConnectorCredential(inboundAuthValue)) {
             registerFromDraftValue(
                 usages,
                 literalRisks,
                 secretCatalog,
-                inboundAuthApiKey.path("value").asText("${CONNECTOR_API_KEY}"),
+                inboundAuthValue,
                 "REST connector",
                 "$.connector.inbound-auth.api-key.value",
                 "Connector inbound auth should reference a managed secret placeholder instead of a literal credential.",
-                "CONNECTOR_API_KEY"
+                null
             );
         }
 
@@ -339,6 +336,10 @@ public class DeploymentSecretUsageService {
             return null;
         }
         return matcher.group(1);
+    }
+
+    private boolean isPlatformManagedConnectorCredential(String value) {
+        return "${CONNECTOR_API_KEY}".equals(value) || "${secret:CONNECTOR_API_KEY}".equals(value);
     }
 
     private JsonNode readJson(String value) {

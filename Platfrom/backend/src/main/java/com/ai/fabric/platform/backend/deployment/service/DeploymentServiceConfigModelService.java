@@ -236,11 +236,11 @@ public class DeploymentServiceConfigModelService {
             field(
                 "rest.inboundAuthCredential",
                 "Inbound auth credential",
-                secretSummary("CONNECTOR_API_KEY"),
+                requiresInboundCredential ? "Generated per deployment at apply" : "Not required",
                 requiresInboundCredential,
-                requiresInboundCredential && platformSecretService.isSecretPresent("CONNECTOR_API_KEY"),
-                "PLATFORM_SECRET",
-                "Platform-managed deployments compile connector inbound auth to CONNECTOR_API_KEY."
+                true,
+                "DEPLOYMENT_MANAGED_SECRET",
+                "LoomAI generates one stable deployment-scoped invocation key and injects it into the runtime and connector."
             ),
             field(
                 "rest.runtimeProxyBaseUrl",

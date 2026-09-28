@@ -296,6 +296,9 @@ ai:
       public-base-url: ${AI_FABRIC_CONNECTOR_PUBLIC_BASE_URL:}
       api-key:
         value: ${ACTIONS_CONNECTOR_API_KEY:}
+      admin:
+        header: ${AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER:X-ADMIN-API-KEY}
+        value: ${AI_ACTIONS_CONNECTOR_ADMIN_API_KEY:}
 
 management:
   health:

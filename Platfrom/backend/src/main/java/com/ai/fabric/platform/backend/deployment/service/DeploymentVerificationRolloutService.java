@@ -806,8 +806,6 @@ public class DeploymentVerificationRolloutService {
     private List<String> missingPrerequisites(VerificationRolloutDefinition definition) {
         List<String> required = new ArrayList<>(List.of(
             "OPENAI_API_KEY",
-            "CONNECTOR_API_KEY",
-            "ACTIONS_CONNECTOR_API_KEY",
             "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY",
             "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
             "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY"

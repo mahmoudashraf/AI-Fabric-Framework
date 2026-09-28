@@ -508,7 +508,6 @@ class RailwayProvisioningPlanServiceTest {
         PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn(true);
         when(platformSecretService.isSecretPresent("AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY")).thenReturn(true);
-        when(platformSecretService.isSecretPresent("APP_ADMIN_API_KEY")).thenReturn(true);
 
         RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
             properties(),
@@ -542,10 +541,24 @@ class RailwayProvisioningPlanServiceTest {
                 "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY",
                 "${secret:AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY}"
             )
-            .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry(
+                "ACTIONS_CONNECTOR_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-123") + "}"
+            )
+            .containsEntry(
+                "AI_ACTIONS_CONNECTOR_ADMIN_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-123") + "}"
+            )
             .containsEntry("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY");
         assertThat(connectorEnv)
-            .containsEntry("APP_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}")
+            .containsEntry(
+                "CONNECTOR_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-123") + "}"
+            )
+            .containsEntry(
+                "APP_ADMIN_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-123") + "}"
+            )
             .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-AIFABRIC-RUNTIME-API-KEY");

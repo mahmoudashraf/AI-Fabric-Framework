@@ -237,7 +237,7 @@ public class DeploymentSecurityGovernanceService {
                 connectorCredentialStatus(allowUnauthenticated, apiKeyEnabled, value, referencedSecret),
                 connectorCredentialSummary(value, referencedSecret),
                 connectorCredentialMessage(allowUnauthenticated, apiKeyEnabled, value, referencedSecret),
-                "Use a managed placeholder such as ${secret:CONNECTOR_API_KEY} instead of a literal credential."
+                "Keep the platform-managed ${CONNECTOR_API_KEY} placeholder instead of storing a literal credential."
             )
         );
 
@@ -406,6 +406,9 @@ public class DeploymentSecurityGovernanceService {
         if (!hasText(value)) {
             return "BLOCKED";
         }
+        if (isPlatformManagedConnectorCredential(value)) {
+            return "READY";
+        }
         if (referencedSecret == null && referencedSecretName(value) == null) {
             return "BLOCKED";
         }
@@ -418,6 +421,9 @@ public class DeploymentSecurityGovernanceService {
     private String connectorCredentialSummary(String value, PlatformSecretSummary referencedSecret) {
         if (!hasText(value)) {
             return "Not configured";
+        }
+        if (isPlatformManagedConnectorCredential(value)) {
+            return "Generated per deployment";
         }
         if (referencedSecret != null) {
             return "Managed placeholder: " + referencedSecret.name();
@@ -439,6 +445,9 @@ public class DeploymentSecurityGovernanceService {
         if (!hasText(value)) {
             return "Connector inbound auth requires a credential value or managed placeholder.";
         }
+        if (isPlatformManagedConnectorCredential(value)) {
+            return "LoomAI will generate and inject a stable deployment-scoped connector invocation key during apply.";
+        }
         if (referencedSecret != null) {
             return referencedSecret.present()
                 ? referencedSecret.name() + " is present and can back the connector inbound auth credential."
@@ -449,6 +458,10 @@ public class DeploymentSecurityGovernanceService {
             return secretReference + " is referenced, but it is outside the managed platform secret catalog.";
         }
         return "A literal connector credential is stored in draft config.";
+    }
+
+    private boolean isPlatformManagedConnectorCredential(String value) {
+        return "${CONNECTOR_API_KEY}".equals(value) || "${secret:CONNECTOR_API_KEY}".equals(value);
     }
 
     private String upstreamBaseUrlStatus(String upstreamBaseUrl) {

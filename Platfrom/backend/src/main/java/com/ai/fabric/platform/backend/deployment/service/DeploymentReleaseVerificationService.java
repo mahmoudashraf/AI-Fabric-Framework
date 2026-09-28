@@ -1785,17 +1785,17 @@ public class DeploymentReleaseVerificationService {
             }
         }
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
-            addSecretCheck(
+            addDeploymentGeneratedSecretCheck(
                 checks,
                 "connector_api_key_available",
-                "CONNECTOR_API_KEY",
-                "Connector inbound API key is available."
+                DeploymentExecutionSecretService.connectorInvocationApiKeyName(deployment.getId()),
+                "Connector inbound API key will be generated and injected during provisioning."
             );
-            addSecretCheck(
+            addDeploymentGeneratedSecretCheck(
                 checks,
                 "runtime_connector_api_key_available",
-                "ACTIONS_CONNECTOR_API_KEY",
-                "Runtime-to-connector API key is available."
+                DeploymentExecutionSecretService.connectorInvocationApiKeyName(deployment.getId()),
+                "The same deployment-scoped key will authenticate runtime-to-connector calls."
             );
         } else {
             addSkippedCheck(
@@ -1809,6 +1809,12 @@ public class DeploymentReleaseVerificationService {
                 "Runtime-to-connector API key is not required when connector API key enforcement is disabled."
             );
         }
+        addDeploymentGeneratedSecretCheck(
+            checks,
+            "connector_admin_api_key_managed",
+            DeploymentExecutionSecretService.connectorAdminApiKeyName(deployment.getId()),
+            "Connector admin proxy authentication will use a generated deployment-scoped key."
+        );
         if (ManagedDeploymentProfileCatalog.adminApiKeyEnabled(securityConfig)) {
             addSecretCheck(
                 checks,
@@ -2328,6 +2334,17 @@ public class DeploymentReleaseVerificationService {
             present ? message : "Required platform secret is missing: " + secretName,
             details
         );
+    }
+
+    private void addDeploymentGeneratedSecretCheck(ArrayNode checks,
+                                                   String name,
+                                                   String secretName,
+                                                   String message) {
+        ObjectNode details = objectMapper.createObjectNode();
+        details.put("secretName", secretName);
+        details.put("scopeType", "DEPLOYMENT_MANAGED");
+        details.put("bindingMode", "PLATFORM_GENERATED_DURING_PROVISIONING");
+        addCheck(checks, name, "PASSED", message, details);
     }
 
     private void addProviderSecretCheck(ArrayNode checks,

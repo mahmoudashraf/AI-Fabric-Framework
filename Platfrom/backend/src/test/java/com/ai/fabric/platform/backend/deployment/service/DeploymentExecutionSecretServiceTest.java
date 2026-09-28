@@ -19,12 +19,14 @@ class DeploymentExecutionSecretServiceTest {
     );
 
     @Test
-    void agenticDeploymentReceivesOnlySpecialistChainSecrets() {
+    void agenticDeploymentReceivesSpecialistChainAndConnectorTransportSecrets() {
         assertThat(service.requiredSecretNames(deployment(), version("""
             {"type":"AGENTIC_SPECIALIST_TEAM","executionExtensions":[]}
             """))).containsExactlyInAnyOrder(
             DeploymentExecutionSecretService.chainEncryptionSecretName("dep-1"),
-            DeploymentExecutionSecretService.chainFingerprintSecretName("dep-1")
+            DeploymentExecutionSecretService.chainFingerprintSecretName("dep-1"),
+            DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-1")
         );
     }
 
@@ -39,7 +41,9 @@ class DeploymentExecutionSecretServiceTest {
             DeploymentExecutionSecretService.smartBrainJobFingerprintSecretName("dep-1"),
             DeploymentExecutionSecretService.smartBrainEncryptionSecretName("dep-1"),
             DeploymentExecutionSecretService.smartBrainFingerprintSecretName("dep-1"),
-            DeploymentExecutionSecretService.smartBrainDeliverySigningSecretName("dep-1")
+            DeploymentExecutionSecretService.smartBrainDeliverySigningSecretName("dep-1"),
+            DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-1")
         );
         assertThat(names).doesNotContain(
             DeploymentExecutionSecretService.chainEncryptionSecretName("dep-1"),
@@ -55,7 +59,9 @@ class DeploymentExecutionSecretServiceTest {
             DeploymentExecutionSecretService.actionReceiptEncryptionSecretName("dep-1"),
             DeploymentExecutionSecretService.actionReceiptFingerprintSecretName("dep-1"),
             DeploymentExecutionSecretService.reviewEncryptionSecretName("dep-1"),
-            DeploymentExecutionSecretService.reviewFingerprintSecretName("dep-1")
+            DeploymentExecutionSecretService.reviewFingerprintSecretName("dep-1"),
+            DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-1")
         );
     }
 
@@ -69,14 +75,32 @@ class DeploymentExecutionSecretServiceTest {
             """);
 
         assertThat(service.requiredSecretNames(deployment(), version)).containsExactlyInAnyOrder(
+            DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-1"),
             DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-1"),
             DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-1")
         );
     }
 
     @Test
+    void connectorInvocationSecretIsOmittedWhenInvocationAuthIsDisabled() {
+        DeploymentVersionEntity version = version("""
+            {"type":"CONVERSATIONAL","executionExtensions":[]}
+            """);
+        version.setSecurityConfigJson("""
+            {"connectorApiKeyEnabled":false}
+            """);
+
+        assertThat(service.requiredSecretNames(deployment(), version)).containsExactly(
+            DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-1")
+        );
+    }
+
+    @Test
     void cleanupCatalogIncludesEveryDeploymentGeneratedIntegrationSecret() {
         assertThat(DeploymentExecutionSecretService.deploymentManagedSecretNames("dep-1")).contains(
+            DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-1"),
+            DeploymentExecutionSecretService.connectorAdminApiKeyName("dep-1"),
             DeploymentExecutionSecretService.integrationServiceApiKeyName("dep-1"),
             DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName("dep-1")
         );

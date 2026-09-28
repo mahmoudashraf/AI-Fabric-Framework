@@ -46,8 +46,13 @@ public class DeploymentExecutionSecretService {
     public Set<String> requiredSecretNames(DeploymentEntity deployment, DeploymentVersionEntity version) {
         JsonNode behavior = readJson(version.getBehaviorConfigJson());
         JsonNode marketplaceDatasets = readJson(version.getMarketplaceDatasetConfigJson());
+        JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         String behaviorType = behavior.path("type").asText(deployment.getBehaviorType());
         LinkedHashSet<String> names = new LinkedHashSet<>();
+        names.add(connectorAdminApiKeyName(deployment.getId()));
+        if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
+            names.add(connectorInvocationApiKeyName(deployment.getId()));
+        }
         if ("AGENTIC_SPECIALIST_TEAM".equals(behaviorType)) {
             names.add(chainEncryptionSecretName(deployment.getId()));
             names.add(chainFingerprintSecretName(deployment.getId()));
@@ -93,9 +98,19 @@ public class DeploymentExecutionSecretService {
             actionReceiptFingerprintSecretName(deploymentId),
             reviewEncryptionSecretName(deploymentId),
             reviewFingerprintSecretName(deploymentId),
+            connectorInvocationApiKeyName(deploymentId),
+            connectorAdminApiKeyName(deploymentId),
             integrationServiceApiKeyName(deploymentId),
             integrationConnectorDatabasePasswordName(deploymentId)
         );
+    }
+
+    public static String connectorInvocationApiKeyName(String deploymentId) {
+        return managedName("CONNECTOR_INVOCATION_API_KEY", deploymentId);
+    }
+
+    public static String connectorAdminApiKeyName(String deploymentId) {
+        return managedName("CONNECTOR_ADMIN_API_KEY", deploymentId);
     }
 
     public static String chainEncryptionSecretName(String deploymentId) {

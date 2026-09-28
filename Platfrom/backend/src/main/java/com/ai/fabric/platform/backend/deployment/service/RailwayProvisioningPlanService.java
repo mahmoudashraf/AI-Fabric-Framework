@@ -46,7 +46,6 @@ public class RailwayProvisioningPlanService {
     private static final String RUNTIME_TRUSTED_BACKEND_SECRET = "AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY";
     private static final String RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY";
     private static final String RUNTIME_PUBLIC_TOKEN_SIGNING_KEY_SECRET = "AI_FABRIC_RUNTIME_PUBLIC_TOKEN_SIGNING_KEY";
-    private static final String CONNECTOR_ADMIN_SECRET = "APP_ADMIN_API_KEY";
     private static final String SHOPIFY_BRIDGE_SHARED_SECRET_ENV = "SHOPIFY_BRIDGE_SHARED_SECRET";
     private static final String SHOPIFY_BRIDGE_TOKEN_BROKER_SECRET_REF =
         "MCP_SECRET_SHOPIFY_BRIDGE_TOKEN_BROKER_API_KEY";
@@ -449,7 +448,7 @@ public class RailwayProvisioningPlanService {
         }
         addRuntimeProviderEnv(runtimeEnv, deployment, providerConfig, entityConfig);
         addDocumentKnowledgeEnv(runtimeEnv, deployment, marketplaceDatasetConfig, targetProfileId);
-        addRuntimeConnectorAuthEnv(runtimeEnv, securityConfig);
+        addRuntimeConnectorAuthEnv(runtimeEnv, deployment, securityConfig);
         addRuntimeMcpGatewayEnv(runtimeEnv, deployment, actionsConfig);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
@@ -538,15 +537,16 @@ public class RailwayProvisioningPlanService {
         connectorEnv.add(new RailwayEnvVarSummary("REST_CONNECTOR_ROUTING_CONFIG_LOCATION", artifactUrls.routing()));
         addConnectorProfileEnv(connectorEnv, providerConfig, runtimeBaseUrl, securityConfig);
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
-            connectorEnv.add(new RailwayEnvVarSummary("CONNECTOR_API_KEY", "${secret:CONNECTOR_API_KEY}"));
-        }
-        if (platformSecretService.isSecretPresent(CONNECTOR_ADMIN_SECRET)) {
             connectorEnv.add(new RailwayEnvVarSummary(
-                "APP_ADMIN_API_KEY",
-                "${secret:" + CONNECTOR_ADMIN_SECRET + "}"
+                "CONNECTOR_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.connectorInvocationApiKeyName(deployment.getId()) + "}"
             ));
-            connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
         }
+        connectorEnv.add(new RailwayEnvVarSummary(
+            "APP_ADMIN_API_KEY",
+            "${secret:" + DeploymentExecutionSecretService.connectorAdminApiKeyName(deployment.getId()) + "}"
+        ));
+        connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
         if (externalHttpIntegration) {
             String connectorDatabaseRole = integrationConnectorDatabaseRole(deployment.getId());
             connectorEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL", runtimeBaseUrl));
@@ -1522,14 +1522,20 @@ public class RailwayProvisioningPlanService {
         }
     }
 
-    private void addRuntimeConnectorAuthEnv(List<RailwayEnvVarSummary> runtimeEnv, JsonNode securityConfig) {
+    private void addRuntimeConnectorAuthEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                            DeploymentEntity deployment,
+                                            JsonNode securityConfig) {
         if (ManagedDeploymentProfileCatalog.connectorApiKeyEnabled(securityConfig)) {
-            runtimeEnv.add(new RailwayEnvVarSummary("ACTIONS_CONNECTOR_API_KEY", "${secret:ACTIONS_CONNECTOR_API_KEY}"));
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "ACTIONS_CONNECTOR_API_KEY",
+                "${secret:" + DeploymentExecutionSecretService.connectorInvocationApiKeyName(deployment.getId()) + "}"
+            ));
         }
-        if (platformSecretService.isSecretPresent(CONNECTOR_ADMIN_SECRET)) {
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY", "${secret:APP_ADMIN_API_KEY}"));
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
-        }
+        runtimeEnv.add(new RailwayEnvVarSummary(
+            "AI_ACTIONS_CONNECTOR_ADMIN_API_KEY",
+            "${secret:" + DeploymentExecutionSecretService.connectorAdminApiKeyName(deployment.getId()) + "}"
+        ));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CONNECTOR_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
     }
 
     private void addRuntimeMcpGatewayEnv(List<RailwayEnvVarSummary> runtimeEnv,

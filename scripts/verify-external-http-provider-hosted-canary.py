@@ -554,7 +554,12 @@ class HostedCanary:
             lambda: self.release_state(profile, release_id),
             lambda state: state.get("status") == "APPLIED_VERIFIED" and state.get("verificationStatus") == "PASSED",
             timeout=self.args.release_timeout,
-            terminal=lambda state: state.get("status") in {"FAILED", "ROLLED_BACK", "CANCELLED"},
+            terminal=lambda state: state.get("status") in {
+                "FAILED",
+                "APPLIED_VERIFICATION_FAILED",
+                "ROLLED_BACK",
+                "CANCELLED",
+            },
         )
         return release_id
 
