@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -49,6 +50,26 @@ import static org.mockito.Mockito.when;
 class CoolifyDeploymentProviderTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void rejectsExpectedProviderWebhookWithoutHttpsConnectorDomain() {
+        CoolifyDeploymentProvider provider = provider();
+        DeploymentVersionEntity version = version();
+        version.setMarketplaceDatasetConfigJson(externalHttpDatasetWithExpectedWebhook());
+
+        assertThatThrownBy(() -> provider.validateExpectedWebhookConnectorDomain(version, "http://connector.example.test"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("deterministic HTTPS connector domain");
+    }
+
+    @Test
+    void acceptsExpectedProviderWebhookWithHttpsConnectorDomain() {
+        CoolifyDeploymentProvider provider = provider();
+        DeploymentVersionEntity version = version();
+        version.setMarketplaceDatasetConfigJson(externalHttpDatasetWithExpectedWebhook());
+
+        provider.validateExpectedWebhookConnectorDomain(version, "https://connector.example.test");
+    }
 
     @Test
     void heartbeatsWhileTrackedCoolifyOperationIsStillRunning() {
@@ -1852,6 +1873,35 @@ class CoolifyDeploymentProviderTest {
         version.setManifestJson("{}");
         version.setPublishedAt(Instant.parse("2026-05-01T00:00:00Z"));
         return version;
+    }
+
+    private CoolifyDeploymentProvider provider() {
+        return new CoolifyDeploymentProvider(
+            mock(DeploymentTargetProfileRepository.class),
+            mock(DeploymentProviderResourceHandleRepository.class),
+            mock(DeploymentSourceArtifactService.class),
+            mock(RailwayProvisioningPlanService.class),
+            mock(CoolifyTargetProfileResolver.class),
+            mock(CoolifyApiClient.class),
+            objectMapper
+        );
+    }
+
+    private String externalHttpDatasetWithExpectedWebhook() {
+        return """
+            {
+              "datasets": [{
+                "datasetId": "inventory",
+                "ingestionMode": "EXTERNAL_SYNC_HTTP",
+                "syncConnector": {
+                  "webhook": {
+                    "sourceId": "inventory-events",
+                    "registrationExpected": true
+                  }
+                }
+              }]
+            }
+            """;
     }
 
     private DeploymentReleaseEntity release() {

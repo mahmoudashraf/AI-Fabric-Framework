@@ -25,7 +25,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         Flyway flyway = Flyway.configure()
             .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
             .locations("classpath:db/migration")
-            .target(MigrationVersion.fromVersion("141"))
+            .target(MigrationVersion.fromVersion("151"))
             .load();
 
         flyway.migrate();
@@ -125,7 +125,11 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
             }
 
             try (ResultSet result = statement.executeQuery("""
-                select id, environment_name, source_strategy, resource_defaults_json
+                select id,
+                       environment_name,
+                       source_strategy,
+                       resource_defaults_json,
+                       provider_config_json::jsonb ->> 'forceHttps' as force_https
                 from deployment_target_profiles
                 where id in (
                     'dtp-coolify-staging-behavior',
@@ -147,6 +151,7 @@ class DeploymentBehaviorContractsMigrationPostgresTest {
         assertThat(result.getString("id")).isEqualTo(expectedId);
         assertThat(result.getString("environment_name")).isEqualTo(expectedEnvironment);
         assertThat(result.getString("source_strategy")).isEqualTo("IMAGE_SOURCE");
+        assertThat(result.getString("force_https")).isEqualTo("true");
         assertThat(result.getString("resource_defaults_json"))
             .contains("\"runtimeDatabaseMode\": \"COOLIFY_POSTGRES\"")
             .contains("\"promotionChannel\": \"" + expectedEnvironment + "\"")
