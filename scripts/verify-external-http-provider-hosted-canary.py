@@ -212,9 +212,7 @@ def coolify_restore_compose(backup_path: str, database_image: str) -> str:
           touch /tmp/restore-failed;
           echo \"LOOMAI_RESTORE_CLIENT_FAILED_EXIT=$${{client_status}}\";
         else
-          pg_restore --clean --if-exists --single-transaction --exit-on-error
-          --no-owner --no-acl --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\"
-          --dbname \"$${{PGDATABASE}}\" /backup/input.dmp;
+          pg_restore --clean --if-exists --single-transaction --exit-on-error --no-owner --no-acl --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\" --dbname \"$${{PGDATABASE}}\" /backup/input.dmp;
           restore_status=$$?;
           if [ \"$${{restore_status}}\" -eq 0 ]; then
             touch /tmp/restore-complete;
@@ -1360,9 +1358,14 @@ class HostedCanary:
                 "Coolify restore helper start",
             )
             started_at = time.monotonic()
+            observed_running = False
             last: dict[str, Any] = {}
             while time.monotonic() - started_at < 600:
                 last = self.coolify_restore_service_state(service_uuid)
+                statuses = last.get("statuses") or []
+                observed_running = observed_running or any(
+                    str(status).startswith("running") for status in statuses
+                )
                 if last.get("state") == "complete":
                     return
                 logs = self.coolify_restore_service_logs(last, target.values())
@@ -1372,7 +1375,9 @@ class HostedCanary:
                     raise VerificationFailure(
                         f"Coolify restore helper reported failure: {bounded_json(logs, 2000)}"
                     )
-                if last.get("state") == "failed" and time.monotonic() - started_at >= 30:
+                if last.get("state") == "failed" and (
+                    observed_running or time.monotonic() - started_at >= 180
+                ):
                     raise VerificationFailure(
                         f"Coolify restore helper exited before completion: {bounded_json(last)}"
                     )
