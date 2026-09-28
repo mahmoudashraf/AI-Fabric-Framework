@@ -9,6 +9,7 @@ it is not evidence of compatibility with any named provider.
 from __future__ import annotations
 
 import argparse
+import base64
 import copy
 import http.cookiejar
 import json
@@ -159,6 +160,54 @@ def canonical(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
 
+def postgres_restore_image(database_image: str) -> str:
+    match = re.search(r"(?:^|/)postgres:(\d+)", database_image)
+    major = match.group(1) if match else "16"
+    return f"postgres:{major}-alpine"
+
+
+def coolify_restore_compose(backup_path: str, database_image: str) -> str:
+    require(
+        backup_path.startswith("/data/coolify/backups/")
+        and "\n" not in backup_path
+        and "\r" not in backup_path,
+        "Coolify restore path is outside the managed backup directory.",
+    )
+    volume = json.dumps(f"{backup_path}:/backup/input.dmp:ro")
+    image = json.dumps(postgres_restore_image(database_image))
+    return f"""services:
+  restore:
+    image: {image}
+    restart: \"no\"
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        pg_restore --clean --if-exists --single-transaction --exit-on-error
+        --no-owner --no-acl --host \"$${{PGHOST}}\" --username \"$${{PGUSER}}\"
+        --dbname \"$${{PGDATABASE}}\" /backup/input.dmp &&
+        touch /tmp/restore-complete && sleep 3600
+    environment:
+      PGHOST: ${{RESTORE_DB_HOST}}
+      PGUSER: ${{RESTORE_DB_USER}}
+      PGPASSWORD: ${{RESTORE_DB_PASSWORD}}
+      PGDATABASE: ${{RESTORE_DB_NAME}}
+    volumes:
+      - {volume}
+    networks:
+      - coolify
+    healthcheck:
+      test: [\"CMD-SHELL\", \"test -f /tmp/restore-complete\"]
+      interval: 2s
+      timeout: 2s
+      retries: 300
+      start_period: 2s
+networks:
+  coolify:
+    external: true
+"""
+
+
 @dataclass
 class ProfileSpec:
     key: str
@@ -199,6 +248,7 @@ class HostedCanary:
         self.deployments: list[str] = []
         self.managed_secrets: list[str] = []
         self.backups: list[tuple[str, str]] = []
+        self.coolify_restore_services: list[str] = []
         self.phase = "initialization"
         self.evidence: dict[str, Any] = {
             "schemaVersion": "loomai-hosted-generic-substrate-evidence-v1",
@@ -1085,13 +1135,169 @@ class HostedCanary:
         require(match is not None, "Coolify backup execution did not expose an absolute local restore path.")
         return match.group(1)
 
-    def coolify_restore(self, database_uuid: str, path: str) -> None:
+    def coolify_restore_target(self, database_uuid: str) -> dict[str, str]:
+        require(self.coolify is not None, "Coolify API credentials are required for database restore.")
+        database = require_status(
+            self.coolify.request("GET", f"/api/v1/databases/{database_uuid}"),
+            {200},
+            "Coolify restore database metadata",
+        )
+        require(isinstance(database, dict), "Coolify restore database metadata is not an object.")
+        destination = database.get("destination") or {}
+        server = destination.get("server") or {}
+        environment_id = database.get("environment_id")
+        require(environment_id is not None, "Coolify restore database has no environment id.")
+
+        projects = require_status(
+            self.coolify.request("GET", "/api/v1/projects"),
+            {200},
+            "Coolify restore project discovery",
+        )
+        placements: list[tuple[str, str]] = []
+        for project in projects or []:
+            project_uuid = str(project.get("uuid") or "")
+            if not project_uuid:
+                continue
+            environments = require_status(
+                self.coolify.request("GET", f"/api/v1/projects/{project_uuid}/environments"),
+                {200},
+                "Coolify restore environment discovery",
+            )
+            for environment in environments or []:
+                if str(environment.get("id")) == str(environment_id):
+                    placements.append((project_uuid, str(environment.get("uuid") or "")))
+        require(len(placements) == 1, "Coolify restore database placement was not uniquely resolvable.")
+
+        project_uuid, environment_uuid = placements[0]
+        target = {
+            "projectUuid": project_uuid,
+            "environmentUuid": environment_uuid,
+            "serverUuid": str(server.get("uuid") or ""),
+            "destinationUuid": str(destination.get("uuid") or ""),
+            "host": database_uuid,
+            "user": str(database.get("postgres_user") or ""),
+            "password": str(database.get("postgres_password") or ""),
+            "database": str(database.get("postgres_db") or ""),
+            "image": str(database.get("image") or ""),
+        }
+        require(
+            all(target.get(key) for key in (
+                "projectUuid", "environmentUuid", "serverUuid", "destinationUuid",
+                "host", "user", "password", "database",
+            )),
+            "Coolify restore database metadata is incomplete or sensitive read access is unavailable.",
+        )
+        return target
+
+    def coolify_restore_service_state(self, service_uuid: str) -> dict[str, Any]:
+        require(self.coolify is not None, "Coolify API credentials are required for database restore.")
+        result = self.coolify.request("GET", f"/api/v1/services/{service_uuid}")
+        if result.status == 404:
+            return {"state": "absent", "statuses": []}
+        body = require_status(result, {200}, "Coolify restore helper status")
+        statuses = [
+            str(item.get("status") or "").lower()
+            for item in [*(body.get("applications") or []), *(body.get("databases") or [])]
+            if isinstance(item, dict)
+        ]
+        if statuses and all(status.startswith("running:healthy") for status in statuses):
+            state = "complete"
+        elif statuses and all(status.startswith(("exited", "dead")) for status in statuses):
+            state = "failed"
+        else:
+            state = "starting"
+        return {"state": state, "statuses": statuses}
+
+    def delete_coolify_restore_service(self, service_uuid: str) -> None:
+        require(self.coolify is not None, "Coolify API credentials are required for database restore.")
+        result = self.coolify.request(
+            "DELETE",
+            f"/api/v1/services/{service_uuid}?delete_configurations=true&delete_volumes=true"
+            "&docker_cleanup=true&delete_connected_networks=true",
+        )
+        require_status(result, {200, 202, 204, 404}, "Coolify restore helper deletion")
+        if result.status != 404:
+            self.wait_until(
+                "Coolify restore helper removal",
+                lambda: self.coolify_restore_service_state(service_uuid),
+                lambda state: state.get("state") == "absent",
+                timeout=300,
+                interval=5,
+            )
+        if service_uuid in self.coolify_restore_services:
+            self.coolify_restore_services.remove(service_uuid)
+
+    def coolify_ephemeral_restore(self, database_uuid: str, path: str) -> None:
+        require(self.coolify is not None, "Coolify API credentials are required for database restore.")
+        target = self.coolify_restore_target(database_uuid)
+        compose = coolify_restore_compose(path, target["image"])
+        created = require_status(
+            self.coolify.request("POST", "/api/v1/services", {
+                "project_uuid": target["projectUuid"],
+                "environment_uuid": target["environmentUuid"],
+                "server_uuid": target["serverUuid"],
+                "destination_uuid": target["destinationUuid"],
+                "name": f"loomai-hosted-restore-{secrets.token_hex(4)}",
+                "description": "Ephemeral private PostgreSQL restore helper for LoomAI hosted verification.",
+                "docker_compose_raw": base64.b64encode(compose.encode("utf-8")).decode("ascii"),
+                "instant_deploy": False,
+            }),
+            {201},
+            "Coolify restore helper create",
+        )
+        service_uuid = str((created or {}).get("uuid") or "")
+        require(bool(service_uuid), "Coolify restore helper create returned no UUID.")
+        self.coolify_restore_services.append(service_uuid)
+        try:
+            env_result = self.coolify.request(
+                "PATCH",
+                f"/api/v1/services/{service_uuid}/envs/bulk",
+                {"data": [
+                    {"key": "RESTORE_DB_HOST", "value": target["host"], "is_literal": True},
+                    {"key": "RESTORE_DB_USER", "value": target["user"], "is_literal": True},
+                    {
+                        "key": "RESTORE_DB_PASSWORD",
+                        "value": target["password"],
+                        "is_literal": True,
+                        "is_shown_once": True,
+                    },
+                    {"key": "RESTORE_DB_NAME", "value": target["database"], "is_literal": True},
+                ]},
+            )
+            if env_result.status != 201:
+                raise VerificationFailure(
+                    f"Coolify restore helper environment update returned HTTP {env_result.status}."
+                )
+            require_status(
+                self.coolify.request("POST", f"/api/v1/services/{service_uuid}/start"),
+                {200, 202},
+                "Coolify restore helper start",
+            )
+            started_at = time.monotonic()
+            last: dict[str, Any] = {}
+            while time.monotonic() - started_at < 600:
+                last = self.coolify_restore_service_state(service_uuid)
+                if last.get("state") == "complete":
+                    return
+                if last.get("state") == "failed" and time.monotonic() - started_at >= 30:
+                    raise VerificationFailure(
+                        f"Coolify restore helper exited before completion: {bounded_json(last)}"
+                    )
+                time.sleep(5)
+            raise VerificationFailure(f"Coolify restore helper timed out: {bounded_json(last)}")
+        finally:
+            self.delete_coolify_restore_service(service_uuid)
+
+    def coolify_restore(self, database_uuid: str, path: str) -> str:
         result = self.coolify.request(
             "POST",
             f"/api/v1/databases/{database_uuid}/imports",
             {"source": "server", "path": path, "dump_all": False, "replace_existing": True},
             timeout=180,
         )
+        if result.status == 404:
+            self.coolify_ephemeral_restore(database_uuid, path)
+            return "COOLIFY_EPHEMERAL_PG_RESTORE"
         require_status(result, {202}, "Coolify database restore request")
         body = result.body if isinstance(result.body, dict) else {}
         activity_id = body.get("id") or body.get("activity_id") or body.get("activityId")
@@ -1114,6 +1320,7 @@ class HostedCanary:
                 or (item.get("finished_at") is not None and int(item.get("exit_code") or 0) != 0),
         )
         require(int(state.get("exit_code") or 0) == 0, "Coolify restore exited nonzero.")
+        return "COOLIFY_NATIVE_IMPORT_API"
 
     def verify_backup_restore(self, profile: ProfileSpec) -> None:
         self.phase = "deployment database backup restore"
@@ -1142,7 +1349,7 @@ class HostedCanary:
         self.provider_action(profile.connector_handle_id, "stop", "Pause connector writes for database restore rehearsal.")
         self.wait_resource_stopped(profile.runtime_handle_id)
         self.wait_resource_stopped(profile.connector_handle_id)
-        self.coolify_restore(profile.database_uuid, backup_path)
+        restore_method = self.coolify_restore(profile.database_uuid, backup_path)
         self.provider_action(profile.runtime_handle_id, "start", "Resume runtime after database restore rehearsal.")
         self.provider_action(profile.connector_handle_id, "start", "Resume connector after database restore rehearsal.")
         self.wait_resource_running(profile.runtime_handle_id)
@@ -1162,6 +1369,7 @@ class HostedCanary:
             deploymentId=profile.deployment_id,
             backupConfigurationId=backup_uuid,
             backupSize=int(execution.get("size") or 0),
+            restoreMethod=restore_method,
         )
 
     def wait_until(
@@ -1187,6 +1395,13 @@ class HostedCanary:
 
     def cleanup(self, *, require_complete: bool) -> None:
         cleanup_failures: list[str] = []
+        for service_uuid in list(reversed(self.coolify_restore_services)):
+            try:
+                self.delete_coolify_restore_service(service_uuid)
+            except Exception:
+                cleanup_failures.append(f"restore-helper:{service_uuid}")
+        self.coolify_restore_services.clear()
+
         for database_uuid, backup_uuid in list(reversed(self.backups)):
             if self.coolify is None:
                 continue
