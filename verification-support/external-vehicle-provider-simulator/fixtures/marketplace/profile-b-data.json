@@ -172,8 +172,7 @@
         "adapterType": "deployment-private-vector",
         "datasetRef": "verification-vehicle-profile-b",
         "entityType": "verification-vehicle-b",
-        "attributionLabel": "Internal verification vehicle source B",
-        "filters": {"datasetId": "verification-vehicle-profile-b"}
+        "attributionLabel": "Internal verification vehicle source B"
       }
     ]
   }

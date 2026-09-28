@@ -569,6 +569,25 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsVectorKnowledgeSourceFilterWithoutVectorMetadataProjection() {
+        DraftValidationResponse response = service.validate(vectorKnowledgeSourceFilterDraft(false));
+
+        assertThat(response.publishReady()).isFalse();
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("KNOWLEDGE_SOURCE_FILTER_NOT_VECTOR_METADATA");
+    }
+
+    @Test
+    void validateAcceptsVectorKnowledgeSourceFilterBackedByVectorMetadataProjection() {
+        DraftValidationResponse response = service.validate(vectorKnowledgeSourceFilterDraft(true));
+
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain("KNOWLEDGE_SOURCE_FILTER_NOT_VECTOR_METADATA");
+    }
+
+    @Test
     void validateAcceptsPartialExplicitOverrideOverInlineActionRoute() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -3888,6 +3907,86 @@ class DeploymentDraftValidationServiceTest {
     private DeploymentDraftValidationService service(PlatformManagedInferenceEndpointService endpointService,
                                                      PlatformManagedInferenceServiceService inferenceService) {
         return new DeploymentDraftValidationService(new ObjectMapper(), endpointService, inferenceService);
+    }
+
+    private DeploymentDraftEntity vectorKnowledgeSourceFilterDraft(boolean projectDatasetId) {
+        String datasetMetadataField = projectDatasetId
+            ? """
+                        ,{
+                          "name": "datasetId",
+                          "data-type": "ID",
+                          "destinations": ["VECTOR_METADATA"],
+                          "priority": 90,
+                          "required": true
+                        }
+                """
+            : "";
+        DeploymentDraftEntity draft = draft(
+            "{\"actions\":[]}",
+            """
+                {
+                  "ai-config": {"vector-dimensions": 512},
+                  "ai-entities": {
+                    "vehicle": {
+                      "indexing": {"enabled": true, "max-characters": 8000},
+                      "analysis": {"enabled": false, "after": []},
+                      "searchable-fields": [{
+                        "name": "content",
+                        "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+                        "preprocessing": "CLEAN",
+                        "priority": 100,
+                        "required": true
+                      }],
+                      "metadata-fields": [{
+                        "name": "tenantId",
+                        "data-type": "ID",
+                        "destinations": ["VECTOR_METADATA"],
+                        "priority": 100,
+                        "required": true
+                      }%s]
+                    }
+                  }
+                }
+                """.formatted(datasetMetadataField),
+            """
+                {
+                  "connector": {"inbound-auth": {"allow-unauthenticated": true}},
+                  "authz": {"enabled": false},
+                  "actions": {}
+                }
+                """,
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-dev",
+                  "connectorProfile": "connector-hosted"
+                }
+                """,
+            """
+                {
+                  "authzMode": "ALLOW_VERIFIED",
+                  "adminApiKeyEnabled": true,
+                  "connectorApiKeyEnabled": true
+                }
+                """
+        );
+        draft.setKnowledgeSourceConfigJson(
+            """
+                {
+                  "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+                  "sources": [{
+                    "id": "vehicle-inventory",
+                    "sourceType": "deployment-private-vector",
+                    "adapterType": "deployment-private-vector",
+                    "entityType": "vehicle",
+                    "filters": {"datasetId": "vehicle-inventory"}
+                  }]
+                }
+                """
+        );
+        return draft;
     }
 
     private String documentDatasetConfig(String connectorType) {

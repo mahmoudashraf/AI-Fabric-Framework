@@ -147,6 +147,12 @@ public class DeploymentDraftValidationService {
             validateShellConfig(shellNode, issues);
             validateMarketplaceDatasetConfig(marketplaceDatasetNode, providerNode, issues);
             validateKnowledgeSourceDatasetRefs(knowledgeSourceNode, marketplaceDatasetNode, issues);
+            validateVectorKnowledgeSourceFilters(
+                knowledgeSourceNode,
+                entityNode,
+                marketplaceDatasetNode,
+                issues
+            );
             validateBehavior(behaviorNode, expectedBehaviorType, issues);
             validateMarketplaceRequirements(behaviorNode, issues);
 
@@ -839,6 +845,109 @@ public class DeploymentDraftValidationService {
                 ));
             }
         }
+    }
+
+    private void validateVectorKnowledgeSourceFilters(JsonNode knowledgeSourceNode,
+                                                      JsonNode entityNode,
+                                                      JsonNode marketplaceDatasetNode,
+                                                      List<DraftValidationIssue> issues) {
+        if (!knowledgeSourceNode.isObject() || !knowledgeSourceNode.path("sources").isArray()) {
+            return;
+        }
+        Map<String, String> datasetEntityTypes = new LinkedHashMap<>();
+        if (marketplaceDatasetNode != null && marketplaceDatasetNode.path("datasets").isArray()) {
+            for (JsonNode dataset : marketplaceDatasetNode.path("datasets")) {
+                String datasetId = dataset.path("datasetId").asText("").trim();
+                String entityType = dataset.path("entityType").asText("").trim();
+                if (!datasetId.isEmpty() && !entityType.isEmpty()) {
+                    datasetEntityTypes.put(datasetId, entityType);
+                }
+            }
+        }
+
+        for (int sourceIndex = 0; sourceIndex < knowledgeSourceNode.path("sources").size(); sourceIndex++) {
+            JsonNode source = knowledgeSourceNode.path("sources").get(sourceIndex);
+            if (!source.isObject() || !source.path("filters").isObject() || source.path("filters").isEmpty()) {
+                continue;
+            }
+            String sourceType = firstNonBlank(
+                source.path("sourceType").asText("").trim(),
+                source.path("adapterType").asText("").trim(),
+                source.path("type").asText("").trim()
+            );
+            if (!isVectorBackedKnowledgeSourceType(sourceType)) {
+                continue;
+            }
+            String entityType = source.path("entityType").asText("").trim();
+            if (entityType.isEmpty()) {
+                entityType = datasetEntityTypes.getOrDefault(
+                    source.path("datasetRef").asText("").trim(),
+                    ""
+                );
+            }
+            String basePath = "$.knowledgeSourceConfig.sources[" + sourceIndex + "].filters";
+            if (entityType.isEmpty()) {
+                issues.add(error(
+                    "knowledgeSources",
+                    "KNOWLEDGE_SOURCE_FILTER_ENTITY_TYPE_REQUIRED",
+                    basePath,
+                    "Vector-backed knowledge source filters require an entityType or a resolvable datasetRef."
+                ));
+                continue;
+            }
+
+            Set<String> vectorMetadataFields = vectorMetadataFields(entityNode, entityType);
+            Iterator<Map.Entry<String, JsonNode>> filters = source.path("filters").fields();
+            while (filters.hasNext()) {
+                Map.Entry<String, JsonNode> filter = filters.next();
+                String filterPath = basePath + "." + filter.getKey();
+                if (filter.getValue() == null
+                    || filter.getValue().isNull()
+                    || filter.getValue().isContainerNode()) {
+                    issues.add(error(
+                        "knowledgeSources",
+                        "KNOWLEDGE_SOURCE_FILTER_VALUE_SCALAR_REQUIRED",
+                        filterPath,
+                        "Vector-backed knowledge source filter values must be non-null scalars."
+                    ));
+                }
+                if (!vectorMetadataFields.contains(filter.getKey())) {
+                    issues.add(error(
+                        "knowledgeSources",
+                        "KNOWLEDGE_SOURCE_FILTER_NOT_VECTOR_METADATA",
+                        filterPath,
+                        "Knowledge source filter '" + filter.getKey()
+                            + "' must be declared as VECTOR_METADATA on entity type '" + entityType + "'."
+                    ));
+                }
+            }
+        }
+    }
+
+    private Set<String> vectorMetadataFields(JsonNode entityNode, String entityType) {
+        Set<String> fields = new HashSet<>();
+        JsonNode metadataFields = entityNode.path("ai-entities").path(entityType).path("metadata-fields");
+        if (!metadataFields.isArray()) {
+            return fields;
+        }
+        for (JsonNode metadataField : metadataFields) {
+            String name = metadataField.path("name").asText("").trim();
+            if (name.isEmpty() || !metadataField.path("destinations").isArray()) {
+                continue;
+            }
+            for (JsonNode destination : metadataField.path("destinations")) {
+                if ("VECTOR_METADATA".equalsIgnoreCase(destination.asText(""))) {
+                    fields.add(name);
+                    break;
+                }
+            }
+        }
+        return fields;
+    }
+
+    private boolean isVectorBackedKnowledgeSourceType(String value) {
+        return "deployment-private-vector".equalsIgnoreCase(value)
+            || isSharedIndexSourceType(value);
     }
 
     private void validateConfirmationInterceptors(JsonNode confirmationInterceptorsNode,
