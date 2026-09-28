@@ -1,6 +1,11 @@
 server:
   port: ${PORT:8082}
 
+spring:
+  autoconfigure:
+    exclude:
+      - ai.fabric.config.AIInfrastructureAutoConfiguration
+
 management:
   endpoint:
     health:
