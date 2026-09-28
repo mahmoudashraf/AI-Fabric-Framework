@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-template-neutral-vehicle-profile-a-verification",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "pluginType": "TEMPLATE",
   "displayName": "Internal Vehicle Integration Canary - Profile A",
   "description": "Internal-only conversational deployment template for the hosted Profile A integration canary.",
@@ -23,7 +23,7 @@
         "verificationPackIds": ["conversational-behavior-v1"]
       },
       "security": {"authzMode": "ALLOW_VERIFIED"},
-      "requiredPluginRefs": ["mkp-data-neutral-vehicle-profile-a-verification@1.0.0"],
+      "requiredPluginRefs": ["mkp-data-neutral-vehicle-profile-a-verification@1.0.1"],
       "shell": {
         "greeting": {"title": "Vehicle Integration Canary A", "message": "Ask about the approved fictitious verification inventory."},
         "starterPrompts": [

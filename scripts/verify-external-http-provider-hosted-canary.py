@@ -172,6 +172,8 @@ class ProfileSpec:
     account_id: str
     secret_values: dict[str, str]
     secret_names: dict[str, str]
+    template_version: str = ""
+    data_plugin_version: str = ""
     deployment_id: str = ""
     install_id: str = ""
     version_one_id: str = ""
@@ -432,6 +434,12 @@ class HostedCanary:
             self.fixture("profile-a-template.json"),
             self.fixture("profile-b-template.json"),
         ]
+        versions = {manifest["pluginId"]: manifest["version"] for manifest in manifests}
+        for profile in self.profiles:
+            profile.template_version = versions.get(profile.template_plugin_id, "")
+            profile.data_plugin_version = versions.get(profile.data_plugin_id, "")
+            require(bool(profile.template_version), f"Profile {profile.key} template fixture version is empty.")
+            require(bool(profile.data_plugin_version), f"Profile {profile.key} DATA fixture version is empty.")
         for manifest in manifests:
             self.publish_manifest(manifest, publisher_id)
         self.record("immutable internal DATA and TEMPLATE fixtures published", fixtureCount=len(manifests))
@@ -460,7 +468,7 @@ class HostedCanary:
                 "POST",
                 f"/api/marketplace/templates/{urllib.parse.quote(profile.template_plugin_id)}/bootstrap",
                 {
-                    "pluginVersion": "1.0.0",
+                    "pluginVersion": profile.template_version,
                     "name": f"Neutral External Provider Canary {profile.key.upper()} {int(time.time())}",
                     "environment": "staging",
                     "templateId": "custom-start-from-scratch",
@@ -486,7 +494,7 @@ class HostedCanary:
                 "PUT",
                 f"/api/deployments/{profile.deployment_id}/marketplace-installs/{profile.install_id}",
                 {
-                    "pluginVersion": "1.0.0",
+                    "pluginVersion": profile.data_plugin_version,
                     "status": "ENABLED",
                     "config": {profile.account_field: profile.account_id},
                     "secretRefs": profile.secret_names,

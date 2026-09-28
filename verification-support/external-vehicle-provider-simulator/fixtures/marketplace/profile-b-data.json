@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-data-neutral-vehicle-profile-b-verification",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "pluginType": "DATA",
   "displayName": "Internal Verification Vehicle Source - Profile B",
   "description": "Internal-only API-key, resumable-cursor vehicle source for hosted generic integration verification.",

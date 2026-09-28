@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-data-neutral-vehicle-profile-a-verification",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "pluginType": "DATA",
   "displayName": "Internal Verification Vehicle Source - Profile A",
   "description": "Internal-only form-token, page-pagination vehicle source for hosted generic integration verification.",
