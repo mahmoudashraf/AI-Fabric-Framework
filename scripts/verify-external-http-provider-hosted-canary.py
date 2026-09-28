@@ -127,6 +127,20 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def parse_instant(value: Any, label: str) -> datetime:
+    try:
+        normalized = re.sub(
+            r"(\.\d{6})\d+(?=Z$|[+-]\d{2}:\d{2}$)",
+            r"\1",
+            str(value),
+        ).replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+    except (TypeError, ValueError) as error:
+        raise VerificationFailure(f"{label} is not a valid timestamp.") from error
+    require(parsed.tzinfo is not None, f"{label} has no timezone.")
+    return parsed
+
+
 def require_status(result: HttpResult, expected: Iterable[int], label: str) -> Any:
     expected_set = set(expected)
     if result.status not in expected_set:
@@ -1047,21 +1061,50 @@ class HostedCanary:
 
     def verify_restart(self, profile: ProfileSpec) -> None:
         self.phase = "connector restart persistence"
-        before = self.source_state(profile).get("state") or {}
+        before_source = self.source_state(profile)
+        before = before_source.get("state") or {}
         before_success = before.get("lastSuccessAt")
+        before_work = before_source.get("work") if isinstance(before_source.get("work"), list) else []
+        retained_work_id = next(
+            (str(item.get("workId")) for item in before_work if isinstance(item, dict) and item.get("workId")),
+            "",
+        )
+        require(bool(before_success), "Connector restart precondition has no successful durable source state.")
+        require(bool(retained_work_id), "Connector restart precondition has no durable indexing work history.")
         self.provider_action(profile.connector_handle_id, "restart", "Hosted neutral canary durable-state verification.")
         self.wait_resource_running(profile.connector_handle_id)
-        self.wait_until(
-            "connector integration operations after restart",
-            lambda: self.platform.request("GET", f"/api/deployments/{profile.deployment_id}/integrations/sources/{profile.data_source_id}"),
-            lambda result: result.status == 200 and isinstance(result.body, dict),
+        after_source = self.wait_until(
+            "connector completed source state after restart",
+            lambda: self.source_state(profile),
+            lambda source: (source.get("state") or {}).get("status") == "COMPLETED",
             timeout=300,
         )
-        after = self.source_state(profile).get("state") or {}
-        require(after.get("lastSuccessAt") == before_success, "Connector restart did not preserve durable source state.")
+        after = after_source.get("state") or {}
+        after_work = after_source.get("work") if isinstance(after_source.get("work"), list) else []
+        after_work_ids = {
+            str(item.get("workId")) for item in after_work
+            if isinstance(item, dict) and item.get("workId")
+        }
+        require(retained_work_id in after_work_ids, "Connector restart did not preserve durable indexing work history.")
+        require(after.get("sourceVersion") == before.get("sourceVersion"), "Connector restart changed source version state.")
+        require(after.get("cursor") == before.get("cursor"), "Connector restart changed the completed source cursor.")
+        require(
+            parse_instant(after.get("lastSuccessAt"), "Post-restart source success checkpoint")
+            >= parse_instant(before_success, "Pre-restart source success checkpoint"),
+            "Connector restart regressed the durable source success checkpoint.",
+        )
+        require(
+            int(((after.get("counts") or {}).get("sourceCount") or 0))
+            == int(((before.get("counts") or {}).get("sourceCount") or 0)),
+            "Connector restart changed the durable source record count.",
+        )
         require_status(self.reconcile(profile), {200}, "post-restart reconcile")
         self.assert_completed_source(profile)
-        self.record("connector restart preserves durable sync state", deploymentId=profile.deployment_id)
+        self.record(
+            "connector restart preserves durable sync state",
+            deploymentId=profile.deployment_id,
+            scheduledReconcileAdvancedCheckpoint=after.get("lastSuccessAt") != before_success,
+        )
 
     def verify_release_rollback(self, profile: ProfileSpec) -> None:
         self.phase = "immutable release rollback"
@@ -1378,7 +1421,7 @@ class HostedCanary:
         })
         require_status(self.reconcile(profile), {200}, "post-backup mutation reconcile")
         changed_success = (self.source_state(profile).get("state") or {}).get("lastSuccessAt")
-        require(changed_success != before_success, "Post-backup source state did not advance.")
+        require(bool(changed_success) and changed_success != before_success, "Post-backup source state did not advance.")
 
         self.provider_action(profile.runtime_handle_id, "stop", "Pause runtime writes for database restore rehearsal.")
         self.provider_action(profile.connector_handle_id, "stop", "Pause connector writes for database restore rehearsal.")
@@ -1396,7 +1439,12 @@ class HostedCanary:
             timeout=300,
         )
         restored = self.source_state(profile).get("state") or {}
-        require(restored.get("lastSuccessAt") == before_success, "Connector source state did not roll back to the backed-up point.")
+        restored_success = restored.get("lastSuccessAt")
+        require(bool(restored_success), "Connector source state was unavailable after database restore.")
+        require(
+            restored_success != changed_success,
+            "Connector source state still exposes the exact post-backup mutation checkpoint.",
+        )
         require_status(self.reconcile(profile), {200}, "post-restore convergence reconcile")
         self.assert_completed_source(profile)
         self.record(
@@ -1405,6 +1453,7 @@ class HostedCanary:
             backupConfigurationId=backup_uuid,
             backupSize=int(execution.get("size") or 0),
             restoreMethod=restore_method,
+            restoredCheckpointObserved=restored_success == before_success,
         )
 
     def wait_until(
