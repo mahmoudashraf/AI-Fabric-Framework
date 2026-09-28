@@ -167,6 +167,7 @@ class ProfileSpec:
     data_source_id: str
     webhook_source_id: str
     knowledge_source_id: str
+    vector_space: str
     account_field: str
     account_id: str
     secret_values: dict[str, str]
@@ -215,6 +216,7 @@ class HostedCanary:
                 data_source_id="verification-vehicle-source-a",
                 webhook_source_id="verification-vehicle-events-a",
                 knowledge_source_id="verification-vehicles-a",
+                vector_space="verification-vehicle-a",
                 account_field="accountId",
                 account_id=args.profile_a_account,
                 secret_values={
@@ -235,6 +237,7 @@ class HostedCanary:
                 data_source_id="verification-vehicle-source-b",
                 webhook_source_id="verification-vehicle-events-b",
                 knowledge_source_id="verification-vehicles-b",
+                vector_space="verification-vehicle-b",
                 account_field="ownerRef",
                 account_id=args.profile_b_account,
                 secret_values={
@@ -677,7 +680,14 @@ class HostedCanary:
             result = self.platform.request(
                 "POST",
                 f"/api/deployments/{profile.deployment_id}/poc-widget/chat/me/query?authPath=PLATFORM_PRIVATE",
-                {"query": question, "conversationId": f"neutral-{profile.key}-{int(time.time())}-{attempt}"},
+                {
+                    "query": question,
+                    "conversationId": f"neutral-{profile.key}-{int(time.time())}-{attempt}",
+                    "context": {
+                        "vectorSpace": profile.vector_space,
+                        "entityType": profile.vector_space,
+                    },
+                },
                 timeout=180,
             )
             if result.status == 200 and isinstance(result.body, dict):
