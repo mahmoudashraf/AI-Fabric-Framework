@@ -845,7 +845,7 @@ class HostedCanary:
     def verify_faults(self) -> None:
         self.phase = "provider failure matrix"
         profile_a, profile_b = self.profiles
-        self.expect_fault(profile_b, "UNAUTHORIZED", {"AUTHENTICATION_FAILED"})
+        self.expect_fault(profile_b, "UNAUTHORIZED", {"AUTHENTICATION_REQUIRED"})
         self.expect_fault(profile_b, "FORBIDDEN", {"CAPABILITY_DENIED", "RESOURCE_ACCESS_DENIED"})
         self.expect_fault(profile_b, "RATE_LIMITED", {"RATE_LIMITED"})
         self.expect_fault(profile_b, "UNAVAILABLE", {"SERVICE_UNAVAILABLE"})
