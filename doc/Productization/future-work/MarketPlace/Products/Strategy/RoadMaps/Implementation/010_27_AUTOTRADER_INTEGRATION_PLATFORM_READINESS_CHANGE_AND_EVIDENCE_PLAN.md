@@ -5,7 +5,7 @@
   Auto Trader evidence remain open. LoomAI is not yet entitled to claim Auto
   Trader integration readiness.
 - **Date:** 2026-09-25
-- **Last contract review:** 2026-09-27
+- **Last contract review:** 2026-09-28
 - **Current LoomAI baseline:** AI Fabric `0.8.4`, Platform `Platform-V11`, V04
   deployment lifecycle
 - **Product boundary:** one dealership, one deployment, one server-owned Auto
@@ -68,6 +68,12 @@ The remaining evidence/product work is material:
    webhook rules, data rights, and validation requirements are supplied.
 5. No real Auto Trader sandbox or production canary has passed.
 
+To avoid making partner onboarding the critical path for LoomAI engineering,
+the next hosted gate will use a separately deployed, provider-neutral vehicle
+inventory simulator. It will prove the real deployment integration mechanics
+against deterministic HTTPS APIs and signed events. It is not an Auto Trader
+sandbox, substitute, emulator claim, or source of Auto Trader evidence.
+
 Therefore:
 
 > LoomAI may claim that an approved dealership demo is powered by LoomAI. It
@@ -82,6 +88,7 @@ phrase `Auto Trader ready`.
 
 | State | Permitted claim | Required evidence |
 | --- | --- | --- |
+| `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | LoomAI has proven its deployment-local external-provider mechanics against controlled hosted provider contracts | Separate HTTPS simulator, two materially different provider profiles, two isolated deployments, real Platform apply/index/restart/recovery/decommission evidence |
 | `DEALERSHIP_DEMO_READY` | LoomAI can demonstrate dealership inventory indexing, retrieval, chat, comparison, and a confirmed dealership-owned lead action | Approved demonstration dataset, real LoomAI deployment, real model/embedding/vector providers, complete live demo gate |
 | `AUTOTRADER_SANDBOX_ENABLED` | The exact deployment composition can connect to the granted Auto Trader sandbox | Partner-provisioned sandbox identity, exact grants, authorized test advertiser, generic substrate complete, authentication/preflight succeeds |
 | `AUTOTRADER_SANDBOX_VERIFIED` | The named plugin/template version passed the named Auto Trader sandbox scenarios | Real baseline/read/webhook canaries, isolation, failures, work reconciliation, source evidence, Auto Trader validation evidence |
@@ -164,8 +171,44 @@ block:
 - Auto Trader call-log validation; and
 - any Auto Trader readiness claim.
 
-The fallback is a clearly labelled dealership demonstration dataset, not a
-mocked Auto Trader connection.
+The customer-facing fallback is a clearly labelled dealership demonstration
+dataset, not a mocked Auto Trader connection. Separately, engineering may use
+the provider-neutral simulator defined below to close generic hosted mechanics.
+Neither its service, UI, evidence, nor package labels may say that Auto Trader
+is connected, simulated, certified, or verified.
+
+### 3.5 Provider simulator policy
+
+Create a small standalone `External Vehicle Provider Simulator` for internal
+verification. It is an external test dependency, not a Platform data-plane
+component, Marketplace product, customer bridge, or deployment runtime module.
+
+The simulator must:
+
+- run behind its own HTTPS hostname and independent state store;
+- contain only fictitious, non-personal vehicle and dealership records;
+- expose one form-token/page-size/query-bound provider profile;
+- expose a materially different API-key/cursor/path- or header-bound profile;
+- enforce one opaque account/resource per credential and deny cross-account
+  reads;
+- support deterministic create, update, delete, tombstone, pagination, cursor,
+  token-expiry, and source-version scenarios;
+- emit valid, duplicate, delayed, out-of-order, malformed, wrong-resource, and
+  wrong-signature webhook scenarios;
+- inject deterministic `401`, `403`, `429`, `503`, timeout, malformed-response,
+  and partial-page failures;
+- keep its mutation/failure-control API separate from provider data APIs and
+  authorize it only to the verification runner/operator; and
+- publish a fixture version and reset identifier in every evidence run.
+
+It may reproduce generic mechanical shapes visible in public documentation,
+but it must not use Auto Trader logos, real inventory, credentials, advertiser
+identities, proprietary schemas, or undocumented behavior. Any assumption made
+by the simulator is test-fixture policy, never an Auto Trader package fact.
+
+Passing the simulator proves only `HOSTED_GENERIC_SUBSTRATE_VERIFIED`. It does
+not satisfy `AUTOTRADER_SANDBOX_ENABLED`, provider call-log validation, data
+rights, or any production gate.
 
 ## 4. Current LoomAI Implementation Audit
 
@@ -217,15 +260,25 @@ The implementation checkpoint includes:
 This is implementation and local verification evidence. It is not hosted
 neutral evidence, dealership demo evidence, or Auto Trader evidence.
 
-Final clean local gate on 2026-09-27:
+Final clean source gate on 2026-09-28:
 
-- Generic REST Connector: `35` tests across `10` suites, zero failures/errors;
+- standalone external-provider simulator: `4` tests, zero failures/errors;
+- Generic REST Connector: `37` tests, zero failures/errors;
 - AI Fabric Runtime: `221` tests across `53` suites, zero failures/errors;
-- Platform backend: `856` tests across `153` suites, zero failures/errors;
+- Platform backend: `857` tests, zero failures/errors;
 - Platform UI: production TypeScript/Vite build passed;
+- hosted-canary Python syntax and command-line contract checks passed;
+- all four verification-only Marketplace fixture documents parsed as JSON and
+  passed the real Platform Marketplace manifest parser;
 - runtime capability manifest JSON and whitespace checks passed; and
 - generic Java source scan found no Auto Trader, advertiser, signature-header,
   or provider-correlation constants.
+
+The local Docker Desktop engine could not complete the simulator image build
+because its overlay mount returned `invalid argument`. Maven packaging and the
+simulator test suite passed. This is recorded as a workstation-engine caveat,
+not a container-image pass; the clean Coolify build remains a required hosted
+assertion.
 
 ## 5. Target Deployment-Local Architecture
 
@@ -315,6 +368,27 @@ per-deployment Generic REST Connector becomes the host for generic external
 integration actions, sync workers, and inbound events. Its product/module name
 may be updated in the same current-only change to reflect that wider role, but
 there is still exactly one generic connector process per deployment.
+
+### 5.2 Hosted simulator topology
+
+```text
+verification runner/operator
+  -> protected simulator control API (seed, mutate, fail, emit event)
+
+External Vehicle Provider Simulator (separate HTTPS service)
+  -> provider profile A: form token + page/size + query-bound account
+  -> provider profile B: API key + cursor + path/header-bound account
+
+deployment A connector -> profile A/account A -> deployment A runtime/index
+deployment B connector -> profile B/account B -> deployment B runtime/index
+
+LoomAI Platform -> install/apply/observe/verify/backup/restore/decommission
+```
+
+Provider data still travels directly between each deployment connector and the
+simulator. The central Platform receives only bounded operational evidence.
+The simulator control API is never exposed to a model, browser, deployment
+connector, or customer application.
 
 ## 6. Platform And Product Change Contract
 
@@ -608,6 +682,24 @@ This work can proceed in parallel with partner onboarding after the opt-in
 customer-backend Data Sync URL and safe-readiness contracts are stable. The
 demo backend receives those URLs and matching scopes; the browser does not.
 
+### 6.11 Workstream K: hosted external-provider simulator
+
+Build and deploy the simulator described in Section 3.5 with:
+
+- deterministic seed/reset and versioned fixture contracts;
+- two neutral provider profiles and separate resource accounts;
+- authenticated provider data/detail routes and signed event delivery;
+- an operator-only control API for mutations and fault injection;
+- health and fixture-version endpoints that contain no secrets;
+- automated contract tests independent of LoomAI; and
+- a hosted verification script that creates two LoomAI deployments, runs the
+  complete matrix, captures bounded evidence, and hard-decommissions temporary
+  resources.
+
+The simulator is disposable verification infrastructure. It must not become a
+runtime dependency of any customer deployment or a compatibility layer once
+real provider access exists.
+
 ## 7. Data Rights And Indexing Gate
 
 Technical access is not permission to index provider data. Before enabling the
@@ -649,7 +741,8 @@ The source implementation uses the following ownership boundaries.
 | Optional assignment response | `PublicCustomerBackendIngestionSummary.java` and `PublicProvisioningApiService.java` | Scoped backend ingestion/work/readiness group only when enabled by immutable dataset contract; never internal connector discovery |
 | Runtime indexing | `RuntimeIntegrationDataSyncController`, `RuntimeIntegrationIndexingController`, and `RuntimeCustomerIngestionController` | Private connector boundary plus opt-in customer-safe projection |
 | Platform operations UI | `DeploymentIntegrationOperationsService`, controller, and `IntegrationsPage.tsx` | Real runtime/connector state, reconcile, webhook events, and controlled replay |
-| Verification | Platform backend suites and release-readiness scripts | Add neutral substrate, sandbox, isolation, lifecycle, and production gates |
+| Hosted provider fixture | New standalone verification-only service outside the deployment and Platform data plane | Provide deterministic two-profile HTTPS, event, mutation, and failure contracts without provider branding or data |
+| Verification | Platform backend suites and release-readiness scripts | Add simulator-backed neutral substrate, real sandbox, isolation, lifecycle, and production gates |
 
 No provider-specific route or field may be added to AI Fabric framework core,
 generic Platform schema names, or generic connector Java defaults. Auto Trader
@@ -663,10 +756,10 @@ Current execution status:
 | Phase | Status | Honest checkpoint |
 | --- | --- | --- |
 | 0 | `PARTIAL_EXTERNAL_BLOCKER` | Generic contracts are frozen; partner identity, grants, test advertiser, credentials, webhook details, and data rights are still required |
-| 1 | `IMPLEMENTED_LOCAL_VERIFIED` | Generic profiles, auth, protected resources, mapping, fair usage, JDBC state, fail-closed bootstrap scrub, generated-secret cleanup, and neutral fixtures pass locally; hosted lifecycle proof remains |
-| 2 | `IMPLEMENTED_LOCAL_VERIFIED` | Marketplace compile/provisioning, private Data Sync, cursor/version handling, tombstones, and work reconciliation pass locally; hosted isolation remains |
-| 3 | `IMPLEMENTED_LOCAL_VERIFIED` | Signed ingress, dedupe, replay, retry, dead-letter, and baseline convergence pass locally; hosted ingress evidence remains |
-| 4 | `IMPLEMENTED_LOCAL_VERIFIED` | Scoped discovery, runtime/Platform operations APIs, audit, public webhook projection, and Integrations UI compile and pass locally |
+| 1 | `IMPLEMENTED_LOCAL_VERIFIED` | Generic profiles, auth, protected resources, mapping, fair usage, JDBC state, fail-closed bootstrap scrub, generated-secret cleanup, and neutral fixtures pass locally; hosted simulator lifecycle proof remains |
+| 2 | `IMPLEMENTED_LOCAL_VERIFIED` | Marketplace compile/provisioning, private Data Sync, cursor/version handling, tombstones, and work reconciliation pass locally; simulator-backed two-deployment isolation remains |
+| 3 | `IMPLEMENTED_LOCAL_VERIFIED` | Signed ingress, dedupe, replay, retry, dead-letter, and baseline convergence pass locally; hosted simulator event evidence remains |
+| 4 | `IMPLEMENTED_LOCAL_VERIFIED` | Scoped discovery, runtime/Platform operations APIs, audit, public webhook projection, and Integrations UI compile and pass locally; clean-tenant hosted operation remains |
 | 5 | `NOT_STARTED` | Requires an approved demo dataset, dealership-owned lead boundary, ordinary customer demo app, and hosted deployment |
 | 6 | `BLOCKED_EXTERNAL` | Requires Auto Trader partner sandbox identity, exact grants, advertiser, schemas, events, and validation support |
 | 7 | `BLOCKED_EXTERNAL` | Requires production approval, rights, bindings, go-live validation, and controlled production proof |
@@ -674,6 +767,24 @@ Current execution status:
 `IMPLEMENTED_LOCAL_VERIFIED` does not satisfy a phase exit that explicitly
 requires hosted evidence. The remaining phases must not be collapsed into a
 paper pass.
+
+### Immediate next execution
+
+1. Implement and contract-test the standalone simulator with both neutral
+   profiles and its protected verification-control API.
+2. Commit and push the complete source checkpoint, then deploy that exact
+   commit and the simulator to staging.
+3. Publish internal verification-only DATA/TEMPLATE fixture versions; do not
+   reuse the reserved Auto Trader package IDs.
+4. Create two temporary deployments with different credentials/resource
+   bindings and real model, embedding, vector, and PostgreSQL services.
+5. Run baseline, update, delete, event, fault, restart, backup/restore,
+   rollback, cross-deployment denial, and hard-decommission scenarios.
+6. Record `HOSTED_GENERIC_SUBSTRATE_VERIFIED` only if every assertion passes,
+   then remove temporary deployments and revoke fixture credentials.
+
+Partner onboarding and the dealership demo proceed in parallel; neither needs
+to wait for the other, and simulator success does not reduce their gates.
 
 ### Phase 0: freeze contracts and obtain access
 
@@ -692,6 +803,8 @@ external blocker. Demo-only work may continue when access is blocked.
 
 ### Phase 1: neutral connector foundation
 
+- Build the standalone two-profile provider simulator and its independent
+  contract suite.
 - Add the connector-owned database schema, restricted role, Flyway history,
   provisioning, backup/restore, bootstrap-secret proof, and decommission
   behavior.
@@ -705,7 +818,7 @@ external blocker. Demo-only work may continue when access is blocked.
 
 Exit: connector persistence, authentication, refresh, protected-resource
 binding, errors, rate behavior, restart, rollback, and cleanup pass locally and
-in one hosted neutral canary.
+in hosted simulator canaries across two isolated deployments.
 
 ### Phase 2: deployment-local HTTP DATA sync
 
@@ -788,6 +901,9 @@ Exit: owner-approved exact immutable composition marked
 - a source scan finds no Auto Trader names or wire constants outside package
   fixtures and provider-specific verification code.
 
+The hosted form of this matrix must use the simulator's two materially
+different profiles. In-process mocks alone do not satisfy the hosted exit.
+
 ### 10.2 DATA sync and indexing
 
 - baseline pagination terminates and count reconciliation passes;
@@ -811,6 +927,10 @@ Exit: owner-approved exact immutable composition marked
 - retry and dead-letter state survive restart;
 - replay cannot duplicate indexing or business effects; and
 - an event for a different protected resource is rejected and alerted.
+
+The hosted simulator must originate the signed requests over HTTPS. Calling
+the connector service directly from an in-process test does not prove ingress,
+TLS routing, deployment URL isolation, or provider acknowledgement behavior.
 
 ### 10.4 Auto Trader conversation and actions
 
@@ -858,7 +978,20 @@ Exit: owner-approved exact immutable composition marked
 
 ## 11. Claim Gates
 
-### 11.1 `DEALERSHIP_DEMO_READY`
+### 11.1 `HOSTED_GENERIC_SUBSTRATE_VERIFIED`
+
+- a separately deployed simulator with a recorded fixture version is healthy;
+- two materially different profiles run without Java changes;
+- two deployments use different credentials and protected resources;
+- baseline/update/delete/indexing and signed-event convergence pass;
+- authentication, rate, timeout, malformed, replay, and cross-resource
+  failures remain fail-closed;
+- restart, backup/restore, rollback, and hard decommission pass; and
+- all temporary deployments and fixture credentials are removed afterward.
+
+This claim contains no Auto Trader name or implication.
+
+### 11.2 `DEALERSHIP_DEMO_READY`
 
 - approved source is visibly labelled as demonstration data;
 - real runtime, generation, embeddings, vector store, indexing, retrieval, and
@@ -867,7 +1000,7 @@ Exit: owner-approved exact immutable composition marked
 - mobile/desktop UI and staff readiness surfaces pass; and
 - no Auto Trader connection or data claim appears.
 
-### 11.2 `AUTOTRADER_SANDBOX_VERIFIED`
+### 11.3 `AUTOTRADER_SANDBOX_VERIFIED`
 
 - every Phase 0 through Phase 6 exit criterion passes;
 - exact credential/grant/advertiser metadata is recorded safely;
@@ -876,7 +1009,7 @@ Exit: owner-approved exact immutable composition marked
   recorded as pending; and
 - evidence names the immutable plugin/template/deployment versions.
 
-### 11.3 `AUTOTRADER_PRODUCTION_READY`
+### 11.4 `AUTOTRADER_PRODUCTION_READY`
 
 - written production grant and data-use rights exist;
 - production credential and advertiser bindings pass preflight;
@@ -897,6 +1030,9 @@ Exit: owner-approved exact immutable composition marked
 - No public ingestion endpoint merely to let the colocated connector reach its
   runtime.
 - No website scraping.
+- No public claim that the neutral simulator is Auto Trader, an Auto Trader
+  sandbox, or evidence of provider compatibility/certification.
+- No simulator dependency in production customer deployments.
 - No production Auto Trader writes in the first release.
 - No multi-dealership search in one deployment.
 - No silent fallback from failed Auto Trader access to demonstration data.
@@ -908,8 +1044,8 @@ LoomAI may claim production Auto Trader integration readiness only when:
 
 1. partner onboarding and exact production capability grants are complete;
 2. all required generic substrate changes are implemented and neutral-canary
-   proven with two materially different provider fixtures and no Auto Trader
-   constants in generic source;
+   proven with the separately hosted simulator's two materially different
+   provider profiles and no Auto Trader constants in generic source;
 3. Auto Trader packages are published through the existing Marketplace/V04
    lifecycle;
 4. one clean deployment can be created without manual config repair;
@@ -929,8 +1065,9 @@ Until then, the correct status is:
 
 ```text
 Auto Trader integration planned; LoomAI dealership demonstration can proceed
-with clearly labelled approved demo data while partner sandbox access and the
-generic deployment-local integration substrate are completed.
+with clearly labelled approved demo data. The generic deployment-local
+integration substrate is locally verified; hosted simulator proof and partner
+sandbox access remain separate open gates.
 ```
 
 ## 14. Official Auto Trader Evidence

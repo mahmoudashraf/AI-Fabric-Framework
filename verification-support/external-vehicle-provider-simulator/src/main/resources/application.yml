@@ -1,0 +1,53 @@
+server:
+  port: ${PORT:8110}
+  shutdown: graceful
+
+spring:
+  application:
+    name: external-vehicle-provider-simulator
+  datasource:
+    url: jdbc:h2:file:${SIMULATOR_DATA_PATH:/app/data/vehicle-provider};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: ${SIMULATOR_DB_USERNAME:sa}
+    password: ${SIMULATOR_DB_PASSWORD:}
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: external-vehicle-provider-simulator
+    purpose: hosted-generic-substrate-verification
+    fixture-version: ${SIMULATOR_FIXTURE_VERSION:external-vehicle-provider-v1}
+
+simulator:
+  fixture-version: ${SIMULATOR_FIXTURE_VERSION:external-vehicle-provider-v1}
+  control-api-key: ${SIMULATOR_CONTROL_API_KEY:}
+  token-signing-secret: ${SIMULATOR_TOKEN_SIGNING_SECRET:}
+  token-ttl-seconds: ${SIMULATOR_TOKEN_TTL_SECONDS:300}
+  allowed-webhook-hosts: ${SIMULATOR_ALLOWED_WEBHOOK_HOSTS:localhost,127.0.0.1}
+  profile-a:
+    account-id: ${SIMULATOR_PROFILE_A_ACCOUNT_ID:}
+    key: ${SIMULATOR_PROFILE_A_KEY:}
+    secret: ${SIMULATOR_PROFILE_A_SECRET:}
+    webhook-secret: ${SIMULATOR_PROFILE_A_WEBHOOK_SECRET:}
+  profile-b:
+    account-id: ${SIMULATOR_PROFILE_B_ACCOUNT_ID:}
+    api-key: ${SIMULATOR_PROFILE_B_API_KEY:}
+    webhook-secret: ${SIMULATOR_PROFILE_B_WEBHOOK_SECRET:}

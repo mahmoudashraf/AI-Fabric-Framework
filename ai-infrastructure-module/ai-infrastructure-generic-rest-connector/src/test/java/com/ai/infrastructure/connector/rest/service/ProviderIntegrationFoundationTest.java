@@ -357,6 +357,49 @@ class ProviderIntegrationFoundationTest {
     }
 
     @Test
+    void undeclaredPartialSuccessFailsBeforeApplyingSnapshotChanges() throws Exception {
+        AtomicBoolean partial = new AtomicBoolean(false);
+        List<JsonNode> indexedOperations = java.util.Collections.synchronizedList(new ArrayList<>());
+        startServer();
+        server.createContext("/partial-snapshot", exchange -> respond(exchange, partial.get() ? 206 : 200, partial.get()
+            ? "{\"records\":[{\"id\":\"item-2\",\"scope\":\"scope-8\",\"name\":\"Two\"}]}"
+            : "{\"records\":[{\"id\":\"item-1\",\"scope\":\"scope-8\",\"name\":\"One\"},{\"id\":\"item-2\",\"scope\":\"scope-8\",\"name\":\"Two\"}]}"
+        ));
+        server.createContext("/api/internal/integrations/data-sync/batch", exchange ->
+            respondToDataSync(exchange, indexedOperations, false)
+        );
+
+        RestRoutingConfig config = baseConfig();
+        config.getConnectionProfiles().put("snapshot-profile", apiKeyProfile(baseUrl()));
+        config.getProtectedResources().put("scope-binding", binding("snapshot-profile", "tenant", "scope-8"));
+        RestRoutingConfig.HttpDataSource source = source(
+            "snapshot-profile", "scope-binding", "/partial-snapshot", "snapshot-entry"
+        );
+        source.setRequiredCapabilityGrants(List.of("documents:read"));
+        source.getMapping().setRecordsJsonPointer("/records");
+        source.getMapping().setResourceJsonPointer("/scope");
+        source.getTombstonePolicy().setStrategy(RestRoutingConfig.TombstonePolicy.Strategy.ABSENT_FROM_SNAPSHOT);
+        config.getDataSources().put("partial-snapshot", source);
+        InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
+        Services services = services(config, repository);
+
+        services.syncService().reconcile("partial-snapshot");
+        assertThat(repository.activeRecordIds("partial-snapshot"))
+            .containsExactlyInAnyOrder("item-1", "item-2");
+
+        partial.set(true);
+        indexedOperations.clear();
+        assertThatThrownBy(() -> services.syncService().reconcile("partial-snapshot"))
+            .isInstanceOf(ProviderCallException.class)
+            .hasMessageContaining("not declared as a complete response");
+
+        assertThat(repository.activeRecordIds("partial-snapshot"))
+            .containsExactlyInAnyOrder("item-1", "item-2");
+        assertThat(indexedOperations).isEmpty();
+        assertThat(repository.syncState("partial-snapshot").orElseThrow().status()).isEqualTo("FAILED");
+    }
+
+    @Test
     void incompletePagedSnapshotFailsBeforeApplyingAbsenceDeletes() throws Exception {
         AtomicBoolean truncate = new AtomicBoolean(false);
         List<JsonNode> indexedOperations = java.util.Collections.synchronizedList(new ArrayList<>());

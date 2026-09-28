@@ -393,6 +393,7 @@ public class RestRoutingConfig {
         private List<String> requiredCapabilityGrants = new ArrayList<>();
         private String path;
         private String method = "GET";
+        private List<Integer> completeHttpStatuses = new ArrayList<>(List.of(200));
         private Map<String, Object> query = new LinkedHashMap<>();
         private Map<String, String> headers = new LinkedHashMap<>();
         @Valid

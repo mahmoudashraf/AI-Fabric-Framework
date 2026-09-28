@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-data-neutral-vehicle-profile-b-verification",
+  "version": "1.0.0",
+  "pluginType": "DATA",
+  "displayName": "Internal Verification Vehicle Source - Profile B",
+  "description": "Internal-only API-key, resumable-cursor vehicle source for hosted generic integration verification.",
+  "compatibility": {
+    "requiredCapabilities": ["knowledgeSources"],
+    "supportedDeploymentTargets": ["custom-start-from-scratch"]
+  },
+  "pricing": {"pricingModel": "FREE"},
+  "installForm": [
+    {"id": "apiKey", "label": "Provider API key", "type": "secretref", "required": true},
+    {"id": "webhookSecret", "label": "Webhook secret", "type": "secretref", "required": true},
+    {"id": "ownerRef", "label": "Fixture owner", "type": "text", "required": true}
+  ],
+  "permissions": {
+    "contributesKnowledgeSources": true,
+    "requiresSharedDatasetAccess": false,
+    "requiresDeploymentSecrets": true
+  },
+  "contributions": {
+    "entityConfig": {
+      "ai-entities": {
+        "verification-vehicle-b": {
+          "indexing": {"enabled": true, "max-characters": 8000},
+          "analysis": {"enabled": false, "after": []},
+          "searchable-fields": [
+            {
+              "name": "content",
+              "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+              "preprocessing": "CLEAN",
+              "max-length": 8000,
+              "priority": 100,
+              "required": true
+            }
+          ],
+          "metadata-fields": [
+            {"name": "tenantId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 100, "required": true, "sanitize-pii": false},
+            {"name": "deploymentId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 100, "required": true, "sanitize-pii": false},
+            {"name": "sourceId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 90, "required": true, "sanitize-pii": false}
+          ]
+        }
+      }
+    },
+    "datasets": [
+      {
+        "datasetId": "verification-vehicle-profile-b",
+        "entityType": "verification-vehicle-b",
+        "storageScope": "CUSTOMER_MANAGED",
+        "sharingScope": "DEPLOYMENT_ONLY",
+        "ingestionMode": "EXTERNAL_SYNC_HTTP",
+        "updateStrategy": "UPSERT_BY_ID",
+        "syncConnector": {
+          "connectorType": "HTTP_JSON",
+          "connectionProfile": {
+            "profileId": "verification-profile-b",
+            "environment": "verification",
+            "baseUrl": "__SIMULATOR_BASE_URL__",
+            "allowedHosts": ["__SIMULATOR_HOST__"],
+            "auth": {
+              "strategy": "API_KEY",
+              "apiKeyHeader": "X-Simulator-Api-Key",
+              "apiKeySecretRefField": "apiKey"
+            },
+            "ratePolicy": {
+              "maxConcurrent": 3,
+              "minIntervalMs": 10,
+              "rateLimitedPauseMs": 1000,
+              "unavailablePauseMs": 500,
+              "maxAttempts": 2,
+              "retryBackoffMs": 100,
+              "retryStatuses": [429, 503]
+            },
+            "errorMappings": [
+              {"status": 403, "bodyJsonPointer": "/code", "equalsValue": "RESOURCE_ACCESS_DENIED", "errorClass": "RESOURCE_ACCESS_DENIED"}
+            ],
+            "capabilityGrants": ["inventory:read"],
+            "correlationResponseHeaders": ["X-Simulator-Request"]
+          },
+          "protectedResource": {
+            "bindingId": "verification-owner-b",
+            "environment": "verification",
+            "resourceType": "inventory-owner",
+            "resourceIdField": "ownerRef",
+            "policyRef": "single-verification-owner",
+            "capabilityGrants": ["inventory:read"]
+          },
+          "httpSource": {
+            "sourceId": "verification-vehicle-source-b",
+            "path": "/api/profile-b/accounts/{ownerRef}/vehicles",
+            "method": "GET",
+            "completeHttpStatuses": [200],
+            "trustedResourcePlacements": [{"target": "PATH", "field": "ownerRef"}],
+            "requiredCapabilityGrants": ["inventory:read"],
+            "query": {"limit": 2},
+            "pagination": {
+              "strategy": "CURSOR",
+              "cursorQuery": "cursor",
+              "nextCursorJsonPointer": "/paging/nextCursor",
+              "maxPages": 20
+            },
+            "mapping": {
+              "recordsJsonPointer": "/data/vehicles",
+              "idJsonPointer": "/id",
+              "resourceJsonPointer": "/ownerRef",
+              "contentFields": {
+                "displayName": "/displayName",
+                "derivative": "/derivative",
+                "fuelType": "/fuelType",
+                "bodyStyle": "/bodyStyle",
+                "state": "/state"
+              },
+              "entityFields": {
+                "make": "/make",
+                "model": "/model",
+                "derivative": "/derivative",
+                "year": "/year",
+                "priceMinor": "/priceMinor",
+                "currency": "/currency",
+                "fuelType": "/fuelType",
+                "bodyStyle": "/bodyStyle",
+                "transmission": "/transmission",
+                "mileage": "/mileage",
+                "state": "/state"
+              },
+              "metadataFields": {
+                "providerUpdatedAt": "/updatedAt",
+                "providerRecordVersion": "/version"
+              },
+              "maxRecords": 100,
+              "maxResponseBytes": 1048576
+            },
+            "tombstonePolicy": {
+              "strategy": "FIELD_VALUE",
+              "operationJsonPointer": "/state",
+              "deleteValues": ["deleted"]
+            },
+            "scheduleSeconds": 30
+          },
+          "webhook": {
+            "sourceId": "verification-vehicle-events-b",
+            "method": "PUT",
+            "allowedContentTypes": ["application/json"],
+            "verification": {
+              "strategy": "HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY",
+              "signatureHeader": "X-Simulator-B-Signature",
+              "secretRefField": "webhookSecret",
+              "timestampComponent": "t",
+              "signatureComponent": "v1",
+              "replayWindowSeconds": 300
+            },
+            "eventIdJsonPointer": "/eventId",
+            "eventTypeJsonPointer": "/eventType",
+            "resourceJsonPointer": "/ownerRef",
+            "allowedEventTypes": ["vehicle.changed"],
+            "maxBodyBytes": 1048576,
+            "maxReconcileAttempts": 3,
+            "retryDelaySeconds": 10,
+            "registrationExpected": true,
+            "manualReplayEnabled": true,
+            "orderingPolicy": "RECONCILE_LATEST_STATE"
+          }
+        }
+      }
+    ],
+    "knowledgeSources": [
+      {
+        "sourceType": "deployment-private-vector",
+        "sourceKey": "verification-vehicles-b",
+        "adapterType": "deployment-private-vector",
+        "datasetRef": "verification-vehicle-profile-b",
+        "entityType": "verification-vehicle-b",
+        "attributionLabel": "Internal verification vehicle source B",
+        "filters": {"datasetId": "verification-vehicle-profile-b"}
+      }
+    ]
+  }
+}

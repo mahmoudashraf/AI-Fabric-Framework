@@ -116,7 +116,7 @@ public class MarketplaceManifestService {
     );
     private static final Set<String> HTTP_SOURCE_FIELDS = Set.of(
         "sourceId", "path", "method", "query", "headers", "trustedResourcePlacements",
-        "requiredCapabilityGrants", "pagination", "mapping", "tombstonePolicy", "scheduleSeconds"
+        "requiredCapabilityGrants", "completeHttpStatuses", "pagination", "mapping", "tombstonePolicy", "scheduleSeconds"
     );
     private static final Set<String> HTTP_WEBHOOK_FIELDS = Set.of(
         "sourceId", "method", "verification", "eventIdJsonPointer", "eventTypeJsonPointer",
@@ -1941,6 +1941,21 @@ public class MarketplaceManifestService {
         String method = source.path("method").asText("GET").trim().toUpperCase(Locale.ROOT);
         if (!Set.of("GET", "POST").contains(method)) {
             throw invalid(plugin, version, prefix + "httpSource.method must be GET or POST.");
+        }
+        JsonNode completeHttpStatuses = source.path("completeHttpStatuses");
+        if (!completeHttpStatuses.isMissingNode() && !completeHttpStatuses.isNull()) {
+            if (!completeHttpStatuses.isArray() || completeHttpStatuses.isEmpty() || completeHttpStatuses.size() > 10) {
+                throw invalid(plugin, version, prefix + "httpSource.completeHttpStatuses must contain between 1 and 10 HTTP statuses.");
+            }
+            Set<Integer> seenCompleteStatuses = new LinkedHashSet<>();
+            for (JsonNode status : completeHttpStatuses) {
+                if (!status.canConvertToInt() || status.asInt() < 200 || status.asInt() > 299) {
+                    throw invalid(plugin, version, prefix + "httpSource.completeHttpStatuses must contain only 2xx HTTP statuses.");
+                }
+                if (!seenCompleteStatuses.add(status.asInt())) {
+                    throw invalid(plugin, version, prefix + "httpSource.completeHttpStatuses contains a duplicate HTTP status.");
+                }
+            }
         }
         Set<String> requiredGrants = requireCapabilityArray(
             plugin,

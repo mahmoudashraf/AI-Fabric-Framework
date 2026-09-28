@@ -213,6 +213,13 @@ public class HttpDataSyncService {
                     "Provider data source request failed."
                 );
             }
+            if (!source.getCompleteHttpStatuses().contains(response.status())) {
+                throw new ProviderCallException(
+                    ProviderErrorClass.MALFORMED_RESPONSE,
+                    response.status(),
+                    "Provider data source returned a successful HTTP status that is not declared as a complete response."
+                );
+            }
             response.correlationHeaders().entrySet().stream().findFirst().ifPresent(entry ->
                 repository.recordProviderCorrelation(sourceId, entry.getKey(), entry.getValue())
             );

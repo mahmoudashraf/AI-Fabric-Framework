@@ -444,6 +444,15 @@ public class RestConnectorStartupValidator {
             if (!("GET".equalsIgnoreCase(source.getMethod()) || "POST".equalsIgnoreCase(source.getMethod()))) {
                 throw new IllegalStateException("HTTP data source '" + sourceId + "' must use GET or POST.");
             }
+            if (source.getCompleteHttpStatuses() == null || source.getCompleteHttpStatuses().isEmpty()
+                || source.getCompleteHttpStatuses().size() > 10
+                || source.getCompleteHttpStatuses().stream().anyMatch(status -> status == null || status < 200 || status > 299)
+                || source.getCompleteHttpStatuses().stream().distinct().count() != source.getCompleteHttpStatuses().size()) {
+                throw new IllegalStateException(
+                    "HTTP data source '" + sourceId
+                        + "' must declare between 1 and 10 unique complete HTTP statuses in the 2xx range."
+                );
+            }
             RestRoutingConfig.ConnectionProfile profile = requireConnectionProfile(
                 config, source.getConnectionProfileRef(), "data-sources." + sourceId
             );

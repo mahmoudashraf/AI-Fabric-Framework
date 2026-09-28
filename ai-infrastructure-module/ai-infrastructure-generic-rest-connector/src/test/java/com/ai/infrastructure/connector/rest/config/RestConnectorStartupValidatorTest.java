@@ -40,6 +40,22 @@ class RestConnectorStartupValidatorTest {
     }
 
     @Test
+    void rejectsInvalidCompleteHttpStatuses() {
+        RestRoutingConfig config = config();
+        config.getDataSources().get("neutral-source").setCompleteHttpStatuses(List.of(200, 206, 206));
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("unique complete HTTP statuses");
+
+        config.getDataSources().get("neutral-source").setCompleteHttpStatuses(List.of(200, 304));
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("unique complete HTTP statuses");
+    }
+
+    @Test
     void rejectsDataSourceWithoutTrustedResourceProjection() {
         RestRoutingConfig config = config();
         config.getDataSources().get("neutral-source").getMapping().setResourceJsonPointer(null);

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-template-neutral-vehicle-profile-a-verification",
+  "version": "1.0.0",
+  "pluginType": "TEMPLATE",
+  "displayName": "Internal Vehicle Integration Canary - Profile A",
+  "description": "Internal-only conversational deployment template for the hosted Profile A integration canary.",
+  "compatibility": {
+    "requiredCapabilities": ["templates"],
+    "supportedDeploymentTargets": ["custom-start-from-scratch"]
+  },
+  "pricing": {"pricingModel": "FREE"},
+  "permissions": {"contributesTemplate": true, "contributesShellPresentation": true},
+  "contributions": {
+    "template": {
+      "templateId": "custom-start-from-scratch",
+      "deploymentBehavior": {
+        "type": "CONVERSATIONAL",
+        "contractVersion": 1,
+        "requiredRuntimeCapabilityIds": ["ai-fabric-core", "ai-fabric-chat-session"],
+        "allowedExecutionExtensions": ["GOVERNED_RESOLVER"],
+        "allowedChannelBindings": ["BACKEND_API", "QUERY_ONCE"],
+        "verificationPackIds": ["conversational-behavior-v1"]
+      },
+      "security": {"authzMode": "ALLOW_VERIFIED"},
+      "requiredPluginRefs": ["mkp-data-neutral-vehicle-profile-a-verification@1.0.0"],
+      "shell": {
+        "greeting": {"title": "Vehicle Integration Canary A", "message": "Ask about the approved fictitious verification inventory."},
+        "starterPrompts": [
+          {"id": "inventory-a", "label": "Search verification inventory", "query": "Which electric vehicles are available in the approved verification inventory?"}
+        ],
+        "defaultConversationMode": "conversational"
+      }
+    }
+  }
+}

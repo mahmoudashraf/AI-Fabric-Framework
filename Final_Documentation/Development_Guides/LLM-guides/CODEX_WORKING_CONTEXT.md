@@ -2949,3 +2949,18 @@ Critical fixes that made the gate pass:
   and the Platform UI production build passed. Runtime capability JSON,
   whitespace, and provider-coupling scans also passed. These are local source
   gates only; they do not replace the hosted neutral or provider evidence.
+
+## 2026-09-28 External Vehicle Provider Simulator Decision
+
+- Partner onboarding must not block generic hosted verification. Build a
+  separate provider-neutral HTTPS vehicle inventory simulator with two
+  materially different profiles: form-token/page-size/query binding and API-
+  key/cursor/path-or-header binding.
+- The simulator is verification-only infrastructure outside the Platform and
+  deployment data planes. It supplies fictitious records, signed events,
+  deterministic mutations, fault injection, fixture reset/version evidence,
+  and strict resource isolation. Its control API is operator/runner-only.
+- Passing it may establish `HOSTED_GENERIC_SUBSTRATE_VERIFIED`; it never proves
+  Auto Trader sandbox access, schemas, grants, data rights, certification, or
+  production readiness. Customer-facing demos remain visibly based on approved
+  dealership/demo data, and no customer deployment may depend on the simulator.

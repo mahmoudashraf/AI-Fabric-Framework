@@ -506,3 +506,9 @@ Current P0 cleanup items:
   operator rows, and clears generated integration credentials on hard delete.
   This strengthens the source-complete claim only; hosted neutral, demo, and
   Auto Trader partner gates remain unchanged.
+- 2026-09-28: close the hosted generic-provider evidence gap with a standalone,
+  neutral vehicle-provider simulator, not a claimed Auto Trader mock. It must
+  exercise two auth/pagination/resource-placement profiles, signed events,
+  deterministic mutations/failures, and two isolated deployments over HTTPS.
+  Simulator success proves only the generic substrate; the dealership demo and
+  real Auto Trader sandbox/production gates remain independent.
