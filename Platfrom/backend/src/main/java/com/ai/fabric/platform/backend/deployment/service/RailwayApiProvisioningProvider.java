@@ -1040,7 +1040,8 @@ public class RailwayApiProvisioningProvider implements DeploymentProvisioningPro
             || "AUTHZ_BASE_URL".equals(envKey)) {
             return connectorBaseUrl;
         }
-        if ("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL".equals(envKey)) {
+        if ("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL".equals(envKey)
+            || "AI_FABRIC_RUNTIME_INTERNAL_BASE_URL".equals(envKey)) {
             return runtimeBaseUrl;
         }
         return null;

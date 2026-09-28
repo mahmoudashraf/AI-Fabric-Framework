@@ -1536,6 +1536,8 @@ class CoolifyDeploymentProviderTest {
             .containsExactly(false, true);
         assertThat(connectorEnvByKey.get("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL").value())
             .isEqualTo("http://dep-123.runtime.example.test");
+        assertThat(connectorEnvByKey.get("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL").value())
+            .isEqualTo("http://dep-123.runtime.example.test");
         assertThat(connectorEnvByKey.get("REST_CONNECTOR_RUNTIME_PROXY_API_KEY").value())
             .isEqualTo("runtime-secret");
         assertThat(connectorEnvByKey.get("REST_CONNECTOR_RUNTIME_PROXY_API_KEY").shownOnce()).isTrue();
@@ -1953,6 +1955,7 @@ class CoolifyDeploymentProviderTest {
             "https://connector-dep-123.placeholder.local",
             List.of(
                 new RailwayEnvVarSummary("REST_CONNECTOR_ROUTING_CONFIG_LOCATION", "https://artifacts.example/routing.yaml"),
+                new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL", "https://runtime-dep-123.placeholder.local"),
                 new RailwayEnvVarSummary("REST_CONNECTOR_RUNTIME_PROXY_BASE_URL", "https://runtime-dep-123.placeholder.local"),
                 new RailwayEnvVarSummary(
                     "REST_CONNECTOR_RUNTIME_PROXY_API_KEY",

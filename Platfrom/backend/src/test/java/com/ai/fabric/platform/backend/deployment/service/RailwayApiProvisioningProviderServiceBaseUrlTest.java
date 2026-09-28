@@ -34,6 +34,15 @@ class RailwayApiProvisioningProviderServiceBaseUrlTest {
     }
 
     @Test
+    void resolveServiceBaseUrlUsesRuntimeServiceUrlForConnectorDataSync() {
+        assertThat(RailwayApiProvisioningProvider.resolveServiceBaseUrl(
+            "AI_FABRIC_RUNTIME_INTERNAL_BASE_URL",
+            "http://loomai-runtime-dep-123:8097",
+            "http://loomai-connector-dep-123:8082"
+        )).isEqualTo("http://loomai-runtime-dep-123:8097");
+    }
+
+    @Test
     void resolveServiceBaseUrlReturnsNullForUnrelatedEnvKeys() {
         assertThat(RailwayApiProvisioningProvider.resolveServiceBaseUrl(
             "OPENAI_API_KEY",
