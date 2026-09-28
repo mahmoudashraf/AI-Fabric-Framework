@@ -317,8 +317,7 @@ public class CoolifyApiClient {
                                                    String uuid,
                                                    String internalName) {
         ObjectNode body = objectMapper.createObjectNode();
-        body.put("is_consistent_container_name_enabled", true);
-        body.put("custom_internal_name", requireText(internalName, "custom internal name"));
+        body.put("custom_network_aliases", requireText(internalName, "custom network alias"));
         body.put("connect_to_docker_network", true);
         requestJson(
             connection,

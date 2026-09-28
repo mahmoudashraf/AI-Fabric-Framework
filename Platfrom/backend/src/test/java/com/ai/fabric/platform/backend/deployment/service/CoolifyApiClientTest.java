@@ -85,10 +85,9 @@ class CoolifyApiClientTest {
             );
 
             JsonNode body = objectMapper.readTree(observedBody.get());
-            assertThat(body.path("is_consistent_container_name_enabled").asBoolean()).isTrue();
-            assertThat(body.path("custom_internal_name").asText()).isEqualTo("loomai-runtime-dep-123");
+            assertThat(body.path("custom_network_aliases").asText()).isEqualTo("loomai-runtime-dep-123");
             assertThat(body.path("connect_to_docker_network").asBoolean()).isTrue();
-            assertThat(body.size()).isEqualTo(3);
+            assertThat(body.size()).isEqualTo(2);
         } finally {
             server.stop(0);
         }
