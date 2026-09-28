@@ -1486,14 +1486,14 @@ class HostedCanary:
         changed_success = (self.source_state(profile).get("state") or {}).get("lastSuccessAt")
         require(bool(changed_success) and changed_success != before_success, "Post-backup source state did not advance.")
 
-        self.provider_action(profile.runtime_handle_id, "stop", "Pause runtime writes for database restore rehearsal.")
         self.provider_action(profile.connector_handle_id, "stop", "Pause connector writes for database restore rehearsal.")
-        self.wait_resource_stopped(profile.runtime_handle_id)
         self.wait_resource_stopped(profile.connector_handle_id)
+        self.provider_action(profile.runtime_handle_id, "stop", "Pause runtime writes for database restore rehearsal.")
+        self.wait_resource_stopped(profile.runtime_handle_id)
         restore_method = self.coolify_restore(profile.database_uuid, backup_path)
         self.provider_action(profile.runtime_handle_id, "start", "Resume runtime after database restore rehearsal.")
-        self.provider_action(profile.connector_handle_id, "start", "Resume connector after database restore rehearsal.")
         self.wait_resource_running(profile.runtime_handle_id)
+        self.provider_action(profile.connector_handle_id, "start", "Resume connector after database restore rehearsal.")
         self.wait_resource_running(profile.connector_handle_id)
         self.wait_until(
             "integration operations after database restore",
