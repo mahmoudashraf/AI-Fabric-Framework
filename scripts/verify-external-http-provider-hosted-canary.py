@@ -63,13 +63,19 @@ class JsonClient:
         path: str,
         body: Any = None,
         *,
+        form: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         timeout: int = 180,
     ) -> HttpResult:
+        if body is not None and form is not None:
+            raise ValueError("A request cannot contain both JSON and form bodies.")
         url = path if path.startswith("http://") or path.startswith("https://") else self.base_url + path
         request_headers = {"Accept": "application/json", **self.default_headers, **(headers or {})}
         payload = None
-        if body is not None:
+        if form is not None:
+            payload = urllib.parse.urlencode(form).encode("utf-8")
+            request_headers["Content-Type"] = "application/x-www-form-urlencoded"
+        elif body is not None:
             payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
             request_headers["Content-Type"] = "application/json"
         request = urllib.request.Request(url, data=payload, headers=request_headers, method=method)
@@ -607,7 +613,7 @@ class HostedCanary:
             self.simulator.request(
                 "POST",
                 "/api/profile-a/authenticate",
-                {"key": self.args.profile_a_key, "secret": self.args.profile_a_secret},
+                form={"key": self.args.profile_a_key, "secret": self.args.profile_a_secret},
             ),
             {200},
             "profile A token exchange",
