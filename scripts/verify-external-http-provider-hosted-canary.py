@@ -693,8 +693,23 @@ class HostedCanary:
             )
             if result.status == 200 and isinstance(result.body, dict):
                 last = result.body
-                documents = (((last.get("result") or {}).get("data") or {}).get("ragResponse") or {}).get("documents") or []
-                sources = {(document.get("metadata") or {}).get("knowledgeSourceId") for document in documents}
+                rag_response = last.get("ragResponse") if isinstance(last.get("ragResponse"), dict) else {}
+                documents = [
+                    document
+                    for collection in (
+                        last.get("sources"),
+                        rag_response.get("documents"),
+                        rag_response.get("sources"),
+                    )
+                    if isinstance(collection, list)
+                    for document in collection
+                    if isinstance(document, dict)
+                ]
+                sources = {
+                    metadata.get("knowledgeSourceId")
+                    for document in documents
+                    if isinstance((metadata := document.get("metadata")), dict)
+                }
                 if profile.knowledge_source_id in sources:
                     return last
             time.sleep(8)
