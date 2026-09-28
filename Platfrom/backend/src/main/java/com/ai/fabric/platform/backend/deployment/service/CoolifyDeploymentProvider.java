@@ -385,7 +385,7 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
 
         CoolifyApplicationSummary connectorApplication = null;
         DeploymentProviderResourceHandleEntity provisionalConnectorHandle = null;
-        if (source.gitSource() && source.connectorPlan() != null) {
+        if (source.connectorPlan() != null) {
             String connectorAppName = resolveApplicationName(
                 deployment,
                 resourceDefaults,
@@ -1972,12 +1972,13 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                     "Coolify image source requires a runtime environment plan."
                 );
             }
+            RailwayServicePlanSummary connector = plan.services() == null ? null : plan.services().restConnector();
             return new CoolifyProvisioningSource(
                 sourceStrategy,
                 resolveSourceArtifact(release, resourceDefaults),
                 plan,
                 runtime,
-                null,
+                connector,
                 null,
                 null,
                 null,

@@ -338,6 +338,114 @@ class CoolifyDeploymentProviderTest {
     }
 
     @Test
+    void provisionsRuntimeAndConnectorFromOneImmutableDeploymentImage() throws Exception {
+        DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
+        DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
+        DeploymentSourceArtifactService sourceArtifactService = mock(DeploymentSourceArtifactService.class);
+        RailwayProvisioningPlanService railwayProvisioningPlanService = mock(RailwayProvisioningPlanService.class);
+        CoolifyTargetProfileResolver targetProfileResolver = mock(CoolifyTargetProfileResolver.class);
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        PlatformSecretService platformSecretService = mock(PlatformSecretService.class);
+
+        DeploymentTargetProfileEntity profile = profile();
+        DeploymentSourceArtifactEntity artifact = artifact();
+        CoolifyConnection connection = connection();
+        CoolifyApplicationSummary runtimeApplication = new CoolifyApplicationSummary(
+            "runtime-uuid",
+            "ai-fabric-runtime-dep-123",
+            "http://dep-123.runtime.example.test",
+            "running:healthy",
+            artifact.getImageRepository(),
+            artifact.getImageTag(),
+            objectMapper.readTree("{\"uuid\":\"runtime-uuid\",\"status\":\"running:healthy\"}")
+        );
+        CoolifyApplicationSummary connectorApplication = new CoolifyApplicationSummary(
+            "connector-uuid",
+            "ai-fabric-connector-dep-123",
+            "http://dep-123-connector.runtime.example.test",
+            "running:healthy",
+            artifact.getImageRepository(),
+            artifact.getImageTag(),
+            objectMapper.readTree("{\"uuid\":\"connector-uuid\",\"status\":\"running:healthy\"}")
+        );
+
+        when(targetProfileRepository.findById("dtp-coolify-staging")).thenReturn(Optional.of(profile));
+        when(targetProfileResolver.requireConnection(profile)).thenReturn(connection);
+        when(coolifyApiClient.health(connection)).thenReturn(objectMapper.readTree("{\"status\":\"ok\"}"));
+        when(sourceArtifactService.require("dsa-123")).thenReturn(artifact);
+        when(railwayProvisioningPlanService.buildPlan(any(), any(), isNull(), anyString()))
+            .thenReturn(railwayPlanWithConnectorAndSecrets());
+        when(resourceHandleRepository.findFirstByDeploymentIdAndTargetProfileIdAndResourceKindOrderByUpdatedAtDesc(
+            eq("dep-123"),
+            eq("dtp-coolify-staging"),
+            anyString()
+        )).thenReturn(Optional.empty());
+        when(coolifyApiClient.listApplications(connection)).thenReturn(List.of());
+        when(coolifyApiClient.createDockerImageApplication(eq(connection), any()))
+            .thenReturn("runtime-uuid")
+            .thenReturn("connector-uuid");
+        when(coolifyApiClient.getApplication(connection, "runtime-uuid")).thenReturn(Optional.of(runtimeApplication));
+        when(coolifyApiClient.getApplication(connection, "connector-uuid")).thenReturn(Optional.of(connectorApplication));
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("runtime-uuid"), any())).thenReturn(12);
+        when(coolifyApiClient.updateEnvironmentVariables(eq(connection), eq("connector-uuid"), any())).thenReturn(8);
+        when(coolifyApiClient.start(connection, "runtime-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Runtime deployment queued.", "runtime-deploy", objectMapper.createObjectNode()));
+        when(coolifyApiClient.start(connection, "connector-uuid", true, true))
+            .thenReturn(new CoolifyActionResponse("Connector deployment queued.", "connector-deploy", objectMapper.createObjectNode()));
+        stubFinishedDeployments(coolifyApiClient, connection);
+        when(platformSecretService.resolveSecret("AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY")).thenReturn("runtime-secret");
+        when(resourceHandleRepository.save(any(DeploymentProviderResourceHandleEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CoolifyDeploymentProvider provider = new CoolifyDeploymentProvider(
+            targetProfileRepository,
+            resourceHandleRepository,
+            sourceArtifactService,
+            railwayProvisioningPlanService,
+            targetProfileResolver,
+            coolifyApiClient,
+            platformSecretService,
+            objectMapper
+        );
+
+        ProvisioningResult result = provider.provision(
+            deployment(),
+            version(),
+            release(),
+            ProvisioningProgressTracker.noop()
+        );
+
+        assertThat(result.runtimeBaseUrl()).isEqualTo("http://dep-123.runtime.example.test");
+        assertThat(result.connectorBaseUrl()).isEqualTo("http://dep-123-connector.runtime.example.test");
+        ArgumentCaptor<CoolifyCreateDockerImageApplicationRequest> requests =
+            ArgumentCaptor.forClass(CoolifyCreateDockerImageApplicationRequest.class);
+        verify(coolifyApiClient, times(2)).createDockerImageApplication(eq(connection), requests.capture());
+        assertThat(requests.getAllValues())
+            .extracting(CoolifyCreateDockerImageApplicationRequest::imageRepository)
+            .containsOnly("ghcr.io/example/runtime");
+        assertThat(requests.getAllValues())
+            .extracting(CoolifyCreateDockerImageApplicationRequest::imageTag)
+            .containsOnly("sha");
+        assertThat(requests.getAllValues())
+            .extracting(CoolifyCreateDockerImageApplicationRequest::portsExposes)
+            .containsExactly("8097", "8082");
+        verify(coolifyApiClient, never()).createPublicApplication(eq(connection), any());
+
+        ArgumentCaptor<List<CoolifyEnvVar>> runtimeEnvironment = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<CoolifyEnvVar>> connectorEnvironment = ArgumentCaptor.forClass(List.class);
+        verify(coolifyApiClient).updateEnvironmentVariables(
+            eq(connection), eq("runtime-uuid"), runtimeEnvironment.capture()
+        );
+        verify(coolifyApiClient).updateEnvironmentVariables(
+            eq(connection), eq("connector-uuid"), connectorEnvironment.capture()
+        );
+        assertThat(envByKey(runtimeEnvironment.getValue()).get("PLATFORM_COOLIFY_SERVICE_ROLE").value())
+            .isEqualTo("runtime");
+        assertThat(envByKey(connectorEnvironment.getValue()).get("PLATFORM_COOLIFY_SERVICE_ROLE").value())
+            .isEqualTo("connector");
+    }
+
+    @Test
     void rejectsDuplicateExactNameApplicationsBeforeMutation() throws Exception {
         DeploymentTargetProfileRepository targetProfileRepository = mock(DeploymentTargetProfileRepository.class);
         DeploymentProviderResourceHandleRepository resourceHandleRepository = mock(DeploymentProviderResourceHandleRepository.class);
