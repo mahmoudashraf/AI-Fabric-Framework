@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
+import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { emitEvent } from "@/config";
 import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
@@ -431,6 +432,9 @@ export function useChatFlow({
 
         setChatMessages((prev) => [...prev, aiMessage]);
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         emitEvent("error", {
           source: "chat-query",
           message: error instanceof Error ? error.message : "Unknown chat query failure",

@@ -192,6 +192,14 @@ export interface MaxModeHostConfig {
   showUtilityPanel?: boolean;
   /** Render the compact storefront dock that shares the Max Mode chat runtime */
   companionDock?: boolean;
+  /** Compact context text shown in the companion dock header and status badge */
+  companionContextLabel?: string;
+  /** Compact mode label shown beside the companion composer */
+  companionModeLabel?: string;
+  /** Host-specific companion composer placeholder */
+  companionPlaceholder?: string;
+  /** Host-specific empty-state guidance in the expanded companion */
+  companionEmptyMessage?: string;
   /** Optional Shopify Customer Account auth handoff used for customer-owned resources */
   customerAccountAuth?: MaxModeHostCustomerAccountAuthConfig;
 }
@@ -288,6 +296,10 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     initialAttachments: undefined,
     showUtilityPanel: true,
     companionDock: false,
+    companionContextLabel: undefined,
+    companionModeLabel: undefined,
+    companionPlaceholder: undefined,
+    companionEmptyMessage: undefined,
     customerAccountAuth: undefined,
   },
   onEvent: undefined,

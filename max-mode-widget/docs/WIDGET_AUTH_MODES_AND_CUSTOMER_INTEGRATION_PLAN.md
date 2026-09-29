@@ -297,7 +297,6 @@ integrationMode?:
   | "backend-mediated-private-runtime"
   | "public-runtime-authenticated"
   | "public-runtime-anonymous";
-sessionId?: string;
 ```
 
 Interpretation:
@@ -307,7 +306,8 @@ Interpretation:
 - `crudHeaders`: storefront CRUD-only headers
 - `runtimeRoutes`: explicit preferred runtime URLs when the host already knows the secure route contract
 - `integrationMode`: selects which secure runtime auth posture the widget expects
-- `sessionId`: explicit anonymous bootstrap hint for the public-anonymous mode
+- anonymous `sessionId` is runtime-issued and is never supplied as widget
+  bootstrap input
 
 This is enough for the initial secure productized integration API.
 
@@ -393,9 +393,11 @@ The current widget is improved, but still not fully auth-mode-complete.
 The main remaining gaps are:
 
 1. no proactive authenticated-token refresh contract yet beyond `getBearerToken`
-2. no host-visible unauthorized/expired-token recovery callback yet
+2. no same-session anonymous token renewal endpoint yet; the safe fallback
+   clears stale state and emits `error.code=public-runtime-session-invalidated`
 3. no feature gating derived automatically from auth mode
-4. no runtime-specific identity derivation contract yet beyond secure omission of legacy request identity
+4. authenticated customer identity handoff remains host-specific; anonymous
+   identity is runtime-issued and never browser-selected
 5. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
 6. no explicit runtime-first or host-first replacement contract yet for connector-adjacent config/status/summary/logs reads when the connector is private
 
@@ -403,15 +405,16 @@ The main remaining gaps are:
 
 ## 11) Deployment Workflow Review
 
-The corrected deployment workflow should now assume:
+The supported release workflow assumes:
 
 - widget source path is `max-mode-widget/`
-- GitHub Pages deploys from this repository, not from the old `aifabric` repo path
+- the integrating application bundles the exact reviewed LoomAI artifact
+- an unpinned personal GitHub Pages asset is not a supported customer dependency
 
-Expected public script URL for this repo:
+Expected application-owned script path:
 
 ```html
-<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script src="/vendor/max-mode-widget.iife.js"></script>
 ```
 
 The workflow should:
@@ -420,7 +423,8 @@ The workflow should:
 - build from `max-mode-widget`
 - publish `max-mode-widget.iife.js`, `max-mode-widget.esm.js`, `max-mode-widget.cjs.js`, and `style.css`
 
-That has now been corrected locally in `.github/workflows/deploy-widget.yml`.
+The LoomAI public site builds the widget from this workspace and copies the
+reviewed IIFE bundle into that path before its own immutable image is built.
 
 ---
 

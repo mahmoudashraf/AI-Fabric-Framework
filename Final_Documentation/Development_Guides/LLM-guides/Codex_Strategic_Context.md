@@ -526,3 +526,22 @@ Current P0 cleanup items:
   This supersedes only the hosted-generic-pending statement. The dealership
   demo and every real Auto Trader sandbox/production access, rights, package,
   validation, and claim gate remain open and independent.
+- 2026-09-29 dealership demo source checkpoint: the ordinary dealership
+  application now exists as a native `loomai-site` customer/staff UI plus a
+  separately deployed dealership-owned backend. The backend owns fictional
+  stock, exact filters, policy and encrypted/idempotent lead writes; the
+  browser uses bundled Companion/Max Mode and talks directly to its assigned
+  deployment through public anonymous runtime access. The backend privately
+  pushes inventory and reconciles indexing work; runtime connector calls to
+  application authorization/actions stay protected. Public catalogue status is
+  deliberately `preview`. Local backend, connector, site, container,
+  responsive, accessibility and dependency-security gates pass. Follow-up
+  hardening added server-owned vector scope metadata, stable inactive-stock
+  deletes, least-scope ingestion assertions, and safe anonymous-session
+  invalidation without cross-identity request replay. The widget bundle now
+  carries LoomAI ownership and is built into the host site. This does not yet
+  establish `DEALERSHIP_DEMO_READY`: hosted indexing, retrieval,
+  confirmation/action execution, and same-session anonymous token renewal
+  remain open.
+  It establishes no Auto Trader sandbox, production, data-rights, package or
+  partnership claim.

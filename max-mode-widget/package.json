@@ -1,7 +1,7 @@
 {
-  "name": "@anthropic/max-mode-widget",
+  "name": "@loom-ai-labs/max-mode-widget",
   "version": "1.0.0",
-  "description": "Embeddable AI shopping assistant widget — drop-in chatbot for any website or Shopify store",
+  "description": "Embeddable LoomAI companion and Max Mode interface for customer applications",
   "type": "module",
   "main": "./dist/max-mode-widget.cjs.js",
   "module": "./dist/max-mode-widget.esm.js",
@@ -75,8 +75,5 @@
     "ecommerce"
   ],
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/anthropics/max-mode-widget"
-  }
+  "private": true
 }

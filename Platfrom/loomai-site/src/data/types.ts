@@ -86,7 +86,7 @@ export type Experiment = {
   }
   links: {
     launch: LinkTarget
-    source: LinkTarget
+    source?: LinkTarget
   }
   sortOrder: number
 }

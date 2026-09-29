@@ -2,11 +2,12 @@
 
 - **Status:** Generic external-provider substrate implemented, locally
   verified, and staging-hosted proven as
-  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`; the dealership demo and all
-  partner-gated Auto Trader evidence remain open. LoomAI is not yet entitled
-  to claim Auto Trader integration readiness.
+  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`; dealership demo source and local
+  production-shape verification are implemented, while the hosted dealership
+  canary and all partner-gated Auto Trader evidence remain open. LoomAI is not
+  yet entitled to claim Auto Trader integration readiness.
 - **Date:** 2026-09-25
-- **Last contract review:** 2026-09-28
+- **Last contract review:** 2026-09-29
 - **Current LoomAI baseline:** AI Fabric `0.8.4`, Platform `Platform-V11`, V04
   deployment lifecycle
 - **Product boundary:** one dealership, one deployment, one server-owned Auto
@@ -41,6 +42,9 @@ Implemented foundations now include:
 - one self-contained runtime and Generic REST Connector per deployment;
 - deployment-local conversational orchestration, Data Sync, indexing, vector
   retrieval, structured action results, confirmation, and persistence;
+- opt-in runtime-issued public anonymous browser tokens and direct secure
+  `/api/chat/me/*` routes, plus the reusable LoomAI Max Mode/Companion chat
+  application that consumes them;
 - deployment and Marketplace secret-reference models;
 - bounded API-key and form-token connection profiles with approved hosts,
   token caching/refresh, fair-usage controls, and typed provider failures;
@@ -70,12 +74,18 @@ The remaining evidence/product work is material:
 
 1. Auto Trader sandbox access is partner-provisioned and LoomAI does not yet
    have recorded sandbox credentials, grants, test advertiser, or test stock.
-2. The approved dealership dataset, ordinary customer demo application, and
-   hosted meeting deployment do not yet exist.
+2. The fictional dealership dataset, ordinary customer demo application, and
+   direct-anonymous Max Mode composition now exist and pass local source,
+   container, accessibility, and browser gates. The assigned hosted LoomAI
+   deployment and its indexing/retrieval/action evidence do not yet exist.
 3. Exact Auto Trader DATA/ACTION/TEMPLATE versions cannot be authored or
    published responsibly until the granted routes, schemas, advertiser,
    webhook rules, data rights, and validation requirements are supplied.
 4. No real Auto Trader sandbox or production canary has passed.
+5. Public anonymous chat has no same-session token-renewal contract yet. The
+   current widget can bootstrap a new identity after `401` while still holding
+   an old conversation ID, so renewal and safe stale-state reset must be added
+   before the external dealership demo gate can pass.
 
 To avoid making partner onboarding the critical path for LoomAI engineering,
 the hosted generic gate used a separately deployed, provider-neutral vehicle
@@ -98,7 +108,7 @@ phrase `Auto Trader ready`.
 | State | Permitted claim | Required evidence |
 | --- | --- | --- |
 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | LoomAI has proven its deployment-local external-provider mechanics against controlled hosted provider contracts | Separate HTTPS simulator, two materially different provider profiles, two isolated deployments, real Platform apply/index/restart/recovery/decommission evidence |
-| `DEALERSHIP_DEMO_READY` | LoomAI can demonstrate dealership inventory indexing, retrieval, chat, comparison, and a confirmed dealership-owned lead action | Approved demonstration dataset, real LoomAI deployment, real model/embedding/vector providers, complete live demo gate |
+| `DEALERSHIP_DEMO_READY` | LoomAI can demonstrate dealership inventory indexing, retrieval, direct browser chat, comparison, and a confirmed dealership-owned lead action | Approved demonstration dataset, real LoomAI deployment, direct anonymous Max Mode/Companion proof, real model/embedding/vector providers, complete live demo gate |
 | `AUTOTRADER_SANDBOX_ENABLED` | The exact deployment composition can connect to the granted Auto Trader sandbox | Partner-provisioned sandbox identity, exact grants, authorized test advertiser, generic substrate complete, authentication/preflight succeeds |
 | `AUTOTRADER_SANDBOX_VERIFIED` | The named plugin/template version passed the named Auto Trader sandbox scenarios | Real baseline/read/webhook canaries, isolation, failures, work reconciliation, source evidence, Auto Trader validation evidence |
 | `AUTOTRADER_PRODUCTION_READY` | The exact immutable composition is approved for the named production capabilities and advertiser | Separate production bindings, written rights, applicable go-live checks, production canary, LoomAI staging/production release gates |
@@ -346,11 +356,19 @@ plane.
 
 ```text
 dealership browser
-  -> dealership backend
-  -> assigned deployment chat/session endpoints
+  -> ordinary dealership website and inventory APIs
+  -> LoomAI Max Mode/Companion chat application
+     -> assigned deployment public anonymous bootstrap
+     -> assigned deployment secure /api/chat/me/* endpoints
+
+dealership backend
+  -> deployment-local Data Sync/work-status and safe-readiness endpoints
+  -> protected remote authorization and lead/test-drive command endpoints
 
 assigned deployment
   -> AI Fabric runtime
+  -> exact-origin anonymous bootstrap and scoped public chat ingress
+  -> fail-closed REMOTE_HTTP authorization for bounded public reads
   -> deployment-local Generic REST Connector
      -> Auto Trader sandbox or production APIs
   -> one deployment-owned PostgreSQL resource
@@ -375,6 +393,35 @@ LoomAI Platform
 The Platform may poll bounded deployment admin projections. It must not receive
 credential values, full inventory payloads, model prompts, or routine provider
 events.
+
+Public buyer chat is the one deliberate browser-to-deployment path. The runtime
+creates the anonymous session and issues a short-lived scoped bearer token after
+validating the exact allowed origin. The browser may receive the fixed public
+deployment chat/bootstrap URLs, but never an assignment key, deployment service
+credential, connector credential, Data Sync/admin URL, provider credential, or
+caller-controlled tenant/deployment/advertiser identity.
+
+The existing private LoomAI `max-mode-widget` is the customer chat application
+for this path. Its Companion dock, default Max Mode workspace, anonymous
+bootstrap client, conversations, source/action rendering, and confirmation flow
+must be reused. The public AI Fabric `chat-capabilities-demo` is a behavioral
+reference only and is not part of the customer composition or deployment.
+
+The hosted neutral canary templates currently use `ALLOW_VERIFIED`, which
+correctly denies `ANONYMOUS_SESSION`. The dealership template must not copy that
+setting. It must opt into public bootstrap and exact CORS/origin, issuer,
+audience, scope, signing-secret, and rate-limit configuration, and use
+`REMOTE_HTTP` authorization that grants only the deployment's bounded public
+dealership reads. Anonymous actions remain denied unless their manifest
+metadata explicitly permits the reviewed public action.
+
+The current anonymous client can obtain a new token after `401`, but a new
+bootstrap also creates a new anonymous identity. Before external demo release,
+the private runtime and Max Mode integration need origin-checked proactive
+same-session renewal authenticated by the still-valid token. When renewal is no
+longer possible, the widget must clear old conversation/pending state before a
+new identity is bootstrapped. Cross-refresh continuity remains outside the first
+release and no browser-supplied session ID is permitted.
 
 The connector calls its colocated runtime through an internal service URL and a
 generated deployment-scoped service credential limited to Data Sync writes and
@@ -728,9 +775,19 @@ Marketplace plugin type.
 
 ### 6.10 Workstream J: dealership demo application
 
-Build the separate ordinary customer application described in `010.26`. It:
+The separate ordinary customer application described in `010.26` is now source
+implemented. It:
 
 - consumes deployment URLs over HTTP;
+- reuses the LoomAI Max Mode/Companion generic chat application in
+  `public-runtime-anonymous` mode;
+- pins a reviewed LoomAI-owned widget artifact/source build and removes stale
+  package/repository/CDN branding before an external demo;
+- renews short-lived anonymous access before expiry without changing the
+  runtime-issued session, and safely clears stale conversation/pending state
+  when a new anonymous identity is unavoidable;
+- sends public buyer chat directly from the browser to the assigned deployment,
+  without a Platform or dealership chat facade;
 - contains no AI Fabric dependency or local AI implementation;
 - uses approved demo data until sandbox access exists;
 - exercises real LoomAI indexing, retrieval, chat, confirmation, and action
@@ -740,7 +797,16 @@ Build the separate ordinary customer application described in `010.26`. It:
 
 This work can proceed in parallel with partner onboarding after the opt-in
 customer-backend Data Sync URL and safe-readiness contracts are stable. The
-demo backend receives those URLs and matching scopes; the browser does not.
+demo backend receives those privileged URLs and matching scopes; the browser
+does not. The browser receives only the non-secret public runtime descriptor
+needed for bootstrap and secure chat routes.
+
+The 2026-09-29 implementation checkpoint proves the native customer and staff
+UI, dealership-owned inventory/lead backend, protected connector contracts,
+private Data Sync client, build identity, and browser-safe runtime descriptor.
+It does not yet prove same-session anonymous renewal, hosted indexing,
+deployment retrieval, live confirmation/action execution, or
+`DEALERSHIP_DEMO_READY`.
 
 ### 6.11 Workstream K: hosted external-provider simulator
 
@@ -917,6 +983,12 @@ manual JSON or environment repair.
 
 - Publish the demo DATA and dealership lead ACTION packages.
 - Create the exact meeting deployment and ordinary customer demo app.
+- Configure exact-origin public anonymous bootstrap, `REMOTE_HTTP` bounded
+  public-read authorization, and explicit anonymous action policy.
+- Reuse Max Mode/Companion and prove direct browser-to-deployment chat without a
+  static credential or chat proxy.
+- Prove same-session token renewal and fail-closed new-session reset without
+  stale conversation replay.
 - Pass the `DEALERSHIP_DEMO_READY` gate.
 
 Exit: live HTTPS demo with real LoomAI behavior and no false Auto Trader claim.
@@ -1131,8 +1203,9 @@ Until then, the correct status is:
 ```text
 Auto Trader integration planned; LoomAI dealership demonstration can proceed
 with clearly labelled approved demo data. The generic deployment-local
-integration substrate is staging-hosted verified; the dealership demo and
-partner sandbox/production evidence remain separate open gates.
+integration substrate is staging-hosted verified; dealership demo source is
+locally verified, while its hosted deployment gate and partner
+sandbox/production evidence remain separate open gates.
 ```
 
 ## 14. Official Auto Trader Evidence

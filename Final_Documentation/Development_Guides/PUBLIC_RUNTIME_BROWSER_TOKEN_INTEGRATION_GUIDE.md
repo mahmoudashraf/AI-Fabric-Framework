@@ -1,6 +1,6 @@
 # Public Runtime Browser Token Integration Guide
 
-Status: current branch guide (2026-04-07)
+Status: current branch guide (reviewed 2026-09-29)
 
 This guide explains the opt-in public-runtime posture:
 
@@ -74,6 +74,7 @@ What it does:
 
 - validates origin
 - enforces anonymous bootstrap rate limits
+- creates the anonymous session identity on the runtime
 - issues a short-lived anonymous token
 
 What it does not do:
@@ -81,6 +82,7 @@ What it does not do:
 - create privileged identity
 - bypass authz
 - make the connector public
+- accept browser-chosen session, user, tenant, customer, or deployment identity
 
 If bootstrap is enabled, configure:
 
@@ -101,7 +103,7 @@ Avoid:
 
 Expected claims include:
 
-- `sub=anon:<session-id>`
+- `sub=<runtime-issued-anonymous-session-id>`
 - `subjectType=ANONYMOUS_SESSION`
 - `authMode=PUBLIC_RUNTIME_ANONYMOUS`
 - `callerType=PUBLIC_BROWSER`
@@ -186,6 +188,16 @@ For widget integrations:
 - treat runtime as the external chat and operational read surface
 - do not call the connector directly
 
+Each anonymous bootstrap currently creates a new runtime identity. A fresh
+token obtained after expiry must not be used with an old conversation ID or
+pending confirmation. Until a runtime-owned same-session renewal contract is
+available, the client must clear that stale state before starting the new
+anonymous session. A caller-provided session ID is never a renewal mechanism.
+The current LoomAI Max Mode widget enforces that fallback: expiry, runtime
+change, or HTTP 401 clears conversation, prompt, attachment, and confirmation
+state and prevents automatic replay of the in-flight request under a new
+identity. Same-session renewal remains a separate runtime capability.
+
 If the platform public provisioning API exposes:
 
 - `integration.publicRuntimeBootstrapUrl`
@@ -207,9 +219,7 @@ Host: runtime-dep-example.up.railway.app
 Origin: https://store.example
 Content-Type: application/json
 
-{
-  "sessionId": "anon-storefront-001"
-}
+{}
 ```
 
 Response:
@@ -221,10 +231,14 @@ Response:
   "token": "<runtime-public-token>",
   "authMode": "PUBLIC_RUNTIME_ANONYMOUS",
   "subjectType": "ANONYMOUS_SESSION",
-  "sessionId": "anon-storefront-001",
-  "expiresAt": "2026-04-07T12:00:00Z"
+  "sessionId": "anon-<runtime-generated-id>",
+  "expiresAt": "2026-09-29T12:00:00Z"
 }
 ```
+
+Do not send `sessionId`, `userId`, `ownerId`, `tenantId`, `customerId`, or
+`deploymentId` to anonymous bootstrap. Unexpected fields are rejected; the
+runtime owns anonymous identity issuance.
 
 ---
 
@@ -266,6 +280,7 @@ The response should show the effective public auth mode, subject type, session i
 Must prove:
 
 - anonymous bootstrap enforces allowed origins
+- anonymous bootstrap rejects caller-supplied identity/session fields
 - anonymous bootstrap rate limiting works
 - anonymous token is short-lived
 - authenticated token validation enforces issuer and audience policy

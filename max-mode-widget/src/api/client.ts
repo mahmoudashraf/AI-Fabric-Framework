@@ -5,9 +5,48 @@ import {
 type PublicRuntimeTokenState = {
   token?: string;
   expiresAt?: string;
+  sessionId?: string;
+  runtimeKey?: string;
 };
 
 const publicRuntimeTokenState: PublicRuntimeTokenState = {};
+const publicRuntimeSessionInvalidationListeners = new Set<(
+  event: PublicRuntimeSessionInvalidation,
+) => void>();
+
+export type PublicRuntimeSessionInvalidationReason =
+  | "expired"
+  | "unauthorized"
+  | "runtime-changed";
+
+export type PublicRuntimeSessionInvalidation = {
+  reason: PublicRuntimeSessionInvalidationReason;
+  previousSessionId?: string;
+};
+
+export class PublicRuntimeSessionInvalidatedError extends Error {
+  readonly code = "PUBLIC_RUNTIME_SESSION_INVALIDATED";
+
+  constructor(readonly reason: PublicRuntimeSessionInvalidationReason) {
+    super("Your secure guest session changed. Please send your request again.");
+    this.name = "PublicRuntimeSessionInvalidatedError";
+  }
+}
+
+export function isPublicRuntimeSessionInvalidatedError(
+  error: unknown,
+): error is PublicRuntimeSessionInvalidatedError {
+  return error instanceof PublicRuntimeSessionInvalidatedError;
+}
+
+export function subscribePublicRuntimeSessionInvalidation(
+  listener: (event: PublicRuntimeSessionInvalidation) => void,
+): () => void {
+  publicRuntimeSessionInvalidationListeners.add(listener);
+  return () => {
+    publicRuntimeSessionInvalidationListeners.delete(listener);
+  };
+}
 
 function isAbsoluteUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
@@ -66,8 +105,17 @@ function normalizeTokenHeader(token: string, tokenScheme?: string): string {
   return `${scheme} ${normalizedToken}`;
 }
 
-function isCachedPublicTokenUsable(): boolean {
+function runtimeCacheKey(baseUrl: string): string {
+  const bootstrapUrl = trimToNull(getWidgetConfig().apiConfig.runtimeAuth?.bootstrapUrl)
+    ?? `${baseUrl}/public/chat/session`;
+  return `${baseUrl.trim().replace(/\/$/, "")}|${bootstrapUrl}`;
+}
+
+function isCachedPublicTokenUsable(baseUrl: string): boolean {
   if (!trimToNull(publicRuntimeTokenState.token)) {
+    return false;
+  }
+  if (publicRuntimeTokenState.runtimeKey !== runtimeCacheKey(baseUrl)) {
     return false;
   }
   const expiresAt = trimToNull(publicRuntimeTokenState.expiresAt);
@@ -84,6 +132,31 @@ function isCachedPublicTokenUsable(): boolean {
 function clearCachedPublicRuntimeToken(): void {
   delete publicRuntimeTokenState.token;
   delete publicRuntimeTokenState.expiresAt;
+  delete publicRuntimeTokenState.sessionId;
+  delete publicRuntimeTokenState.runtimeKey;
+}
+
+function invalidatePublicRuntimeSession(
+  reason: PublicRuntimeSessionInvalidationReason,
+): void {
+  const previousSessionId = trimToNull(publicRuntimeTokenState.sessionId);
+  const hadRuntimeSession = Boolean(
+    trimToNull(publicRuntimeTokenState.token)
+      || previousSessionId
+      || trimToNull(publicRuntimeTokenState.runtimeKey),
+  );
+  clearCachedPublicRuntimeToken();
+  if (!hadRuntimeSession) {
+    return;
+  }
+  const event = { reason, previousSessionId };
+  publicRuntimeSessionInvalidationListeners.forEach((listener) => {
+    try {
+      listener(event);
+    } catch {
+      // One host listener must not prevent the auth boundary from being cleared.
+    }
+  });
 }
 
 async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> {
@@ -113,6 +186,8 @@ async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> 
   }
   publicRuntimeTokenState.token = token;
   publicRuntimeTokenState.expiresAt = trimToNull(response?.expiresAt);
+  publicRuntimeTokenState.sessionId = trimToNull(response?.sessionId);
+  publicRuntimeTokenState.runtimeKey = runtimeCacheKey(baseUrl);
   return token;
 }
 
@@ -145,7 +220,17 @@ async function resolveSecureRuntimeHeaders(
     return headers;
   }
 
-  const cachedToken = isCachedPublicTokenUsable() ? trimToNull(publicRuntimeTokenState.token) : undefined;
+  if (trimToNull(publicRuntimeTokenState.token) && !isCachedPublicTokenUsable(baseUrl)) {
+    const reason = publicRuntimeTokenState.runtimeKey === runtimeCacheKey(baseUrl)
+      ? "expired"
+      : "runtime-changed";
+    invalidatePublicRuntimeSession(reason);
+    throw new PublicRuntimeSessionInvalidatedError(reason);
+  }
+
+  const cachedToken = isCachedPublicTokenUsable(baseUrl)
+    ? trimToNull(publicRuntimeTokenState.token)
+    : undefined;
   const token = cachedToken ?? await bootstrapAnonymousRuntimeToken(baseUrl);
   return {
     ...headers,
@@ -174,13 +259,8 @@ async function performFetch(path: string, init?: RequestInit, baseUrl?: string):
 
   const mode = getWidgetConfig().integrationMode ?? "backend-mediated-private-runtime";
   if (response.status === 401 && mode === "public-runtime-anonymous") {
-    clearCachedPublicRuntimeToken();
-    const retryHeaders = await resolveRequestHeaders(init, base);
-    return fetch(requestUrl, {
-      ...init,
-      credentials: init?.credentials ?? getFetchCredentials(),
-      headers: retryHeaders,
-    });
+    invalidatePublicRuntimeSession("unauthorized");
+    throw new PublicRuntimeSessionInvalidatedError("unauthorized");
   }
 
   return response;

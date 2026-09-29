@@ -15,7 +15,9 @@ import {
   type MaxModeHostConfig,
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
+import { subscribePublicRuntimeSessionInvalidation } from "@/api/client";
 import { buildCustomerAccountConnectUrl } from "@/chatResult";
+import { useMaxModeContextOptional } from "@/context";
 import type {
   ChatMessage,
   CustomerAccountConnectAction,
@@ -469,6 +471,7 @@ export function useMaxModeController({
   const shellConfigProbeKeyRef = useRef<string | null>(null);
   const shellConfigProbeInFlightRef = useRef(false);
   const pendingPromptFlushInFlightRef = useRef(false);
+  const maxModeContext = useMaxModeContextOptional();
 
   const {
     suggestions,
@@ -527,6 +530,32 @@ export function useMaxModeController({
     setContextDocuments,
     toast,
   });
+
+  useEffect(() => subscribePublicRuntimeSessionInvalidation((event) => {
+    startNewConversation();
+    setChatQuery("");
+    setIsLoading(false);
+    setConfirmationStatus({});
+    setFocusedMessageId(null);
+    setExpandedActions({});
+    setCollectingItem(null);
+    setLastRequestData(null);
+    setLastResponseData(null);
+    setSelectedDebugMessage(null);
+    authContextProbeKeyRef.current = null;
+    try {
+      sessionStorage.removeItem(PENDING_PROMPTS_KEY);
+    } catch {}
+    maxModeContext?.clearPersistedState();
+    emitEvent("error", {
+      code: "public-runtime-session-invalidated",
+      reason: event.reason,
+    });
+    toast({
+      title: "Guest session refreshed",
+      description: "For your security, the previous conversation was cleared. Please send your request again.",
+    });
+  }), [maxModeContext, startNewConversation, toast]);
 
   const { handleChatQuery } = useChatFlow({
     chatQuery,

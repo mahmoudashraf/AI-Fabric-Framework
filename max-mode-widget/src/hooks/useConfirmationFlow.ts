@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
+import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
@@ -94,6 +95,9 @@ export function useConfirmationFlow({
           description: confirmed ? "Your confirmation has been processed" : "Action cancelled",
         });
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         console.error("Error processing confirmation:", error);
         toast({
           title: "Error",

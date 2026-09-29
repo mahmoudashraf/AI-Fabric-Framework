@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, '..')
 const dist = path.join(root, 'dist')
 
-const routes = [
+const indexedRoutes = [
   '',
   'products',
   'products/ai-fabric-framework',
@@ -28,7 +28,10 @@ const routes = [
   'research/privacy-aware-rag-context',
   'about',
   'connect',
+  'demos/dealership-ai',
 ]
+const noIndexRoutes = ['demos/dealership-ai/staff']
+const routes = [...indexedRoutes, ...noIndexRoutes]
 
 const errors = []
 const htmlFiles = []
@@ -59,6 +62,9 @@ for (const required of [
   'sitemap.xml',
   'research/feed.xml',
   'assets/loom-woven-hero.png',
+  'assets/demos/dealership/vehicle-01.webp',
+  'assets/demos/dealership/vehicle-05.webp',
+  'vendor/max-mode-widget.iife.js',
 ]) {
   if (!existsSync(path.join(dist, required))) {
     errors.push(`Missing required static output: ${required}`)
@@ -66,10 +72,21 @@ for (const required of [
 }
 
 const sitemap = readFileSync(path.join(dist, 'sitemap.xml'), 'utf8')
-for (const route of routes) {
+for (const route of indexedRoutes) {
   const expected = `https://loomai.pro/${route}`
   if (!sitemap.includes(expected)) {
     errors.push(`Sitemap missing ${expected}`)
+  }
+}
+
+for (const route of noIndexRoutes) {
+  const html = readFileSync(path.join(dist, route, 'index.html'), 'utf8')
+  if (!html.includes('name="robots" content="noindex, nofollow"')) {
+    errors.push(`Expected noindex metadata at /${route}`)
+  }
+  const unexpected = `https://loomai.pro/${route}`
+  if (sitemap.includes(unexpected)) {
+    errors.push(`Noindex route unexpectedly present in sitemap: ${unexpected}`)
   }
 }
 

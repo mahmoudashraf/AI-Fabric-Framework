@@ -6,7 +6,7 @@ import type { MaxModeMode } from "@/constants";
 import type { MaxModeController } from "@/hooks/useMaxModeController";
 import { Button } from "@/ui/button";
 
-function modeLabel(mode: MaxModeMode) {
+function defaultModeLabel(mode: MaxModeMode) {
   switch (mode) {
     case "cart_assistant":
     case "executor":
@@ -35,9 +35,17 @@ function positionLabel(position: string) {
 export function CompanionDock({
   controller,
   onOpenMax,
+  contextLabel,
+  modeLabel,
+  placeholder,
+  emptyMessage,
 }: {
   controller: MaxModeController;
   onOpenMax: () => void;
+  contextLabel?: string;
+  modeLabel?: string;
+  placeholder?: string;
+  emptyMessage?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const nonAiAttachments = controller.attachedItems.filter((item) => item.type !== "ai-search");
@@ -75,7 +83,7 @@ export function CompanionDock({
               <div className="min-w-0">
                 <h2 className="truncate text-base font-bold text-gray-950 dark:text-white">{controller.assistantLabel}</h2>
                 <p className="truncate text-xs font-medium text-gray-500 dark:text-gray-400">
-                  Shopping context is active on this page
+                  {contextLabel?.trim() || "Shopping context is active on this page"}
                 </p>
               </div>
             </div>
@@ -97,7 +105,7 @@ export function CompanionDock({
                 </div>
                 <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">Start a conversation below</p>
                 <p className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
-                  Ask about products, policies, collections, cart decisions, or what fits this page.
+                  {emptyMessage?.trim() || "Ask about products, policies, collections, cart decisions, or what fits this page."}
                 </p>
               </div>
             ) : (
@@ -162,7 +170,7 @@ export function CompanionDock({
           <div className="mb-2 flex flex-wrap justify-end gap-2 px-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
               <Sparkles className="h-3 w-3" />
-              {modeLabel(controller.currentMode)}
+              {modeLabel?.trim() || defaultModeLabel(controller.currentMode)}
             </span>
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
               Assist
@@ -188,7 +196,7 @@ export function CompanionDock({
                   ? "Type your search query..."
                   : nonAiAttachments.length > 0
                     ? `Ask about ${nonAiAttachments.length} item${nonAiAttachments.length === 1 ? "" : "s"}...`
-                    : "Ask me anything..."
+                    : placeholder?.trim() || "Ask me anything..."
             }
             onFocus={() => {
               setExpanded(true);

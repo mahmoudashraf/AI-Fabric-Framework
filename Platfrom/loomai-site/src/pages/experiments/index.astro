@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CircleCheckBig,
   FileText,
+  CarFront,
   LockKeyhole,
   MessageSquare,
   Shield,
@@ -28,6 +29,7 @@ const primaryExperiments = primaryExperimentSlugs
   .map((slug) => experiments.find((item) => item.slug === slug))
   .filter((item) => item !== undefined)
 const compactExperimentSlugs = [
+  'dealership-ai-experience',
   'ai-shopping-experience',
   'account-resolver',
   'tenant-guard',
@@ -76,7 +78,7 @@ const filters = [
           </a>
         </div>
         <p class="experiments-hero__note">
-          Synthetic data <span>·</span> Bounded scenarios <span>·</span> Source-linked
+          Synthetic data <span>·</span> Bounded scenarios <span>·</span> Inspectable boundaries
         </p>
       </div>
       <img
@@ -120,7 +122,7 @@ const filters = [
           >
             <div class="featured-experiment__copy">
               <div class="featured-experiment__badges">
-                <span class="live-badge"><i></i>Live</span>
+                <span class="live-badge"><i></i>{experiment.status === 'live' ? 'Live' : 'Preview'}</span>
                 <span>{experiment.categoryLabel}</span>
               </div>
               <h2>{isDefault ? 'AI Fabric Live Data Sync' : experiment.title}</h2>
@@ -136,8 +138,8 @@ const filters = [
                 <a
                   class="loom-button loom-button--primary"
                   href={experiment.links.launch.href}
-                  target="_blank"
-                  rel="noreferrer"
+                  target={experiment.links.launch.external ? '_blank' : undefined}
+                  rel={experiment.links.launch.external ? 'noreferrer' : undefined}
                 >
                   Launch experiment
                 </a>
@@ -173,7 +175,7 @@ const filters = [
             data-category={experiment.primaryCategory}
           >
             <div class="compact-experiment__badges">
-              <span class="live-badge"><i></i>Live</span>
+              <span class="live-badge"><i></i>{experiment.status === 'live' ? 'Live' : 'Preview'}</span>
               <span>{experiment.categoryLabel}</span>
             </div>
             <div class="compact-experiment__layout">
@@ -182,7 +184,9 @@ const filters = [
                 <p>{experiment.summary}</p>
               </div>
               <span class="compact-experiment__icon" aria-hidden="true">
-                {experiment.slug === 'ai-shopping-experience' ? (
+                {experiment.slug === 'dealership-ai-experience' ? (
+                  <CarFront size={39} stroke-width={1.55} />
+                ) : experiment.slug === 'ai-shopping-experience' ? (
                   <ShoppingBag size={39} stroke-width={1.55} />
                 ) : experiment.slug === 'account-resolver' ? (
                   <UserRound size={39} stroke-width={1.55} />
@@ -196,7 +200,11 @@ const filters = [
               </span>
             </div>
             <div class="compact-experiment__actions">
-              <a href={experiment.links.launch.href} target="_blank" rel="noreferrer">
+              <a
+                href={experiment.links.launch.href}
+                target={experiment.links.launch.external ? '_blank' : undefined}
+                rel={experiment.links.launch.external ? 'noreferrer' : undefined}
+              >
                 Launch <ArrowRight size={15} aria-hidden="true" />
               </a>
               <a href={`/experiments/${experiment.slug}`}>About</a>
@@ -223,7 +231,7 @@ const filters = [
         </li>
         <li>
           <CircleCheckBig size={31} stroke-width={1.55} aria-hidden="true" />
-          <span><strong>Observable evidence</strong><small>Verify outcomes with source-linked proof.</small></span>
+          <span><strong>Observable evidence</strong><small>Verify outcomes with inspectable proof.</small></span>
         </li>
       </ol>
     </div>

@@ -2,6 +2,14 @@
 # Coolify build context: repository root
 FROM node:22-alpine AS build
 
+WORKDIR /workspace/max-mode-widget
+
+COPY max-mode-widget/package.json max-mode-widget/package-lock.json ./
+RUN npm ci
+
+COPY max-mode-widget ./
+RUN npm run typecheck
+
 WORKDIR /workspace/Platfrom/loomai-site
 
 COPY Platfrom/loomai-site/package.json Platfrom/loomai-site/package-lock.json ./

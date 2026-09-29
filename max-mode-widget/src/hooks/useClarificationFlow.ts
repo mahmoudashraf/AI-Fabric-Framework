@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
+import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
@@ -85,6 +86,9 @@ export function useClarificationFlow({
           setContextDocuments(data.documents);
         }
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         console.error("Error processing clarification:", error);
         toast({
           title: "Error",

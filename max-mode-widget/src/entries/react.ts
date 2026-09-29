@@ -2,8 +2,8 @@
  * React entry point — for npm consumers who already have React.
  *
  * Usage:
- *   import { MaxModeWidget, MaxModeProvider, useMaxMode } from '@anthropic/max-mode-widget';
- *   import '@anthropic/max-mode-widget/styles.css';
+ *   import { MaxModeWidget, MaxModeProvider, useMaxMode } from '@loom-ai-labs/max-mode-widget';
+ *   import '@loom-ai-labs/max-mode-widget/styles.css';
  */
 
 // Core widget component
@@ -40,4 +40,4 @@ export type {
 
 export type { SharedAttachment } from "@/context";
 
-// Style import path hint (actual import is '@anthropic/max-mode-widget/styles.css')
+// Style import path hint (actual import is '@loom-ai-labs/max-mode-widget/styles.css')

@@ -1,0 +1,92 @@
+server:
+  port: ${PORT:8108}
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
+      timeout: 30m
+
+spring:
+  application:
+    name: loomai-dealership-demo-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:file:./data/dealership-demo;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  sql:
+    init:
+      mode: never
+
+management:
+  info:
+    env:
+      enabled: true
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+info:
+  app:
+    name: loomai-dealership-demo-backend
+    version: ${APP_VERSION:0.1.0}
+    commit: ${APP_BUILD_COMMIT:${SOURCE_COMMIT:unknown}}
+    build-time: ${APP_BUILD_TIME:${BUILD_TIME:unknown}}
+
+dealership:
+  production-guards-enabled: ${DEMO_PRODUCTION_GUARDS_ENABLED:false}
+  id: ${DEALERSHIP_ID:dealer-demo-001}
+  name: ${DEALERSHIP_NAME:Northfield Motor House}
+  source-label: ${DEALERSHIP_SOURCE_LABEL:Demonstration inventory}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://127.0.0.1:4321,http://localhost:4321}
+  staff:
+    username: ${APP_STAFF_USERNAME:}
+    password-hash: ${APP_STAFF_PASSWORD_HASH:}
+  internal:
+    api-key-header: ${APP_INTERNAL_API_KEY_HEADER:X-DEALERSHIP-INTERNAL-KEY}
+    api-key: ${APP_INTERNAL_API_KEY:}
+  privacy:
+    encryption-key-base64: ${APP_PII_ENCRYPTION_KEY_BASE64:}
+    lead-retention: ${APP_LEAD_RETENTION:P30D}
+  runtime:
+    enabled: ${LOOMAI_RUNTIME_ENABLED:false}
+    base-url: ${LOOMAI_RUNTIME_BASE_URL:}
+    public-bootstrap-path: ${LOOMAI_RUNTIME_PUBLIC_BOOTSTRAP_PATH:/api/public/chat/session}
+    query-path: ${LOOMAI_RUNTIME_QUERY_PATH:/api/chat/me/query}
+    suggestions-path: ${LOOMAI_RUNTIME_SUGGESTIONS_PATH:/api/chat/me/suggestions}
+    auth-context-path: ${LOOMAI_RUNTIME_AUTH_CONTEXT_PATH:/api/chat/me/auth-context}
+    shell-config-path: ${LOOMAI_RUNTIME_SHELL_CONFIG_PATH:/api/chat/me/shell-config}
+    conversations-path: ${LOOMAI_RUNTIME_CONVERSATIONS_PATH:/api/chat/me/conversations}
+    conversation-item-path-template: ${LOOMAI_RUNTIME_CONVERSATION_ITEM_PATH_TEMPLATE:/api/chat/me/conversations/{conversationId}}
+    vector-space: ${LOOMAI_RUNTIME_VECTOR_SPACE:dealer-vehicle}
+    assertion-ttl: ${LOOMAI_RUNTIME_ASSERTION_TTL:PT2M}
+    private-access:
+      trusted-api-key-header: ${LOOMAI_RUNTIME_TRUSTED_API_KEY_HEADER:X-AIFABRIC-RUNTIME-API-KEY}
+      trusted-api-key: ${LOOMAI_RUNTIME_TRUSTED_API_KEY:}
+      authorization-header: ${LOOMAI_RUNTIME_PRIVATE_AUTHORIZATION_HEADER:X-AIFABRIC-RUNTIME-AUTHORIZATION}
+      signing-key: ${LOOMAI_RUNTIME_PRIVATE_ASSERTION_SIGNING_KEY:}
+      issuer: ${LOOMAI_RUNTIME_ASSERTION_ISSUER:dealership-demo-backend}
+      audience: ${LOOMAI_RUNTIME_ASSERTION_AUDIENCE:}
+      deployment-id: ${LOOMAI_RUNTIME_DEPLOYMENT_ID:}
+      customer-id: ${LOOMAI_RUNTIME_CUSTOMER_ID:}
+      tenant-id: ${LOOMAI_RUNTIME_TENANT_ID:}
+
+logging:
+  level:
+    com.loomai.demo.dealership: INFO

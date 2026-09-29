@@ -3016,3 +3016,44 @@ Critical fixes that made the gate pass:
   real Auto Trader sandbox credentials, grants, advertiser, schemas, webhook
   rules, data rights, certification, and production evidence remain open. Do
   not convert this result into an Auto Trader readiness claim.
+
+## 2026-09-29 Dealership AI Experience Source Implementation
+
+- Implemented the ordinary dealership-owned backend under
+  `product-demos/autotrader-dealership-demo/backend`. It owns fictional stock,
+  deterministic filters, lead persistence, staff sessions, protected
+  authorization/action APIs, private deployment-local Data Sync, indexing-work
+  reconciliation, and safe public runtime projection. It contains no AI Fabric
+  dependency and no Auto Trader credential or provider claim.
+- Implemented the native customer and staff experience under
+  `Platfrom/loomai-site/src/pages/demos/dealership-ai`. Customer chat reuses the
+  bundled `max-mode-widget` Companion dock and Max Mode in
+  `public-runtime-anonymous` mode and talks directly to the assigned runtime;
+  the dealership backend is not a chat proxy.
+- Added the experience to the public experiment catalogue as `preview`, with
+  explicit fictional-data, hosted-runtime, and Auto Trader boundaries. Public
+  site content/static/browser/accessibility/responsive gates pass. Astro was
+  updated from vulnerable `7.1.3` to patched `7.3.5`; site and widget production
+  audits now report zero findings.
+- Backend HTTP and sync-contract tests now pass `12/12`, including safe descriptor projection,
+  build identity, staff login, invalid credential handling, fail-closed
+  deployment authorization, encrypted lead storage, and idempotent confirmed
+  writes. The sync contract now adds server-owned tenant/deployment vector
+  metadata, emits stable deletes for inactive stock, and derives least-privilege
+  private assertion scopes. Review fixed an unreachable login route and a
+  client logout that did not send CSRF, which could have left the server
+  session valid.
+- The real Generic REST Connector accepted the supplied route/action contract
+  and reached `ACCEPTING_TRAFFIC`. Backend and public-site production images
+  build and start locally; source/status surfaces expose safe version, commit,
+  and build time.
+- Anonymous runtime expiry, runtime change, or HTTP 401 now clears cached
+  conversation, attachment, prompt, and pending-confirmation state and refuses
+  to replay the in-flight request under a new identity. The locally bundled
+  widget is LoomAI-labelled and no longer points customer integrations at the
+  old personal GitHub Pages artifact.
+- Do not claim `DEALERSHIP_DEMO_READY` yet. The assigned hosted LoomAI
+  deployment, live indexing/retrieval/confirmation/action evidence, and
+  same-session anonymous token renewal remain release gates. Real Auto Trader
+  sandbox/production credentials, grants, advertiser scope, rights, packages,
+  and certification remain separate external gates.

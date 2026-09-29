@@ -16,6 +16,33 @@ const buildCommit = (
   'unknown'
 ).trim()
 const buildTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || 'unknown').trim()
+const dealershipDemoApiBaseUrl = normalizeHttpUrl(process.env.DEALERSHIP_DEMO_API_BASE_URL)
+const dealershipDemoRuntimeBaseUrl = normalizeHttpUrl(process.env.DEALERSHIP_DEMO_RUNTIME_BASE_URL)
+
+function normalizeHttpUrl(value) {
+  const candidate = value?.trim()
+  if (!candidate) return ''
+  try {
+    const parsed = new URL(candidate)
+    if (!['http:', 'https:'].includes(parsed.protocol)) return ''
+    return parsed.toString().replace(/\/$/, '')
+  } catch {
+    return ''
+  }
+}
+
+function configuredConnectSources() {
+  const sources = new Set(["'self'"])
+  for (const candidate of [dealershipDemoApiBaseUrl, dealershipDemoRuntimeBaseUrl]) {
+    if (!candidate) continue
+    try {
+      sources.add(new URL(candidate).origin)
+    } catch {
+      // Invalid values are excluded and surfaced as an unavailable integration.
+    }
+  }
+  return [...sources].join(' ')
+}
 
 const contentTypes = new Map([
   ['.avif', 'image/avif'],
@@ -47,7 +74,7 @@ function securityHeaders(isStaticAsset = false) {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      `connect-src ${configuredConnectSources()}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self' mailto:",
@@ -168,6 +195,14 @@ const server = createServer((request, response) => {
       commit: buildCommit,
       buildTime,
       checkedAt: new Date().toISOString(),
+    }, headOnly)
+    return
+  }
+
+  if (requestUrl.pathname === '/runtime-config/dealership-demo.json') {
+    writeJson(response, 200, {
+      ready: Boolean(dealershipDemoApiBaseUrl),
+      apiBaseUrl: dealershipDemoApiBaseUrl || null,
     }, headOnly)
     return
   }

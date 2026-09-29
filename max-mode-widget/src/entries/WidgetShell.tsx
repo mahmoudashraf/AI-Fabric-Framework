@@ -56,7 +56,16 @@ function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) 
 
   return (
     <>
-      {showCompanionDock && !isOpen && <CompanionDock controller={controller} onOpenMax={handleOpen} />}
+      {showCompanionDock && !isOpen && (
+        <CompanionDock
+          controller={controller}
+          onOpenMax={handleOpen}
+          contextLabel={config.host?.companionContextLabel}
+          modeLabel={config.host?.companionModeLabel}
+          placeholder={config.host?.companionPlaceholder}
+          emptyMessage={config.host?.companionEmptyMessage}
+        />
+      )}
 
       {/* Floating launcher button */}
       {showLauncher && !isOpen && (

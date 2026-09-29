@@ -1,0 +1,150 @@
+actions:
+  - name: dealership_search_inventory
+    description: Search the dealership's currently active vehicle inventory using buyer preferences and exact filters.
+    category: dealership_inventory
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    groundingEligible: true
+    readActionResolutionEligible: true
+    params:
+      - name: query
+        description: Natural-language vehicle preferences.
+        type: STRING
+        required: false
+      - name: make
+        description: Exact make filter when the buyer specified one.
+        type: STRING
+        required: false
+      - name: fuelType
+        description: Exact fuel type filter when specified.
+        type: STRING
+        required: false
+      - name: bodyType
+        description: Exact body type filter when specified.
+        type: STRING
+        required: false
+      - name: maxPriceMinor
+        description: Maximum budget in GBP minor units.
+        type: INTEGER
+        required: false
+      - name: maxMileage
+        description: Maximum odometer mileage.
+        type: INTEGER
+        required: false
+      - name: limit
+        description: Maximum number of vehicles to return.
+        type: INTEGER
+        required: false
+        min: 1
+        max: 24
+
+  - name: dealership_get_vehicle
+    description: Load authoritative current details for a selected active dealership vehicle.
+    category: dealership_inventory
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    groundingEligible: true
+    readActionResolutionEligible: true
+    params:
+      - name: vehicleId
+        description: Trusted vehicle target id returned by inventory search.
+        type: STRING
+        required: true
+      - name: slug
+        description: Trusted vehicle URL slug returned by inventory search.
+        type: STRING
+        required: true
+
+  - name: dealership_compare_vehicles
+    description: Compare current structured facts for two to four active dealership vehicles.
+    category: dealership_inventory
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    groundingEligible: true
+    readActionResolutionEligible: true
+    params:
+      - name: vehicleIds
+        description: Comma-separated trusted vehicle ids returned by inventory search.
+        type: STRING
+        required: true
+
+  - name: dealership_request_callback
+    description: Create a dealership review request for a callback about a selected active vehicle.
+    category: dealership_lead
+    accessMode: WRITE_ONLY
+    anonymousAllowed: true
+    requiresConfirmation: true
+    confirmationMessage: Send your confirmed contact details to the dealership about this vehicle?
+    params:
+      - name: vehicleId
+        description: Trusted active vehicle id.
+        type: STRING
+        required: true
+      - name: name
+        description: Customer name.
+        type: STRING
+        required: true
+        sensitive: true
+      - name: email
+        description: Customer email address; email or phone is required.
+        type: STRING
+        required: false
+        sensitive: true
+      - name: phone
+        description: Customer telephone number; phone or email is required.
+        type: STRING
+        required: false
+        sensitive: true
+      - name: message
+        description: Optional callback notes.
+        type: STRING
+        required: false
+        sensitive: true
+      - name: consent
+        description: Whether the customer agreed to be contacted about this request.
+        type: BOOLEAN
+        required: true
+
+  - name: dealership_request_test_drive
+    description: Create a dealership review request for a test drive of a selected active vehicle.
+    category: dealership_lead
+    accessMode: WRITE_ONLY
+    anonymousAllowed: true
+    requiresConfirmation: true
+    confirmationMessage: Send your confirmed contact and preferred date to request this test drive?
+    params:
+      - name: vehicleId
+        description: Trusted active vehicle id.
+        type: STRING
+        required: true
+      - name: name
+        description: Customer name.
+        type: STRING
+        required: true
+        sensitive: true
+      - name: email
+        description: Customer email address; email or phone is required.
+        type: STRING
+        required: false
+        sensitive: true
+      - name: phone
+        description: Customer telephone number; phone or email is required.
+        type: STRING
+        required: false
+        sensitive: true
+      - name: preferredDate
+        description: Customer's preferred test-drive date or date range.
+        type: STRING
+        required: false
+      - name: message
+        description: Optional test-drive notes.
+        type: STRING
+        required: false
+        sensitive: true
+      - name: consent
+        description: Whether the customer agreed to be contacted about this request.
+        type: BOOLEAN
+        required: true

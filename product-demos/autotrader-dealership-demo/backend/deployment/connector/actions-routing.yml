@@ -1,0 +1,141 @@
+connector:
+  inbound-auth:
+    allow-unauthenticated: false
+    api-key:
+      enabled: true
+      header: ${CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}
+      value: ${CONNECTOR_API_KEY:}
+  upstream:
+    base-url: ${DEALERSHIP_BACKEND_BASE_URL:}
+    auth:
+      type: API_KEY
+      header: ${DEALERSHIP_INTERNAL_API_KEY_HEADER:X-DEALERSHIP-INTERNAL-KEY}
+      value: ${DEALERSHIP_INTERNAL_API_KEY:}
+  http:
+    connect-timeout-ms: 2000
+    timeout-ms: 8000
+    retry:
+      enabled: true
+      max-attempts: 2
+      backoff-ms: 250
+      retry-on: [429, 502, 503, 504]
+  idempotency:
+    enabled: true
+    ttl-seconds: 86400
+    in-progress-max-wait-ms: 2000
+
+authz:
+  enabled: true
+  path: /api/internal/authz/check
+  upstream:
+    base-url: ${DEALERSHIP_BACKEND_BASE_URL:}
+    auth:
+      type: API_KEY
+      header: ${DEALERSHIP_INTERNAL_API_KEY_HEADER:X-DEALERSHIP-INTERNAL-KEY}
+      value: ${DEALERSHIP_INTERNAL_API_KEY:}
+  http:
+    connect-timeout-ms: 500
+    timeout-ms: 1500
+
+actions:
+  dealership_search_inventory:
+    method: GET
+    path: /api/public/vehicles
+    request:
+      query:
+        q: "{{params.query}}"
+        make: "{{params.make}}"
+        fuelType: "{{params.fuelType}}"
+        bodyType: "{{params.bodyType}}"
+        maxPriceMinor: "{{params.maxPriceMinor}}"
+        maxMileage: "{{params.maxMileage}}"
+        limit: "{{params.limit|12}}"
+    response:
+      success-http-status: [200]
+      message: Inventory search completed.
+    authz:
+      enabled: true
+      resourceId: inventory-search
+      operationType: SEARCH
+
+  dealership_get_vehicle:
+    method: GET
+    path: /api/public/vehicles/{{params.slug}}
+    response:
+      success-http-status: [200]
+      message: Current vehicle details loaded.
+    authz:
+      enabled: true
+      resourceId: "{{params.vehicleId}}"
+      operationType: READ
+
+  dealership_compare_vehicles:
+    method: GET
+    path: /api/public/vehicles/compare
+    request:
+      query:
+        ids: "{{params.vehicleIds}}"
+    response:
+      success-http-status: [200]
+      message: Current vehicles compared.
+    authz:
+      enabled: true
+      resourceId: inventory-search
+      operationType: READ
+
+  dealership_request_callback:
+    method: POST
+    path: /api/internal/actions/execute
+    idempotency-header: Idempotency-Key
+    request:
+      body:
+        actionId: "{{actionId}}"
+        idempotencyKey: "{{idempotencyKey}}"
+        params:
+          confirmationAccepted: true
+          vehicleId: "{{params.vehicleId}}"
+          name: "{{params.name}}"
+          email: "{{params.email}}"
+          phone: "{{params.phone}}"
+          message: "{{params.message}}"
+          consent: "{{params.consent}}"
+        trace:
+          requestId: "{{trace.requestId}}"
+          conversationId: "{{trace.conversationId}}"
+          authContext: "{{trace.authContext}}"
+    response:
+      success-http-status: [200]
+      message: Callback request created.
+    authz:
+      enabled: true
+      resourceId: "{{params.vehicleId}}"
+      operationType: REQUEST_CALLBACK
+
+  dealership_request_test_drive:
+    method: POST
+    path: /api/internal/actions/execute
+    idempotency-header: Idempotency-Key
+    request:
+      body:
+        actionId: "{{actionId}}"
+        idempotencyKey: "{{idempotencyKey}}"
+        params:
+          confirmationAccepted: true
+          vehicleId: "{{params.vehicleId}}"
+          name: "{{params.name}}"
+          email: "{{params.email}}"
+          phone: "{{params.phone}}"
+          preferredDate: "{{params.preferredDate}}"
+          message: "{{params.message}}"
+          consent: "{{params.consent}}"
+        trace:
+          requestId: "{{trace.requestId}}"
+          conversationId: "{{trace.conversationId}}"
+          authContext: "{{trace.authContext}}"
+    response:
+      success-http-status: [200]
+      message: Test-drive request created.
+    authz:
+      enabled: true
+      resourceId: "{{params.vehicleId}}"
+      operationType: REQUEST_TEST_DRIVE

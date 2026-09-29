@@ -34,8 +34,12 @@ for (const experiment of experiments) {
   if (!experiment.usesSyntheticData) {
     errors.push(`${experiment.id} needs an explicit reviewed non-synthetic data source`)
   }
-  if (!experiment.links.launch.href.startsWith('https://ai-fabric.dev/demos/')) {
-    errors.push(`${experiment.id} launch link must use its public demo UI`)
+  const launchHref = experiment.links.launch.href
+  if (
+    !launchHref.startsWith('https://ai-fabric.dev/demos/') &&
+    !launchHref.startsWith('/demos/')
+  ) {
+    errors.push(`${experiment.id} launch link must use a reviewed public demo route`)
   }
   if (!experiment.lastVerified) {
     errors.push(`${experiment.id} is missing a verification date`)

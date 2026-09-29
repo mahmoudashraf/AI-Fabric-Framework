@@ -69,7 +69,7 @@ You provide these URLs when initializing the widget. The widget handles all UI r
 No build tools required. Add two lines before `</body>`:
 
 ```html
-<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script src="/vendor/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
@@ -84,12 +84,12 @@ No build tools required. Add two lines before `</body>`:
 ### Option B: npm (React / Next.js / Vite)
 
 ```bash
-npm install @anthropic/max-mode-widget
+npm install @loom-ai-labs/max-mode-widget
 ```
 
 ```tsx
-import { MaxModeWidget, useMaxMode } from "@anthropic/max-mode-widget";
-import "@anthropic/max-mode-widget/styles.css";
+import { MaxModeWidget, useMaxMode } from "@loom-ai-labs/max-mode-widget";
+import "@loom-ai-labs/max-mode-widget/styles.css";
 ```
 
 ### Option C: Self-Hosted
@@ -147,8 +147,8 @@ A floating chat button appears in the bottom-right corner. Click it to open the 
 
 ```tsx
 import { useState } from "react";
-import { MaxModeWidget } from "@anthropic/max-mode-widget";
-import "@anthropic/max-mode-widget/styles.css";
+import { MaxModeWidget } from "@loom-ai-labs/max-mode-widget";
+import "@loom-ai-labs/max-mode-widget/styles.css";
 
 function App() {
   const [open, setOpen] = useState(false);
@@ -207,15 +207,15 @@ MaxMode.init({
       authContextUrl: "https://runtime.example/api/chat/me/auth-context", // optional explicit override; prefer runtimeRoutes.authContextUrl
       probeAuthContextOnOpen: true,
       getBearerToken: async () => "...",
-      bootstrapAnonymous: async ({ sessionId }) => ({ token: "...", sessionId }),
+      bootstrapAnonymous: async () => ({
+        token: "...",
+        sessionId: "<runtime-issued-session-id>",
+      }),
     },
   },
   integrationMode: "backend-mediated-private-runtime"
     | "public-runtime-authenticated"
     | "public-runtime-anonymous",
-
-  // ── IDENTITY ──────────────────────────────────────────────
-  sessionId: "session_abc",     // Anonymous bootstrap hint only.
 
   // ── FEATURES ──────────────────────────────────────────────
   features: {
@@ -340,7 +340,7 @@ If you later expose public-runtime chat directly, switch to `public-runtime-auth
 In the Wix Editor, go to **Settings > Custom Code** and add a code snippet with placement "Body - end":
 
 ```html
-<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script src="/vendor/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
@@ -356,8 +356,8 @@ In the Wix Editor, go to **Settings > Custom Code** and add a code snippet with 
 
 ```tsx
 // app/layout.tsx
-import { MaxModeWidget } from "@anthropic/max-mode-widget";
-import "@anthropic/max-mode-widget/styles.css";
+import { MaxModeWidget } from "@loom-ai-labs/max-mode-widget";
+import "@loom-ai-labs/max-mode-widget/styles.css";
 
 // Client component wrapper needed for state
 "use client";
@@ -385,8 +385,8 @@ function AIAssistant() {
 
 ```tsx
 // main.tsx
-import { MaxModeWidget, useMaxMode } from "@anthropic/max-mode-widget";
-import "@anthropic/max-mode-widget/styles.css";
+import { MaxModeWidget, useMaxMode } from "@loom-ai-labs/max-mode-widget";
+import "@loom-ai-labs/max-mode-widget/styles.css";
 
 function App() {
   const maxMode = useMaxMode();
@@ -419,14 +419,13 @@ function App() {
 The main widget component. Renders the full AI assistant UI.
 
 ```tsx
-import { MaxModeWidget } from "@anthropic/max-mode-widget";
+import { MaxModeWidget } from "@loom-ai-labs/max-mode-widget";
 
 <MaxModeWidget
   isOpen={boolean}              // Required. Controls visibility.
   onClose={() => void}          // Required. Called when user clicks close.
   apiConfig={MaxModeApiConfig}  // Required. API endpoints.
   integrationMode="backend-mediated-private-runtime"
-  sessionId={string}            // Optional. Anonymous bootstrap hint only.
   initialAttachments={Array}    // Optional. Pre-attached items.
   features={MaxModeFeatures}    // Optional. Feature toggles.
   theme={MaxModeThemeConfig}    // Optional. Visual customization.
@@ -442,7 +441,6 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
 | `onClose` | `() => void` | Yes | Callback when the user closes the widget. |
 | `apiConfig` | `MaxModeApiConfig` | Yes | API configuration (see Section 4). |
 | `integrationMode` | `MaxModeIntegrationMode` | No | Strongly recommended. Secure defaults are `backend-mediated-private-runtime`, `public-runtime-authenticated`, or `public-runtime-anonymous`. |
-| `sessionId` | `string` | No | Anonymous bootstrap hint for `public-runtime-anonymous`. |
 | `initialAttachments` | `SharedAttachment[]` | No | Products/docs to pre-attach on first open. |
 | `features` | `MaxModeFeatures` | No | Feature toggles (see Section 4). |
 | `theme` | `MaxModeThemeConfig` | No | Theme overrides (see Section 4). |
@@ -453,7 +451,7 @@ import { MaxModeWidget } from "@anthropic/max-mode-widget";
 Provides programmatic control over the widget state.
 
 ```tsx
-import { useMaxMode } from "@anthropic/max-mode-widget";
+import { useMaxMode } from "@loom-ai-labs/max-mode-widget";
 
 function MyComponent() {
   const {
@@ -493,7 +491,7 @@ maxMode.attachProduct({
 Context provider for advanced use cases where you need multiple widgets or want to share state across components:
 
 ```tsx
-import { MaxModeProvider } from "@anthropic/max-mode-widget";
+import { MaxModeProvider } from "@loom-ai-labs/max-mode-widget";
 
 function App() {
   return (
@@ -526,7 +524,7 @@ import type {
   SanitizedPayload,
   SmartSuggestion,
   SharedAttachment,
-} from "@anthropic/max-mode-widget";
+} from "@loom-ai-labs/max-mode-widget";
 ```
 
 ---

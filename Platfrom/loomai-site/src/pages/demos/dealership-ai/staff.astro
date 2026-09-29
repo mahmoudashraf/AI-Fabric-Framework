@@ -1,0 +1,306 @@
+---
+import {
+  ArrowLeft,
+  CarFront,
+  CircleCheck,
+  CircleAlert,
+  Eye,
+  LogIn,
+  LogOut,
+  RefreshCw,
+  RotateCw,
+  ShieldCheck,
+  Users,
+  X,
+} from '@lucide/astro'
+import DemoApplicationLayout from '../../../layouts/DemoApplicationLayout.astro'
+
+const developmentApiBaseUrl = import.meta.env.DEV
+  ? (import.meta.env.PUBLIC_DEALERSHIP_DEMO_API_BASE_URL || 'http://127.0.0.1:8108')
+  : (import.meta.env.PUBLIC_DEALERSHIP_DEMO_API_BASE_URL || '')
+---
+
+<DemoApplicationLayout
+  title="Northfield staff workspace"
+  description="Protected staff workspace for the fictional LoomAI dealership integration demonstration."
+  canonicalPath="/demos/dealership-ai/staff"
+  noIndex
+>
+  <div
+    class="staff-app"
+    data-dealership-staff
+    data-development-api-base-url={developmentApiBaseUrl}
+  >
+    <header class="staff-header">
+      <div class="staff-shell staff-header__inner">
+        <a class="staff-brand" href="/demos/dealership-ai">
+          <span><CarFront size={24} aria-hidden="true" /></span>
+          <strong>Northfield Motor House</strong>
+        </a>
+        <a class="staff-back" href="/demos/dealership-ai">
+          <ArrowLeft size={17} aria-hidden="true" />
+          Customer demo
+        </a>
+      </div>
+    </header>
+
+    <div class="staff-main staff-shell">
+      <section class="staff-heading">
+        <div>
+          <p>Protected demonstration workspace</p>
+          <h1>Dealership operations</h1>
+        </div>
+        <span><ShieldCheck size={17} aria-hidden="true" /> Staff session required</span>
+      </section>
+
+      <div class="staff-alert" data-staff-alert hidden role="alert">
+        <CircleAlert size={19} aria-hidden="true" />
+        <span></span>
+      </div>
+
+      <section class="login-panel" data-login-panel aria-labelledby="staff-login-title">
+        <div class="login-panel__copy">
+          <p>Northfield team</p>
+          <h2 id="staff-login-title">Sign in to review customer requests.</h2>
+          <span>Credentials are configured only in the independently deployed dealership backend.</span>
+        </div>
+        <form data-login-form>
+          <label>
+            <span>Username</span>
+            <input name="username" autocomplete="username" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="staff-button staff-button--primary" type="submit">
+            <LogIn size={17} aria-hidden="true" />
+            Sign in
+          </button>
+        </form>
+      </section>
+
+      <section class="staff-workspace" data-staff-workspace hidden>
+        <div class="workspace-toolbar">
+          <div>
+            <p>Signed in as</p>
+            <strong data-staff-username>staff</strong>
+          </div>
+          <div>
+            <button class="staff-button" type="button" data-refresh-workspace>
+              <RefreshCw size={17} aria-hidden="true" />
+              Refresh
+            </button>
+            <button class="staff-button" type="button" data-logout>
+              <LogOut size={17} aria-hidden="true" />
+              Sign out
+            </button>
+          </div>
+        </div>
+
+        <section class="operations-strip" aria-label="Integration status">
+          <div>
+            <span>Inventory</span>
+            <strong data-staff-inventory-count>--</strong>
+            <small>active demo vehicles</small>
+          </div>
+          <div>
+            <span>LoomAI runtime</span>
+            <strong data-staff-runtime-status>Checking</strong>
+            <small data-staff-runtime-detail>public assignment status</small>
+          </div>
+          <div>
+            <span>Index synchronization</span>
+            <strong data-staff-sync-status>Checking</strong>
+            <small data-staff-sync-detail>deployment-local evidence</small>
+          </div>
+          <button class="staff-button staff-button--sync" type="button" data-run-sync>
+            <RotateCw size={17} aria-hidden="true" />
+            Sync inventory
+          </button>
+        </section>
+
+        <section class="lead-section" aria-labelledby="lead-inbox-title">
+          <div class="lead-section__heading">
+            <div>
+              <p>Confirmed customer actions</p>
+              <h2 id="lead-inbox-title">Review inbox</h2>
+            </div>
+            <span><Users size={17} aria-hidden="true" /><strong data-lead-count>0</strong> requests</span>
+          </div>
+
+          <div class="lead-table-wrap">
+            <table class="lead-table">
+              <thead>
+                <tr>
+                  <th scope="col">Receipt</th>
+                  <th scope="col">Request</th>
+                  <th scope="col">Vehicle</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Created</th>
+                  <th scope="col"><span class="visually-hidden">Open</span></th>
+                </tr>
+              </thead>
+              <tbody data-lead-table-body>
+                <tr><td colspan="6">Loading requests...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <template data-lead-row-template>
+            <tr>
+              <td data-lead-receipt></td>
+              <td data-lead-action></td>
+              <td data-lead-vehicle></td>
+              <td><span class="status-pill" data-lead-status></span></td>
+              <td data-lead-created></td>
+              <td>
+                <button class="icon-button" type="button" data-open-lead aria-label="Open request">
+                  <Eye size={17} aria-hidden="true" />
+                </button>
+              </td>
+            </tr>
+          </template>
+        </section>
+      </section>
+    </div>
+
+    <dialog class="lead-dialog" data-lead-dialog aria-labelledby="lead-dialog-title">
+      <header>
+        <div>
+          <p>Customer request</p>
+          <h2 id="lead-dialog-title" data-lead-dialog-receipt>Lead detail</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-lead aria-label="Close request detail">
+          <X size={20} aria-hidden="true" />
+        </button>
+      </header>
+      <div class="lead-dialog__body">
+        <dl data-lead-summary></dl>
+        <section>
+          <h3>Confirmed contact details</h3>
+          <dl data-lead-contact></dl>
+        </section>
+        <form data-lead-status-form>
+          <label>
+            <span>Request status</span>
+            <select name="status">
+              <option value="NEW">New</option>
+              <option value="CONTACTED">Contacted</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </label>
+          <button class="staff-button staff-button--primary" type="submit">
+            <CircleCheck size={17} aria-hidden="true" />
+            Save status
+          </button>
+        </form>
+      </div>
+    </dialog>
+  </div>
+
+  <script src="../../../scripts/dealership-staff.ts"></script>
+</DemoApplicationLayout>
+
+<style is:global>
+  .staff-app {
+    --staff-green: #123b35;
+    --staff-green-light: #e2f1ec;
+    --staff-ink: #17282f;
+    --staff-muted: #607078;
+    --staff-line: #d9e1de;
+    background: #f4f7f5;
+    color: var(--staff-ink);
+    min-height: 100vh;
+  }
+
+  .staff-shell { margin-inline: auto; max-width: 82rem; padding-inline: 2rem; width: 100%; }
+  .staff-header { background: #fff; border-bottom: 1px solid var(--staff-line); }
+  .staff-header__inner { align-items: center; display: flex; justify-content: space-between; min-height: 4.5rem; }
+  .staff-brand, .staff-back { align-items: center; color: var(--staff-green); display: inline-flex; gap: 0.6rem; text-decoration: none; }
+  .staff-brand > span { align-items: center; background: var(--staff-green); border-radius: 0.375rem; color: #fff; display: inline-flex; height: 2.4rem; justify-content: center; width: 2.4rem; }
+  .staff-brand strong { font-size: 0.92rem; }
+  .staff-back { font-size: 0.78rem; font-weight: 720; }
+  .staff-main { padding-block: 2.5rem 4rem; }
+
+  .staff-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 2rem; }
+  .staff-heading p, .lead-section__heading p, .login-panel__copy > p, .lead-dialog header p { color: #7b5200; font-size: 0.7rem; font-weight: 760; margin-bottom: 0.35rem; text-transform: uppercase; }
+  .staff-heading h1 { font-size: 2rem; margin: 0; }
+  .staff-heading > span { align-items: center; background: var(--staff-green-light); border-radius: 999px; color: var(--staff-green); display: inline-flex; font-size: 0.72rem; font-weight: 720; gap: 0.4rem; padding: 0.5rem 0.75rem; }
+
+  .staff-alert { align-items: center; background: #fff1ec; border: 1px solid #e5aa98; border-radius: 0.375rem; color: #843b27; display: flex; font-size: 0.78rem; gap: 0.6rem; margin-bottom: 1rem; padding: 0.8rem 1rem; }
+  .staff-alert[hidden] { display: none; }
+
+  .login-panel { align-items: center; background: #fff; border: 1px solid var(--staff-line); border-radius: 0.5rem; display: grid; gap: 4rem; grid-template-columns: minmax(0, 1fr) 22rem; margin: 5rem auto 0; max-width: 62rem; padding: 2.5rem; }
+  .login-panel[hidden], .staff-workspace[hidden] { display: none; }
+  .login-panel__copy h2 { font-size: 1.65rem; margin-bottom: 0.75rem; max-width: 19em; }
+  .login-panel__copy > span { color: var(--staff-muted); font-size: 0.82rem; line-height: 1.55; }
+  .login-panel form { border-left: 1px solid var(--staff-line); padding-left: 2rem; }
+  .login-panel label, .lead-dialog label { display: block; margin-bottom: 1rem; }
+  .login-panel label > span, .lead-dialog label > span { display: block; font-size: 0.72rem; font-weight: 720; margin-bottom: 0.35rem; }
+  .login-panel input, .lead-dialog select { background: #fff; border: 1px solid #bccac5; border-radius: 0.375rem; min-height: 2.8rem; padding: 0.6rem 0.75rem; width: 100%; }
+
+  .staff-button, .icon-button { align-items: center; background: #fff; border: 1px solid #b8c8c2; border-radius: 0.375rem; color: var(--staff-green); cursor: pointer; display: inline-flex; font-size: 0.76rem; font-weight: 740; gap: 0.45rem; justify-content: center; min-height: 2.65rem; padding-inline: 0.85rem; }
+  .staff-button:hover, .icon-button:hover { background: #edf5f2; }
+  .staff-button:disabled { cursor: not-allowed; opacity: 0.5; }
+  .staff-button--primary { background: var(--staff-green); border-color: var(--staff-green); color: #fff; }
+  .staff-button--primary:hover { background: #1f685b; }
+  .icon-button { height: 2.5rem; padding: 0; width: 2.5rem; }
+
+  .workspace-toolbar { align-items: center; display: flex; justify-content: space-between; margin-bottom: 1rem; }
+  .workspace-toolbar > div:first-child { display: flex; gap: 0.35rem; }
+  .workspace-toolbar p { color: var(--staff-muted); font-size: 0.76rem; margin: 0; }
+  .workspace-toolbar strong { font-size: 0.76rem; }
+  .workspace-toolbar > div:last-child { display: flex; gap: 0.5rem; }
+
+  .operations-strip { background: var(--staff-green); border-radius: 0.5rem; color: #fff; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; margin-bottom: 1.5rem; overflow: hidden; }
+  .operations-strip > div { border-right: 1px solid rgb(255 255 255 / 18%); display: flex; flex-direction: column; min-height: 7.2rem; padding: 1.15rem; }
+  .operations-strip span { color: #bcd2cd; font-size: 0.68rem; font-weight: 670; }
+  .operations-strip strong { font-size: 1.35rem; margin-block: 0.35rem; }
+  .operations-strip small { color: #bcd2cd; font-size: 0.68rem; }
+  .staff-button--sync { align-self: center; border: 0; margin: 1rem; }
+
+  .lead-section { background: #fff; border: 1px solid var(--staff-line); border-radius: 0.5rem; }
+  .lead-section__heading { align-items: center; border-bottom: 1px solid var(--staff-line); display: flex; justify-content: space-between; padding: 1.15rem 1.25rem; }
+  .lead-section__heading h2 { font-size: 1.2rem; margin: 0; }
+  .lead-section__heading > span { align-items: center; color: var(--staff-muted); display: inline-flex; font-size: 0.72rem; gap: 0.4rem; }
+  .lead-table-wrap { overflow-x: auto; }
+  .lead-table { border-collapse: collapse; min-width: 54rem; width: 100%; }
+  .lead-table th { color: var(--staff-muted); font-size: 0.67rem; font-weight: 720; text-transform: uppercase; }
+  .lead-table th, .lead-table td { border-bottom: 1px solid #e8ecea; padding: 0.85rem 1rem; text-align: left; }
+  .lead-table td { font-size: 0.76rem; }
+  .lead-table tbody tr:last-child td { border-bottom: 0; }
+  .lead-table tbody tr:hover { background: #f7faf9; }
+  .status-pill { border-radius: 999px; display: inline-block; font-size: 0.65rem; font-weight: 760; padding: 0.3rem 0.55rem; }
+  .status-pill[data-status='NEW'] { background: #fff3d9; color: #795409; }
+  .status-pill[data-status='CONTACTED'] { background: #e9f2ff; color: #215a9a; }
+  .status-pill[data-status='COMPLETED'] { background: #e0f4e9; color: #17613f; }
+  .status-pill[data-status='CANCELLED'] { background: #f1eeee; color: #6f5555; }
+
+  .lead-dialog { border: 0; border-radius: 0.5rem; box-shadow: 0 24px 70px rgb(12 35 31 / 28%); max-height: calc(100vh - 2rem); padding: 0; width: min(38rem, calc(100vw - 2rem)); }
+  .lead-dialog::backdrop { background: rgb(8 25 23 / 60%); }
+  .lead-dialog header { align-items: center; border-bottom: 1px solid var(--staff-line); display: flex; justify-content: space-between; padding: 1rem 1.25rem; }
+  .lead-dialog header h2 { font-size: 1.2rem; margin: 0; }
+  .lead-dialog__body { padding: 1.25rem; }
+  .lead-dialog dl { display: grid; gap: 0.7rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+  .lead-dialog dl > div { border-bottom: 1px solid #e7ece9; padding-bottom: 0.55rem; }
+  .lead-dialog dt { color: var(--staff-muted); font-size: 0.68rem; }
+  .lead-dialog dd { font-size: 0.78rem; font-weight: 680; margin: 0.15rem 0 0; overflow-wrap: anywhere; }
+  .lead-dialog section { border-top: 1px solid var(--staff-line); margin-top: 1.25rem; padding-top: 1.1rem; }
+  .lead-dialog section h3 { font-size: 0.9rem; margin-bottom: 0.85rem; }
+  .lead-dialog form { align-items: end; border-top: 1px solid var(--staff-line); display: flex; gap: 0.75rem; margin-top: 1.25rem; padding-top: 1.1rem; }
+  .lead-dialog form label { flex: 1; margin: 0; }
+
+  @media (max-width: 48rem) {
+    .staff-shell { padding-inline: 1rem; }
+    .staff-heading { align-items: start; flex-direction: column; gap: 0.8rem; }
+    .login-panel { display: block; margin-top: 2rem; padding: 1.25rem; }
+    .login-panel form { border-left: 0; border-top: 1px solid var(--staff-line); margin-top: 1.5rem; padding-left: 0; padding-top: 1.5rem; }
+    .workspace-toolbar { align-items: start; flex-direction: column; gap: 0.8rem; }
+    .operations-strip { grid-template-columns: 1fr; }
+    .operations-strip > div { border-bottom: 1px solid rgb(255 255 255 / 18%); border-right: 0; min-height: 0; }
+    .staff-button--sync { justify-self: stretch; }
+    .lead-dialog dl { grid-template-columns: 1fr; }
+    .lead-dialog form { align-items: stretch; flex-direction: column; }
+  }
+</style>

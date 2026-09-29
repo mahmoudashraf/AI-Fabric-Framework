@@ -1,0 +1,1188 @@
+---
+import {
+  ArrowLeft,
+  ArrowRight,
+  CarFront,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  Fuel,
+  Gauge,
+  GitCompareArrows,
+  MapPin,
+  MessageCircleMore,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from '@lucide/astro'
+import LoomWordmark from '../../../components/LoomWordmark.astro'
+import DemoApplicationLayout from '../../../layouts/DemoApplicationLayout.astro'
+
+const developmentApiBaseUrl = import.meta.env.DEV
+  ? (import.meta.env.PUBLIC_DEALERSHIP_DEMO_API_BASE_URL || 'http://127.0.0.1:8108')
+  : (import.meta.env.PUBLIC_DEALERSHIP_DEMO_API_BASE_URL || '')
+---
+
+<DemoApplicationLayout
+  title="Northfield Motor House demo"
+  description="A fictional dealership application demonstrating direct LoomAI deployment chat, grounded vehicle discovery and governed customer requests."
+>
+  <div
+    class="dealership-app"
+    data-dealership-demo
+    data-development-api-base-url={developmentApiBaseUrl}
+  >
+    <header class="dealer-header">
+      <div class="dealer-shell dealer-header__inner">
+        <a class="dealer-brand" href="/demos/dealership-ai" aria-label="Northfield Motor House home">
+          <span class="dealer-brand__mark" aria-hidden="true">
+            <CarFront size={27} stroke-width={1.8} />
+          </span>
+          <span>
+            <strong>Northfield</strong>
+            <small>Motor House</small>
+          </span>
+        </a>
+
+        <div class="dealer-header__actions">
+          <span class="demo-badge">
+            <Sparkles size={14} aria-hidden="true" />
+            LoomAI integration demo
+          </span>
+          <a class="back-link" href="/experiments" aria-label="Back to LoomAI experiments">
+            <ArrowLeft size={17} aria-hidden="true" />
+            <span>Back to LoomAI</span>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <aside class="demo-disclosure" aria-label="Demo data notice">
+      <div class="dealer-shell demo-disclosure__inner">
+        <CircleAlert size={18} stroke-width={1.9} aria-hidden="true" />
+        <p>
+          <strong>Fictional demonstration inventory.</strong>
+          No live Auto Trader data or credentials are used in this experience.
+        </p>
+        <span data-inventory-freshness>Checking inventory...</span>
+      </div>
+    </aside>
+
+    <section class="inventory-intro" aria-labelledby="inventory-title">
+      <div class="dealer-shell inventory-intro__inner">
+        <div>
+          <p class="dealer-kicker">Vehicles in stock</p>
+          <h1 id="inventory-title">Find the right car for real life.</h1>
+          <p>Search current demo stock by the details that matter, then ask the dealership assistant for a grounded comparison.</p>
+        </div>
+        <div class="runtime-state" data-runtime-state data-state="checking" role="status" aria-live="polite">
+          <span class="runtime-state__indicator" aria-hidden="true"></span>
+          <span>
+            <strong data-runtime-state-title>Connecting assistant</strong>
+            <small data-runtime-state-detail>Checking the assigned LoomAI deployment</small>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="inventory-workspace" aria-label="Vehicle search">
+      <div class="dealer-shell">
+        <div class="mobile-filter-row">
+          <button class="control-button" type="button" data-filter-toggle aria-expanded="false" aria-controls="inventory-filters">
+            <SlidersHorizontal size={18} aria-hidden="true" />
+            Filters
+          </button>
+          <button class="control-button" type="button" data-refresh-inventory>
+            <RefreshCw size={17} aria-hidden="true" />
+            Refresh
+          </button>
+        </div>
+
+        <div class="inventory-layout">
+          <aside class="filter-panel" id="inventory-filters" data-filter-panel>
+            <div class="filter-panel__heading">
+              <div>
+                <p class="dealer-kicker">Refine stock</p>
+                <h2>Filters</h2>
+              </div>
+              <button class="icon-control filter-panel__close" type="button" data-filter-close aria-label="Close filters">
+                <X size={20} aria-hidden="true" />
+              </button>
+            </div>
+
+            <form data-inventory-form>
+              <label class="field field--search">
+                <span>Search</span>
+                <span class="field__control">
+                  <Search size={17} aria-hidden="true" />
+                  <input name="q" type="search" placeholder="Model, feature or keyword" autocomplete="off" />
+                </span>
+              </label>
+
+              <label class="field">
+                <span>Make</span>
+                <span class="select-control">
+                  <select name="make" data-facet-select="makes">
+                    <option value="">Any make</option>
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </span>
+              </label>
+
+              <label class="field">
+                <span>Fuel</span>
+                <span class="select-control">
+                  <select name="fuelType" data-facet-select="fuelTypes">
+                    <option value="">Any fuel type</option>
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </span>
+              </label>
+
+              <label class="field">
+                <span>Body style</span>
+                <span class="select-control">
+                  <select name="bodyType" data-facet-select="bodyTypes">
+                    <option value="">Any body style</option>
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </span>
+              </label>
+
+              <label class="field">
+                <span>Maximum price</span>
+                <span class="select-control">
+                  <select name="maxPriceMinor">
+                    <option value="">Any price</option>
+                    <option value="2500000">Up to £25,000</option>
+                    <option value="3000000">Up to £30,000</option>
+                    <option value="3500000">Up to £35,000</option>
+                    <option value="4000000">Up to £40,000</option>
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </span>
+              </label>
+
+              <label class="field">
+                <span>Maximum mileage</span>
+                <span class="select-control">
+                  <select name="maxMileage">
+                    <option value="">Any mileage</option>
+                    <option value="5000">Up to 5,000 miles</option>
+                    <option value="10000">Up to 10,000 miles</option>
+                    <option value="20000">Up to 20,000 miles</option>
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </span>
+              </label>
+
+              <button class="clear-filters" type="button" data-clear-filters>Clear all filters</button>
+            </form>
+
+            <div class="trust-note">
+              <ShieldCheck size={20} stroke-width={1.8} aria-hidden="true" />
+              <p><strong>Current facts stay structured.</strong> Price, mileage and availability come from the dealership application, not generated prose.</p>
+            </div>
+          </aside>
+
+          <div class="inventory-results">
+            <div class="results-toolbar">
+              <div>
+                <p class="results-count" data-results-count aria-live="polite">Loading vehicles...</p>
+                <p class="results-source" data-results-source>Connecting to the dealership inventory</p>
+              </div>
+              <label class="sort-control">
+                <span>Sort</span>
+                <span class="select-control">
+                  <select name="sort" form="inventory-sort-form" data-sort-select>
+                    <option value="recommended">Recommended</option>
+                    <option value="newest">Newest first</option>
+                    <option value="price-asc">Price: low to high</option>
+                    <option value="price-desc">Price: high to low</option>
+                    <option value="mileage-asc">Lowest mileage</option>
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </span>
+              </label>
+              <form id="inventory-sort-form" class="visually-hidden"></form>
+            </div>
+
+            <div class="active-filters" data-active-filters aria-label="Active filters"></div>
+
+            <div class="inventory-message" data-inventory-message hidden role="status">
+              <CircleAlert size={22} aria-hidden="true" />
+              <div>
+                <strong data-inventory-message-title>Inventory unavailable</strong>
+                <p data-inventory-message-detail>The dealership service could not be reached.</p>
+              </div>
+              <button class="control-button" type="button" data-retry-inventory>
+                <RefreshCw size={17} aria-hidden="true" />
+                Try again
+              </button>
+            </div>
+
+            <div class="vehicle-grid" data-vehicle-grid aria-busy="true">
+              {Array.from({ length: 6 }).map(() => (
+                <div class="vehicle-skeleton" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="dealer-footer">
+      <div class="dealer-shell dealer-footer__inner">
+        <div>
+          <a href="/" aria-label="Loom AI Labs home"><LoomWordmark compact /></a>
+          <p>A working integration demonstration. The dealership, vehicles and inventory are fictional.</p>
+        </div>
+        <details class="photo-credits">
+          <summary>Demo photo credits</summary>
+          <ul>
+            <li><a href="https://unsplash.com/photos/a-blue-electric-car-parked-on-a-driveway-q92bSV4v7ig" target="_blank" rel="noreferrer">Auto Trader UK / Unsplash</a></li>
+            <li><a href="https://unsplash.com/photos/a-blue-electric-car-drives-on-a-paved-street-hDIAudUVV-s" target="_blank" rel="noreferrer">Hyundai Motor Group / Unsplash</a></li>
+            <li><a href="https://unsplash.com/photos/a-close-up-of-a-blue-electric-car-vR5tflPQKoY" target="_blank" rel="noreferrer">James sojan / Unsplash</a></li>
+            <li><a href="https://unsplash.com/photos/a-man-standing-next-to-a-blue-car-aUCC6-BS8DY" target="_blank" rel="noreferrer">JUICE / Unsplash</a></li>
+            <li><a href="https://unsplash.com/photos/volkswagen-cars-showcased-in-a-dealership-OaokEbz0lVc" target="_blank" rel="noreferrer">Obi / Unsplash</a></li>
+          </ul>
+        </details>
+        <a class="staff-workspace-link" href="/demos/dealership-ai/staff">Staff workspace</a>
+      </div>
+    </footer>
+
+    <div class="compare-bar" data-compare-bar hidden>
+      <div>
+        <GitCompareArrows size={20} aria-hidden="true" />
+        <span><strong data-compare-count>0</strong> selected</span>
+      </div>
+      <button class="compare-bar__clear" type="button" data-clear-comparison>Clear</button>
+      <button class="dealer-button dealer-button--light" type="button" data-open-comparison>
+        Compare vehicles
+        <ArrowRight size={17} aria-hidden="true" />
+      </button>
+    </div>
+
+    <dialog class="vehicle-dialog" data-vehicle-dialog aria-labelledby="vehicle-dialog-title">
+      <div class="dialog-header">
+        <p class="dealer-kicker">Vehicle details</p>
+        <button class="icon-control" type="button" data-close-vehicle-dialog aria-label="Close vehicle details">
+          <X size={21} aria-hidden="true" />
+        </button>
+      </div>
+      <div class="vehicle-dialog__content">
+        <img data-dialog-image src="" alt="" width="900" height="600" />
+        <div class="vehicle-dialog__body">
+          <div class="vehicle-dialog__title-row">
+            <div>
+              <p data-dialog-derivative></p>
+              <h2 id="vehicle-dialog-title" data-dialog-title>Vehicle</h2>
+            </div>
+            <strong data-dialog-price></strong>
+          </div>
+          <p data-dialog-summary></p>
+          <dl class="vehicle-dialog__facts" data-dialog-facts></dl>
+          <div>
+            <h3>Highlights</h3>
+            <ul class="feature-list" data-dialog-features></ul>
+          </div>
+          <p class="source-line" data-dialog-source></p>
+          <div class="vehicle-dialog__actions">
+            <button class="dealer-button dealer-button--primary" type="button" data-dialog-ask>
+              <MessageCircleMore size={18} aria-hidden="true" />
+              Ask about this vehicle
+            </button>
+            <button class="dealer-button dealer-button--secondary" type="button" data-dialog-test-drive>
+              Request a test drive
+            </button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="compare-dialog" data-compare-dialog aria-labelledby="compare-dialog-title">
+      <div class="dialog-header">
+        <div>
+          <p class="dealer-kicker">Side by side</p>
+          <h2 id="compare-dialog-title">Compare selected vehicles</h2>
+        </div>
+        <button class="icon-control" type="button" data-close-comparison aria-label="Close comparison">
+          <X size={21} aria-hidden="true" />
+        </button>
+      </div>
+      <div class="compare-content" data-compare-content></div>
+      <div class="compare-dialog__actions">
+        <button class="dealer-button dealer-button--primary" type="button" data-ask-comparison>
+          <MessageCircleMore size={18} aria-hidden="true" />
+          Ask AI to compare
+        </button>
+      </div>
+    </dialog>
+
+    <div class="dealer-toast" data-dealer-toast role="status" aria-live="polite" hidden>
+      <Check size={18} aria-hidden="true" />
+      <span></span>
+    </div>
+
+    <template data-vehicle-card-template>
+      <article class="vehicle-card">
+        <div class="vehicle-card__media">
+          <img data-card-image src="" alt="" width="720" height="480" loading="lazy" decoding="async" />
+          <span class="vehicle-card__fuel" data-card-fuel></span>
+          <label class="compare-check">
+            <input type="checkbox" data-card-compare />
+            <span><GitCompareArrows size={15} aria-hidden="true" /> Compare</span>
+          </label>
+        </div>
+        <div class="vehicle-card__body">
+          <div class="vehicle-card__heading">
+            <div>
+              <p data-card-derivative></p>
+              <h2 data-card-title></h2>
+            </div>
+            <strong data-card-price></strong>
+          </div>
+          <div class="vehicle-card__facts">
+            <span><Gauge size={16} aria-hidden="true" /><span data-card-mileage></span></span>
+            <span><Fuel size={16} aria-hidden="true" /><span data-card-transmission></span></span>
+            <span><MapPin size={16} aria-hidden="true" /><span data-card-location></span></span>
+          </div>
+          <p class="vehicle-card__summary" data-card-summary></p>
+          <div class="vehicle-card__actions">
+            <button class="dealer-button dealer-button--secondary" type="button" data-card-details>View details</button>
+            <button class="icon-control icon-control--accent" type="button" data-card-ask aria-label="Ask AI about this vehicle" title="Ask AI about this vehicle">
+              <MessageCircleMore size={20} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      </article>
+    </template>
+  </div>
+
+  <script src="../../../scripts/dealership-demo.ts"></script>
+</DemoApplicationLayout>
+
+<style is:global>
+  .dealership-app {
+    --dealer-green-950: #0d2b27;
+    --dealer-green-900: #123b35;
+    --dealer-green-700: #1f685b;
+    --dealer-green-600: #267f6e;
+    --dealer-mint: #dff2ea;
+    --dealer-gold: #e8b84a;
+    --dealer-gold-ink: #765300;
+    --dealer-coral: #c96345;
+    --dealer-ink: #17282f;
+    --dealer-muted: #607078;
+    --dealer-line: #dbe2df;
+    --dealer-paper: #ffffff;
+    color: var(--dealer-ink);
+    min-height: 100vh;
+    padding-bottom: 8.5rem;
+  }
+
+  .dealer-shell {
+    margin-inline: auto;
+    max-width: 92rem;
+    padding-inline: 2rem;
+    width: 100%;
+  }
+
+  .dealer-header {
+    background: var(--dealer-paper);
+    border-bottom: 1px solid var(--dealer-line);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .dealer-header__inner {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    min-height: 4.75rem;
+  }
+
+  .dealer-brand {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.75rem;
+    text-decoration: none;
+  }
+
+  .dealer-brand__mark {
+    align-items: center;
+    background: var(--dealer-green-900);
+    border-radius: 0.5rem;
+    color: #fff;
+    display: inline-flex;
+    height: 2.75rem;
+    justify-content: center;
+    width: 2.75rem;
+  }
+
+  .dealer-brand > span:last-child {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+
+  .dealer-brand strong {
+    color: var(--dealer-green-950);
+    font-size: 1.05rem;
+    letter-spacing: 0;
+  }
+
+  .dealer-brand small {
+    color: var(--dealer-muted);
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0;
+    margin-top: 0.2rem;
+    text-transform: uppercase;
+  }
+
+  .dealer-header__actions,
+  .back-link,
+  .demo-badge {
+    align-items: center;
+    display: flex;
+  }
+
+  .dealer-header__actions {
+    gap: 1rem;
+  }
+
+  .demo-badge {
+    background: #fff7e3;
+    border: 1px solid #eed38f;
+    border-radius: 999px;
+    color: #71500a;
+    font-size: 0.78rem;
+    font-weight: 720;
+    gap: 0.4rem;
+    padding: 0.45rem 0.75rem;
+  }
+
+  .back-link {
+    color: var(--dealer-green-900);
+    font-size: 0.86rem;
+    font-weight: 700;
+    gap: 0.4rem;
+    text-decoration: none;
+  }
+
+  .demo-disclosure {
+    background: #fff9ec;
+    border-bottom: 1px solid #f0dba7;
+  }
+
+  .demo-disclosure__inner {
+    align-items: center;
+    display: flex;
+    gap: 0.65rem;
+    min-height: 2.9rem;
+  }
+
+  .demo-disclosure p {
+    color: #5d4a1f;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .demo-disclosure > .dealer-shell > span:last-child {
+    color: #776437;
+    font-size: 0.75rem;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .inventory-intro {
+    background: var(--dealer-green-950);
+    color: #fff;
+  }
+
+  .inventory-intro__inner {
+    align-items: end;
+    display: flex;
+    gap: 2rem;
+    justify-content: space-between;
+    min-height: 14.5rem;
+    padding-bottom: 2.5rem;
+    padding-top: 2.5rem;
+  }
+
+  .inventory-intro h1 {
+    color: #fff;
+    font-size: 2.55rem;
+    line-height: 1.08;
+    margin-bottom: 0.85rem;
+    max-width: 15em;
+  }
+
+  .inventory-intro p:not(.dealer-kicker) {
+    color: #cbded9;
+    font-size: 1rem;
+    line-height: 1.55;
+    margin: 0;
+    max-width: 42rem;
+  }
+
+  .dealer-kicker {
+    color: var(--dealer-gold-ink);
+    font-size: 0.72rem;
+    font-weight: 760;
+    letter-spacing: 0;
+    margin-bottom: 0.6rem;
+    text-transform: uppercase;
+  }
+
+  .inventory-intro .dealer-kicker {
+    color: var(--dealer-gold);
+  }
+
+  .runtime-state {
+    align-items: center;
+    border-left: 1px solid #3f5b56;
+    display: flex;
+    flex: 0 0 18rem;
+    gap: 0.7rem;
+    min-height: 3.5rem;
+    padding-left: 1.4rem;
+  }
+
+  .runtime-state__indicator {
+    background: var(--dealer-gold);
+    border: 3px solid rgb(255 255 255 / 18%);
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--dealer-gold);
+    height: 0.7rem;
+    width: 0.7rem;
+  }
+
+  .runtime-state[data-state='ready'] .runtime-state__indicator { background: #53d495; box-shadow: 0 0 0 1px #53d495; }
+  .runtime-state[data-state='unavailable'] .runtime-state__indicator { background: #ef8b71; box-shadow: 0 0 0 1px #ef8b71; }
+
+  .runtime-state span:last-child {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .runtime-state strong {
+    color: #fff;
+    font-size: 0.82rem;
+  }
+
+  .runtime-state small {
+    color: #b7ceca;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    margin-top: 0.15rem;
+  }
+
+  .inventory-workspace {
+    padding-block: 2.25rem 4rem;
+  }
+
+  .inventory-layout {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: 15.5rem minmax(0, 1fr);
+  }
+
+  .filter-panel {
+    align-self: start;
+    border-right: 1px solid var(--dealer-line);
+    padding-right: 1.75rem;
+    position: sticky;
+    top: 7.5rem;
+  }
+
+  .filter-panel__heading {
+    align-items: start;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.4rem;
+  }
+
+  .filter-panel h2 {
+    font-size: 1.25rem;
+    margin: 0;
+  }
+
+  .filter-panel__close,
+  .mobile-filter-row {
+    display: none;
+  }
+
+  .field {
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  .field > span:first-child,
+  .sort-control > span:first-child {
+    color: var(--dealer-ink);
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 720;
+    margin-bottom: 0.4rem;
+  }
+
+  .field__control,
+  .select-control {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #cfd9d5;
+    border-radius: 0.375rem;
+    display: flex;
+    min-height: 2.75rem;
+    position: relative;
+  }
+
+  .field__control:focus-within,
+  .select-control:focus-within {
+    border-color: var(--dealer-green-600);
+    box-shadow: 0 0 0 3px rgb(38 127 110 / 15%);
+  }
+
+  .field__control > svg {
+    color: var(--dealer-muted);
+    left: 0.75rem;
+    position: absolute;
+  }
+
+  .field input,
+  .field select,
+  .sort-control select {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: var(--dealer-ink);
+    font-size: 0.82rem;
+    min-height: 2.7rem;
+    outline: 0;
+    padding: 0.65rem 2.2rem 0.65rem 0.75rem;
+    width: 100%;
+  }
+
+  .field--search input { padding-left: 2.3rem; }
+  .select-control > svg { color: var(--dealer-muted); pointer-events: none; position: absolute; right: 0.7rem; }
+
+  .clear-filters {
+    background: transparent;
+    border: 0;
+    color: var(--dealer-green-700);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 730;
+    padding: 0.35rem 0;
+    text-decoration: underline;
+    text-underline-offset: 0.2rem;
+  }
+
+  .trust-note {
+    align-items: start;
+    border-top: 1px solid var(--dealer-line);
+    color: var(--dealer-green-700);
+    display: flex;
+    gap: 0.65rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+  }
+
+  .trust-note svg { flex: 0 0 auto; }
+  .trust-note p { color: var(--dealer-muted); font-size: 0.72rem; line-height: 1.5; margin: 0; }
+  .trust-note strong { color: var(--dealer-ink); }
+
+  .results-toolbar {
+    align-items: end;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    min-height: 3.4rem;
+  }
+
+  .results-count {
+    color: var(--dealer-ink);
+    font-size: 1rem;
+    font-weight: 750;
+    margin: 0;
+  }
+
+  .results-source {
+    color: var(--dealer-muted);
+    font-size: 0.72rem;
+    margin: 0.15rem 0 0;
+  }
+
+  .sort-control {
+    align-items: center;
+    display: flex;
+    gap: 0.65rem;
+  }
+
+  .sort-control > span:first-child { margin: 0; }
+  .sort-control .select-control { min-width: 12.5rem; }
+
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-bottom: 1rem;
+  }
+
+  .active-filters:empty { display: none; }
+
+  .filter-chip {
+    align-items: center;
+    background: var(--dealer-mint);
+    border: 0;
+    border-radius: 999px;
+    color: var(--dealer-green-950);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 0.72rem;
+    font-weight: 680;
+    gap: 0.35rem;
+    min-height: 1.9rem;
+    padding-inline: 0.7rem;
+  }
+
+  .vehicle-grid {
+    display: grid;
+    gap: 1.15rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .vehicle-card {
+    background: #fff;
+    border: 1px solid var(--dealer-line);
+    border-radius: 0.5rem;
+    box-shadow: 0 6px 20px rgb(13 43 39 / 5%);
+    min-width: 0;
+    overflow: hidden;
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  .vehicle-card:hover {
+    border-color: #aac8be;
+    box-shadow: 0 12px 28px rgb(13 43 39 / 10%);
+    transform: translateY(-2px);
+  }
+
+  .vehicle-card__media {
+    aspect-ratio: 16 / 10;
+    background: #e8edeb;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .vehicle-card__media img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+  }
+
+  .vehicle-card__fuel,
+  .compare-check {
+    backdrop-filter: blur(8px);
+    border-radius: 0.25rem;
+    font-size: 0.68rem;
+    font-weight: 740;
+    position: absolute;
+    top: 0.65rem;
+  }
+
+  .vehicle-card__fuel {
+    background: rgb(13 43 39 / 88%);
+    color: #fff;
+    left: 0.65rem;
+    padding: 0.35rem 0.55rem;
+  }
+
+  .compare-check {
+    right: 0.65rem;
+  }
+
+  .compare-check input {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  .compare-check span {
+    align-items: center;
+    background: rgb(255 255 255 / 92%);
+    border: 1px solid rgb(255 255 255 / 75%);
+    border-radius: 0.25rem;
+    color: var(--dealer-green-950);
+    cursor: pointer;
+    display: flex;
+    gap: 0.3rem;
+    min-height: 1.9rem;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .compare-check input:checked + span {
+    background: var(--dealer-gold);
+    border-color: var(--dealer-gold);
+  }
+
+  .compare-check input:focus-visible + span { box-shadow: var(--loom-focus-ring); }
+
+  .vehicle-card__body { padding: 1rem; }
+
+  .vehicle-card__heading {
+    align-items: start;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+  }
+
+  .vehicle-card__heading p,
+  .vehicle-dialog__title-row p {
+    color: var(--dealer-muted);
+    font-size: 0.7rem;
+    font-weight: 650;
+    margin-bottom: 0.15rem;
+  }
+
+  .vehicle-card h2 {
+    font-size: 1.02rem;
+    line-height: 1.25;
+    margin: 0;
+  }
+
+  .vehicle-card__heading > strong {
+    color: var(--dealer-green-900);
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .vehicle-card__facts {
+    border-bottom: 1px solid #e8ecea;
+    border-top: 1px solid #e8ecea;
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-block: 0.85rem;
+    padding-block: 0.65rem;
+  }
+
+  .vehicle-card__facts > span {
+    align-items: center;
+    color: var(--dealer-muted);
+    display: flex;
+    font-size: 0.68rem;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .vehicle-card__facts > span:last-child { grid-column: 1 / -1; }
+  .vehicle-card__facts svg { color: var(--dealer-green-600); flex: 0 0 auto; }
+
+  .vehicle-card__summary {
+    color: var(--dealer-muted);
+    display: -webkit-box;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    margin-bottom: 0.9rem;
+    min-height: 3.4em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .vehicle-card__actions,
+  .vehicle-dialog__actions,
+  .compare-dialog__actions {
+    align-items: center;
+    display: flex;
+    gap: 0.55rem;
+  }
+
+  .vehicle-card__actions .dealer-button { flex: 1; }
+
+  .dealer-button,
+  .control-button,
+  .icon-control {
+    align-items: center;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    display: inline-flex;
+    font-weight: 720;
+    justify-content: center;
+  }
+
+  .dealer-button {
+    border: 1px solid transparent;
+    gap: 0.45rem;
+    min-height: 2.6rem;
+    padding-inline: 0.9rem;
+  }
+
+  .dealer-button:disabled,
+  .icon-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .dealer-button--primary { background: var(--dealer-green-900); color: #fff; }
+  .dealer-button--primary:hover:not(:disabled) { background: var(--dealer-green-700); }
+  .dealer-button--secondary { background: #fff; border-color: #bdcbc6; color: var(--dealer-green-950); }
+  .dealer-button--secondary:hover:not(:disabled) { background: #f2f7f5; border-color: #8daf9f; }
+  .dealer-button--light { background: #fff; color: var(--dealer-green-950); }
+
+  .icon-control {
+    background: #fff;
+    border: 1px solid #bdcbc6;
+    height: 2.6rem;
+    padding: 0;
+    width: 2.6rem;
+  }
+
+  .icon-control--accent { color: var(--dealer-green-700); }
+  .icon-control:hover:not(:disabled) { background: #edf5f2; }
+
+  .control-button {
+    background: #fff;
+    border: 1px solid #bdcbc6;
+    gap: 0.45rem;
+    min-height: 2.6rem;
+    padding-inline: 0.8rem;
+  }
+
+  .vehicle-skeleton {
+    background: #fff;
+    border: 1px solid var(--dealer-line);
+    border-radius: 0.5rem;
+    min-height: 25rem;
+    overflow: hidden;
+  }
+
+  .vehicle-skeleton span { animation: pulse 1.2s ease-in-out infinite alternate; background: #e6ece9; display: block; }
+  .vehicle-skeleton span:first-child { aspect-ratio: 16 / 10; }
+  .vehicle-skeleton span:nth-child(2) { height: 1.25rem; margin: 1.2rem 1rem 0; width: 62%; }
+  .vehicle-skeleton span:nth-child(3) { height: 4.5rem; margin: 1rem; }
+
+  @keyframes pulse { to { background: #f2f5f4; } }
+
+  .inventory-message {
+    align-items: center;
+    background: #fff3ee;
+    border: 1px solid #e9b3a3;
+    border-radius: 0.5rem;
+    color: #853a25;
+    display: flex;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+  }
+
+  .inventory-message[hidden] { display: none; }
+  .inventory-message > div { flex: 1; }
+  .inventory-message strong { font-size: 0.85rem; }
+  .inventory-message p { color: #864d3c; font-size: 0.75rem; margin: 0.15rem 0 0; }
+
+  .dealer-footer {
+    background: #fff;
+    border-top: 1px solid var(--dealer-line);
+    padding-block: 2rem;
+  }
+
+  .dealer-footer__inner {
+    align-items: start;
+    display: flex;
+    gap: 2rem;
+    justify-content: space-between;
+  }
+
+  .dealer-footer__inner > div p {
+    color: var(--dealer-muted);
+    font-size: 0.72rem;
+    margin: 0.7rem 0 0;
+    max-width: 30rem;
+  }
+
+  .photo-credits { color: var(--dealer-muted); font-size: 0.72rem; max-width: 24rem; }
+  .photo-credits summary { color: var(--dealer-green-700); cursor: pointer; font-weight: 720; text-align: right; }
+  .photo-credits ul { list-style: none; margin: 0.6rem 0 0; padding: 0; text-align: right; }
+  .photo-credits a { text-underline-offset: 0.15rem; }
+  .staff-workspace-link { color: var(--dealer-green-700); font-size: 0.72rem; font-weight: 720; text-underline-offset: 0.18rem; }
+
+  .compare-bar {
+    align-items: center;
+    background: var(--dealer-green-900);
+    border: 1px solid #315c54;
+    border-radius: 0.5rem;
+    bottom: 7.15rem;
+    box-shadow: 0 16px 42px rgb(13 43 39 / 28%);
+    color: #fff;
+    display: flex;
+    gap: 1rem;
+    left: 50%;
+    max-width: calc(100vw - 2rem);
+    padding: 0.65rem;
+    position: fixed;
+    transform: translateX(-50%);
+    width: 31rem;
+    z-index: 35;
+  }
+
+  .compare-bar[hidden] { display: none; }
+  .compare-bar > div { align-items: center; display: flex; flex: 1; font-size: 0.78rem; gap: 0.5rem; }
+  .compare-bar__clear { background: transparent; border: 0; color: #cae0db; cursor: pointer; font-size: 0.75rem; font-weight: 700; text-decoration: underline; }
+
+  dialog {
+    border: 0;
+    border-radius: 0.5rem;
+    box-shadow: 0 26px 80px rgb(13 43 39 / 28%);
+    color: var(--dealer-ink);
+    margin: auto;
+    max-height: calc(100vh - 2rem);
+    padding: 0;
+  }
+
+  dialog::backdrop { background: rgb(8 25 23 / 62%); backdrop-filter: blur(3px); }
+  .vehicle-dialog { width: min(68rem, calc(100vw - 2rem)); }
+  .compare-dialog { width: min(74rem, calc(100vw - 2rem)); }
+
+  .dialog-header {
+    align-items: center;
+    border-bottom: 1px solid var(--dealer-line);
+    display: flex;
+    justify-content: space-between;
+    min-height: 4.5rem;
+    padding: 0.85rem 1.25rem;
+  }
+
+  .dialog-header p { margin-bottom: 0.2rem; }
+  .dialog-header h2 { font-size: 1.2rem; margin: 0; }
+
+  .vehicle-dialog__content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
+  .vehicle-dialog__content > img { height: 100%; max-height: 40rem; object-fit: cover; width: 100%; }
+  .vehicle-dialog__body { overflow-y: auto; padding: 1.5rem; }
+
+  .vehicle-dialog__title-row { align-items: start; display: flex; gap: 1rem; justify-content: space-between; }
+  .vehicle-dialog__title-row h2 { font-size: 1.55rem; margin: 0; }
+  .vehicle-dialog__title-row > strong { color: var(--dealer-green-900); font-size: 1.35rem; white-space: nowrap; }
+  .vehicle-dialog__body > p { color: var(--dealer-muted); font-size: 0.86rem; line-height: 1.6; }
+
+  .vehicle-dialog__facts { border-block: 1px solid var(--dealer-line); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-block: 1.2rem; padding-block: 1rem; }
+  .vehicle-dialog__facts div { border-right: 1px solid var(--dealer-line); padding: 0.35rem 0.8rem; }
+  .vehicle-dialog__facts div:nth-child(3n) { border-right: 0; }
+  .vehicle-dialog__facts dt { color: var(--dealer-muted); font-size: 0.66rem; font-weight: 650; }
+  .vehicle-dialog__facts dd { color: var(--dealer-ink); font-size: 0.8rem; font-weight: 720; margin: 0.2rem 0 0; }
+
+  .vehicle-dialog__body h3 { font-size: 0.9rem; margin-bottom: 0.6rem; }
+  .feature-list { display: grid; gap: 0.4rem 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; }
+  .feature-list li { color: var(--dealer-muted); font-size: 0.76rem; padding-left: 1rem; position: relative; }
+  .feature-list li::before { background: var(--dealer-green-600); border-radius: 50%; content: ''; height: 0.35rem; left: 0; position: absolute; top: 0.48rem; width: 0.35rem; }
+  .source-line { border-top: 1px solid var(--dealer-line); margin-top: 1.2rem; padding-top: 0.8rem; }
+  .vehicle-dialog__actions { margin-top: 1.2rem; }
+
+  .compare-content { max-height: 65vh; overflow: auto; padding: 1.25rem; }
+  .compare-table { border-collapse: collapse; min-width: 48rem; width: 100%; }
+  .compare-table th,
+  .compare-table td { border-bottom: 1px solid var(--dealer-line); font-size: 0.76rem; padding: 0.8rem; text-align: left; vertical-align: top; }
+  .compare-table th { color: var(--dealer-muted); font-weight: 680; width: 9rem; }
+  .compare-table thead th { color: var(--dealer-green-950); font-size: 0.85rem; }
+  .compare-table img { aspect-ratio: 16 / 9; border-radius: 0.375rem; margin-bottom: 0.6rem; object-fit: cover; width: 100%; }
+  .compare-dialog__actions { border-top: 1px solid var(--dealer-line); justify-content: end; padding: 1rem 1.25rem; }
+
+  .dealer-toast {
+    align-items: center;
+    background: var(--dealer-green-950);
+    border-radius: 0.375rem;
+    bottom: 8rem;
+    box-shadow: 0 12px 34px rgb(13 43 39 / 25%);
+    color: #fff;
+    display: flex;
+    font-size: 0.78rem;
+    gap: 0.5rem;
+    left: 1rem;
+    max-width: calc(100vw - 2rem);
+    padding: 0.75rem 0.9rem;
+    position: fixed;
+    z-index: 60;
+  }
+
+  .dealer-toast[hidden] { display: none; }
+
+  @media (max-width: 74rem) {
+    .vehicle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 58rem) {
+    .dealer-shell { padding-inline: 1.25rem; }
+    .inventory-layout { display: block; }
+    .mobile-filter-row { display: flex; gap: 0.6rem; justify-content: space-between; margin-bottom: 1rem; }
+    .filter-panel {
+      background: #fff;
+      border: 0;
+      box-shadow: 0 0 0 100vmax rgb(8 25 23 / 55%);
+      display: none;
+      inset: 0 auto 0 0;
+      max-width: 22rem;
+      overflow-y: auto;
+      padding: 1.25rem;
+      position: fixed;
+      top: 0;
+      width: calc(100vw - 3rem);
+      z-index: 80;
+    }
+    .filter-panel[data-open='true'] { display: block; }
+    .filter-panel__close { display: inline-flex; }
+    .inventory-intro__inner { align-items: start; flex-direction: column; min-height: 0; }
+    .runtime-state { border-left: 0; border-top: 1px solid #3f5b56; flex: none; padding-left: 0; padding-top: 1rem; width: 100%; }
+  }
+
+  @media (max-width: 42rem) {
+    .dealer-shell { padding-inline: 1rem; }
+    .dealer-header__inner { min-height: 4.25rem; }
+    .demo-badge { display: none; }
+    .back-link span { display: none; }
+    .inventory-intro h1 { font-size: 2rem; }
+    .inventory-intro__inner { padding-block: 2rem; }
+    .demo-disclosure__inner { align-items: start; padding-block: 0.65rem; }
+    .demo-disclosure > .dealer-shell > span:last-child { display: none; }
+    .vehicle-grid { grid-template-columns: 1fr; }
+    .results-toolbar { align-items: start; flex-direction: column; }
+    .sort-control { justify-content: space-between; width: 100%; }
+    .sort-control .select-control { min-width: 0; width: 70%; }
+    .dealer-footer__inner { flex-direction: column; }
+    .photo-credits summary,
+    .photo-credits ul { text-align: left; }
+    .compare-bar { bottom: 7rem; gap: 0.5rem; width: calc(100vw - 1rem); }
+    .compare-bar > div span { font-size: 0; }
+    .compare-bar > div strong { font-size: 0.8rem; }
+    .compare-bar > div strong::after { content: ' selected'; }
+    .compare-bar__clear { padding: 0.4rem; }
+    .vehicle-dialog__content { display: block; }
+    .vehicle-dialog__content > img { aspect-ratio: 16 / 10; height: auto; }
+    .vehicle-dialog__title-row { flex-direction: column; }
+    .vehicle-dialog__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vehicle-dialog__facts div:nth-child(3n) { border-right: 1px solid var(--dealer-line); }
+    .vehicle-dialog__facts div:nth-child(2n) { border-right: 0; }
+    .feature-list { grid-template-columns: 1fr; }
+    .vehicle-dialog__actions { align-items: stretch; flex-direction: column; }
+    .dealer-toast { bottom: 7.5rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vehicle-card,
+    .vehicle-skeleton span { animation: none; transition: none; }
+  }
+</style>

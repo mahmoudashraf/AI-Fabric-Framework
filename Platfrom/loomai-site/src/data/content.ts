@@ -561,6 +561,61 @@ export const experiments: Experiment[] = [
     },
     sortOrder: 6,
   },
+  {
+    id: 'experiment:dealership-ai-experience',
+    slug: 'dealership-ai-experience',
+    title: 'Dealership AI Experience',
+    status: 'preview',
+    featured: false,
+    summary:
+      'A customer-application preview for live vehicle discovery, grounded comparison and governed dealership enquiries through an assigned LoomAI deployment.',
+    scenario:
+      'A buyer searches fictional dealership stock, compares exact vehicle facts and opens the always-available LoomAI Companion for grounded assistance.',
+    hypothesis:
+      'Can a normal dealership website combine its own structured inventory and lead workflow with deployment-local AI, without routing browser traffic or customer authority through the central Platform?',
+    primaryCategory: 'adaptive-experience',
+    categoryLabel: 'Adaptive experience',
+    capabilityTags: ['Live inventory', 'Grounded chat', 'Max Mode', 'Governed actions'],
+    domainTags: ['Automotive retail', 'Customer-facing UI'],
+    relatedProductSlugs: ['ai-fabric-framework', 'ai-fabric-chat-ui'],
+    applicationControlBoundary:
+      'The dealership backend owns stock, exact filters, authorization and lead persistence. Its assigned LoomAI deployment owns retrieval, conversation and action orchestration. The browser receives only public inventory data and runtime-issued anonymous chat access.',
+    observableProof: [
+      'The native customer surface consumes a dealership-owned structured inventory API and does not embed backend or runtime service credentials.',
+      'The Companion dock and Max Mode use the public anonymous runtime contract and expose an honest unavailable state until a deployment is assigned.',
+      'Backend tests verify deployment-scoped authorization plus encrypted, idempotent confirmed lead persistence.',
+    ],
+    notDemonstrated: [
+      'Auto Trader connectivity, endorsement or production data access',
+      'A hosted LoomAI retrieval and action canary until the preview deployment is assigned',
+      'Production dealership adoption or commercial outcomes',
+    ],
+    guidedSteps: [
+      'Browse and filter the clearly labelled fictional dealership inventory.',
+      'Select two vehicles and compare their application-owned facts.',
+      'Open the Companion dock to inspect the assigned-runtime readiness state and expanded Max Mode surface.',
+    ],
+    runtimeStack: ['Dealership-owned Spring Boot backend', 'LoomAI deployment', 'AI Fabric 0.8.4', 'Max Mode'],
+    usesSyntheticData: true,
+    dataNotice: 'All dealership, vehicle and customer records in this preview are fictional. No Auto Trader data is used.',
+    knownLimitations: [
+      'The hosted LoomAI deployment and retrieval/action evidence remain a release gate.',
+      'The preview source adapter uses fictional inventory until approved partner credentials and data rights exist.',
+    ],
+    frameworkVersion: '0.8.4',
+    lastVerified: '2026-09-29',
+    screenshot: {
+      src: '/assets/experiments/dealership-ai-experience.png',
+      alt: 'Dealership AI Experience showing fictional vehicle inventory, comparison controls and the LoomAI Companion dock',
+    },
+    links: {
+      launch: {
+        label: 'Open preview',
+        href: '/demos/dealership-ai',
+      },
+    },
+    sortOrder: 7,
+  },
 ]
 
 export const research: ResearchArtifact[] = [

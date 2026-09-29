@@ -1,6 +1,8 @@
-# @anthropic/max-mode-widget
+# @loom-ai-labs/max-mode-widget
 
-Embeddable AI shopping assistant widget. Drop it into **any website** — plain HTML, React apps, Shopify stores, WordPress — with a single script tag or npm install.
+Embeddable LoomAI companion and Max Mode interface for customer applications.
+Build and serve the reviewed bundle from the integrating application's own
+versioned assets; do not load an unpinned third-party CDN copy.
 
 For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md](docs/WIDGET_AUTH_MODES_AND_CUSTOMER_INTEGRATION_PLAN.md).
 
@@ -9,7 +11,7 @@ For storefront/customer integration auth modes, see [docs/WIDGET_AUTH_MODES_AND_
 ### Option 1: Script Tag (backend-mediated private runtime, recommended)
 
 ```html
-<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script src="/vendor/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
@@ -27,7 +29,7 @@ That's it. A floating chat button appears in the bottom-right corner.
 ### Option 1B: Script Tag (public runtime anonymous, opt-in)
 
 ```html
-<script src="https://mahmoudashraf.github.io/AI-Fabric-Framework/max-mode-widget.iife.js"></script>
+<script src="/vendor/max-mode-widget.iife.js"></script>
 <script>
   MaxMode.init({
     apiConfig: {
@@ -53,12 +55,12 @@ That's it. A floating chat button appears in the bottom-right corner.
 ### Option 2: npm (React apps)
 
 ```bash
-npm install @anthropic/max-mode-widget
+npm install @loom-ai-labs/max-mode-widget
 ```
 
 ```tsx
-import { MaxModeWidget, useMaxMode } from "@anthropic/max-mode-widget";
-import "@anthropic/max-mode-widget/styles.css";
+import { MaxModeWidget, useMaxMode } from "@loom-ai-labs/max-mode-widget";
+import "@loom-ai-labs/max-mode-widget/styles.css";
 
 function App() {
   const { isOpen, open, close } = useMaxMode();
@@ -151,7 +153,7 @@ interface MaxModeWidgetConfig {
         authContextUrl?: string; // prefer apiConfig.runtimeRoutes.authContextUrl
         probeAuthContextOnOpen?: boolean;
         getBearerToken?: () => Promise<string | null | undefined> | string | null | undefined;
-        bootstrapAnonymous?: (request: { sessionId?: string }) => Promise<{
+        bootstrapAnonymous?: () => Promise<{
           token: string;
         tokenType?: string;
         authMode?: string;
@@ -165,7 +167,6 @@ interface MaxModeWidgetConfig {
     | "backend-mediated-private-runtime"
     | "public-runtime-authenticated"
     | "public-runtime-anonymous";
-  sessionId?: string;          // Anonymous bootstrap hint only
   position?: "bottom-right" | "bottom-left";
   launcher?: boolean;          // Show floating button (default: true)
   features?: {
@@ -214,6 +215,16 @@ For the secure integration modes, the widget probes the runtime auth context on 
 - `public-runtime-anonymous` -> `PUBLIC_RUNTIME_ANONYMOUS`
 
 If your runtime or proxy returns the wrong auth posture, the widget raises an immediate error event so misconfigured auth does not stay silent.
+
+Anonymous bootstrap never accepts a caller-selected session identity. The
+runtime creates `sessionId`; a custom `bootstrapAnonymous` callback receives no
+identity request and should return the runtime-issued token/session response.
+Every fresh anonymous bootstrap may represent a new runtime identity. Do not
+reuse an earlier conversation ID or pending confirmation after identity change;
+the widget now invalidates cached conversation, attachment, prompt, and
+confirmation state on token expiry, runtime change, or HTTP 401, and it does
+not replay the already-built request under a new identity. The user must send
+the request again after the next runtime-issued session is established.
 
 ### Events
 

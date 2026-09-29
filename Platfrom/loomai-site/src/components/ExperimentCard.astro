@@ -28,7 +28,7 @@ const { experiment, featured = false } = Astro.props
   </a>
   <div class="experiment-card__body">
     <div class="card-meta">
-      <span class="status-dot status-dot--live">{experiment.status}</span>
+      <span class:list={['status-dot', { 'status-dot--live': experiment.status === 'live' }]}>{experiment.status}</span>
       <span>{experiment.categoryLabel}</span>
     </div>
     <h3><a href={`/experiments/${experiment.slug}`}>{experiment.title}</a></h3>
@@ -45,8 +45,8 @@ const { experiment, featured = false } = Astro.props
       <a
         class="text-link"
         href={experiment.links.launch.href}
-        target="_blank"
-        rel="noreferrer"
+        target={experiment.links.launch.external ? '_blank' : undefined}
+        rel={experiment.links.launch.external ? 'noreferrer' : undefined}
       >
         Launch
         <ExternalLink size={15} aria-hidden="true" />

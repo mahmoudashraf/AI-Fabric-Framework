@@ -2,16 +2,16 @@
  * Example: Using Max Mode Widget in a React application.
  *
  * Install:
- *   npm install @anthropic/max-mode-widget
+ *   npm install @loom-ai-labs/max-mode-widget
  *
  * Then import:
- *   import { MaxModeWidget, useMaxMode } from '@anthropic/max-mode-widget';
- *   import '@anthropic/max-mode-widget/styles.css';
+ *   import { MaxModeWidget, useMaxMode } from '@loom-ai-labs/max-mode-widget';
+ *   import '@loom-ai-labs/max-mode-widget/styles.css';
  */
 
 import React from "react";
-// In a real app: import { MaxModeWidget, useMaxMode } from '@anthropic/max-mode-widget';
-// import '@anthropic/max-mode-widget/styles.css';
+// In a real app: import { MaxModeWidget, useMaxMode } from '@loom-ai-labs/max-mode-widget';
+// import '@loom-ai-labs/max-mode-widget/styles.css';
 import { MaxModeWidget } from "../../src/entries/react";
 import { useMaxMode } from "../../src/hooks/useMaxMode";
 
