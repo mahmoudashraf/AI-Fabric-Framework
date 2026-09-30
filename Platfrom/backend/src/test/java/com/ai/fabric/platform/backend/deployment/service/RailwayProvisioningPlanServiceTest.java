@@ -882,6 +882,65 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanCompilesBoundedExecutorReadActionResolutionOverrides() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        DeploymentVersionEntity version = version();
+        version.setProviderConfigJson("""
+            {
+              "llmProvider": "openai",
+              "embeddingProvider": "openai",
+              "orchestrationModeOverrides": {
+                "executor": {
+                  "readActionResolution": {
+                    "planningMode": "ITERATIVE",
+                    "maxIterations": 2,
+                    "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+                  }
+                }
+              }
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv)
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_PLANNING_MODE",
+                "ITERATIVE"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ITERATIONS",
+                "2"
+            )
+            .containsEntry(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE",
+                "RAG_IF_ACTIONS_INSUFFICIENT"
+            );
+    }
+
+    @Test
     void buildPlanCompilesRegisteredDeploymentVectorSpacesIntoRuntimeAllowlist() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

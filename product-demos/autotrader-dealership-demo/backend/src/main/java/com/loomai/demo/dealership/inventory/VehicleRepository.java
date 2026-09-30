@@ -10,7 +10,9 @@ import org.springframework.util.StringUtils;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Repository
@@ -124,6 +126,26 @@ public class VehicleRepository {
         return jdbc.query(SELECT + " ORDER BY stock_id", mapper);
     }
 
+    public List<Vehicle> resolveActiveReference(String reference) {
+        String normalizedReference = normalizeReference(reference);
+        if (!StringUtils.hasText(normalizedReference)) {
+            return List.of();
+        }
+        List<ScoredVehicle> matches = findAllActive().stream()
+            .map(vehicle -> new ScoredVehicle(vehicle, referenceScore(normalizedReference, vehicle)))
+            .filter(candidate -> candidate.score() > 0)
+            .sorted(Comparator.comparingInt(ScoredVehicle::score).reversed())
+            .toList();
+        if (matches.isEmpty()) {
+            return List.of();
+        }
+        int bestScore = matches.getFirst().score();
+        return matches.stream()
+            .filter(candidate -> candidate.score() == bestScore)
+            .map(ScoredVehicle::vehicle)
+            .toList();
+    }
+
     public SearchResult search(VehicleSearchCriteria criteria) {
         StringBuilder where = new StringBuilder(" WHERE lifecycle_state = 'ACTIVE'");
         List<Object> parameters = new ArrayList<>();
@@ -197,6 +219,48 @@ public class VehicleRepository {
         };
     }
 
+    private int referenceScore(String reference, Vehicle vehicle) {
+        List<ReferenceAlias> aliases = List.of(
+            new ReferenceAlias(vehicle.id(), 120, true),
+            new ReferenceAlias(vehicle.stockId(), 120, true),
+            new ReferenceAlias(vehicle.slug(), 110, true),
+            new ReferenceAlias(vehicle.registrationYear() + " " + vehicle.make() + " " + vehicle.model(), 105, true),
+            new ReferenceAlias(vehicle.make() + " " + vehicle.model() + " " + vehicle.derivative(), 100, true),
+            new ReferenceAlias(vehicle.make() + " " + vehicle.model(), 95, true),
+            new ReferenceAlias(vehicle.model() + " " + vehicle.derivative(), 85, true),
+            new ReferenceAlias(vehicle.model(), 75, true),
+            new ReferenceAlias(vehicle.make(), 50, false)
+        );
+        int score = 0;
+        for (ReferenceAlias alias : aliases) {
+            String normalizedAlias = normalizeReference(alias.value());
+            if (!StringUtils.hasText(normalizedAlias)) {
+                continue;
+            }
+            if (reference.equals(normalizedAlias)) {
+                score = Math.max(score, alias.score() + 10);
+            } else if (alias.allowContained() && containsPhrase(reference, normalizedAlias)) {
+                score = Math.max(score, alias.score());
+            }
+        }
+        return score;
+    }
+
+    private boolean containsPhrase(String text, String phrase) {
+        return (" " + text + " ").contains(" " + phrase + " ");
+    }
+
+    private String normalizeReference(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", " ")
+            .trim()
+            .replaceAll("\\s+", " ");
+        return StringUtils.hasText(normalized) ? normalized : null;
+    }
+
     private String writeFeatures(List<String> features) {
         try {
             return objectMapper.writeValueAsString(features == null ? List.of() : features);
@@ -215,4 +279,6 @@ public class VehicleRepository {
 
     public record SearchResult(List<Vehicle> items, long total) { }
     public record FacetValue(String value, int count) { }
+    private record ReferenceAlias(String value, int score, boolean allowContained) { }
+    private record ScoredVehicle(Vehicle vehicle, int score) { }
 }

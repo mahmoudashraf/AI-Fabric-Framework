@@ -2262,6 +2262,92 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateAcceptsBoundedExecutorReadActionResolutionOverrides() {
+        DeploymentDraftEntity draft = draft(
+            "{\"actions\":[]}",
+            "{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}",
+            "{\"connector\":{\"inbound-auth\":{\"allow-unauthenticated\":true}},\"authz\":{\"enabled\":false},\"actions\":{}}",
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "orchestrationModeOverrides": {
+                    "executor": {
+                      "readActionResolution": {
+                        "planningMode": "ITERATIVE",
+                        "maxIterations": 2,
+                        "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+                      }
+                    }
+                  }
+                }
+                """,
+            "{\"authzMode\":\"ALLOW_VERIFIED\",\"adminApiKeyEnabled\":true,\"connectorApiKeyEnabled\":true}"
+        );
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain(
+                "ORCHESTRATION_MODE_OVERRIDES_OBJECT_REQUIRED",
+                "ORCHESTRATION_MODE_OVERRIDE_UNSUPPORTED",
+                "EXECUTOR_MODE_OVERRIDE_OBJECT_REQUIRED",
+                "EXECUTOR_MODE_OVERRIDE_FIELD_UNSUPPORTED",
+                "READ_ACTION_RESOLUTION_OVERRIDE_OBJECT_REQUIRED",
+                "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
+                "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
+                "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",
+                "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID"
+            );
+    }
+
+    @Test
+    void validateRejectsUnboundedOrUnknownReadActionResolutionOverrides() {
+        DeploymentDraftEntity draft = draft(
+            "{\"actions\":[]}",
+            "{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}",
+            "{\"connector\":{\"inbound-auth\":{\"allow-unauthenticated\":true}},\"authz\":{\"enabled\":false},\"actions\":{}}",
+            """
+                {
+                  "llmProvider": "openai",
+                  "embeddingProvider": "openai",
+                  "vectorStrategy": "lucene",
+                  "runtimeProfile": "runtime-managed",
+                  "connectorProfile": "connector-hosted",
+                  "orchestrationModeOverrides": {
+                    "executor": {
+                      "readActionResolution": {
+                        "planningMode": "FOREVER",
+                        "maxIterations": 20,
+                        "ragCooperationMode": "ALWAYS",
+                        "rawEnvironment": "not-allowed"
+                      }
+                    },
+                    "unknown": {}
+                  }
+                }
+                """,
+            "{\"authzMode\":\"ALLOW_VERIFIED\",\"adminApiKeyEnabled\":true,\"connectorApiKeyEnabled\":true}"
+        );
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .contains(
+                "ORCHESTRATION_MODE_OVERRIDE_UNSUPPORTED",
+                "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
+                "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
+                "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",
+                "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID"
+            );
+    }
+
+    @Test
     void validateRejectsPlatformManagedQdrantWithoutCloudRegion() {
         DraftValidationResponse response = service.validate(draft(
             """

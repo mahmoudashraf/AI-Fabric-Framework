@@ -98,6 +98,34 @@ public class InventoryController {
         );
     }
 
+    @GetMapping("/resolve")
+    public Map<String, Object> resolve(
+        @RequestParam String dealershipId,
+        @RequestParam String reference
+    ) {
+        if (!properties.getId().equals(dealershipId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dealership inventory was not found.");
+        }
+        List<Vehicle> matches = repository.resolveActiveReference(reference);
+        if (matches.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No active vehicle matches that reference.");
+        }
+        if (matches.size() > 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The vehicle reference is ambiguous.");
+        }
+        Vehicle vehicle = matches.getFirst();
+        return Map.of(
+            "success", true,
+            "message", "Vehicle reference resolved to one active dealership vehicle.",
+            "vehicleId", vehicle.id(),
+            "slug", vehicle.slug(),
+            "vehicle", vehicle.displayName(),
+            "dealershipId", properties.getId(),
+            "lifecycleState", vehicle.lifecycleState(),
+            "source", sourceSummary()
+        );
+    }
+
     @GetMapping("/compare")
     public Map<String, Object> compare(@RequestParam String ids) {
         List<String> requested = Arrays.stream(ids.split(","))

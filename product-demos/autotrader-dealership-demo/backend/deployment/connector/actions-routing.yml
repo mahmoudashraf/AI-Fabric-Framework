@@ -69,6 +69,21 @@ actions:
       resource-id: "{{params.vehicleId}}"
       operation-type: READ
 
+  dealership_resolve_vehicle:
+    method: GET
+    path: /api/public/vehicles/resolve
+    request:
+      query:
+        dealershipId: dealer-demo-001
+        reference: "{{params.reference}}"
+    response:
+      success-http-status: [200]
+      message: "{{body.message}}"
+    authz:
+      enabled: true
+      resource-id: inventory-search
+      operation-type: READ
+
   dealership_compare_vehicles:
     method: GET
     path: /api/public/vehicles/compare

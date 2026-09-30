@@ -95,6 +95,34 @@ class DealershipDemoHttpTest {
     }
 
     @Test
+    void resolvesAnExplicitVehicleReferenceToOneTrustedActiveTarget() throws Exception {
+        mvc.perform(get("/api/public/vehicles/resolve")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("reference", "I want to book a test drive for the Aster E1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.vehicleId").value("veh-aster-e1"))
+            .andExpect(jsonPath("$.slug").value("aster-e1-motion"))
+            .andExpect(jsonPath("$.dealershipId").value("dealer-demo-001"))
+            .andExpect(jsonPath("$.lifecycleState").value("ACTIVE"));
+    }
+
+    @Test
+    void vehicleReferenceResolutionFailsClosedWhenMissingOrAmbiguous() throws Exception {
+        mvc.perform(get("/api/public/vehicles/resolve")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("reference", "Aster"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.success").value(false));
+
+        mvc.perform(get("/api/public/vehicles/resolve")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("reference", "Not a real model"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
     void publicRuntimeDescriptorContainsOnlyBrowserSafeRoutes() throws Exception {
         String body = mvc.perform(get("/api/public/runtime-descriptor"))
             .andExpect(status().isOk())

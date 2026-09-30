@@ -456,6 +456,7 @@ public class RailwayProvisioningPlanService {
         addRuntimeMcpGatewayEnv(runtimeEnv, deployment, actionsConfig);
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
+        addRuntimeOrchestrationModeOverrides(runtimeEnv, providerConfig);
         addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig);
         addRuntimeRetrievalVectorSpaceAllowlistEnv(
             runtimeEnv,
@@ -1027,6 +1028,35 @@ public class RailwayProvisioningPlanService {
             runtimeEnv,
             "LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS",
             String.join(",", eligibleActions.stream().sorted().toList())
+        );
+    }
+
+    private void addRuntimeOrchestrationModeOverrides(List<RailwayEnvVarSummary> runtimeEnv,
+                                                       JsonNode providerConfig) {
+        JsonNode readAction = providerConfig == null
+            ? null
+            : providerConfig.path("orchestrationModeOverrides")
+                .path("executor")
+                .path("readActionResolution");
+        if (readAction == null || !readAction.isObject()) {
+            return;
+        }
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_PLANNING_MODE",
+            text(readAction, "planningMode").toUpperCase(Locale.ROOT)
+        );
+        JsonNode maxIterations = readAction.path("maxIterations");
+        if (maxIterations.isIntegralNumber()) {
+            runtimeEnv.add(new RailwayEnvVarSummary(
+                "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_MAX_ITERATIONS",
+                Integer.toString(maxIterations.asInt())
+            ));
+        }
+        addOptionalEnv(
+            runtimeEnv,
+            "AI_ORCHESTRATION_MODES_EXECUTOR_READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE",
+            text(readAction, "ragCooperationMode").toUpperCase(Locale.ROOT)
         );
     }
 

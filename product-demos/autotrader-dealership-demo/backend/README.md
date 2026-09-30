@@ -91,7 +91,10 @@ obtains its exact public routes from the dealership backend's safe descriptor.
 ## Deployment contracts
 
 - `deployment/runtime/ai-entity-config.yml` registers `dealer-vehicle`.
-- `deployment/runtime/ai-actions.yml` defines three reads and two confirmed writes.
+- `deployment/runtime/ai-actions.yml` defines four reads and two confirmed writes.
+  The fourth read resolves a buyer-facing vehicle reference to the unique trusted
+  inventory ID used by confirmed writes; the internal ID is never requested from
+  the buyer.
 - `deployment/connector/actions-routing.yml` routes those actions and authz checks
   to this service.
 
@@ -132,6 +135,7 @@ GET /actuator/health/readiness
 GET /actuator/info
 GET /api/public/status
 GET /api/public/vehicles
+GET /api/public/vehicles/resolve?dealershipId=<id>&reference=<buyer-facing-reference>
 GET /api/public/runtime-descriptor
 GET /api/public/security/csrf
 ```

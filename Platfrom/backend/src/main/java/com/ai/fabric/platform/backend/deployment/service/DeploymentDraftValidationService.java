@@ -34,6 +34,12 @@ public class DeploymentDraftValidationService {
     private static final Set<String> SUPPORTED_CONFIRMATION_TYPES = Set.of("CONFIRMATION_POSITIVE", "CONFIRMATION_NEGATIVE");
     private static final Set<String> SUPPORTED_CONFIRMATION_DECISION_TYPES = Set.of("PROMPT_ACTION", "EXECUTE_ACTION", "REPLY");
     private static final Set<String> SUPPORTED_POST_POLICY_TYPES = Set.of("WEBHOOK");
+    private static final Set<String> SUPPORTED_READ_ACTION_PLANNING_MODES = Set.of(
+        "OFF", "SINGLE_PASS", "ITERATIVE"
+    );
+    private static final Set<String> SUPPORTED_READ_ACTION_RAG_COOPERATION_MODES = Set.of(
+        "NONE", "RAG_IF_ACTIONS_INSUFFICIENT", "PARALLEL_ACTIONS_AND_RAG"
+    );
     private static final Pattern SAFE_ONCE_PARAM = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern SAFE_SECRET_REF = Pattern.compile("[A-Z][A-Z0-9_]*");
     private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([^{}]+?)\\s*}}");
@@ -1592,6 +1598,7 @@ public class DeploymentDraftValidationService {
         validateAzureProviders(providerNode, issues);
         validateProviderBaseUrls(providerNode, issues);
         validatePurposeSpecificLlmProviders(providerNode, issues);
+        validateOrchestrationModeOverrides(providerNode, issues);
         validateProviderTuning(providerNode, issues);
         validateOpenAiProvider(providerNode, issues);
         validateAnthropicProvider(providerNode, issues);
@@ -1600,6 +1607,134 @@ public class DeploymentDraftValidationService {
         validatePineconeVectorProvider(providerNode, issues);
         validateWeaviateVectorProvider(providerNode, issues);
         validateMilvusVectorProvider(providerNode, issues);
+    }
+
+    private void validateOrchestrationModeOverrides(JsonNode providerNode,
+                                                    List<DraftValidationIssue> issues) {
+        JsonNode overrides = providerNode.path("orchestrationModeOverrides");
+        if (overrides.isMissingNode() || overrides.isNull()) {
+            return;
+        }
+        if (!overrides.isObject()) {
+            issues.add(error(
+                "providers",
+                "ORCHESTRATION_MODE_OVERRIDES_OBJECT_REQUIRED",
+                "$.orchestrationModeOverrides",
+                "orchestrationModeOverrides must be an object."
+            ));
+            return;
+        }
+        Iterator<String> modes = overrides.fieldNames();
+        while (modes.hasNext()) {
+            String mode = modes.next();
+            if (!"executor".equals(mode)) {
+                issues.add(error(
+                    "providers",
+                    "ORCHESTRATION_MODE_OVERRIDE_UNSUPPORTED",
+                    "$.orchestrationModeOverrides." + mode,
+                    "Only the executor orchestration mode currently accepts deployment-owned overrides."
+                ));
+            }
+        }
+
+        JsonNode executor = overrides.path("executor");
+        if (executor.isMissingNode() || executor.isNull()) {
+            return;
+        }
+        if (!executor.isObject()) {
+            issues.add(error(
+                "providers",
+                "EXECUTOR_MODE_OVERRIDE_OBJECT_REQUIRED",
+                "$.orchestrationModeOverrides.executor",
+                "The executor orchestration mode override must be an object."
+            ));
+            return;
+        }
+        executor.fieldNames().forEachRemaining(field -> {
+            if (!"readActionResolution".equals(field)) {
+                issues.add(error(
+                    "providers",
+                    "EXECUTOR_MODE_OVERRIDE_FIELD_UNSUPPORTED",
+                    "$.orchestrationModeOverrides.executor." + field,
+                    "Only readActionResolution may be overridden for executor mode."
+                ));
+            }
+        });
+
+        JsonNode readAction = executor.path("readActionResolution");
+        if (readAction.isMissingNode() || readAction.isNull()) {
+            return;
+        }
+        String basePath = "$.orchestrationModeOverrides.executor.readActionResolution";
+        if (!readAction.isObject()) {
+            issues.add(error(
+                "providers",
+                "READ_ACTION_RESOLUTION_OVERRIDE_OBJECT_REQUIRED",
+                basePath,
+                "readActionResolution must be an object."
+            ));
+            return;
+        }
+        readAction.fieldNames().forEachRemaining(field -> {
+            if (!Set.of("planningMode", "maxIterations", "ragCooperationMode").contains(field)) {
+                issues.add(error(
+                    "providers",
+                    "READ_ACTION_RESOLUTION_OVERRIDE_FIELD_UNSUPPORTED",
+                    basePath + "." + field,
+                    "Only planningMode, maxIterations and ragCooperationMode may be overridden."
+                ));
+            }
+        });
+
+        validateOptionalEnum(
+            readAction,
+            "planningMode",
+            SUPPORTED_READ_ACTION_PLANNING_MODES,
+            "READ_ACTION_RESOLUTION_PLANNING_MODE_INVALID",
+            basePath,
+            issues
+        );
+        validateOptionalEnum(
+            readAction,
+            "ragCooperationMode",
+            SUPPORTED_READ_ACTION_RAG_COOPERATION_MODES,
+            "READ_ACTION_RESOLUTION_RAG_COOPERATION_MODE_INVALID",
+            basePath,
+            issues
+        );
+        JsonNode maxIterations = readAction.path("maxIterations");
+        if (!maxIterations.isMissingNode() && !maxIterations.isNull()
+            && (!maxIterations.isIntegralNumber() || maxIterations.asInt() < 1 || maxIterations.asInt() > 5)) {
+            issues.add(error(
+                "providers",
+                "READ_ACTION_RESOLUTION_MAX_ITERATIONS_INVALID",
+                basePath + ".maxIterations",
+                "maxIterations must be an integer between 1 and 5."
+            ));
+        }
+    }
+
+    private void validateOptionalEnum(JsonNode node,
+                                      String field,
+                                      Set<String> supported,
+                                      String code,
+                                      String basePath,
+                                      List<DraftValidationIssue> issues) {
+        JsonNode value = node.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return;
+        }
+        String normalized = value.isTextual()
+            ? value.asText("").trim().toUpperCase(Locale.ROOT)
+            : "";
+        if (!supported.contains(normalized)) {
+            issues.add(error(
+                "providers",
+                code,
+                basePath + "." + field,
+                field + " must be one of " + supported + "."
+            ));
+        }
     }
 
     private void validateAzureProviders(JsonNode providerNode, List<DraftValidationIssue> issues) {

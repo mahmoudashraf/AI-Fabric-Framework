@@ -53,6 +53,20 @@ actions:
         type: STRING
         required: true
 
+  - name: dealership_resolve_vehicle
+    description: Resolve one explicit buyer-facing vehicle reference to a trusted active dealership target.
+    category: dealership_inventory
+    accessMode: READ
+    anonymousAllowed: true
+    requiresConfirmation: false
+    groundingEligible: true
+    readActionResolutionEligible: true
+    params:
+      - name: reference
+        description: Vehicle make and model, stock id or URL slug explicitly stated by the buyer.
+        type: STRING
+        required: true
+
   - name: dealership_compare_vehicles
     description: Compare current structured facts for two to four active dealership vehicles.
     category: dealership_inventory
@@ -75,10 +89,22 @@ actions:
     requiresConfirmation: true
     confirmationMessage: Send your confirmed contact details to the dealership about this vehicle?
     params:
+      - name: vehicle
+        description: Buyer-facing vehicle make and model, stock id or URL slug.
+        type: STRING
+        required: true
       - name: vehicleId
         description: Trusted active vehicle id.
         type: STRING
         required: true
+        visibility: INTERNAL
+        askUser: false
+        resolveFrom:
+          source: READ_ACTION
+          actionName: dealership_resolve_vehicle
+          params:
+            reference: "{{params.vehicle|context.originalQuery}}"
+          resultPath: vehicleId
       - name: name
         description: Customer name.
         type: STRING
@@ -112,10 +138,22 @@ actions:
     requiresConfirmation: true
     confirmationMessage: Send your confirmed contact and preferred date to request this test drive?
     params:
+      - name: vehicle
+        description: Buyer-facing vehicle make and model, stock id or URL slug.
+        type: STRING
+        required: true
       - name: vehicleId
         description: Trusted active vehicle id.
         type: STRING
         required: true
+        visibility: INTERNAL
+        askUser: false
+        resolveFrom:
+          source: READ_ACTION
+          actionName: dealership_resolve_vehicle
+          params:
+            reference: "{{params.vehicle|context.originalQuery}}"
+          resultPath: vehicleId
       - name: name
         description: Customer name.
         type: STRING

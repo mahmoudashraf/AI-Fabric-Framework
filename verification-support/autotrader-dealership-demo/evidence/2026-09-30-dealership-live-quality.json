@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "loomai-dealership-live-quality-evidence-v1",
+  "status": "NEEDS_IMPROVEMENT",
+  "claim": "DEALERSHIP_CONVERSATIONAL_QUALITY_BASELINE",
+  "completedAt": "2026-09-30T20:17:34.430Z",
+  "target": {
+    "publicExperienceUrl": "https://loomai.pro/demos/dealership-ai",
+    "backendBaseUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
+    "runtimeBaseUrl": "https://dep-f023c863.46.224.145.148.sslip.io",
+    "deploymentId": "dep-f023c863",
+    "integrationMode": "public-runtime-anonymous",
+    "vectorSpace": "dealer-vehicle",
+    "uiMode": "executor",
+    "uiPosition": "search",
+    "viewport": "390x844"
+  },
+  "run": {
+    "conversationId": "chat-825182d1-8dda-4ecf-b8d8-7787e4bf8691",
+    "scenarioCount": 7,
+    "passedScenarios": 5,
+    "needsImprovementScenarios": 2,
+    "oneConversation": true,
+    "conversationHistoryObserved": true,
+    "writeConfirmed": false,
+    "domainWriteCompleted": false,
+    "browserOrTransportFailures": 0
+  },
+  "observedPolicy": {
+    "profile": "PRODUCTION_CHAT",
+    "mode": "executor",
+    "position": "search",
+    "actionsEnabled": true,
+    "retrievalEnabled": true,
+    "readActionResolutionPlanningMode": "SINGLE_PASS",
+    "readActionResolutionMaxIterations": 1,
+    "readActionResolutionMaxTotalActions": 2,
+    "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+    "allowedReadActions": [
+      "dealership_compare_vehicles",
+      "dealership_get_vehicle",
+      "dealership_search_inventory"
+    ],
+    "retrievalVectorSpaces": [
+      "dealer-vehicle"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "structured-current-stock-action",
+      "status": "PASS",
+      "providerRequestId": "rag-a379db0e-22aa-4f2e-ad93-d698c1a98a91",
+      "groundingPath": "ACTION",
+      "executedActions": [
+        "dealership_search_inventory"
+      ],
+      "itemsCount": 3
+    },
+    {
+      "id": "contextual-follow-up",
+      "status": "PASS",
+      "providerRequestId": "rag-0d3c4551-4a16-4506-bfda-8939b0357bbf",
+      "groundingPath": "ACTION_AND_RAG",
+      "externalDocumentCount": 6,
+      "historyMessagesCount": 2
+    },
+    {
+      "id": "vehicle-comparison",
+      "status": "PASS",
+      "providerRequestId": "rag-70362294-6cae-45ca-9541-726e54e835dd",
+      "groundingPath": "ACTION",
+      "executedActions": [
+        "dealership_compare_vehicles"
+      ]
+    },
+    {
+      "id": "semantic-rag",
+      "status": "PASS",
+      "providerRequestId": "rag-ec04e80d-0e5e-457c-b987-e9ab5c110144",
+      "groundingPath": "ACTION_AND_RAG",
+      "externalDocumentCount": 6
+    },
+    {
+      "id": "empty-action-rag-fallback",
+      "status": "NEEDS_IMPROVEMENT",
+      "providerRequestId": "rag-495b0755-9819-4247-99fb-420ad8dd23bd",
+      "groundingPath": "ACTION",
+      "executedActions": [
+        "dealership_search_inventory"
+      ],
+      "itemsCount": 0,
+      "groundingUsable": true,
+      "externalDocumentCount": 0,
+      "finding": "The successful zero-result action was treated as usable grounding. RAG did not run and the answer incorrectly generalized a filtered no-match to no inventory."
+    },
+    {
+      "id": "unsupported-policy-honesty",
+      "status": "PASS",
+      "providerRequestId": "rag-1d3d10e5-4b85-4c6e-b893-62fbd904d704",
+      "groundingPath": "RAG",
+      "externalDocumentCount": 6,
+      "finding": "The answer explicitly stated that warranty evidence was unavailable and did not invent coverage terms."
+    },
+    {
+      "id": "governed-write-intent",
+      "status": "NEEDS_IMPROVEMENT",
+      "providerRequestId": "rag-526106d5-4271-40e2-b284-5e36288a47ad",
+      "responseType": "CLARIFICATION_REQUIRED",
+      "domainWriteCompleted": false,
+      "finding": "The write remained safe and unexecuted, but clarification exposed vehicleId and omitted the complete buyer-facing contact, consent and confirmation requirements."
+    }
+  ],
+  "recommendationOrder": [
+    "Keep the browser integration on executor mode and search position with one runtime-owned conversation.",
+    "Canary bounded ITERATIVE executor planning with maxIterations=2 and RAG_IF_ACTIONS_INSUFFICIENT at deployment configuration level.",
+    "Mark vehicleId INTERNAL with askUser=false and resolve it from a deployment-validated attachment or unambiguous read result.",
+    "Raise a framework issue only if the deployment-policy canary still treats an empty collection as sufficient grounding and suppresses RAG."
+  ],
+  "mutations": {
+    "deploymentChanged": false,
+    "frameworkChanged": false,
+    "liveConfigurationChanged": false,
+    "domainWriteConfirmed": false
+  }
+}

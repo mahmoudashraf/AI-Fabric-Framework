@@ -19,6 +19,7 @@
     "smoke": "npm run smoke:content && node scripts/static-smoke.mjs",
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:dealership-live": "node scripts/dealership-live-gate.mjs",
+    "quality:dealership-live": "node scripts/dealership-quality-check.mjs",
     "verify": "npm run check && npm run build && npm run smoke && npm run smoke:browser"
   },
   "dependencies": {

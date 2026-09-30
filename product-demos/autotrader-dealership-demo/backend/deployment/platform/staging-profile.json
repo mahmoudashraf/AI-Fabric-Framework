@@ -16,7 +16,16 @@
     "orchestrationModel": "gpt-4o-mini",
     "generationLlmProvider": "openai",
     "generationModel": "gpt-4o-mini",
-    "generationMaxTokens": 900
+    "generationMaxTokens": 900,
+    "orchestrationModeOverrides": {
+      "executor": {
+        "readActionResolution": {
+          "planningMode": "ITERATIVE",
+          "maxIterations": 2,
+          "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT"
+        }
+      }
+    }
   },
   "securityConfig": {
     "authzMode": "REMOTE_HTTP",

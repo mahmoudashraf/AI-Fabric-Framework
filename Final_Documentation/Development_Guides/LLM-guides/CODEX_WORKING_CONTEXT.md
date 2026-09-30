@@ -3118,3 +3118,41 @@ Critical fixes that made the gate pass:
   or weaken the check; the owner explicitly deferred Shopify retrieval.
 - Sanitized canonical evidence is
   `verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json`.
+
+## 2026-09-30 Dealership Iterative Conversation Quality Baseline
+
+- Added the non-mutating live browser harness
+  `Platfrom/loomai-site/scripts/dealership-quality-check.mjs` and npm command
+  `quality:dealership-live`. It drives the real
+  `https://loomai.pro/demos/dealership-ai` route at `390x844`, preserves
+  `executor` mode and `search` position, and runs seven queries in one
+  runtime-owned conversation. It never sends confirmation or completes a
+  domain write.
+- Exact inventory search, contextual follow-up, vehicle comparison, semantic
+  action-plus-RAG recommendation, and unsupported-warranty honesty passed.
+  Every request retained `dealer-demo-001` / `dealer-vehicle` context; history
+  increased from 0 to 12 messages; browser and runtime transport had no
+  failures.
+- The empty-result canary reproduced three times: the authoritative search
+  returned `itemsCount=0` but was marked `groundingUsable=true`; under effective
+  `SINGLE_PASS` + `RAG_IF_ACTIONS_INSUFFICIENT`, no independent RAG document
+  was attached and the answer incorrectly generalized the filtered no-match to
+  empty dealership inventory. Final provider request ID is
+  `rag-495b0755-9819-4247-99fb-420ad8dd23bd`.
+- The unconfirmed test-drive intent remained safe but returned
+  `To proceed, please provide: vehicleId, name.` Internal `vehicleId` must be
+  hidden and trusted-resolved, while clarification must expose only buyer-owned
+  contact, consent, date and confirmation requirements. Final provider request
+  ID is `rag-526106d5-4271-40e2-b284-5e36288a47ad`.
+- No deployment/framework/config change was made. First canary a new immutable
+  deployment version with bounded `ITERATIVE` executor read-action planning
+  (`maxIterations=2`) and `RAG_IF_ACTIONS_INSUFFICIENT`; raise a framework
+  issue only if empty collections still suppress fallback. Separately fix the
+  deployment action contract with `visibility: INTERNAL`, `askUser: false`,
+  and trusted target resolution for `vehicleId`.
+- Detailed findings are in
+  `verification-support/autotrader-dealership-demo/DEALERSHIP_AI_LIVE_QUALITY_FINDINGS.md`;
+  compact evidence is
+  `verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-live-quality.json`.
+  This does not revoke the bounded `DEALERSHIP_DEMO_READY` infrastructure
+  claim, but the conversational quality baseline remains `NEEDS_IMPROVEMENT`.
