@@ -56,8 +56,8 @@ actions:
       message: Inventory search completed.
     authz:
       enabled: true
-      resourceId: inventory-search
-      operationType: SEARCH
+      resource-id: inventory-search
+      operation-type: SEARCH
 
   dealership_get_vehicle:
     method: GET
@@ -67,8 +67,8 @@ actions:
       message: Current vehicle details loaded.
     authz:
       enabled: true
-      resourceId: "{{params.vehicleId}}"
-      operationType: READ
+      resource-id: "{{params.vehicleId}}"
+      operation-type: READ
 
   dealership_compare_vehicles:
     method: GET
@@ -81,8 +81,8 @@ actions:
       message: Current vehicles compared.
     authz:
       enabled: true
-      resourceId: inventory-search
-      operationType: READ
+      resource-id: inventory-search
+      operation-type: READ
 
   dealership_request_callback:
     method: POST
@@ -109,8 +109,8 @@ actions:
       message: Callback request created.
     authz:
       enabled: true
-      resourceId: "{{params.vehicleId}}"
-      operationType: REQUEST_CALLBACK
+      resource-id: "{{params.vehicleId}}"
+      operation-type: REQUEST_CALLBACK
 
   dealership_request_test_drive:
     method: POST
@@ -138,5 +138,5 @@ actions:
       message: Test-drive request created.
     authz:
       enabled: true
-      resourceId: "{{params.vehicleId}}"
-      operationType: REQUEST_TEST_DRIVE
+      resource-id: "{{params.vehicleId}}"
+      operation-type: REQUEST_TEST_DRIVE

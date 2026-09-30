@@ -59,7 +59,7 @@
   },
   "shellConfig": {
     "contractVersion": "SHELL_CONFIG_V1",
-    "defaultConversationMode": "conversational",
+    "defaultConversationMode": "executor",
     "modules": [],
     "cards": [],
     "greeting": {

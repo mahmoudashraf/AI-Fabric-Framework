@@ -143,8 +143,8 @@ const mockServer = createServer((request, response) => {
       contractVersion: 'RUNTIME_SHELL_CONFIG_V1',
       greetingTitle: 'Northfield AI',
       greetingMessage: 'Ask about current dealership inventory.',
-      defaultConversationMode: 'navigator',
-      allowedConversationModes: ['navigator'],
+      defaultConversationMode: 'executor',
+      allowedConversationModes: ['executor'],
       starterPrompts: [],
     })
     return

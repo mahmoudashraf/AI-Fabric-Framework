@@ -294,9 +294,9 @@ async function initializeAssistant(app: HTMLElement, apiBaseUrl: string) {
       assistantLabel: 'Northfield AI',
       welcomeMessage: 'I can search and compare Northfield demo inventory using indexed vehicle evidence and current dealership facts.',
       starterPrompts: [
-        { label: 'Find an electric car', query: 'Show me electric cars in current stock.', position: 'search', mode: 'navigator' },
-        { label: 'Best family options', query: 'Which current vehicles are practical for a family?', position: 'search', mode: 'navigator' },
-        { label: 'Low-mileage stock', query: 'Find current vehicles with less than 10,000 miles.', position: 'search', mode: 'navigator' },
+        { label: 'Find an electric car', query: 'Show me electric cars in current stock.', position: 'search', mode: 'executor' },
+        { label: 'Best family options', query: 'Which current vehicles are practical for a family?', position: 'search', mode: 'executor' },
+        { label: 'Low-mileage stock', query: 'Find current vehicles with less than 10,000 miles.', position: 'search', mode: 'executor' },
       ],
       starterSuggestions: [
         'Compare electric cars',
@@ -310,9 +310,9 @@ async function initializeAssistant(app: HTMLElement, apiBaseUrl: string) {
         preferredVectorSpaces: [descriptor.vectorSpace],
         sourceMode: 'DEMONSTRATION_INVENTORY',
       },
-      defaultConversationMode: 'navigator',
-      effectiveConversationMode: 'navigator',
-      allowedConversationModes: ['navigator'],
+      defaultConversationMode: 'executor',
+      effectiveConversationMode: 'executor',
+      allowedConversationModes: ['executor'],
       showUtilityPanel: false,
       companionDock: true,
       companionContextLabel: 'Current fictional dealership inventory',
@@ -521,7 +521,7 @@ function sendAssistantMessage(app: HTMLElement, prompt: string, requestContext: 
   window.MaxMode.sendMessage(prompt, {
     open: true,
     position: 'search',
-    mode: 'navigator',
+    mode: 'executor',
     requestContext,
   })
 }
