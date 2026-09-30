@@ -60,7 +60,16 @@ function writeMockJson(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
-const mockServer = createServer((request, response) => {
+async function readMockJson(request) {
+  const chunks = []
+  for await (const chunk of request) {
+    chunks.push(chunk)
+  }
+  if (chunks.length === 0) return {}
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+}
+
+const mockServer = createServer(async (request, response) => {
   const url = new URL(request.url || '/', mockOrigin)
   if (request.method === 'OPTIONS') {
     writeMockJson(response, 204, {})
@@ -156,6 +165,34 @@ const mockServer = createServer((request, response) => {
   }
 
   if (url.pathname === '/api/chat/me/query' && request.method === 'POST') {
+    const payload = await readMockJson(request)
+    if (payload.query === 'Request a test drive for the Aster E1') {
+      writeMockJson(response, 200, {
+        success: false,
+        type: 'CONFIRMATION_REQUIRED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'Confirm the test-drive request?',
+        actions: [{
+          action: 'dealership_request_test_drive',
+          confirmationRequired: true,
+          confirmationMessage: 'Confirm the test-drive request?',
+        }],
+      })
+      return
+    }
+    if (payload.query === 'Yes, confirm') {
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'ACTION_EXECUTED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'Test-drive request created.',
+        actions: [{
+          action: 'dealership_request_test_drive',
+          executed: true,
+        }],
+      })
+      return
+    }
     writeMockJson(response, 200, {
       success: true,
       type: 'INFORMATION_PROVIDED',
@@ -333,6 +370,34 @@ try {
     const host = document.querySelector('#max-mode-widget-shadow-host')
     return Boolean(host?.shadowRoot?.querySelector('.max-mode-widget-root'))
   })
+
+  const actionRequestPromise = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Request a test drive for the Aster E1'
+  })
+  await page.evaluate(() => {
+    window.MaxMode.sendMessage('Request a test drive for the Aster E1', {
+      mode: 'executor',
+      open: true,
+    })
+  })
+  const actionRequest = await actionRequestPromise
+  if (actionRequest.postDataJSON()?.mode !== 'executor') {
+    throw new Error('Initial governed action request did not preserve executor mode')
+  }
+
+  const confirmButton = page.getByRole('button', { name: 'Confirm', exact: true })
+  await confirmButton.waitFor()
+  const confirmationRequestPromise = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Yes, confirm'
+  })
+  await confirmButton.click()
+  const confirmationRequest = await confirmationRequestPromise
+  if (confirmationRequest.postDataJSON()?.mode !== 'executor') {
+    throw new Error('Confirmation follow-up did not preserve executor mode')
+  }
+  await page.getByText('Test-drive request created.', { exact: true }).first().waitFor()
 
   await context.close()
 

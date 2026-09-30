@@ -168,19 +168,10 @@ export function useChatFlow({
       const hasAttachments = currentAttachments.length > 0;
       const isFirstQuery = chatMessagesLength === 0;
 
-      let position: "landing" | "catalog" | "search" | "cart";
-      let mode: MaxModeMode;
-
-      if (actionPosition && actionMode) {
-        position = actionPosition;
-        mode = actionMode;
-      } else if (hasAttachments) {
-        position = "cart";
-        mode = "cart_assistant";
-      } else {
-        position = actionPosition ?? currentPosition;
-        mode = actionMode ?? currentMode;
-      }
+      let position: "landing" | "catalog" | "search" | "cart" =
+        actionPosition ?? (hasAttachments ? "cart" : currentPosition);
+      let mode: MaxModeMode =
+        actionMode ?? (hasAttachments ? "cart_assistant" : currentMode);
 
       // Search category tag forces navigator mode (position = search)
       const hasSearchTag = !!(currentSearchCategory || aiSearchAttachment);

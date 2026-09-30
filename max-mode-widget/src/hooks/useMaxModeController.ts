@@ -592,6 +592,7 @@ export function useMaxModeController({
   const { handleConfirmation } = useConfirmationFlow({
     attachedItems,
     currentConversationId,
+    currentMode,
     setConfirmationStatus,
     setChatMessages,
     setContextDocuments,
@@ -653,6 +654,7 @@ export function useMaxModeController({
   const { handleClarificationSubmit } = useClarificationFlow({
     attachedItems,
     currentConversationId,
+    currentMode,
     setChatMessages,
     setContextDocuments,
     setCurrentConversationId,

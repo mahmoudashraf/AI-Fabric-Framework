@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { postChatQuery } from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -12,6 +13,7 @@ type ToastFn = (opts: any) => void;
 export function useConfirmationFlow({
   attachedItems,
   currentConversationId,
+  currentMode,
   setConfirmationStatus,
   setChatMessages,
   setContextDocuments,
@@ -21,6 +23,7 @@ export function useConfirmationFlow({
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   currentConversationId: string | null;
+  currentMode: MaxModeMode;
   setConfirmationStatus: Dispatch<SetStateAction<Record<string, "pending" | "confirmed" | "rejected">>>;
   setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setContextDocuments: Dispatch<SetStateAction<Document[]>>;
@@ -52,6 +55,7 @@ export function useConfirmationFlow({
           query: confirmationQuery,
           conversationId: currentConversationId || undefined,
           attachments: attachedItems,
+          mode: currentMode,
         });
 
         if (data.conversationId && !currentConversationId) {
@@ -121,6 +125,7 @@ export function useConfirmationFlow({
     [
       attachedItems,
       currentConversationId,
+      currentMode,
       setChatMessages,
       setConfirmationStatus,
       setContextDocuments,

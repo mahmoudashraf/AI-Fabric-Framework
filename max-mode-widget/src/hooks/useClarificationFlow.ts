@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { postChatQuery } from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
+import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 
@@ -12,6 +13,7 @@ type ToastFn = (opts: any) => void;
 export function useClarificationFlow({
   attachedItems,
   currentConversationId,
+  currentMode,
   setChatMessages,
   setContextDocuments,
   setCurrentConversationId,
@@ -20,6 +22,7 @@ export function useClarificationFlow({
 }: {
   attachedItems: Array<{ type: string; data: any }>;
   currentConversationId: string | null;
+  currentMode: MaxModeMode;
   setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setContextDocuments: Dispatch<SetStateAction<Document[]>>;
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
@@ -48,6 +51,7 @@ export function useClarificationFlow({
           query,
           conversationId: currentConversationId || undefined,
           attachments: attachedItems,
+          mode: currentMode,
         });
 
         if (data.conversationId && !currentConversationId) {
@@ -112,6 +116,7 @@ export function useClarificationFlow({
     [
       attachedItems,
       currentConversationId,
+      currentMode,
       setChatMessages,
       setContextDocuments,
       setCurrentConversationId,
