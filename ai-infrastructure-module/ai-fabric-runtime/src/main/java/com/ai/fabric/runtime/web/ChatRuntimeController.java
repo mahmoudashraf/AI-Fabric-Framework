@@ -667,8 +667,9 @@ public class ChatRuntimeController {
         AIActionRegistry registry = aiActionRegistryProvider != null ? aiActionRegistryProvider.getIfAvailable() : null;
         List<AIActionMetaData> actions = registry != null ? registry.getAllMetadata() : List.of();
         List<OrchestrationAttachment> attachments = request.getAttachments() != null ? request.getAttachments() : List.of();
+        Map<String, Object> requestContext = sanitizeRequestContext(request.getContext());
 
-        String prompt = buildActionAwareSuggestionsPrompt(request.getContent(), actions, attachments, n);
+        String prompt = buildActionAwareSuggestionsPrompt(request.getContent(), actions, attachments, requestContext, n);
 
         AICoreService aiCoreService = aiCoreServiceProvider.getIfAvailable();
         if (aiCoreService == null) {
@@ -1352,9 +1353,10 @@ public class ChatRuntimeController {
     private String buildActionAwareSuggestionsPrompt(String content,
                                                     List<AIActionMetaData> actions,
                                                     List<OrchestrationAttachment> attachments,
+                                                    Map<String, Object> requestContext,
                                                     int n) {
         String availableActions = formatActions(actions);
-        String requestGrounding = formatSuggestionGrounding(content, attachments);
+        String requestGrounding = formatSuggestionGrounding(content, attachments, requestContext);
 
         return """
             Task:
@@ -1412,10 +1414,12 @@ public class ChatRuntimeController {
     }
 
     private String formatSuggestionGrounding(String content,
-                                             List<OrchestrationAttachment> attachments) {
+                                             List<OrchestrationAttachment> attachments,
+                                             Map<String, Object> requestContext) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userContext", truncateForPrompt(content, MAX_SUGGESTION_USER_CONTEXT_CHARS));
         payload.put("attachments", sanitizeAttachmentsForPrompt(attachments));
+        payload.put("requestContext", requestContext == null ? Map.of() : requestContext);
         return writeJson(payload);
     }
 

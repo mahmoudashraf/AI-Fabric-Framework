@@ -16,6 +16,7 @@ import java.util.Map;
 public class SuggestionsRequest {
     private String content;
     private List<OrchestrationAttachment> attachments;
+    private Map<String, Object> context;
 
     @Min(1)
     @Max(10)

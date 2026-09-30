@@ -35,10 +35,16 @@ export function useSuggestionsController({
           if (item.data.price) parts.push(`$${item.data.price}`);
           if (item.data.code) parts.push(`Code: ${item.data.code}`);
 
-          let vectorSpace = "product";
-          if (item.type === "order") vectorSpace = "order";
-          else if (item.type === "review") vectorSpace = "review";
-          else if (item.type === "coupon") vectorSpace = "coupon";
+          const explicitVectorSpace = [
+            item.data.vectorSpace,
+            item.data.entityType,
+            item.data.metadata?.vectorSpace,
+            item.data.metadata?.entityType,
+          ].find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
+          let vectorSpace = explicitVectorSpace || "product";
+          if (!explicitVectorSpace && item.type === "order") vectorSpace = "order";
+          else if (!explicitVectorSpace && item.type === "review") vectorSpace = "review";
+          else if (!explicitVectorSpace && item.type === "coupon") vectorSpace = "coupon";
 
           return {
             id: item.data.id || item.data.sku || Date.now().toString(),
