@@ -40,7 +40,9 @@ class DealershipDemoHttpTest {
         registry.add("dealership.internal.api-key", () -> INTERNAL_KEY);
         registry.add("dealership.privacy.encryption-key-base64", () -> ENCRYPTION_KEY);
         registry.add("dealership.staff.username", () -> "staff");
-        registry.add("dealership.staff.password-hash", () -> new BCryptPasswordEncoder(4).encode("test-password"));
+        registry.add("dealership.staff.password-hash-base64", () -> Base64.getEncoder().encodeToString(
+            new BCryptPasswordEncoder(4).encode("test-password").getBytes(StandardCharsets.UTF_8)
+        ));
         registry.add("dealership.runtime.enabled", () -> "true");
         registry.add("dealership.runtime.base-url", () -> "https://runtime.example.test");
         registry.add("dealership.runtime.private-access.trusted-api-key", () -> "runtime-secret-that-must-not-leak");

@@ -24,6 +24,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 @Configuration
 public class SecurityConfiguration {
@@ -44,8 +46,17 @@ public class SecurityConfiguration {
     UserDetailsService userDetailsService(DealershipDemoProperties properties) {
         return username -> {
             String configuredUser = properties.getStaff().getUsername();
-            String configuredHash = properties.getStaff().getPasswordHash();
-            if (configuredUser == null || configuredHash == null || !configuredUser.equals(username)) {
+            String configuredHashBase64 = properties.getStaff().getPasswordHashBase64();
+            if (configuredUser == null || configuredHashBase64 == null || !configuredUser.equals(username)) {
+                throw new UsernameNotFoundException("Staff account is not configured.");
+            }
+            String configuredHash;
+            try {
+                configuredHash = new String(
+                    Base64.getDecoder().decode(configuredHashBase64.trim()),
+                    StandardCharsets.UTF_8
+                );
+            } catch (IllegalArgumentException exception) {
                 throw new UsernameNotFoundException("Staff account is not configured.");
             }
             return User.withUsername(configuredUser)

@@ -19,7 +19,7 @@ access.
 export APP_INTERNAL_API_KEY="$(openssl rand -hex 32)"
 export APP_PII_ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)"
 export APP_STAFF_USERNAME=staff
-export APP_STAFF_PASSWORD_HASH="$(htpasswd -bnBC 12 '' 'replace-this-password' | tr -d ':\n')"
+export APP_STAFF_PASSWORD_HASH_BASE64="$(htpasswd -bnBC 12 '' 'replace-this-password' | tr -d ':\n' | base64)"
 mvn spring-boot:run
 ```
 
@@ -40,7 +40,7 @@ CORS_ALLOWED_ORIGINS=https://loomai.pro
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAME_SITE=none
 APP_STAFF_USERNAME=<staff-user>
-APP_STAFF_PASSWORD_HASH=<bcrypt-hash>
+APP_STAFF_PASSWORD_HASH_BASE64=<base64-encoded-bcrypt-hash>
 APP_INTERNAL_API_KEY=<random-secret>
 APP_PII_ENCRYPTION_KEY_BASE64=<base64-encoded-32-byte-key>
 APP_VERSION=<release-version>

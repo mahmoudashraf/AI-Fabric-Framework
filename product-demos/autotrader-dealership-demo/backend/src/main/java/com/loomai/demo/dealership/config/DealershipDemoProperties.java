@@ -36,11 +36,11 @@ public class DealershipDemoProperties {
 
     public static class Staff {
         private String username;
-        private String passwordHash;
+        private String passwordHashBase64;
         public String getUsername() { return username; }
         public void setUsername(String username) { this.username = username; }
-        public String getPasswordHash() { return passwordHash; }
-        public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+        public String getPasswordHashBase64() { return passwordHashBase64; }
+        public void setPasswordHashBase64(String passwordHashBase64) { this.passwordHashBase64 = passwordHashBase64; }
     }
 
     public static class Internal {

@@ -25,7 +25,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
         }
         List<String> missing = new ArrayList<>();
         require(properties.getStaff().getUsername(), "APP_STAFF_USERNAME", missing);
-        require(properties.getStaff().getPasswordHash(), "APP_STAFF_PASSWORD_HASH", missing);
+        require(properties.getStaff().getPasswordHashBase64(), "APP_STAFF_PASSWORD_HASH_BASE64", missing);
         require(properties.getInternal().getApiKey(), "APP_INTERNAL_API_KEY", missing);
         require(properties.getPrivacy().getEncryptionKeyBase64(), "APP_PII_ENCRYPTION_KEY_BASE64", missing);
         if (properties.getAllowedOrigins().isEmpty()) {
@@ -43,6 +43,7 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
             require(access.getTenantId(), "LOOMAI_RUNTIME_TENANT_ID", missing);
         }
         validateEncryptionKey(missing);
+        validateStaffPasswordHash(missing);
         if (!missing.isEmpty()) {
             throw new IllegalStateException("Production configuration is incomplete: " + String.join(", ", missing));
         }
@@ -59,6 +60,21 @@ public class ProductionConfigurationValidator implements ApplicationRunner {
             }
         } catch (IllegalArgumentException ex) {
             missing.add("APP_PII_ENCRYPTION_KEY_BASE64 (invalid Base64)");
+        }
+    }
+
+    private void validateStaffPasswordHash(List<String> missing) {
+        String configured = properties.getStaff().getPasswordHashBase64();
+        if (!StringUtils.hasText(configured)) {
+            return;
+        }
+        try {
+            String hash = new String(Base64.getDecoder().decode(configured.trim()), java.nio.charset.StandardCharsets.UTF_8);
+            if (hash.length() != 60 || !(hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$"))) {
+                missing.add("APP_STAFF_PASSWORD_HASH_BASE64 (must contain one BCrypt hash)");
+            }
+        } catch (IllegalArgumentException ex) {
+            missing.add("APP_STAFF_PASSWORD_HASH_BASE64 (invalid Base64)");
         }
     }
 
