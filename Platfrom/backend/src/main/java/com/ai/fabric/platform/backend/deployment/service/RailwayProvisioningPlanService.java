@@ -250,6 +250,7 @@ public class RailwayProvisioningPlanService {
             : readJson(version.getProviderConfigJson());
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
+        JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
         JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
@@ -547,6 +548,7 @@ public class RailwayProvisioningPlanService {
             "${secret:" + DeploymentExecutionSecretService.connectorAdminApiKeyName(deployment.getId()) + "}"
         ));
         connectorEnv.add(new RailwayEnvVarSummary("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY"));
+        addConnectorSecretEnv(connectorEnv, routingConfig, marketplaceDatasetConfig);
         if (externalHttpIntegration) {
             String connectorDatabaseRole = integrationConnectorDatabaseRole(deployment.getId());
             connectorEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_INTERNAL_BASE_URL", runtimeBaseUrl));
@@ -562,7 +564,6 @@ public class RailwayProvisioningPlanService {
                 "REST_CONNECTOR_JDBC_PASSWORD",
                 "${secret:" + DeploymentExecutionSecretService.integrationConnectorDatabasePasswordName(deployment.getId()) + "}"
             ));
-            addMarketplaceConnectorSecretEnv(connectorEnv, marketplaceDatasetConfig);
         }
         addShopifyBridgeConnectorEnv(connectorEnv, deployment);
         addCorsEnv(connectorEnv, securityConfig);
@@ -1994,9 +1995,13 @@ public class RailwayProvisioningPlanService {
         return role.length() > 63 ? role.substring(0, 63).replaceAll("_+$", "") : role;
     }
 
-    private void addMarketplaceConnectorSecretEnv(List<RailwayEnvVarSummary> connectorEnv, JsonNode config) {
+    private void addConnectorSecretEnv(List<RailwayEnvVarSummary> connectorEnv, JsonNode... configs) {
         LinkedHashSet<String> refs = new LinkedHashSet<>();
-        collectDeploymentSecretPlaceholders(config, refs);
+        if (configs != null) {
+            for (JsonNode config : configs) {
+                collectDeploymentSecretPlaceholders(config, refs);
+            }
+        }
         for (String ref : refs) {
             connectorEnv.add(new RailwayEnvVarSummary(ref, "${secret:" + ref + "}"));
         }

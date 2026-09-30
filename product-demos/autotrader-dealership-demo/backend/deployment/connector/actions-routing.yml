@@ -9,8 +9,8 @@ connector:
     base-url: ${DEALERSHIP_BACKEND_BASE_URL:}
     auth:
       type: API_KEY
-      header: ${DEALERSHIP_INTERNAL_API_KEY_HEADER:X-DEALERSHIP-INTERNAL-KEY}
-      value: ${DEALERSHIP_INTERNAL_API_KEY:}
+      header: X-DEALERSHIP-INTERNAL-KEY
+      value: ${DEALERSHIP_INTERNAL_API_KEY}
   http:
     connect-timeout-ms: 2000
     timeout-ms: 8000
@@ -31,8 +31,8 @@ authz:
     base-url: ${DEALERSHIP_BACKEND_BASE_URL:}
     auth:
       type: API_KEY
-      header: ${DEALERSHIP_INTERNAL_API_KEY_HEADER:X-DEALERSHIP-INTERNAL-KEY}
-      value: ${DEALERSHIP_INTERNAL_API_KEY:}
+      header: X-DEALERSHIP-INTERNAL-KEY
+      value: ${DEALERSHIP_INTERNAL_API_KEY}
   http:
     connect-timeout-ms: 500
     timeout-ms: 1500

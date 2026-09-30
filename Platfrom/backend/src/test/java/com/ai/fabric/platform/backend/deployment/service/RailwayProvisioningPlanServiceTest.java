@@ -1982,6 +1982,56 @@ class RailwayProvisioningPlanServiceTest {
             );
     }
 
+    @Test
+    void buildPlanInjectsManagedSecretsReferencedByConnectorRouting() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        DeploymentVersionEntity version = version();
+        version.setRoutingConfigJson(
+            """
+                {
+                  "connector": {
+                    "upstream": {
+                      "base-url": "https://customer.example",
+                      "auth": {
+                        "type": "API_KEY",
+                        "header": "X-CUSTOMER-KEY",
+                        "value": "${CUSTOMER_BACKEND_API_KEY}"
+                      }
+                    }
+                  },
+                  "actions": {}
+                }
+                """
+        );
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
+
+        assertThat(connectorEnv)
+            .containsEntry("CUSTOMER_BACKEND_API_KEY", "${secret:CUSTOMER_BACKEND_API_KEY}");
+    }
+
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {
         return env.stream().collect(Collectors.toMap(RailwayEnvVarSummary::key, RailwayEnvVarSummary::value));
     }
