@@ -7,6 +7,34 @@ actions:
     requiresConfirmation: false
     groundingEligible: true
     readActionResolutionEligible: true
+    llmFacts:
+      lists:
+        - sourcePath: _items
+          target: items
+          maxItems: 12
+          includeFields:
+            - id
+            - stockId
+            - slug
+            - make
+            - model
+            - derivative
+            - registrationYear
+            - priceGbp
+            - priceFormatted
+            - mileage
+            - fuelType
+            - transmission
+            - bodyType
+            - exteriorColour
+            - seats
+            - electricRangeMiles
+            - location
+            - lifecycleState
+            - summary
+            - features
+            - sourceLabel
+            - sourceUpdatedAt
     params:
       - name: make
         description: Exact make filter when the buyer specified one.
@@ -43,6 +71,33 @@ actions:
     requiresConfirmation: false
     groundingEligible: true
     readActionResolutionEligible: true
+    llmFacts:
+      objects:
+        - sourcePath: vehicle
+          target: vehicle
+          includeFields:
+            - id
+            - stockId
+            - slug
+            - make
+            - model
+            - derivative
+            - registrationYear
+            - priceGbp
+            - priceFormatted
+            - mileage
+            - fuelType
+            - transmission
+            - bodyType
+            - exteriorColour
+            - seats
+            - electricRangeMiles
+            - location
+            - lifecycleState
+            - summary
+            - features
+            - sourceLabel
+            - sourceUpdatedAt
     params:
       - name: vehicleId
         description: Trusted vehicle target id returned by inventory search.
@@ -68,16 +123,44 @@ actions:
         required: true
 
   - name: dealership_compare_vehicles
-    description: Compare current structured facts for two to four active dealership vehicles.
+    description: Compare current structured facts for two to four buyer-named active dealership vehicles.
     category: dealership_inventory
     accessMode: READ
     anonymousAllowed: true
     requiresConfirmation: false
     groundingEligible: true
     readActionResolutionEligible: true
+    llmFacts:
+      lists:
+        - sourcePath: _items
+          target: vehicles
+          maxItems: 4
+          includeFields:
+            - id
+            - stockId
+            - slug
+            - make
+            - model
+            - derivative
+            - registrationYear
+            - priceGbp
+            - priceFormatted
+            - mileage
+            - fuelType
+            - transmission
+            - bodyType
+            - exteriorColour
+            - seats
+            - electricRangeMiles
+            - location
+            - lifecycleState
+            - summary
+            - features
+            - sourceLabel
+            - sourceUpdatedAt
     params:
-      - name: vehicleIds
-        description: Comma-separated trusted vehicle ids returned by inventory search.
+      - name: vehicleReferences
+        description: Comma-separated vehicle make/model names, stock ids or slugs explicitly requested by the buyer or returned by inventory evidence.
         type: STRING
         required: true
 

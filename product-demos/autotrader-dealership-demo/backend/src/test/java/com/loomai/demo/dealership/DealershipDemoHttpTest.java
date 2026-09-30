@@ -123,6 +123,34 @@ class DealershipDemoHttpTest {
     }
 
     @Test
+    void comparesBuyerFacingReferencesAfterTrustedActiveInventoryResolution() throws Exception {
+        mvc.perform(get("/api/public/vehicles/compare")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("references", "Aster E1, Morrow C2"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.vehicles.length()").value(2))
+            .andExpect(jsonPath("$.vehicles[0].id").value("veh-aster-e1"))
+            .andExpect(jsonPath("$.vehicles[0].priceGbp").value(31950.00))
+            .andExpect(jsonPath("$.vehicles[1].id").value("veh-morrow-c2"));
+    }
+
+    @Test
+    void comparisonFailsClosedForAmbiguousOrDuplicateReferences() throws Exception {
+        mvc.perform(get("/api/public/vehicles/compare")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("references", "Aster, Morrow C2"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.success").value(false));
+
+        mvc.perform(get("/api/public/vehicles/compare")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("references", "Aster E1, veh-aster-e1"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
     void publicRuntimeDescriptorContainsOnlyBrowserSafeRoutes() throws Exception {
         String body = mvc.perform(get("/api/public/runtime-descriptor"))
             .andExpect(status().isOk())

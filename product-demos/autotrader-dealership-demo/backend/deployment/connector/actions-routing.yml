@@ -52,6 +52,7 @@ actions:
         limit: "{{params.limit|12}}"
     response:
       success-http-status: [200]
+      result: "{{body.items}}"
       message: Inventory search completed.
     authz:
       enabled: true
@@ -89,9 +90,11 @@ actions:
     path: /api/public/vehicles/compare
     request:
       query:
-        ids: "{{params.vehicleIds}}"
+        dealershipId: dealer-demo-001
+        references: "{{params.vehicleReferences}}"
     response:
       success-http-status: [200]
+      result: "{{body.vehicles}}"
       message: Current vehicles compared.
     authz:
       enabled: true

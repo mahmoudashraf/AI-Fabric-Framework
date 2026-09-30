@@ -14,11 +14,14 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/public/vehicles")
@@ -127,19 +130,41 @@ public class InventoryController {
     }
 
     @GetMapping("/compare")
-    public Map<String, Object> compare(@RequestParam String ids) {
-        List<String> requested = Arrays.stream(ids.split(","))
+    public Map<String, Object> compare(
+        @RequestParam String dealershipId,
+        @RequestParam String references
+    ) {
+        if (!properties.getId().equals(dealershipId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dealership inventory was not found.");
+        }
+        List<String> requested = Arrays.stream(references.split(","))
             .map(String::trim)
             .filter(value -> !value.isBlank())
             .distinct()
-            .limit(4)
+            .limit(5)
             .toList();
         if (requested.size() < 2) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose at least two vehicles to compare.");
         }
-        List<Vehicle> vehicles = repository.findActiveByIds(requested);
-        if (vehicles.size() != requested.size()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "One or more selected vehicles are no longer active.");
+        if (requested.size() > 4) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose no more than four vehicles to compare.");
+        }
+
+        List<Vehicle> vehicles = new ArrayList<>();
+        Set<String> resolvedIds = new HashSet<>();
+        for (String reference : requested) {
+            List<Vehicle> matches = repository.resolveActiveReference(reference);
+            if (matches.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No active vehicle matches one of the references.");
+            }
+            if (matches.size() > 1) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "One of the vehicle references is ambiguous.");
+            }
+            Vehicle vehicle = matches.getFirst();
+            if (!resolvedIds.add(vehicle.id())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose distinct vehicles to compare.");
+            }
+            vehicles.add(vehicle);
         }
         return Map.of(
             "success", true,
