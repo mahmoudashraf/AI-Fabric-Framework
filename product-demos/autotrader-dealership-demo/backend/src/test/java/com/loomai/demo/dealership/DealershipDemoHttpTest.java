@@ -64,7 +64,7 @@ class DealershipDemoHttpTest {
         mvc.perform(get("/api/public/vehicles")
                 .queryParam("dealershipId", "dealer-demo-001")
                 .queryParam("fuelType", "Electric")
-                .queryParam("maxPriceMinor", "3500000"))
+                .queryParam("maxPriceGbp", "35000"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.total").value(2))
@@ -72,6 +72,14 @@ class DealershipDemoHttpTest {
             .andExpect(jsonPath("$.items[0].sourceLabel").value("Demonstration inventory"))
             .andExpect(jsonPath("$.facets.makes").isArray())
             .andExpect(jsonPath("$.dataNotice").value("Fictional demonstration inventory. No live Auto Trader data is used."));
+    }
+
+    @Test
+    void rejectsNegativePublicPriceFilters() throws Exception {
+        mvc.perform(get("/api/public/vehicles")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("maxPriceGbp", "-1"))
+            .andExpect(status().isBadRequest());
     }
 
     @Test

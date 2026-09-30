@@ -44,11 +44,10 @@ actions:
     request:
       query:
         dealershipId: dealer-demo-001
-        q: "{{params.query}}"
         make: "{{params.make}}"
         fuelType: "{{params.fuelType}}"
         bodyType: "{{params.bodyType}}"
-        maxPriceMinor: "{{params.maxPriceMinor}}"
+        maxPriceGbp: "{{params.maxPriceGbp}}"
         maxMileage: "{{params.maxMileage}}"
         limit: "{{params.limit|12}}"
     response:

@@ -8,10 +8,6 @@ actions:
     groundingEligible: true
     readActionResolutionEligible: true
     params:
-      - name: query
-        description: Natural-language vehicle preferences.
-        type: STRING
-        required: false
       - name: make
         description: Exact make filter when the buyer specified one.
         type: STRING
@@ -24,8 +20,8 @@ actions:
         description: Exact body type filter when specified.
         type: STRING
         required: false
-      - name: maxPriceMinor
-        description: Maximum budget in GBP minor units.
+      - name: maxPriceGbp
+        description: Maximum budget as a whole number of GBP pounds.
         type: INTEGER
         required: false
       - name: maxMileage

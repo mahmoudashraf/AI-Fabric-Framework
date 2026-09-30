@@ -40,8 +40,8 @@ public class InventoryController {
         @RequestParam(required = false) String make,
         @RequestParam(required = false) String fuelType,
         @RequestParam(required = false) String bodyType,
-        @RequestParam(required = false) Long minPriceMinor,
-        @RequestParam(required = false) Long maxPriceMinor,
+        @RequestParam(required = false) Long minPriceGbp,
+        @RequestParam(required = false) Long maxPriceGbp,
         @RequestParam(required = false) Integer maxMileage,
         @RequestParam(defaultValue = "recommended") String sort,
         @RequestParam(defaultValue = "24") int limit,
@@ -51,7 +51,8 @@ public class InventoryController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dealership inventory was not found.");
         }
         VehicleRepository.SearchResult result = repository.search(new VehicleSearchCriteria(
-            q, make, fuelType, bodyType, minPriceMinor, maxPriceMinor, maxMileage, sort, limit, offset
+            q, make, fuelType, bodyType, poundsToMinor(minPriceGbp), poundsToMinor(maxPriceGbp),
+            maxMileage, sort, limit, offset
         ));
         Map<String, Object> facets = new LinkedHashMap<>();
         facets.put("makes", repository.facets("make_name"));
@@ -66,6 +67,20 @@ public class InventoryController {
             "source", sourceSummary(),
             "dataNotice", "Fictional demonstration inventory. No live Auto Trader data is used."
         );
+    }
+
+    private Long poundsToMinor(Long pounds) {
+        if (pounds == null) {
+            return null;
+        }
+        if (pounds < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Price filters cannot be negative.");
+        }
+        try {
+            return Math.multiplyExact(pounds, 100L);
+        } catch (ArithmeticException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Price filter is outside the supported range.");
+        }
     }
 
     @GetMapping("/{slug}")
