@@ -133,6 +133,10 @@ try {
     retrieval.searchSourceStatuses.every((status) => status === 'SUCCEEDED'),
     `The vehicle retrieval source did not complete successfully: ${JSON.stringify(retrieval.searchSourceStatuses)}`,
   )
+  assert(
+    !retrieval.readActionStatuses.includes('FAILED'),
+    `The vehicle query reported a failed read-action iteration: ${JSON.stringify(retrieval.readActionStatuses)}`,
+  )
   const inventorySearchEvidence = responseEvidence(inventorySearchCall.response)
   assert(
     inventorySearchEvidence.executedActions.includes('dealership_search_inventory'),
@@ -141,6 +145,10 @@ try {
   assert(
     inventorySearchEvidence.sourceCount > 0 || inventorySearchEvidence.documentCount > 0,
     'The explicit inventory search returned no action evidence.',
+  )
+  assert(
+    !inventorySearchEvidence.readActionStatuses.includes('FAILED'),
+    `The explicit inventory search reported a failed read-action iteration: ${JSON.stringify(inventorySearchEvidence.readActionStatuses)}`,
   )
   assert(suggestionResponses.length > 0, 'The runtime did not issue a contextual suggestions request.')
   assert(suggestionResponses.every(({ status }) => status >= 200 && status < 300), 'A suggestions request failed.')

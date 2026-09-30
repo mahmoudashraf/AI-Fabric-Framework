@@ -30,7 +30,7 @@ export const products: Product[] = [
     shortName: 'Framework',
     layerLabel: 'Application enablement',
     statusLabel: 'Early release',
-    version: '0.8.4',
+    version: '0.8.5',
     licence: 'Apache 2.0',
     summary:
       'A Spring-native foundation for grounding, retrieval, governed actions and application-owned AI orchestration.',
@@ -81,7 +81,7 @@ export const products: Product[] = [
   <dependency>
     <groupId>io.github.loom-ai-labs</groupId>
     <artifactId>ai-fabric-bom</artifactId>
-    <version>0.8.4</version>
+    <version>0.8.5</version>
     <type>pom</type>
     <scope>import</scope>
   </dependency>
@@ -110,8 +110,8 @@ export const products: Product[] = [
         external: true,
       },
       releaseNotes: {
-        label: '0.8.4 release',
-        href: 'https://github.com/Loom-AI-Labs/ai-fabric-framework/releases/tag/ai-fabric-framework-v0.8.4',
+        label: '0.8.5 release',
+        href: 'https://github.com/Loom-AI-Labs/ai-fabric-framework/releases/tag/ai-fabric-framework-v0.8.5',
         external: true,
       },
     },
@@ -595,14 +595,14 @@ export const experiments: Experiment[] = [
       'Select two vehicles and compare their application-owned facts.',
       'Open the Companion dock to inspect the assigned-runtime readiness state and expanded Max Mode surface.',
     ],
-    runtimeStack: ['Dealership-owned Spring Boot backend', 'LoomAI deployment', 'AI Fabric 0.8.4', 'Max Mode'],
+    runtimeStack: ['Dealership-owned Spring Boot backend', 'LoomAI deployment', 'AI Fabric 0.8.5', 'Max Mode'],
     usesSyntheticData: true,
     dataNotice: 'All dealership, vehicle and customer records in this preview are fictional. No Auto Trader data is used.',
     knownLimitations: [
       'The hosted LoomAI deployment and retrieval/action evidence remain a release gate.',
       'The preview source adapter uses fictional inventory until approved partner credentials and data rights exist.',
     ],
-    frameworkVersion: '0.8.4',
+    frameworkVersion: '0.8.5',
     lastVerified: '2026-09-29',
     screenshot: {
       src: '/assets/experiments/dealership-ai-experience.png',
