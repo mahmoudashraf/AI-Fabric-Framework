@@ -323,6 +323,44 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void updateEnvironmentVariablesReplacesStaleShownOnceSecretsBeforeUpsert() throws Exception {
+        AtomicInteger deleteRequests = new AtomicInteger();
+        AtomicReference<String> deletedPath = new AtomicReference<>();
+        AtomicReference<String> observedBulkBody = new AtomicReference<>();
+        AtomicReference<String> observedPreviewBody = new AtomicReference<>();
+        HttpServer server = shownOnceEnvironmentServer(
+            deleteRequests,
+            deletedPath,
+            observedBulkBody,
+            observedPreviewBody
+        );
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            int updated = client.updateEnvironmentVariables(
+                connection(server),
+                "app-uuid",
+                List.of(
+                    new CoolifyEnvVar("CONNECTOR_API_KEY", "managed-secret", false, true, false, true),
+                    new CoolifyEnvVar("CONNECTOR_API_KEY", "managed-secret", true, true, false, true)
+                )
+            );
+
+            assertThat(updated).isEqualTo(2);
+            assertThat(deleteRequests).hasValue(1);
+            assertThat(deletedPath).hasValue("/api/v1/applications/app-uuid/envs/env-stale");
+            JsonNode bulkBody = objectMapper.readTree(observedBulkBody.get());
+            assertThat(bulkBody.path("data").get(0).path("value").asText()).isEqualTo("managed-secret");
+            assertThat(bulkBody.path("data").get(0).path("is_shown_once").asBoolean()).isTrue();
+            JsonNode previewBody = objectMapper.readTree(observedPreviewBody.get());
+            assertThat(previewBody.path("value").asText()).isEqualTo("managed-secret");
+            assertThat(previewBody.path("is_preview").asBoolean()).isTrue();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void reconcilesTheExactPersistentDirectoryStorageIdempotently() throws Exception {
         AtomicReference<String> observedBody = new AtomicReference<>();
         AtomicInteger getRequests = new AtomicInteger();
@@ -709,6 +747,53 @@ class CoolifyApiClientTest {
                 deleteRequests.incrementAndGet();
                 deletedPath.set(path);
                 sendJson(exchange, 200, "{\"message\":\"deleted\"}");
+                return;
+            }
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer shownOnceEnvironmentServer(
+        AtomicInteger deleteRequests,
+        AtomicReference<String> deletedPath,
+        AtomicReference<String> observedBulkBody,
+        AtomicReference<String> observedPreviewBody
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/envs/bulk", exchange -> {
+            if (!"PATCH".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(405, -1);
+                exchange.close();
+                return;
+            }
+            observedBulkBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            sendJson(exchange, 201, "[{\"uuid\":\"env-current\"}]");
+        });
+        server.createContext("/api/v1/applications/app-uuid/envs", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if ("GET".equals(exchange.getRequestMethod()) && path.endsWith("/envs")) {
+                String standardUuid = deleteRequests.get() == 0 ? "env-stale" : "env-current";
+                String standardValue = deleteRequests.get() == 0 ? "test" : "managed-secret";
+                sendJson(exchange, 200, """
+                    [
+                      {"uuid":"%s","key":"CONNECTOR_API_KEY","value":"%s","is_preview":false,"is_shown_once":true},
+                      {"uuid":"env-preview","key":"CONNECTOR_API_KEY","value":"managed-secret","is_preview":true,"is_shown_once":true}
+                    ]
+                    """.formatted(standardUuid, standardValue));
+                return;
+            }
+            if ("DELETE".equals(exchange.getRequestMethod()) && path.endsWith("/env-stale")) {
+                deleteRequests.incrementAndGet();
+                deletedPath.set(path);
+                sendJson(exchange, 200, "{\"message\":\"deleted\"}");
+                return;
+            }
+            if ("PATCH".equals(exchange.getRequestMethod()) && path.endsWith("/envs")) {
+                observedPreviewBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                sendJson(exchange, 201, "{\"uuid\":\"env-preview\"}");
                 return;
             }
             exchange.sendResponseHeaders(404, -1);

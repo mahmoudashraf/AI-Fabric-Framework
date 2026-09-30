@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -332,6 +333,7 @@ public class CoolifyApiClient {
         if (envVars == null || envVars.isEmpty()) {
             return 0;
         }
+        deleteStaleShownOnceEnvironmentVariables(connection, uuid, envVars);
         List<CoolifyEnvVar> bulkEnvVars = envVars.stream()
             .filter(envVar -> envVar != null && !envVar.preview())
             .toList();
@@ -348,6 +350,53 @@ public class CoolifyApiClient {
         }
         deduplicateEnvironmentVariables(connection, uuid, envVars);
         return updated;
+    }
+
+    private void deleteStaleShownOnceEnvironmentVariables(
+        CoolifyConnection connection,
+        String uuid,
+        List<CoolifyEnvVar> envVars
+    ) {
+        Map<EnvIdentity, CoolifyEnvVar> desired = envVars.stream()
+            .filter(envVar -> envVar != null && envVar.shownOnce() && StringUtils.hasText(envVar.key()))
+            .collect(Collectors.toMap(
+                envVar -> new EnvIdentity(envVar.key().trim(), envVar.preview()),
+                envVar -> envVar,
+                (left, right) -> right,
+                LinkedHashMap::new
+            ));
+        if (desired.isEmpty()) {
+            return;
+        }
+
+        JsonNode existing = requestJson(
+            connection,
+            "GET",
+            "/applications/" + encodePath(uuid) + "/envs",
+            null,
+            true
+        );
+        if (existing == null || !existing.isArray()) {
+            throw new CoolifyApiException(
+                "Coolify environment inventory is unavailable for shown-once secret reconciliation.",
+                502,
+                "/applications/" + encodePath(uuid) + "/envs"
+            );
+        }
+
+        for (JsonNode item : existing) {
+            String envUuid = textFirst(item, "uuid", "id");
+            String key = textFirst(item, "key");
+            if (!StringUtils.hasText(envUuid) || !StringUtils.hasText(key)) {
+                continue;
+            }
+            EnvIdentity identity = new EnvIdentity(key.trim(), item.path("is_preview").asBoolean(false));
+            CoolifyEnvVar expected = desired.get(identity);
+            if (expected == null || Objects.equals(textFirst(item, "value"), expected.value())) {
+                continue;
+            }
+            deleteEnvironmentVariable(connection, uuid, envUuid);
+        }
     }
 
     public int deleteEnvironmentVariablesByKey(
