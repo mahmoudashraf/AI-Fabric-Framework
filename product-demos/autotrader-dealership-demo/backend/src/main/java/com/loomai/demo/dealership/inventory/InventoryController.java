@@ -11,10 +11,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -89,7 +92,7 @@ public class InventoryController {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle was not found or is no longer active."));
         return Map.of(
             "success", true,
-            "vehicle", vehicle,
+            "vehicle", publicVehicle(vehicle),
             "source", sourceSummary(),
             "dataNotice", "Fictional demonstration inventory. Confirm current availability with the dealership."
         );
@@ -112,7 +115,7 @@ public class InventoryController {
         }
         return Map.of(
             "success", true,
-            "vehicles", vehicles,
+            "vehicles", vehicles.stream().map(this::publicVehicle).toList(),
             "source", sourceSummary()
         );
     }
@@ -128,6 +131,10 @@ public class InventoryController {
 
     private ObjectNode publicVehicle(Vehicle vehicle) {
         ObjectNode payload = objectMapper.valueToTree(vehicle);
+        payload.remove("priceMinor");
+        BigDecimal priceGbp = BigDecimal.valueOf(vehicle.priceMinor(), 2);
+        payload.put("priceGbp", priceGbp);
+        payload.put("priceFormatted", NumberFormat.getCurrencyInstance(Locale.UK).format(priceGbp));
         payload.put("dealershipId", properties.getId());
         return payload;
     }

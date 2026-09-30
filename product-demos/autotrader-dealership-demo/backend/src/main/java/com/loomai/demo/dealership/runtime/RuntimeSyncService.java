@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -144,7 +145,7 @@ public class RuntimeSyncService {
         entity.put("model", vehicle.model());
         entity.put("derivative", vehicle.derivative());
         entity.put("year", vehicle.registrationYear());
-        entity.put("priceMinor", vehicle.priceMinor());
+        entity.put("priceGbp", priceGbp(vehicle));
         entity.put("currency", vehicle.currency());
         entity.put("mileage", vehicle.mileage());
         entity.put("fuelType", vehicle.fuelType());
@@ -194,8 +195,13 @@ public class RuntimeSyncService {
     private String searchableContent(Vehicle vehicle) {
         String range = vehicle.electricRangeMiles() == null ? "" : " Electric range " + vehicle.electricRangeMiles() + " miles.";
         return vehicle.displayName() + " " + vehicle.derivative() + ". " + vehicle.summary()
+            + " Price: GBP " + priceGbp(vehicle).toPlainString() + "."
             + " Fuel: " + vehicle.fuelType() + ". Transmission: " + vehicle.transmission()
             + ". Body: " + vehicle.bodyType() + ". Features: " + String.join(", ", vehicle.features()) + "." + range;
+    }
+
+    private BigDecimal priceGbp(Vehicle vehicle) {
+        return BigDecimal.valueOf(vehicle.priceMinor(), 2);
     }
 
     private String normalizeStatus(String value) {

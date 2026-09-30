@@ -24,6 +24,12 @@ class RuntimeSyncContractTest {
         Map<String, Object> operation = service.operation(vehicle("ACTIVE"));
 
         assertThat(operation.get("type")).isEqualTo("UPSERT");
+        assertThat(operation.get("content").toString()).contains("Price: GBP 31950.00.");
+        assertThat(operation.get("entity")).isInstanceOfSatisfying(Map.class, entity -> {
+            assertThat(entity)
+                .containsEntry("priceGbp", new java.math.BigDecimal("31950.00"))
+                .doesNotContainKey("priceMinor");
+        });
         assertThat(operation.get("metadata")).isInstanceOfSatisfying(Map.class, metadata -> {
             assertThat(metadata)
                 .containsEntry("tenantId", "tenant-dealership-demo")

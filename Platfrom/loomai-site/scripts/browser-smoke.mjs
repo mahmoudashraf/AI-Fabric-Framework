@@ -18,7 +18,7 @@ const mockOrigin = `http://127.0.0.1:${mockPort}`
 const mockVehicles = [
   {
     id: 'veh-aster-e1', stockId: 'DEMO-1001', slug: 'aster-e1-range', make: 'Aster', model: 'E1',
-    derivative: 'Long Range', registrationYear: 2025, priceMinor: 3195000, currency: 'GBP', mileage: 4120,
+    derivative: 'Long Range', registrationYear: 2025, priceGbp: 31950, priceFormatted: '£31,950.00', currency: 'GBP', mileage: 4120,
     fuelType: 'Electric', transmission: 'Automatic', bodyType: 'SUV', exteriorColour: 'Ocean blue', doors: 5,
     seats: 5, electricRangeMiles: 312, location: 'Northfield Central', lifecycleState: 'ACTIVE',
     summary: 'A quiet long-range electric SUV with a spacious cabin and straightforward everyday technology.',
@@ -28,7 +28,7 @@ const mockVehicles = [
   },
   {
     id: 'veh-aster-e2', stockId: 'DEMO-1006', slug: 'aster-e2-sport', make: 'Aster', model: 'E2',
-    derivative: 'Sport Dual Motor', registrationYear: 2025, priceMinor: 3925000, currency: 'GBP', mileage: 3760,
+    derivative: 'Sport Dual Motor', registrationYear: 2025, priceGbp: 39250, priceFormatted: '£39,250.00', currency: 'GBP', mileage: 3760,
     fuelType: 'Electric', transmission: 'Automatic', bodyType: 'Crossover', exteriorColour: 'Silver', doors: 5,
     seats: 5, electricRangeMiles: 276, location: 'Northfield Central', lifecycleState: 'ACTIVE',
     summary: 'A responsive dual-motor crossover with useful range and a versatile cabin.',
@@ -38,7 +38,7 @@ const mockVehicles = [
   },
   {
     id: 'veh-northstar-s4', stockId: 'DEMO-1002', slug: 'northstar-s4-touring', make: 'Northstar', model: 'S4',
-    derivative: 'Touring Hybrid', registrationYear: 2024, priceMinor: 2740000, currency: 'GBP', mileage: 8920,
+    derivative: 'Touring Hybrid', registrationYear: 2024, priceGbp: 27400, priceFormatted: '£27,400.00', currency: 'GBP', mileage: 8920,
     fuelType: 'Hybrid', transmission: 'Automatic', bodyType: 'Estate', exteriorColour: 'Graphite', doors: 5,
     seats: 5, electricRangeMiles: null, location: 'Northfield Central', lifecycleState: 'ACTIVE',
     summary: 'A practical hybrid estate for longer journeys, luggage and low-speed electric driving around town.',

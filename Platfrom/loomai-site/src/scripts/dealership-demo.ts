@@ -11,7 +11,8 @@ type Vehicle = {
   model: string
   derivative: string
   registrationYear: number
-  priceMinor: number
+  priceGbp: number
+  priceFormatted: string
   currency: string
   mileage: number
   fuelType: string
@@ -365,7 +366,7 @@ function renderInventory(
     if (!card) continue
     setText(card, '[data-card-title]', `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}`)
     setText(card, '[data-card-derivative]', vehicle.derivative)
-    setText(card, '[data-card-price]', formatMoney(vehicle.priceMinor, vehicle.currency))
+    setText(card, '[data-card-price]', formatMoney(vehicle.priceGbp, vehicle.currency))
     setText(card, '[data-card-fuel]', vehicle.fuelType)
     setText(card, '[data-card-mileage]', `${formatNumber(vehicle.mileage)} miles`)
     setText(card, '[data-card-transmission]', vehicle.transmission)
@@ -395,7 +396,7 @@ function openVehicleDialog(app: HTMLElement, vehicle: Vehicle, assistantReady: b
   image.alt = `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}, representative demo image`
   setText(dialog, '[data-dialog-title]', `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}`)
   setText(dialog, '[data-dialog-derivative]', vehicle.derivative)
-  setText(dialog, '[data-dialog-price]', formatMoney(vehicle.priceMinor, vehicle.currency))
+  setText(dialog, '[data-dialog-price]', formatMoney(vehicle.priceGbp, vehicle.currency))
   setText(dialog, '[data-dialog-summary]', vehicle.summary)
   setText(dialog, '[data-dialog-source]', `${vehicle.sourceLabel} · refreshed ${formatDateTime(vehicle.sourceUpdatedAt)} · confirm availability with the dealership.`)
 
@@ -462,7 +463,7 @@ function buildComparisonTable(vehicles: Vehicle[]) {
 
   const body = document.createElement('tbody')
   const rows: Array<[string, (vehicle: Vehicle) => string]> = [
-    ['Price', (vehicle) => formatMoney(vehicle.priceMinor, vehicle.currency)],
+    ['Price', (vehicle) => formatMoney(vehicle.priceGbp, vehicle.currency)],
     ['Derivative', (vehicle) => vehicle.derivative],
     ['Mileage', (vehicle) => `${formatNumber(vehicle.mileage)} miles`],
     ['Fuel', (vehicle) => vehicle.fuelType],
@@ -501,7 +502,8 @@ function attachVehicle(vehicle: Vehicle) {
       stockId: vehicle.stockId,
       name: `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}`,
       derivative: vehicle.derivative,
-      priceMinor: vehicle.priceMinor,
+      priceGbp: vehicle.priceGbp,
+      priceFormatted: vehicle.priceFormatted,
       currency: vehicle.currency,
       mileage: vehicle.mileage,
       fuelType: vehicle.fuelType,
@@ -752,12 +754,12 @@ function safeImagePath(value: string) {
   return '/assets/demos/dealership/vehicle-01.webp'
 }
 
-function formatMoney(minor: number, currency: string) {
+function formatMoney(major: number, currency: string) {
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: currency || 'GBP',
     maximumFractionDigits: 0,
-  }).format(minor / 100)
+  }).format(major)
 }
 
 function formatNumber(value: number) {
