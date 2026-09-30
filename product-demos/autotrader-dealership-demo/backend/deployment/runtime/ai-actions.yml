@@ -165,7 +165,7 @@ actions:
         required: true
 
   - name: dealership_request_callback
-    description: Create a dealership review request for a callback about a selected active vehicle.
+    description: Execute a dealership callback request only after the buyer asks to submit it and supplies the required buyer-owned details. Do not select this write action for requirements, preparation, explanation, or do-not-submit requests.
     category: dealership_lead
     accessMode: WRITE_ONLY
     anonymousAllowed: true
@@ -214,7 +214,7 @@ actions:
         required: true
 
   - name: dealership_request_test_drive
-    description: Create a dealership review request for a test drive of a selected active vehicle.
+    description: Execute a dealership test-drive request only after the buyer asks to submit it and supplies the required buyer-owned details. Do not select this write action for requirements, preparation, explanation, or do-not-submit requests.
     category: dealership_lead
     accessMode: WRITE_ONLY
     anonymousAllowed: true

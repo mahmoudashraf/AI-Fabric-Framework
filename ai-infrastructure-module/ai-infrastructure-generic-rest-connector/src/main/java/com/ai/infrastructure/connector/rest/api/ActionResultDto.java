@@ -13,18 +13,18 @@ public record ActionResultDto(
     String message,
     Map<String, Object> data,
     List<ActionTargetRefDto> pinnedTargets,
+    String groundingSufficiency,
     String errorCode
 ) {
     public static ActionResultDto ok(String message, Map<String, Object> data) {
-        return new ActionResultDto(true, message, data, null, null);
+        return new ActionResultDto(true, message, data, null, null, null);
     }
 
     public static ActionResultDto failure(String errorCode, String message) {
-        return new ActionResultDto(false, message, null, null, errorCode);
+        return new ActionResultDto(false, message, null, null, null, errorCode);
     }
 
     public static ActionResultDto failure(String errorCode, String message, Map<String, Object> data) {
-        return new ActionResultDto(false, message, data, null, errorCode);
+        return new ActionResultDto(false, message, data, null, null, errorCode);
     }
 }
-

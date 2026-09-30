@@ -410,6 +410,7 @@ public class RestActionExecutionService {
                 ? classifiedError
                 : status > 0 ? ("UPSTREAM_HTTP_" + status) : ERROR_SERVICE_UNAVAILABLE;
         }
+        String groundingSufficiency = resolveGroundingSufficiency(responseConfig, success, data);
 
         long tookMs = System.currentTimeMillis() - startMs;
         log.info("Action '{}' -> {} {} (status={}, success={}, tookMs={})",
@@ -421,7 +422,35 @@ public class RestActionExecutionService {
             tookMs
         );
 
-        return new ActionResultDto(success, message, data, pinnedTargets, errorCode);
+        return new ActionResultDto(
+            success,
+            message,
+            data,
+            pinnedTargets,
+            groundingSufficiency,
+            errorCode
+        );
+    }
+
+    private String resolveGroundingSufficiency(RestRoutingConfig.Response responseConfig,
+                                               boolean success,
+                                               Map<String, Object> data) {
+        if (!success) {
+            return null;
+        }
+        if (responseConfig != null && responseConfig.getGroundingSufficiency() != null) {
+            return responseConfig.getGroundingSufficiency().name();
+        }
+        if (data == null) {
+            return null;
+        }
+        Object items = data.get("_items");
+        Object count = data.get("_count");
+        if (items instanceof List<?> list && list.isEmpty()
+            && count instanceof Number number && number.intValue() == 0) {
+            return RestRoutingConfig.Response.GroundingSufficiency.INSUFFICIENT.name();
+        }
+        return null;
     }
 
     private boolean isSuccessStatus(RestRoutingConfig.Response responseConfig, int status) {

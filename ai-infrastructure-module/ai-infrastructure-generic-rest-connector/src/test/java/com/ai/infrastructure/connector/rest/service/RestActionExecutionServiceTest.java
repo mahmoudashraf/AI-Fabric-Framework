@@ -205,6 +205,64 @@ class RestActionExecutionServiceTest {
             .isEqualTo("profile-value");
     }
 
+    @Test
+    void executeMarksCanonicalEmptyListAsInsufficientGrounding() throws Exception {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/vehicles", exchange -> respond(exchange, 200, "{\"items\":[]}"));
+        server.setExecutor(Executors.newCachedThreadPool());
+        server.start();
+
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.setPath("/vehicles");
+        route.setMethod("GET");
+        route.getAuthz().setEnabled(false);
+        route.getResponse().setResult("{{body.items}}");
+        RestActionExecutionService service = service(config);
+
+        ActionResultDto result = service.execute(new ActionExecuteRequestDto(
+            "cancel_order",
+            Map.of(),
+            null,
+            verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("_count", 0).containsEntry("_items", List.of());
+        assertThat(result.groundingSufficiency()).isEqualTo("INSUFFICIENT");
+        assertThat(OBJECT_MAPPER.readTree(OBJECT_MAPPER.writeValueAsString(result))
+            .path("groundingSufficiency").asText()).isEqualTo("INSUFFICIENT");
+    }
+
+    @Test
+    void executeHonorsConfiguredGroundingSufficiencyOverride() throws Exception {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/vehicles", exchange -> respond(exchange, 200, "{\"items\":[]}"));
+        server.setExecutor(Executors.newCachedThreadPool());
+        server.start();
+
+        RestRoutingConfig config = config(serverBaseUrl());
+        RestRoutingConfig.ActionRoute route = config.getActions().get("cancel_order");
+        route.setPath("/vehicles");
+        route.setMethod("GET");
+        route.getAuthz().setEnabled(false);
+        route.getResponse().setResult("{{body.items}}");
+        route.getResponse().setGroundingSufficiency(
+            RestRoutingConfig.Response.GroundingSufficiency.SUFFICIENT
+        );
+        RestActionExecutionService service = service(config);
+
+        ActionResultDto result = service.execute(new ActionExecuteRequestDto(
+            "cancel_order",
+            Map.of(),
+            null,
+            verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.groundingSufficiency()).isEqualTo("SUFFICIENT");
+    }
+
     private RestActionExecutionService service(RestRoutingConfig config) {
         TemplateEngine templateEngine = new TemplateEngine();
         RestAuthzProxyService authzProxyService = new RestAuthzProxyService(config);

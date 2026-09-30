@@ -265,6 +265,17 @@ public class RestRoutingConfig {
          * Optional pinned targets template.
          */
         private Object pinnedTargets;
+
+        /**
+         * Optional authoritative override for whether a successful action result can ground an answer.
+         * Canonical empty list results default to {@code INSUFFICIENT} when no override is configured.
+         */
+        private GroundingSufficiency groundingSufficiency;
+
+        public enum GroundingSufficiency {
+            SUFFICIENT,
+            INSUFFICIENT
+        }
     }
 
     @Data

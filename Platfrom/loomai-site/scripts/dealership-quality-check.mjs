@@ -735,8 +735,10 @@ function isReadActionEvidence(document) {
 function numericItemCount(value) {
   if (!value || typeof value !== 'object') return null
   if (Number.isFinite(Number(value.itemsCount))) return Number(value.itemsCount)
+  if (Number.isFinite(Number(value._count))) return Number(value._count)
   if (Number.isFinite(Number(value.total))) return Number(value.total)
   if (Array.isArray(value.items)) return value.items.length
+  if (Array.isArray(value._items)) return value._items.length
   if (value.actionResultData && typeof value.actionResultData === 'object') {
     return numericItemCount(value.actionResultData)
   }
@@ -746,8 +748,12 @@ function numericItemCount(value) {
 function extractItemIds(value) {
   const items = Array.isArray(value?.items)
     ? value.items
+    : Array.isArray(value?._items)
+      ? value._items
     : Array.isArray(value?.actionResultData?.items)
       ? value.actionResultData.items
+      : Array.isArray(value?.actionResultData?._items)
+        ? value.actionResultData._items
       : []
   return uniqueStrings(items.map((item) => item?.id || item?.slug || item?.stockId))
 }
