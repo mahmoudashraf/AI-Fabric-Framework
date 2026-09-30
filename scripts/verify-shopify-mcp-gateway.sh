@@ -94,13 +94,14 @@ http_request() {
 json_value() {
   local payload="$1"
   local path="$2"
-  JSON_PAYLOAD="${payload}" python3 - "${path}" <<'PY'
+  python3 - "${path}" 3<<<"${payload}" <<'PY'
 import json
 import os
 import sys
 
 path = sys.argv[1]
-data = json.loads(os.environ.get("JSON_PAYLOAD") or "{}")
+with os.fdopen(3) as payload_stream:
+    data = json.load(payload_stream)
 current = data
 for part in [p for p in path.split(".") if p]:
     if isinstance(current, list):
@@ -129,7 +130,7 @@ json_check() {
   local payload="$1"
   local label="$2"
   local code="$3"
-  JSON_PAYLOAD="${payload}" python3 - "${label}" "${code}" <<'PY'
+  python3 - "${label}" "${code}" 3<<<"${payload}" <<'PY'
 import json
 import os
 import sys
@@ -138,7 +139,8 @@ import traceback
 label = sys.argv[1]
 code = sys.argv[2]
 try:
-    data = json.loads(os.environ.get("JSON_PAYLOAD") or "{}")
+    with os.fdopen(3) as payload_stream:
+        data = json.load(payload_stream)
     exec(code, {"data": data})
 except Exception as exc:
     print(f"FAIL: {label}: {exc}", file=sys.stderr)
