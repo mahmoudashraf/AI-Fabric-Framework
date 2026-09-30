@@ -30,6 +30,8 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -83,6 +85,7 @@ class CoolifyDeploymentProviderTest {
             objectMapper
         );
         AtomicInteger heartbeats = new AtomicInteger();
+        CountDownLatch twoHeartbeats = new CountDownLatch(2);
         ProvisioningProgressTracker tracker = new ProvisioningProgressTracker() {
             @Override
             public void stepStarted(String key, String description) {
@@ -99,6 +102,7 @@ class CoolifyDeploymentProviderTest {
             @Override
             public void heartbeat() {
                 heartbeats.incrementAndGet();
+                twoHeartbeats.countDown();
             }
         };
 
@@ -108,7 +112,7 @@ class CoolifyDeploymentProviderTest {
             "Update runtime environment variables in Coolify.",
             () -> {
                 try {
-                    Thread.sleep(90);
+                    assertThat(twoHeartbeats.await(2, TimeUnit.SECONDS)).isTrue();
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException(ex);
@@ -171,6 +175,66 @@ class CoolifyDeploymentProviderTest {
             "/srv/loomai/document-sources/dep-123/dtp-coolify-staging",
             "/app/document-sources"
         );
+    }
+
+    @Test
+    void reconcilesPersistentRuntimeDataOnlyForLocalLucene() {
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        CoolifyDeploymentProvider provider = provider(coolifyApiClient);
+        DeploymentEntity deployment = deployment();
+        DeploymentTargetProfileEntity profile = profile();
+        CoolifyConnection connection = connection();
+        CoolifyApplicationSummary runtime = application("runtime-uuid", "running:healthy");
+        RailwayServicePlanSummary lucenePlan = runtimePlan("lucene");
+        RailwayServicePlanSummary memoryPlan = runtimePlan("memory");
+
+        provider.reconcileLocalLuceneRuntimeStorage(connection, deployment, profile, runtime, lucenePlan);
+        provider.reconcileLocalLuceneRuntimeStorage(connection, deployment, profile, runtime, memoryPlan);
+
+        verify(coolifyApiClient).reconcilePersistentVolumeStorage(
+            connection,
+            "runtime-uuid",
+            "loomai-runtime-data-dep-123-dtp-coolify-staging",
+            "/app/data"
+        );
+    }
+
+    @Test
+    void stopsRunningApplicationBeforeSingleWriterReplacement() {
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        CoolifyDeploymentProvider provider = provider(coolifyApiClient);
+        CoolifyConnection connection = connection();
+        CoolifyApplicationSummary running = application("runtime-uuid", "running:healthy");
+        CoolifyApplicationSummary stopped = application("runtime-uuid", "exited:unhealthy");
+        when(coolifyApiClient.getApplication(connection, "runtime-uuid"))
+            .thenReturn(Optional.of(running), Optional.of(stopped));
+
+        provider.stopApplicationBeforeSingleWriterReplacement(
+            connection,
+            running,
+            objectMapper.createObjectNode(),
+            mock(ProvisioningProgressTracker.class)
+        );
+
+        verify(coolifyApiClient).stop(connection, "runtime-uuid", false);
+    }
+
+    @Test
+    void doesNotStopAnApplicationThatIsAlreadyExited() {
+        CoolifyApiClient coolifyApiClient = mock(CoolifyApiClient.class);
+        CoolifyDeploymentProvider provider = provider(coolifyApiClient);
+        CoolifyConnection connection = connection();
+        CoolifyApplicationSummary stopped = application("runtime-uuid", "exited:unhealthy");
+        when(coolifyApiClient.getApplication(connection, "runtime-uuid")).thenReturn(Optional.of(stopped));
+
+        provider.stopApplicationBeforeSingleWriterReplacement(
+            connection,
+            stopped,
+            objectMapper.createObjectNode(),
+            mock(ProvisioningProgressTracker.class)
+        );
+
+        verify(coolifyApiClient, never()).stop(eq(connection), eq("runtime-uuid"), eq(false));
     }
 
     @Test
@@ -1876,14 +1940,40 @@ class CoolifyDeploymentProviderTest {
     }
 
     private CoolifyDeploymentProvider provider() {
+        return provider(mock(CoolifyApiClient.class));
+    }
+
+    private CoolifyDeploymentProvider provider(CoolifyApiClient coolifyApiClient) {
         return new CoolifyDeploymentProvider(
             mock(DeploymentTargetProfileRepository.class),
             mock(DeploymentProviderResourceHandleRepository.class),
             mock(DeploymentSourceArtifactService.class),
             mock(RailwayProvisioningPlanService.class),
             mock(CoolifyTargetProfileResolver.class),
-            mock(CoolifyApiClient.class),
+            coolifyApiClient,
             objectMapper
+        );
+    }
+
+    private CoolifyApplicationSummary application(String uuid, String status) {
+        return new CoolifyApplicationSummary(
+            uuid,
+            "runtime-dep-123",
+            "https://runtime.example",
+            status,
+            null,
+            null,
+            objectMapper.createObjectNode()
+        );
+    }
+
+    private RailwayServicePlanSummary runtimePlan(String vectorStrategy) {
+        return new RailwayServicePlanSummary(
+            "runtime",
+            "/",
+            "/Dockerfile",
+            null,
+            List.of(new RailwayEnvVarSummary("AI_VECTOR_DB_TYPE", vectorStrategy))
         );
     }
 

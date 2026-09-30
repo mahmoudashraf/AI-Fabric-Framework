@@ -400,6 +400,42 @@ class CoolifyApiClientTest {
     }
 
     @Test
+    void reconcilesTheExactPersistentVolumeStorageIdempotently() throws Exception {
+        AtomicReference<String> observedBody = new AtomicReference<>();
+        AtomicInteger getRequests = new AtomicInteger();
+        AtomicInteger postRequests = new AtomicInteger();
+        HttpServer server = volumeStorageServer(observedBody, getRequests, postRequests);
+        try {
+            CoolifyApiClient client = new CoolifyApiClient(objectMapper);
+
+            CoolifyApplicationStorageSummary created = client.reconcilePersistentVolumeStorage(
+                connection(server),
+                "app-uuid",
+                "loomai-runtime-data-dep-123-profile-staging",
+                "/app/data"
+            );
+            CoolifyApplicationStorageSummary reused = client.reconcilePersistentVolumeStorage(
+                connection(server),
+                "app-uuid",
+                "loomai-runtime-data-dep-123-profile-staging",
+                "/app/data"
+            );
+
+            assertThat(created.uuid()).isEqualTo("volume-uuid");
+            assertThat(reused.uuid()).isEqualTo("volume-uuid");
+            assertThat(postRequests).hasValue(1);
+            assertThat(getRequests.get()).isGreaterThanOrEqualTo(3);
+            JsonNode body = objectMapper.readTree(observedBody.get());
+            assertThat(body.path("type").asText()).isEqualTo("persistent");
+            assertThat(body.path("name").asText()).isEqualTo("loomai-runtime-data-dep-123-profile-staging");
+            assertThat(body.path("mount_path").asText()).isEqualTo("/app/data");
+            assertThat(body.has("host_path")).isFalse();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void updateEnvironmentVariablesDeletesOlderDuplicateRuntimeRowsForUpdatedKeys() throws Exception {
         AtomicInteger deleteRequests = new AtomicInteger();
         AtomicReference<String> deletedPath = new AtomicReference<>();
@@ -895,6 +931,45 @@ class CoolifyApiClientTest {
                               "name": "loomai-documents-dep-docs-profile-staging",
                               "host_path": "/srv/loomai/document-sources/dep-docs/profile-staging",
                               "mount_path": "/app/document-sources"
+                            }
+                          ],
+                          "file_storages": []
+                        }
+                        """);
+                }
+                return;
+            }
+            exchange.sendResponseHeaders(405, -1);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer volumeStorageServer(AtomicReference<String> observedBody,
+                                           AtomicInteger getRequests,
+                                           AtomicInteger postRequests) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/applications/app-uuid/storages", exchange -> {
+            if ("POST".equals(exchange.getRequestMethod())) {
+                postRequests.incrementAndGet();
+                observedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                sendJson(exchange, 201, "{}");
+                return;
+            }
+            if ("GET".equals(exchange.getRequestMethod())) {
+                int attempt = getRequests.incrementAndGet();
+                if (attempt == 1) {
+                    sendJson(exchange, 200, "{\"persistent_storages\":[],\"file_storages\":[]}");
+                } else {
+                    sendJson(exchange, 200, """
+                        {
+                          "persistent_storages": [
+                            {
+                              "uuid": "volume-uuid",
+                              "name": "loomai-runtime-data-dep-123-profile-staging",
+                              "host_path": null,
+                              "mount_path": "/app/data"
                             }
                           ],
                           "file_storages": []

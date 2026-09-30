@@ -76,11 +76,15 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
     private static final String DEFAULT_SERVICE_HEALTH_CHECK_PATH = "/actuator/health/liveness";
     private static final String RUNTIME_DATABASE_MODE_COOLIFY_POSTGRES = "COOLIFY_POSTGRES";
     private static final String DEFAULT_SERVICE_NAME = "ai-fabric-runtime";
+    private static final String LOCAL_LUCENE_VECTOR_STRATEGY = "lucene";
+    private static final String RUNTIME_DATA_MOUNT_PATH = "/app/data";
     private static final String DOCUMENT_SOURCE_MOUNT_PATH = "/app/document-sources";
     private static final String DOCUMENT_SOURCE_HOST_ROOT = "/srv/loomai/document-sources";
     private static final String DEFAULT_PROMOTION_CHANNEL = "staging";
     private static final Duration DEFAULT_DEPLOY_SETTLE_TIMEOUT = Duration.ofMinutes(6);
     private static final Duration DEFAULT_DEPLOY_SETTLE_POLL_INTERVAL = Duration.ofSeconds(10);
+    private static final Duration DEFAULT_REPLACEMENT_STOP_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration DEFAULT_REPLACEMENT_STOP_POLL_INTERVAL = Duration.ofSeconds(2);
     private static final Duration DEFAULT_STALE_DELETE_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration DEFAULT_STALE_DELETE_POLL_INTERVAL = Duration.ofSeconds(5);
     private static final Set<String> CONNECTOR_DATABASE_BOOTSTRAP_ENV_KEYS = Set.of(
@@ -394,6 +398,24 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
                 return null;
             }
         );
+        boolean localLuceneRuntime = usesLocalLuceneVectorStore(source.runtimePlan());
+        if (localLuceneRuntime) {
+            tracked(
+                progressTracker,
+                "reconcile_coolify_runtime_data_storage",
+                "Create or verify deployment-owned persistent runtime data storage for the local Lucene vector index.",
+                () -> {
+                    reconcileLocalLuceneRuntimeStorage(
+                        connection,
+                        deployment,
+                        profile,
+                        runtimeApplication,
+                        source.runtimePlan()
+                    );
+                    return null;
+                }
+            );
+        }
 
         CoolifyApplicationSummary connectorApplication = null;
         DeploymentProviderResourceHandleEntity provisionalConnectorHandle = null;
@@ -766,6 +788,23 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
             );
         }
 
+        if (localLuceneRuntime) {
+            tracked(
+                progressTracker,
+                "stop_coolify_runtime_before_single_writer_replacement",
+                "Stop the previous runtime before replacing a single-writer local Lucene process.",
+                () -> {
+                    stopApplicationBeforeSingleWriterReplacement(
+                        connection,
+                        runtimeApplication,
+                        resourceDefaults,
+                        progressTracker
+                    );
+                    return null;
+                }
+            );
+        }
+
         CoolifyActionResponse runtimeDeployResponse = tracked(
             progressTracker,
             "trigger_coolify_runtime_deploy",
@@ -921,6 +960,73 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         );
     }
 
+    void reconcileLocalLuceneRuntimeStorage(
+        CoolifyConnection connection,
+        DeploymentEntity deployment,
+        DeploymentTargetProfileEntity profile,
+        CoolifyApplicationSummary runtimeApplication,
+        RailwayServicePlanSummary runtimePlan
+    ) {
+        if (!usesLocalLuceneVectorStore(runtimePlan)) {
+            return;
+        }
+        String volumeName = normalizeName(
+            "loomai-runtime-data-" + safePathSegment(deployment.getId()) + "-" + safePathSegment(profile.getId())
+        );
+        coolifyApiClient.reconcilePersistentVolumeStorage(
+            connection,
+            runtimeApplication.uuid(),
+            volumeName,
+            RUNTIME_DATA_MOUNT_PATH
+        );
+    }
+
+    void stopApplicationBeforeSingleWriterReplacement(
+        CoolifyConnection connection,
+        CoolifyApplicationSummary application,
+        JsonNode resourceDefaults,
+        ProvisioningProgressTracker progressTracker
+    ) {
+        CoolifyApplicationSummary current = observeCoolifyApplication(connection, application.uuid()).orElse(application);
+        if (!applicationHasActiveContainer(current)) {
+            return;
+        }
+        // Coolify cleanup may prune the now-unused named volume before the replacement starts.
+        coolifyApiClient.stop(connection, application.uuid(), false);
+
+        Duration timeout = durationSeconds(
+            resourceDefaults,
+            "replacementStopTimeoutSeconds",
+            DEFAULT_REPLACEMENT_STOP_TIMEOUT
+        );
+        Duration pollInterval = durationSeconds(
+            resourceDefaults,
+            "replacementStopPollSeconds",
+            DEFAULT_REPLACEMENT_STOP_POLL_INTERVAL
+        );
+        Instant deadline = Instant.now().plus(timeout);
+        Optional<CoolifyApplicationSummary> observed = observeCoolifyApplication(connection, application.uuid());
+        while ((observed.isEmpty() || !applicationStopped(observed.get())) && Instant.now().isBefore(deadline)) {
+            progressTracker.heartbeat();
+            try {
+                Thread.sleep(pollInterval.toMillis());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(
+                    "Interrupted while waiting for Coolify application " + application.uuid() + " to stop.",
+                    ex
+                );
+            }
+            observed = observeCoolifyApplication(connection, application.uuid());
+        }
+        if (observed.isEmpty() || !applicationStopped(observed.get())) {
+            throw new IllegalStateException(
+                "Timed out waiting for Coolify application " + application.uuid()
+                    + " to stop before single-writer replacement."
+            );
+        }
+    }
+
     private boolean hasEnvironmentValue(RailwayServicePlanSummary plan, String key, String expectedValue) {
         if (plan == null || plan.env() == null) {
             return false;
@@ -928,6 +1034,10 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         return plan.env().stream().anyMatch(item -> item != null
             && key.equals(item.key())
             && expectedValue.equalsIgnoreCase(item.value()));
+    }
+
+    private boolean usesLocalLuceneVectorStore(RailwayServicePlanSummary runtimePlan) {
+        return hasEnvironmentValue(runtimePlan, "AI_VECTOR_DB_TYPE", LOCAL_LUCENE_VECTOR_STRATEGY);
     }
 
     private String safePathSegment(String value) {
@@ -2655,6 +2765,28 @@ public class CoolifyDeploymentProvider implements DeploymentProvisioningProvider
         }
         String normalized = normalizeStatus(application.status(), "");
         return normalized.startsWith("RUNNING") && !normalized.contains("UNHEALTHY");
+    }
+
+    private boolean applicationHasActiveContainer(CoolifyApplicationSummary application) {
+        if (application == null || !StringUtils.hasText(application.status())) {
+            return false;
+        }
+        String normalized = normalizeStatus(application.status(), "");
+        return normalized.startsWith("RUNNING")
+            || normalized.startsWith("STARTING")
+            || normalized.startsWith("RESTARTING")
+            || normalized.startsWith("DEPLOYING");
+    }
+
+    private boolean applicationStopped(CoolifyApplicationSummary application) {
+        if (application == null || !StringUtils.hasText(application.status())) {
+            return false;
+        }
+        String normalized = normalizeStatus(application.status(), "");
+        return normalized.startsWith("EXITED")
+            || normalized.startsWith("STOPPED")
+            || normalized.startsWith("INACTIVE")
+            || normalized.startsWith("OFFLINE");
     }
 
     private boolean databaseReady(CoolifyDatabaseSummary database) {

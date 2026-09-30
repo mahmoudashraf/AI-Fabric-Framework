@@ -516,6 +516,52 @@ public class CoolifyApiClient {
             ));
     }
 
+    public CoolifyApplicationStorageSummary reconcilePersistentVolumeStorage(
+        CoolifyConnection connection,
+        String applicationUuid,
+        String name,
+        String mountPath
+    ) {
+        String safeApplicationUuid = requireText(applicationUuid, "application UUID");
+        String safeName = requireText(name, "storage name");
+        String safeMountPath = requireAbsolutePath(mountPath, "storage mount path");
+        List<CoolifyApplicationStorageSummary> existing = listApplicationStorages(connection, safeApplicationUuid);
+        Optional<CoolifyApplicationStorageSummary> exact = existing.stream()
+            .filter(storage -> safeMountPath.equals(storage.mountPath()))
+            .filter(storage -> "persistent".equals(storage.type()))
+            .filter(storage -> !StringUtils.hasText(storage.hostPath()))
+            .findFirst();
+        if (exact.isPresent()) {
+            return exact.get();
+        }
+        if (existing.stream().anyMatch(storage -> safeMountPath.equals(storage.mountPath()))) {
+            throw new IllegalStateException(
+                "Coolify application already has a different storage mapped at " + safeMountPath + "."
+            );
+        }
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("type", "persistent");
+        body.put("name", safeName);
+        body.put("mount_path", safeMountPath);
+        requestJson(
+            connection,
+            "POST",
+            "/applications/" + encodePath(safeApplicationUuid) + "/storages",
+            body,
+            true
+        );
+
+        return listApplicationStorages(connection, safeApplicationUuid).stream()
+            .filter(storage -> safeMountPath.equals(storage.mountPath()))
+            .filter(storage -> "persistent".equals(storage.type()))
+            .filter(storage -> !StringUtils.hasText(storage.hostPath()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "Coolify did not expose the reconciled persistent volume mapping."
+            ));
+    }
+
     public List<CoolifyApplicationStorageSummary> listApplicationStorages(
         CoolifyConnection connection,
         String applicationUuid
