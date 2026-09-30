@@ -526,6 +526,9 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(runtimeEnv)
+            .containsEntry("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", "dep-123")
+            .containsEntry("AI_FABRIC_RUNTIME_CUSTOMER_ID", "customer-default")
+            .containsEntry("AI_FABRIC_RUNTIME_TENANT_ID", "tenant-default")
             .containsEntry("AI_FABRIC_RUNTIME_AUTH_INGRESS_MODE", "VERIFIED_CONTEXT_REQUIRED")
             .containsEntry("AI_FABRIC_RUNTIME_REJECT_CONFLICTING_REQUEST_IDENTITY", "true")
             .containsEntry(

@@ -291,6 +291,9 @@ public class RailwayProvisioningPlanService {
         List<RailwayEnvVarSummary> runtimeEnv = new ArrayList<>();
         runtimeEnv.add(new RailwayEnvVarSummary("AI_ACTIONS_CATALOG_PATH", artifactUrls.actions()));
         runtimeEnv.add(new RailwayEnvVarSummary("AI_CONFIG_DEFAULT_FILE", artifactUrls.entities()));
+        runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", deployment.getId()));
+        addOptionalEnv(runtimeEnv, "AI_FABRIC_RUNTIME_CUSTOMER_ID", deployment.getCustomerId());
+        addOptionalEnv(runtimeEnv, "AI_FABRIC_RUNTIME_TENANT_ID", deployment.getTenantId());
         runtimeEnv.add(new RailwayEnvVarSummary(
             "AI_FABRIC_FRAMEWORK_VERSION",
             aiFabricFrameworkVersion
@@ -336,8 +339,6 @@ public class RailwayProvisioningPlanService {
             Boolean.toString("SMART_BRAIN".equals(deploymentBehaviorType))
         ));
         if ("SMART_BRAIN".equals(deploymentBehaviorType)) {
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_DEPLOYMENT_ID", deployment.getId()));
-            runtimeEnv.add(new RailwayEnvVarSummary("AI_FABRIC_RUNTIME_TENANT_ID", deployment.getTenantId()));
             runtimeEnv.add(new RailwayEnvVarSummary("LOOMAI_RUNTIME_PUBLIC_BASE_URL", runtimeBaseUrl));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_ASYNC_REPOSITORY", "JDBC"));
             runtimeEnv.add(new RailwayEnvVarSummary("AI_EXECUTION_ASYNC_INITIALIZE_SCHEMA", "false"));
