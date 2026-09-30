@@ -1086,7 +1086,7 @@ public class DeploymentReleaseVerificationService {
         }
 
         Set<String> expectedKnowledgeSourceIds = textSet(knowledgeSourceConfig.path("sources"), "id");
-        Set<String> expectedKnowledgeSourceTypes = textSet(knowledgeSourceConfig.path("sources"), "type");
+        Set<String> expectedKnowledgeSourceTypes = textSet(knowledgeSourceConfig.path("sources"), "sourceType");
         Set<String> expectedKnowledgeSourceAdapterTypes = textSet(knowledgeSourceConfig.path("sources"), "adapterType");
         Set<String> expectedMarketplaceDatasetIds = textSet(marketplaceDatasetConfig.path("datasets"), "datasetId");
         Set<String> expectedMarketplaceDatasetHandleRefs = textSet(marketplaceDatasetConfig.path("datasets"), "handleRef");
@@ -1362,7 +1362,7 @@ public class DeploymentReleaseVerificationService {
         knowledgeSourceDetails.put("expectedKnowledgeSourceConfigLocation", expectations.artifacts().knowledgeSourceArtifactUrl());
         knowledgeSourceDetails.put("actualKnowledgeSourceConfigLocation", probe.body().path("knowledgeSourceConfigLocation").asText(""));
         knowledgeSourceDetails.put("expectedKnowledgeSourceContractVersion", expectations.expectedKnowledgeSourceContractVersion());
-        knowledgeSourceDetails.put("actualKnowledgeSourceContractVersion", probe.body().path("marketplaceSupport").path("knowledgeSourceConfigContractVersion").asText(""));
+        knowledgeSourceDetails.put("actualKnowledgeSourceContractVersion", probe.body().path("marketplaceSupport").path("knowledgeSourceContractVersion").asText(""));
         knowledgeSourceDetails.put("knowledgeSourcesCount", probe.body().path("knowledgeSourcesCount").asInt(-1));
         knowledgeSourceDetails.put("expectedKnowledgeSourcesCount", expectations.expectedKnowledgeSourceIds().size());
         knowledgeSourceDetails.set("knowledgeSourceIds", toArrayNode(textSet(probe.body().path("knowledgeSourceIds"))));

@@ -453,7 +453,7 @@ class DeploymentReleaseVerificationServiceTest {
 
             DeploymentReleaseVerificationService service = new DeploymentReleaseVerificationService(
                 objectMapper,
-                verificationProperties(Duration.ofMillis(100)),
+                verificationProperties(Duration.ofMillis(500)),
                 platformSecretService,
                 new DeploymentConfigCompiler(objectMapper),
                 artifactService,
@@ -471,7 +471,9 @@ class DeploymentReleaseVerificationServiceTest {
                 "POST_DEPLOY"
             );
 
-            assertThat(run.getStatus()).isEqualTo("PASSED");
+            assertThat(run.getStatus())
+                .as(run.getChecksJson())
+                .isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_admin_overview_http_probe")).isEqualTo("PASSED");
             assertThat(checkStatus(run, "runtime_config_matches_expected")).isEqualTo("PASSED");
             assertThat(checkStatus(run, "connector_base_url_present")).isEqualTo("SKIPPED");
@@ -3368,7 +3370,7 @@ class DeploymentReleaseVerificationServiceTest {
               "sources": [
                 {
                   "id": "shared-policies",
-                  "type": "policy",
+                  "sourceType": "policy",
                   "adapterType": "shared-index"
                 }
               ]

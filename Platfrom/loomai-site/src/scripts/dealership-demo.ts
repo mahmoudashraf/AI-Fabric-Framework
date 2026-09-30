@@ -102,7 +102,6 @@ async function startDealershipDemo(app: HTMLElement) {
         throw new Error('The dealership backend URL is not configured.')
       }
       const query = inventoryQuery(form, sort)
-      query.set('dealershipId', 'dealer-demo-001')
       const response = await fetchJson<InventoryResponse>(`${apiBaseUrl}/api/public/vehicles?${query}`)
       if (sequence !== requestSequence) return
       if (!response.success || !Array.isArray(response.items)) {
@@ -529,6 +528,7 @@ function sendAssistantMessage(app: HTMLElement, prompt: string, requestContext: 
 
 function inventoryQuery(form: HTMLFormElement, sort: HTMLSelectElement) {
   const parameters = new URLSearchParams()
+  parameters.set('dealershipId', 'dealer-demo-001')
   const formData = new FormData(form)
   for (const [key, raw] of formData.entries()) {
     const value = raw.toString().trim()
