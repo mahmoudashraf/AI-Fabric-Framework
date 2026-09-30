@@ -352,6 +352,8 @@ async function runScenario(page, scenario, expectedConversationId) {
     response: {
       success: responseBody.success === true,
       type: responseBody.type || null,
+      errorCode: responseBody.errorCode || null,
+      message: summarizeText(responseBody.message, 1_000),
       providerRequestId: responseBody.providerRequestId || null,
       conversationId: responseBody.conversationId || null,
       answer: summarizeText(responseBody.answer, 2_000),
@@ -373,8 +375,11 @@ function scenarioAssertions(id, result, observedQueries) {
     ]
   }
   if (id === 'contextual-follow-up') {
+    const statesPrice = /(?:GBP\s*|£\s*)\d/i.test(answer)
+    const statesAuthoritativePrice = /(?:GBP\s*|£\s*)31[, ]?950(?:\.00)?/i.test(answer)
     return [
       check('follow-up resolves the prior result set', includesAll(answer, ['Aster E1', '298', 'SUV']), 'Aster E1, 298 miles, and SUV', summarizeText(answer)),
+      check('follow-up does not invent a price', !statesPrice || statesAuthoritativePrice, 'Omit price or preserve GBP 31,950 from current inventory evidence.', summarizeText(answer)),
       check('follow-up is grounded', grounded, 'Action or non-action RAG evidence.', evidence.groundingPath),
     ]
   }
@@ -490,6 +495,7 @@ function responseEvidence(value) {
     searchSourceDiagnostics: diagnostics,
     executedActions: uniqueStrings(executed.map(({ action }) => action)),
     actionEvidence: executed,
+    actionResults,
     readActionIterations: resolutions.flatMap((resolution) => resolution.iterations || []).map((iteration) => ({
       iteration: iteration?.iteration ?? null,
       status: iteration?.status || null,
@@ -533,6 +539,8 @@ function summarizeActionResult(entry) {
   return {
     action: entry?.action || null,
     success: result?.success === true,
+    errorCode: result?.errorCode || data?.errorCode || null,
+    message: summarizeText(result?.message || data?.message, 500),
     itemsCount: numericItemCount(data),
     receiptCode: typeof data?.receiptCode === 'string' ? data.receiptCode : null,
   }
@@ -562,7 +570,7 @@ function buildRecommendations(results, globalAssertions, policy) {
   })
 
   const continuityHealthy = globalAssertions.find(({ name }) => name === 'one iterative conversation is used')?.passed
-    && byId['contextual-follow-up']?.status === 'PASS'
+    && byId['contextual-follow-up']?.evidence.historyMessagesCount > 0
   recommendations.push({
     priority: continuityHealthy ? 'KEEP' : 'HIGH',
     owner: 'DEPLOYMENT_CONFIGURATION',
@@ -578,6 +586,9 @@ function buildRecommendations(results, globalAssertions, policy) {
   const fallback = byId['empty-action-rag-fallback']
   const emptyActionObserved = fallback?.evidence.executedActions.includes('dealership_search_inventory')
     && actionItemCount(fallback.evidence, 'dealership_search_inventory') === 0
+  const boundedFallbackCanaryActive = policy?.readActionResolutionPlanningMode === 'ITERATIVE'
+    && policy?.readActionResolutionMaxIterations === 2
+    && policy?.readActionResolutionRagCooperationMode === 'RAG_IF_ACTIONS_INSUFFICIENT'
   if (emptyActionObserved && fallback.evidence.ragUsed) {
     recommendations.push({
       priority: 'KEEP',
@@ -587,20 +598,34 @@ function buildRecommendations(results, globalAssertions, policy) {
       evidenceScenarioIds: ['empty-action-rag-fallback'],
     })
   } else if (emptyActionObserved) {
-    recommendations.push({
-      priority: 'HIGH',
-      owner: 'DEPLOYMENT_CONFIGURATION',
-      finding: `The inventory action returned zero matches, but no independent RAG document reached the answer under ${policy?.readActionResolutionPlanningMode || 'unknown'} / ${policy?.readActionResolutionRagCooperationMode || 'unknown'}.`,
-      recommendation: 'Keep the UI on executor/search. Canary a deployment-owned executor policy using bounded ITERATIVE planning (2 iterations) with RAG_IF_ACTIONS_INSUFFICIENT; evaluate PARALLEL_ACTIONS_AND_RAG separately for latency and cost.',
-      evidenceScenarioIds: ['empty-action-rag-fallback'],
-    })
+    if (boundedFallbackCanaryActive) {
+      recommendations.push({
+        priority: 'KEEP',
+        owner: 'DEPLOYMENT_CONFIGURATION',
+        finding: 'The bounded ITERATIVE / RAG_IF_ACTIONS_INSUFFICIENT canary is active on executor/search exactly as configured.',
+        recommendation: 'Keep this deployment policy while the framework grounding-sufficiency defect is addressed; prompt changes cannot supply evidence that orchestration did not retrieve.',
+        evidenceScenarioIds: ['empty-action-rag-fallback'],
+      })
+    } else {
+      recommendations.push({
+        priority: 'HIGH',
+        owner: 'DEPLOYMENT_CONFIGURATION',
+        finding: `The inventory action returned zero matches, but no independent RAG document reached the answer under ${policy?.readActionResolutionPlanningMode || 'unknown'} / ${policy?.readActionResolutionRagCooperationMode || 'unknown'}.`,
+        recommendation: 'Keep the UI on executor/search. Canary a deployment-owned executor policy using bounded ITERATIVE planning (2 iterations) with RAG_IF_ACTIONS_INSUFFICIENT; evaluate PARALLEL_ACTIONS_AND_RAG separately for latency and cost.',
+        evidenceScenarioIds: ['empty-action-rag-fallback'],
+      })
+    }
     const markedUsable = fallback.evidence.actionEvidence.some(({ action, itemsCount, groundingUsable }) => action === 'dealership_search_inventory' && itemsCount === 0 && groundingUsable)
     if (markedUsable) {
       recommendations.push({
-        priority: 'BLOCKER_IF_CONFIG_CANARY_STILL_FAILS',
+        priority: boundedFallbackCanaryActive ? 'BLOCKER' : 'BLOCKER_IF_CONFIG_CANARY_STILL_FAILS',
         owner: 'FRAMEWORK',
-        finding: 'A successful empty collection was marked groundingUsable, which can make an insufficient action look complete.',
-        recommendation: 'After the deployment-policy canary, raise a framework regression only if empty collection evidence still suppresses configured RAG fallback. The framework should distinguish transport/action success from sufficient grounding.',
+        finding: boundedFallbackCanaryActive
+          ? 'The live bounded canary still marked a successful empty collection groundingUsable and suppressed the explicitly configured RAG fallback.'
+          : 'A successful empty collection was marked groundingUsable, which can make an insufficient action look complete.',
+        recommendation: boundedFallbackCanaryActive
+          ? `Track this as an AI Fabric regression using provider request ${fallback.response.providerRequestId || 'unknown'}. Separate action transport success from grounding sufficiency and add a generic empty-collection fallback test; do not use dealership-specific or text-matching logic.`
+          : 'After the deployment-policy canary, raise a framework regression only if empty collection evidence still suppresses configured RAG fallback. The framework should distinguish transport/action success from sufficient grounding.',
         evidenceScenarioIds: ['empty-action-rag-fallback'],
       })
     }
@@ -635,6 +660,16 @@ function buildRecommendations(results, globalAssertions, policy) {
     })
   }
 
+  if (byId['contextual-follow-up']?.assertions.some(({ name, passed }) => name === 'follow-up does not invent a price' && !passed)) {
+    recommendations.push({
+      priority: 'HIGH',
+      owner: 'DEPLOYMENT_PROMPT_AND_EVIDENCE_PROJECTION',
+      finding: 'The contextual answer selected the correct vehicle, range, and body type but introduced a price that conflicts with the authoritative action result.',
+      recommendation: 'After the framework grounding blocker is fixed, constrain post-action generation to copy structured commercial facts exactly and omit unrequested fields rather than reconstructing them.',
+      evidenceScenarioIds: ['contextual-follow-up'],
+    })
+  }
+
   if (byId['governed-write-intent']?.evidence.successfulWriteActions.length > 0) {
     recommendations.push({
       priority: 'RELEASE_BLOCKER',
@@ -643,13 +678,33 @@ function buildRecommendations(results, globalAssertions, policy) {
       recommendation: 'Require trusted user details and an explicit confirmation turn for every lead-creating action before release.',
       evidenceScenarioIds: ['governed-write-intent'],
     })
-  } else if (byId['governed-write-intent']?.status !== 'PASS') {
+  } else if (/\bvehicleId\b/i.test(byId['governed-write-intent']?.response.answer || '')) {
     recommendations.push({
       priority: 'HIGH',
       owner: 'DEPLOYMENT_ACTION_CONTRACT',
       finding: 'The write remained unexecuted, but clarification exposed vehicleId and did not describe the complete buyer-facing requirements.',
       recommendation: 'Mark vehicleId INTERNAL with askUser: false and resolve it only from a trusted vehicle attachment or an unambiguous read action. Ask the buyer only for name, email or phone, preferred date, consent, and explicit final confirmation.',
       evidenceScenarioIds: ['governed-write-intent'],
+    })
+  } else if (byId['governed-write-intent']?.status !== 'PASS') {
+    recommendations.push({
+      priority: 'FOLLOW_UP',
+      owner: 'DEPLOYMENT_PROMPT_AND_UX',
+      finding: 'Trusted vehicle resolution kept vehicleId hidden and no write ran, but the deterministic clarification exposed only the next missing buyer field rather than a complete requirements overview.',
+      recommendation: 'Keep the safe action contract. After the grounding blocker is fixed, decide whether the product should collect fields one turn at a time or add a framework-supported grouped clarification contract; do not re-expose internal target identifiers.',
+      evidenceScenarioIds: ['governed-write-intent'],
+    })
+  }
+
+  if (byId['vehicle-comparison']?.status !== 'PASS') {
+    const comparisonFailure = byId['vehicle-comparison'].evidence.actionResults
+      .find(({ action, success }) => action === 'dealership_compare_vehicles' && !success)
+    recommendations.push({
+      priority: 'HIGH',
+      owner: 'DEPLOYMENT_ORCHESTRATION_DIAGNOSTICS',
+      finding: `The named comparison returned ${comparisonFailure?.errorCode || byId['vehicle-comparison'].response.type || 'an unknown outcome'} without grounded evidence (provider request ${byId['vehicle-comparison'].response.providerRequestId || 'unknown'}).`,
+      recommendation: 'Reproduce the comparison in an isolated conversation and inspect its structured error before changing prompts, actions, or framework code.',
+      evidenceScenarioIds: ['vehicle-comparison'],
     })
   }
 

@@ -59,6 +59,9 @@ The report distinguishes two kinds of iteration:
 - read-action planner iteration, which is a deployment policy choice such as
   `SINGLE_PASS` or bounded `ITERATIVE` planning.
 
-That distinction keeps UI mode selection stable. A failed action/RAG scenario
-is evidence for a deployment-policy canary first, not permission for the
-browser to switch modes or for this harness to modify the live deployment.
+That distinction keeps UI mode selection stable. Deployment version v8 now
+proves bounded `ITERATIVE` planning with `maxIterations=2` and
+`RAG_IF_ACTIONS_INSUFFICIENT` while the browser remains on executor/search.
+The post-canary empty-result failure is therefore framework evidence, not
+permission for the browser or this harness to switch modes or mutate live
+configuration.

@@ -1,24 +1,42 @@
 {
-  "schemaVersion": "loomai-dealership-live-quality-evidence-v1",
+  "schemaVersion": "loomai-dealership-live-quality-evidence-v2",
   "status": "NEEDS_IMPROVEMENT",
-  "claim": "DEALERSHIP_CONVERSATIONAL_QUALITY_BASELINE",
-  "completedAt": "2026-09-30T20:17:34.430Z",
+  "claim": "POST_ITERATIVE_CANARY_DEALERSHIP_QUALITY",
+  "completedAt": "2026-09-30T21:54:55.457Z",
+  "deployment": {
+    "deploymentId": "dep-f023c863",
+    "versionId": "ver-5ae2dd59",
+    "versionLabel": "v8",
+    "releaseId": "rel-5c6ee444",
+    "releaseStatus": "APPLIED_VERIFIED",
+    "verificationStatus": "PASSED",
+    "aiFabricFrameworkVersion": "0.8.5",
+    "targetProfileId": "dtp-coolify-staging-behavior"
+  },
   "target": {
     "publicExperienceUrl": "https://loomai.pro/demos/dealership-ai",
     "backendBaseUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
     "runtimeBaseUrl": "https://dep-f023c863.46.224.145.148.sslip.io",
-    "deploymentId": "dep-f023c863",
     "integrationMode": "public-runtime-anonymous",
     "vectorSpace": "dealer-vehicle",
     "uiMode": "executor",
     "uiPosition": "search",
     "viewport": "390x844"
   },
+  "runtimeEvidence": {
+    "runtimeStatus": "running:healthy",
+    "connectorStatus": "running:healthy",
+    "inventorySyncStatus": "COMPLETED",
+    "inventorySyncTotal": 6,
+    "inventorySyncSucceeded": 6,
+    "inventorySyncFailed": 0,
+    "inventorySyncRequestId": "dealership-inventory-35eb9af1-4463-45f1-bab2-98cc8c93ec73"
+  },
   "run": {
-    "conversationId": "chat-825182d1-8dda-4ecf-b8d8-7787e4bf8691",
+    "conversationId": "chat-cf94ac8e-97cf-4429-bc54-67900c188e96",
     "scenarioCount": 7,
-    "passedScenarios": 5,
-    "needsImprovementScenarios": 2,
+    "passedScenarios": 2,
+    "needsImprovementScenarios": 5,
     "oneConversation": true,
     "conversationHistoryObserved": true,
     "writeConfirmed": false,
@@ -31,13 +49,14 @@
     "position": "search",
     "actionsEnabled": true,
     "retrievalEnabled": true,
-    "readActionResolutionPlanningMode": "SINGLE_PASS",
-    "readActionResolutionMaxIterations": 1,
+    "readActionResolutionPlanningMode": "ITERATIVE",
+    "readActionResolutionMaxIterations": 2,
     "readActionResolutionMaxTotalActions": 2,
     "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
     "allowedReadActions": [
       "dealership_compare_vehicles",
       "dealership_get_vehicle",
+      "dealership_resolve_vehicle",
       "dealership_search_inventory"
     ],
     "retrievalVectorSpaces": [
@@ -48,7 +67,7 @@
     {
       "id": "structured-current-stock-action",
       "status": "PASS",
-      "providerRequestId": "rag-a379db0e-22aa-4f2e-ad93-d698c1a98a91",
+      "providerRequestId": "rag-cd0c91b7-a374-462f-b3f7-cbf5b9fd9619",
       "groundingPath": "ACTION",
       "executedActions": [
         "dealership_search_inventory"
@@ -57,32 +76,32 @@
     },
     {
       "id": "contextual-follow-up",
-      "status": "PASS",
-      "providerRequestId": "rag-0d3c4551-4a16-4506-bfda-8939b0357bbf",
-      "groundingPath": "ACTION_AND_RAG",
-      "externalDocumentCount": 6,
-      "historyMessagesCount": 2
+      "status": "NEEDS_IMPROVEMENT",
+      "providerRequestId": "rag-39d046e6-feba-48eb-8460-5b228950ecb1",
+      "groundingPath": "ACTION",
+      "historyMessagesCount": 2,
+      "finding": "The correct Aster E1, 298-mile range and SUV type were selected, but generation invented GBP 42,000 instead of the authoritative GBP 31,950."
     },
     {
       "id": "vehicle-comparison",
-      "status": "PASS",
-      "providerRequestId": "rag-70362294-6cae-45ca-9541-726e54e835dd",
-      "groundingPath": "ACTION",
-      "executedActions": [
-        "dealership_compare_vehicles"
-      ]
+      "status": "NEEDS_IMPROVEMENT",
+      "providerRequestId": "rag-6aeed24a-f060-4260-8386-4e4689fae3cd",
+      "groundingPath": "NONE",
+      "responseType": "ERROR",
+      "isolatedErrorCode": "UPSTREAM_HTTP_409",
+      "finding": "Buyer-facing references reached an ID-only comparison route without trusted target resolution."
     },
     {
       "id": "semantic-rag",
       "status": "PASS",
-      "providerRequestId": "rag-ec04e80d-0e5e-457c-b987-e9ab5c110144",
+      "providerRequestId": "rag-0dc13bd4-7d82-4a03-86cb-5cbdf91e378c",
       "groundingPath": "ACTION_AND_RAG",
       "externalDocumentCount": 6
     },
     {
       "id": "empty-action-rag-fallback",
       "status": "NEEDS_IMPROVEMENT",
-      "providerRequestId": "rag-495b0755-9819-4247-99fb-420ad8dd23bd",
+      "providerRequestId": "rag-9d3b1db5-97b0-4d71-9224-60fd7b245386",
       "groundingPath": "ACTION",
       "executedActions": [
         "dealership_search_inventory"
@@ -90,35 +109,38 @@
       "itemsCount": 0,
       "groundingUsable": true,
       "externalDocumentCount": 0,
-      "finding": "The successful zero-result action was treated as usable grounding. RAG did not run and the answer incorrectly generalized a filtered no-match to no inventory."
+      "frameworkBlockerConfirmed": true,
+      "finding": "The bounded iterative canary still treated an empty collection as sufficient, suppressed RAG, and generalized a filtered no-match to no inventory."
     },
     {
       "id": "unsupported-policy-honesty",
-      "status": "PASS",
-      "providerRequestId": "rag-1d3d10e5-4b85-4c6e-b893-62fbd904d704",
+      "status": "NEEDS_IMPROVEMENT",
+      "providerRequestId": "rag-dd3f1c70-393e-4509-a46b-04c01aa79006",
       "groundingPath": "RAG",
       "externalDocumentCount": 6,
-      "finding": "The answer explicitly stated that warranty evidence was unavailable and did not invent coverage terms."
+      "finding": "The answer respected the warranty evidence boundary but added unrelated inventory recommendations."
     },
     {
       "id": "governed-write-intent",
       "status": "NEEDS_IMPROVEMENT",
-      "providerRequestId": "rag-526106d5-4271-40e2-b284-5e36288a47ad",
-      "responseType": "CLARIFICATION_REQUIRED",
+      "providerRequestId": "rag-92aa98af-8f09-4558-bcc7-0d699899af0e",
+      "responseType": "COMPOUND_HANDLED",
+      "internalTargetExposed": false,
       "domainWriteCompleted": false,
-      "finding": "The write remained safe and unexecuted, but clarification exposed vehicleId and omitted the complete buyer-facing contact, consent and confirmation requirements."
+      "finding": "Trusted target hiding succeeded and no write ran, but the response did not provide the complete buyer-facing requirements overview."
     }
   ],
   "recommendationOrder": [
-    "Keep the browser integration on executor mode and search position with one runtime-owned conversation.",
-    "Canary bounded ITERATIVE executor planning with maxIterations=2 and RAG_IF_ACTIONS_INSUFFICIENT at deployment configuration level.",
-    "Mark vehicleId INTERNAL with askUser=false and resolve it from a deployment-validated attachment or unambiguous read result.",
-    "Raise a framework issue only if the deployment-policy canary still treats an empty collection as sufficient grounding and suppresses RAG."
+    "Keep executor mode, search position, deployment context and the bounded ITERATIVE policy.",
+    "Fix the generic AI Fabric distinction between action success and grounding sufficiency; no domain-specific or text-matching implementation is acceptable.",
+    "Upgrade and rerun the empty-action fallback canary before prompt tuning.",
+    "Resolve comparison targets through trusted deployment-owned lookup before the ID-only comparison route.",
+    "Then canary prompt and evidence-projection changes for exact commercial facts and concise knowledge-boundary answers."
   ],
   "mutations": {
-    "deploymentChanged": false,
-    "frameworkChanged": false,
-    "liveConfigurationChanged": false,
+    "rolloutChangedDeployment": true,
+    "frameworkCodeChanged": false,
+    "qualityHarnessChangedLiveConfiguration": false,
     "domainWriteConfirmed": false
   }
 }

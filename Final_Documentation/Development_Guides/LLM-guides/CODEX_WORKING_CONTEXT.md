@@ -3156,3 +3156,44 @@ Critical fixes that made the gate pass:
   `verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-live-quality.json`.
   This does not revoke the bounded `DEALERSHIP_DEMO_READY` infrastructure
   claim, but the conversational quality baseline remains `NEEDS_IMPROVEMENT`.
+
+## 2026-09-30 Dealership Bounded Iterative Canary Applied
+
+- Commit `b4d5bda06` added a deployment-owned executor override allowlist,
+  compiled the three supported read-action-resolution settings into runtime
+  environment, added a trusted vehicle reference resolver, and made write
+  `vehicleId` parameters `INTERNAL` with `askUser: false` and read-action
+  resolution. Full Platform, private runtime, dealership backend, and public
+  site checks passed before rollout.
+- Staging deployment `dep-f023c863` version `ver-5ae2dd59` (`v8`) was published
+  with zero validation errors/warnings and applied as release `rel-5c6ee444`
+  through target `dtp-coolify-staging-behavior` using reviewed AI Fabric 0.8.5
+  artifact `dsa-c4049c46`. The release is `APPLIED_VERIFIED`; runtime and
+  connector are `running:healthy`.
+- Platform used stop-first replacement for persistent local Lucene. Exact
+  Coolify deployments `rvodjkgjh8zn900wocto7fln` (connector) and
+  `al8oz9yiwpn20ivqiwzghn5o` (runtime) both finished. Protected inventory sync
+  request `dealership-inventory-35eb9af1-4463-45f1-bab2-98cc8c93ec73`
+  completed `6/6` with runtime readiness `READY`.
+- Live policy proof is `executor` / `search`, `ITERATIVE`, `maxIterations=2`,
+  `maxTotalActions=2`, and `RAG_IF_ACTIONS_INSUFFICIENT`. The UI contract was
+  not changed. `vehicleId` no longer appears in buyer clarification and no
+  write was confirmed or executed.
+- The agreed framework escalation condition is met. Two consecutive canary
+  runs returned an empty successful inventory action with `itemsCount=0` and
+  `groundingUsable=true`, ran no RAG fallback, and falsely generalized the
+  filtered no-match to no inventory. Latest request ID:
+  `rag-9d3b1db5-97b0-4d71-9224-60fd7b245386`. The generic AI Fabric change
+  request is `docs/planning/0024-empty-read-action-grounding-sufficiency-regression.md`
+  at framework commit `41ec78e0`; it explicitly prohibits domain coupling and
+  text matching.
+- Separate deployment findings remain: comparison references reach the ID-only
+  route and reproduce `UPSTREAM_HTTP_409`; post-action generation selected the
+  correct Aster E1 but invented GBP 42,000 instead of GBP 31,950; the warranty
+  boundary answer added unrelated stock; and write clarification is safe but
+  not a complete requirements overview.
+- Do not publish prompt enhancements yet. Keep v8 and fix/release the generic
+  framework grounding-sufficiency issue first, then resolve comparison targets,
+  canary exact-fact/knowledge-boundary prompts, and rerun the strict matrix.
+  Canonical evidence and findings are under
+  `verification-support/autotrader-dealership-demo/`.

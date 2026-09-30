@@ -2,179 +2,143 @@
 
 ## Decision
 
-The live dealership experience is operational and already proves useful
-action, retrieval, comparison and multi-turn behaviour. It is not yet a green
-quality baseline for the desired action-to-RAG fallback or customer-facing
-lead clarification.
+The agreed canary order was applied on staging. The UI remains on `executor`
+mode at the `search` position, deployment version `ver-5ae2dd59` is live, and
+release `rel-5c6ee444` is `APPLIED_VERIFIED` on AI Fabric `0.8.5`.
 
-This is a quality finding, not an availability failure. No deployment,
-framework, prompt, provider data or live configuration was changed during the
-run.
+The canary is operational but not a green quality baseline. It confirmed one
+AI Fabric grounding-sufficiency blocker and two deployment-level quality
+follow-ups. Prompt enhancement was intentionally not published because the
+agreed order requires action/RAG mechanics to be green first.
+
+## Applied canary
+
+- Planning mode: `ITERATIVE`
+- Maximum read-action iterations: `2`
+- RAG cooperation: `RAG_IF_ACTIONS_INSUFFICIENT`
+- Read actions: inventory search, vehicle detail, comparison, and trusted
+  vehicle reference resolution
+- Write target: `vehicleId` is `INTERNAL`, has `askUser: false`, and resolves
+  through the trusted read action
+- Runtime replacement: stop-first, preserving the single-writer Lucene volume
+- Inventory sync after replacement: `6/6` completed, `0` failed
+- Runtime and connector: `running:healthy`
+
+The quality harness itself made no live mutation and never confirmed a write.
 
 ## Live scope
 
 - Public route: `https://loomai.pro/demos/dealership-ai`
 - Runtime: `https://dep-f023c863.46.224.145.148.sslip.io`
 - Integration: `public-runtime-anonymous`
-- UI mode: `executor`
-- UI position: `search`
 - Vector space: `dealer-vehicle`
 - Viewport: `390x844`
 - Conversation: one continuous seven-turn session
 
-The widget's `features.debug` setting only controls whether its inspector is
-visible. The quality harness captures the same raw request and response at the
-browser network boundary and records policy, action, retrieval, history and
-provider-request diagnostics without changing the deployed widget.
+The final instrumented run completed at `2026-09-30T21:54:55.457Z`. All global
+transport, context, conversation, no-confirmation, and no-write assertions
+passed. Two scenarios passed fully and five exposed quality findings.
 
-## What passed
+## Confirmed good behavior
 
-1. Exact electric-stock search used `dealership_search_inventory` and returned
-   the three correct matches.
-2. The follow-up retained the conversation, used prior context, and combined
-   action data with six independent `dealer-vehicle` retrieval documents.
-3. Named comparison used `dealership_compare_vehicles` for the correct two
-   vehicles.
-4. The towing and poor-weather request combined action and RAG evidence and
-   selected the Caldera X6 for its AWD and tow preparation.
-5. The warranty request stated that policy evidence was unavailable and did
-   not invent warranty duration or coverage.
-6. Every request remained on `executor` + `search`, carried the correct
-   dealership/vector-space context, and reused one conversation.
-7. The lead-intent check did not confirm or execute a write, create a receipt,
-   or produce a browser/runtime transport error.
+1. Exact electric-stock search used authoritative action data and returned the
+   correct three vehicles and commercial facts.
+2. The towing and poor-weather request combined action and six indexed
+   documents and selected the Caldera X6 for AWD and tow preparation.
+3. Every request stayed on `executor` + `search`, retained dealership and
+   vector-space scope, and reused one runtime conversation.
+4. The write-intent test did not confirm or execute a write and issued no
+   receipt.
+5. `vehicleId` is no longer exposed to the buyer. The trusted resolver endpoint
+   maps an unambiguous Aster E1 reference to the active internal vehicle.
 
-## Finding 1: empty action suppresses RAG
+## Blocker: empty action still suppresses RAG
 
 Prompt:
 
 > Do you have a diesel SUV under GBP 10,000? If not, use indexed current-stock
 > evidence to suggest the closest alternative without claiming it matches.
 
-Observed:
+Observed in two consecutive post-canary runs:
 
-- `dealership_search_inventory` executed successfully;
-- `itemsCount=0`;
-- the result was marked `groundingUsable=true`;
-- no independent RAG document was returned;
-- the response claimed that the dealership had no inventory, despite six
-  active demo vehicles; and
-- the requested truthful nearest alternative was not supplied.
+- `dealership_search_inventory` succeeded with `itemsCount=0`;
+- AI Fabric marked the result `groundingUsable=true`;
+- no read-action iteration or independent RAG retrieval ran;
+- the answer generalized the filtered no-match into no dealership inventory;
+  and
+- six correctly scoped indexed vehicle documents were available to other
+  queries in the same run.
 
-Final provider request ID:
-`rag-495b0755-9819-4247-99fb-420ad8dd23bd`.
+Provider request IDs:
 
-The same behaviour reproduced in two earlier sessions with request IDs
-`rag-bbcefb1f-635f-4234-a584-4cd9cf00fa2e` and
-`rag-b6e241af-62de-429e-b29a-8fa82cf0dd69`.
+- `rag-04a33c82-3dee-4232-a950-a5e14fa2a49c`
+- `rag-9d3b1db5-97b0-4d71-9224-60fd7b245386`
 
-The effective policy was:
+This satisfies the agreed framework-escalation condition. The framework change
+request is recorded as
+`docs/planning/0024-empty-read-action-grounding-sufficiency-regression.md` in
+the AI Fabric repository at commit `41ec78e0`. It requires a generic
+distinction between action execution success and grounding sufficiency, with
+no domain names, field-name heuristics, or text matching.
 
-```yaml
-planningMode: SINGLE_PASS
-maxIterations: 1
-ragCooperationMode: RAG_IF_ACTIONS_INSUFFICIENT
-```
+## Deployment finding: comparison references are unresolved
 
-### Recommended ownership order
+The named comparison reproducibly invokes `dealership_compare_vehicles` with
+buyer-facing references that the current route treats as trusted IDs. The
+dealership backend therefore returns `UPSTREAM_HTTP_409` / `409_CONFLICT` with
+"One or more selected vehicles are no longer active."
 
-1. **Deployment configuration:** keep the public UI on `executor` and
-   `search`, but canary this executor policy in a new immutable deployment
-   version:
+Quality-run provider request:
+`rag-6aeed24a-f060-4260-8386-4e4689fae3cd`.
 
-   ```yaml
-   ai:
-     orchestration:
-       modes:
-         executor:
-           read-action-resolution:
-             planning-mode: ITERATIVE
-             max-iterations: 2
-             rag-cooperation-mode: RAG_IF_ACTIONS_INSUFFICIENT
-   ```
+Isolated reproductions:
 
-2. **Deployment evaluation:** run the same quality matrix and require the
-   zero-result action plus at least one independent `dealer-vehicle` document.
-   The answer must say that no exact diesel/budget match exists and may present
-   Caldera X6 only as a clearly labelled alternative.
-3. **Optional separate canary:** evaluate `PARALLEL_ACTIONS_AND_RAG` for broad
-   mixed questions. Do not make it the default until latency, token cost,
-   duplicate evidence and answer quality are measured.
-4. **Framework escalation only if the config canary fails:** report that a
-   successful empty collection remains `groundingUsable` and suppresses the
-   explicitly configured fallback. Transport success and sufficient grounding
-   need separate semantics, backed by a regression test.
+- `rag-bdb9c175-0e70-4490-be64-057d852cda17`
+- `rag-798b405e-0805-450d-af4b-2fc042af0a51`
 
-The existing deployment answer prompt already requires nearest truthful
-alternatives. Prompt changes alone will not solve this turn because the
-alternative evidence never reached generation.
+This is a deployment action-contract problem, not enough evidence for a second
+framework issue. The next deployment change should accept buyer-facing vehicle
+references and resolve both targets through trusted inventory lookup before
+calling the ID-only comparison endpoint.
 
-## Finding 2: lead clarification exposes an internal target
+## Deployment finding: generated facts can drift
 
-Prompt:
+The contextual follow-up selected the correct Aster E1, `298` mile range, and
+SUV body type, but volunteered a price of GBP 42,000. The authoritative action
+result says GBP 31,950. A preceding run produced GBP 45,000, so this is not a
+one-off display typo.
 
-> I want to book a test drive for the Aster E1. Tell me what details and
-> confirmation you need, but do not submit anything.
+After the framework blocker is fixed, the post-action answer contract should
+copy commercial facts exactly and omit unrequested fields instead of
+reconstructing them. This is the first prompt/evidence-projection enhancement
+to canary.
 
-Observed answer:
+## Remaining UX findings
 
-> To proceed, please provide: vehicleId, name.
+- The warranty answer correctly says approved warranty evidence is unavailable,
+  but then adds unrelated stock recommendations. The answer should stop at the
+  evidence boundary or offer dealership contact.
+- The governed-write response keeps the internal target hidden and remains
+  safe, but currently presents a generic or one-field-at-a-time clarification.
+  Product UX must decide whether that is intentional or whether a
+  framework-supported grouped clarification contract is needed.
 
-Safety worked: the response was `CLARIFICATION_REQUIRED`, no confirmation was
-sent, and no write completed. The customer experience did not:
+Neither finding justifies weakening confirmation, trusted target resolution,
+or action authorization.
 
-- `vehicleId` is an internal target and must not be requested from a buyer;
-- the response omitted email or phone, consent, preferred date and final
-  confirmation; and
-- the named Aster E1 was not resolved to a deployment-validated target.
+## Next order
 
-Provider request ID: `rag-526106d5-4271-40e2-b284-5e36288a47ad`.
+1. Keep the current UI mode, position, scoped context, and bounded canary
+   policy.
+2. Fix and release the generic AI Fabric empty-result sufficiency regression.
+3. Upgrade/redeploy this runtime and rerun the exact fallback scenario.
+4. Resolve comparison targets through trusted deployment-owned lookup.
+5. Only then canary prompt/evidence-projection changes for exact commercial
+   facts and concise knowledge-boundary answers.
+6. Run the full strict matrix; do not mark the dealership quality gate green
+   until every scenario passes.
 
-### Recommended ownership order
-
-1. **Deployment action contract:** set `vehicleId` to `visibility: INTERNAL`
-   and `askUser: false`.
-2. **Trusted target resolution:** resolve a card-initiated request from a
-   deployment-validated vehicle attachment. For free-text vehicle names, use
-   an exact read lookup and fail closed when the result is missing or
-   ambiguous. The action backend must still revalidate dealership ownership
-   and active status.
-3. **Customer clarification:** ask only for the buyer-owned fields: name,
-   email or phone, optional preferred date, contact consent and explicit final
-   confirmation.
-4. **Framework change:** none is justified by this result because the current
-   action schema already supports hidden `askUser: false` parameters and
-   trusted resolver sources.
-
-## Mode and position recommendation
-
-Keep `executor` and `search`. The current UI contract is behaving correctly,
-and the browser must not switch orchestration modes based on query wording.
-
-The session is already iterative at the conversation level: one
-`conversationId` was retained and history increased from 0 to 12 messages.
-That is distinct from read-action planner iteration, which is a bounded,
-server-owned deployment policy. The first canary should change only the latter.
-
-## Acceptance gate
-
-The quality baseline becomes green when:
-
-1. the existing five passing scenarios remain green;
-2. an empty authoritative action is followed by independent indexed evidence
-   and a truthful nearest alternative;
-3. a filtered no-match is never described as an empty dealership inventory;
-4. lead clarification exposes no internal IDs and lists the human-facing
-   requirements;
-5. no write occurs before explicit confirmation; and
-6. the strict run exits successfully:
-
-   ```bash
-   cd Platfrom/loomai-site
-   DEALERSHIP_QUALITY_STRICT=true npm run quality:dealership-live
-   ```
-
-The full local report is generated at
+The complete local report is generated at
 `Platfrom/loomai-site/test-results/dealership-quality/latest.json`. The compact
 checked-in evidence is
 `verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-live-quality.json`.
