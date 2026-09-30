@@ -18,6 +18,32 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RuntimeReadActionResolutionConfigurationTest {
 
     @Test
+    void deploymentRetrievalAllowlistBindsForExecutorMode() throws Exception {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource(
+            "deployment-runtime-env",
+            Map.of(
+                "LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES_ALLOWLIST",
+                "dealer-vehicle,dealer-policy",
+                "ai.curated.pack",
+                "default"
+            )
+        ));
+        YamlPropertySourceLoader loader = new YamlPropertySourceLoader();
+        loader.load("runtime-application", new ClassPathResource("application.yml"))
+            .forEach(environment.getPropertySources()::addLast);
+        new CuratedPackEnvironmentPostProcessor()
+            .postProcessEnvironment(environment, new SpringApplication(Object.class));
+
+        OrchestrationProperties properties = Binder.get(environment)
+            .bind("ai.orchestration", OrchestrationProperties.class)
+            .orElseThrow(() -> new IllegalStateException("Runtime orchestration configuration was not bound"));
+
+        assertThat(properties.getModes().get("executor").getRag().getRetrievalVectorSpacesAllowlist())
+            .containsExactly("dealer-vehicle", "dealer-policy");
+    }
+
+    @Test
     void deploymentReadActionAllowlistBindsAcrossCommerceModes() throws Exception {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new MapPropertySource(

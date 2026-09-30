@@ -381,6 +381,9 @@ try {
   if (!cardAskPayload.attachments?.some((attachment) => attachment.id === 'veh-aster-e1')) {
     throw new Error('Dealership vehicle question reached chat without its trusted vehicle attachment')
   }
+  if (!cardAskPayload.attachments?.some((attachment) => attachment.vectorSpace === 'dealer-vehicle')) {
+    throw new Error('Dealership vehicle question used the wrong attachment vector space')
+  }
 
   const actionRequestPromise = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false

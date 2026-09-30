@@ -212,15 +212,21 @@ export function useChatFlow({
           if (item.data.orderNumber) contentParts.push(`Order #${item.data.orderNumber}`);
           const contentText = contentParts.join(" | ");
 
-          let vectorSpace = "product";
-          if (item.type === "order") {
+          const sourceMetadata: Record<string, any> = { ...(item.data.metadata || {}) };
+          const explicitVectorSpace = firstString(
+            item.data.vectorSpace,
+            item.data.entityType,
+            sourceMetadata.vectorSpace,
+            sourceMetadata.entityType,
+          );
+          let vectorSpace = explicitVectorSpace || "product";
+          if (!explicitVectorSpace && item.type === "order") {
             vectorSpace = "order";
-          } else if (item.type === "document") {
+          } else if (!explicitVectorSpace && item.type === "document") {
             const docCategory = item.data.metadata?.category?.toLowerCase();
             vectorSpace = docCategory === "order" ? "order" : "product";
           }
 
-          const sourceMetadata: Record<string, any> = { ...(item.data.metadata || {}) };
           delete sourceMetadata.productVariantId;
           delete sourceMetadata.firstAvailableVariantId;
           delete sourceMetadata.variantId;

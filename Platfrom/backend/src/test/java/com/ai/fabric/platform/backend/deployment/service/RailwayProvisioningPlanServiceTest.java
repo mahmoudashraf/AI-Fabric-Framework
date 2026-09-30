@@ -882,6 +882,72 @@ class RailwayProvisioningPlanServiceTest {
     }
 
     @Test
+    void buildPlanCompilesRegisteredDeploymentVectorSpacesIntoRuntimeAllowlist() {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(
+            new DeploymentArtifactBundleSummary(
+                "dep-123",
+                "ver-123",
+                "v1",
+                "hash-123",
+                "https://platform.example/actions.yml",
+                "https://platform.example/entities.yml",
+                "https://platform.example/routing.yml",
+                "https://platform.example/prompts.json",
+                "https://platform.example/manifest.json"
+            )
+        );
+        RailwayProvisioningPlanService service = new RailwayProvisioningPlanService(
+            properties(),
+            new PlatformDeliveryProperties("https://platform.example", true, Duration.ofDays(3650)),
+            artifactService,
+            new DeploymentSourceResolver(properties()),
+            mock(PlatformSecretService.class),
+            new ObjectMapper()
+        );
+        DeploymentVersionEntity version = version();
+        version.setEntityConfigJson("""
+            {
+              "ai-entities": {
+                "dealer-vehicle": {},
+                "dealer-policy": {}
+              }
+            }
+            """);
+        version.setKnowledgeSourceConfigJson("""
+            {
+              "sources": [
+                {"id": "inventory", "entityType": "dealer-vehicle"}
+              ]
+            }
+            """);
+        version.setMarketplaceDatasetConfigJson("""
+            {
+              "datasets": [
+                {
+                  "datasetId": "inventory",
+                  "entityType": "dealer-vehicle",
+                  "syncConnector": {
+                    "httpSource": {
+                      "vectorSpace": "dealer-vehicle",
+                      "entityType": "dealer-vehicle"
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+
+        RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
+        Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
+
+        assertThat(runtimeEnv).containsEntry(
+            "LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES_ALLOWLIST",
+            "dealer-policy,dealer-vehicle"
+        );
+    }
+
+    @Test
     void buildPlanCompilesManagedAnthropicAndQdrantSettingsIntoLiveEnv() {
         DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
         when(artifactService.toBundleSummary(org.mockito.ArgumentMatchers.any())).thenReturn(

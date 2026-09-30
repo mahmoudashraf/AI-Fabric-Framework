@@ -499,8 +499,11 @@ function attachVehicle(vehicle: Vehicle) {
     type: 'vehicle',
     data: {
       id: vehicle.id,
+      vectorSpace: 'dealer-vehicle',
+      entityType: 'dealer-vehicle',
       stockId: vehicle.stockId,
       name: `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}`,
+      content: `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model} ${vehicle.derivative}. ${vehicle.summary}`,
       derivative: vehicle.derivative,
       priceGbp: vehicle.priceGbp,
       priceFormatted: vehicle.priceFormatted,
@@ -511,6 +514,20 @@ function attachVehicle(vehicle: Vehicle) {
       lifecycleState: vehicle.lifecycleState,
       sourceLabel: vehicle.sourceLabel,
       sourceUpdatedAt: vehicle.sourceUpdatedAt,
+      metadata: {
+        stockId: vehicle.stockId,
+        make: vehicle.make,
+        model: vehicle.model,
+        derivative: vehicle.derivative,
+        priceGbp: vehicle.priceGbp,
+        priceFormatted: vehicle.priceFormatted,
+        mileage: vehicle.mileage,
+        fuelType: vehicle.fuelType,
+        bodyType: vehicle.bodyType,
+        lifecycleState: vehicle.lifecycleState,
+        sourceLabel: vehicle.sourceLabel,
+        sourceUpdatedAt: vehicle.sourceUpdatedAt,
+      },
     },
   })
 }

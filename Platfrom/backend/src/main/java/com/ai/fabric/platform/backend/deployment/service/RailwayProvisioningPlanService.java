@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 @Service
@@ -253,6 +254,7 @@ public class RailwayProvisioningPlanService {
         JsonNode routingConfig = readJson(version.getRoutingConfigJson());
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
+        JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
         JsonNode marketplaceDatasetConfig = readJson(version.getMarketplaceDatasetConfigJson());
         JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
         boolean externalHttpIntegration = hasExternalHttpDataset(marketplaceDatasetConfig);
@@ -455,6 +457,12 @@ public class RailwayProvisioningPlanService {
         addRuntimeWebhookTargetEnv(runtimeEnv, actionsConfig);
         addOptionalEnv(runtimeEnv, "AI_CURATED_PACK", resolveRuntimeCuratedPack(providerConfig));
         addRuntimeReadActionResolutionEnv(runtimeEnv, actionsConfig);
+        addRuntimeRetrievalVectorSpaceAllowlistEnv(
+            runtimeEnv,
+            entityConfig,
+            knowledgeSourceConfig,
+            marketplaceDatasetConfig
+        );
         addRuntimeIngressAuthEnv(runtimeEnv, deployment, securityConfig);
         if (customerIngestion.enabled()) {
             runtimeEnv.add(new RailwayEnvVarSummary(
@@ -1020,6 +1028,45 @@ public class RailwayProvisioningPlanService {
             "LOOMAI_RUNTIME_READ_ACTION_RESOLUTION_ALLOWED_ACTIONS",
             String.join(",", eligibleActions.stream().sorted().toList())
         );
+    }
+
+    private void addRuntimeRetrievalVectorSpaceAllowlistEnv(List<RailwayEnvVarSummary> runtimeEnv,
+                                                            JsonNode entityConfig,
+                                                            JsonNode knowledgeSourceConfig,
+                                                            JsonNode marketplaceDatasetConfig) {
+        Set<String> vectorSpaces = new TreeSet<>();
+        JsonNode entities = entityConfig == null ? null : entityConfig.path("ai-entities");
+        if (entities != null && entities.isObject()) {
+            entities.fieldNames().forEachRemaining(name -> addVectorSpace(vectorSpaces, name));
+        }
+        JsonNode sources = knowledgeSourceConfig == null ? null : knowledgeSourceConfig.path("sources");
+        if (sources != null && sources.isArray()) {
+            for (JsonNode source : sources) {
+                addVectorSpace(vectorSpaces, text(source, "entityType"));
+            }
+        }
+        JsonNode datasets = marketplaceDatasetConfig == null ? null : marketplaceDatasetConfig.path("datasets");
+        if (datasets != null && datasets.isArray()) {
+            for (JsonNode dataset : datasets) {
+                addVectorSpace(vectorSpaces, text(dataset, "entityType"));
+                JsonNode httpSource = dataset.path("syncConnector").path("httpSource");
+                addVectorSpace(vectorSpaces, text(httpSource, "vectorSpace"));
+                addVectorSpace(vectorSpaces, text(httpSource, "entityType"));
+            }
+        }
+        if (!vectorSpaces.isEmpty()) {
+            addOptionalEnv(
+                runtimeEnv,
+                "LOOMAI_RUNTIME_RETRIEVAL_VECTOR_SPACES_ALLOWLIST",
+                String.join(",", vectorSpaces)
+            );
+        }
+    }
+
+    private void addVectorSpace(Set<String> vectorSpaces, String value) {
+        if (vectorSpaces != null && StringUtils.hasText(value)) {
+            vectorSpaces.add(value.trim());
+        }
     }
 
     private int resolveVectorDimensions(JsonNode entityConfig, String embeddingProvider, String vectorStrategy) {
