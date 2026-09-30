@@ -62,6 +62,7 @@ class DealershipDemoHttpTest {
     @Test
     void exposesStructuredInventoryAndFacetsFromTheApplicationDatabase() throws Exception {
         mvc.perform(get("/api/public/vehicles")
+                .queryParam("dealershipId", "dealer-demo-001")
                 .queryParam("fuelType", "Electric")
                 .queryParam("maxPriceMinor", "3500000"))
             .andExpect(status().isOk())
@@ -71,6 +72,13 @@ class DealershipDemoHttpTest {
             .andExpect(jsonPath("$.items[0].sourceLabel").value("Demonstration inventory"))
             .andExpect(jsonPath("$.facets.makes").isArray())
             .andExpect(jsonPath("$.dataNotice").value("Fictional demonstration inventory. No live Auto Trader data is used."));
+    }
+
+    @Test
+    void rejectsInventoryReadsOutsideTheConfiguredDealershipScope() throws Exception {
+        mvc.perform(get("/api/public/vehicles")
+                .queryParam("dealershipId", "another-dealership"))
+            .andExpect(status().isNotFound());
     }
 
     @Test

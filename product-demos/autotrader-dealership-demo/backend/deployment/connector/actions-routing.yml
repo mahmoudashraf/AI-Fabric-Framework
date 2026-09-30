@@ -43,6 +43,7 @@ actions:
     path: /api/public/vehicles
     request:
       query:
+        dealershipId: dealer-demo-001
         q: "{{params.query}}"
         make: "{{params.make}}"
         fuelType: "{{params.fuelType}}"

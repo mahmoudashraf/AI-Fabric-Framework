@@ -142,7 +142,12 @@
             "query": {
               "limit": 100
             },
-            "trustedResourcePlacements": [],
+            "trustedResourcePlacements": [
+              {
+                "target": "QUERY",
+                "field": "dealershipId"
+              }
+            ],
             "requiredCapabilityGrants": ["inventory:read"],
             "pagination": {
               "strategy": "NONE",

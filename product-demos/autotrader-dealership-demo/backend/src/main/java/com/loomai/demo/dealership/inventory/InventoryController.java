@@ -35,6 +35,7 @@ public class InventoryController {
 
     @GetMapping
     public Map<String, Object> search(
+        @RequestParam String dealershipId,
         @RequestParam(required = false) String q,
         @RequestParam(required = false) String make,
         @RequestParam(required = false) String fuelType,
@@ -46,6 +47,9 @@ public class InventoryController {
         @RequestParam(defaultValue = "24") int limit,
         @RequestParam(defaultValue = "0") int offset
     ) {
+        if (!properties.getId().equals(dealershipId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dealership inventory was not found.");
+        }
         VehicleRepository.SearchResult result = repository.search(new VehicleSearchCriteria(
             q, make, fuelType, bodyType, minPriceMinor, maxPriceMinor, maxMileage, sort, limit, offset
         ));
