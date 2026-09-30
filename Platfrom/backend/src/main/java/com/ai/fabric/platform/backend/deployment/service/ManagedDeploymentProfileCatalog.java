@@ -140,6 +140,8 @@ public final class ManagedDeploymentProfileCatalog {
         "platform-poc:SYSTEM",
         "platform-release-verification",
         RuntimePrivateAccessSupport.ISSUER_PLATFORM_DOCUMENT_OPERATIONS,
+        "platform-marketplace-dataset-sync",
+        "platform-vectorization-runner",
         "platform-vectorization-verification",
         "platform-runtime-coverage"
     );
@@ -354,7 +356,7 @@ public final class ManagedDeploymentProfileCatalog {
 
     public static String effectivePrivateRuntimeAcceptedIssuers(JsonNode securityConfig) {
         String configured = privateRuntimeAcceptedIssuers(securityConfig);
-        return configured.isBlank() ? DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS : configured;
+        return mergeCsv(DEFAULT_PRIVATE_RUNTIME_ACCEPTED_ISSUERS, configured);
     }
 
     public static String effectivePrivateRuntimeAcceptedAudiences(JsonNode securityConfig, String deploymentId) {
@@ -1316,6 +1318,22 @@ public final class ManagedDeploymentProfileCatalog {
             }
         }
         values.add(normalizedRequired);
+        return String.join(",", values);
+    }
+
+    private static String mergeCsv(String... configuredValues) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String configured : configuredValues) {
+            if (configured == null || configured.isBlank()) {
+                continue;
+            }
+            for (String value : configured.split(",")) {
+                String trimmed = value.trim();
+                if (!trimmed.isBlank()) {
+                    values.add(trimmed);
+                }
+            }
+        }
         return String.join(",", values);
     }
 

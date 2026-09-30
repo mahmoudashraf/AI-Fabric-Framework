@@ -16,12 +16,12 @@ class ManagedDeploymentProfileCatalogTest {
         );
 
         assertThat(issuers).isEqualTo(
-            "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-release-verification,platform-document-operations,platform-vectorization-verification,platform-runtime-coverage"
+            "platform-runtime:SESSION,platform-runtime:API_KEY,platform-poc:SESSION,platform-poc:API_KEY,platform-poc:SYSTEM,platform-release-verification,platform-document-operations,platform-marketplace-dataset-sync,platform-vectorization-runner,platform-vectorization-verification,platform-runtime-coverage"
         );
     }
 
     @Test
-    void configuredPrivateRuntimeAcceptedIssuersOverridePlatformDefaults() throws Exception {
+    void configuredPrivateRuntimeAcceptedIssuersExtendPlatformDefaults() throws Exception {
         String issuers = ManagedDeploymentProfileCatalog.effectivePrivateRuntimeAcceptedIssuers(
             objectMapper.readTree("""
                 {
@@ -30,7 +30,11 @@ class ManagedDeploymentProfileCatalogTest {
                 """)
         );
 
-        assertThat(issuers).isEqualTo("trusted-backend-app,shopify-app");
+        assertThat(issuers)
+            .startsWith("platform-runtime:SESSION,platform-runtime:API_KEY")
+            .contains("platform-release-verification")
+            .contains("platform-marketplace-dataset-sync")
+            .endsWith("trusted-backend-app,shopify-app");
     }
 
     @Test
