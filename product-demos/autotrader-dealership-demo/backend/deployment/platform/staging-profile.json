@@ -1,0 +1,233 @@
+{
+  "providerConfig": {
+    "llmProvider": "openai",
+    "embeddingProvider": "openai",
+    "vectorStrategy": "lucene",
+    "vectorProvisioningMode": "LOCAL_MANAGED",
+    "runtimeProfile": "runtime-managed",
+    "connectorProfile": "connector-hosted",
+    "curatedModuleId": "default",
+    "promptPresetId": "default",
+    "curatedPackId": "default",
+    "openaiModel": "gpt-4o-mini",
+    "openaiEmbeddingModel": "text-embedding-3-small",
+    "openaiEmbeddingDimensions": 512,
+    "orchestrationLlmProvider": "openai",
+    "orchestrationModel": "gpt-4o-mini",
+    "generationLlmProvider": "openai",
+    "generationModel": "gpt-4o-mini",
+    "generationMaxTokens": 900
+  },
+  "securityConfig": {
+    "authzMode": "REMOTE_HTTP",
+    "authzBaseUrl": "https://dep-f023c863-connector.46.224.145.148.sslip.io",
+    "adminApiKeyEnabled": true,
+    "connectorApiKeyEnabled": true,
+    "corsAllowedOrigins": "http://127.0.0.1:13000,http://localhost:13000,https://loomai-public-site.46.225.162.106.sslip.io,https://loomai.pro",
+    "corsAllowCredentials": false,
+    "privateRuntimeAcceptedIssuers": "dealership-demo-backend,loomai-platform-backend",
+    "privateRuntimeAcceptedAudiences": "dep-f023c863",
+    "publicRuntimeBootstrapEnabled": true,
+    "publicRuntimeTokenIssuer": "northfield-dealership-demo-runtime",
+    "publicRuntimeAcceptedIssuers": "northfield-dealership-demo-runtime",
+    "publicRuntimeAcceptedAudiences": "northfield-dealership-chat",
+    "publicRuntimeDefaultAudience": "northfield-dealership-chat"
+  },
+  "promptConfig": {
+    "systemPrompt": "You are the sales assistant for Northfield Motor House, a fictional demonstration dealership. Use the dealership's live inventory actions for current price, mileage, availability, specifications and comparisons. Use indexed dealer-vehicle evidence for semantic discovery and grounded recommendations. Never claim that fictional demonstration records are real Auto Trader inventory. Never invent stock, prices, vehicle history, finance terms, warranties or completed dealership actions. Ask concise follow-up questions when buyer preferences are genuinely missing. Callback and test-drive requests require explicit confirmation and must stay within the selected active vehicle and verified deployment context.",
+    "intentExtractionPrompt": "Classify requests as inventory discovery, vehicle detail, comparison, dealership knowledge, callback request, test-drive request or clarification. Extract only values stated by the buyer or supplied by trusted action results and conversation state. Preserve exact vehicle ids and slugs returned by dealership actions. Convert explicit GBP budgets to minor units only when unambiguous. Do not infer consent, contact details or a vehicle identity.",
+    "actionSelectionPrompt": "Prefer dealership_search_inventory for current stock searches and buyer preferences. Use dealership_get_vehicle for an already selected stock item and dealership_compare_vehicles for two to four trusted vehicle ids. Use dealership_request_callback or dealership_request_test_drive only when the buyer clearly asks for that outcome, all required details are available, the active vehicle target is trusted and confirmation is accepted. Never use a write action to answer an informational question.",
+    "clarificationPrompt": "Ask one short, useful question for the minimum missing detail. Do not ask for information already present in the message, trusted context, conversation state or a dealership action result. For lead actions, collect a name, at least one contact method, consent and a trusted active vehicle before confirmation.",
+    "answerGenerationPrompt": "Answer from indexed inventory evidence and current dealership action results. For recommendations, explain why each listed vehicle fits and show current price, mileage, fuel type and the most relevant feature. Clearly label the inventory as fictional demonstration data. If no suitable stock is available, say so and suggest the nearest truthful alternatives. Never state that a callback or test drive was created unless the governed action returned a success receipt.",
+    "retrievalPrompt": "Search the dealer-vehicle vector space for semantic buyer needs and ground all inventory claims in matching indexed records. Treat current dealership action output as authoritative for price, mileage and availability when it is newer than indexed evidence.",
+    "assistantUiPrompt": "Use concise British English suitable for a dealership website. Lead with the useful answer, use short bullets for multiple vehicles and avoid implementation terms such as vector store, connector, MCP, action payload or runtime."
+  },
+  "knowledgeSourceConfig": {
+    "contractVersion": "KNOWLEDGE_SOURCE_CONFIG_V1",
+    "sources": [
+      {
+        "id": "northfield-demo-inventory",
+        "sourceType": "deployment-private-vector",
+        "adapterType": "deployment-private-vector",
+        "sourceKey": "northfield-demo-inventory",
+        "datasetRef": "northfield-dealership-inventory",
+        "entityType": "dealer-vehicle",
+        "enabled": true,
+        "attributionLabel": "Northfield Motor House fictional demonstration inventory"
+      }
+    ]
+  },
+  "shellConfig": {
+    "contractVersion": "SHELL_CONFIG_V1",
+    "defaultConversationMode": "conversational",
+    "modules": [],
+    "cards": [],
+    "greeting": {
+      "title": "Ask Northfield",
+      "message": "Tell me what matters to you and I will search our current demonstration stock."
+    },
+    "starterPrompts": [
+      {
+        "id": "electric-family-suv",
+        "label": "Electric family SUV",
+        "query": "Show me an electric family SUV under £35,000"
+      },
+      {
+        "id": "low-mileage-hybrid",
+        "label": "Low-mileage hybrid",
+        "query": "Find a low-mileage hybrid that is comfortable for long journeys"
+      },
+      {
+        "id": "compare-stock",
+        "label": "Compare two cars",
+        "query": "Help me compare two suitable cars from the current stock"
+      }
+    ]
+  },
+  "marketplaceDatasetConfig": {
+    "contractVersion": "MARKETPLACE_DATASET_CONFIG_V1",
+    "datasets": [
+      {
+        "datasetId": "northfield-dealership-inventory",
+        "entityType": "dealer-vehicle",
+        "storageScope": "CUSTOMER_MANAGED",
+        "sharingScope": "DEPLOYMENT_ONLY",
+        "ingestionMode": "EXTERNAL_SYNC_HTTP",
+        "updateStrategy": "UPSERT_BY_ID",
+        "handleRef": "dealership/dep-f023c863/northfield-inventory",
+        "datasetHash": "ad3434ef8475913372c8f604138539eb5bad9bdcbc01b00295403d2a9b59a688",
+        "customerBackendIngestion": {
+          "enabled": true,
+          "operations": ["UPSERT", "DELETE", "WORK_STATUS", "READINESS"]
+        },
+        "syncConnector": {
+          "connectorType": "HTTP_JSON",
+          "connectionProfile": {
+            "profileId": "northfield-demo-feed",
+            "environment": "staging",
+            "baseUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
+            "allowedHosts": ["loomai-dealership-demo-api.46.224.145.148.sslip.io"],
+            "auth": {
+              "strategy": "NONE"
+            },
+            "ratePolicy": {
+              "maxConcurrent": 1,
+              "minIntervalMs": 100,
+              "rateLimitedPauseMs": 30000,
+              "unavailablePauseMs": 5000,
+              "maxAttempts": 2,
+              "retryBackoffMs": 500,
+              "retryStatuses": [429, 502, 503, 504]
+            },
+            "errorMappings": [],
+            "capabilityGrants": ["inventory:read"],
+            "correlationResponseHeaders": []
+          },
+          "protectedResource": {
+            "bindingId": "northfield-demo-dealership",
+            "connectionProfileRef": "northfield-demo-feed",
+            "environment": "staging",
+            "resourceType": "dealership-account",
+            "resourceId": "dealer-demo-001",
+            "policyRef": "single-dealership-account",
+            "capabilityGrants": ["inventory:read"]
+          },
+          "httpSource": {
+            "sourceId": "northfield-demo-inventory-source",
+            "connectionProfileRef": "northfield-demo-feed",
+            "protectedResourceBindingRef": "northfield-demo-dealership",
+            "path": "/api/public/vehicles",
+            "method": "GET",
+            "completeHttpStatuses": [200],
+            "query": {
+              "limit": 100
+            },
+            "trustedResourcePlacements": [],
+            "requiredCapabilityGrants": ["inventory:read"],
+            "pagination": {
+              "strategy": "NONE",
+              "maxPages": 1
+            },
+            "mapping": {
+              "recordsJsonPointer": "/items",
+              "idJsonPointer": "/id",
+              "resourceJsonPointer": "/dealershipId",
+              "contentFields": {
+                "title": "/model",
+                "make": "/make",
+                "derivative": "/derivative",
+                "summary": "/summary",
+                "fuelType": "/fuelType",
+                "bodyType": "/bodyType",
+                "transmission": "/transmission",
+                "features": "/features"
+              },
+              "entityFields": {
+                "stockId": "/stockId",
+                "slug": "/slug",
+                "make": "/make",
+                "model": "/model",
+                "derivative": "/derivative",
+                "year": "/registrationYear",
+                "priceMinor": "/priceMinor",
+                "currency": "/currency",
+                "mileage": "/mileage",
+                "fuelType": "/fuelType",
+                "transmission": "/transmission",
+                "bodyType": "/bodyType",
+                "colour": "/exteriorColour",
+                "location": "/location",
+                "availability": "/lifecycleState",
+                "features": "/features",
+                "electricRangeMiles": "/electricRangeMiles"
+              },
+              "metadataFields": {
+                "stockId": "/stockId",
+                "make": "/make",
+                "fuelType": "/fuelType",
+                "bodyType": "/bodyType",
+                "lifecycleState": "/lifecycleState",
+                "sourceLabel": "/sourceLabel",
+                "sourceUpdatedAt": "/sourceUpdatedAt",
+                "sourceVersion": "/sourceVersion"
+              },
+              "maxRecords": 100,
+              "maxResponseBytes": 1048576
+            },
+            "tombstonePolicy": {
+              "strategy": "ABSENT_FROM_SNAPSHOT"
+            },
+            "vectorSpace": "dealer-vehicle",
+            "entityType": "dealer-vehicle",
+            "scheduleSeconds": 60
+          }
+        }
+      }
+    ]
+  },
+  "behaviorConfig": {
+    "schemaVersion": "loomai-deployment-behavior-v1",
+    "type": "CONVERSATIONAL",
+    "contractVersion": 1,
+    "activation": {
+      "sources": ["AUTHENTICATED_INTERACTIVE"]
+    },
+    "channelBindings": ["BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "INLINE_ASSISTANT", "QUERY_ONCE"],
+    "executionExtensions": [],
+    "specialistBundles": [],
+    "durability": {
+      "mode": "OPTIONAL_BACKEND_SESSION"
+    },
+    "runtimeRequirements": {
+      "capabilities": ["ai-fabric-core", "ai-fabric-chat-session"],
+      "endpointClasses": ["chat-query", "query-once", "session-management"],
+      "migrationIds": [],
+      "verificationPackIds": ["conversational-behavior-v1"]
+    },
+    "authority": {
+      "trustedContextRequired": true,
+      "requestMaySelectIdentityOrAuthority": false,
+      "automaticWritesAllowed": false
+    }
+  }
+}

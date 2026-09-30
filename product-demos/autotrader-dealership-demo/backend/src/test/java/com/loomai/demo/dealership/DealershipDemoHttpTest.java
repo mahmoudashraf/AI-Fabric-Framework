@@ -67,6 +67,7 @@ class DealershipDemoHttpTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.total").value(2))
+            .andExpect(jsonPath("$.items[0].dealershipId").value("dealer-demo-001"))
             .andExpect(jsonPath("$.items[0].sourceLabel").value("Demonstration inventory"))
             .andExpect(jsonPath("$.facets.makes").isArray())
             .andExpect(jsonPath("$.dataNotice").value("Fictional demonstration inventory. No live Auto Trader data is used."));

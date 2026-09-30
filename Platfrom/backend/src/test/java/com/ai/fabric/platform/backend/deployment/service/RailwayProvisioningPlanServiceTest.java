@@ -2016,7 +2016,7 @@ class RailwayProvisioningPlanServiceTest {
                       "auth": {
                         "type": "API_KEY",
                         "header": "X-CUSTOMER-KEY",
-                        "value": "${CUSTOMER_BACKEND_API_KEY}"
+                        "value": "${MANAGED_CUSTOMER_BACKEND_API_KEY}"
                       }
                     }
                   },
@@ -2029,7 +2029,10 @@ class RailwayProvisioningPlanServiceTest {
         Map<String, String> connectorEnv = envMap(plan.services().restConnector().env());
 
         assertThat(connectorEnv)
-            .containsEntry("CUSTOMER_BACKEND_API_KEY", "${secret:CUSTOMER_BACKEND_API_KEY}");
+            .containsEntry(
+                "MANAGED_CUSTOMER_BACKEND_API_KEY",
+                "${secret:MANAGED_CUSTOMER_BACKEND_API_KEY}"
+            );
     }
 
     private Map<String, String> envMap(java.util.List<RailwayEnvVarSummary> env) {

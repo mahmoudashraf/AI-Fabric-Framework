@@ -1,5 +1,7 @@
 package com.loomai.demo.dealership.inventory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,10 +23,14 @@ public class InventoryController {
 
     private final VehicleRepository repository;
     private final DealershipDemoProperties properties;
+    private final ObjectMapper objectMapper;
 
-    public InventoryController(VehicleRepository repository, DealershipDemoProperties properties) {
+    public InventoryController(VehicleRepository repository,
+                               DealershipDemoProperties properties,
+                               ObjectMapper objectMapper) {
         this.repository = repository;
         this.properties = properties;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping
@@ -50,7 +56,7 @@ public class InventoryController {
         return Map.of(
             "success", true,
             "dealership", Map.of("id", properties.getId(), "name", properties.getName()),
-            "items", result.items(),
+            "items", result.items().stream().map(this::publicVehicle).toList(),
             "total", result.total(),
             "facets", facets,
             "source", sourceSummary(),
@@ -99,5 +105,11 @@ public class InventoryController {
             "refreshedAt", refreshedAt,
             "authoritativeFor", List.of("price", "mileage", "availability", "vehicle details")
         );
+    }
+
+    private ObjectNode publicVehicle(Vehicle vehicle) {
+        ObjectNode payload = objectMapper.valueToTree(vehicle);
+        payload.put("dealershipId", properties.getId());
+        return payload;
     }
 }

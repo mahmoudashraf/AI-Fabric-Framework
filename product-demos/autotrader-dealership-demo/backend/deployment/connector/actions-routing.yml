@@ -4,13 +4,13 @@ connector:
     api-key:
       enabled: true
       header: ${CONNECTOR_API_KEY_HEADER:X-AIFABRIC-API-KEY}
-      value: ${CONNECTOR_API_KEY:}
+      value: ${CONNECTOR_API_KEY}
   upstream:
-    base-url: ${DEALERSHIP_BACKEND_BASE_URL:}
+    base-url: https://loomai-dealership-demo-api.46.224.145.148.sslip.io
     auth:
       type: API_KEY
       header: X-DEALERSHIP-INTERNAL-KEY
-      value: ${DEALERSHIP_INTERNAL_API_KEY}
+      value: ${MANAGED_DEALERSHIP_DEMO_INTERNAL_API_KEY}
   http:
     connect-timeout-ms: 2000
     timeout-ms: 8000
@@ -28,11 +28,11 @@ authz:
   enabled: true
   path: /api/internal/authz/check
   upstream:
-    base-url: ${DEALERSHIP_BACKEND_BASE_URL:}
+    base-url: https://loomai-dealership-demo-api.46.224.145.148.sslip.io
     auth:
       type: API_KEY
       header: X-DEALERSHIP-INTERNAL-KEY
-      value: ${DEALERSHIP_INTERNAL_API_KEY}
+      value: ${MANAGED_DEALERSHIP_DEMO_INTERNAL_API_KEY}
   http:
     connect-timeout-ms: 500
     timeout-ms: 1500

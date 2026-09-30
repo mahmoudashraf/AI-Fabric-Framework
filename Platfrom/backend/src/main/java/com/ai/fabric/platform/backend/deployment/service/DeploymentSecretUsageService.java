@@ -163,7 +163,12 @@ public class DeploymentSecretUsageService {
         registerHttpIntegrationSecrets(usages, literalRisks, secretCatalog, marketplaceDatasetConfig);
 
         List<DeploymentSecretUsageItemSummary> secrets = usages.entrySet().stream()
-            .map(entry -> toItemSummary(deploymentId, secretCatalog.get(entry.getKey()), entry.getKey(), entry.getValue()))
+            .map(entry -> toItemSummary(
+                deploymentId,
+                resolveSecretSummary(secretCatalog, entry.getKey()),
+                entry.getKey(),
+                entry.getValue()
+            ))
             .toList();
 
         int missingRequiredCount = (int) secrets.stream()
@@ -244,7 +249,9 @@ public class DeploymentSecretUsageService {
         }
         String secretName = referencedSecretName(value);
         if (secretName != null) {
-            registerUsage(usages, secretName, secretCatalog.containsKey(secretName), service, path);
+            boolean managed = secretCatalog.containsKey(secretName)
+                || platformSecretService.isManagedSecretName(secretName);
+            registerUsage(usages, secretName, managed, service, path);
             return;
         }
         if (defaultSecretName != null) {
@@ -307,6 +314,15 @@ public class DeploymentSecretUsageService {
             usage.secretPurpose,
             effectiveResolution
         );
+    }
+
+    private PlatformSecretSummary resolveSecretSummary(Map<String, PlatformSecretSummary> secretCatalog,
+                                                       String secretName) {
+        PlatformSecretSummary summary = secretCatalog.get(secretName);
+        if (summary != null || !platformSecretService.isManagedSecretName(secretName)) {
+            return summary;
+        }
+        return platformSecretService.describeSecret(secretName);
     }
 
     private DeploymentSecretResolutionSummary effectiveResolution(String deploymentId, String secretPurpose) {
