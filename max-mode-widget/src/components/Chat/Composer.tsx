@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import type { MaxModeMode, MaxModePosition } from "@/constants";
 
@@ -71,15 +71,37 @@ export function Composer({
   onSubmit: () => void;
 }) {
   const [showAttachments, setShowAttachments] = useState(true);
+  const composerStackRef = useRef<HTMLDivElement>(null);
   const hasAiSearch = Boolean(attachedItems.find((item) => item.type === "ai-search"));
   const nonAiAttachments = attachedItems.filter((item) => item.type !== "ai-search");
   const aiSearchCategory = (attachedItems.find((item) => item.type === "ai-search")?.data?.category as string | undefined) || null;
 
+  useLayoutEffect(() => {
+    const composerStack = composerStackRef.current;
+    const maxModeView = composerStack?.closest<HTMLElement>("[data-max-mode-view]");
+    if (!composerStack || !maxModeView || typeof ResizeObserver === "undefined") return;
+
+    const updateInset = () => {
+      const inset = Math.ceil(composerStack.getBoundingClientRect().height + 16);
+      maxModeView.style.setProperty("--max-mode-composer-inset", `${inset}px`);
+    };
+    const observer = new ResizeObserver(updateInset);
+    observer.observe(composerStack);
+    updateInset();
+
+    return () => {
+      observer.disconnect();
+      maxModeView.style.removeProperty("--max-mode-composer-inset");
+    };
+  }, []);
+
   return (
-    <>
-      {/* Floating attachments and suggestions above input box */}
-      <div className="absolute bottom-28 md:bottom-34 left-0 right-0 z-30 px-3 md:px-6 pointer-events-none">
-        <div className="max-w-3xl mx-auto pointer-events-auto">
+    <div
+      ref={composerStackRef}
+      className="pointer-events-none absolute bottom-0 left-0 right-0 z-50"
+    >
+      <div className="px-3 md:px-6">
+        <div className="pointer-events-auto mx-auto max-w-3xl">
           <AttachmentsRow
             items={nonAiAttachments}
             showAttachments={showAttachments}
@@ -99,9 +121,8 @@ export function Composer({
         </div>
       </div>
 
-      {/* Fixed input box at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white p-3 md:p-6 dark:border-gray-800 dark:bg-gray-950">
-        <div className="max-w-3xl mx-auto">
+      <div className="pointer-events-auto border-t border-gray-200 bg-white p-3 md:p-6 dark:border-gray-800 dark:bg-gray-950">
+        <div className="mx-auto max-w-3xl">
           {oldConversationLocked && <LockedConversationBanner onStartNewConversation={onStartNewConversation} />}
 
           <ComposerInputRow
@@ -130,6 +151,6 @@ export function Composer({
           />
         </div>
       </div>
-    </>
+    </div>
   );
 }

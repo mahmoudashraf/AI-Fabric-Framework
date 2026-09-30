@@ -415,6 +415,44 @@ try {
 
   await context.close()
 
+  const mobileConfirmationContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: 'reduce',
+  })
+  const mobileConfirmationPage = await mobileConfirmationContext.newPage()
+  await mobileConfirmationPage.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
+  await mobileConfirmationPage.waitForSelector('.vehicle-card')
+  await mobileConfirmationPage.waitForFunction(
+    () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
+  )
+  const mobileVehicleResponse = mobileConfirmationPage.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/chat/me/query')) return false
+    return response.request().postDataJSON()?.query?.startsWith('Tell me whether the 2025 Aster E1')
+  })
+  await mobileConfirmationPage.locator('[data-card-ask]').first().click()
+  await mobileVehicleResponse
+  const mobileActionResponse = mobileConfirmationPage.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/chat/me/query')) return false
+    return response.request().postDataJSON()?.query === 'Request a test drive for the Aster E1'
+  })
+  await mobileConfirmationPage.evaluate(() => {
+    window.MaxMode.sendMessage('Request a test drive for the Aster E1', {
+      mode: 'executor',
+      open: true,
+    })
+  })
+  await mobileActionResponse
+  const mobileConfirmButton = mobileConfirmationPage.getByRole('button', { name: 'Confirm', exact: true })
+  await mobileConfirmButton.waitFor()
+  const mobileConfirmationResponse = mobileConfirmationPage.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/chat/me/query')) return false
+    return response.request().postDataJSON()?.query === 'Yes, confirm'
+  })
+  await mobileConfirmButton.click()
+  await mobileConfirmationResponse
+  await mobileConfirmationPage.getByText('Test-drive request created.', { exact: true }).first().waitFor()
+  await mobileConfirmationContext.close()
+
   const viewports = [
     { name: '390', width: 390, height: 844 },
     { name: '768', width: 768, height: 1024 },

@@ -25,6 +25,7 @@ export function MaxModeView({
 
   return (
     <motion.div
+      data-max-mode-view
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

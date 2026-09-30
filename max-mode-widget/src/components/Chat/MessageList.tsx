@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -9,6 +9,7 @@ import { AIThinkingAnimation } from "./AIThinkingAnimation";
 
 export function MessageList({
   containerClassName,
+  containerStyle,
   messages,
   latestMessageRef,
   messagesEndRef,
@@ -33,6 +34,7 @@ export function MessageList({
   onClarificationSubmit,
 }: {
   containerClassName: string;
+  containerStyle?: CSSProperties;
   messages: ChatMessage[];
   latestMessageRef: RefObject<HTMLDivElement>;
   messagesEndRef: RefObject<HTMLDivElement>;
@@ -57,7 +59,7 @@ export function MessageList({
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
 }) {
   return (
-    <div className={containerClassName}>
+    <div className={containerClassName} style={containerStyle}>
       <div className="max-w-3xl mx-auto space-y-4">
         <AnimatePresence mode="popLayout">
           {messages.map((message, index) => {
