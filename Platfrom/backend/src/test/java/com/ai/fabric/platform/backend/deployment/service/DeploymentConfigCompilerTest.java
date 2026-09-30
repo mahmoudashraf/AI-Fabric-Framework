@@ -142,6 +142,7 @@ class DeploymentConfigCompilerTest {
                       },
                       "httpSource": {
                         "sourceId": "neutral-source",
+                        "enabled": false,
                         "connectionProfileRef": "neutral-provider",
                         "protectedResourceBindingRef": "neutral-scope",
                         "path": "/scopes/{scope}/records",
@@ -200,6 +201,8 @@ class DeploymentConfigCompilerTest {
             .isEqualTo("scope-7");
         assertThat(routing.path("data-sources").path("neutral-source").path("vector-space").asText())
             .isEqualTo("neutral-record");
+        assertThat(routing.path("data-sources").path("neutral-source").path("enabled").asBoolean())
+            .isFalse();
         assertThat(routing.path("data-sources").path("neutral-source").path("source-version").asText())
             .isEqualTo("fixture-dataset-hash");
         assertThat(routing.path("data-sources").path("neutral-source").path("knowledge-source-handle-ref").asText())

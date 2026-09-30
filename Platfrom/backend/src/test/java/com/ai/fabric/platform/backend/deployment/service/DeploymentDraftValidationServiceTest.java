@@ -76,6 +76,34 @@ class DeploymentDraftValidationServiceTest {
     }
 
     @Test
+    void validateRejectsTwoActiveHttpIngestionAuthorities() {
+        DeploymentDraftEntity draft = marketplaceDatasetDraft();
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(true, true));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .contains("MARKETPLACE_HTTP_INGESTION_AUTHORITY_INVALID");
+    }
+
+    @Test
+    void validateAllowsCustomerBackendAsTheOnlyHttpIngestionAuthority() {
+        DeploymentDraftEntity draft = marketplaceDatasetDraft();
+        draft.setMarketplaceDatasetConfigJson(httpDatasetConfig(false, true));
+
+        DraftValidationResponse response = service.validate(draft);
+
+        assertThat(response.issues())
+            .extracting("code")
+            .doesNotContain(
+                "MARKETPLACE_HTTP_INGESTION_AUTHORITY_INVALID",
+                "MARKETPLACE_HTTP_SOURCE_ENABLED_INVALID",
+                "MARKETPLACE_CUSTOMER_BACKEND_INGESTION_ENABLED_INVALID"
+            );
+    }
+
+    @Test
     void validateAcceptsPublishableRoutingDraft() {
         DraftValidationResponse response = service.validate(draft(
             """
@@ -4015,5 +4043,43 @@ class DeploymentDraftValidationServiceTest {
               }]
             }
             """.formatted(connectorType);
+    }
+
+    private DeploymentDraftEntity marketplaceDatasetDraft() {
+        return draft(
+            "{\"actions\":[]}",
+            "{\"ai-config\":{\"vector-dimensions\":512},\"ai-entities\":{}}",
+            "{\"connector\":{\"inbound-auth\":{\"allow-unauthenticated\":false}},\"authz\":{\"enabled\":false}}",
+            "{\"llmProvider\":\"openai\",\"embeddingProvider\":\"openai\",\"vectorStrategy\":\"lucene\",\"runtimeProfile\":\"runtime-managed\",\"connectorProfile\":\"connector-hosted\"}",
+            "{\"authzMode\":\"ALLOW_VERIFIED\",\"adminApiKeyEnabled\":true,\"connectorApiKeyEnabled\":true}"
+        );
+    }
+
+    private String httpDatasetConfig(boolean connectorPullEnabled, boolean customerBackendPushEnabled) {
+        return """
+            {
+              "contractVersion": "MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets": [{
+                "datasetId": "neutral-records",
+                "entityType": "neutral-record",
+                "storageScope": "CUSTOMER_MANAGED",
+                "sharingScope": "DEPLOYMENT_ONLY",
+                "ingestionMode": "EXTERNAL_SYNC_HTTP",
+                "updateStrategy": "UPSERT_BY_ID",
+                "handleRef": "neutral/deployment/records",
+                "datasetHash": "neutral-records-v1",
+                "customerBackendIngestion": {
+                  "enabled": %s,
+                  "operations": ["UPSERT", "DELETE", "WORK_STATUS", "READINESS"]
+                },
+                "syncConnector": {
+                  "connectorType": "HTTP_JSON",
+                  "connectionProfile": {"profileId": "neutral-provider"},
+                  "protectedResource": {"resourceId": "scope-1"},
+                  "httpSource": {"sourceId": "neutral-source", "enabled": %s}
+                }
+              }]
+            }
+            """.formatted(customerBackendPushEnabled, connectorPullEnabled);
     }
 }

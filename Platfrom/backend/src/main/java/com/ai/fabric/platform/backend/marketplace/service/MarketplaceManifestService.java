@@ -115,7 +115,7 @@ public class MarketplaceManifestService {
         "policyRef", "capabilityGrants"
     );
     private static final Set<String> HTTP_SOURCE_FIELDS = Set.of(
-        "sourceId", "path", "method", "query", "headers", "trustedResourcePlacements",
+        "sourceId", "enabled", "path", "method", "query", "headers", "trustedResourcePlacements",
         "requiredCapabilityGrants", "completeHttpStatuses", "pagination", "mapping", "tombstonePolicy", "scheduleSeconds"
     );
     private static final Set<String> HTTP_WEBHOOK_FIELDS = Set.of(
@@ -1625,6 +1625,13 @@ public class MarketplaceManifestService {
                 }
                 if ("EXTERNAL_SYNC_HTTP".equals(ingestionMode)) {
                     validateHttpSyncDataset(plugin, version, datasetId, entityType, syncConnector);
+                    validateHttpIngestionAuthority(
+                        plugin,
+                        version,
+                        datasetId,
+                        syncConnector.path("httpSource"),
+                        customerBackendIngestion
+                    );
                 }
                 connectionRefField = blankToNull(syncConnector.path("connectionRefField").asText(""));
                 folderRefField = blankToNull(syncConnector.path("folderRefField").asText(""));
@@ -1703,6 +1710,25 @@ public class MarketplaceManifestService {
         }
     }
 
+    private void validateHttpIngestionAuthority(MarketplacePluginEntity plugin,
+                                                MarketplacePluginVersionEntity version,
+                                                String datasetId,
+                                                JsonNode source,
+                                                JsonNode customerBackendIngestion) {
+        boolean connectorPullEnabled = source.path("enabled").asBoolean(true);
+        boolean customerBackendPushEnabled = customerBackendIngestion != null
+            && customerBackendIngestion.isObject()
+            && customerBackendIngestion.path("enabled").asBoolean(false);
+        if (connectorPullEnabled == customerBackendPushEnabled) {
+            throw invalid(
+                plugin,
+                version,
+                "HTTP dataset '" + datasetId + "' must declare exactly one active ingestion authority: "
+                    + "httpSource.enabled or customerBackendIngestion.enabled."
+            );
+        }
+    }
+
     private void validateHttpSyncDataset(MarketplacePluginEntity plugin,
                                          MarketplacePluginVersionEntity version,
                                          String datasetId,
@@ -1719,6 +1745,9 @@ public class MarketplaceManifestService {
         rejectUnknownFields(plugin, version, profile, HTTP_CONNECTION_PROFILE_FIELDS, prefix + "connectionProfile");
         rejectUnknownFields(plugin, version, resource, HTTP_PROTECTED_RESOURCE_FIELDS, prefix + "protectedResource");
         rejectUnknownFields(plugin, version, source, HTTP_SOURCE_FIELDS, prefix + "httpSource");
+        if (source.has("enabled") && !source.path("enabled").isBoolean()) {
+            throw invalid(plugin, version, prefix + "httpSource.enabled must be a boolean.");
+        }
 
         requireIdentifier(plugin, version, firstText(profile, "profileId"), prefix + "connectionProfile.profileId");
         requireText(plugin, version, profile, "environment", prefix);

@@ -611,8 +611,9 @@ class MarketplaceManifestServiceTest {
     @Test
     void dataManifestAcceptsExplicitCustomerBackendIngestionContract() throws Exception {
         ObjectNode manifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
-        ObjectNode ingestion = ((ObjectNode) manifest.path("contributions").path("datasets").get(0))
-            .putObject("customerBackendIngestion");
+        ObjectNode dataset = (ObjectNode) manifest.path("contributions").path("datasets").get(0);
+        ((ObjectNode) dataset.path("syncConnector").path("httpSource")).put("enabled", false);
+        ObjectNode ingestion = dataset.putObject("customerBackendIngestion");
         ingestion.put("enabled", true);
         ingestion.putArray("operations").add("UPSERT").add("DELETE").add("WORK_STATUS").add("READINESS");
 
@@ -621,10 +622,39 @@ class MarketplaceManifestServiceTest {
             dataVersion(objectMapper.writeValueAsString(manifest))
         );
 
-        assertThat(parsed.datasets()).singleElement().satisfies(dataset ->
-            assertThat(dataset.customerBackendIngestion().path("operations").toString())
-                .isEqualTo("[\"UPSERT\",\"DELETE\",\"WORK_STATUS\",\"READINESS\"]")
-        );
+        assertThat(parsed.datasets()).singleElement().satisfies(parsedDataset -> {
+            assertThat(parsedDataset.syncConnector().path("httpSource").path("enabled").asBoolean()).isFalse();
+            assertThat(parsedDataset.customerBackendIngestion().path("operations").toString())
+                .isEqualTo("[\"UPSERT\",\"DELETE\",\"WORK_STATUS\",\"READINESS\"]");
+        });
+    }
+
+    @Test
+    void dataManifestRejectsTwoActiveHttpIngestionAuthorities() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode ingestion = ((ObjectNode) manifest.path("contributions").path("datasets").get(0))
+            .putObject("customerBackendIngestion");
+        ingestion.put("enabled", true);
+        ingestion.putArray("operations").add("UPSERT");
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(manifest))
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("exactly one active ingestion authority");
+    }
+
+    @Test
+    void dataManifestRejectsHttpDatasetWithoutAnActiveIngestionAuthority() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode dataset = (ObjectNode) manifest.path("contributions").path("datasets").get(0);
+        ((ObjectNode) dataset.path("syncConnector").path("httpSource")).put("enabled", false);
+
+        assertThatThrownBy(() -> service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(manifest))
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("exactly one active ingestion authority");
     }
 
     @Test

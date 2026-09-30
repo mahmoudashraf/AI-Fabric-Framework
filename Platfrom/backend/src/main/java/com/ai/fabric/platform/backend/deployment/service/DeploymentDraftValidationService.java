@@ -722,6 +722,7 @@ public class DeploymentDraftValidationService {
                     JsonNode profile = syncConnector.path("connectionProfile");
                     JsonNode resource = syncConnector.path("protectedResource");
                     JsonNode source = syncConnector.path("httpSource");
+                    JsonNode customerBackendIngestion = dataset.path("customerBackendIngestion");
                     if (!profile.isObject() || profile.path("profileId").asText("").isBlank()) {
                         issues.add(error("marketplaceDatasets", "MARKETPLACE_HTTP_PROFILE_REQUIRED", basePath + ".syncConnector.connectionProfile", "HTTP DATA sync requires a compiled connection profile."));
                     }
@@ -730,6 +731,39 @@ public class DeploymentDraftValidationService {
                     }
                     if (!source.isObject() || source.path("sourceId").asText("").isBlank()) {
                         issues.add(error("marketplaceDatasets", "MARKETPLACE_HTTP_SOURCE_REQUIRED", basePath + ".syncConnector.httpSource", "HTTP DATA sync requires a compiled deployment-local source."));
+                    } else {
+                        boolean sourceEnabledFieldValid = !source.has("enabled") || source.path("enabled").isBoolean();
+                        if (!sourceEnabledFieldValid) {
+                            issues.add(error(
+                                "marketplaceDatasets",
+                                "MARKETPLACE_HTTP_SOURCE_ENABLED_INVALID",
+                                basePath + ".syncConnector.httpSource.enabled",
+                                "HTTP DATA source enabled must be a boolean."
+                            ));
+                        }
+                        boolean customerBackendEnabledFieldValid = !customerBackendIngestion.has("enabled")
+                            || customerBackendIngestion.path("enabled").isBoolean();
+                        if (customerBackendIngestion.isObject() && !customerBackendEnabledFieldValid) {
+                            issues.add(error(
+                                "marketplaceDatasets",
+                                "MARKETPLACE_CUSTOMER_BACKEND_INGESTION_ENABLED_INVALID",
+                                basePath + ".customerBackendIngestion.enabled",
+                                "Customer backend ingestion enabled must be a boolean."
+                            ));
+                        }
+                        if (sourceEnabledFieldValid && customerBackendEnabledFieldValid) {
+                            boolean connectorPullEnabled = source.path("enabled").asBoolean(true);
+                            boolean customerBackendPushEnabled = customerBackendIngestion.isObject()
+                                && customerBackendIngestion.path("enabled").asBoolean(false);
+                            if (connectorPullEnabled == customerBackendPushEnabled) {
+                                issues.add(error(
+                                    "marketplaceDatasets",
+                                    "MARKETPLACE_HTTP_INGESTION_AUTHORITY_INVALID",
+                                    basePath,
+                                    "HTTP datasets require exactly one active ingestion authority: connector pull or customer-backend push."
+                                ));
+                            }
+                        }
                     }
                 }
             }

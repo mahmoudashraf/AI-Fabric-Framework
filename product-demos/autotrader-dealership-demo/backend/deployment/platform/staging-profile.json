@@ -134,6 +134,7 @@
           },
           "httpSource": {
             "sourceId": "northfield-demo-inventory-source",
+            "enabled": false,
             "connectionProfileRef": "northfield-demo-feed",
             "protectedResourceBindingRef": "northfield-demo-dealership",
             "path": "/api/public/vehicles",
