@@ -162,6 +162,23 @@ class DealershipDemoHttpTest {
     }
 
     @Test
+    void internalAuthorizationAllowsScopedOrchestrationEntry() throws Exception {
+        mvc.perform(post("/api/internal/authz/check")
+                .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
+                .contentType("application/json")
+                .content(authzRequest("dep-dealership-demo", "rag:intent")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.granted").value(true));
+
+        mvc.perform(post("/api/internal/authz/check")
+                .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
+                .contentType("application/json")
+                .content(authzRequest("dep-dealership-demo", "unknown-resource")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.granted").value(false));
+    }
+
+    @Test
     void confirmedActionPersistsEncryptedPiiAndReplaysIdempotently() throws Exception {
         String idempotencyKey = "lead-test-" + UUID.randomUUID();
         String body = objectMapper.writeValueAsString(Map.of(

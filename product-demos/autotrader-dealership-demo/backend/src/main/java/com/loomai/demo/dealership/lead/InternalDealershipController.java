@@ -48,7 +48,10 @@ public class InternalDealershipController {
         boolean inventorySearch = "inventory-search".equals(resourceId)
             && operation != null
             && List.of("READ", "RETRIEVE", "SEARCH", "EXECUTE_ACTION").contains(operation.toUpperCase());
-        boolean activeTarget = inventorySearch
+        boolean orchestrationEntry = "rag:intent".equals(resourceId)
+            && "READ".equalsIgnoreCase(operation);
+        boolean activeTarget = orchestrationEntry
+            || inventorySearch
             || (StringUtils.hasText(vehicleId) && vehicles.findActiveById(vehicleId).isPresent());
         boolean granted = boundary && supportedOperation && activeTarget;
 
