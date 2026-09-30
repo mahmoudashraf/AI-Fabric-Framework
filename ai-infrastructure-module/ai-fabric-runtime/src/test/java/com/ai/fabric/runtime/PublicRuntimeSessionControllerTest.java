@@ -86,8 +86,21 @@ class PublicRuntimeSessionControllerTest {
         assertThat(token).startsWith("rpt1.");
         assertThat(sessionId).startsWith("anon-");
 
+        MvcResult renewalResult = mockMvc.perform(post("/api/public/chat/session/renew")
+                .header("Origin", "https://shop.example")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.sessionId").value(sessionId))
+            .andExpect(jsonPath("$.deploymentId").value("dep-public"))
+            .andExpect(jsonPath("$.customerId").value("cus-public"))
+            .andExpect(jsonPath("$.tenantId").value("ten-public"))
+            .andReturn();
+        String renewedToken = OBJECT_MAPPER.readTree(renewalResult.getResponse().getContentAsString()).path("token").asText();
+
         mockMvc.perform(get("/api/chat/me/conversations")
-                .header("Authorization", "Bearer " + token))
+                .header("Authorization", "Bearer " + renewedToken))
             .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/chat/me/auth-context")
@@ -137,8 +150,32 @@ class PublicRuntimeSessionControllerTest {
             .andReturn();
 
         String errorMessage = bootstrapResult.getResponse().getErrorMessage();
-        assertThat(errorMessage).contains("Unexpected request fields are not allowed on public runtime bootstrap");
+        assertThat(errorMessage).contains("Unexpected request fields are not allowed on public runtime session bootstrap");
         assertThat(errorMessage).contains("sessionId");
+    }
+
+    @Test
+    void renewalRejectsMissingBearerAndClientControlledIdentity() throws Exception {
+        mockMvc.perform(post("/api/public/chat/session/renew")
+                .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isUnauthorized());
+
+        MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
+                .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk())
+            .andReturn();
+        String token = OBJECT_MAPPER.readTree(bootstrapResult.getResponse().getContentAsString()).path("token").asText();
+
+        mockMvc.perform(post("/api/public/chat/session/renew")
+                .header("Origin", "https://shop.example")
+                .header("Authorization", "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .content("{\"sessionId\":\"caller-selected\"}"))
+            .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -209,6 +246,9 @@ class PublicRuntimeSessionControllerDisabledBootstrapTest {
     void bootstrapEndpointReturnsNotFoundWhenDisabled() throws Exception {
         mockMvc.perform(post("/api/public/chat/session").contentType(APPLICATION_JSON).content("{}"))
             .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/public/chat/session/renew").contentType(APPLICATION_JSON).content("{}"))
+            .andExpect(status().isNotFound());
     }
 }
 
@@ -243,8 +283,17 @@ class PublicRuntimeSessionControllerRateLimitTest {
 
     @Test
     void bootstrapEnforcesPerOriginRateLimit() throws Exception {
-        mockMvc.perform(post("/api/public/chat/session")
+        MvcResult bootstrapResult = mockMvc.perform(post("/api/public/chat/session")
                 .header("Origin", "https://shop.example")
+                .contentType(APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isOk())
+            .andReturn();
+        String token = new ObjectMapper().readTree(bootstrapResult.getResponse().getContentAsString()).path("token").asText();
+
+        mockMvc.perform(post("/api/public/chat/session/renew")
+                .header("Origin", "https://shop.example")
+                .header("Authorization", "Bearer " + token)
                 .contentType(APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isOk());

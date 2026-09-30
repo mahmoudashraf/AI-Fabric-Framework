@@ -18,6 +18,7 @@
     "smoke:content": "node --experimental-strip-types scripts/content-smoke.ts",
     "smoke": "npm run smoke:content && node scripts/static-smoke.mjs",
     "smoke:browser": "node scripts/browser-smoke.mjs",
+    "smoke:dealership-live": "node scripts/dealership-live-gate.mjs",
     "verify": "npm run check && npm run build && npm run smoke && npm run smoke:browser"
   },
   "dependencies": {

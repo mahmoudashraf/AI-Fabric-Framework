@@ -51,6 +51,7 @@ type RuntimeDescriptor = {
   chatBaseUrl: string
   runtimeRoutes: {
     bootstrapUrl: string
+    renewUrl: string
     queryUrl: string
     suggestionsUrl: string
     authContextUrl: string
@@ -273,6 +274,7 @@ async function initializeAssistant(app: HTMLElement, apiBaseUrl: string) {
       },
       runtimeAuth: {
         bootstrapUrl: absoluteRuntimeUrl(chatBaseUrl, routes.bootstrapUrl),
+        renewUrl: absoluteRuntimeUrl(chatBaseUrl, routes.renewUrl),
         authContextUrl: absoluteRuntimeUrl(chatBaseUrl, routes.authContextUrl),
         probeAuthContextOnOpen: true,
       },

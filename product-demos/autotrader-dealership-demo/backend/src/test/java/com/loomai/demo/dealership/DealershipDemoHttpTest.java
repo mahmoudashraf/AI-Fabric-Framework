@@ -98,6 +98,8 @@ class DealershipDemoHttpTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.integrationMode").value("public-runtime-anonymous"))
             .andExpect(jsonPath("$.chatBaseUrl").value("https://runtime.example.test"))
+            .andExpect(jsonPath("$.runtimeRoutes.renewUrl")
+                .value("/api/public/chat/session/renew"))
             .andExpect(jsonPath("$.runtimeRoutes.conversationsUrl")
                 .value("/api/chat/me/conversations"))
             .andExpect(jsonPath("$.runtimeRoutes.conversationItemUrlTemplate")

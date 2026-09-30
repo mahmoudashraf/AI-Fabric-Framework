@@ -14,6 +14,7 @@ const port = 4387
 const origin = `http://127.0.0.1:${port}`
 const mockPort = 4388
 const mockOrigin = `http://127.0.0.1:${mockPort}`
+let anonymousRenewalCount = 0
 
 const mockVehicles = [
   {
@@ -106,6 +107,7 @@ const mockServer = createServer(async (request, response) => {
       chatBaseUrl: mockOrigin,
       runtimeRoutes: {
         bootstrapUrl: '/api/public/chat/session',
+        renewUrl: '/api/public/chat/session/renew',
         queryUrl: '/api/chat/me/query',
         suggestionsUrl: '/api/chat/me/suggestions',
         authContextUrl: '/api/chat/me/auth-context',
@@ -121,6 +123,19 @@ const mockServer = createServer(async (request, response) => {
   if (url.pathname === '/api/public/chat/session' && request.method === 'POST') {
     writeMockJson(response, 200, {
       token: 'browser-smoke-token',
+      tokenType: 'Bearer',
+      authMode: 'PUBLIC_RUNTIME_ANONYMOUS',
+      subjectType: 'ANONYMOUS_SESSION',
+      sessionId: 'browser-smoke-session',
+      expiresAt: new Date(Date.now() + 5_000).toISOString(),
+    })
+    return
+  }
+
+  if (url.pathname === '/api/public/chat/session/renew' && request.method === 'POST') {
+    anonymousRenewalCount += 1
+    writeMockJson(response, 200, {
+      token: 'browser-smoke-renewed-token',
       tokenType: 'Bearer',
       authMode: 'PUBLIC_RUNTIME_ANONYMOUS',
       subjectType: 'ANONYMOUS_SESSION',
@@ -412,6 +427,9 @@ try {
     throw new Error('Confirmation follow-up did not preserve executor mode')
   }
   await page.getByText('Test-drive request created.', { exact: true }).first().waitFor()
+  if (anonymousRenewalCount < 1) {
+    throw new Error('The anonymous browser session did not renew before expiry')
+  }
 
   await context.close()
 

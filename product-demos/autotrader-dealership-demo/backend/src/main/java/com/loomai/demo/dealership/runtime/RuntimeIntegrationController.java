@@ -58,6 +58,7 @@ public class RuntimeIntegrationController {
             "chatBaseUrl", baseUrl,
             "runtimeRoutes", Map.of(
                 "bootstrapUrl", runtime.getPublicBootstrapPath(),
+                "renewUrl", runtime.getPublicRenewalPath(),
                 "queryUrl", runtime.getQueryPath(),
                 "suggestionsUrl", runtime.getSuggestionsPath(),
                 "authContextUrl", runtime.getAuthContextPath(),

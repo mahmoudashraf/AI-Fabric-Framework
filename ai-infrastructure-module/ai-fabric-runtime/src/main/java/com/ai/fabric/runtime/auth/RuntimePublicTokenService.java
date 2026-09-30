@@ -56,18 +56,15 @@ public class RuntimePublicTokenService {
         if (!isBootstrapEnabled()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Public runtime bootstrap is not enabled.");
         }
-
-        RuntimeAuthProperties.Bootstrap bootstrap = properties.getPublicTokens().getBootstrap();
-        String origin = normalizeOrigin(request != null ? request.getHeader(ORIGIN_HEADER) : null);
-        if (!StringUtils.hasText(origin)) {
-            if (!bootstrap.isAllowMissingOrigin()) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Public runtime bootstrap origin is required.");
-            }
-        } else if (!isAllowedOrigin(origin, bootstrap.getAllowedOrigins())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Public runtime bootstrap origin is not allowed.");
-        }
-
+        String origin = authorizeAnonymousOrigin(request);
         enforceBootstrapRateLimit(origin, request != null ? trimToNull(request.getRemoteAddr()) : null);
+    }
+
+    public void authorizeAnonymousRenewal(HttpServletRequest request) {
+        if (!isBootstrapEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Public runtime bootstrap is not enabled.");
+        }
+        authorizeAnonymousOrigin(request);
     }
 
     public String tokenScheme() {
@@ -80,8 +77,25 @@ public class RuntimePublicTokenService {
         if (!isBootstrapEnabled()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Public runtime bootstrap is not enabled.");
         }
+        return issueAnonymousToken("anon-" + UUID.randomUUID());
+    }
+
+    public IssuedPublicRuntimeToken renewAnonymousToken(String rawAuthorizationHeader) {
+        if (!isBootstrapEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Public runtime bootstrap is not enabled.");
+        }
+        RuntimeAuthContext current = validateBearerToken(rawAuthorizationHeader);
+        if (current.getAuthMode() != RuntimeAuthMode.PUBLIC_RUNTIME_ANONYMOUS
+            || current.getSubjectType() != RuntimeAuthSubjectType.ANONYMOUS_SESSION
+            || !StringUtils.hasText(current.getSessionId())
+            || !current.getSessionId().equals(current.getSubjectId())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Only a valid anonymous runtime session can be renewed.");
+        }
+        return issueAnonymousToken(current.getSessionId());
+    }
+
+    private IssuedPublicRuntimeToken issueAnonymousToken(String sessionId) {
         Instant expiresAt = Instant.now().plusSeconds(Math.max(60, properties.getPublicTokens().getTtlSeconds()));
-        String sessionId = "anon-" + UUID.randomUUID();
         RuntimeAuthContext authContext = RuntimeAuthContext.builder()
             .subjectId(sessionId)
             .subjectType(RuntimeAuthSubjectType.ANONYMOUS_SESSION)
@@ -97,6 +111,19 @@ public class RuntimePublicTokenService {
             .grantedScopes(anonymousScopes())
             .build();
         return new IssuedPublicRuntimeToken(writeToken(authContext), authContext);
+    }
+
+    private String authorizeAnonymousOrigin(HttpServletRequest request) {
+        RuntimeAuthProperties.Bootstrap bootstrap = properties.getPublicTokens().getBootstrap();
+        String origin = normalizeOrigin(request != null ? request.getHeader(ORIGIN_HEADER) : null);
+        if (!StringUtils.hasText(origin)) {
+            if (!bootstrap.isAllowMissingOrigin()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Public runtime bootstrap origin is required.");
+            }
+        } else if (!isAllowedOrigin(origin, bootstrap.getAllowedOrigins())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Public runtime bootstrap origin is not allowed.");
+        }
+        return origin;
     }
 
     public IssuedPublicRuntimeToken issueAuthenticatedToken(String subjectId,

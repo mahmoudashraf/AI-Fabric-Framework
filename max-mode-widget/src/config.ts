@@ -75,6 +75,8 @@ export interface MaxModeRuntimeAuthConfig {
   tokenScheme?: string;
   /** Optional explicit bootstrap URL. Defaults to `${chatBaseUrl}/public/chat/session`. */
   bootstrapUrl?: string;
+  /** Optional same-session renewal URL. Defaults to `${bootstrapUrl}/renew`. */
+  renewUrl?: string;
   /**
    * Optional explicit auth-context probe URL or path.
    *

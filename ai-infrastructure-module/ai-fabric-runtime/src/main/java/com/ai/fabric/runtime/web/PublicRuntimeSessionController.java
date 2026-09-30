@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -40,8 +41,24 @@ public class PublicRuntimeSessionController {
         jakarta.servlet.http.HttpServletRequest servletRequest
     ) {
         runtimePublicTokenService.authorizeAnonymousBootstrap(servletRequest);
-        rejectUnexpectedFields(request);
-        RuntimePublicTokenService.IssuedPublicRuntimeToken issued = runtimePublicTokenService.issueAnonymousToken();
+        rejectUnexpectedFields(request, "bootstrap");
+        return sessionResponse(runtimePublicTokenService.issueAnonymousToken());
+    }
+
+    @PostMapping("/session/renew")
+    public ResponseEntity<PublicRuntimeSessionBootstrapResponse> renewSession(
+        @RequestBody(required = false) PublicRuntimeSessionBootstrapRequest request,
+        @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+        jakarta.servlet.http.HttpServletRequest servletRequest
+    ) {
+        runtimePublicTokenService.authorizeAnonymousRenewal(servletRequest);
+        rejectUnexpectedFields(request, "renewal");
+        return sessionResponse(runtimePublicTokenService.renewAnonymousToken(authorization));
+    }
+
+    private ResponseEntity<PublicRuntimeSessionBootstrapResponse> sessionResponse(
+        RuntimePublicTokenService.IssuedPublicRuntimeToken issued
+    ) {
         return ResponseEntity.ok()
             .header(HttpHeaders.CACHE_CONTROL, "no-store")
             .header(HttpHeaders.PRAGMA, "no-cache")
@@ -114,13 +131,13 @@ public class PublicRuntimeSessionController {
         return StringUtils.hasText(value) ? value : null;
     }
 
-    private void rejectUnexpectedFields(PublicRuntimeSessionBootstrapRequest request) {
+    private void rejectUnexpectedFields(PublicRuntimeSessionBootstrapRequest request, String operation) {
         if (request == null || request.getUnexpectedFields().isEmpty()) {
             return;
         }
         throw new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
-            "Unexpected request fields are not allowed on public runtime bootstrap: "
+            "Unexpected request fields are not allowed on public runtime session " + operation + ": "
                 + String.join(", ", request.getUnexpectedFields().keySet())
                 + ". Runtime issues anonymous session identity."
         );

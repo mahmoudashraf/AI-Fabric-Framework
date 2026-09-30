@@ -10,6 +10,8 @@ type PublicRuntimeTokenState = {
 };
 
 const publicRuntimeTokenState: PublicRuntimeTokenState = {};
+const publicRuntimeBootstrapPromises = new Map<string, Promise<string>>();
+const publicRuntimeRenewalPromises = new Map<string, Promise<string>>();
 const publicRuntimeSessionInvalidationListeners = new Set<(
   event: PublicRuntimeSessionInvalidation,
 ) => void>();
@@ -106,27 +108,34 @@ function normalizeTokenHeader(token: string, tokenScheme?: string): string {
 }
 
 function runtimeCacheKey(baseUrl: string): string {
-  const bootstrapUrl = trimToNull(getWidgetConfig().apiConfig.runtimeAuth?.bootstrapUrl)
+  const runtimeAuth = getWidgetConfig().apiConfig.runtimeAuth;
+  const bootstrapUrl = trimToNull(runtimeAuth?.bootstrapUrl)
     ?? `${baseUrl}/public/chat/session`;
-  return `${baseUrl.trim().replace(/\/$/, "")}|${bootstrapUrl}`;
+  const renewUrl = trimToNull(runtimeAuth?.renewUrl) ?? `${bootstrapUrl.replace(/\/$/, "")}/renew`;
+  return `${baseUrl.trim().replace(/\/$/, "")}|${bootstrapUrl}|${renewUrl}`;
 }
 
-function isCachedPublicTokenUsable(baseUrl: string): boolean {
+type CachedPublicTokenStatus = "missing" | "runtime-changed" | "usable" | "renewable" | "expired";
+
+function cachedPublicTokenStatus(baseUrl: string): CachedPublicTokenStatus {
   if (!trimToNull(publicRuntimeTokenState.token)) {
-    return false;
+    return "missing";
   }
   if (publicRuntimeTokenState.runtimeKey !== runtimeCacheKey(baseUrl)) {
-    return false;
+    return "runtime-changed";
   }
   const expiresAt = trimToNull(publicRuntimeTokenState.expiresAt);
   if (!expiresAt) {
-    return true;
+    return "usable";
   }
   const expiresMs = Date.parse(expiresAt);
   if (Number.isNaN(expiresMs)) {
-    return true;
+    return "usable";
   }
-  return expiresMs > Date.now() + 15_000;
+  if (expiresMs <= Date.now()) {
+    return "expired";
+  }
+  return expiresMs > Date.now() + 15_000 ? "usable" : "renewable";
 }
 
 function clearCachedPublicRuntimeToken(): void {
@@ -160,6 +169,23 @@ function invalidatePublicRuntimeSession(
 }
 
 async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> {
+  const expectedRuntimeKey = runtimeCacheKey(baseUrl);
+  const existing = publicRuntimeBootstrapPromises.get(expectedRuntimeKey);
+  if (existing) {
+    return existing;
+  }
+  const pending = performAnonymousRuntimeBootstrap(baseUrl, expectedRuntimeKey);
+  publicRuntimeBootstrapPromises.set(expectedRuntimeKey, pending);
+  try {
+    return await pending;
+  } finally {
+    if (publicRuntimeBootstrapPromises.get(expectedRuntimeKey) === pending) {
+      publicRuntimeBootstrapPromises.delete(expectedRuntimeKey);
+    }
+  }
+}
+
+async function performAnonymousRuntimeBootstrap(baseUrl: string, expectedRuntimeKey: string): Promise<string> {
   const config = getWidgetConfig();
   const runtimeAuth = config.apiConfig.runtimeAuth;
   const bootstrapUrl = trimToNull(runtimeAuth?.bootstrapUrl) ?? `${baseUrl}/public/chat/session`;
@@ -184,9 +210,74 @@ async function bootstrapAnonymousRuntimeToken(baseUrl: string): Promise<string> 
   if (!token) {
     throw new Error("Anonymous runtime bootstrap did not return a token.");
   }
+  if (runtimeCacheKey(baseUrl) !== expectedRuntimeKey) {
+    throw new PublicRuntimeSessionInvalidatedError("runtime-changed");
+  }
   publicRuntimeTokenState.token = token;
   publicRuntimeTokenState.expiresAt = trimToNull(response?.expiresAt);
   publicRuntimeTokenState.sessionId = trimToNull(response?.sessionId);
+  publicRuntimeTokenState.runtimeKey = runtimeCacheKey(baseUrl);
+  return token;
+}
+
+async function renewAnonymousRuntimeToken(baseUrl: string): Promise<string> {
+  const expectedRuntimeKey = runtimeCacheKey(baseUrl);
+  const existing = publicRuntimeRenewalPromises.get(expectedRuntimeKey);
+  if (existing) {
+    return existing;
+  }
+  const pending = performAnonymousRuntimeRenewal(baseUrl, expectedRuntimeKey);
+  publicRuntimeRenewalPromises.set(expectedRuntimeKey, pending);
+  try {
+    return await pending;
+  } finally {
+    if (publicRuntimeRenewalPromises.get(expectedRuntimeKey) === pending) {
+      publicRuntimeRenewalPromises.delete(expectedRuntimeKey);
+    }
+  }
+}
+
+async function performAnonymousRuntimeRenewal(baseUrl: string, expectedRuntimeKey: string): Promise<string> {
+  const runtimeAuth = getWidgetConfig().apiConfig.runtimeAuth;
+  const bootstrapUrl = trimToNull(runtimeAuth?.bootstrapUrl) ?? `${baseUrl}/public/chat/session`;
+  const renewUrl = trimToNull(runtimeAuth?.renewUrl) ?? `${bootstrapUrl.replace(/\/$/, "")}/renew`;
+  const currentToken = trimToNull(publicRuntimeTokenState.token);
+  const currentSessionId = trimToNull(publicRuntimeTokenState.sessionId);
+  if (!currentToken || !currentSessionId) {
+    invalidatePublicRuntimeSession("unauthorized");
+    throw new PublicRuntimeSessionInvalidatedError("unauthorized");
+  }
+  const authorizationHeader = trimToNull(runtimeAuth?.authorizationHeader) ?? "Authorization";
+  const tokenScheme = trimToNull(runtimeAuth?.tokenScheme) ?? "Bearer";
+  const response = await fetch(renewUrl, {
+    method: "POST",
+    credentials: getFetchCredentials(),
+    headers: {
+      "Content-Type": "application/json",
+      [authorizationHeader]: normalizeTokenHeader(currentToken, tokenScheme),
+    },
+  });
+  if (response.status === 401 || response.status === 403) {
+    invalidatePublicRuntimeSession("unauthorized");
+    throw new PublicRuntimeSessionInvalidatedError("unauthorized");
+  }
+  if (!response.ok) {
+    const body = await readErrorBody(response);
+    throw new Error(`Anonymous runtime renewal failed (${response.status}): ${body || response.statusText}`);
+  }
+  const renewed = await response.json() as import("@/config").MaxModeRuntimeBootstrapResult;
+  const token = trimToNull(renewed.token);
+  const sessionId = trimToNull(renewed.sessionId);
+  if (!token
+    || sessionId !== currentSessionId
+    || publicRuntimeTokenState.token !== currentToken
+    || runtimeCacheKey(baseUrl) !== expectedRuntimeKey) {
+    invalidatePublicRuntimeSession("unauthorized");
+    throw new PublicRuntimeSessionInvalidatedError("unauthorized");
+  }
+  publicRuntimeTokenState.token = token;
+  publicRuntimeTokenState.expiresAt = trimToNull(renewed.expiresAt);
+  publicRuntimeTokenState.sessionId = sessionId;
   publicRuntimeTokenState.runtimeKey = runtimeCacheKey(baseUrl);
   return token;
 }
@@ -220,18 +311,18 @@ async function resolveSecureRuntimeHeaders(
     return headers;
   }
 
-  if (trimToNull(publicRuntimeTokenState.token) && !isCachedPublicTokenUsable(baseUrl)) {
-    const reason = publicRuntimeTokenState.runtimeKey === runtimeCacheKey(baseUrl)
-      ? "expired"
-      : "runtime-changed";
+  const tokenStatus = cachedPublicTokenStatus(baseUrl);
+  if (tokenStatus === "runtime-changed" || tokenStatus === "expired") {
+    const reason = tokenStatus === "runtime-changed" ? "runtime-changed" : "expired";
     invalidatePublicRuntimeSession(reason);
     throw new PublicRuntimeSessionInvalidatedError(reason);
   }
 
-  const cachedToken = isCachedPublicTokenUsable(baseUrl)
+  const token = tokenStatus === "usable"
     ? trimToNull(publicRuntimeTokenState.token)
-    : undefined;
-  const token = cachedToken ?? await bootstrapAnonymousRuntimeToken(baseUrl);
+    : tokenStatus === "renewable"
+      ? await renewAnonymousRuntimeToken(baseUrl)
+      : await bootstrapAnonymousRuntimeToken(baseUrl);
   return {
     ...headers,
     [authorizationHeader]: normalizeTokenHeader(token, tokenScheme),

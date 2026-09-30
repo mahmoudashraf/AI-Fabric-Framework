@@ -65,6 +65,7 @@ public class DealershipDemoProperties {
         private boolean enabled;
         private String baseUrl;
         private String publicBootstrapPath = "/api/public/chat/session";
+        private String publicRenewalPath = "/api/public/chat/session/renew";
         private String queryPath = "/api/chat/me/query";
         private String suggestionsPath = "/api/chat/me/suggestions";
         private String authContextPath = "/api/chat/me/auth-context";
@@ -81,6 +82,8 @@ public class DealershipDemoProperties {
         public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
         public String getPublicBootstrapPath() { return publicBootstrapPath; }
         public void setPublicBootstrapPath(String publicBootstrapPath) { this.publicBootstrapPath = publicBootstrapPath; }
+        public String getPublicRenewalPath() { return publicRenewalPath; }
+        public void setPublicRenewalPath(String publicRenewalPath) { this.publicRenewalPath = publicRenewalPath; }
         public String getQueryPath() { return queryPath; }
         public void setQueryPath(String queryPath) { this.queryPath = queryPath; }
         public String getSuggestionsPath() { return suggestionsPath; }
