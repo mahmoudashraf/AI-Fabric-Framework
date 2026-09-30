@@ -516,16 +516,19 @@ function attachVehicle(vehicle: Vehicle) {
 }
 
 function sendAssistantMessage(app: HTMLElement, prompt: string, requestContext: Record<string, unknown>) {
-  if (!window.MaxMode) {
+  const maxMode = window.MaxMode
+  if (!maxMode) {
     showToast(app, 'The assigned LoomAI deployment is not available right now.')
     return
   }
-  window.MaxMode.sendMessage(prompt, {
-    open: true,
-    position: 'search',
-    mode: 'executor',
-    requestContext,
-  })
+  window.setTimeout(() => {
+    maxMode.sendMessage(prompt, {
+      open: true,
+      position: 'search',
+      mode: 'executor',
+      requestContext,
+    })
+  }, 0)
 }
 
 function inventoryQuery(form: HTMLFormElement, sort: HTMLSelectElement) {

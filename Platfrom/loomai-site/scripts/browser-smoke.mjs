@@ -365,11 +365,22 @@ try {
     throw new Error('Dealership vehicle detail dialog did not open')
   }
   await page.locator('[data-close-vehicle-dialog]').click()
+  const cardAskRequestPromise = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query?.startsWith('Tell me whether the 2025 Aster E1')
+  })
   await page.locator('[data-card-ask]').first().click()
   await page.waitForFunction(() => {
     const host = document.querySelector('#max-mode-widget-shadow-host')
     return Boolean(host?.shadowRoot?.querySelector('.max-mode-widget-root'))
   })
+  const cardAskPayload = (await cardAskRequestPromise).postDataJSON()
+  if (cardAskPayload.mode !== 'executor') {
+    throw new Error('Dealership vehicle question did not use executor mode')
+  }
+  if (!cardAskPayload.attachments?.some((attachment) => attachment.id === 'veh-aster-e1')) {
+    throw new Error('Dealership vehicle question reached chat without its trusted vehicle attachment')
+  }
 
   const actionRequestPromise = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
