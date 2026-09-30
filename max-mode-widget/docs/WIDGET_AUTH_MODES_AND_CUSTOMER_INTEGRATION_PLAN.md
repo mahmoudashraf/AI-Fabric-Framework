@@ -1,6 +1,6 @@
 # Max Mode Widget Auth Modes and Customer Integration Plan
 
-Status: detailed planning and review document (2026-04-06)
+Status: detailed planning document with implementation update (2026-09-30)
 
 This document defines how `max-mode-widget` should evolve into the main customer-facing chat UI for storefront and website integrations.
 
@@ -43,7 +43,9 @@ Current review result:
 - the widget UX is strong enough to serve as the initial storefront interface
 - the deployment workflow had repo-path and Pages-URL mistakes and needed correction
 - the widget code had hardcoded `demo-user` / `demo-session` identifiers and needed cleanup
-- the widget still needs a fuller auth-mode abstraction before it should be treated as production-ready across all customer integration patterns
+- the widget now supports the three named integration modes; remaining gaps are
+  authenticated-host token refresh and automatic capability gating, not
+  anonymous-session continuity
 
 ---
 
@@ -68,7 +70,8 @@ Immediate corrections from this pass:
 - workflow path fixed to `max-mode-widget/**`
 - GitHub Pages script URL updated to this repo path
 - widget identity now derives from verified runtime or backend auth context
-- anonymous public mode keeps only a bootstrap `sessionId` hint
+- anonymous public mode stores only runtime-issued identity, renews its token
+  against the runtime, and rejects renewal if the returned `sessionId` changes
 - shared headers now apply to both chat and CRUD requests, with optional `chatHeaders` and `crudHeaders`
 
 ---
@@ -208,11 +211,13 @@ Flow:
 - runtime issues short-lived anonymous session token
 - browser -> public runtime using anonymous token
 
-Widget implications:
+Widget implementation:
 
-- widget needs anonymous bootstrap support
-- widget needs stable anonymous `sessionId`
-- widget must treat anonymous mode as low-privilege
+- widget performs deployment-local anonymous bootstrap
+- widget renews a valid anonymous token through the deployment-local renewal
+  endpoint while preserving the runtime-issued `sessionId`
+- widget treats anonymous mode as low-privilege
+- invalid renewal clears conversation and pending action state without replay
 
 Recommended auth posture:
 
@@ -393,13 +398,11 @@ The current widget is improved, but still not fully auth-mode-complete.
 The main remaining gaps are:
 
 1. no proactive authenticated-token refresh contract yet beyond `getBearerToken`
-2. no same-session anonymous token renewal endpoint yet; the safe fallback
-   clears stale state and emits `error.code=public-runtime-session-invalidated`
-3. no feature gating derived automatically from auth mode
-4. authenticated customer identity handoff remains host-specific; anonymous
+2. no feature gating derived automatically from auth mode
+3. authenticated customer identity handoff remains host-specific; anonymous
    identity is runtime-issued and never browser-selected
-5. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
-6. no explicit runtime-first or host-first replacement contract yet for connector-adjacent config/status/summary/logs reads when the connector is private
+4. storefront examples still include static-header/demo-style integrations that should be clearly marked as non-production
+5. no explicit runtime-first or host-first replacement contract yet for connector-adjacent config/status/summary/logs reads when the connector is private
 
 ---
 

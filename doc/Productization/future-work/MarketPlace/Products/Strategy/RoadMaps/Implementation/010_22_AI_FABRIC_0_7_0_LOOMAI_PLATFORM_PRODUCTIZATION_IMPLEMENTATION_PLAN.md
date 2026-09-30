@@ -1,6 +1,6 @@
 # 010.22 AI Fabric 0.7.1 Behavior-Aware Platform Composition Implementation Plan
 
-Status: implementation plan created on 2026-09-15, corrected on 2026-09-18 to make customer products customer-owned and reuse the existing Marketplace/V04 primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and implemented in source on 2026-09-19 after explicit owner direction to proceed with all three deployment behaviors. The PostgreSQL durability correction shipped in AI Fabric `0.7.1` on 2026-09-20 and is now the active Platform/runtime baseline. The reviewed Platform/backend/runtime/frontend source is committed and deployed. Exact Conversational, two-worker Agentic, and Smart Brain compositions have passed hosted canaries; reusable-template lifecycle completion, Human Review hosted proof, and market-readiness work remain open. No productization item is complete merely because AI Fabric exposes the primitive or because one canary passes.
+Status: implementation plan created on 2026-09-15, corrected on 2026-09-18 to make customer products customer-owned and reuse the existing Marketplace/V04 primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and implemented in source on 2026-09-19 after explicit owner direction to proceed with all three deployment behaviors. The PostgreSQL durability correction shipped in AI Fabric `0.7.1` on 2026-09-20; that release is historical contract lineage, while AI Fabric `0.8.5` is now the sole active Platform/runtime baseline. The reviewed Platform/backend/runtime/frontend source is committed and deployed. Exact Conversational, two-worker Agentic, and Smart Brain compositions have passed hosted canaries; reusable-template lifecycle completion, Human Review hosted proof, and market-readiness work remain open. No productization item is complete merely because AI Fabric exposes the primitive or because one canary passes.
 
 Canonical architecture:
 
@@ -13,15 +13,17 @@ Focused market-readiness execution:
 
 The filename retains the `0.7.0` contract lineage so existing links remain
 valid. The `0.7.x` references below record the behavior-contract implementation
-lineage. AI Fabric `0.8.4` is the sole current framework/runtime/Platform
-baseline, and all new builds, deployments, and verification use `0.8.4`.
+lineage. AI Fabric `0.8.5` is the sole current framework/runtime/Platform
+baseline, and all new builds, deployments, and verification use `0.8.5`.
 
 Release foundation:
 
-- AI Fabric `0.7.1` current production baseline
+- AI Fabric `0.8.5` current production baseline
 - Maven group `io.github.loom-ai-labs`
-- tag `ai-fabric-framework-v0.7.1`
-- release commit `58ac80d55f0102485562942a1a9cab88208c7530`
+- current tag `ai-fabric-framework-v0.8.5`
+- current release commit `142f1e7b`
+- historical behavior-contract tag `ai-fabric-framework-v0.7.1`, commit
+  `58ac80d55f0102485562942a1a9cab88208c7530`
 - `0.7.1` is a compatible production patch over the `0.7.0` declarative-chain and durable-review contracts; it fixes nullable lease-owner compare-and-set transitions in PostgreSQL-backed durable specialist and review repositories
 - framework documentation commit `7ac32985`
 - published upgrade notes `docs/release-notes/LOOMAI_PLATFORM_AI_FABRIC_0_7_0_UPGRADE_NOTES.md`
@@ -141,13 +143,13 @@ arbitrary result as an `ACTION_PROPOSAL`.
 - finish generic Platform operations for PII, governance, relationship, behavior, migration, and document ingestion;
 - define entitlement, quota, billing, support, retention, backup, recovery, and offboarding rules for the new deployment capabilities.
 
-### 3.4 Current evidence status
+### 3.4 Historical 0.7.1 evidence status
 
 `010.21` records the source and hosted fleet baseline separately. Historical rollout detail remains in the working/private handoff records.
 
-Current operational truth is:
+The 2026-09-20 operational evidence was:
 
-- AI Fabric `0.7.1` tag `ai-fabric-framework-v0.7.1` resolves to release commit `58ac80d55f0102485562942a1a9cab88208c7530`; the current private rollout commits are `3bdb9ccc4`, `359a5ae03`, and `ed25d7c30`;
+- AI Fabric `0.7.1` tag `ai-fabric-framework-v0.7.1` resolves to release commit `58ac80d55f0102485562942a1a9cab88208c7530`; the then-current private rollout commits were `3bdb9ccc4`, `359a5ae03`, and `ed25d7c30`;
 - the immutable private runtime image is `ghcr.io/mahmoudashraf/ai-fabric-runtime:359a5ae0306c2957a8070e9c40ca263b1710a2f6` at digest `sha256:e032e116caf58ab73be41acd5920a2faeeb41ab343a0c7aa1aca5b766325fa12`;
 - staging and production Platform backends are healthy at exact backend commit `ed25d7c30`; both Platform UI hostnames answer their health and application routes;
 - all three production behavior canary runtimes are active and healthy; the exact Agentic and Smart Brain durable proofs passed;
@@ -156,13 +158,13 @@ Current operational truth is:
 - the latest aggregate gate remains honestly non-green only on the owner-deferred Shopify answer-quality path, and the standalone Partner run reaches that same protected Shopify runtime exception after all preceding partner checks pass;
 - production custom-domain DNS is complete: authoritative Namecheap DNS and public resolvers return `46.225.162.106` for the apex, `api`, `console`, `partners`, and `shopify-bridge`; apex HTTPS, redirect behavior, service routes, and trusted TLS were reverified on 2026-09-20.
 
-### 3.5 Mandatory AI Fabric `0.7.x` adoption gates
+### 3.5 Historical AI Fabric `0.7.x` adoption gates
 
 The framework runbook deliberately separates release adoption from chain productization. Do not collapse these gates into one deployment:
 
 | Gate | Scope | Current status | Exit evidence |
 | --- | --- | --- | --- |
-| A. Base release | Run the compatible `0.7.x` line from immutable Maven Central artifacts while preserving existing behavior | **COMPLETE** on current patch `0.7.1` | Central-only release proof, exact runtime image/digest, healthy Platform deployments, and existing-capability regression evidence |
+| A. Base release | Run the compatible `0.7.x` line from immutable Maven Central artifacts while preserving existing behavior | **COMPLETE** on the then-current patch `0.7.1`; superseded by the latest-only `0.8.5` baseline | Central-only release proof, exact runtime image/digest, healthy Platform deployments, and existing-capability regression evidence |
 | B. Schema preparation | Add deployment-local chain/review/operation migrations and validate them on PostgreSQL | **HOSTED CANARY COMPLETE**. Production Agentic and Smart Brain runtimes apply the deployment-local migrations and execute durable work | Reusable-template rollback/redeploy and backup/restore evidence remains required |
 | C. Declarative mechanics canary | Package reviewed chain mechanics with stable private secrets, JDBC persistence, and deployment-local route/status projection | **HOSTED CANARY COMPLETE**. The exact two-worker Agentic canary completed a durable execution | Complete replay/restart/cancel/definition-drift/provider-failure matrix for the released template |
 | D. Product chain | Introduce a real multi-specialist chain only when a genuinely distinct second read-only worker exists | **HOSTED CANARY COMPLETE; MARKET GATE OPEN**. Knowledge and runtime-state workers are distinct, closed, and proved live | Released Marketplace/V04 template, full lifecycle matrix, commercial/support posture, and market claim review |
@@ -903,7 +905,8 @@ Status: `COMPLETE`
 
 Tasks:
 
-- keep `010.21` ownership, reuse, `0.7.0` framework capability, and separate hosted-fleet evidence current;
+- preserve `010.21` ownership/reuse decisions and record the `0.7.0`
+  capability lineage separately from current hosted-fleet evidence;
 - create the capability maturity registry;
 - inventory current runtime modules, endpoints, migrations, secrets, and verification;
 - freeze schema names and namespace ownership;
@@ -971,7 +974,9 @@ Depends on: WP1 and shared runtime identity/storage work. WP2 should establish t
 Tasks:
 
 - select one design-partner canary, preferably deployment/incident investigation or account/support resolution;
-- retain the completed Gate A release as historical baseline evidence and use current patch `0.7.1` for PostgreSQL durability;
+- retain the completed Gate A/`0.7.1` release as historical PostgreSQL
+  durability evidence and run every new build, deployment, and gate on the
+  current `0.8.5` baseline;
 - retain the completed deployment-local PostgreSQL migration and exact two-worker hosted canary evidence for Gates B-D;
 - keep the two responsibilities genuinely distinct: deployment knowledge and current runtime state;
 - publish exact manager/workers and the official declarative `SpecialistChain` through a reviewed `SPECIALIST` plugin when released mapping/projection is sufficient;
@@ -1143,11 +1148,9 @@ Why this order:
 
 ## 15. Implemented Source Batch And Next Rollout Batch
 
-The original `0.7.0` release-adoption batch is historical Gate A evidence. The
-active compatible patch is `0.7.1`, released from framework commit
-`58ac80d55f0102485562942a1a9cab88208c7530`. Current private source and the
-immutable runtime image are committed, pushed, deployed, and live-verified.
-The original Gate A sequence was:
+The original `0.7.0` release-adoption batch and `0.7.1` durability patch are
+historical Gate A evidence. AI Fabric `0.8.5`, release commit `142f1e7b`, is
+the sole current baseline. The original Gate A sequence was:
 
 1. pin all private source and generated deployment defaults to `0.7.0`;
 2. keep chains disabled everywhere;
@@ -1284,12 +1287,12 @@ Use one behavior-aware extension of the existing Marketplace/V04 composition
 path and three built-in deployment behavior types. That source implementation
 now exists. It does not create a second catalogue or release engine.
 
-AI Fabric `0.7.1` is the live behavior-aware baseline. The committed source
-adds the behavior/provenance contract, governed `SPECIALIST` bundles, generic
-templates, a real bounded Agentic team, deployment-local Smart Brain, and
-durable Human Review. Focused hosted canaries prove all three behavior types;
-the next engineering work is reusable-template and complete lifecycle proof,
-not another behavior abstraction.
+AI Fabric `0.8.5` is the live behavior-aware baseline. The committed source
+retains the behavior/provenance contract, governed `SPECIALIST` bundles,
+generic templates, a real bounded Agentic team, deployment-local Smart Brain,
+and durable Human Review. Focused hosted canaries prove all three behavior
+types; the next engineering work is reusable-template and complete lifecycle
+proof, not another behavior abstraction.
 
 Human Review remains customer-authorized and reaches mutation only through the
 governed action coordinator. Smart Brain remains read-only, deployment-local,

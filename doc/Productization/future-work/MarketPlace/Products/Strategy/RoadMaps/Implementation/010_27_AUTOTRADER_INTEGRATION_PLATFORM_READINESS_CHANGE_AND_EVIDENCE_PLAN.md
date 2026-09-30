@@ -1,14 +1,14 @@
 # 010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan
 
-- **Status:** Generic external-provider substrate implemented, locally
-  verified, and staging-hosted proven as
-  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`; dealership demo source and local
-  production-shape verification are implemented, while the hosted dealership
-  canary and all partner-gated Auto Trader evidence remain open. LoomAI is not
-  yet entitled to claim Auto Trader integration readiness.
+- **Status:** Generic external-provider substrate is staging-hosted proven as
+  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`, and the separate fictional dealership
+  composition passed `DEALERSHIP_DEMO_READY` on 2026-09-30. Every
+  partner-gated Auto Trader sandbox, data-rights, advertiser, package,
+  certification, and production gate remains open. LoomAI is not yet entitled
+  to claim Auto Trader integration readiness.
 - **Date:** 2026-09-25
 - **Last contract review:** 2026-09-29
-- **Current LoomAI baseline:** AI Fabric `0.8.4`, Platform `Platform-V11`, V04
+- **Current LoomAI baseline:** AI Fabric `0.8.5`, Platform `Platform-V11`, V04
   deployment lifecycle
 - **Product boundary:** one dealership, one deployment, one server-owned Auto
   Trader advertiser scope
@@ -16,9 +16,10 @@
   standalone Auto Trader bridge and no central Platform data-plane proxy
 - **Compatibility posture:** current-only greenfield contract; no legacy mode or
   parallel integration contract
-- **Hosted evidence:** verifier source `79b23348f`, runtime source
-  `86abb0320c5af2397231cf40077194ba0435efd2`, completed
-  `2026-09-28T11:46:36Z`
+- **Hosted evidence:** generic-substrate verifier source `79b23348f`, runtime
+  source `86abb0320c5af2397231cf40077194ba0435efd2`, completed
+  `2026-09-28T11:46:36Z`; dealership deployment `dep-f023c863`, runtime image
+  source `9db6bc92bd06814c2b27b221dae2ac2e64dbe85a`, completed 2026-09-30
 
 Related plans:
 
@@ -75,17 +76,17 @@ The remaining evidence/product work is material:
 1. Auto Trader sandbox access is partner-provisioned and LoomAI does not yet
    have recorded sandbox credentials, grants, test advertiser, or test stock.
 2. The fictional dealership dataset, ordinary customer demo application, and
-   direct-anonymous Max Mode composition now exist and pass local source,
-   container, accessibility, and browser gates. The assigned hosted LoomAI
-   deployment and its indexing/retrieval/action evidence do not yet exist.
+   direct-anonymous Max Mode composition now pass hosted indexing, retrieval,
+   read-action, confirmation, staff-inbox, restart, and browser gates against
+   assigned deployment `dep-f023c863`. This proves only the bounded dealership
+   demonstration, not an Auto Trader connection.
 3. Exact Auto Trader DATA/ACTION/TEMPLATE versions cannot be authored or
    published responsibly until the granted routes, schemas, advertiser,
    webhook rules, data rights, and validation requirements are supplied.
 4. No real Auto Trader sandbox or production canary has passed.
-5. Public anonymous chat has no same-session token-renewal contract yet. The
-   current widget can bootstrap a new identity after `401` while still holding
-   an old conversation ID, so renewal and safe stale-state reset must be added
-   before the external dealership demo gate can pass.
+5. Public anonymous chat now has a deployment-local same-session renewal
+   contract and the generic widget consumes it. Invalid/expired renewal still
+   fails closed by clearing stale conversation and pending-confirmation state.
 
 To avoid making partner onboarding the critical path for LoomAI engineering,
 the hosted generic gate used a separately deployed, provider-neutral vehicle
@@ -801,12 +802,13 @@ demo backend receives those privileged URLs and matching scopes; the browser
 does not. The browser receives only the non-secret public runtime descriptor
 needed for bootstrap and secure chat routes.
 
-The 2026-09-29 implementation checkpoint proves the native customer and staff
-UI, dealership-owned inventory/lead backend, protected connector contracts,
-private Data Sync client, build identity, and browser-safe runtime descriptor.
-It does not yet prove same-session anonymous renewal, hosted indexing,
-deployment retrieval, live confirmation/action execution, or
-`DEALERSHIP_DEMO_READY`.
+The 2026-09-29 source-only checkpoint proved the native customer and staff UI,
+dealership-owned inventory/lead backend, protected connector contracts, private
+Data Sync client, build identity, and browser-safe runtime descriptor. The
+subsequent 2026-09-30 hosted closure proved same-session anonymous renewal,
+indexing, retrieval, live confirmation/action execution, restart durability,
+and protected staff readback. The composition now passes
+`DEALERSHIP_DEMO_READY`; this remains separate from every Auto Trader gate.
 
 ### 6.11 Workstream K: hosted external-provider simulator
 
@@ -886,13 +888,14 @@ Current execution status:
 | 2 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Marketplace compile/provisioning, private Data Sync, page/cursor handling, tombstones, work reconciliation, indexing, retrieval, and two-deployment isolation passed on staging |
 | 3 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | TLS-originated signed ingress, dedupe, ordering, rejection, replay, retry, dead-letter, and baseline convergence passed on staging |
 | 4 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Scoped operations/discovery, immutable apply/rollback, durable restart, destructive restore, and complete cleanup passed; UI remains source-build verified |
-| 5 | `NOT_STARTED` | Requires an approved demo dataset, dealership-owned lead boundary, ordinary customer demo app, and hosted deployment |
+| 5 | `DEALERSHIP_DEMO_READY` | Approved fictional data, dealership-owned lead boundary, ordinary customer demo app, assigned AI Fabric `0.8.5` deployment, direct browser chat, indexing, retrieval, confirmation, restart durability, and staff readback passed on staging |
 | 6 | `BLOCKED_EXTERNAL` | Requires Auto Trader partner sandbox identity, exact grants, advertiser, schemas, events, and validation support |
 | 7 | `BLOCKED_EXTERNAL` | Requires production approval, rights, bindings, go-live validation, and controlled production proof |
 
 `HOSTED_GENERIC_SUBSTRATE_VERIFIED` closes only the provider-neutral hosted
-mechanics. It does not advance the dealership demo or any named-provider gate.
-The remaining phases must not be collapsed into a paper pass.
+mechanics. `DEALERSHIP_DEMO_READY` separately closes only the fictional
+dealership composition. Neither advances a named-provider gate, and the
+remaining phases must not be collapsed into a paper pass.
 
 ### Immediate next execution
 
@@ -902,8 +905,9 @@ The remaining phases must not be collapsed into a paper pass.
 2. Complete Auto Trader partner onboarding and obtain the exact sandbox
    identity, grants, authorized advertiser, schemas, event contract, data
    rights, and validation checklist.
-3. In parallel, approve a non-provider dealership demonstration dataset and
-   implement the ordinary customer demo application from Phase 5.
+3. Preserve and rerun the passed dealership demo gate after any change to its
+   deployment, runtime, browser-auth, inventory-indexing, or lead-action
+   contracts.
 4. Once grants exist, author exact Auto Trader DATA/ACTION/TEMPLATE versions
    through the existing Marketplace/V04 lifecycle; keep all provider wire
    constants in package data and provider verification.
@@ -911,8 +915,9 @@ The remaining phases must not be collapsed into a paper pass.
    `AUTOTRADER_SANDBOX_VERIFIED` only if the exact immutable composition and
    provider-required evidence pass.
 
-Partner onboarding and the dealership demo proceed in parallel; neither needs
-to wait for the other, and simulator success does not reduce their gates.
+The dealership demo may remain available while partner onboarding proceeds,
+but it must stay visibly fictional. Neither simulator nor demo success reduces
+the named sandbox and production gates.
 
 ### Phase 0: freeze contracts and obtain access
 
@@ -1130,6 +1135,9 @@ This claim contains no Auto Trader name or implication.
 
 ### 11.2 `DEALERSHIP_DEMO_READY`
 
+**Status:** Passed on staging on 2026-09-30. See the bounded
+[hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json).
+
 - approved source is visibly labelled as demonstration data;
 - real runtime, generation, embeddings, vector store, indexing, retrieval, and
   confirmed dealership action are healthy;
@@ -1203,9 +1211,9 @@ Until then, the correct status is:
 ```text
 Auto Trader integration planned; LoomAI dealership demonstration can proceed
 with clearly labelled approved demo data. The generic deployment-local
-integration substrate is staging-hosted verified; dealership demo source is
-locally verified, while its hosted deployment gate and partner
-sandbox/production evidence remain separate open gates.
+integration substrate is staging-hosted verified and the fictional dealership
+hosted deployment gate has passed. Partner sandbox, advertiser, data-rights,
+package, certification, and production evidence remain separate open gates.
 ```
 
 ## 14. Official Auto Trader Evidence

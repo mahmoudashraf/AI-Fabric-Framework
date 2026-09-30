@@ -1,13 +1,14 @@
 # 010.26 Auto Trader Dealership First Release And Meeting Demo Plan
 
-- **Status:** Source implementation and local production-shape verification in
-  progress; dealership backend, native UI, staff workspace, connector contract,
-  and browser integration are implemented; hosted LoomAI canary, Marketplace
-  packaging, and Auto Trader activation remain release gates
+- **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30 with a
+  real deployment, AI Fabric `0.8.5`, six indexed fictional vehicles, direct
+  anonymous Max Mode, grounded retrieval, governed lead confirmation, restart
+  durability, and staff-inbox proof. Released Marketplace packaging and every
+  real Auto Trader access/rights/certification gate remain open.
 - **Date:** 2026-09-25
 - **Last architecture review:** 2026-09-29
-- **Last implementation checkpoint:** 2026-09-29
-- **Current LoomAI baseline:** AI Fabric `0.8.4`, Platform `Platform-V11`, V04 deployment lifecycle
+- **Last implementation checkpoint:** 2026-09-30
+- **Current LoomAI baseline:** AI Fabric `0.8.5`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
 - **Demo posture:** ordinary customer application using its assigned LoomAI
@@ -24,6 +25,7 @@ Related plans and evidence:
 - [010.23 LoomAI Deployment Behavior Market Readiness Execution Plan](010_23_LOOMAI_DEPLOYMENT_BEHAVIOR_MARKET_READINESS_EXECUTION_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
+- [2026-09-30 hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json)
 
 Quality and verification references in the public framework repository:
 
@@ -43,7 +45,9 @@ Reusable LoomAI customer-chat implementation:
   bootstrap, scoped bearer-token use, direct secure chat calls, fail-closed
   expiry/401 state invalidation, conversation handling, evidence rendering,
   action-result rendering, and confirmation turns. Same-session anonymous
-  token renewal is not yet a runtime capability.
+  token renewal is implemented through the deployment-local
+  `POST /api/public/chat/session/renew` contract and preserves the
+  runtime-issued anonymous session identity.
 
 The dealership demo must reuse this shell. The public AI Fabric
 `examples/real-apps/chat-capabilities-demo` remains a behavioral and quality
@@ -60,21 +64,43 @@ Implementation references:
 - `Platfrom/ui/src/pages/PocPage.tsx`; and
 - `Platfrom/partner-ui/src/components/PartnerMaxWidgetLiveTest.tsx`.
 
-### Implementation checkpoint: 2026-09-29
+### Implementation and hosted checkpoint: 2026-09-30
 
 | Area | Current state | Evidence / remaining gate |
 | --- | --- | --- |
-| Dealership-owned backend | Implemented | Spring Boot service under `product-demos/autotrader-dealership-demo/backend`; twelve HTTP and sync-contract tests pass |
+| Dealership-owned backend | Hosted and healthy | Spring Boot service under `product-demos/autotrader-dealership-demo/backend`; twelve HTTP and sync-contract tests pass; public status reports six fictional vehicles and the assigned runtime |
 | Fictional inventory source | Implemented | Six clearly labelled vehicle records, structured filters/facets, stable IDs, source versions, and real attributed imagery |
 | Customer application UI | Implemented | Native `/demos/dealership-ai` route with responsive inventory, detail, comparison, Companion dock, and Max Mode |
 | Staff workspace | Implemented | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes and true server-side logout |
-| Browser runtime integration | Implemented and local-browser verified | Safe backend descriptor plus direct `public-runtime-anonymous` bootstrap and `/api/chat/me/*`; expiry/runtime-change/401 clears stale state without replay; same-session renewal and assigned hosted runtime remain pending |
-| Inventory Data Sync client | Implemented | Private signed deployment-local upsert/delete batch, server-owned tenant/deployment metadata, stable delete identity, least-scope assertion, persisted indexing work IDs, readiness and work reconciliation; live indexing canary remains pending |
-| Authorization and actions | Implemented in backend/connector source | Wrong deployment and wrong key fail closed; confirmed lead persistence is encrypted and idempotent; live runtime action canary remains pending |
-| Generic REST Connector routing | Locally verified | Supplied YAML starts the real connector to `ACCEPTING_TRAFFIC`; hosted connector remains pending |
+| Browser runtime integration | Hosted and verified | Direct `public-runtime-anonymous` bootstrap, same-session renewal, `/api/chat/me/*`, Companion and Max Mode passed against `dep-f023c863`; invalid renewal still clears stale state without replay |
+| Inventory Data Sync client | Hosted and verified | Private signed deployment-local sync completed `6/6`; lifecycle canary proved insert/update/delete, stale-version supersession, and return to six vectors |
+| Authorization and actions | Hosted and verified | Indexed inventory read action and grounded answer passed; confirmed test-drive action produced receipt `NFM-33B974CC`, persisted once, and appeared as `NEW` in the protected staff inbox |
+| Generic REST Connector routing | Hosted and verified | Deployment connector is healthy, exposes the expected five-action contract, and passed immutable Platform release verification |
 | Public catalogue | Implemented as `preview` | Experiment entry, screenshot, sitemap, content/static smoke and responsive accessibility browser coverage pass |
 | Build and supply-chain posture | Implemented locally | Backend/site production images build; status exposes version/commit/build time; site and widget production dependency audits report zero findings; widget package/artifact ownership is LoomAI-labelled and locally bundled |
 | Auto Trader source | Not activated | No credential, advertiser grant, sandbox fixture or production data is claimed; meeting composition remains fictional |
+
+### Hosted closure: 2026-09-30
+
+The staging deployment is `dep-f023c863`, version `ver-a3de38cc`, release
+`rel-6b9f8943`. It is `APPLIED_VERIFIED` on AI Fabric `0.8.5`. Fresh Platform
+verification `vrf-614ca9d9` passed 25 applicable checks with zero failures and
+five intentionally absent runner/document-source checks skipped.
+
+The backend-owned sync run `17a01f69-39a9-4d76-97a4-5349fa07407e` completed
+six of six operations. The runtime reported six `dealer-vehicle` vectors after
+sync, lifecycle mutation/deletion, and stop-first restart. The final mobile
+browser gate against `https://loomai.pro/demos/dealership-ai` passed direct
+anonymous bootstrap and renewal, indexed retrieval, deployment-owned inventory
+search, confirmed lead execution, contextual suggestions, and protected staff
+readback without a browser or runtime failure.
+
+The bounded evidence artifact contains only safe IDs, counts, versions, request
+IDs, and statuses. It contains no customer contact value, credential, token,
+raw prompt payload, or provider data. The global Platform gate remains honestly
+non-green on the separately deferred Shopify `shopify-companion` runtime mode;
+that does not change this isolated dealership-demo verdict and must not be
+misreported as a global release pass.
 
 Security review during implementation corrected two staff-session defects before
 hosted use: the initial login route is now the only unauthenticated staff route,
@@ -574,15 +600,12 @@ starts a new anonymous session in the first release. Cross-refresh anonymous
 continuity is a later explicit security feature and must use a runtime-issued
 secure mechanism, not a caller-selected session ID.
 
-The current widget clears an expired token and bootstraps again after `401`, but
-the new bootstrap creates a different anonymous identity while persisted UI
-state may still hold the old conversation ID. That is not safe continuity. The
-external demo gate therefore requires a runtime-owned, origin-checked
-same-session renewal operation authenticated by a still-valid anonymous token,
-plus proactive widget renewal before expiry. If renewal cannot occur, the
-widget must clear the old conversation, pending confirmation, and persisted
-anonymous state before starting a new runtime-issued session. It must never
-replay an old conversation ID under a new anonymous identity.
+The runtime and widget now implement the required origin-checked same-session
+renewal operation. Renewal is authenticated by the still-valid anonymous token
+and must return the same runtime-issued session ID. If renewal cannot occur,
+the widget clears the old conversation, pending confirmation, and persisted
+anonymous state before starting a new runtime-issued session. It never replays
+an old conversation ID under a new anonymous identity.
 
 ## 8. Buyer Experience Contract
 
@@ -1056,8 +1079,8 @@ These changes must contain no hard-coded Auto Trader domain behavior.
   source/build scans.
 - Configure exact-origin backend and runtime CORS for the production public-site
   origin and approved preview origin.
-- Add proactive same-session token renewal and clear conversation/pending/
-  persisted state before fallback to a newly bootstrapped identity.
+- Use the implemented proactive same-session token renewal and preserve the
+  fail-closed clear-before-new-identity fallback.
 - Add backend-only HTTP clients for assignment discovery when needed, Data Sync
   work, and safe-readiness URLs.
 - Add application-to-deployment inventory sync and work reconciliation.
@@ -1119,7 +1142,7 @@ These changes must contain no hard-coded Auto Trader domain behavior.
   The reviewed LoomAI `max-mode-widget` UI dependency/bundle is expected and is
   not an AI Fabric runtime dependency.
 - The separate LoomAI deployment image is independently verified to contain the
-  current released AI Fabric `0.8.4` artifacts and no locally substituted
+  current released AI Fabric `0.8.5` artifacts and no locally substituted
   framework build.
 - Backend tests pass without skips.
 - `Platfrom/loomai-site` check, build, content/static smoke, and browser smoke
@@ -1213,7 +1236,9 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Export/import omits secrets, PII, transient sessions, and restricted source
   data.
 - Rollback and decommission are verified.
-- Full Platform release-readiness passes for the exact composition.
+- Dealership-specific immutable release verification and browser/action gates
+  pass for the exact composition; global Platform release-gate state is
+  recorded separately and no unrelated blocker is hidden.
 
 ## 15. Meeting Demo Acceptance Gate
 
@@ -1239,6 +1264,10 @@ The demo is ready for the meeting only when:
 
 Passing this gate means the LoomAI dealership experience is demonstrable. It
 does not mean Auto Trader production integration is approved.
+
+**Result on 2026-09-30:** passed as `DEALERSHIP_DEMO_READY`. The claim is
+bounded to the fictional Northfield dealership composition and the evidence
+artifact linked above.
 
 ## 16. First Production Release Gate
 

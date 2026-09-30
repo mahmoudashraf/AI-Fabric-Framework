@@ -1,6 +1,6 @@
 # Public Runtime Browser Token Integration Guide
 
-Status: current branch guide (reviewed 2026-09-29)
+Status: current branch guide (reviewed 2026-09-30)
 
 This guide explains the opt-in public-runtime posture:
 
@@ -188,15 +188,18 @@ For widget integrations:
 - treat runtime as the external chat and operational read surface
 - do not call the connector directly
 
-Each anonymous bootstrap currently creates a new runtime identity. A fresh
-token obtained after expiry must not be used with an old conversation ID or
-pending confirmation. Until a runtime-owned same-session renewal contract is
-available, the client must clear that stale state before starting the new
-anonymous session. A caller-provided session ID is never a renewal mechanism.
-The current LoomAI Max Mode widget enforces that fallback: expiry, runtime
-change, or HTTP 401 clears conversation, prompt, attachment, and confirmation
-state and prevents automatic replay of the in-flight request under a new
-identity. Same-session renewal remains a separate runtime capability.
+Each anonymous bootstrap creates a new runtime identity. Before its current
+token expires, the browser may renew that same runtime-owned identity through
+`POST /api/public/chat/session/renew`, authenticated with the current anonymous
+bearer token. A successful renewal must return the same `sessionId`; a client
+must reject a changed or missing session ID.
+
+The caller never sends `sessionId` in either request body. A caller-provided
+session ID is not a renewal mechanism. Expired/invalid credentials, runtime
+change, HTTP `401`/`403`, or a mismatched renewal response must clear the old
+conversation, prompt, attachment, and pending-confirmation state and must not
+replay the in-flight request under a new identity. The current LoomAI Max Mode
+widget implements both same-session renewal and this fail-closed fallback.
 
 If the platform public provisioning API exposes:
 
@@ -239,6 +242,23 @@ Response:
 Do not send `sessionId`, `userId`, `ownerId`, `tenantId`, `customerId`, or
 `deploymentId` to anonymous bootstrap. Unexpected fields are rejected; the
 runtime owns anonymous identity issuance.
+
+### 8.1 Example same-session renewal
+
+```http
+POST /api/public/chat/session/renew HTTP/1.1
+Host: runtime-dep-example.up.railway.app
+Origin: https://store.example
+Authorization: Bearer <current-anonymous-runtime-token>
+Content-Type: application/json
+
+{}
+```
+
+The response has the bootstrap response shape with a newly issued token and
+expiry, but its `sessionId` must equal the current anonymous session. Renewal
+is deployment-local, origin-gated, accepts only a valid anonymous session
+token, and returns `Cache-Control: no-store`.
 
 ---
 
@@ -283,6 +303,11 @@ Must prove:
 - anonymous bootstrap rejects caller-supplied identity/session fields
 - anonymous bootstrap rate limiting works
 - anonymous token is short-lived
+- renewal with the current anonymous token returns a new token for the same
+  runtime-issued `sessionId`
+- renewal rejects caller identity fields, wrong origins, non-anonymous tokens,
+  expired tokens, and cross-runtime tokens
+- failed or mismatched renewal clears stale client state without replay
 - authenticated token validation enforces issuer and audience policy
 - missing token fails closed
 - connector remains private

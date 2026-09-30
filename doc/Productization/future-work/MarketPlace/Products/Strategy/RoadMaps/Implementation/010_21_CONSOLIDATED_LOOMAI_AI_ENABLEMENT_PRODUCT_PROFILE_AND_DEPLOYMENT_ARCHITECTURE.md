@@ -1,14 +1,14 @@
 # 010.21 Consolidated LoomAI Customer Product And Deployment Behavior Architecture
 
-Status: canonical consolidated plan created on 2026-08-01, corrected to deployment-local Smart Brain integration on 2026-08-04, corrected on 2026-09-18 so customer AI products are composed through existing Platform primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and source-implemented on 2026-09-19 after the hosted Gate A rollout. AI Fabric `0.7.1` is now the active compatible production patch. Behavior-aware Marketplace contributions and private runtime contracts are committed and deployed; focused Conversational, two-worker Agentic, and Smart Brain hosted canaries pass. Reusable-template lifecycle completion, Human Review hosted proof, and market readiness remain open.
+Status: canonical consolidated plan created on 2026-08-01, corrected to deployment-local Smart Brain integration on 2026-08-04, corrected on 2026-09-18 so customer AI products are composed through existing Platform primitives, aligned on 2026-09-19 with AI Fabric `0.7.0`, and source-implemented on 2026-09-19 after the hosted Gate A rollout. AI Fabric `0.8.5` is now the sole supported baseline. Behavior-aware Marketplace contributions and private runtime contracts are committed and deployed; focused Conversational, two-worker Agentic, and Smart Brain hosted canaries pass. Reusable-template lifecycle completion, Human Review hosted proof, and market readiness remain open.
 
 The historical filename is retained so existing documentation links do not break. The architecture below explicitly rejects a separate `Product Profile` aggregate.
 
 Version note: references to `0.7.0` below identify the release that introduced
 the declarative-chain and durable-review contracts. Those references are
-historical contract lineage, not a supported-version matrix. AI Fabric `0.8.4`
+historical contract lineage, not a supported-version matrix. AI Fabric `0.8.5`
 is the sole current framework/runtime/Platform baseline; all new implementation
-and verification must target `0.8.4`.
+and verification must target `0.8.5`.
 
 This document consolidates and judges:
 
@@ -1162,6 +1162,9 @@ Behavior and pack proof examples:
 
 ### P-1: AI Fabric 0.7.0 Gate A base adoption - COMPLETE
 
+This is a historical completed migration sequence. Do not execute it against
+the current fleet; the only supported baseline is `0.8.5`.
+
 1. Upgrade every private framework dependency, generated deployment default, and active assertion to `0.7.0`.
 2. Keep `AI_EXECUTION_SPECIALIST_CHAINS_ENABLED=false` and add no chain resource, table, secret, or route.
 3. Run all three private Maven reactors without skipped tests.
@@ -1438,13 +1441,14 @@ Exit:
 
 ### Confirmed framework follow-up
 
-No framework blocker is currently confirmed for the active `0.7.1` migration.
+No framework blocker is currently confirmed against the active `0.8.5`
+baseline.
 The earlier request for an official declarative bounded-chain YAML/JSON contract
 is fulfilled by `ai.fabric/v1` `SpecialistChain`, its offline validator,
 source-aware registry/readback, and the shared chain gateway.
 The historical `AF-MCP-STRICT-SERVER-REF` issue is resolved by the immutable
 release's exact remote server name/title binding and bounded result handling.
-Any new framework gap must still be reproduced against `0.7.1` before LoomAI
+Any new framework gap must still be reproduced against `0.8.5` before LoomAI
 adds a product-side workaround.
 
 ### LoomAI Platform gaps, not framework blockers

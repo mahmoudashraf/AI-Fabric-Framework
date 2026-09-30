@@ -545,3 +545,24 @@ Current P0 cleanup items:
   remain open.
   It establishes no Auto Trader sandbox, production, data-rights, package or
   partnership claim.
+- 2026-09-30 dealership hosted decision: the source checkpoint is superseded by
+  bounded `DEALERSHIP_DEMO_READY` evidence. One fictional dealership, one
+  customer/tenant, and one AI Fabric `0.8.5` deployment now prove direct public
+  Companion/Max Mode, same-session anonymous renewal, backend-owned inventory
+  sync, six persistent Lucene vectors, grounded inventory retrieval, governed
+  test-drive confirmation, and protected staff-inbox readback. The customer UI
+  never proxies chat through the dealership backend, and the backend remains
+  the only ingestion/application-write authority.
+- The canonical public-anonymous contract now includes deployment-local
+  `POST /api/public/chat/session/renew`. Renewal is bearer-authenticated and
+  must preserve the runtime-issued session ID. Invalid, expired, wrong-runtime,
+  or mismatched renewal clears stale conversation/pending-action state without
+  replay; browser-selected identity remains forbidden.
+- Local Lucene deployment replacement is stop-first. Do not use a Coolify
+  rolling restart that can overlap writers. This is an operational constraint,
+  not a reason to centralize the vector data plane.
+- The dealership verdict remains strictly separate from Auto Trader readiness.
+  No real provider credential, advertiser grant, data right, package,
+  certification, or production canary exists. The global Platform release gate
+  also remains non-green on the owner-deferred Shopify
+  `shopify-companion` runtime mode; neither boundary may be softened in claims.

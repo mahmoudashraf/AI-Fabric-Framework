@@ -3052,8 +3052,69 @@ Critical fixes that made the gate pass:
   to replay the in-flight request under a new identity. The locally bundled
   widget is LoomAI-labelled and no longer points customer integrations at the
   old personal GitHub Pages artifact.
-- Do not claim `DEALERSHIP_DEMO_READY` yet. The assigned hosted LoomAI
-  deployment, live indexing/retrieval/confirmation/action evidence, and
-  same-session anonymous token renewal remain release gates. Real Auto Trader
-  sandbox/production credentials, grants, advertiser scope, rights, packages,
-  and certification remain separate external gates.
+- At this 2026-09-29 source-only checkpoint, `DEALERSHIP_DEMO_READY` was still
+  prohibited pending hosted indexing, retrieval, action, and renewal evidence.
+  The 2026-09-30 section below explicitly supersedes that historical warning;
+  real Auto Trader gates remain separate.
+
+## 2026-09-30 Dealership Demo Hosted Closure And AI Fabric 0.8.5
+
+- The previous source-only warning is superseded. The bounded fictional
+  dealership composition now passes `DEALERSHIP_DEMO_READY`. It does not prove
+  or imply Auto Trader connectivity, sandbox access, production access, data
+  rights, advertiser authorization, certification, or partnership.
+- AI Fabric `0.8.5` is the only supported framework baseline. Framework release
+  tag `ai-fabric-framework-v0.8.5` points at `142f1e7b`. The fix prevents
+  optional null read-action planner parameters from reaching immutable map
+  construction. Maven Central, an empty-cache external consumer, the complete
+  framework reactor, and all real-app modules passed.
+- LoomAI runtime image source `9db6bc92bd06814c2b27b221dae2ac2e64dbe85a`
+  produced digest
+  `sha256:ce8d45fa3b9f405e7d9bda4a0c43c1015e3ea771dafaaef0d90f2a3806242370`.
+  Active runtime dependency resolution contains AI Fabric `0.8.5` only.
+- Real dealership deployment `dep-f023c863` belongs to customer
+  `cus-28e3b6f9` and tenant `ten-80c0ae7c`. Version `ver-a3de38cc` (`v7`) and
+  release `rel-6b9f8943` are `PUBLISHED` / `APPLIED_VERIFIED`; fresh verification
+  `vrf-614ca9d9` passed 25 applicable checks, skipped five intentionally absent
+  runner/document-source checks, and failed none.
+- The ordinary dealership backend at
+  `https://loomai-dealership-demo-api.46.224.145.148.sslip.io` is the sole
+  ingestion authority. Sync run `17a01f69-39a9-4d76-97a4-5349fa07407e`
+  completed `6/6` against the deployment-local `dealer-vehicle` space. Insert,
+  update, stale-version supersession, delete, and return-to-six-vector canaries
+  passed.
+- Runtime URL is `https://dep-f023c863.46.224.145.148.sslip.io`; connector URL
+  is `https://dep-f023c863-connector.46.224.145.148.sslip.io`. Persistent Lucene
+  storage UUID `ouphps3mhbd48ud91ak06bxx` is mounted at `/app/data` and retained
+  all six vectors across stop/start replacement.
+- Direct Coolify rolling `Restart` is not safe for a local Lucene deployment:
+  overlapping containers can contend for the single-writer lock. Platform
+  replacement already uses stop-first semantics. Manual emergency recovery
+  must explicitly stop, prove stopped, then start.
+- Public experience `https://loomai.pro/demos/dealership-ai` passed the strict
+  `390x844` browser gate after the shared rollout. Runtime-issued anonymous
+  bootstrap and `/api/public/chat/session/renew` preserved the same session;
+  indexed vehicle retrieval returned one source/document; deployment-owned
+  `dealership_search_inventory` completed with no failed read-action iteration;
+  confirmation created receipt `NFM-33B974CC`, which protected staff readback
+  found as `NEW` for `veh-aster-e1`.
+- Staging Platform backend is on verifier-fix commit
+  `660481a9089f69925342dfde403ad0862fa70c1c`; staging UI, production UI, and
+  public site are on product commit `9db6bc92bd06814c2b27b221dae2ac2e64dbe85a`.
+  Production Platform backend uses immutable image tag `660481a90...`. All
+  public health checks returned HTTP 200.
+- Full Platform run `vsr-d3f2b5fc` proved the 0.8.5, provider, Coolify,
+  marketplace, and Shopify Companion stages, then exposed an `ARG_MAX` defect
+  in the MCP verifier. Commit `660481a90` streams large JSON through file
+  descriptor 3; rerun `vsr-dd7dc096` passed the repaired UCP/MCP gateway stage
+  and the Shopify first-product audit.
+- A fresh release-gate Supabase JWT was generated from the existing private
+  fixture and stored as managed secret `PARTNER_SUPABASE_JWT` without logging
+  it. Strict Partner run `vsr-5a6a9d00` passed authentication, UIs, merchant
+  approval, assignment, privileges, product controls, and safe auth context,
+  then reached the owner-deferred runtime response `Unsupported mode:
+  shopify-companion`. Full run `vsr-dd7dc096` therefore remains honestly
+  `FAILED` after nine passed stages. Do not call the global release gate green
+  or weaken the check; the owner explicitly deferred Shopify retrieval.
+- Sanitized canonical evidence is
+  `verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json`.

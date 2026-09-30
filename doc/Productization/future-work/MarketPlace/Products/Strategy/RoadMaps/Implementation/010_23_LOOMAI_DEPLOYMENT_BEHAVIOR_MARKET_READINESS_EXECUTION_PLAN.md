@@ -2,7 +2,7 @@
 
 - **Status:** Execution in progress; staging immutable control-plane canary complete, production capacity decision required
 - **Date:** 2026-09-20
-- **Active AI Fabric baseline:** `0.7.1`
+- **Active AI Fabric baseline:** `0.8.5`
 - **Depends on:** `010.21` architecture and `010.22` productization implementation
 - **Current maturity:** exact hosted canaries are `HOSTED_PROVEN`; reusable releases are not yet `MARKET_READY`
 

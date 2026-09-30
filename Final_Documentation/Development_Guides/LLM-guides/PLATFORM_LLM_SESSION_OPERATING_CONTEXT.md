@@ -41,28 +41,23 @@ Deployable runtime and generic REST connector services are not public framework 
 - `ai-infrastructure-module/ai-infrastructure-generic-rest-connector`
 
 Private products consume the framework through published Maven artifacts.
-The current private product source target is AI Fabric `0.7.0` through:
+The current private product source target is AI Fabric `0.8.5` through:
 
-- `io.github.loom-ai-labs:ai-fabric-bom:0.7.0`
-- Git tag `ai-fabric-framework-v0.7.0`
+- `io.github.loom-ai-labs:ai-fabric-bom:0.8.5`
+- Git tag `ai-fabric-framework-v0.8.5`
 
-The immutable tag, GitHub release, framework CI, signed publication workflow,
-and Maven Central artifacts exist and match release commit
-`5b075b66384dc5b756b3b3dd12efaf896ce9a50b`. Framework guidance is at
-documentation commit `7ac32985`. The release retains the existing security and
-execution behavior and adds official immutable `ai.fabric/v1`
-`SpecialistChain` YAML/JSON resources, offline validation, a shared
-Java/manifest registry and gateway, source-aware runtime status and hashes,
-and fail-closed declarative-chain loading.
+The immutable tag, GitHub release, framework CI, Maven Central publication,
+and empty-cache external-consumer proof match release commit `142f1e7b`.
+Private runtime image source
+`9db6bc92bd06814c2b27b221dae2ac2e64dbe85a` resolves one framework version
+only and is the current deployment source artifact.
 
-Source target and hosted-fleet truth are separate. AI Fabric `0.7.0` Gate A is
-now complete at private commit
-`2ee86b7761aa4f0d81224cc4da30a5e2b4c7a264`: the supported staging and
-production runtime families were published and applied through V04, live
-readback reports `0.7.0`, and specialist chains remain disabled. Never infer a
-future live version from the source POM or relabel the fleet before readback
-evidence exists. The canonical Gate A record is
-`Final_Documentation/Development_Guides/LLM-guides/AI_FABRIC_0_7_0_PLATFORM_MIGRATION/README.md`.
+Source target and hosted-fleet truth remain separate. Never infer a future live
+version from a source POM or relabel the fleet before immutable image,
+release/apply, and live readback evidence exists. The current dealership
+closure is recorded in `CODEX_WORKING_CONTEXT.md` and
+`verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json`;
+older migration records remain historical evidence only.
 
 The private runtime and embedding worker must each resolve one AI Fabric
 version. Docker/CI builds consume released Maven artifacts and must not clone
@@ -571,6 +566,9 @@ runtime, and Platform contract at a time.
 - Verification and product claims must target the current immutable release;
   a pass on an older release does not count as current evidence.
 
-As of 2026-09-22, the supported AI Fabric baseline is `0.8.4`. The matching
-LoomAI Platform/runtime rollout and its latest green release gate are recorded
-in `CODEX_WORKING_CONTEXT.md` and the private session handoff.
+As of 2026-09-30, the only supported AI Fabric baseline is `0.8.5`. The
+matching LoomAI Platform/runtime rollout, bounded dealership-demo evidence, and
+the separately deferred Shopify full-gate blocker are recorded in
+`CODEX_WORKING_CONTEXT.md` and the private session handoff. Do not describe the
+global Platform release gate as green until that recorded Shopify blocker is
+resolved and a fresh full run passes.

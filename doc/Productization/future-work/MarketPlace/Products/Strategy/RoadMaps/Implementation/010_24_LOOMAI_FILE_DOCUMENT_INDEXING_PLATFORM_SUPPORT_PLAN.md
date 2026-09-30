@@ -6,7 +6,7 @@ Created: 2026-09-22
 
 Current supported baseline:
 
-- AI Fabric `0.8.4` only
+- AI Fabric `0.8.5` only
 - private LoomAI runtime and Platform `Platform-V11`
 - V04 deployment lifecycle
 - current-only greenfield policy; no older framework/runtime compatibility path
@@ -92,7 +92,7 @@ write authority.
 
 ### 3.1 Framework capability already available
 
-AI Fabric `0.8.4` includes the document-indexing core introduced in `0.8.0`:
+AI Fabric `0.8.5` includes the document-indexing core introduced in `0.8.0`:
 
 - Spring AI `DocumentReader`, transformer, and token splitting integration;
 - trusted file/classpath/in-memory resource policy;
@@ -1114,7 +1114,7 @@ successful index is not market-ready evidence.
 Status: `IMPLEMENTED_HOSTED_PROVEN`
 
 - Confirm active-version filtering can use an existing generic retrieval hook.
-- Confirm the exact AI Fabric `0.8.4` reader, manifest, queue, reconciliation,
+- Confirm the exact AI Fabric `0.8.5` reader, manifest, queue, reconciliation,
   and deletion contracts.
 - Confirm the approved S3-compatible client, object-version evidence, and
   temporary-resource handoff to Spring AI readers.
@@ -1265,7 +1265,7 @@ decision unless a future product decision explicitly replaces this plan.
 
 Document Knowledge Operations is complete only when:
 
-- LoomAI uses AI Fabric `0.8.4` document contracts directly;
+- LoomAI uses AI Fabric `0.8.5` document contracts directly;
 - no parallel reader, splitter, vector store, queue or deployment lifecycle is
   introduced;
 - a current Marketplace DATA plugin and TEMPLATE compose the capability;

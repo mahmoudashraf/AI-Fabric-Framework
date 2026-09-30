@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "loomai-dealership-demo-hosted-evidence-v1",
+  "status": "PASSED",
+  "claim": "DEALERSHIP_DEMO_READY",
+  "completedAt": "2026-09-30T12:32:10Z",
+  "sourcePosture": "FICTIONAL_DEMONSTRATION_INVENTORY",
+  "framework": {
+    "version": "0.8.5",
+    "releaseTag": "ai-fabric-framework-v0.8.5",
+    "releaseCommit": "142f1e7b",
+    "runtimeImageCommit": "9db6bc92bd06814c2b27b221dae2ac2e64dbe85a",
+    "runtimeImageDigest": "sha256:ce8d45fa3b9f405e7d9bda4a0c43c1015e3ea771dafaaef0d90f2a3806242370"
+  },
+  "platform": {
+    "branch": "Platform-V11",
+    "runtimeUpgradeCommit": "9db6bc92bd06814c2b27b221dae2ac2e64dbe85a",
+    "releaseGateVerifierFixCommit": "660481a9089f69925342dfde403ad0862fa70c1c",
+    "sourceArtifactId": "dsa-c4049c46",
+    "sourceCapabilityManifestHash": "a2eadb879cfa2098052f7fc4ec3b3d7fe464293200cd5803de031d6df8bb9642",
+    "promotionChannel": "staging"
+  },
+  "deployment": {
+    "customerId": "cus-28e3b6f9",
+    "tenantId": "ten-80c0ae7c",
+    "deploymentId": "dep-f023c863",
+    "name": "Northfield Dealership AI Demo",
+    "behaviorType": "CONVERSATIONAL",
+    "versionId": "ver-a3de38cc",
+    "versionLabel": "v7",
+    "configHash": "6cb2a2adf8fc3b6729d091725d5e2727468a4d9d98b821d22ee32b75e2857662",
+    "releaseId": "rel-6b9f8943",
+    "releaseStatus": "APPLIED_VERIFIED",
+    "provisioningStatus": "ACTIVE",
+    "verificationStatus": "PASSED",
+    "runtimeBaseUrl": "https://dep-f023c863.46.224.145.148.sslip.io",
+    "connectorBaseUrl": "https://dep-f023c863-connector.46.224.145.148.sslip.io"
+  },
+  "application": {
+    "publicExperienceUrl": "https://loomai.pro/demos/dealership-ai",
+    "backendBaseUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
+    "backendCommit": "729f9c66dfddcc4474aab760b77f0cac0f235347",
+    "inventoryCount": 6,
+    "vectorSpace": "dealer-vehicle",
+    "integrationMode": "public-runtime-anonymous",
+    "chatProxyUsed": false
+  },
+  "checks": [
+    {
+      "name": "immutable release apply and hosted verification",
+      "status": "PASSED",
+      "verificationRunId": "vrf-614ca9d9",
+      "passedChecks": 25,
+      "skippedChecks": 5,
+      "failedChecks": 0
+    },
+    {
+      "name": "backend-owned inventory sync",
+      "status": "PASSED",
+      "syncRunId": "17a01f69-39a9-4d76-97a4-5349fa07407e",
+      "providerRequestId": "dealership-inventory-129fc001-deb2-4b8a-bef2-207c4d0a9454",
+      "total": 6,
+      "succeeded": 6,
+      "failed": 0
+    },
+    {
+      "name": "persistent Lucene indexing",
+      "status": "PASSED",
+      "entityType": "dealer-vehicle",
+      "vectorCount": 6,
+      "storageUuid": "ouphps3mhbd48ud91ak06bxx",
+      "mountPath": "/app/data"
+    },
+    {
+      "name": "upsert update delete and stale-version lifecycle",
+      "status": "PASSED",
+      "canaryEntityId": "veh-lifecycle-canary-2",
+      "baselineVectorCount": 6,
+      "upsertVectorCount": 7,
+      "deleteVectorCount": 6,
+      "supersededOperations": 1
+    },
+    {
+      "name": "stop-first runtime replacement and index restart durability",
+      "status": "PASSED",
+      "vectorCountAfterRestart": 6,
+      "replacementPolicy": "STOP_THEN_START_SINGLE_WRITER"
+    },
+    {
+      "name": "mobile public browser and Max Mode gate",
+      "status": "PASSED",
+      "viewport": "390x844",
+      "anonymousSessionRenewalPreservedSession": true,
+      "vehicleCount": 6,
+      "retrievalProviderRequestId": "rag-1efaa49d-a748-4991-a0c3-387368411f06",
+      "retrievalSources": 1,
+      "retrievalDocuments": 1,
+      "inventoryActionProviderRequestId": "rag-643e9b76-0f8c-404f-bd11-9eef8e9bb5a9",
+      "inventoryAction": "dealership_search_inventory",
+      "readActionFailures": 0,
+      "browserFailures": 0
+    },
+    {
+      "name": "confirmed dealership lead action",
+      "status": "PASSED",
+      "proposalProviderRequestId": "rag-7adf2784-0c25-4ac7-b9d1-cdcf2b599d9e",
+      "confirmationProviderRequestId": "rag-3017503f-bc5a-41d9-abf0-43f1217f413e",
+      "receiptCode": "NFM-33B974CC",
+      "staffInboxStatus": "NEW",
+      "vehicleId": "veh-aster-e1"
+    }
+  ],
+  "sharedPlatformRollout": {
+    "stagingBackendCommit": "660481a9089f69925342dfde403ad0862fa70c1c",
+    "stagingUiCommit": "9db6bc92bd06814c2b27b221dae2ac2e64dbe85a",
+    "productionBackendImageTag": "660481a9089f69925342dfde403ad0862fa70c1c",
+    "productionUiImageTag": "9db6bc92bd06814c2b27b221dae2ac2e64dbe85a",
+    "publicSiteCommit": "9db6bc92bd06814c2b27b221dae2ac2e64dbe85a",
+    "publicHealthStatus": "UP"
+  },
+  "platformReleaseGate": {
+    "latestFullRunId": "vsr-dd7dc096",
+    "status": "FAILED",
+    "passedStagesBeforeStop": 9,
+    "dealershipRegressionObserved": false,
+    "deferredBlocker": "Partner Max smoke reaches the owner-deferred Shopify runtime mode and receives Unsupported mode: shopify-companion.",
+    "verifierRepair": "The large UCP tools/list payload is now streamed through file descriptor 3; the repaired MCP gateway stage passed.",
+    "claimImpact": "The blocker remains visible and prevents a global Platform release-ready claim. It does not invalidate the isolated dealership demo claim."
+  },
+  "operationalCaveats": [
+    "Coolify rolling Restart must not be used for this local Lucene runtime because two writers can overlap. Use Platform replacement or explicit stop then start.",
+    "The demo uses fictional dealership inventory and proves no Auto Trader sandbox, production API, advertiser grant, data right, certification, or partnership claim.",
+    "The dealership backend is the only ingestion authority. Browser code talks directly to the deployment only for scoped public chat."
+  ]
+}
