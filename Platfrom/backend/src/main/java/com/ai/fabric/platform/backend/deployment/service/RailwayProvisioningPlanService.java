@@ -1997,6 +1997,12 @@ public class RailwayProvisioningPlanService {
     }
 
     private void addConnectorSecretEnv(List<RailwayEnvVarSummary> connectorEnv, JsonNode... configs) {
+        LinkedHashSet<String> existingKeys = new LinkedHashSet<>();
+        for (RailwayEnvVarSummary env : connectorEnv) {
+            if (env != null && StringUtils.hasText(env.key())) {
+                existingKeys.add(env.key().trim());
+            }
+        }
         LinkedHashSet<String> refs = new LinkedHashSet<>();
         if (configs != null) {
             for (JsonNode config : configs) {
@@ -2004,7 +2010,9 @@ public class RailwayProvisioningPlanService {
             }
         }
         for (String ref : refs) {
-            connectorEnv.add(new RailwayEnvVarSummary(ref, "${secret:" + ref + "}"));
+            if (existingKeys.add(ref)) {
+                connectorEnv.add(new RailwayEnvVarSummary(ref, "${secret:" + ref + "}"));
+            }
         }
     }
 

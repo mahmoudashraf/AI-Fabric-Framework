@@ -520,6 +520,18 @@ class RailwayProvisioningPlanServiceTest {
 
         DeploymentVersionEntity version = version();
         version.setSecurityConfigJson("{\"adminApiKeyEnabled\":true}");
+        version.setRoutingConfigJson("""
+            {
+              "connector": {
+                "inbound-auth": {
+                  "api-key": {
+                    "value": "${CONNECTOR_API_KEY}"
+                  }
+                }
+              },
+              "actions": {}
+            }
+            """);
 
         RailwayProvisioningPlanSummary plan = service.buildPlan(deployment(), version);
         Map<String, String> runtimeEnv = envMap(plan.services().runtime().env());
@@ -565,6 +577,11 @@ class RailwayProvisioningPlanServiceTest {
             .containsEntry("APP_ADMIN_API_KEY_HEADER", "X-ADMIN-API-KEY")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY", "${secret:AI_FABRIC_RUNTIME_TRUSTED_BACKEND_API_KEY}")
             .containsEntry("REST_CONNECTOR_RUNTIME_PROXY_API_KEY_HEADER", "X-AIFABRIC-RUNTIME-API-KEY");
+        assertThat(plan.services().restConnector().env())
+            .filteredOn(env -> "CONNECTOR_API_KEY".equals(env.key()))
+            .singleElement()
+            .extracting(RailwayEnvVarSummary::value)
+            .isEqualTo("${secret:" + DeploymentExecutionSecretService.connectorInvocationApiKeyName("dep-123") + "}");
     }
 
     @Test
