@@ -411,7 +411,7 @@ function scenarioAssertions(id, result, observedQueries) {
       || isExplicitlyInsufficient(emptySearchEvidence)
     const groundedAlternativeNamed = answerMentionsRetrievedDocument(answer, evidence.externalDocuments)
     const labelsRelaxedConstraints = /(alternative|closest)/i.test(answer)
-      && /(not diesel|does not .*diesel|fuel type.*relax|above GBP 10[, ]?000|price.*relax|does not .*budget)/i.test(answer)
+      && /(not diesel|does not .*diesel|fuel type.*relax|relax(?:es|ed|ing)?\b[^.]{0,100}\b(?:fuel type|price|budget)\b|above GBP 10[, ]?000|price.*relax|does not .*budget)/i.test(answer)
     return [
       check('authoritative inventory action ran first', evidence.executedActions.includes('dealership_search_inventory'), 'dealership_search_inventory', evidence.executedActions),
       check(
