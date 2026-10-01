@@ -1,4 +1,5 @@
 import type { MaxModeProps } from "@/types";
+import type { MaxModeWidgetConfig } from "@/config";
 import { MaxModeView } from "./MaxModeView";
 import { useMaxModeController } from "@/hooks/useMaxModeController";
 
@@ -7,8 +8,9 @@ export const MaxModePage = ({
   onClose,
   assistantLabel,
   showUtilityPanel,
-}: MaxModeProps & { assistantLabel?: string; showUtilityPanel?: boolean }) => {
-  const controller = useMaxModeController({ isOpen, assistantLabel, showUtilityPanel });
+  widgetConfig,
+}: MaxModeProps & { assistantLabel?: string; showUtilityPanel?: boolean; widgetConfig?: MaxModeWidgetConfig }) => {
+  const controller = useMaxModeController({ isOpen, assistantLabel, showUtilityPanel, widgetConfig });
 
   if (!isOpen) return null;
 

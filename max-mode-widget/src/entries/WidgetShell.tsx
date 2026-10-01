@@ -41,6 +41,7 @@ function WidgetShellContent({ config, isOpen, onOpenChange }: WidgetShellProps) 
     isOpen: isOpen || showCompanionDock,
     assistantLabel,
     showUtilityPanel,
+    widgetConfig: config,
   });
 
   const handleOpen = () => {

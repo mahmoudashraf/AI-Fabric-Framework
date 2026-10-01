@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery, resolvedChatQueryUrl } from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
+import { isRoutingTargetAttachment, toRuntimeAttachments } from "@/attachments";
 import { emitEvent } from "@/config";
 import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
@@ -165,13 +166,13 @@ export function useChatFlow({
       const currentAttachments = attachedItems.filter((item) => item.type !== "ai-search");
       setSuggestions([]);
 
-      const hasAttachments = currentAttachments.length > 0;
+      const hasRoutingTargetAttachments = currentAttachments.some(isRoutingTargetAttachment);
       const isFirstQuery = chatMessagesLength === 0;
 
       let position: "landing" | "catalog" | "search" | "cart" =
-        actionPosition ?? (hasAttachments ? "cart" : currentPosition);
+        actionPosition ?? (hasRoutingTargetAttachments ? "cart" : currentPosition);
       let mode: MaxModeMode =
-        actionMode ?? (hasAttachments ? "cart_assistant" : currentMode);
+        actionMode ?? (hasRoutingTargetAttachments ? "cart_assistant" : currentMode);
 
       // Search category tag forces navigator mode (position = search)
       const hasSearchTag = !!(currentSearchCategory || aiSearchAttachment);
@@ -197,84 +198,7 @@ export function useChatFlow({
       setCurrentMode(mode);
 
       try {
-        const attachmentsWithMetadata = currentAttachments.map((item) => {
-          const contentParts: string[] = [];
-          if (item.data.sku) contentParts.push(`SKU: ${item.data.sku}`);
-          if (item.data.name) contentParts.push(item.data.name);
-          if (item.data.title) contentParts.push(item.data.title);
-          if (item.data.description) contentParts.push(item.data.description);
-          if (item.data.content) contentParts.push(item.data.content);
-          if (item.data.price) contentParts.push(`Price: ${item.data.price} ${item.data.currency || "USD"}`);
-          if (item.data.category) contentParts.push(`Category: ${item.data.category}`);
-          if (item.data.availability) contentParts.push(`Availability: ${item.data.availability}`);
-          if (item.data.status) contentParts.push(`Status: ${item.data.status}`);
-          if (item.data.orderId) contentParts.push(`Order ID: ${item.data.orderId}`);
-          if (item.data.orderNumber) contentParts.push(`Order #${item.data.orderNumber}`);
-          const contentText = contentParts.join(" | ");
-
-          const sourceMetadata: Record<string, any> = { ...(item.data.metadata || {}) };
-          const explicitVectorSpace = firstString(
-            item.data.vectorSpace,
-            item.data.entityType,
-            sourceMetadata.vectorSpace,
-            sourceMetadata.entityType,
-          );
-          let vectorSpace = explicitVectorSpace || "product";
-          if (!explicitVectorSpace && item.type === "order") {
-            vectorSpace = "order";
-          } else if (!explicitVectorSpace && item.type === "document") {
-            const docCategory = item.data.metadata?.category?.toLowerCase();
-            vectorSpace = docCategory === "order" ? "order" : "product";
-          }
-
-          delete sourceMetadata.productVariantId;
-          delete sourceMetadata.firstAvailableVariantId;
-          delete sourceMetadata.variantId;
-
-          const fullMetadata: Record<string, any> = {
-            ...sourceMetadata,
-            id: item.data.id,
-            sku: item.data.sku,
-            category: item.data.category || item.data.type,
-            name: item.data.name,
-            title: item.data.title,
-            price: item.data.price,
-            availability: item.data.availability,
-            product_variant_id: item.data.product_variant_id,
-            firstAvailableVariantTitle: item.data.firstAvailableVariantTitle,
-            totalPrice: item.data.totalPrice,
-            quantity: item.data.quantity,
-            status: item.data.status,
-            orderId: item.data.orderId,
-            orderNumber: item.data.orderNumber,
-            productName: item.data.productName,
-            currency: item.data.currency,
-            createdAt: item.data.createdAt,
-            rating: item.data.rating,
-            code: item.data.code,
-            discountType: item.data.discountType,
-            discountValue: item.data.discountValue,
-            score: item.data.score,
-            similarity: item.data.similarity,
-          };
-
-          Object.keys(fullMetadata).forEach((key) => {
-            if (fullMetadata[key] === undefined) delete fullMetadata[key];
-          });
-
-          const rawId = item.data.id || item.data.orderId?.toString() || item.data.sku || Date.now().toString();
-          const cleanId = String(rawId).replace(/[\[\]\(\)"'`]/g, "").trim();
-
-          return {
-            id: cleanId,
-            vectorSpace,
-            contentText,
-            metadata: fullMetadata,
-            source: item.type,
-            url: String(item.data.url || "").replace(/[\[\]\(\)"'`]/g, "").trim(),
-            imageUrl: String(item.data.imageUrl || item.data.metadata?.imageUrl || "").replace(/[\[\]\(\)"'`]/g, "").trim(),
-          };
-        });
+        const attachmentsWithMetadata = toRuntimeAttachments(currentAttachments);
 
         let liveRequestContext: Record<string, any> | undefined;
         if (typeof requestContextProvider === "function") {

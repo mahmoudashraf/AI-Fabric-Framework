@@ -135,6 +135,36 @@ export interface MaxModeHostAttachment {
   data: Record<string, any>;
 }
 
+export interface MaxModeCurrentPageContent {
+  /** Human-readable page title shown in the attachment chip */
+  title?: string;
+  /** Trusted host-provided or browser-extracted page text */
+  text: string;
+  /** Optional source URL. Query parameters, hashes, and credentials are removed before sending. */
+  url?: string;
+}
+
+export type MaxModeCurrentPageContentProvider = () =>
+  | MaxModeCurrentPageContent
+  | null
+  | undefined
+  | Promise<MaxModeCurrentPageContent | null | undefined>;
+
+export interface MaxModeCurrentPageAttachmentConfig {
+  /** Enable the attach-current-page control. Defaults to true when this object is present. */
+  enabled?: boolean;
+  /** Maximum extracted characters. Defaults to 1800 and is capped at 20000. */
+  maxChars?: number;
+  /** Optional host DOM selector to use as the page-content root. */
+  rootSelector?: string;
+  /** Additional selectors excluded from browser text extraction. */
+  excludeSelectors?: string[];
+  /** Optional host-owned extractor for SPAs or pages with structured content. */
+  contentProvider?: MaxModeCurrentPageContentProvider;
+  /** Remove captured context when browser navigation changes. Defaults to true. */
+  invalidateOnNavigation?: boolean;
+}
+
 export interface MaxModeHostStarterPrompt {
   label: string;
   query: string;
@@ -190,6 +220,8 @@ export interface MaxModeHostConfig {
   pageModeMappings?: Record<string, MaxModeMode>;
   /** Optional host-owned initial attachments/context */
   initialAttachments?: MaxModeHostAttachment[];
+  /** Opt-in current-page text attachment support */
+  currentPageAttachment?: MaxModeCurrentPageAttachmentConfig;
   /** Hide POC-only utility controls when embedding in storefronts */
   showUtilityPanel?: boolean;
   /** Render the compact storefront dock that shares the Max Mode chat runtime */
@@ -296,6 +328,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     allowedConversationModes: undefined,
     pageModeMappings: undefined,
     initialAttachments: undefined,
+    currentPageAttachment: undefined,
     showUtilityPanel: true,
     companionDock: false,
     companionContextLabel: undefined,

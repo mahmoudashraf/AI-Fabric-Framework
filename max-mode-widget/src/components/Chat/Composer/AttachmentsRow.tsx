@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, MessageSquarePlus, Paperclip, Search, Sparkles, X } from "lucide-react";
+import { ChevronDown, FileText, MessageSquarePlus, Paperclip, Search, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
 import { Card, CardContent } from "@/ui/card";
@@ -51,15 +51,17 @@ export function AttachmentsRow({
                 <AnimatePresence mode="popLayout">
                   {items.map((item, idx) => {
                     const isAISearch = item.type === "ai-search";
+                    const isCurrentPage = item.type === "current-page";
                     return (
                       <motion.div
-                        key={idx}
+                        key={`${item.type}-${item.data?.id || idx}`}
                         initial={{ opacity: 0, scale: 0.9, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: -10 }}
                         transition={{ type: "spring", damping: 20 }}
                       >
                         <Card
+                          data-max-mode-current-page-chip={isCurrentPage ? "true" : undefined}
                           className={`border-2 shadow-lg hover:shadow-xl transition-all ${
                             isAISearch
                               ? "border-indigo-400 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900"
@@ -78,6 +80,8 @@ export function AttachmentsRow({
                             >
                               {isAISearch ? (
                                 <Search className="h-3 w-3 text-white" />
+                              ) : isCurrentPage ? (
+                                <FileText className="h-3 w-3 text-white" />
                               ) : (
                                 <MessageSquarePlus className="h-3 w-3 text-white" />
                               )}
@@ -96,7 +100,8 @@ export function AttachmentsRow({
                               variant="ghost"
                               onClick={() => onRemoveAttachment(idx)}
                               className="h-6 w-6 flex-shrink-0 hover:bg-red-500/20 text-purple-700 hover:text-red-600"
-                              aria-label="Remove attachment"
+                              aria-label={isCurrentPage ? "Remove attached page" : "Remove attachment"}
+                              data-max-mode-current-page-remove={isCurrentPage ? "true" : undefined}
                             >
                               <X className="h-3 w-3" />
                             </Button>

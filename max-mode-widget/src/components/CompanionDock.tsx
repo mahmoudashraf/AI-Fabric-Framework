@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, MessageCircle, PackageSearch, Search, Send, ShoppingCart, Sparkles, X, Zap } from "lucide-react";
 
 import { MessageList } from "@/components/Chat/MessageList";
+import { CurrentPageAttachmentControl } from "@/components/Chat/CurrentPageAttachmentControl";
 import type { MaxModeMode } from "@/constants";
 import type { MaxModeController } from "@/hooks/useMaxModeController";
 import { Button } from "@/ui/button";
@@ -166,6 +167,18 @@ export function CompanionDock({
       )}
 
       <div className="rounded-[1.5rem] border-2 border-blue-600 bg-white p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950">
+        {controller.currentPageAttachmentEnabled && (
+          <div className="mb-2 flex min-w-0 items-center px-2 pt-1">
+            <CurrentPageAttachmentControl
+              attachment={controller.currentPageAttachment}
+              isCapturing={controller.isCapturingCurrentPage}
+              maxChars={controller.currentPageAttachmentMaxChars}
+              onAttach={() => void controller.attachCurrentPage()}
+              onRemove={controller.removeCurrentPageAttachment}
+            />
+          </div>
+        )}
+
         {expanded && (
           <div className="mb-2 flex flex-wrap justify-end gap-2 px-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">

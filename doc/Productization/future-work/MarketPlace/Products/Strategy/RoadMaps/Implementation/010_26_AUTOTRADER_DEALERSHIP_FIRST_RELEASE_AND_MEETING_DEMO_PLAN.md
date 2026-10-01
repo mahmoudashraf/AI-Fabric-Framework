@@ -1406,14 +1406,61 @@ mapping, customer application, and bounded prompt overlay.
 | G6 | Platform inference operations | Record correctness, latency, token, and cost evidence per inference stage | Keep orchestration and generation model overrides independently configurable. Compare a cheaper model only against the same immutable deployment version and quality corpus; cost reduction cannot override a demonstrated behavioral regression. |
 | G7 | Generic chat UI and action contracts | Render structured action facts alongside generated language | Let actions declare safe list, detail, comparison, and receipt projections that the generic UI can render without parsing prose. Generated text explains the result; authoritative prices, statuses, identifiers, and availability remain structured facts. |
 | G8 | Prompt governance | Prefer typed contracts and policy over accumulating prompt instructions | Version prompt overlays, show their diff in deployment review, and rerun the bounded quality corpus for every change. Do not use prompts to implement authorization, trusted-target resolution, grounding sufficiency, confirmation, or application validation. |
+| G9 | AI Fabric attachment contract and generic chat UI | Distinguish transient untrusted page context from authoritative pinned targets | Add provider-neutral attachment semantics for `kind=TRANSIENT_CONTEXT`, `trust=UNTRUSTED`, `scope=TURN`, and `actionEligible=false`. The generic chat UI may capture a user-requested, bounded current-page text snapshot and resend it only while its page-title chip remains attached. AI Fabric may use that text as answer evidence, but must not treat it as instructions, a trusted target, or a source of executable action parameters; it must not persist it in the conversation working set or index it. Enforce a deployment-owned server character ceiling in addition to the UI limit, report truncation, omit an invented vector space, strip URL query/fragment data by default, and prove prompt-injection resistance, removal behavior, route-change invalidation, PII handling, and tenant/session isolation. |
 
-The only possible framework-level item in this list is G3. AI Fabric already
+The framework-level items in this list are G3 and G9. For G3, AI Fabric already
 provides conversation working-set target seeding for retrieved documents. The
 remaining opportunity is a generic, declarative action-result projection into
 that same bounded mechanism. It should be proposed to AI Fabric only with a
 provider-neutral contract and focused evidence; the current v15 result does not
-justify an urgent framework patch because configured RAG fallback recovers
+justify an urgent G3 framework patch because configured RAG fallback recovers
 safely.
+
+G9 is a separate generic contract gap. The current AI Fabric attachment path
+models attachments as authoritative pinned targets and can retain them for
+follow-up turns. That is correct for explicitly selected trusted entities, but
+not for arbitrary rendered page text, which can contain user-generated content,
+PII, or prompt-like instructions. A UI-only prototype may use the existing
+attachment request shape on controlled first-party pages, but LoomAI must not
+claim production-generic `Attach current page` support until AI Fabric enforces
+the transient, untrusted, non-action-eligible semantics above. The feature does
+not require page indexing and must not silently convert a page snapshot into
+durable knowledge.
+
+#### 21.1.1 Controlled Interim Page-Attachment Implementation
+
+On 2026-10-01 the product owner approved an interim implementation that sends
+captured page text through the existing normal attachment contract while G9 is
+designed at framework level. This does not close G9 or change the framework
+assessment above.
+
+The generic Max Mode/Companion widget now provides an opt-in
+`host.currentPageAttachment` configuration and a user-operated icon above the
+composer. At capture time it:
+
+- reads only the configured content root, with `main`, `[role=main]`, `article`,
+  and `body` as generic fallbacks;
+- excludes scripts, styles, templates, navigation, footers, forms, hidden
+  content, the widget host, and host-provided exclusion selectors;
+- normalizes and bounds the text to a configurable limit, defaulting to `1800`
+  characters and capped client-side at `20000`;
+- shows the page title as a removable attachment chip and supports explicit
+  refresh;
+- strips URL query parameters, fragments, and credentials before projection;
+- sends `source=current-page` and `contentText` without inventing a vector
+  space or changing the existing conversation position/mode; and
+- removes the captured context after route/hash navigation by default so a
+  stale page snapshot is not silently reused.
+
+The dealership demo enables this generic feature with
+`rootSelector=#main-content` and `maxChars=1800`. It contains no dealership,
+vehicle, or Auto Trader semantics in the widget implementation. Browser
+evidence proves capture, bounded request projection, no vector-space label,
+preserved `executor`/`landing` routing, manual removal, and navigation
+invalidation. The interim feature is suitable for this controlled first-party
+demo. Production use on arbitrary or user-generated pages remains subject to
+G9's framework-owned transient, untrusted, turn-scoped, non-action-eligible
+contract and its security tests.
 
 ### 21.2 Dealership-Specific Improvements
 
@@ -1427,7 +1474,7 @@ safely.
 | D6 | Dealership data operations | Add automatic post-release inventory sync and reconciliation | Require source count, accepted count, indexed count, tombstones, work completion, and freshness to reconcile before the dealership deployment is marked ready. Production-sized customers provide an approved managed vector/object-storage service; local mounted/Lucene storage remains limited to demos or small explicitly accepted deployments. |
 | D7 | Dealership prompts and model policy | Freeze the current v15 prompt/model baseline until new repeatable evidence fails | Keep `gpt-5.4-mini` for orchestration at temperature `0` and generation at `0.1`. Do not add more wording for `those`; solve that structurally through D1. Any later prompt change must target a named failed scenario and must not introduce text matching, fabricated facts, or Auto Trader claims. |
 | D8 | Dealership performance and cost | Establish quality-preserving latency and cost budgets | The current strict run observed roughly three to nine seconds per turn, with the mixed semantic action-plus-RAG case the slowest. Measure p50/p95 by grounding path and canary parallel action/RAG only for broad mixed queries where measured quality and latency justify the extra retrieval/model cost. |
-| D9 | Auto Trader activation | Keep real provider work behind the existing sandbox and production gates | Replace the fictional source only after credentials, advertiser grant, exact capabilities, data rights, retention/attribution rules, and go-live checks are available. None of G1-G8 or D1-D8 changes the current no-connectivity/no-endorsement claim. |
+| D9 | Auto Trader activation | Keep real provider work behind the existing sandbox and production gates | Replace the fictional source only after credentials, advertiser grant, exact capabilities, data rights, retention/attribution rules, and go-live checks are available. None of G1-G9 or D1-D8 changes the current no-connectivity/no-endorsement claim. |
 
 ### 21.3 Recommended Execution Order
 
@@ -1438,11 +1485,15 @@ safely.
    evidence.
 4. Design G3 as a provider-neutral action working-set contract, then canary D1
    without dealership logic in the framework.
-5. Add D3 as an isolated synthetic write test with deterministic cleanup.
-6. Implement G7/D4 structured presentation without changing the existing
+5. Preserve the implemented controlled-site current-page canary as the interim
+   baseline, then design and implement G9 in AI Fabric before enabling or
+   marketing the feature for arbitrary production pages. Re-run the transient
+   context security suite against the framework-owned contract.
+6. Add D3 as an isolated synthetic write test with deterministic cleanup.
+7. Implement G7/D4 structured presentation without changing the existing
    browser mode or position.
-7. Productize D5 and D6 before onboarding a real dealership.
-8. Optimize models, prompts, latency, or parallel retrieval only after the
+8. Productize D5 and D6 before onboarding a real dealership.
+9. Optimize models, prompts, latency, or parallel retrieval only after the
    repeated quality gate remains green.
 
 Do not reopen the already-fixed empty-action grounding issue unless a future

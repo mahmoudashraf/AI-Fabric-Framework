@@ -118,6 +118,7 @@ That example now defaults to the recommended backend-mediated private-runtime po
 | `MaxMode.close()` | Close the widget |
 | `MaxMode.toggle()` | Toggle open/closed |
 | `MaxMode.attachProduct({ sku, name, price })` | Pre-attach a product to chat |
+| `MaxMode.attachCurrentPage()` | Capture the current page when the host enables page attachments |
 | `MaxMode.sendMessage(text)` | Send a message programmatically |
 | `MaxMode.destroy()` | Unmount and clean up |
 
@@ -181,10 +182,29 @@ interface MaxModeWidgetConfig {
     fontFamily?: string;       // CSS font stack
     darkMode?: boolean | "auto";
   };
+  host?: {
+    currentPageAttachment?: {
+      enabled?: boolean;              // Defaults to true when configured
+      maxChars?: number;              // Default 1800; client cap 20000
+      rootSelector?: string;           // Defaults to main/[role=main]/article/body
+      excludeSelectors?: string[];     // Added to safe default exclusions
+      invalidateOnNavigation?: boolean;// Default true
+      contentProvider?: () =>
+        | { title?: string; text: string; url?: string }
+        | Promise<{ title?: string; text: string; url?: string }>;
+    };
+  };
   onEvent?: (event: MaxModeEvent) => void;
   onClose?: () => void;
 }
 ```
+
+Current-page capture is user initiated. The widget excludes scripts, styles,
+navigation, footers, forms, hidden content, and its own host element; normalizes
+and bounds the text; removes query strings and hashes from the source URL; and
+sends it as a standard `contentText` attachment without inventing a vector
+space. A custom `contentProvider` is recommended when a host application can
+project a smaller, explicitly approved page view.
 
 `crudBaseUrl` is optional for secure chat-only integrations.
 

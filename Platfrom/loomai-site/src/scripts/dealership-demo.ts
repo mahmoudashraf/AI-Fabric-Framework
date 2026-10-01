@@ -318,6 +318,12 @@ async function initializeAssistant(app: HTMLElement, apiBaseUrl: string) {
       allowedConversationModes: ['executor'],
       showUtilityPanel: false,
       companionDock: true,
+      currentPageAttachment: {
+        enabled: true,
+        maxChars: 1800,
+        rootSelector: '#main-content',
+        invalidateOnNavigation: true,
+      },
       companionContextLabel: 'Current fictional dealership inventory',
       companionModeLabel: 'Vehicle assistant',
       companionPlaceholder: 'Ask about a vehicle, feature, budget or comparison...',

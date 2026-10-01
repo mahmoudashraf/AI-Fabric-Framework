@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { postChatQuery } from "@/api/chat";
 import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
+import { toRuntimeAttachments } from "@/attachments";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
 import type { MaxModeMode } from "@/constants";
 import type { ChatMessage, ChatResult, Document, ResultType } from "@/types";
@@ -54,7 +55,7 @@ export function useConfirmationFlow({
         const { data } = await postChatQuery({
           query: confirmationQuery,
           conversationId: currentConversationId || undefined,
-          attachments: attachedItems,
+          attachments: toRuntimeAttachments(attachedItems),
           mode: currentMode,
         });
 

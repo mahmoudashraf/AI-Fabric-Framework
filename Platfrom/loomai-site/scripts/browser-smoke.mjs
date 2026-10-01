@@ -380,6 +380,64 @@ try {
     throw new Error('Dealership vehicle detail dialog did not open')
   }
   await page.locator('[data-close-vehicle-dialog]').click()
+
+  const attachCurrentPageButton = page.getByRole('button', { name: 'Attach current page' })
+  await attachCurrentPageButton.click()
+  const currentPageChip = page.locator('[data-max-mode-current-page-chip]')
+  await currentPageChip.waitFor()
+  if (!(await currentPageChip.getByText('Northfield Motor House demo', { exact: false }).count())) {
+    throw new Error('Current-page attachment did not expose the page title')
+  }
+  await page.locator('section[aria-label="Northfield AI"]').screenshot({
+    path: path.join(screenshotDir, 'dealership-current-page-attachment.png'),
+    animations: 'disabled',
+  })
+
+  const pageContextRequestPromise = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Summarize the attached current page.'
+  })
+  const companionInput = page.getByRole('textbox', { name: 'Ask Northfield AI' })
+  await companionInput.fill('Summarize the attached current page.')
+  await page.getByTitle('Send message').click()
+  const pageContextPayload = (await pageContextRequestPromise).postDataJSON()
+  const pageContextAttachment = pageContextPayload.attachments?.find(
+    (attachment) => attachment.source === 'current-page',
+  )
+  if (!pageContextAttachment) {
+    throw new Error('Current-page text was not sent as an attachment')
+  }
+  if (Object.hasOwn(pageContextAttachment, 'vectorSpace')) {
+    throw new Error('Current-page attachment was incorrectly assigned a vector space')
+  }
+  if (!pageContextAttachment.contentText?.includes('Find the right car for real life.')) {
+    throw new Error('Current-page attachment did not include visible main content')
+  }
+  if (pageContextAttachment.metadata?.capturedCharacters > 1800) {
+    throw new Error('Current-page attachment exceeded the configured text limit')
+  }
+  if (pageContextAttachment.url?.includes('?') || pageContextAttachment.url?.includes('#')) {
+    throw new Error('Current-page attachment leaked URL query or fragment data')
+  }
+  if (pageContextPayload.mode !== 'executor' || pageContextPayload.position !== 'landing') {
+    throw new Error('Current-page attachment unexpectedly changed chat routing')
+  }
+  await page.getByText(
+    'The selected Aster is electric, has low mileage and is shown with current fictional dealership facts.',
+    { exact: true },
+  ).first().waitFor()
+
+  await page.getByRole('button', { name: 'Remove attached page' }).click()
+  await currentPageChip.waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Attach current page' }).click()
+  await currentPageChip.waitFor()
+  await page.evaluate(() => history.pushState({}, '', '?attachment-route-check=1'))
+  await page.getByRole('button', { name: 'Attach current page' }).waitFor()
+  await page.evaluate(() => history.replaceState({}, '', '/demos/dealership-ai'))
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForSelector('.vehicle-card')
+  await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
+
   const cardAskRequestPromise = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
     return request.postDataJSON()?.query?.startsWith('Tell me whether the 2025 Aster E1')

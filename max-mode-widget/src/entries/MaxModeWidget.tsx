@@ -4,15 +4,17 @@
  * Wraps the Max Mode experience with config provider, toast renderer,
  * and optional theming. Drop this into any React app.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo } from "react";
 
 import {
   setWidgetConfig,
   type MaxModeApiConfig,
   type MaxModeIntegrationMode,
   type MaxModeFeatures,
+  type MaxModeHostConfig,
   type MaxModeThemeConfig,
   type MaxModeEvent,
+  type MaxModeWidgetConfig,
 } from "@/config";
 import { MaxModeProvider, type SharedAttachment } from "@/context";
 import { MaxModePage } from "@/components/MaxModePage";
@@ -33,6 +35,8 @@ export interface MaxModeWidgetProps {
   integrationMode?: MaxModeIntegrationMode;
   /** Items to pre-attach to the chat */
   initialAttachments?: SharedAttachment[];
+  /** Host UX, routing, and optional current-page attachment configuration */
+  host?: MaxModeHostConfig;
   /** Feature toggles */
   features?: MaxModeFeatures;
   /** Theme customization */
@@ -46,21 +50,30 @@ export function MaxModeWidget({
   onClose,
   apiConfig,
   integrationMode,
+  initialAttachments,
+  host,
   features,
   theme,
   onEvent,
 }: MaxModeWidgetProps) {
-  // Sync props to the global config singleton
-  useEffect(() => {
-    setWidgetConfig({
-      apiConfig,
-      integrationMode,
-      features,
-      theme,
-      onEvent,
-      onClose,
-    });
-  }, [apiConfig, integrationMode, features, theme, onEvent, onClose]);
+  const resolvedHost = useMemo(() => ({
+    ...host,
+    initialAttachments: initialAttachments ?? host?.initialAttachments,
+  }), [host, initialAttachments]);
+  const resolvedConfig = useMemo<MaxModeWidgetConfig>(() => ({
+    apiConfig,
+    integrationMode,
+    features,
+    theme,
+    host: resolvedHost,
+    onEvent,
+    onClose,
+  }), [apiConfig, features, integrationMode, onClose, onEvent, resolvedHost, theme]);
+
+  // API helpers still read the singleton; layout timing precedes controller effects.
+  useLayoutEffect(() => {
+    setWidgetConfig(resolvedConfig);
+  }, [resolvedConfig]);
 
   // Theme container ref
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -73,7 +86,7 @@ export function MaxModeWidget({
   return (
     <div ref={containerRef} className="max-mode-widget-root">
       <MaxModeProvider>
-        <MaxModePage isOpen={isOpen} onClose={onClose} />
+        <MaxModePage isOpen={isOpen} onClose={onClose} widgetConfig={resolvedConfig} />
         <ToastContainer />
       </MaxModeProvider>
     </div>

@@ -7,6 +7,7 @@ import { LockedConversationBanner } from "./Composer/LockedConversationBanner";
 import { AttachmentsRow } from "./Composer/AttachmentsRow";
 import { ComposerInputRow } from "./Composer/ComposerInputRow";
 import { SuggestionsPanel } from "./Composer/SuggestionsPanel";
+import { CurrentPageAttachmentControl } from "./CurrentPageAttachmentControl";
 import type { AttachedItem } from "./types";
 
 export type { AttachedItem } from "./types";
@@ -40,6 +41,12 @@ export function Composer({
   conversationsEnabled,
   onOpenDebug,
   onSubmit,
+  currentPageAttachmentEnabled,
+  currentPageAttachment,
+  currentPageAttachmentMaxChars,
+  isCapturingCurrentPage,
+  onAttachCurrentPage,
+  onRemoveCurrentPage,
 }: {
   attachedItems: AttachedItem[];
   onRemoveAttachment: (filteredIndex: number) => void;
@@ -69,6 +76,12 @@ export function Composer({
   conversationsEnabled: boolean;
   onOpenDebug: () => void;
   onSubmit: () => void;
+  currentPageAttachmentEnabled: boolean;
+  currentPageAttachment?: AttachedItem;
+  currentPageAttachmentMaxChars: number;
+  isCapturingCurrentPage: boolean;
+  onAttachCurrentPage: () => void;
+  onRemoveCurrentPage: () => void;
 }) {
   const [showAttachments, setShowAttachments] = useState(true);
   const composerStackRef = useRef<HTMLDivElement>(null);
@@ -123,6 +136,19 @@ export function Composer({
 
       <div className="pointer-events-auto border-t border-gray-200 bg-white p-3 md:p-6 dark:border-gray-800 dark:bg-gray-950">
         <div className="mx-auto max-w-3xl">
+          {currentPageAttachmentEnabled && (
+            <div className="mb-2 flex justify-end">
+              <CurrentPageAttachmentControl
+                attachment={currentPageAttachment}
+                isCapturing={isCapturingCurrentPage}
+                maxChars={currentPageAttachmentMaxChars}
+                onAttach={onAttachCurrentPage}
+                onRemove={onRemoveCurrentPage}
+                showAttachmentChip={false}
+              />
+            </div>
+          )}
+
           {oldConversationLocked && <LockedConversationBanner onStartNewConversation={onStartNewConversation} />}
 
           <ComposerInputRow

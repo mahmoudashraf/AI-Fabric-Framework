@@ -9,10 +9,10 @@ import { AI_SEARCH_CATEGORIES, BROWSE_PRODUCT_CATEGORIES, QUICK_ACTIONS, SEARCH_
 import {
   emitEvent,
   getWidgetConfig,
-  getWidgetIdentity,
   isCartCrudEnabled,
   type MaxModeHostAttachment,
   type MaxModeHostConfig,
+  type MaxModeWidgetConfig,
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
 import { subscribePublicRuntimeSessionInvalidation } from "@/api/client";
@@ -32,6 +32,7 @@ import { useChatFlow } from "./useChatFlow";
 import { useClarificationFlow } from "./useClarificationFlow";
 import { useConfirmationFlow } from "./useConfirmationFlow";
 import { useConversationsController } from "./useConversationsController";
+import { useCurrentPageAttachment } from "./useCurrentPageAttachment";
 import { useMaxModePersistence } from "./useMaxModePersistence";
 import { useMaxModeViewSync } from "./useMaxModeViewSync";
 import { useNewDocsPreviewActions } from "./useNewDocsPreviewActions";
@@ -355,13 +356,15 @@ export function useMaxModeController({
   isOpen,
   assistantLabel,
   showUtilityPanel,
+  widgetConfig: providedWidgetConfig,
 }: {
   isOpen: boolean;
   assistantLabel?: string;
   showUtilityPanel?: boolean;
+  widgetConfig?: MaxModeWidgetConfig;
 }) {
   const { toast } = useToast();
-  const widgetConfig = getWidgetConfig();
+  const widgetConfig = providedWidgetConfig ?? getWidgetConfig();
   const hostConfig = widgetConfig.host;
   const debugEnabled = widgetConfig.features?.debug === true;
   const conversationsEnabled = widgetConfig.features?.conversations ?? true;
@@ -462,10 +465,9 @@ export function useMaxModeController({
   const [isBrowseProductsOpen, setIsBrowseProductsOpen] = useState(false);
   const [searchCategory, setSearchCategory] = useState<string | null>(null);
   const cartEnabled = isCartCrudEnabled(widgetConfig);
-  const identity = useMemo(
-    () => getWidgetIdentity(),
-    [widgetConfig.integrationMode],
-  );
+  const identity = useMemo(() => ({
+    integrationMode: widgetConfig.integrationMode ?? "backend-mediated-private-runtime" as const,
+  }), [widgetConfig.integrationMode]);
   const authContextProbeKeyRef = useRef<string | null>(null);
   const authContextProbeInFlightRef = useRef(false);
   const shellConfigProbeKeyRef = useRef<string | null>(null);
@@ -669,6 +671,14 @@ export function useMaxModeController({
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const aiSearchRowRef = useRef<HTMLDivElement>(null);
   const aiSearchButtonRef = useRef<HTMLDivElement>(null);
+
+  const currentPageAttachmentController = useCurrentPageAttachment({
+    config: hostConfig?.currentPageAttachment,
+    attachedItems,
+    setAttachedItems,
+    chatInputRef,
+    toast,
+  });
 
   useEffect(() => {
     if (!isOpen) {
@@ -1194,6 +1204,7 @@ export function useMaxModeController({
     expandActionResults,
     removeNonAiAttachmentByIndex,
     removeAiSearchAttachment,
+    ...currentPageAttachmentController,
     dismissSuggestions,
     selectSuggestion,
     attachCartToChat,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getChatSuggestions } from "@/api/chat";
+import { toRuntimeAttachment } from "@/attachments";
 import { withRequestContext } from "@/utils";
 
 export function useSuggestionsController({
@@ -27,7 +28,11 @@ export function useSuggestionsController({
     const timeoutId = setTimeout(async () => {
       setIsLoadingSuggestions(true);
       try {
-        const attachments = attachedItems.map((item) => {
+        const attachments = attachedItems.map((item, index) => {
+          if (item.type === "current-page") {
+            return toRuntimeAttachment(item, index);
+          }
+
           const parts: string[] = [];
           if (item.data.name) parts.push(item.data.name);
           if (item.data.title) parts.push(item.data.title);

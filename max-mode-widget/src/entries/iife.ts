@@ -52,6 +52,8 @@ export interface MaxModeAPI {
   attachItem: (item: SharedAttachment) => void;
   /** Attach a product to the chat */
   attachProduct: (product: { sku: string; name: string; price: number; [key: string]: any }) => void;
+  /** Capture and attach the current host page when enabled in host configuration */
+  attachCurrentPage: () => void;
   /** Send a message programmatically */
   sendMessage: (message: string, options?: MaxModeSendMessageOptions) => void;
   /** Destroy and unmount the widget completely */
@@ -99,6 +101,12 @@ const MaxModeInstance: MaxModeAPI = {
 
   attachProduct(product) {
     MaxModeInstance.attachItem({ type: "product", data: product });
+  },
+
+  attachCurrentPage() {
+    try {
+      window.dispatchEvent(new CustomEvent("maxmode:attach-current-page"));
+    } catch {}
   },
 
   sendMessage(message, options) {

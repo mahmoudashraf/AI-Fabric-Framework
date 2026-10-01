@@ -3283,3 +3283,28 @@ Critical fixes that made the gate pass:
   The claim remains limited to a fictional dealership demo. It proves no Auto
   Trader sandbox/production access, advertiser grant, data right, package,
   certification, endorsement, partnership or commercial outcome.
+
+## 2026-10-01 Controlled Current-Page Attachment UI
+
+- Max Mode/Companion now has a generic, opt-in
+  `host.currentPageAttachment` capability. A user can attach, refresh, or
+  remove a bounded text snapshot of the current page from an icon above either
+  composer. Browser navigation removes the snapshot by default.
+- Default extraction targets `main`, `[role=main]`, `article`, then `body`;
+  omits executable, navigational, form, hidden, widget-owned, and configured
+  excluded content; defaults to `1800` characters; and sanitizes the projected
+  URL. Hosts can supply a narrower selector or trusted content provider.
+- The runtime request uses the existing ordinary attachment contract with
+  `source=current-page` and `contentText`. It deliberately omits an invented
+  vector space and does not change the host's position or conversation mode.
+  No AI Fabric source or deployment was changed.
+- The fictional dealership demo opts in with `rootSelector=#main-content` and
+  `maxChars=1800`. Local browser smoke proved title/chip rendering, visible
+  content capture, the character ceiling, URL query/fragment removal,
+  unchanged `executor` / `landing` routing, manual removal, and route-change
+  invalidation. Widget typecheck/build, site Astro check/build, and browser
+  smoke passed under Node 22.
+- This is an owner-approved controlled first-party interim path. It does not
+  close G9 in the dealership implementation plan: arbitrary production-page
+  use still needs AI Fabric-owned transient, untrusted, turn-scoped,
+  non-action-eligible attachment semantics and associated security evidence.
