@@ -136,7 +136,7 @@ class DeploymentSourceCapabilityManifestServiceTest {
         return objectMapper.readTree("""
             {
               "schemaVersion": "loomai-runtime-capabilities-v1",
-              "aiFabricVersion": "0.8.6",
+              "aiFabricVersion": "0.8.7",
               "supportedBehaviorTypes": ["AGENTIC_SPECIALIST_TEAM"],
               "supportedActivationSources": ["TRUSTED_APPLICATION"],
               "supportedChannelBindings": ["MAX_MODE"],

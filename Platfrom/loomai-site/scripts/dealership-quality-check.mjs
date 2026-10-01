@@ -404,9 +404,18 @@ function scenarioAssertions(id, result, observedQueries) {
   if (id === 'empty-action-rag-fallback') {
     const overstatesInventoryAbsence = /(no vehicles (?:are )?available|inventory (?:is )?empty)/i.test(answer)
       && !/(no (?:matching|exact|diesel)|do not have a diesel|don.t have a diesel)/i.test(answer)
+    const emptySearchEvidence = evidence.actionEvidence.find(({ action, itemsCount }) => (
+      action === 'dealership_search_inventory' && itemsCount === 0
+    ))
     return [
       check('authoritative inventory action ran first', evidence.executedActions.includes('dealership_search_inventory'), 'dealership_search_inventory', evidence.executedActions),
       check('the exact search returned zero matches', actionItemCount(evidence, 'dealership_search_inventory') === 0, 0, actionItemCount(evidence, 'dealership_search_inventory')),
+      check(
+        'empty action is insufficient grounding',
+        emptySearchEvidence?.groundingSufficiency === 'INSUFFICIENT' && !emptySearchEvidence.groundingUsable,
+        'INSUFFICIENT with groundingUsable=false.',
+        emptySearchEvidence || null,
+      ),
       check('indexed evidence supplemented the empty action', evidence.ragUsed, 'At least one non-action retrieval document.', evidence.externalDocuments),
       check('answer distinguishes no match from an alternative', /(no|not|none|couldn.t find|do not have)/i.test(answer) && /Caldera X6/i.test(answer), 'No exact match, with Caldera X6 only as an alternative.', summarizeText(answer)),
       check('filtered no-match is not presented as empty inventory', !overstatesInventoryAbsence, 'Say the requested filters had no match, not that the dealership has no vehicles.', summarizeText(answer)),
@@ -527,6 +536,7 @@ function summarizeExecutedAction(entry) {
     action: entry?.action || null,
     success: entry?.success === true,
     groundingUsable: entry?.groundingUsable === true,
+    groundingSufficiency: entry?.groundingSufficiency || null,
     itemsCount: numericItemCount(evidence),
     itemIds: extractItemIds(evidence),
     truncated: entry?.truncated === true,
@@ -539,6 +549,7 @@ function summarizeActionResult(entry) {
   return {
     action: entry?.action || null,
     success: result?.success === true,
+    groundingSufficiency: result?.groundingSufficiency || null,
     errorCode: result?.errorCode || data?.errorCode || null,
     message: summarizeText(result?.message || data?.message, 500),
     itemsCount: numericItemCount(data),

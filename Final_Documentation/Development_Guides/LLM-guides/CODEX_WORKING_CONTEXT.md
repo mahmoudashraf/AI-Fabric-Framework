@@ -3197,3 +3197,48 @@ Critical fixes that made the gate pass:
   canary exact-fact/knowledge-boundary prompts, and rerun the strict matrix.
   Canonical evidence and findings are under
   `verification-support/autotrader-dealership-demo/`.
+
+## 2026-10-01 AI Fabric 0.8.7 Direct-Action Fallback Fix Published
+
+- The live v10 dealership canary isolated the remaining empty-result failure
+  to AI Fabric's direct `ACTION` path. Canonical connector output already
+  reported `groundingSufficiency=INSUFFICIENT`, but post-action grounding still
+  marked the empty result usable and the legacy fallback skipped RAG in an
+  action-preferred mode.
+- Public framework commit `f29c4e24` fixes this generically. It shares one
+  grounding-sufficiency rule across read-action paths, permits cooperative RAG
+  fallback for an eligible server-owned read action, and prevents an
+  insufficient action result from being projected as usable grounding. There
+  is no dealership vocabulary, field-name heuristic, or response-text match in
+  the implementation.
+- Focused framework tests passed `41/41`. The standard signed publication
+  reactor also passed all 30 included modules before the Maven Central client
+  wait expired. Release commit `9298de66` and tag
+  `ai-fabric-framework-v0.8.7` are immutable and pushed.
+- Maven Central accepted and published signed deployment
+  `03fb04b1-3e54-44bf-8f8a-a4b04d354302`, enumerates all expected `0.8.7`
+  coordinates, reports `PUBLISHED`, and reports an empty error map. The first
+  release workflow failed only because the plugin's 1,800-second publication
+  poll expired. The public BOM and required runtime artifacts now return HTTP
+  200, and rerun `36831062784` passed by detecting the immutable release and
+  correctly skipping a duplicate upload.
+- Public framework commits `68a992c2` and `9233ead9` add and correct a
+  status-only manual workflow for authenticated Central deployment readback.
+  It cannot upload, publish, drop, or otherwise mutate a deployment. Duplicate
+  broad framework builds triggered by those workflow-only commits were
+  cancelled.
+- The private Platform worktree has a reviewed but uncommitted `0.8.7`
+  compiler/BOM/runtime-manifest alignment and a stronger dealership quality
+  assertion requiring `INSUFFICIENT` plus `groundingUsable=false`. Focused
+  Platform version/compiler/manifest tests passed `21/21`, the runtime identity
+  test passed `4/4`, and the quality script passes syntax validation. A build
+  using an empty Maven cache succeeded for both the private runtime and generic
+  REST connector. The packaged runtime contains the required public `0.8.7`
+  core, execution, actions connector and retrieval connector JARs and no
+  `0.8.6` framework JAR.
+- No private commit has been pushed yet and no Platform backend, runtime,
+  connector, or dealership deployment has changed. Live deployment
+  `dep-f023c863` therefore remains on its prior healthy verified v10 release.
+  Next publish the exact private source/images, align the staging Platform,
+  and apply an unchanged dealership v11 through the Platform stop-first
+  lifecycle before making any live-quality claim.
