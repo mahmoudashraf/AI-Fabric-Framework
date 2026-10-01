@@ -21,9 +21,11 @@ import java.util.UUID;
 @Service
 public class LeadService {
 
+    private static final String CALLBACK_ACTION = "dealership_request_callback";
+    private static final String TEST_DRIVE_ACTION = "dealership_request_test_drive";
     private static final Set<String> SUPPORTED_ACTIONS = Set.of(
-        "dealership_request_callback",
-        "dealership_request_test_drive"
+        CALLBACK_ACTION,
+        TEST_DRIVE_ACTION
     );
     private static final Set<String> STATUSES = Set.of("NEW", "CONTACTED", "COMPLETED", "CANCELLED");
 
@@ -59,7 +61,7 @@ public class LeadService {
         String vehicleId = require(request.vehicleId(), "vehicleId", 80);
         Vehicle vehicle = vehicles.findActiveById(vehicleId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "The selected vehicle is no longer active."));
-        if (!request.consent()) {
+        if (CALLBACK_ACTION.equals(request.actionId().trim()) && !request.consent()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contact consent is required.");
         }
         String email = trim(request.email());
@@ -81,7 +83,7 @@ public class LeadService {
         Instant now = Instant.now();
         LeadRepository.LeadRecord created = repository.insert(new LeadRepository.LeadRecord(
             UUID.randomUUID().toString(), idempotencyKey, request.actionId().trim(), vehicle.id(),
-            encryption.encrypt(contact), "NEW", true, bounded(request.authContext().sessionId(), 160),
+            encryption.encrypt(contact), "NEW", request.consent(), bounded(request.authContext().sessionId(), 160),
             "NFM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), now, now
         ));
         return receipt(created, vehicle);

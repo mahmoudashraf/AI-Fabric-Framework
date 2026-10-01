@@ -145,7 +145,6 @@ actions:
           phone: "{{params.phone}}"
           preferredDate: "{{params.preferredDate}}"
           message: "{{params.message}}"
-          consent: "{{params.consent}}"
         trace:
           requestId: "{{trace.requestId}}"
           conversationId: "{{trace.conversationId}}"

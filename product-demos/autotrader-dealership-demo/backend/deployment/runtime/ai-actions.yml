@@ -214,12 +214,12 @@ actions:
         required: true
 
   - name: dealership_request_test_drive
-    description: Execute a dealership test-drive request only after the buyer asks to submit it and supplies the required buyer-owned details. Do not select this write action for requirements, preparation, explanation, or do-not-submit requests.
+    description: Execute a dealership test-drive request only after the buyer asks to submit it, supplies their name and contact details, and accepts the final confirmation. Do not select this write action for requirements, preparation, explanation, or do-not-submit requests.
     category: dealership_lead
     accessMode: WRITE_ONLY
     anonymousAllowed: true
     requiresConfirmation: true
-    confirmationMessage: Send your confirmed contact and preferred date to request this test drive?
+    confirmationMessage: Send your name, contact details and preferred date to request this test drive?
     params:
       - name: vehicle
         description: Buyer-facing vehicle make and model, stock id or URL slug.
@@ -261,7 +261,3 @@ actions:
         type: STRING
         required: false
         sensitive: true
-      - name: consent
-        description: Whether the customer agreed to be contacted about this request.
-        type: BOOLEAN
-        required: true

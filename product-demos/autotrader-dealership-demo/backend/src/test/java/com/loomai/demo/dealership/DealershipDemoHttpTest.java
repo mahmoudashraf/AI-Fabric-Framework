@@ -260,8 +260,7 @@ class DealershipDemoHttpTest {
                 "vehicleId", "veh-aster-e1",
                 "name", "Avery Buyer",
                 "email", "avery@example.test",
-                "preferredDate", "Saturday afternoon",
-                "consent", true
+                "preferredDate", "Saturday afternoon"
             ),
             "trace", Map.of(
                 "requestId", "request-1",
@@ -313,6 +312,48 @@ class DealershipDemoHttpTest {
             idempotencyKey
         );
         assertThat(count).isEqualTo(1);
+        Boolean consentRecorded = jdbc.queryForObject(
+            "SELECT consent_recorded FROM dealership_lead_request WHERE idempotency_key = ?",
+            Boolean.class,
+            idempotencyKey
+        );
+        assertThat(consentRecorded).isFalse();
+    }
+
+    @Test
+    void callbackStillRequiresExplicitContactConsent() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+            "actionId", "dealership_request_callback",
+            "idempotencyKey", "callback-test-" + UUID.randomUUID(),
+            "params", Map.of(
+                "confirmationAccepted", true,
+                "vehicleId", "veh-aster-e1",
+                "name", "Avery Buyer",
+                "phone", "+44 7700 900123"
+            ),
+            "trace", Map.of(
+                "requestId", "request-callback",
+                "conversationId", "conversation-callback",
+                "authContext", Map.of(
+                    "subjectId", "anonymous-session-1",
+                    "subjectType", "ANONYMOUS_SESSION",
+                    "authMode", "PUBLIC_RUNTIME_TOKEN",
+                    "callerType", "PUBLIC_BROWSER",
+                    "sessionId", "anonymous-session-1",
+                    "deploymentId", "dep-dealership-demo",
+                    "customerId", "customer-dealership-demo",
+                    "tenantId", "tenant-dealership-demo",
+                    "issuer", "runtime-public-bootstrap"
+                )
+            )
+        ));
+
+        mvc.perform(post("/api/internal/actions/execute")
+                .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
+                .contentType("application/json")
+                .content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Contact consent is required."));
     }
 
     private String authzRequest(String deploymentId, String resourceId) throws Exception {
