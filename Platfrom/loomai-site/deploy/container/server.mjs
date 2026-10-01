@@ -150,6 +150,15 @@ function cacheControl(targetPath) {
   if (targetPath.endsWith('.html') || targetPath.endsWith('.xml') || targetPath.endsWith('.txt')) {
     return 'public, max-age=0, must-revalidate'
   }
+  if (targetPath.endsWith(`${path.sep}vendor${path.sep}max-mode-widget-manifest.json`)) {
+    return 'no-store'
+  }
+  if (targetPath.endsWith(`${path.sep}vendor${path.sep}max-mode-widget.iife.js`)) {
+    return 'public, max-age=0, must-revalidate'
+  }
+  if (/max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(targetPath)) {
+    return 'public, max-age=31536000, immutable'
+  }
   if (targetPath.includes(`${path.sep}_astro${path.sep}`)) {
     return 'public, max-age=31536000, immutable'
   }

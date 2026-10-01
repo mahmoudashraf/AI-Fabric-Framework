@@ -1486,6 +1486,14 @@ Production use on arbitrary or user-generated pages remains subject to G9's
 framework-owned transient, untrusted, turn-scoped, non-action-eligible contract
 and its security tests.
 
+The public-site integration must deliver the generic widget through the
+generated `max-mode-widget-manifest.json` and its SHA-256-derived bundle name.
+The manifest is `no-store`; the content-hashed bundle is immutable. The legacy
+stable bundle URL remains available only with `max-age=0, must-revalidate` for
+transitional clients. Do not restore a long-lived cache policy on the stable
+URL: it allowed an existing browser to retain the obsolete single-page widget
+after the multi-page source had already been deployed.
+
 ### 21.2 Dealership-Specific Improvements
 
 | Priority | Surface and owner | Improvement | Required behavior and evidence |

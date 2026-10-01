@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -72,10 +73,35 @@ for (const required of [
   'assets/loom-woven-hero.png',
   'assets/demos/dealership/vehicle-01.webp',
   'assets/demos/dealership/vehicle-05.webp',
-  'vendor/max-mode-widget.iife.js',
+  'vendor/max-mode-widget-manifest.json',
 ]) {
   if (!existsSync(path.join(dist, required))) {
     errors.push(`Missing required static output: ${required}`)
+  }
+}
+
+const widgetManifestPath = path.join(dist, 'vendor/max-mode-widget-manifest.json')
+if (existsSync(widgetManifestPath)) {
+  try {
+    const widgetManifest = JSON.parse(readFileSync(widgetManifestPath, 'utf8'))
+    if (widgetManifest.schemaVersion !== 'loomai-widget-bundle-v1') {
+      errors.push('Widget bundle manifest has an unsupported schema version')
+    }
+    if (!/^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(widgetManifest.file || '')) {
+      errors.push('Widget bundle manifest has an invalid file name')
+    } else {
+      const widgetBundlePath = path.join(dist, 'vendor', widgetManifest.file)
+      if (!existsSync(widgetBundlePath)) {
+        errors.push(`Missing content-hashed widget bundle: vendor/${widgetManifest.file}`)
+      } else {
+        const actualSha256 = createHash('sha256').update(readFileSync(widgetBundlePath)).digest('hex')
+        if (widgetManifest.sha256 !== actualSha256) {
+          errors.push('Widget bundle manifest SHA-256 does not match the emitted bundle')
+        }
+      }
+    }
+  } catch (error) {
+    errors.push(`Widget bundle manifest is not valid JSON: ${error instanceof Error ? error.message : error}`)
   }
 }
 

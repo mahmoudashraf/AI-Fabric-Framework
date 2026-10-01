@@ -1,12 +1,25 @@
 import { spawn } from 'node:child_process'
-import { rm } from 'node:fs/promises'
+import { readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, '..')
-const generatedWidget = path.join(root, 'public/vendor/max-mode-widget.iife.js')
+const generatedWidgetDirectory = path.join(root, 'public/vendor')
+
+async function cleanGeneratedWidget() {
+  const entries = await readdir(generatedWidgetDirectory).catch(() => [])
+  for (const entry of entries) {
+    if (
+      entry === 'max-mode-widget.iife.js'
+      || entry === 'max-mode-widget-manifest.json'
+      || /^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(entry)
+    ) {
+      await rm(path.join(generatedWidgetDirectory, entry), { force: true })
+    }
+  }
+}
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
@@ -27,5 +40,5 @@ try {
   await run('npm', ['run', 'prepare:widget'])
   await run('npm', ['exec', '--', 'astro', 'build'])
 } finally {
-  await rm(generatedWidget, { force: true })
+  await cleanGeneratedWidget()
 }

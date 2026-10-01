@@ -320,10 +320,31 @@ async function loadWidgetBundle() {
     await waitForScript(existing)
     return
   }
+  const manifestResponse = await fetch('/vendor/max-mode-widget-manifest.json', {
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  })
+  if (!manifestResponse.ok) {
+    throw new Error('The LoomAI chat bundle manifest could not be loaded.')
+  }
+  const manifest = await manifestResponse.json() as {
+    schemaVersion?: string
+    file?: string
+    sha256?: string
+  }
+  if (
+    manifest.schemaVersion !== 'loomai-widget-bundle-v1'
+    || !/^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(manifest.file || '')
+    || !/^[a-f0-9]{64}$/.test(manifest.sha256 || '')
+    || !manifest.file?.includes(manifest.sha256!.slice(0, 16))
+  ) {
+    throw new Error('The LoomAI chat bundle manifest is invalid.')
+  }
   const script = document.createElement('script')
-  script.src = '/vendor/max-mode-widget.iife.js'
+  script.src = `/vendor/${manifest.file}`
   script.async = true
   script.dataset.maxModeBundle = 'true'
+  script.dataset.maxModeBundleSha256 = manifest.sha256
   document.head.append(script)
   await waitForScript(script)
 }

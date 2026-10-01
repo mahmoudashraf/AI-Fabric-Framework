@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
@@ -305,6 +306,29 @@ try {
     )
   }
 
+  const widgetManifestResponse = await fetch(`${origin}/vendor/max-mode-widget-manifest.json`)
+  if (widgetManifestResponse.headers.get('cache-control') !== 'no-store') {
+    throw new Error(`Widget manifest is cacheable: ${widgetManifestResponse.headers.get('cache-control')}`)
+  }
+  const widgetManifest = await widgetManifestResponse.json()
+  if (widgetManifest.schemaVersion !== 'loomai-widget-bundle-v1' ||
+      !/^max-mode-widget\.[a-f0-9]{16}\.iife\.js$/.test(widgetManifest.file || '')) {
+    throw new Error('Widget manifest did not expose a valid content-hashed bundle')
+  }
+  const widgetBundleResponse = await fetch(`${origin}/vendor/${widgetManifest.file}`)
+  if (widgetBundleResponse.headers.get('cache-control') !== 'public, max-age=31536000, immutable') {
+    throw new Error(`Content-hashed widget is not immutable: ${widgetBundleResponse.headers.get('cache-control')}`)
+  }
+  const widgetBundleBytes = Buffer.from(await widgetBundleResponse.arrayBuffer())
+  const widgetBundleSha256 = createHash('sha256').update(widgetBundleBytes).digest('hex')
+  if (widgetBundleSha256 !== widgetManifest.sha256) {
+    throw new Error('Widget manifest did not match the served bundle SHA-256')
+  }
+  const legacyWidgetResponse = await fetch(`${origin}/vendor/max-mode-widget.iife.js`)
+  if (!legacyWidgetResponse.ok || legacyWidgetResponse.headers.get('cache-control') !== 'public, max-age=0, must-revalidate') {
+    throw new Error('Legacy widget compatibility URL is missing or remains long-lived')
+  }
+
   const routes = [
     '/',
     '/products',
@@ -384,6 +408,12 @@ try {
   if (listingRuntimeState !== 'ready') {
     const detail = await page.locator('[data-runtime-state-detail]').textContent()
     throw new Error(`Dealership assistant did not become ready: ${detail}`)
+  }
+  const loadedWidgetScript = page.locator('script[data-max-mode-bundle]')
+  const loadedWidgetSource = await loadedWidgetScript.getAttribute('src')
+  const loadedWidgetSha256 = await loadedWidgetScript.getAttribute('data-max-mode-bundle-sha256')
+  if (loadedWidgetSource !== `/vendor/${widgetManifest.file}` || loadedWidgetSha256 !== widgetManifest.sha256) {
+    throw new Error('Dealership loaded a stable or mismatched widget bundle instead of the manifest version')
   }
   await page.locator('select[name="make"]').selectOption('Aster')
   await page.waitForFunction(() => document.querySelectorAll('.vehicle-card').length === 2)

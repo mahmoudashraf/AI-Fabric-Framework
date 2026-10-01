@@ -3367,3 +3367,27 @@ Critical fixes that made the gate pass:
   three-page runtime request. A 390x844 responsive check also proved wrapped
   chips have no horizontal overflow and remain outside the Companion input
   shell. G9 remains open for arbitrary production pages.
+
+## 2026-10-01 Public Widget Cache-Busting Correction
+
+- An owner browser continued to show only the old replace-only page attachment
+  behavior after the multi-page deployment. Fresh live browser evidence showed
+  the correct transition (`attach` on a new URL, `refresh` only on an already
+  attached URL), isolating the defect to browser asset delivery rather than the
+  collection controller.
+- Root cause: the public site loaded
+  `/vendor/max-mode-widget.iife.js`, while the production server advertised
+  `max-age=86400, stale-while-revalidate=604800`. Existing browsers could reuse
+  the prior widget for a day and stale content for up to a week.
+- The site build now computes the widget SHA-256, emits
+  `max-mode-widget.{digest-prefix}.iife.js`, and writes a
+  `loomai-widget-bundle-v1` manifest containing the exact filename and digest.
+  The loader fetches that manifest with `cache: no-store`, validates it, and
+  loads only the named content-addressed bundle.
+- Production cache policy is now `no-store` for the manifest and one-year
+  immutable for the content-hashed bundle. The old stable URL is retained only
+  for transitional clients with `max-age=0, must-revalidate`.
+- Static and browser gates verify the manifest schema, filename, SHA-256,
+  emitted file, all three cache policies, and the script URL actually selected
+  by the dealership page. The complete site gate passed with the existing
+  multi-page navigation, request, accessibility, and mobile assertions.
