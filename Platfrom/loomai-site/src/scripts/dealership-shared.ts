@@ -192,8 +192,10 @@ export async function initializeDealershipAssistant(
       currentPageAttachment: {
         enabled: true,
         maxChars: options.maxChars,
+        maxPages: 3,
+        maxTotalChars: 10000,
         rootSelector: options.rootSelector,
-        invalidateOnNavigation: true,
+        invalidateOnNavigation: false,
       },
       companionContextLabel: options.contextLabel,
       companionModeLabel: 'Vehicle assistant',
@@ -348,4 +350,3 @@ function absoluteRuntimeTemplateUrl(baseUrl: string, value: string) {
     .replaceAll('%7BconversationId%7D', '{conversationId}')
     .replaceAll('%7bconversationId%7d', '{conversationId}')
 }
-

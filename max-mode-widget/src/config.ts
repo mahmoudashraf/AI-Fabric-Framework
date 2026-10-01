@@ -155,13 +155,21 @@ export interface MaxModeCurrentPageAttachmentConfig {
   enabled?: boolean;
   /** Maximum extracted characters. Defaults to 1800 and is capped at 20000. */
   maxChars?: number;
+  /** Maximum number of separately attached pages. Defaults to 3 and is capped at 10. */
+  maxPages?: number;
+  /** Maximum characters across all attached pages. Defaults to maxChars * maxPages and is capped at 50000. */
+  maxTotalChars?: number;
   /** Optional host DOM selector to use as the page-content root. */
   rootSelector?: string;
   /** Additional selectors excluded from browser text extraction. */
   excludeSelectors?: string[];
   /** Optional host-owned extractor for SPAs or pages with structured content. */
   contentProvider?: MaxModeCurrentPageContentProvider;
-  /** Remove captured context when browser navigation changes. Defaults to true. */
+  /**
+   * Remove captured context when browser navigation changes. Defaults to true.
+   * Set to false only when the host intentionally lets users collect pages in
+   * the widget's existing tab-scoped session.
+   */
   invalidateOnNavigation?: boolean;
 }
 

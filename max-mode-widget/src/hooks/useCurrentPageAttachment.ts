@@ -4,9 +4,12 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { MaxModeCurrentPageAttachmentConfig, MaxModeHostAttachment } from "@/config";
 import {
   captureCurrentPageAttachment,
+  currentPageAttachmentCharacters,
   currentLocationFingerprint,
   isCurrentPageAttachment,
   resolveCurrentPageMaxChars,
+  resolveCurrentPageMaxPages,
+  resolveCurrentPageMaxTotalChars,
 } from "@/pageAttachment";
 
 type ToastFn = (opts: any) => void;
@@ -26,13 +29,41 @@ export function useCurrentPageAttachment({
 }) {
   const enabled = Boolean(config && config.enabled !== false);
   const [isCapturingCurrentPage, setIsCapturingCurrentPage] = useState(false);
+  const [activeLocationFingerprint, setActiveLocationFingerprint] = useState(currentLocationFingerprint);
   const invalidatedRef = useRef(false);
-  const currentPageAttachment = useMemo(
-    () => attachedItems.find(isCurrentPageAttachment),
+  const currentPageAttachments = useMemo(
+    () => attachedItems.filter(isCurrentPageAttachment),
     [attachedItems],
   );
+  const currentPageAttachment = useMemo(
+    () => currentPageAttachments.find(
+      (item) => item.data?._locationFingerprint === activeLocationFingerprint,
+    ),
+    [activeLocationFingerprint, currentPageAttachments],
+  );
+  const currentPageAttachmentMaxChars = resolveCurrentPageMaxChars(config);
+  const currentPageAttachmentMaxPages = resolveCurrentPageMaxPages(config);
+  const currentPageAttachmentMaxTotalChars = resolveCurrentPageMaxTotalChars(config);
+  const currentPageAttachmentTotalChars = useMemo(
+    () => currentPageAttachments.reduce(
+      (total, item) => total + currentPageAttachmentCharacters(item),
+      0,
+    ),
+    [currentPageAttachments],
+  );
+  const canAttachCurrentPage = Boolean(currentPageAttachment)
+    || (
+      currentPageAttachments.length < currentPageAttachmentMaxPages
+      && currentPageAttachmentTotalChars < currentPageAttachmentMaxTotalChars
+    );
 
-  const removeCurrentPageAttachment = useCallback(() => {
+  const removeCurrentPageAttachment = useCallback((attachmentId: string) => {
+    setAttachedItems((current) => current.filter(
+      (item) => !isCurrentPageAttachment(item) || item.data?.id !== attachmentId,
+    ));
+  }, [setAttachedItems]);
+
+  const removeAllCurrentPageAttachments = useCallback(() => {
     setAttachedItems((current) => current.filter((item) => !isCurrentPageAttachment(item)));
   }, [setAttachedItems]);
 
@@ -41,14 +72,30 @@ export function useCurrentPageAttachment({
     setIsCapturingCurrentPage(true);
     try {
       const attachment = await captureCurrentPageAttachment(config);
-      setAttachedItems((current) => [
-        ...current.filter((item) => !isCurrentPageAttachment(item)),
-        attachment,
-      ]);
+      const existing = currentPageAttachments.find((item) => item.data?.id === attachment.data?.id);
+      const nextPageCount = currentPageAttachments.length + (existing ? 0 : 1);
+      if (nextPageCount > currentPageAttachmentMaxPages) {
+        throw new Error(`Remove a page before attaching another (maximum ${currentPageAttachmentMaxPages}).`);
+      }
+      const nextTotalCharacters = currentPageAttachmentTotalChars
+        - currentPageAttachmentCharacters(existing)
+        + currentPageAttachmentCharacters(attachment);
+      if (nextTotalCharacters > currentPageAttachmentMaxTotalChars) {
+        throw new Error(
+          `Remove a page before attaching more text (maximum ${currentPageAttachmentMaxTotalChars} characters).`,
+        );
+      }
+      setAttachedItems((current) => {
+        const existingIndex = current.findIndex(
+          (item) => isCurrentPageAttachment(item) && item.data?.id === attachment.data?.id,
+        );
+        if (existingIndex < 0) return [...current, attachment];
+        return current.map((item, index) => index === existingIndex ? attachment : item);
+      });
       invalidatedRef.current = false;
       toast({
-        title: "Page attached",
-        description: `Current page context is ready (${attachment.data.metadata.capturedCharacters} characters).`,
+        title: existing ? "Page refreshed" : "Page attached",
+        description: `${nextPageCount} of ${currentPageAttachmentMaxPages} pages ready (${nextTotalCharacters} total characters).`,
       });
       setTimeout(() => chatInputRef.current?.focus(), 50);
     } catch (error) {
@@ -60,12 +107,23 @@ export function useCurrentPageAttachment({
     } finally {
       setIsCapturingCurrentPage(false);
     }
-  }, [chatInputRef, config, enabled, isCapturingCurrentPage, setAttachedItems, toast]);
+  }, [
+    chatInputRef,
+    config,
+    currentPageAttachmentMaxPages,
+    currentPageAttachmentMaxTotalChars,
+    currentPageAttachmentTotalChars,
+    currentPageAttachments,
+    enabled,
+    isCapturingCurrentPage,
+    setAttachedItems,
+    toast,
+  ]);
 
   useEffect(() => {
     if (enabled) return;
-    removeCurrentPageAttachment();
-  }, [enabled, removeCurrentPageAttachment]);
+    removeAllCurrentPageAttachments();
+  }, [enabled, removeAllCurrentPageAttachments]);
 
   useEffect(() => {
     function onAttachCurrentPage() {
@@ -76,34 +134,55 @@ export function useCurrentPageAttachment({
   }, [attachCurrentPage]);
 
   useEffect(() => {
-    if (!enabled || !currentPageAttachment || config?.invalidateOnNavigation === false) return;
-    const capturedFingerprint = currentPageAttachment.data?._locationFingerprint;
-    if (!capturedFingerprint) return;
-
-    const invalidateIfNavigated = () => {
-      if (invalidatedRef.current || capturedFingerprint === currentLocationFingerprint()) return;
-      invalidatedRef.current = true;
-      removeCurrentPageAttachment();
-      toast({
-        title: "Page context removed",
-        description: "Attach the new page when you want the assistant to read it.",
-      });
+    if (!enabled) return;
+    const syncLocation = () => {
+      const nextFingerprint = currentLocationFingerprint();
+      setActiveLocationFingerprint((current) => current === nextFingerprint ? current : nextFingerprint);
     };
-
-    window.addEventListener("popstate", invalidateIfNavigated);
-    window.addEventListener("hashchange", invalidateIfNavigated);
-    const intervalId = window.setInterval(invalidateIfNavigated, 500);
+    window.addEventListener("popstate", syncLocation);
+    window.addEventListener("hashchange", syncLocation);
+    const intervalId = window.setInterval(syncLocation, 500);
     return () => {
-      window.removeEventListener("popstate", invalidateIfNavigated);
-      window.removeEventListener("hashchange", invalidateIfNavigated);
+      window.removeEventListener("popstate", syncLocation);
+      window.removeEventListener("hashchange", syncLocation);
       window.clearInterval(intervalId);
     };
-  }, [config?.invalidateOnNavigation, currentPageAttachment, enabled, removeCurrentPageAttachment, toast]);
+  }, [enabled]);
+
+  useEffect(() => {
+    if (
+      !enabled
+      || currentPageAttachments.length === 0
+      || config?.invalidateOnNavigation === false
+      || currentPageAttachments.every(
+        (item) => item.data?._locationFingerprint === activeLocationFingerprint,
+      )
+      || invalidatedRef.current
+    ) return;
+    invalidatedRef.current = true;
+    removeAllCurrentPageAttachments();
+    toast({
+      title: "Page context removed",
+      description: "Attach the new page when you want the assistant to read it.",
+    });
+  }, [
+    activeLocationFingerprint,
+    config?.invalidateOnNavigation,
+    currentPageAttachments,
+    enabled,
+    removeAllCurrentPageAttachments,
+    toast,
+  ]);
 
   return {
     currentPageAttachmentEnabled: enabled,
     currentPageAttachment,
-    currentPageAttachmentMaxChars: resolveCurrentPageMaxChars(config),
+    currentPageAttachments,
+    currentPageAttachmentMaxChars,
+    currentPageAttachmentMaxPages,
+    currentPageAttachmentMaxTotalChars,
+    currentPageAttachmentTotalChars,
+    canAttachCurrentPage,
     isCapturingCurrentPage,
     attachCurrentPage,
     removeCurrentPageAttachment,

@@ -100,7 +100,9 @@ export function AttachmentsRow({
                               variant="ghost"
                               onClick={() => onRemoveAttachment(idx)}
                               className="h-6 w-6 flex-shrink-0 hover:bg-red-500/20 text-purple-700 hover:text-red-600"
-                              aria-label={isCurrentPage ? "Remove attached page" : "Remove attachment"}
+                              aria-label={isCurrentPage
+                                ? `Remove attached page: ${item.data.title || "Current page"}`
+                                : "Remove attachment"}
                               data-max-mode-current-page-remove={isCurrentPage ? "true" : undefined}
                             >
                               <X className="h-3 w-3" />

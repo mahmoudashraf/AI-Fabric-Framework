@@ -399,8 +399,26 @@ try {
     throw new Error('Dealership comparison dialog did not open')
   }
   await page.locator('[data-close-comparison]').click()
-  await page.locator('[data-card-details]').first().click()
-  await page.waitForURL('**/demos/dealership-ai/vehicles/aster-e1-motion')
+
+  const currentPageChips = page.locator('[data-max-mode-current-page-chip]')
+  const listingAttachButton = page.getByRole('button', { name: 'Attach current page' })
+  const listingAttachInsideInputShell = await listingAttachButton.evaluate((element) =>
+    Boolean(element.closest('[data-max-mode-companion-input-shell]')),
+  )
+  if (listingAttachInsideInputShell) {
+    throw new Error('Attach-current-page control is still inside the Companion input shell')
+  }
+  await listingAttachButton.click()
+  await currentPageChips.first().waitFor()
+  if ((await currentPageChips.count()) !== 1) {
+    throw new Error('Inventory page attachment did not create exactly one page entry')
+  }
+
+  const firstVehicleDetailUrl = await page.locator('[data-card-details]').first().getAttribute('href')
+  if (!firstVehicleDetailUrl) {
+    throw new Error('Dealership vehicle card did not expose its detail route')
+  }
+  await page.goto(`${origin}${firstVehicleDetailUrl}`, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => document.querySelector('[data-vehicle-evidence]')?.getAttribute('aria-busy') === 'false')
   await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
   if ((await page.getByRole('heading', { level: 1 }).textContent()) !== '2025 Aster E1') {
@@ -415,10 +433,13 @@ try {
     throw new Error('Attach-current-page control is still inside the Companion input shell')
   }
   await attachCurrentPageButton.click()
-  const currentPageChip = page.locator('[data-max-mode-current-page-chip]')
-  await currentPageChip.waitFor()
-  if (!(await currentPageChip.getByText('2025 Aster E1', { exact: false }).count())) {
+  await currentPageChips.nth(1).waitFor()
+  if (!(await currentPageChips.getByText('2025 Aster E1', { exact: false }).count())) {
     throw new Error('Current-page attachment did not expose the page title')
+  }
+  await page.getByRole('button', { name: 'Refresh current page' }).click()
+  if ((await currentPageChips.count()) !== 2) {
+    throw new Error('Refreshing the current page created a duplicate attachment')
   }
   await page.locator('section[aria-label="Northfield AI"]').screenshot({
     path: path.join(screenshotDir, 'dealership-vehicle-current-page-attachment.png'),
@@ -428,7 +449,7 @@ try {
   await page.getByTitle('Open Max Mode').click()
   const maxModeInputShell = page.locator('[data-max-mode-composer-input-shell]')
   await maxModeInputShell.waitFor()
-  const maxModeAttachButton = page.getByRole('button', { name: 'Refresh attached page' })
+  const maxModeAttachButton = page.getByRole('button', { name: 'Refresh current page' })
   await maxModeAttachButton.waitFor()
   const attachInsideMaxModeInputShell = await maxModeAttachButton.evaluate((element) =>
     Boolean(element.closest('[data-max-mode-composer-input-shell]')),
@@ -439,32 +460,97 @@ try {
   await page.getByRole('button', { name: 'Close MAX Mode' }).click()
   await page.locator('section[aria-label="Northfield AI"]').waitFor()
 
+  await page.goto(`${origin}/demos/dealership-ai/vehicles/aster-e2-sport`, { waitUntil: 'networkidle' })
+  await page.waitForFunction(() => document.querySelector('[data-vehicle-evidence]')?.getAttribute('aria-busy') === 'false')
+  await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
+  await currentPageChips.nth(1).waitFor()
+  await page.getByRole('button', { name: 'Attach current page' }).click()
+  await currentPageChips.nth(2).waitFor()
+  if (!(await currentPageChips.getByText('2025 Aster E2', { exact: false }).count())) {
+    throw new Error('Second vehicle page was not retained as a separate attachment')
+  }
+
+  await page.goto(`${origin}/demos/dealership-ai/vehicles/northstar-s4-touring`, { waitUntil: 'networkidle' })
+  await page.waitForFunction(() => document.querySelector('[data-vehicle-evidence]')?.getAttribute('aria-busy') === 'false')
+  await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
+  await currentPageChips.nth(2).waitFor()
+  const pageLimitButton = page.getByRole('button', { name: 'Page attachment limit reached' })
+  await pageLimitButton.waitFor()
+  if (!(await pageLimitButton.isDisabled())) {
+    throw new Error('Page attachment limit did not disable collection of a fourth page')
+  }
+  await page.getByRole('button', { name: /Remove attached page: Northfield Motor House demo/i }).click()
+  await currentPageChips.nth(2).waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Attach current page' }).click()
+  await currentPageChips.nth(2).waitFor()
+  if (!(await currentPageChips.getByText('2024 Northstar S4', { exact: false }).count())) {
+    throw new Error('A page could not be attached after removing one collection entry')
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  const mobilePageToolbar = page.locator('[data-max-mode-current-page-toolbar]')
+  const mobileCompanionInputShell = page.locator('[data-max-mode-companion-input-shell]')
+  const mobileToolbarMetrics = await mobilePageToolbar.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { bottom: rect.bottom, clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }
+  })
+  const mobileInputTop = await mobileCompanionInputShell.evaluate(
+    (element) => element.getBoundingClientRect().top,
+  )
+  if (mobileToolbarMetrics.scrollWidth - mobileToolbarMetrics.clientWidth > 1) {
+    throw new Error('Multi-page attachment toolbar overflows horizontally on mobile')
+  }
+  if (mobileToolbarMetrics.bottom > mobileInputTop + 1) {
+    throw new Error('Multi-page attachment toolbar overlaps the mobile Companion input shell')
+  }
+  await page.locator('section[aria-label="Northfield AI"]').screenshot({
+    path: path.join(screenshotDir, 'dealership-multi-page-attachments-mobile.png'),
+    animations: 'disabled',
+  })
+  await page.setViewportSize({ width: 1440, height: 1000 })
+
   const pageContextRequestPromise = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
-    return request.postDataJSON()?.query === 'Summarize the attached vehicle detail page.'
+    return request.postDataJSON()?.query === 'Compare the three attached vehicle detail pages.'
   })
   const companionInput = page.getByRole('textbox', { name: 'Ask Northfield AI' })
-  await companionInput.fill('Summarize the attached vehicle detail page.')
+  await companionInput.fill('Compare the three attached vehicle detail pages.')
   await page.getByTitle('Send message').click()
   const pageContextPayload = (await pageContextRequestPromise).postDataJSON()
-  const pageContextAttachment = pageContextPayload.attachments?.find(
+  const pageContextAttachments = pageContextPayload.attachments?.filter(
     (attachment) => attachment.source === 'current-page',
-  )
-  if (!pageContextAttachment) {
-    throw new Error('Current-page text was not sent as an attachment')
+  ) || []
+  if (pageContextAttachments.length !== 3) {
+    throw new Error(`Expected three current-page attachments, found ${pageContextAttachments.length}`)
   }
-  if (Object.hasOwn(pageContextAttachment, 'vectorSpace')) {
+  if (pageContextAttachments.some((attachment) => Object.hasOwn(attachment, 'vectorSpace'))) {
     throw new Error('Current-page attachment was incorrectly assigned a vector space')
   }
-  if (!pageContextAttachment.contentText?.includes('2025 Aster E1') ||
-      !pageContextAttachment.contentText?.includes('Adaptive cruise control')) {
-    throw new Error('Current-page attachment did not include the focused vehicle details')
+  const pageContextText = pageContextAttachments.map((attachment) => attachment.contentText || '').join('\n')
+  if (!pageContextText.includes('2025 Aster E1') ||
+      !pageContextText.includes('Adaptive cruise control') ||
+      !pageContextText.includes('2025 Aster E2') ||
+      !pageContextText.includes('Dual-motor all-wheel drive') ||
+      !pageContextText.includes('2024 Northstar S4') ||
+      !pageContextText.includes('Blind-spot monitoring')) {
+    throw new Error('Multi-page attachments did not preserve each vehicle detail snapshot')
   }
-  if (pageContextAttachment.metadata?.capturedCharacters > 4000) {
-    throw new Error('Current-page attachment exceeded the configured text limit')
+  if (pageContextAttachments.some((attachment) => attachment.metadata?.capturedCharacters > 4000)) {
+    throw new Error('A current-page attachment exceeded the configured per-page text limit')
   }
-  if (pageContextAttachment.url?.includes('?') || pageContextAttachment.url?.includes('#')) {
+  const totalPageCharacters = pageContextAttachments.reduce(
+    (total, attachment) => total + Number(attachment.metadata?.capturedCharacters || 0),
+    0,
+  )
+  if (totalPageCharacters > 10000) {
+    throw new Error('Current-page attachments exceeded the configured aggregate text limit')
+  }
+  if (pageContextAttachments.some((attachment) => attachment.url?.includes('?') || attachment.url?.includes('#'))) {
     throw new Error('Current-page attachment leaked URL query or fragment data')
+  }
+  if (new Set(pageContextAttachments.map((attachment) => attachment.id)).size !== 3 ||
+      new Set(pageContextAttachments.map((attachment) => attachment.url)).size !== 3) {
+    throw new Error('Multi-page attachments did not retain distinct page identities')
   }
   if (pageContextPayload.mode !== 'executor' || pageContextPayload.position !== 'landing') {
     throw new Error('Current-page attachment unexpectedly changed chat routing')
@@ -474,12 +560,12 @@ try {
     { exact: true },
   ).first().waitFor()
 
-  await page.getByRole('button', { name: 'Remove attached page' }).click()
-  await currentPageChip.waitFor({ state: 'detached' })
-  await page.getByRole('button', { name: 'Attach current page' }).click()
-  await currentPageChip.waitFor()
-  await page.evaluate(() => history.pushState({}, '', '?attachment-route-check=1'))
-  await page.getByRole('button', { name: 'Attach current page' }).waitFor()
+  await page.getByRole('button', { name: /Remove attached page: 2025 Aster E2/i }).click()
+  await currentPageChips.nth(2).waitFor({ state: 'detached' })
+  if (!(await currentPageChips.getByText('2025 Aster E1', { exact: false }).count()) ||
+      !(await currentPageChips.getByText('2024 Northstar S4', { exact: false }).count())) {
+    throw new Error('Removing one page attachment removed another retained page')
+  }
   await page.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.vehicle-card')
   await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')

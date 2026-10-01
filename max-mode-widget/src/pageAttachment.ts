@@ -7,6 +7,9 @@ import type {
 export const CURRENT_PAGE_ATTACHMENT_TYPE = "current-page";
 export const DEFAULT_CURRENT_PAGE_MAX_CHARS = 1800;
 export const MAX_CURRENT_PAGE_MAX_CHARS = 20000;
+export const DEFAULT_CURRENT_PAGE_MAX_PAGES = 3;
+export const MAX_CURRENT_PAGE_MAX_PAGES = 10;
+export const MAX_CURRENT_PAGE_TOTAL_CHARS = 50000;
 
 const DEFAULT_EXCLUDE_SELECTORS = [
   "script",
@@ -47,6 +50,25 @@ export function resolveCurrentPageMaxChars(config?: MaxModeCurrentPageAttachment
   return Math.min(Math.max(Math.floor(configured), 1), MAX_CURRENT_PAGE_MAX_CHARS);
 }
 
+export function resolveCurrentPageMaxPages(config?: MaxModeCurrentPageAttachmentConfig): number {
+  const configured = Number(config?.maxPages);
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return DEFAULT_CURRENT_PAGE_MAX_PAGES;
+  }
+  return Math.min(Math.max(Math.floor(configured), 1), MAX_CURRENT_PAGE_MAX_PAGES);
+}
+
+export function resolveCurrentPageMaxTotalChars(config?: MaxModeCurrentPageAttachmentConfig): number {
+  const configured = Number(config?.maxTotalChars);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.min(Math.max(Math.floor(configured), 1), MAX_CURRENT_PAGE_TOTAL_CHARS);
+  }
+  return Math.min(
+    resolveCurrentPageMaxChars(config) * resolveCurrentPageMaxPages(config),
+    MAX_CURRENT_PAGE_TOTAL_CHARS,
+  );
+}
+
 export function currentLocationFingerprint(): string {
   if (typeof window === "undefined") return "server";
   return stableHash(window.location.href);
@@ -54,6 +76,15 @@ export function currentLocationFingerprint(): string {
 
 export function isCurrentPageAttachment(item: MaxModeHostAttachment | undefined | null): boolean {
   return item?.type === CURRENT_PAGE_ATTACHMENT_TYPE;
+}
+
+export function currentPageAttachmentCharacters(item: MaxModeHostAttachment | undefined | null): number {
+  if (!isCurrentPageAttachment(item)) return 0;
+  const capturedCharacters = Number(item?.data?.metadata?.capturedCharacters);
+  if (Number.isFinite(capturedCharacters) && capturedCharacters >= 0) {
+    return Math.floor(capturedCharacters);
+  }
+  return typeof item?.data?.content === "string" ? item.data.content.length : 0;
 }
 
 export async function captureCurrentPageAttachment(

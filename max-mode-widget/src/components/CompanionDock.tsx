@@ -173,9 +173,14 @@ export function CompanionDock({
         >
           <div className="max-w-full rounded-xl border border-blue-200 bg-white p-1 shadow-[0_10px_30px_rgba(15,23,42,0.14)] dark:border-gray-700 dark:bg-gray-950">
             <CurrentPageAttachmentControl
+              attachments={controller.currentPageAttachments}
               attachment={controller.currentPageAttachment}
               isCapturing={controller.isCapturingCurrentPage}
               maxChars={controller.currentPageAttachmentMaxChars}
+              maxPages={controller.currentPageAttachmentMaxPages}
+              maxTotalChars={controller.currentPageAttachmentMaxTotalChars}
+              totalChars={controller.currentPageAttachmentTotalChars}
+              canAttach={controller.canAttachCurrentPage}
               onAttach={() => void controller.attachCurrentPage()}
               onRemove={controller.removeCurrentPageAttachment}
             />

@@ -3298,12 +3298,11 @@ Critical fixes that made the gate pass:
   `source=current-page` and `contentText`. It deliberately omits an invented
   vector space and does not change the host's position or conversation mode.
   No AI Fabric source or deployment was changed.
-- The fictional dealership demo opts in with `rootSelector=#main-content` and
-  `maxChars=1800`. Local browser smoke proved title/chip rendering, visible
-  content capture, the character ceiling, URL query/fragment removal,
-  unchanged `executor` / `landing` routing, manual removal, and route-change
-  invalidation. Widget typecheck/build, site Astro check/build, and browser
-  smoke passed under Node 22.
+- The fictional dealership initially opted in with
+  `rootSelector=#main-content` and `maxChars=1800`; the later multi-page entry
+  below supersedes its single-page navigation behavior. Generic navigation
+  invalidation remains the default. Widget typecheck/build, site Astro
+  check/build, and browser smoke passed under Node 22.
 - This is an owner-approved controlled first-party interim path. It does not
   close G9 in the dealership implementation plan: arbitrary production-page
   use still needs AI Fabric-owned transient, untrusted, turn-scoped,
@@ -3324,8 +3323,9 @@ Critical fixes that made the gate pass:
   untrusted attachment and cannot authorize an action target.
 - The inventory route remains bounded to `rootSelector=#main-content` and
   `maxChars=1800`. Vehicle pages use the focused
-  `rootSelector=#vehicle-detail-content` and `maxChars=4000`, allowing one
-  coherent title, summary, facts, features and source boundary to be captured.
+  `rootSelector=#vehicle-detail-content` and `maxChars=4000`, allowing each
+  vehicle title, summary, facts, features and source boundary to be captured as
+  its own record.
 - Moved the generic attach/refresh control into a separate utility rail above
   and outside both the Companion and full Max Mode bordered input shells.
   Added explicit DOM markers and browser assertions for both surfaces. The
@@ -3335,5 +3335,35 @@ Critical fixes that made the gate pass:
   29-page static build, content graph, 27-route static smoke, full browser/Axe
   smoke, mobile/desktop screenshots, detail-page capture, 4000-character
   ceiling, no invented vector space, unchanged `executor` / `landing` routing,
-  manual removal and route invalidation. G9 remains open for arbitrary
+  and manual removal. The later multi-page entry below supersedes the
+  dealership's navigation-invalidation setting. G9 remains open for arbitrary
   production pages; this remains a controlled first-party interim flow.
+
+## 2026-10-01 Multi-Page Current-Page Attachments
+
+- Extended the generic `host.currentPageAttachment` contract from one
+  replace-only snapshot to a bounded collection of separate page attachments.
+  `maxPages` defaults to `3` and is capped at `10`; `maxTotalChars` defaults to
+  `maxChars * maxPages` and is capped at `50000`. The existing per-page ceiling
+  still applies.
+- Attaching a different page appends a new record. Reattaching the same page
+  refreshes that record without duplication. Each chip removes only its own
+  page, and reaching either collection limit disables addition of a new page
+  until the user removes one; no page is silently evicted.
+- Navigation invalidation remains the generic default. A controlled host can
+  set `invalidateOnNavigation=false` to retain the collection through the
+  widget's existing tab-scoped `sessionStorage` conversation state. The
+  fictional dealership deliberately uses that option with `maxPages=3` and
+  `maxTotalChars=10000` so inventory and vehicle-detail pages can be collected
+  across normal full-page navigation.
+- The runtime projection remains one ordinary `source=current-page`
+  attachment per page, with distinct sanitized URL/ID, `contentText`, and no
+  invented vector space. Collection does not change mode, position, trusted
+  vehicle targeting, indexing, or deployment behavior.
+- Local Node 22 verification passed widget typecheck/build, Astro diagnostics,
+  the 29-page build, 27-route static smoke, browser/Axe smoke, and an expanded
+  multi-page scenario covering full navigation, restoration, duplicate-free
+  refresh, three-page capacity, individual removal, aggregate bounds, and a
+  three-page runtime request. A 390x844 responsive check also proved wrapped
+  chips have no horizontal overflow and remain outside the Companion input
+  shell. G9 remains open for arbitrary production pages.

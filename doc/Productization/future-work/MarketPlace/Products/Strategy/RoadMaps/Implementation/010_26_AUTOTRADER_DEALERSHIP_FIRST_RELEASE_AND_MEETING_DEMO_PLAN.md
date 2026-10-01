@@ -1443,35 +1443,43 @@ input shell. At capture time it:
   and `body` as generic fallbacks;
 - excludes scripts, styles, templates, navigation, footers, forms, hidden
   content, the widget host, and host-provided exclusion selectors;
-- normalizes and bounds the text to a configurable limit, defaulting to `1800`
+- normalizes and bounds each page to a configurable limit, defaulting to `1800`
   characters and capped client-side at `20000`;
-- shows the page title as a removable attachment chip and supports explicit
-  refresh;
+- keeps pages as separate attachment records, defaults to at most three pages,
+  caps the configurable page count at ten, and also enforces a configurable
+  aggregate character limit capped at `50000`;
+- shows every page title as an independently removable attachment chip,
+  refreshes the current page in place, and never silently evicts another page;
 - strips URL query parameters, fragments, and credentials before projection;
 - sends `source=current-page` and `contentText` without inventing a vector
   space or changing the existing conversation position/mode; and
-- removes the captured context after route/hash navigation by default so a
-  stale page snapshot is not silently reused.
+- removes captured context after route/hash navigation by default so a stale
+  snapshot is not silently reused. A controlled host may explicitly disable
+  invalidation to collect pages through the widget's existing tab-scoped
+  session state.
 
-The dealership inventory route enables this generic feature with
-`rootSelector=#main-content` and `maxChars=1800`. Each current demonstration
-vehicle now also has a stable
+The dealership demo explicitly enables a three-page, `10000` aggregate
+character collection and retains it across full-page navigation in the same
+browser tab. The inventory route uses `rootSelector=#main-content` and
+`maxChars=1800`. Each current demonstration vehicle also has a stable
 `/demos/dealership-ai/vehicles/{slug}` detail route. The route shell is
 pre-rendered, but every price, mileage, lifecycle, feature, source and freshness
 fact is fetched from the independently deployed dealership backend at runtime.
 The focused detail surface uses `rootSelector=#vehicle-detail-content` and a
-bounded `maxChars=4000`, which lets the user attach one coherent vehicle page
-rather than an inventory listing containing several products.
+bounded `maxChars=4000`, which lets the user collect several coherent vehicle
+pages for comparison rather than one inventory listing containing several
+products.
 
 The separate detail route does not change authority. `Attach current page`
 continues to send ordinary untrusted page text with no vector space. The
 explicit `Ask about this vehicle` and `Request a test drive` controls separately
 attach the backend-provided structured vehicle target before invoking the same
 deployment. Browser evidence proves route navigation, backend fact rendering,
-external-toolbar placement, capture of title/facts/features, bounded request
-projection, no vector-space label, preserved `executor`/`landing` routing,
-manual removal, and navigation invalidation. The widget implementation contains
-no dealership, vehicle, or Auto Trader matching logic.
+external-toolbar placement, tab-session restoration, in-place refresh, three
+distinct page records, the page-count and aggregate-character ceilings,
+per-page removal, capture of title/facts/features, bounded request projection,
+no vector-space label, and preserved `executor`/`landing` routing. The widget
+implementation contains no dealership, vehicle, or Auto Trader matching logic.
 
 The interim feature is suitable for this controlled first-party demo.
 Production use on arbitrary or user-generated pages remains subject to G9's

@@ -186,9 +186,11 @@ interface MaxModeWidgetConfig {
     currentPageAttachment?: {
       enabled?: boolean;              // Defaults to true when configured
       maxChars?: number;              // Default 1800; client cap 20000
+      maxPages?: number;              // Default 3; client cap 10
+      maxTotalChars?: number;          // Default maxChars * maxPages; cap 50000
       rootSelector?: string;           // Defaults to main/[role=main]/article/body
       excludeSelectors?: string[];     // Added to safe default exclusions
-      invalidateOnNavigation?: boolean;// Default true
+      invalidateOnNavigation?: boolean;// Default true; false retains pages in this tab
       contentProvider?: () =>
         | { title?: string; text: string; url?: string }
         | Promise<{ title?: string; text: string; url?: string }>;
@@ -200,8 +202,10 @@ interface MaxModeWidgetConfig {
 ```
 
 When enabled, the attach/refresh control is rendered in a separate utility rail
-above the Companion or Max Mode input shell. The captured page title appears as
-a removable chip; the control is not embedded inside the text-entry box.
+above the Companion or Max Mode input shell. Each captured page remains a
+separate removable chip. Reattaching the same page refreshes that entry without
+duplicating it; a new page appends until `maxPages` or `maxTotalChars` is
+reached. The control never silently evicts an attached page.
 
 Current-page capture is user initiated. The widget excludes scripts, styles,
 navigation, footers, forms, hidden content, and its own host element; normalizes
@@ -209,6 +213,11 @@ and bounds the text; removes query strings and hashes from the source URL; and
 sends it as a standard `contentText` attachment without inventing a vector
 space. A custom `contentProvider` is recommended when a host application can
 project a smaller, explicitly approved page view.
+
+Navigation invalidates page attachments by default. A controlled host can set
+`invalidateOnNavigation: false` to retain multiple pages through the widget's
+existing tab-scoped `sessionStorage` state. The collection is cleared with the
+widget conversation state and is not durable across browser tabs.
 
 `crudBaseUrl` is optional for secure chat-only integrations.
 

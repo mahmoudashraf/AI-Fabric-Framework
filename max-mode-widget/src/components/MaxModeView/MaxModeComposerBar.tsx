@@ -33,8 +33,13 @@ export function MaxModeComposerBar({ controller }: { controller: MaxModeControll
     openDebugInspector,
     handleChatQuery,
     currentPageAttachmentEnabled,
+    currentPageAttachments,
     currentPageAttachment,
     currentPageAttachmentMaxChars,
+    currentPageAttachmentMaxPages,
+    currentPageAttachmentMaxTotalChars,
+    currentPageAttachmentTotalChars,
+    canAttachCurrentPage,
     isCapturingCurrentPage,
     attachCurrentPage,
     removeCurrentPageAttachment,
@@ -71,8 +76,13 @@ export function MaxModeComposerBar({ controller }: { controller: MaxModeControll
       onOpenDebug={() => openDebugInspector()}
       onSubmit={() => handleChatQuery()}
       currentPageAttachmentEnabled={currentPageAttachmentEnabled}
+      currentPageAttachments={currentPageAttachments}
       currentPageAttachment={currentPageAttachment}
       currentPageAttachmentMaxChars={currentPageAttachmentMaxChars}
+      currentPageAttachmentMaxPages={currentPageAttachmentMaxPages}
+      currentPageAttachmentMaxTotalChars={currentPageAttachmentMaxTotalChars}
+      currentPageAttachmentTotalChars={currentPageAttachmentTotalChars}
+      canAttachCurrentPage={canAttachCurrentPage}
       isCapturingCurrentPage={isCapturingCurrentPage}
       onAttachCurrentPage={() => void attachCurrentPage()}
       onRemoveCurrentPage={removeCurrentPageAttachment}

@@ -42,8 +42,13 @@ export function Composer({
   onOpenDebug,
   onSubmit,
   currentPageAttachmentEnabled,
+  currentPageAttachments,
   currentPageAttachment,
   currentPageAttachmentMaxChars,
+  currentPageAttachmentMaxPages,
+  currentPageAttachmentMaxTotalChars,
+  currentPageAttachmentTotalChars,
+  canAttachCurrentPage,
   isCapturingCurrentPage,
   onAttachCurrentPage,
   onRemoveCurrentPage,
@@ -77,11 +82,16 @@ export function Composer({
   onOpenDebug: () => void;
   onSubmit: () => void;
   currentPageAttachmentEnabled: boolean;
+  currentPageAttachments: AttachedItem[];
   currentPageAttachment?: AttachedItem;
   currentPageAttachmentMaxChars: number;
+  currentPageAttachmentMaxPages: number;
+  currentPageAttachmentMaxTotalChars: number;
+  currentPageAttachmentTotalChars: number;
+  canAttachCurrentPage: boolean;
   isCapturingCurrentPage: boolean;
   onAttachCurrentPage: () => void;
-  onRemoveCurrentPage: () => void;
+  onRemoveCurrentPage: (attachmentId: string) => void;
 }) {
   const [showAttachments, setShowAttachments] = useState(true);
   const composerStackRef = useRef<HTMLDivElement>(null);
@@ -138,9 +148,14 @@ export function Composer({
               data-max-mode-current-page-toolbar
             >
               <CurrentPageAttachmentControl
+                attachments={currentPageAttachments}
                 attachment={currentPageAttachment}
                 isCapturing={isCapturingCurrentPage}
                 maxChars={currentPageAttachmentMaxChars}
+                maxPages={currentPageAttachmentMaxPages}
+                maxTotalChars={currentPageAttachmentMaxTotalChars}
+                totalChars={currentPageAttachmentTotalChars}
+                canAttach={canAttachCurrentPage}
                 onAttach={onAttachCurrentPage}
                 onRemove={onRemoveCurrentPage}
                 showAttachmentChip={false}
