@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "loomai-dealership-live-quality-evidence-v3",
+  "status": "PASS",
+  "claim": "DEALERSHIP_CONVERSATIONAL_QUALITY_VERIFIED",
+  "completedAt": "2026-10-01T09:13:28.020Z",
+  "deployment": {
+    "deploymentId": "dep-f023c863",
+    "customerId": "cus-28e3b6f9",
+    "tenantId": "ten-80c0ae7c",
+    "versionId": "ver-d8d76d70",
+    "versionLabel": "v15",
+    "releaseId": "rel-f899de18",
+    "releaseStatus": "APPLIED_VERIFIED",
+    "verificationStatus": "PASSED",
+    "aiFabricFrameworkVersion": "0.8.7",
+    "sourceArtifactId": "dsa-27e4bcdc",
+    "targetProfileId": "dtp-coolify-staging-behavior",
+    "configHash": "c5ad73d852bd1e0d77510ebf871525a2a008f88001d3db0bcdd9bdf1cb605393"
+  },
+  "models": {
+    "orchestrationProvider": "openai",
+    "orchestrationModel": "gpt-5.4-mini",
+    "orchestrationTemperature": 0,
+    "generationProvider": "openai",
+    "generationModel": "gpt-5.4-mini",
+    "generationTemperature": 0.1,
+    "embeddingModel": "text-embedding-3-small",
+    "embeddingDimensions": 512
+  },
+  "target": {
+    "publicExperienceUrl": "https://loomai.pro/demos/dealership-ai",
+    "backendBaseUrl": "https://loomai-dealership-demo-api.46.224.145.148.sslip.io",
+    "runtimeBaseUrl": "https://dep-f023c863.46.224.145.148.sslip.io",
+    "connectorBaseUrl": "https://dep-f023c863-connector.46.224.145.148.sslip.io",
+    "integrationMode": "public-runtime-anonymous",
+    "vectorSpace": "dealer-vehicle",
+    "uiMode": "executor",
+    "uiPosition": "search",
+    "viewport": "390x844"
+  },
+  "runtimeEvidence": {
+    "runtimeStatus": "running:healthy",
+    "connectorStatus": "running:healthy",
+    "runtimeReadiness": "READY",
+    "inventorySyncRunId": "4c85deaa-0a3e-4c71-84e8-9320ecb1c295",
+    "inventorySyncRequestId": "dealership-inventory-e42e1559-f073-4fd4-a3b7-4ae4f519e452",
+    "inventorySyncStatus": "COMPLETED",
+    "inventorySyncTotal": 6,
+    "inventorySyncSucceeded": 6,
+    "inventorySyncFailed": 0
+  },
+  "observedPolicy": {
+    "profile": "PRODUCTION_CHAT",
+    "mode": "executor",
+    "position": "search",
+    "actionsEnabled": true,
+    "retrievalEnabled": true,
+    "readActionResolutionPlanningMode": "ITERATIVE",
+    "readActionResolutionMaxIterations": 2,
+    "readActionResolutionMaxTotalActions": 2,
+    "readActionResolutionRagCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+    "retrievalVectorSpaces": [
+      "dealer-vehicle"
+    ]
+  },
+  "strictRuns": [
+    {
+      "completedAt": "2026-10-01T09:12:39.289Z",
+      "conversationId": "chat-07593d24-3566-40a4-844d-58ba3675cc29",
+      "status": "PASS",
+      "scenarioCount": 7,
+      "passedScenarios": 7,
+      "writeConfirmed": false,
+      "domainWriteCompleted": false,
+      "browserOrTransportFailures": 0
+    },
+    {
+      "completedAt": "2026-10-01T09:13:28.020Z",
+      "conversationId": "chat-5ca7c509-c9b4-40cd-8e3c-2154aa58ad9b",
+      "status": "PASS",
+      "scenarioCount": 7,
+      "passedScenarios": 7,
+      "writeConfirmed": false,
+      "domainWriteCompleted": false,
+      "browserOrTransportFailures": 0
+    }
+  ],
+  "repeatRunScenarios": [
+    {
+      "id": "structured-current-stock-action",
+      "status": "PASS",
+      "providerRequestId": "rag-0f81d9cb-48bc-46cb-ba5c-614f49c420f4",
+      "groundingPath": "ACTION",
+      "executedAction": "dealership_search_inventory",
+      "itemsCount": 3
+    },
+    {
+      "id": "contextual-follow-up",
+      "status": "PASS",
+      "providerRequestId": "rag-5a22461d-275c-4758-a43f-c1634af3c855",
+      "groundingPath": "ACTION_AND_RAG",
+      "attemptedAction": "dealership_compare_vehicles",
+      "attemptedActionSucceeded": false,
+      "ragFallbackUsed": true
+    },
+    {
+      "id": "vehicle-comparison",
+      "status": "PASS",
+      "providerRequestId": "rag-4a75c7c7-0694-4529-adf0-daf8e9798a3a",
+      "groundingPath": "ACTION",
+      "executedAction": "dealership_compare_vehicles",
+      "itemsCount": 2
+    },
+    {
+      "id": "semantic-rag",
+      "status": "PASS",
+      "providerRequestId": "rag-0b103bae-3884-47d0-9b23-d797fa0543aa",
+      "groundingPath": "ACTION_AND_RAG",
+      "executedAction": "dealership_search_inventory"
+    },
+    {
+      "id": "empty-action-rag-fallback",
+      "status": "PASS",
+      "providerRequestId": "rag-041c9f73-a8d0-4d53-b4da-5912226994a2",
+      "groundingPath": "ACTION_AND_RAG",
+      "executedAction": "dealership_search_inventory",
+      "groundingSufficiency": "INSUFFICIENT",
+      "groundingUsable": false,
+      "ragFallbackUsed": true
+    },
+    {
+      "id": "unsupported-policy-honesty",
+      "status": "PASS",
+      "providerRequestId": "rag-35e7b0ae-67f1-4480-bb3d-15f32b577c91",
+      "groundingPath": "ACTION_AND_RAG",
+      "inventedWarrantyTerms": false
+    },
+    {
+      "id": "governed-write-intent",
+      "status": "PASS",
+      "providerRequestId": "rag-38a5c241-7f21-4570-8577-5c8e19204eac",
+      "groundingPath": "RAG",
+      "writeConfirmed": false,
+      "domainWriteCompleted": false,
+      "internalVehicleIdExposed": false
+    }
+  ],
+  "frameworkConclusion": {
+    "additionalFrameworkChangeRequired": false,
+    "emptyActionFallbackFixedIn": "0.8.7",
+    "domainCouplingIntroduced": false,
+    "responseTextMatchingIntroduced": false
+  },
+  "claimBoundaries": [
+    "The inventory and dealership are fictional demonstration data.",
+    "No Auto Trader sandbox or production credential was used.",
+    "No advertiser grant, data right, package certification, endorsement, or partnership is proven.",
+    "The demo is not a latency, throughput, conversion, or model-quality benchmark."
+  ]
+}

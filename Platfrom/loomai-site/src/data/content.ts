@@ -565,7 +565,7 @@ export const experiments: Experiment[] = [
     id: 'experiment:dealership-ai-experience',
     slug: 'dealership-ai-experience',
     title: 'Dealership AI Experience',
-    status: 'preview',
+    status: 'live',
     featured: false,
     summary:
       'A customer-application preview for live vehicle discovery, grounded comparison and governed dealership enquiries through an assigned LoomAI deployment.',
@@ -582,12 +582,12 @@ export const experiments: Experiment[] = [
       'The dealership backend owns stock, exact filters, authorization and lead persistence. Its assigned LoomAI deployment owns retrieval, conversation and action orchestration. The browser receives only public inventory data and runtime-issued anonymous chat access.',
     observableProof: [
       'The native customer surface consumes a dealership-owned structured inventory API and does not embed backend or runtime service credentials.',
-      'The Companion dock and Max Mode use the public anonymous runtime contract and expose an honest unavailable state until a deployment is assigned.',
-      'Backend tests verify deployment-scoped authorization plus encrypted, idempotent confirmed lead persistence.',
+      'The Companion dock and Max Mode use the public anonymous runtime contract against an assigned, deployment-local LoomAI runtime.',
+      'Strict live checks prove exact inventory actions, grounded comparison, action-plus-RAG fallback for an exact no-match, and honest knowledge boundaries.',
+      'Backend tests verify deployment-scoped authorization plus encrypted, idempotent confirmed lead persistence; the live quality run confirms no write occurs without confirmation.',
     ],
     notDemonstrated: [
       'Auto Trader connectivity, endorsement or production data access',
-      'A hosted LoomAI retrieval and action canary until the preview deployment is assigned',
       'Production dealership adoption or commercial outcomes',
     ],
     guidedSteps: [
@@ -599,11 +599,11 @@ export const experiments: Experiment[] = [
     usesSyntheticData: true,
     dataNotice: 'All dealership, vehicle and customer records in this preview are fictional. No Auto Trader data is used.',
     knownLimitations: [
-      'The hosted LoomAI deployment and retrieval/action evidence remain a release gate.',
       'The preview source adapter uses fictional inventory until approved partner credentials and data rights exist.',
+      'The live demo is evidence of bounded product behavior, not a latency, throughput, conversion or model-quality benchmark.',
     ],
     frameworkVersion: '0.8.7',
-    lastVerified: '2026-09-29',
+    lastVerified: '2026-10-01',
     screenshot: {
       src: '/assets/experiments/dealership-ai-experience.png',
       alt: 'Dealership AI Experience showing fictional vehicle inventory, comparison controls and the LoomAI Companion dock',

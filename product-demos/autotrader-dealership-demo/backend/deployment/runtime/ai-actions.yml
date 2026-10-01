@@ -1,6 +1,6 @@
 actions:
   - name: dealership_search_inventory
-    description: Search the dealership's currently active vehicle inventory using buyer preferences and exact filters.
+    description: Search the dealership's currently active vehicle inventory. Preserve every explicit buyer filter in the matching typed parameter; never replace a filtered request with an unfiltered inventory read.
     category: dealership_inventory
     accessMode: READ
     anonymousAllowed: true
@@ -41,15 +41,15 @@ actions:
         type: STRING
         required: false
       - name: fuelType
-        description: Exact fuel type filter when specified.
+        description: Exact buyer-stated fuel type filter, such as Electric, Diesel, Hybrid or Plug-in Hybrid.
         type: STRING
         required: false
       - name: bodyType
-        description: Exact body type filter when specified.
+        description: Exact buyer-stated body type filter, such as SUV, Estate or Hatchback.
         type: STRING
         required: false
       - name: maxPriceGbp
-        description: Maximum budget as a whole number of GBP pounds.
+        description: Maximum budget from phrases such as under or up to GBP N, represented as a whole number of GBP pounds.
         type: INTEGER
         required: false
       - name: maxMileage

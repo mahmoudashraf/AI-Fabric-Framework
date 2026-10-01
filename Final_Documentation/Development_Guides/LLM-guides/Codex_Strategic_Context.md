@@ -566,3 +566,13 @@ Current P0 cleanup items:
   certification, or production canary exists. The global Platform release gate
   also remains non-green on the owner-deferred Shopify
   `shopify-companion` runtime mode; neither boundary may be softened in claims.
+- 2026-10-01 dealership conversational closure: the same generic Platform
+  primitives are now green on fictional dealership deployment `dep-f023c863`,
+  immutable v15, AI Fabric `0.8.7`. Two consecutive strict seven-scenario
+  browser runs proved exact inventory actions, comparison, semantic retrieval,
+  explicit insufficient-action handling with cooperative RAG, knowledge
+  boundaries and non-executing write guidance while preserving `executor` /
+  `search`, one conversation, deployment scope, and no-confirmation/no-write
+  safety. The result needs no further framework change. It remains a bounded
+  demo claim and creates no Auto Trader access, data-rights, endorsement,
+  partnership, adoption, performance or commercial-outcome claim.

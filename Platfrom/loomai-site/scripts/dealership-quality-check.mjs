@@ -368,10 +368,12 @@ function scenarioAssertions(id, result, observedQueries) {
   const { evidence } = result
   const grounded = evidence.actionUsed || evidence.ragUsed
   if (id === 'structured-current-stock-action') {
+    const contradictsExplicitCriteria = /(no buyer criteria|no (?:specific )?criteria|cannot rank .*specific request)/i.test(answer)
     return [
       check('inventory search action executed', evidence.executedActions.includes('dealership_search_inventory'), 'dealership_search_inventory', evidence.executedActions),
       check('three electric matches returned', actionItemCount(evidence, 'dealership_search_inventory') === 3, 3, actionItemCount(evidence, 'dealership_search_inventory')),
       check('all matching models are named', includesAll(answer, ['Aster E1', 'Morrow C2', 'Aster E2']), 'Aster E1, Morrow C2, and Aster E2', summarizeText(answer)),
+      check('answer respects the explicit buyer criteria', !contradictsExplicitCriteria, 'Do not claim buyer criteria are absent after applying electric and budget filters.', summarizeText(answer)),
     ]
   }
   if (id === 'contextual-follow-up') {
@@ -404,20 +406,33 @@ function scenarioAssertions(id, result, observedQueries) {
   if (id === 'empty-action-rag-fallback') {
     const overstatesInventoryAbsence = /(no vehicles (?:are )?available|inventory (?:is )?empty)/i.test(answer)
       && !/(no (?:matching|exact|diesel)|do not have a diesel|don.t have a diesel)/i.test(answer)
-    const emptySearchEvidence = evidence.actionEvidence.find(({ action, itemsCount }) => (
-      action === 'dealership_search_inventory' && itemsCount === 0
-    ))
+    const emptySearchEvidence = evidence.actionEvidence.find(({ action }) => action === 'dealership_search_inventory')
+    const noSufficientMatch = emptySearchEvidence?.itemsCount === 0
+      || isExplicitlyInsufficient(emptySearchEvidence)
+    const groundedAlternativeNamed = answerMentionsRetrievedDocument(answer, evidence.externalDocuments)
+    const labelsRelaxedConstraints = /(alternative|closest)/i.test(answer)
+      && /(not diesel|does not .*diesel|fuel type.*relax|above GBP 10[, ]?000|price.*relax|does not .*budget)/i.test(answer)
     return [
       check('authoritative inventory action ran first', evidence.executedActions.includes('dealership_search_inventory'), 'dealership_search_inventory', evidence.executedActions),
-      check('the exact search returned zero matches', actionItemCount(evidence, 'dealership_search_inventory') === 0, 0, actionItemCount(evidence, 'dealership_search_inventory')),
+      check(
+        'the exact search returned no sufficient match',
+        noSufficientMatch,
+        'itemsCount=0 or explicit INSUFFICIENT evidence when the unusable payload is not projected.',
+        emptySearchEvidence || null,
+      ),
       check(
         'empty action is insufficient grounding',
-        emptySearchEvidence?.groundingSufficiency === 'INSUFFICIENT' && !emptySearchEvidence.groundingUsable,
+        isExplicitlyInsufficient(emptySearchEvidence),
         'INSUFFICIENT with groundingUsable=false.',
         emptySearchEvidence || null,
       ),
       check('indexed evidence supplemented the empty action', evidence.ragUsed, 'At least one non-action retrieval document.', evidence.externalDocuments),
-      check('answer distinguishes no match from an alternative', /(no|not|none|couldn.t find|do not have)/i.test(answer) && /Caldera X6/i.test(answer), 'No exact match, with Caldera X6 only as an alternative.', summarizeText(answer)),
+      check(
+        'answer distinguishes no match from a grounded alternative',
+        /(no|not|none|couldn.t find|do not have)/i.test(answer) && groundedAlternativeNamed && labelsRelaxedConstraints,
+        'State that there is no exact match, name an indexed alternative, and identify its relaxed constraints.',
+        summarizeText(answer),
+      ),
       check('filtered no-match is not presented as empty inventory', !overstatesInventoryAbsence, 'Say the requested filters had no match, not that the dealership has no vehicles.', summarizeText(answer)),
     ]
   }
@@ -534,6 +549,7 @@ function summarizeExecutedAction(entry) {
   const evidence = parseJson(entry?.evidenceSummary)
   return {
     action: entry?.action || null,
+    params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
     success: entry?.success === true,
     groundingUsable: entry?.groundingUsable === true,
     groundingSufficiency: entry?.groundingSufficiency || null,
@@ -560,6 +576,23 @@ function summarizeActionResult(entry) {
 function actionItemCount(evidence, action) {
   const executed = evidence.actionEvidence.find((entry) => entry.action === action && entry.itemsCount !== null)
   return executed?.itemsCount ?? null
+}
+
+function isExplicitlyInsufficient(entry) {
+  return entry?.groundingSufficiency === 'INSUFFICIENT' && entry.groundingUsable === false
+}
+
+function answerMentionsRetrievedDocument(answer, documents) {
+  const normalizedAnswer = normalizeComparableText(answer)
+  return documents.some(({ id }) => {
+    const entityId = String(id || '').split('::')[0].replace(/^veh[-_:]?/i, '')
+    const terms = normalizeComparableText(entityId).split(' ').filter((term) => term.length > 1)
+    return terms.length >= 2 && terms.every((term) => normalizedAnswer.includes(term))
+  })
+}
+
+function normalizeComparableText(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
 function buildRecommendations(results, globalAssertions, policy) {
@@ -595,8 +628,10 @@ function buildRecommendations(results, globalAssertions, policy) {
   })
 
   const fallback = byId['empty-action-rag-fallback']
+  const fallbackActionEvidence = fallback?.evidence.actionEvidence
+    .find(({ action }) => action === 'dealership_search_inventory')
   const emptyActionObserved = fallback?.evidence.executedActions.includes('dealership_search_inventory')
-    && actionItemCount(fallback.evidence, 'dealership_search_inventory') === 0
+    && (fallbackActionEvidence?.itemsCount === 0 || isExplicitlyInsufficient(fallbackActionEvidence))
   const boundedFallbackCanaryActive = policy?.readActionResolutionPlanningMode === 'ITERATIVE'
     && policy?.readActionResolutionMaxIterations === 2
     && policy?.readActionResolutionRagCooperationMode === 'RAG_IF_ACTIONS_INSUFFICIENT'

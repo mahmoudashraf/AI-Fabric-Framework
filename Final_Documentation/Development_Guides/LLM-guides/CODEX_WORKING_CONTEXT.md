@@ -3242,3 +3242,44 @@ Critical fixes that made the gate pass:
   Next publish the exact private source/images, align the staging Platform,
   and apply an unchanged dealership v11 through the Platform stop-first
   lifecycle before making any live-quality claim.
+
+## 2026-10-01 Dealership AI Fabric 0.8.7 Quality Closure
+
+- Private source commit `aa0eb984d` upgraded the Platform compiler, BOM,
+  runtime manifest, runtime image and connector build to AI Fabric `0.8.7`.
+  Exact source artifact `dsa-27e4bcdc` was promoted after the Platform backend
+  and runtime image workflows passed.
+- Dealership deployment `dep-f023c863` is live on immutable version
+  `ver-d8d76d70` (`v15`) and release `rel-f899de18`. The release is
+  `APPLIED_VERIFIED`, verification is `PASSED`, provisioning is `ACTIVE`, and
+  the configuration hash is
+  `c5ad73d852bd1e0d77510ebf871525a2a008f88001d3db0bcdd9bdf1cb605393`.
+- The live deployment keeps the existing `executor` / `search` UI contract and
+  bounded `ITERATIVE`, `maxIterations=2`, `maxTotalActions=2`,
+  `RAG_IF_ACTIONS_INSUFFICIENT` policy. It uses `gpt-5.4-mini` at temperature
+  `0` for orchestration and `gpt-5.4-mini` at temperature `0.1` for generation.
+  A `gpt-5.4-nano` orchestration canary improved filter extraction but
+  regressed the informational test-drive flow, so it was not retained.
+- Post-replacement inventory sync run
+  `4c85deaa-0a3e-4c71-84e8-9320ecb1c295` completed all six fictional vehicle
+  records with zero failures. Runtime readiness is `READY` for the
+  `dealer-vehicle` scope.
+- Two consecutive strict seven-scenario browser runs passed at
+  `2026-10-01T09:12:39.289Z` and `2026-10-01T09:13:28.020Z`. Both reused one
+  conversation, retained deployment scope, stayed on `executor` / `search`,
+  sent no confirmation, completed no domain write, and had no browser or
+  transport failure.
+- The decisive no-match canary now returns
+  `groundingSufficiency=INSUFFICIENT`, `groundingUsable=false`, and then uses
+  scoped RAG for a clearly labelled alternative. This proves the generic AI
+  Fabric `0.8.7` direct-read-action fix works live. No additional framework
+  change is supported by the final evidence.
+- Residual non-blocker: the planner can attempt a comparison action with a
+  phrase such as `those`; the failed read is unusable and RAG supplies the
+  grounded answer. Do not weaken fallback or expose internal vehicle IDs to
+  remove that extra call.
+- Canonical evidence is
+  `verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json`.
+  The claim remains limited to a fictional dealership demo. It proves no Auto
+  Trader sandbox/production access, advertiser grant, data right, package,
+  certification, endorsement, partnership or commercial outcome.
