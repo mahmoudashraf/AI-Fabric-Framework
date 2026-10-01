@@ -9,6 +9,7 @@ type Props = {
   description: string
   canonicalPath?: string
   noIndex?: boolean
+  skipLabel?: string
 }
 
 const {
@@ -16,6 +17,7 @@ const {
   description,
   canonicalPath = Astro.url.pathname,
   noIndex = false,
+  skipLabel = 'Skip to inventory',
 } = Astro.props
 
 const pageTitle = `${title} | ${site.name}`
@@ -43,7 +45,7 @@ const canonicalUrl = new URL(canonicalPath, site.canonicalOrigin).toString()
     <title>{pageTitle}</title>
   </head>
   <body class="demo-application-body">
-    <a class="skip-link" href="#main-content">Skip to inventory</a>
+    <a class="skip-link" href="#main-content">{skipLabel}</a>
     <main id="main-content">
       <slot />
     </main>

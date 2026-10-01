@@ -3308,3 +3308,32 @@ Critical fixes that made the gate pass:
   close G9 in the dealership implementation plan: arbitrary production-page
   use still needs AI Fabric-owned transient, untrusted, turn-scoped,
   non-action-eligible attachment semantics and associated security evidence.
+
+## 2026-10-01 Dealership Detail Pages And External Attachment Toolbar
+
+- Replaced the fictional dealership's vehicle-detail modal with six stable
+  `/demos/dealership-ai/vehicles/{slug}` pages. The public site owns only the
+  fixed demonstration route allowlist; each page fetches its current vehicle
+  facts from the independently deployed dealership backend
+  `/api/public/vehicles/{slug}` endpoint before enabling its AI controls.
+- Extracted the shared dealership runtime bootstrap, safe vehicle attachment,
+  URL handling and presentation helpers into `dealership-shared.ts`, so the
+  inventory and detail routes use the same assigned deployment and preserve
+  the existing `executor` contract. Explicit vehicle actions still attach the
+  trusted structured backend vehicle; page text remains a separate ordinary
+  untrusted attachment and cannot authorize an action target.
+- The inventory route remains bounded to `rootSelector=#main-content` and
+  `maxChars=1800`. Vehicle pages use the focused
+  `rootSelector=#vehicle-detail-content` and `maxChars=4000`, allowing one
+  coherent title, summary, facts, features and source boundary to be captured.
+- Moved the generic attach/refresh control into a separate utility rail above
+  and outside both the Companion and full Max Mode bordered input shells.
+  Added explicit DOM markers and browser assertions for both surfaces. The
+  dealership comparison bar was moved above the larger collapsed Companion
+  footprint after the interaction gate caught a real pointer overlap.
+- Local Node 22 evidence is green: widget typecheck/build, Astro diagnostics,
+  29-page static build, content graph, 27-route static smoke, full browser/Axe
+  smoke, mobile/desktop screenshots, detail-page capture, 4000-character
+  ceiling, no invented vector space, unchanged `executor` / `landing` routing,
+  manual removal and route invalidation. G9 remains open for arbitrary
+  production pages; this remains a controlled first-party interim flow.

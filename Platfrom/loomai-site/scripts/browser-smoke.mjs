@@ -18,7 +18,7 @@ let anonymousRenewalCount = 0
 
 const mockVehicles = [
   {
-    id: 'veh-aster-e1', stockId: 'DEMO-1001', slug: 'aster-e1-range', make: 'Aster', model: 'E1',
+    id: 'veh-aster-e1', stockId: 'DEMO-1001', slug: 'aster-e1-motion', make: 'Aster', model: 'E1',
     derivative: 'Long Range', registrationYear: 2025, priceGbp: 31950, priceFormatted: '£31,950.00', currency: 'GBP', mileage: 4120,
     fuelType: 'Electric', transmission: 'Automatic', bodyType: 'SUV', exteriorColour: 'Ocean blue', doors: 5,
     seats: 5, electricRangeMiles: 312, location: 'Northfield Central', lifecycleState: 'ACTIVE',
@@ -95,6 +95,22 @@ const mockServer = createServer(async (request, response) => {
       },
       source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
       dataNotice: 'Fictional demonstration inventory. No live Auto Trader data is used.',
+    })
+    return
+  }
+
+  if (url.pathname.startsWith('/api/public/vehicles/') && request.method === 'GET') {
+    const slug = decodeURIComponent(url.pathname.slice('/api/public/vehicles/'.length))
+    const vehicle = mockVehicles.find((item) => item.slug === slug)
+    if (!vehicle) {
+      writeMockJson(response, 404, { success: false, message: 'Vehicle was not found or is no longer active.' })
+      return
+    }
+    writeMockJson(response, 200, {
+      success: true,
+      vehicle,
+      source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
+      dataNotice: 'Fictional demonstration inventory. Confirm current availability with the dealership.',
     })
     return
   }
@@ -300,6 +316,7 @@ try {
     '/about',
     '/connect',
     '/demos/dealership-ai',
+    '/demos/dealership-ai/vehicles/aster-e1-motion',
     '/demos/dealership-ai/staff',
   ]
 
@@ -360,7 +377,14 @@ try {
   if (initialVehicleCount !== 3) {
     throw new Error(`Expected three dealership smoke vehicles, found ${initialVehicleCount}`)
   }
-  await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
+  await page.waitForFunction(() => ['ready', 'unavailable'].includes(
+    document.querySelector('[data-runtime-state]')?.getAttribute('data-state') || '',
+  ))
+  const listingRuntimeState = await page.locator('[data-runtime-state]').getAttribute('data-state')
+  if (listingRuntimeState !== 'ready') {
+    const detail = await page.locator('[data-runtime-state-detail]').textContent()
+    throw new Error(`Dealership assistant did not become ready: ${detail}`)
+  }
   await page.locator('select[name="make"]').selectOption('Aster')
   await page.waitForFunction(() => document.querySelectorAll('.vehicle-card').length === 2)
   await page.locator('[data-clear-filters]').click()
@@ -376,29 +400,51 @@ try {
   }
   await page.locator('[data-close-comparison]').click()
   await page.locator('[data-card-details]').first().click()
-  if (!(await page.locator('[data-vehicle-dialog]').evaluate((dialog) => dialog.open))) {
-    throw new Error('Dealership vehicle detail dialog did not open')
+  await page.waitForURL('**/demos/dealership-ai/vehicles/aster-e1-motion')
+  await page.waitForFunction(() => document.querySelector('[data-vehicle-evidence]')?.getAttribute('aria-busy') === 'false')
+  await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
+  if ((await page.getByRole('heading', { level: 1 }).textContent()) !== '2025 Aster E1') {
+    throw new Error('Dealership vehicle detail route did not render the live-backed vehicle title')
   }
-  await page.locator('[data-close-vehicle-dialog]').click()
 
   const attachCurrentPageButton = page.getByRole('button', { name: 'Attach current page' })
+  const attachInsideInputShell = await attachCurrentPageButton.evaluate((element) =>
+    Boolean(element.closest('[data-max-mode-companion-input-shell]')),
+  )
+  if (attachInsideInputShell) {
+    throw new Error('Attach-current-page control is still inside the Companion input shell')
+  }
   await attachCurrentPageButton.click()
   const currentPageChip = page.locator('[data-max-mode-current-page-chip]')
   await currentPageChip.waitFor()
-  if (!(await currentPageChip.getByText('Northfield Motor House demo', { exact: false }).count())) {
+  if (!(await currentPageChip.getByText('2025 Aster E1', { exact: false }).count())) {
     throw new Error('Current-page attachment did not expose the page title')
   }
   await page.locator('section[aria-label="Northfield AI"]').screenshot({
-    path: path.join(screenshotDir, 'dealership-current-page-attachment.png'),
+    path: path.join(screenshotDir, 'dealership-vehicle-current-page-attachment.png'),
     animations: 'disabled',
   })
 
+  await page.getByTitle('Open Max Mode').click()
+  const maxModeInputShell = page.locator('[data-max-mode-composer-input-shell]')
+  await maxModeInputShell.waitFor()
+  const maxModeAttachButton = page.getByRole('button', { name: 'Refresh attached page' })
+  await maxModeAttachButton.waitFor()
+  const attachInsideMaxModeInputShell = await maxModeAttachButton.evaluate((element) =>
+    Boolean(element.closest('[data-max-mode-composer-input-shell]')),
+  )
+  if (attachInsideMaxModeInputShell) {
+    throw new Error('Attach-current-page control is still inside the Max Mode input shell')
+  }
+  await page.getByRole('button', { name: 'Close MAX Mode' }).click()
+  await page.locator('section[aria-label="Northfield AI"]').waitFor()
+
   const pageContextRequestPromise = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
-    return request.postDataJSON()?.query === 'Summarize the attached current page.'
+    return request.postDataJSON()?.query === 'Summarize the attached vehicle detail page.'
   })
   const companionInput = page.getByRole('textbox', { name: 'Ask Northfield AI' })
-  await companionInput.fill('Summarize the attached current page.')
+  await companionInput.fill('Summarize the attached vehicle detail page.')
   await page.getByTitle('Send message').click()
   const pageContextPayload = (await pageContextRequestPromise).postDataJSON()
   const pageContextAttachment = pageContextPayload.attachments?.find(
@@ -410,10 +456,11 @@ try {
   if (Object.hasOwn(pageContextAttachment, 'vectorSpace')) {
     throw new Error('Current-page attachment was incorrectly assigned a vector space')
   }
-  if (!pageContextAttachment.contentText?.includes('Find the right car for real life.')) {
-    throw new Error('Current-page attachment did not include visible main content')
+  if (!pageContextAttachment.contentText?.includes('2025 Aster E1') ||
+      !pageContextAttachment.contentText?.includes('Adaptive cruise control')) {
+    throw new Error('Current-page attachment did not include the focused vehicle details')
   }
-  if (pageContextAttachment.metadata?.capturedCharacters > 1800) {
+  if (pageContextAttachment.metadata?.capturedCharacters > 4000) {
     throw new Error('Current-page attachment exceeded the configured text limit')
   }
   if (pageContextAttachment.url?.includes('?') || pageContextAttachment.url?.includes('#')) {
@@ -433,8 +480,7 @@ try {
   await currentPageChip.waitFor()
   await page.evaluate(() => history.pushState({}, '', '?attachment-route-check=1'))
   await page.getByRole('button', { name: 'Attach current page' }).waitFor()
-  await page.evaluate(() => history.replaceState({}, '', '/demos/dealership-ai'))
-  await page.reload({ waitUntil: 'networkidle' })
+  await page.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.vehicle-card')
   await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
 
@@ -592,6 +638,7 @@ try {
     { name: 'about', path: '/about' },
     { name: 'connect', path: '/connect' },
     { name: 'dealership-demo', path: '/demos/dealership-ai' },
+    { name: 'dealership-vehicle-detail', path: '/demos/dealership-ai/vehicles/aster-e1-motion' },
     { name: 'dealership-staff', path: '/demos/dealership-ai/staff' },
   ]
 

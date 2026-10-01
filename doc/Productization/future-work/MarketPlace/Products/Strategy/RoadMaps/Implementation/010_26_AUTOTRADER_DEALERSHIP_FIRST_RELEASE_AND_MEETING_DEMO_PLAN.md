@@ -1435,8 +1435,9 @@ designed at framework level. This does not close G9 or change the framework
 assessment above.
 
 The generic Max Mode/Companion widget now provides an opt-in
-`host.currentPageAttachment` configuration and a user-operated icon above the
-composer. At capture time it:
+`host.currentPageAttachment` configuration and a user-operated icon in a
+separate utility rail above, and outside, the bordered Companion or Max Mode
+input shell. At capture time it:
 
 - reads only the configured content root, with `main`, `[role=main]`, `article`,
   and `body` as generic fallbacks;
@@ -1452,15 +1453,30 @@ composer. At capture time it:
 - removes the captured context after route/hash navigation by default so a
   stale page snapshot is not silently reused.
 
-The dealership demo enables this generic feature with
-`rootSelector=#main-content` and `maxChars=1800`. It contains no dealership,
-vehicle, or Auto Trader semantics in the widget implementation. Browser
-evidence proves capture, bounded request projection, no vector-space label,
-preserved `executor`/`landing` routing, manual removal, and navigation
-invalidation. The interim feature is suitable for this controlled first-party
-demo. Production use on arbitrary or user-generated pages remains subject to
-G9's framework-owned transient, untrusted, turn-scoped, non-action-eligible
-contract and its security tests.
+The dealership inventory route enables this generic feature with
+`rootSelector=#main-content` and `maxChars=1800`. Each current demonstration
+vehicle now also has a stable
+`/demos/dealership-ai/vehicles/{slug}` detail route. The route shell is
+pre-rendered, but every price, mileage, lifecycle, feature, source and freshness
+fact is fetched from the independently deployed dealership backend at runtime.
+The focused detail surface uses `rootSelector=#vehicle-detail-content` and a
+bounded `maxChars=4000`, which lets the user attach one coherent vehicle page
+rather than an inventory listing containing several products.
+
+The separate detail route does not change authority. `Attach current page`
+continues to send ordinary untrusted page text with no vector space. The
+explicit `Ask about this vehicle` and `Request a test drive` controls separately
+attach the backend-provided structured vehicle target before invoking the same
+deployment. Browser evidence proves route navigation, backend fact rendering,
+external-toolbar placement, capture of title/facts/features, bounded request
+projection, no vector-space label, preserved `executor`/`landing` routing,
+manual removal, and navigation invalidation. The widget implementation contains
+no dealership, vehicle, or Auto Trader matching logic.
+
+The interim feature is suitable for this controlled first-party demo.
+Production use on arbitrary or user-generated pages remains subject to G9's
+framework-owned transient, untrusted, turn-scoped, non-action-eligible contract
+and its security tests.
 
 ### 21.2 Dealership-Specific Improvements
 

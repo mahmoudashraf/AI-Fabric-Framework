@@ -131,13 +131,12 @@ export function Composer({
             onShowSuggestions={onShowSuggestions}
             onSuggestionSelect={onSuggestionSelect}
           />
-        </div>
-      </div>
 
-      <div className="pointer-events-auto border-t border-gray-200 bg-white p-3 md:p-6 dark:border-gray-800 dark:bg-gray-950">
-        <div className="mx-auto max-w-3xl">
           {currentPageAttachmentEnabled && (
-            <div className="mb-2 flex justify-end">
+            <div
+              className="pointer-events-auto mb-2 flex justify-end"
+              data-max-mode-current-page-toolbar
+            >
               <CurrentPageAttachmentControl
                 attachment={currentPageAttachment}
                 isCapturing={isCapturingCurrentPage}
@@ -148,7 +147,14 @@ export function Composer({
               />
             </div>
           )}
+        </div>
+      </div>
 
+      <div
+        className="pointer-events-auto border-t border-gray-200 bg-white p-3 md:p-6 dark:border-gray-800 dark:bg-gray-950"
+        data-max-mode-composer-input-shell
+      >
+        <div className="mx-auto max-w-3xl">
           {oldConversationLocked && <LockedConversationBanner onStartNewConversation={onStartNewConversation} />}
 
           <ComposerInputRow

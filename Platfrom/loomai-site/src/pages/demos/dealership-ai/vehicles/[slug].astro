@@ -1,0 +1,287 @@
+---
+import {
+  ArrowLeft,
+  CarFront,
+  Check,
+  CircleAlert,
+  MessageCircleMore,
+  ShieldCheck,
+  Sparkles,
+} from '@lucide/astro'
+import { dealershipDemoVehicleSlugs } from '../../../../data/dealershipDemo'
+import DemoApplicationLayout from '../../../../layouts/DemoApplicationLayout.astro'
+
+export function getStaticPaths() {
+  return dealershipDemoVehicleSlugs.map((slug) => ({ params: { slug } }))
+}
+
+const slug = Astro.params.slug || ''
+const developmentApiBaseUrl = import.meta.env.DEV
+  ? (import.meta.env.PUBLIC_DEALERSHIP_DEMO_API_BASE_URL || 'http://127.0.0.1:8108')
+  : (import.meta.env.PUBLIC_DEALERSHIP_DEMO_API_BASE_URL || '')
+---
+
+<DemoApplicationLayout
+  title="Vehicle details - Northfield Motor House demo"
+  description="Live-backed fictional vehicle details with direct LoomAI deployment chat and bounded current-page attachment."
+  canonicalPath={`/demos/dealership-ai/vehicles/${slug}`}
+  noIndex={true}
+  skipLabel="Skip to vehicle details"
+>
+  <div
+    class="vehicle-detail-app"
+    data-dealership-vehicle-detail
+    data-vehicle-slug={slug}
+    data-development-api-base-url={developmentApiBaseUrl}
+  >
+    <header class="detail-header">
+      <div class="detail-shell detail-header__inner">
+        <a class="detail-brand" href="/demos/dealership-ai" aria-label="Northfield Motor House inventory">
+          <span class="detail-brand__mark" aria-hidden="true">
+            <CarFront size={27} stroke-width={1.8} />
+          </span>
+          <span>
+            <strong>Northfield</strong>
+            <small>Motor House</small>
+          </span>
+        </a>
+        <a class="detail-back" href="/demos/dealership-ai">
+          <ArrowLeft size={17} aria-hidden="true" />
+          Back to inventory
+        </a>
+      </div>
+    </header>
+
+    <aside class="detail-disclosure" aria-label="Demo data notice">
+      <div class="detail-shell detail-disclosure__inner">
+        <CircleAlert size={18} stroke-width={1.9} aria-hidden="true" />
+        <p><strong>Fictional demonstration vehicle.</strong> No live Auto Trader data or credentials are used.</p>
+      </div>
+    </aside>
+
+    <article id="vehicle-detail-content" class="vehicle-evidence" data-vehicle-evidence aria-busy="true">
+      <div class="detail-shell vehicle-hero">
+        <div class="vehicle-media">
+          <img
+            data-detail-image
+            src="/assets/demos/dealership/vehicle-01.webp"
+            alt=""
+            width="960"
+            height="640"
+          />
+          <span data-detail-fuel>Loading</span>
+        </div>
+
+        <div class="vehicle-overview">
+          <a class="vehicle-breadcrumb" href="/demos/dealership-ai">
+            <ArrowLeft size={15} aria-hidden="true" />
+            All vehicles
+          </a>
+          <p class="detail-kicker">Current demonstration stock</p>
+          <p class="vehicle-derivative" data-detail-derivative>Loading current vehicle details</p>
+          <h1 data-detail-title>Vehicle details</h1>
+          <strong class="vehicle-price" data-detail-price>Checking price</strong>
+          <p class="vehicle-summary" data-detail-summary>
+            The current dealership record is loading from the independently deployed demonstration backend.
+          </p>
+
+          <div class="vehicle-actions">
+            <button class="detail-button detail-button--primary" type="button" data-detail-ask disabled>
+              <MessageCircleMore size={18} aria-hidden="true" />
+              Ask about this vehicle
+            </button>
+            <button class="detail-button detail-button--secondary" type="button" data-detail-test-drive disabled>
+              Request a test drive
+            </button>
+          </div>
+
+          <div class="detail-runtime" data-runtime-state data-state="checking" role="status" aria-live="polite">
+            <span class="detail-runtime__indicator" aria-hidden="true"></span>
+            <span>
+              <strong data-runtime-state-title>Connecting assistant</strong>
+              <small data-runtime-state-detail>Checking the assigned LoomAI deployment</small>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <section class="vehicle-facts-band" aria-labelledby="vehicle-facts-title">
+        <div class="detail-shell">
+          <div class="section-heading">
+            <p class="detail-kicker">At a glance</p>
+            <h2 id="vehicle-facts-title">Current vehicle facts</h2>
+          </div>
+          <dl class="vehicle-facts" data-detail-facts>
+            <div><dt>Mileage</dt><dd>Loading</dd></div>
+            <div><dt>Fuel</dt><dd>Loading</dd></div>
+            <div><dt>Transmission</dt><dd>Loading</dd></div>
+            <div><dt>Body style</dt><dd>Loading</dd></div>
+            <div><dt>Colour</dt><dd>Loading</dd></div>
+            <div><dt>Location</dt><dd>Loading</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="vehicle-highlights" aria-labelledby="vehicle-highlights-title">
+        <div class="detail-shell vehicle-highlights__grid">
+          <div>
+            <p class="detail-kicker">Equipment</p>
+            <h2 id="vehicle-highlights-title">Vehicle highlights</h2>
+            <p>Features reported by the current fictional dealership inventory source.</p>
+          </div>
+          <ul class="vehicle-feature-list" data-detail-features>
+            <li><Check size={17} aria-hidden="true" />Loading current equipment</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="vehicle-source-band" aria-label="Source and availability">
+        <div class="detail-shell vehicle-source-band__inner">
+          <ShieldCheck size={24} aria-hidden="true" />
+          <div>
+            <p class="detail-kicker">Source boundary</p>
+            <h2>Current dealership evidence</h2>
+            <p data-detail-source>The inventory source and refresh time are loading.</p>
+            <p data-detail-notice>Confirm current availability with the dealership.</p>
+          </div>
+        </div>
+      </section>
+    </article>
+
+    <div class="detail-error" data-detail-error role="alert" hidden>
+      <div class="detail-shell">
+        <strong data-detail-error-title>Vehicle unavailable</strong>
+        <p data-detail-error-message>The current record could not be loaded.</p>
+        <a class="detail-button detail-button--primary" href="/demos/dealership-ai">Return to inventory</a>
+      </div>
+    </div>
+
+    <footer class="detail-footer">
+      <div class="detail-shell detail-footer__inner">
+        <span><Sparkles size={15} aria-hidden="true" /> LoomAI integration demonstration</span>
+        <span>Fictional inventory. No live Auto Trader data.</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="../../../../scripts/dealership-vehicle-detail.ts"></script>
+</DemoApplicationLayout>
+
+<style is:global>
+  .vehicle-detail-app {
+    --detail-green-950: #0d2b27;
+    --detail-green-900: #123b35;
+    --detail-green-700: #1f685b;
+    --detail-green-600: #267f6e;
+    --detail-mint: #dff2ea;
+    --detail-gold: #e8b84a;
+    --detail-gold-ink: #765300;
+    --detail-ink: #17282f;
+    --detail-muted: #5c6d72;
+    --detail-line: #dce5e1;
+    background: #f5f7f4;
+    color: var(--detail-ink);
+    min-height: 100vh;
+    padding-bottom: 10rem;
+  }
+
+  .detail-shell { margin-inline: auto; max-width: 76rem; padding-inline: 1.25rem; width: 100%; }
+
+  .detail-header { background: #fff; border-bottom: 1px solid var(--detail-line); }
+  .detail-header__inner { align-items: center; display: flex; justify-content: space-between; min-height: 5rem; }
+  .detail-brand { align-items: center; color: var(--detail-green-950); display: inline-flex; gap: 0.75rem; text-decoration: none; }
+  .detail-brand__mark { align-items: center; background: var(--detail-green-950); border-radius: 0.5rem; color: #fff; display: inline-flex; height: 2.75rem; justify-content: center; width: 2.75rem; }
+  .detail-brand strong,
+  .detail-brand small { display: block; letter-spacing: 0; }
+  .detail-brand strong { font-size: 1.05rem; }
+  .detail-brand small { color: var(--detail-muted); font-size: 0.67rem; font-weight: 760; text-transform: uppercase; }
+  .detail-back,
+  .vehicle-breadcrumb { align-items: center; color: var(--detail-green-700); display: inline-flex; font-size: 0.78rem; font-weight: 720; gap: 0.4rem; text-decoration: none; }
+  .detail-back:hover,
+  .vehicle-breadcrumb:hover { text-decoration: underline; }
+
+  .detail-disclosure { background: #fff7e4; border-bottom: 1px solid #ead9ac; color: #694d18; }
+  .detail-disclosure__inner { align-items: center; display: flex; gap: 0.6rem; min-height: 3.25rem; }
+  .detail-disclosure p { font-size: 0.78rem; margin: 0; }
+
+  .vehicle-hero { display: grid; gap: clamp(2rem, 5vw, 5rem); grid-template-columns: minmax(0, 1.18fr) minmax(20rem, 0.82fr); padding-block: clamp(2rem, 5vw, 4.5rem); }
+  .vehicle-media { align-self: start; min-width: 0; position: relative; }
+  .vehicle-media img { aspect-ratio: 3 / 2; background: #e7ece9; display: block; height: auto; object-fit: cover; width: 100%; }
+  .vehicle-media > span { background: var(--detail-green-950); color: #fff; font-size: 0.7rem; font-weight: 760; left: 1rem; padding: 0.45rem 0.65rem; position: absolute; text-transform: uppercase; top: 1rem; }
+  .vehicle-overview { align-self: center; min-width: 0; }
+  .vehicle-breadcrumb { margin-bottom: 2rem; }
+  .detail-kicker { color: var(--detail-green-700); font-size: 0.67rem; font-weight: 820; letter-spacing: 0; margin: 0 0 0.5rem; text-transform: uppercase; }
+  .vehicle-derivative { color: var(--detail-muted); font-size: 0.9rem; font-weight: 650; margin: 0 0 0.35rem; }
+  .vehicle-overview h1 { color: var(--detail-green-950); font-size: clamp(2.25rem, 5vw, 4.25rem); line-height: 0.98; margin: 0; max-width: 12ch; }
+  .vehicle-price { color: var(--detail-green-700); display: block; font-size: 1.7rem; margin-top: 1.25rem; }
+  .vehicle-summary { color: var(--detail-muted); font-size: 1rem; line-height: 1.7; margin: 1.25rem 0 0; max-width: 38rem; }
+
+  .vehicle-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1.75rem; }
+  .detail-button { align-items: center; border: 1px solid transparent; border-radius: 0.375rem; cursor: pointer; display: inline-flex; font: inherit; font-size: 0.78rem; font-weight: 760; gap: 0.45rem; justify-content: center; min-height: 2.8rem; padding: 0.7rem 1rem; text-decoration: none; }
+  .detail-button--primary { background: var(--detail-green-900); color: #fff; }
+  .detail-button--secondary { background: #fff; border-color: #b7c9c3; color: var(--detail-green-900); }
+  .detail-button:disabled { cursor: wait; opacity: 0.48; }
+  .detail-button:not(:disabled):hover { filter: brightness(0.95); }
+
+  .detail-runtime { align-items: center; border-top: 1px solid var(--detail-line); display: flex; gap: 0.65rem; margin-top: 1.8rem; padding-top: 1rem; }
+  .detail-runtime__indicator { background: #e8b84a; border-radius: 50%; height: 0.6rem; width: 0.6rem; }
+  .detail-runtime[data-state='ready'] .detail-runtime__indicator { background: #4dd99d; box-shadow: 0 0 0 4px #dff8ec; }
+  .detail-runtime[data-state='unavailable'] .detail-runtime__indicator { background: #c96345; }
+  .detail-runtime strong,
+  .detail-runtime small { display: block; }
+  .detail-runtime strong { font-size: 0.76rem; }
+  .detail-runtime small { color: var(--detail-muted); font-size: 0.68rem; margin-top: 0.15rem; }
+
+  .vehicle-facts-band { background: var(--detail-green-950); color: #fff; padding-block: 2.5rem; }
+  .section-heading h2,
+  .vehicle-highlights h2,
+  .vehicle-source-band h2 { font-size: 1.45rem; margin: 0; }
+  .vehicle-facts-band .detail-kicker { color: #88cabd; }
+  .vehicle-facts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 1.8rem 0 0; }
+  .vehicle-facts > div { border-left: 1px solid rgb(255 255 255 / 18%); min-width: 0; padding: 0.2rem 1rem; }
+  .vehicle-facts > div:first-child { border-left: 0; padding-left: 0; }
+  .vehicle-facts dt { color: #a9c4be; font-size: 0.67rem; font-weight: 680; }
+  .vehicle-facts dd { font-size: 0.88rem; font-weight: 760; margin: 0.35rem 0 0; overflow-wrap: anywhere; }
+
+  .vehicle-highlights { background: #fff; padding-block: 3.5rem; }
+  .vehicle-highlights__grid { display: grid; gap: 3rem; grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1.28fr); }
+  .vehicle-highlights p:not(.detail-kicker) { color: var(--detail-muted); line-height: 1.65; }
+  .vehicle-feature-list { display: grid; gap: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; }
+  .vehicle-feature-list li { align-items: center; border-bottom: 1px solid var(--detail-line); display: flex; font-size: 0.82rem; font-weight: 650; gap: 0.65rem; min-height: 3.25rem; padding: 0.6rem; }
+  .vehicle-feature-list svg { color: var(--detail-green-600); flex: 0 0 auto; }
+  .vehicle-feature-marker { align-items: center; color: var(--detail-green-600); display: inline-flex; flex: 0 0 auto; font-size: 1rem; font-weight: 800; justify-content: center; width: 1rem; }
+
+  .vehicle-source-band { background: var(--detail-mint); padding-block: 2.5rem; }
+  .vehicle-source-band__inner { align-items: start; display: flex; gap: 1rem; }
+  .vehicle-source-band__inner > svg { color: var(--detail-green-700); flex: 0 0 auto; margin-top: 0.2rem; }
+  .vehicle-source-band p:not(.detail-kicker) { color: #365b53; font-size: 0.8rem; line-height: 1.55; margin: 0.6rem 0 0; }
+
+  .detail-error { background: #fff1ed; border-block: 1px solid #efc7bb; color: #7a2f1d; padding-block: 3rem; }
+  .detail-error strong { font-size: 1.2rem; }
+  .detail-error p { margin-block: 0.5rem 1rem; }
+  .detail-error[hidden] { display: none; }
+
+  .detail-footer { border-top: 1px solid var(--detail-line); }
+  .detail-footer__inner { align-items: center; color: var(--detail-muted); display: flex; font-size: 0.7rem; justify-content: space-between; min-height: 5rem; }
+  .detail-footer__inner span { align-items: center; display: inline-flex; gap: 0.4rem; }
+
+  @media (max-width: 850px) {
+    .vehicle-detail-app { padding-bottom: 11rem; }
+    .detail-header__inner { min-height: 4.25rem; }
+    .detail-back { font-size: 0; }
+    .detail-back svg { height: 20px; width: 20px; }
+    .detail-disclosure__inner { align-items: start; padding-block: 0.65rem; }
+    .vehicle-hero { display: block; padding-inline: 0; padding-top: 0; }
+    .vehicle-media img { aspect-ratio: 16 / 10; }
+    .vehicle-overview { padding: 1.6rem 1.25rem 2.5rem; }
+    .vehicle-breadcrumb { margin-bottom: 1.4rem; }
+    .vehicle-overview h1 { font-size: 2.5rem; }
+    .vehicle-actions { align-items: stretch; flex-direction: column; }
+    .vehicle-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vehicle-facts > div,
+    .vehicle-facts > div:first-child { border-bottom: 1px solid rgb(255 255 255 / 18%); border-left: 0; padding: 0.85rem 0; }
+    .vehicle-highlights__grid { display: block; }
+    .vehicle-feature-list { grid-template-columns: 1fr; margin-top: 1.4rem; }
+    .detail-footer__inner { align-items: start; flex-direction: column; gap: 0.5rem; justify-content: center; }
+  }
+</style>

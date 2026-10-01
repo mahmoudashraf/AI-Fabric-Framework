@@ -30,7 +30,15 @@ const indexedRoutes = [
   'connect',
   'demos/dealership-ai',
 ]
-const noIndexRoutes = ['demos/dealership-ai/staff']
+const noIndexRoutes = [
+  'demos/dealership-ai/staff',
+  'demos/dealership-ai/vehicles/aster-e1-motion',
+  'demos/dealership-ai/vehicles/northstar-s4-touring',
+  'demos/dealership-ai/vehicles/morrow-c2-city',
+  'demos/dealership-ai/vehicles/caldera-x6-adventure',
+  'demos/dealership-ai/vehicles/arden-v3-executive',
+  'demos/dealership-ai/vehicles/aster-e2-sport',
+]
 const routes = [...indexedRoutes, ...noIndexRoutes]
 
 const errors = []

@@ -199,6 +199,10 @@ interface MaxModeWidgetConfig {
 }
 ```
 
+When enabled, the attach/refresh control is rendered in a separate utility rail
+above the Companion or Max Mode input shell. The captured page title appears as
+a removable chip; the control is not embedded inside the text-entry box.
+
 Current-page capture is user initiated. The widget excludes scripts, styles,
 navigation, footers, forms, hidden content, and its own host element; normalizes
 and bounds the text; removes query strings and hashes from the source URL; and

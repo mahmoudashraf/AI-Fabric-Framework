@@ -166,9 +166,12 @@ export function CompanionDock({
         </div>
       )}
 
-      <div className="rounded-[1.5rem] border-2 border-blue-600 bg-white p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950">
-        {controller.currentPageAttachmentEnabled && (
-          <div className="mb-2 flex min-w-0 items-center px-2 pt-1">
+      {controller.currentPageAttachmentEnabled && (
+        <div
+          className="pointer-events-auto mb-2 flex min-w-0 items-center"
+          data-max-mode-current-page-toolbar
+        >
+          <div className="max-w-full rounded-xl border border-blue-200 bg-white p-1 shadow-[0_10px_30px_rgba(15,23,42,0.14)] dark:border-gray-700 dark:bg-gray-950">
             <CurrentPageAttachmentControl
               attachment={controller.currentPageAttachment}
               isCapturing={controller.isCapturingCurrentPage}
@@ -177,8 +180,13 @@ export function CompanionDock({
               onRemove={controller.removeCurrentPageAttachment}
             />
           </div>
-        )}
+        </div>
+      )}
 
+      <div
+        className="rounded-[1.5rem] border-2 border-blue-600 bg-white p-2 shadow-[0_22px_64px_rgba(37,99,235,0.22)] dark:bg-gray-950"
+        data-max-mode-companion-input-shell
+      >
         {expanded && (
           <div className="mb-2 flex flex-wrap justify-end gap-2 px-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
