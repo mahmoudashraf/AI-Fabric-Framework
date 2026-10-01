@@ -3391,3 +3391,32 @@ Critical fixes that made the gate pass:
   emitted file, all three cache policies, and the script URL actually selected
   by the dealership page. The complete site gate passed with the existing
   multi-page navigation, request, accessibility, and mobile assertions.
+
+## 2026-10-01 Dealership Test-Drive Contact Form Simplification
+
+- Source commits `7f3b49572` and `2351ddc59` removed the separate consent
+  parameter from `dealership_request_test_drive` and made buyer name, email and
+  phone individually required. The governed action's existing final
+  confirmation remains the authorization boundary. The callback action was
+  deliberately not changed: it still accepts email or phone and requires its
+  explicit contact-consent parameter.
+- The dealership backend was redeployed through staging Coolify as deployment
+  `p12y73s1q87fdro2emc290l0` on exact commit
+  `2351ddc59da8a76358b4311f3fbaf4a39d908615`. Public status reports six
+  fictional inventory records. Temporary operator firewall access was removed
+  and the Hetzner rule readback returned zero matching operator entries.
+- Platform deployment `dep-f023c863` published `ver-31ec9b84` (`v17`) and
+  applied release `rel-a4ba31ea` through
+  `dtp-coolify-staging-behavior` with source artifact `dsa-27e4bcdc`. The
+  release is `APPLIED_VERIFIED`, provisioning is `ACTIVE`, verification is
+  `PASSED`, AI Fabric remains `0.8.7`, and no reindex was required.
+- Live mobile-browser proof on the Aster E1 detail route returned
+  `CLARIFICATION_REQUIRED` with exactly `name`, `email` and `phone` missing.
+  The rendered form showed Name, Email, Phone and the trusted Vehicle field;
+  no Consent field or consent copy was present.
+- Focused backend verification passed 21 tests. The full live write smoke
+  passed retrieval, inventory action, confirmation and receipt creation with
+  status `NEW`. The strict seven-scenario, one-conversation quality matrix also
+  passed without confirming or executing a write. Verification-fixture commit
+  `03d1e8d43` uses a LoomAI-owned synthetic email and accepts both natural
+  word orders when checking that an answer names relaxed constraints.
