@@ -1,14 +1,15 @@
 # 010.26 Auto Trader Dealership First Release And Meeting Demo Plan
 
-- **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30 with a
-  real deployment, AI Fabric `0.8.5`, six indexed fictional vehicles, direct
-  anonymous Max Mode, grounded retrieval, governed lead confirmation, restart
-  durability, and staff-inbox proof. Released Marketplace packaging and every
-  real Auto Trader access/rights/certification gate remain open.
+- **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30. The
+  conversational quality closure passed on 2026-10-01 with deployment
+  `dep-f023c863` version `v15`, AI Fabric `0.8.7`, six indexed fictional
+  vehicles, and two consecutive strict `7/7` browser runs. Released
+  Marketplace packaging and every real Auto Trader
+  access/rights/certification gate remain open.
 - **Date:** 2026-09-25
-- **Last architecture review:** 2026-09-29
-- **Last implementation checkpoint:** 2026-09-30
-- **Current LoomAI baseline:** AI Fabric `0.8.5`, Platform `Platform-V11`, V04 deployment lifecycle
+- **Last architecture review:** 2026-10-01
+- **Last implementation checkpoint:** 2026-10-01
+- **Current LoomAI baseline:** AI Fabric `0.8.7`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
 - **Demo posture:** ordinary customer application using its assigned LoomAI
@@ -26,6 +27,7 @@ Related plans and evidence:
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
 - [2026-09-30 hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json)
+- [2026-10-01 dealership conversational-quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json)
 
 Quality and verification references in the public framework repository:
 
@@ -76,7 +78,7 @@ Implementation references:
 | Inventory Data Sync client | Hosted and verified | Private signed deployment-local sync completed `6/6`; lifecycle canary proved insert/update/delete, stale-version supersession, and return to six vectors |
 | Authorization and actions | Hosted and verified | Indexed inventory read action and grounded answer passed; confirmed test-drive action produced receipt `NFM-33B974CC`, persisted once, and appeared as `NEW` in the protected staff inbox |
 | Generic REST Connector routing | Hosted and verified | Deployment connector is healthy, exposes the expected five-action contract, and passed immutable Platform release verification |
-| Public catalogue | Implemented as `preview` | Experiment entry, screenshot, sitemap, content/static smoke and responsive accessibility browser coverage pass |
+| Public catalogue | Live | Experiment entry, screenshot, sitemap, content/static smoke and responsive accessibility browser coverage pass; production public site serves the 2026-10-01 verification record |
 | Build and supply-chain posture | Implemented locally | Backend/site production images build; status exposes version/commit/build time; site and widget production dependency audits report zero findings; widget package/artifact ownership is LoomAI-labelled and locally bundled |
 | Auto Trader source | Not activated | No credential, advertiser grant, sandbox fixture or production data is claimed; meeting composition remains fictional |
 
@@ -1377,3 +1379,74 @@ as a native full-screen route on the LoomAI public site, its ordinary backend is
 independently deployed, and all AI behavior comes from its assigned LoomAI
 deployment URLs. Its customer-facing chat surface reuses the existing LoomAI
 Max Mode/Companion application.
+
+## 21. Post-Verification Fixes And Improvements
+
+This section records improvements discovered after the 2026-10-01 live quality
+closure. They are not unresolved blockers for the current fictional demo.
+Deployment `dep-f023c863` version `v15` / `ver-d8d76d70`, release
+`rel-f899de18`, remains the immutable known-good baseline while these items are
+implemented and canaried separately.
+
+The two lists below deliberately separate reusable LoomAI or AI Fabric
+mechanics from dealership behavior. Generic code must not contain dealership,
+vehicle, Auto Trader, field-name, or answer-text matching. Dealership semantics
+belong in the Marketplace composition, deployment configuration, connector
+mapping, customer application, and bounded prompt overlay.
+
+### 21.1 General Reusable Improvements
+
+| Priority | Surface and owner | Improvement | Required behavior and evidence |
+| --- | --- | --- | --- |
+| G1 | Platform deployment lifecycle | Treat Coolify HTTP `429` as a transient control-plane condition | Honour `Retry-After` when present, use bounded backoff, and resume polling the same provider deployment and immutable LoomAI release. A poll-rate limit must not be reported as an application deployment failure. Unit tests and one hosted rate-limit canary must prove no duplicate release or deployment is created. |
+| G2 | Platform template/release verification | Support template-owned post-apply verification packs | After a release is provisioned, execute bounded non-destructive sync, readiness, retrieval, read-action, and action-plus-RAG checks declared by the template. Keep the release unverified until required checks pass; record safe request IDs, counts, versions, and statuses as evidence. |
+| G3 | AI Fabric chat-session/runtime contract | Promote eligible read-action result items into a bounded conversation working set | Extend the existing generic working-set mechanism so an action contract can declare item ID, vector space, and safe label projections. A later phrase such as `those` can then resolve trusted recent targets without inventing identifiers or passing the literal pronoun to an application action. Preserve attachment precedence, owner/session isolation, maximum item limits, and explicit target-resolution intent. |
+| G4 | Runtime and connector observability | Expose sanitized action-input and sufficiency diagnostics in debug/evaluation output | Record allowlisted applied parameters, item count, grounding sufficiency, source freshness, truncation, action failure, and fallback path. Never expose secrets, protected IDs, raw headers, unrestricted payloads, or these diagnostics as ordinary end-user prose. |
+| G5 | Platform quality gates | Make repeatable conversational evaluation a deployment-version gate | Run one continuous-session scenario set more than once, retain provider request IDs, and fail on scope loss, invented facts, confirmation/write leakage, or browser/transport errors. A stochastic first pass must not be the sole promotion criterion. |
+| G6 | Platform inference operations | Record correctness, latency, token, and cost evidence per inference stage | Keep orchestration and generation model overrides independently configurable. Compare a cheaper model only against the same immutable deployment version and quality corpus; cost reduction cannot override a demonstrated behavioral regression. |
+| G7 | Generic chat UI and action contracts | Render structured action facts alongside generated language | Let actions declare safe list, detail, comparison, and receipt projections that the generic UI can render without parsing prose. Generated text explains the result; authoritative prices, statuses, identifiers, and availability remain structured facts. |
+| G8 | Prompt governance | Prefer typed contracts and policy over accumulating prompt instructions | Version prompt overlays, show their diff in deployment review, and rerun the bounded quality corpus for every change. Do not use prompts to implement authorization, trusted-target resolution, grounding sufficiency, confirmation, or application validation. |
+
+The only possible framework-level item in this list is G3. AI Fabric already
+provides conversation working-set target seeding for retrieved documents. The
+remaining opportunity is a generic, declarative action-result projection into
+that same bounded mechanism. It should be proposed to AI Fabric only with a
+provider-neutral contract and focused evidence; the current v15 result does not
+justify an urgent framework patch because configured RAG fallback recovers
+safely.
+
+### 21.2 Dealership-Specific Improvements
+
+| Priority | Surface and owner | Improvement | Required behavior and evidence |
+| --- | --- | --- | --- |
+| D1 | Dealership action plugin and deployment | Project inventory action results into the generic working-set contract once G3 exists | Map only trusted active vehicle ID, stock ID, slug, make/model label, and `dealer-vehicle` scope. Prove that `those`, `the cheaper one`, and `compare the first two` resolve only the latest scoped result set and never cross conversation, tenant, deployment, or dealership boundaries. |
+| D2 | Dealership backend and connector | Return and preserve validated applied inventory filters and source freshness | Search responses should expose safe `appliedFilters`, result count, source version/update time, and exact no-match status. Connector evidence should preserve those fields so tests can prove fuel, body type, budget, mileage, and make constraints were actually applied rather than inferred from prose. |
+| D3 | Dealership release verification | Add a separate confirmed-write canary with cleanup | Submit one test callback or test-drive request through the real confirmation flow, verify trusted internal `vehicleId` resolution, idempotency, receipt, persistence, and staff-inbox visibility, then delete or mark the synthetic record through an authorized cleanup path. Keep this separate from the no-write conversational quality suite. |
+| D4 | Dealership customer experience | Add structured vehicle and comparison presentation to Companion and Max Mode | Render vehicle cards and comparison tables from action facts while keeping the generated grounded explanation. Preserve the existing `executor` mode and `search` position; do not introduce browser-side mode selection or a second AI runtime. |
+| D5 | Dealership Marketplace packaging | Remove demo constants from the reusable dealership template | Bind dealership ID, approved origins, application URLs, advertiser scope, plugin versions, vector profile, sync schedule, webhook verification, and secret references at installation. `dealer-demo-001` and fictional source URLs remain fixtures only, never product defaults. |
+| D6 | Dealership data operations | Add automatic post-release inventory sync and reconciliation | Require source count, accepted count, indexed count, tombstones, work completion, and freshness to reconcile before the dealership deployment is marked ready. Production-sized customers provide an approved managed vector/object-storage service; local mounted/Lucene storage remains limited to demos or small explicitly accepted deployments. |
+| D7 | Dealership prompts and model policy | Freeze the current v15 prompt/model baseline until new repeatable evidence fails | Keep `gpt-5.4-mini` for orchestration at temperature `0` and generation at `0.1`. Do not add more wording for `those`; solve that structurally through D1. Any later prompt change must target a named failed scenario and must not introduce text matching, fabricated facts, or Auto Trader claims. |
+| D8 | Dealership performance and cost | Establish quality-preserving latency and cost budgets | The current strict run observed roughly three to nine seconds per turn, with the mixed semantic action-plus-RAG case the slowest. Measure p50/p95 by grounding path and canary parallel action/RAG only for broad mixed queries where measured quality and latency justify the extra retrieval/model cost. |
+| D9 | Auto Trader activation | Keep real provider work behind the existing sandbox and production gates | Replace the fictional source only after credentials, advertiser grant, exact capabilities, data rights, retention/attribution rules, and go-live checks are available. None of G1-G8 or D1-D8 changes the current no-connectivity/no-endorsement claim. |
+
+### 21.3 Recommended Execution Order
+
+1. Preserve v15 and its two strict `7/7` reports as the comparison baseline.
+2. Implement G1 and G2 in the Platform because they improve every deployment
+   type without changing customer behavior.
+3. Implement G4 and D2 so later quality decisions have stronger structured
+   evidence.
+4. Design G3 as a provider-neutral action working-set contract, then canary D1
+   without dealership logic in the framework.
+5. Add D3 as an isolated synthetic write test with deterministic cleanup.
+6. Implement G7/D4 structured presentation without changing the existing
+   browser mode or position.
+7. Productize D5 and D6 before onboarding a real dealership.
+8. Optimize models, prompts, latency, or parallel retrieval only after the
+   repeated quality gate remains green.
+
+Do not reopen the already-fixed empty-action grounding issue unless a future
+run again reports explicit insufficient action evidence as usable grounding or
+skips the configured fallback. Do not weaken confirmation, trusted target
+resolution, tenant isolation, source attribution, or application-owned writes
+to improve demo fluency.
