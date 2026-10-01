@@ -94,9 +94,9 @@ obtains its exact public routes from the dealership backend's safe descriptor.
 - `deployment/runtime/ai-actions.yml` defines four reads and two confirmed writes.
   The fourth read resolves a buyer-facing vehicle reference to the unique trusted
   inventory ID used by confirmed writes; the internal ID is never requested from
-  the buyer. Test-drive submission uses the governed action's final confirmation
-  instead of collecting a second consent checkbox; callback contact consent remains
-  an explicit action parameter.
+  the buyer. Test-drive submission collects name, email and phone, then uses the
+  governed action's final confirmation instead of a second consent checkbox;
+  callback contact consent remains an explicit action parameter.
 - `deployment/connector/actions-routing.yml` routes those actions and authz checks
   to this service.
 

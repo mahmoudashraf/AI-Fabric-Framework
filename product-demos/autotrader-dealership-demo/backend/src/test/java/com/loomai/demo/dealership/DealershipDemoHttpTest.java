@@ -260,6 +260,7 @@ class DealershipDemoHttpTest {
                 "vehicleId", "veh-aster-e1",
                 "name", "Avery Buyer",
                 "email", "avery@example.test",
+                "phone", "+44 7700 900123",
                 "preferredDate", "Saturday afternoon"
             ),
             "trace", Map.of(
@@ -318,6 +319,42 @@ class DealershipDemoHttpTest {
             idempotencyKey
         );
         assertThat(consentRecorded).isFalse();
+    }
+
+    @Test
+    void testDriveRequiresNameEmailAndPhone() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+            "actionId", "dealership_request_test_drive",
+            "idempotencyKey", "test-drive-contact-" + UUID.randomUUID(),
+            "params", Map.of(
+                "confirmationAccepted", true,
+                "vehicleId", "veh-aster-e1",
+                "name", "Avery Buyer",
+                "email", "avery@example.test"
+            ),
+            "trace", Map.of(
+                "requestId", "request-test-drive-contact",
+                "conversationId", "conversation-test-drive-contact",
+                "authContext", Map.of(
+                    "subjectId", "anonymous-session-1",
+                    "subjectType", "ANONYMOUS_SESSION",
+                    "authMode", "PUBLIC_RUNTIME_TOKEN",
+                    "callerType", "PUBLIC_BROWSER",
+                    "sessionId", "anonymous-session-1",
+                    "deploymentId", "dep-dealership-demo",
+                    "customerId", "customer-dealership-demo",
+                    "tenantId", "tenant-dealership-demo",
+                    "issuer", "runtime-public-bootstrap"
+                )
+            )
+        ));
+
+        mvc.perform(post("/api/internal/actions/execute")
+                .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
+                .contentType("application/json")
+                .content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("phone is required and must be at most 80 characters."));
     }
 
     @Test

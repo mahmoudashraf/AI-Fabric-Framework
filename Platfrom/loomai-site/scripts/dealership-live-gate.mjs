@@ -3,9 +3,10 @@ import { chromium } from 'playwright'
 const origin = normalizeOrigin(process.env.DEALERSHIP_DEMO_ORIGIN || 'https://loomai.pro')
 const timeout = Number(process.env.DEALERSHIP_DEMO_GATE_TIMEOUT_MS || 90_000)
 const syntheticEmail = 'loomai-final-gate@invalid.example'
+const syntheticPhone = '+44 7700 900123'
 const syntheticName = 'LoomAI Final Gate'
 const inventorySearchPrompt = 'Search the current dealership inventory for electric SUVs under £35,000 and list the available matches.'
-const actionPrompt = `My name is ${syntheticName} and my email is ${syntheticEmail}. Request a test drive for the Aster E1.`
+const actionPrompt = `My name is ${syntheticName}, my email is ${syntheticEmail}, and my phone is ${syntheticPhone}. Request a test drive for the Aster E1.`
 
 const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({

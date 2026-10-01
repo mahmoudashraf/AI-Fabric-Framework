@@ -64,9 +64,15 @@ public class LeadService {
         if (CALLBACK_ACTION.equals(request.actionId().trim()) && !request.consent()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contact consent is required.");
         }
-        String email = trim(request.email());
-        String phone = trim(request.phone());
-        if (!StringUtils.hasText(email) && !StringUtils.hasText(phone)) {
+        String name = require(request.name(), "name", 120);
+        String email = TEST_DRIVE_ACTION.equals(request.actionId().trim())
+            ? require(request.email(), "email", 200)
+            : trim(request.email());
+        String phone = TEST_DRIVE_ACTION.equals(request.actionId().trim())
+            ? require(request.phone(), "phone", 80)
+            : trim(request.phone());
+        if (CALLBACK_ACTION.equals(request.actionId().trim())
+            && !StringUtils.hasText(email) && !StringUtils.hasText(phone)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An email address or telephone number is required.");
         }
         if (StringUtils.hasText(email) && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
@@ -74,7 +80,7 @@ public class LeadService {
         }
 
         Map<String, Object> contact = new LinkedHashMap<>();
-        put(contact, "name", bounded(request.name(), 120));
+        put(contact, "name", name);
         put(contact, "email", bounded(email, 200));
         put(contact, "phone", bounded(phone, 80));
         put(contact, "preferredDate", bounded(request.preferredDate(), 40));

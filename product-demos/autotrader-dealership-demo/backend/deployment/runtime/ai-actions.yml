@@ -243,14 +243,14 @@ actions:
         required: true
         sensitive: true
       - name: email
-        description: Customer email address; email or phone is required.
+        description: Customer email address.
         type: STRING
-        required: false
+        required: true
         sensitive: true
       - name: phone
-        description: Customer telephone number; phone or email is required.
+        description: Customer telephone number.
         type: STRING
-        required: false
+        required: true
         sensitive: true
       - name: preferredDate
         description: Customer's preferred test-drive date or date range.
