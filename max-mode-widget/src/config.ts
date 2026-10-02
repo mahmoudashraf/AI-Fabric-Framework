@@ -174,11 +174,23 @@ export interface MaxModeCurrentPageAttachmentConfig {
   invalidateOnNavigation?: boolean;
 }
 
+export type MaxModeHostStarterPromptIcon =
+  | "calendar"
+  | "compare"
+  | "details"
+  | "location"
+  | "phone"
+  | "search"
+  | "shield"
+  | "sparkles";
+
 export interface MaxModeHostStarterPrompt {
   label: string;
   query: string;
   position?: MaxModePosition;
   mode?: MaxModeMode;
+  /** Optional provider-neutral visual semantic for this host-owned tool. */
+  icon?: MaxModeHostStarterPromptIcon;
 }
 
 export interface MaxModeHostCustomerAccountAuthConfig {

@@ -47,9 +47,14 @@ async function startVehicleDetail(app: HTMLElement) {
         placeholder: 'Ask about this vehicle...',
         emptyMessage: 'Attach this page for its visible details, or ask a grounded question about this vehicle.',
         starterPrompts: [
-          { label: 'Summarize this car', query: `Summarize the current ${label} using dealership facts.`, position: 'search', mode: 'executor' },
-          { label: 'Everyday suitability', query: `Is the current ${label} suitable for everyday driving?`, position: 'search', mode: 'executor' },
-          { label: 'Explain trade-offs', query: `Explain the important trade-offs for the current ${label}.`, position: 'search', mode: 'executor' },
+          { label: 'Live details', query: `Load the authoritative current details for the ${label}.`, position: 'search', mode: 'executor', icon: 'details' },
+          { label: 'Summarize this car', query: `Summarize the current ${label} using dealership facts.`, position: 'search', mode: 'executor', icon: 'sparkles' },
+          { label: 'Everyday use', query: `Is the current ${label} suitable for everyday driving?`, position: 'search', mode: 'executor', icon: 'shield' },
+          { label: 'Explain trade-offs', query: `Explain the important trade-offs for the current ${label}.`, position: 'search', mode: 'executor', icon: 'compare' },
+          { label: 'Compare alternatives', query: `Find current alternatives to the ${label}, then compare their dealership facts.`, position: 'search', mode: 'executor', icon: 'compare' },
+          { label: 'Test drive', query: `I would like to request a test drive for the ${label}.`, position: 'search', mode: 'executor', icon: 'calendar' },
+          { label: 'Request callback', query: `I would like the dealership to call me about the ${label}.`, position: 'search', mode: 'executor', icon: 'phone' },
+          { label: 'Vehicle location', query: `Where is the current ${label} located? Use current dealership facts.`, position: 'search', mode: 'executor', icon: 'location' },
         ],
         starterSuggestions: [
           'Which features stand out?',
@@ -199,4 +204,3 @@ function setText(rootElement: ParentNode, selector: string, value: string) {
 }
 
 export {}
-

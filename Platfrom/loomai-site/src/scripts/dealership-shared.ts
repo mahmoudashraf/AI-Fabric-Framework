@@ -77,6 +77,7 @@ type StarterPrompt = {
   query: string
   position: 'landing' | 'catalog' | 'search' | 'cart'
   mode: 'executor'
+  icon?: 'calendar' | 'compare' | 'details' | 'location' | 'phone' | 'search' | 'shield' | 'sparkles'
 }
 
 type AssistantOptions = {

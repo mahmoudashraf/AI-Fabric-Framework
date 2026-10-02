@@ -280,6 +280,38 @@ const mockServer = createServer(async (request, response) => {
       })
       return
     }
+    if (payload.query === 'I would like to request a test drive for 2025 Aster E1.') {
+      writeMockJson(response, 200, {
+        success: false,
+        type: 'CONFIRMATION_REQUIRED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'Confirm the selected test-drive request?',
+        actions: [{
+          action: 'dealership_request_test_drive',
+          confirmationRequired: true,
+          confirmationMessage: 'Confirm the selected test-drive request?',
+        }],
+      })
+      return
+    }
+    if (payload.query === 'I would like the dealership to call me about 2025 Aster E1.') {
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'INFORMATION_PROVIDED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'I can start a callback request for the selected vehicle.',
+      })
+      return
+    }
+    if (payload.query === 'No, cancel') {
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'INFORMATION_PROVIDED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'The request was cancelled.',
+      })
+      return
+    }
     if (payload.query === 'Yes, confirm') {
       writeMockJson(response, 200, {
         success: true,
@@ -687,6 +719,23 @@ try {
   if (!cardAskPayload.attachments?.some((attachment) => attachment.vectorSpace === 'dealer-vehicle')) {
     throw new Error('Dealership vehicle question used the wrong attachment vector space')
   }
+  const expectedHostTools = [
+    'Search stock',
+    'Electric cars',
+    'Family options',
+    'Compare cars',
+    'Vehicle details',
+    'Test drive',
+    'Request callback',
+    'Showroom location',
+  ]
+  const renderedHostTools = await page.locator('[data-max-mode-view] [data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if (renderedHostTools.length !== expectedHostTools.length ||
+      expectedHostTools.some((label) => !renderedHostTools.includes(label))) {
+    throw new Error(`Max Mode did not expose the complete host-owned tool set: ${JSON.stringify(renderedHostTools)}`)
+  }
 
   const inventoryPresentationRequest = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
@@ -717,7 +766,7 @@ try {
   if (!(await inventoryPresentation.isVisible()) || !(await askAboutVehicleButton.isVisible())) {
     throw new Error('The injected inventory workspace or its primary ask control is not visible in Max Mode')
   }
-  await askAboutVehicleButton.dispatchEvent('click')
+  await askAboutVehicleButton.click()
   const detailPresentationPayload = (await detailPresentationRequest).postDataJSON()
   const selectedDetailAttachments = detailPresentationPayload.attachments?.filter(
     (attachment) => attachment.source === 'action-result-context',
@@ -732,14 +781,51 @@ try {
   const detailPresentation = page.locator('loomai-dealership-vehicle-detail').last()
   await detailPresentation.waitFor()
   await detailPresentation.getByText('Vehicle details', { exact: true }).waitFor()
+  const detailSuitabilityQuery = 'Is 2025 Aster E1 suitable for everyday driving? Explain using current facts and identify unknowns.'
+  const detailSuitabilityRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === detailSuitabilityQuery
+  })
+  await detailPresentation.getByRole('button', { name: 'Everyday suitability' }).click()
+  await detailSuitabilityRequest
+  await detailPresentation.getByRole('button', { name: 'Keep in context' }).click()
+  await detailPresentation.getByRole('button', { name: 'Remove context' }).waitFor()
+  await detailPresentation.getByRole('button', { name: 'Remove context' }).click()
+  await detailPresentation.getByRole('button', { name: 'Keep in context' }).waitFor()
 
-  await inventoryPresentation.getByRole('checkbox').nth(0).dispatchEvent('click')
-  await inventoryPresentation.getByRole('checkbox').nth(1).dispatchEvent('click')
+  const presentationTestDriveRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'I would like to request a test drive for 2025 Aster E1.'
+  })
+  await inventoryPresentation.getByRole('button', { name: 'Request test drive' }).first().click()
+  const presentationTestDrivePayload = (await presentationTestDriveRequest).postDataJSON()
+  if (presentationTestDrivePayload.attachments?.filter(
+    (attachment) => attachment.source === 'action-result-context',
+  ).length !== 1) {
+    throw new Error('The injected test-drive control did not preserve exactly one selected result reference')
+  }
+  const presentationRejectRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'No, cancel'
+  })
+  await page.getByRole('button', { name: 'Reject', exact: true }).last().click()
+  await presentationRejectRequest
+  await page.getByText('The request was cancelled.', { exact: true }).last().waitFor()
+
+  const presentationCallbackRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'I would like the dealership to call me about 2025 Aster E1.'
+  })
+  await inventoryPresentation.getByRole('button', { name: 'Request callback' }).first().click()
+  await presentationCallbackRequest
+
+  await inventoryPresentation.getByRole('checkbox').nth(0).click()
+  await inventoryPresentation.getByRole('checkbox').nth(1).click()
   const comparisonPresentationRequest = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
     return request.postDataJSON()?.query?.startsWith('Compare these selected current vehicles using dealership facts:')
   })
-  await inventoryPresentation.getByRole('button', { name: 'Compare selected' }).dispatchEvent('click')
+  await inventoryPresentation.getByRole('button', { name: 'Compare selected' }).click()
   const comparisonPresentationPayload = (await comparisonPresentationRequest).postDataJSON()
   const selectedComparisonAttachments = comparisonPresentationPayload.attachments?.filter(
     (attachment) => attachment.source === 'action-result-context',
@@ -751,6 +837,17 @@ try {
   const comparisonPresentation = page.locator('loomai-dealership-vehicle-comparison').last()
   await comparisonPresentation.waitFor()
   await comparisonPresentation.getByText('Vehicle comparison', { exact: true }).waitFor()
+  const firstComparisonSelection = comparisonPresentation.getByRole('button', { name: 'Select vehicle' }).first()
+  await firstComparisonSelection.click()
+  await comparisonPresentation.getByRole('button', { name: 'Selected' }).first().waitFor()
+  await comparisonPresentation.getByRole('button', { name: 'Selected' }).first().click()
+  await comparisonPresentation.getByRole('button', { name: 'Select vehicle' }).first().waitFor()
+  const compareValueRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Compare the value trade-offs between these current vehicles. Ask for my priorities before naming a best option.'
+  })
+  await comparisonPresentation.getByRole('button', { name: 'Compare value' }).click()
+  await compareValueRequest
 
   const removeAttachment = page.getByRole('button', { name: /Remove attachment|Remove attached page:/ }).first()
   for (let attempt = 0; attempt < 8 && await removeAttachment.isVisible().catch(() => false); attempt += 1) {

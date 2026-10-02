@@ -266,6 +266,11 @@ MaxMode.init({
 })
 ```
 
+Host starter prompts may also set a provider-neutral `icon` semantic:
+`calendar`, `compare`, `details`, `location`, `phone`, `search`, `shield`, or
+`sparkles`. The host still owns the label and query; the generic widget only
+chooses the corresponding icon.
+
 The custom element receives `presentation` and `commands` properties. Commands
 are limited to deployment-backed `ask`, bounded result attach/detach, and safe
 navigation. A selected result is sent as `action-result-context` with

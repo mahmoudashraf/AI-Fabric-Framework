@@ -38,6 +38,7 @@ export function QuickActionsDesktop({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => setIsSearchCategoryOpen(!isSearchCategoryOpen)}
+                  data-max-mode-quick-action={action.label}
                   className={`flex flex-col items-center gap-1 p-3 rounded-xl ${action.bg} border ${action.border} hover:scale-105 transition-all min-w-[80px] ${isSearchCategoryOpen ? "ring-2 ring-blue-500" : ""}`}
                 >
                   <action.icon className={`h-5 w-5 ${action.color}`} />
@@ -49,6 +50,7 @@ export function QuickActionsDesktop({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => setIsBrowseProductsOpen(!isBrowseProductsOpen)}
+                  data-max-mode-quick-action={action.label}
                   className={`flex flex-col items-center gap-1 p-3 rounded-xl ${action.bg} border ${action.border} hover:scale-105 transition-all min-w-[80px] ${isBrowseProductsOpen ? "ring-2 ring-blue-500" : ""}`}
                 >
                   <action.icon className={`h-5 w-5 ${action.color}`} />
@@ -60,6 +62,7 @@ export function QuickActionsDesktop({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => onQuickAction(action.query, action.position, action.mode)}
+                  data-max-mode-quick-action={action.label}
                   className={`flex flex-col items-center gap-1 p-3 rounded-xl ${action.bg} border ${action.border} hover:scale-105 transition-all min-w-[80px]`}
                 >
                   <action.icon className={`h-5 w-5 ${action.color}`} />

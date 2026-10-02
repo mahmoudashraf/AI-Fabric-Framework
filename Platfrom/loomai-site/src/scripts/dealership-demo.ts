@@ -137,9 +137,14 @@ async function startDealershipDemo(app: HTMLElement) {
         placeholder: 'Ask about a vehicle, feature, budget or comparison...',
         emptyMessage: 'Ask about current vehicles, compare options, or start a confirmed callback or test-drive request.',
         starterPrompts: [
-          { label: 'Find an electric car', query: 'Show me electric cars in current stock.', position: 'search', mode: 'executor' },
-          { label: 'Best family options', query: 'Which current vehicles are practical for a family?', position: 'search', mode: 'executor' },
-          { label: 'Low-mileage stock', query: 'Find current vehicles with less than 10,000 miles.', position: 'search', mode: 'executor' },
+          { label: 'Search stock', query: 'Show me the current dealership inventory and help me narrow it down.', position: 'search', mode: 'executor', icon: 'search' },
+          { label: 'Electric cars', query: 'Show me electric cars in current stock.', position: 'search', mode: 'executor', icon: 'sparkles' },
+          { label: 'Family options', query: 'Which current vehicles are practical for a family? Use current dealership evidence.', position: 'search', mode: 'executor', icon: 'shield' },
+          { label: 'Compare cars', query: 'Help me choose two current vehicles and compare their dealership facts.', position: 'search', mode: 'executor', icon: 'compare' },
+          { label: 'Vehicle details', query: 'Ask me which current vehicle I am interested in, then load its current details.', position: 'search', mode: 'executor', icon: 'details' },
+          { label: 'Test drive', query: 'Help me request a test drive for a current vehicle. Ask for the vehicle and only the required details before confirmation.', position: 'search', mode: 'executor', icon: 'calendar' },
+          { label: 'Request callback', query: 'Help me request a dealership callback about a current vehicle. Ask for the vehicle, contact details and consent before confirmation.', position: 'search', mode: 'executor', icon: 'phone' },
+          { label: 'Showroom location', query: 'Which showroom currently holds the vehicle I am considering? Ask me which vehicle if needed.', position: 'search', mode: 'executor', icon: 'location' },
         ],
         starterSuggestions: [
           'Compare electric cars',

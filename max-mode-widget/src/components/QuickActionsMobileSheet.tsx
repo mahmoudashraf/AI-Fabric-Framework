@@ -145,6 +145,7 @@ export function QuickActionsMobileSheet({
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.03 }}
+                      data-max-mode-quick-action={action.label}
                       onClick={() => {
                         if (action.label === "Search Products") {
                           setIsSearchCategoryOpen(true);
@@ -170,4 +171,3 @@ export function QuickActionsMobileSheet({
     </AnimatePresence>
   );
 }
-

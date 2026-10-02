@@ -389,7 +389,9 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
       attach.addEventListener('click', () => this.toggleAttachment(reference))
       const testDrive = createButton('Request test drive', 'primary')
       testDrive.addEventListener('click', () => this.ask(`I would like to request a test drive for ${reference.label}.`, [reference.key]))
-      actions.append(ask, attach, testDrive)
+      const callback = createButton('Request callback', 'secondary')
+      callback.addEventListener('click', () => this.ask(`I would like the dealership to call me about ${reference.label}.`, [reference.key]))
+      actions.append(ask, attach, testDrive, callback)
     }
     content.append(actions)
     card.append(content)

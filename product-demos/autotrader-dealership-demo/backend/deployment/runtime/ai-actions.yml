@@ -64,7 +64,7 @@ actions:
         max: 24
 
   - name: dealership_get_vehicle
-    description: Load authoritative current details for a selected active dealership vehicle.
+    description: Load authoritative current details for one buyer-named active dealership vehicle after trusted target resolution.
     category: dealership_inventory
     accessMode: READ
     anonymousAllowed: true
@@ -99,14 +99,34 @@ actions:
             - sourceLabel
             - sourceUpdatedAt
     params:
+      - name: vehicle
+        description: Buyer-facing vehicle make and model, stock id or URL slug.
+        type: STRING
+        required: true
       - name: vehicleId
-        description: Trusted vehicle target id returned by inventory search.
+        description: Trusted active vehicle id.
         type: STRING
         required: true
+        visibility: INTERNAL
+        askUser: false
+        resolveFrom:
+          source: READ_ACTION
+          actionName: dealership_resolve_vehicle
+          params:
+            reference: "{{params.vehicle|context.originalQuery}}"
+          resultPath: vehicleId
       - name: slug
-        description: Trusted vehicle URL slug returned by inventory search.
+        description: Trusted active vehicle URL slug.
         type: STRING
         required: true
+        visibility: INTERNAL
+        askUser: false
+        resolveFrom:
+          source: READ_ACTION
+          actionName: dealership_resolve_vehicle
+          params:
+            reference: "{{params.vehicle|context.originalQuery}}"
+          resultPath: slug
 
   - name: dealership_resolve_vehicle
     description: Resolve one explicit buyer-facing vehicle reference to a trusted active dealership target.
@@ -199,9 +219,9 @@ actions:
         required: false
         sensitive: true
       - name: phone
-        description: Customer telephone number; phone or email is required.
+        description: Customer telephone number for the requested callback.
         type: STRING
-        required: false
+        required: true
         sensitive: true
       - name: message
         description: Optional callback notes.

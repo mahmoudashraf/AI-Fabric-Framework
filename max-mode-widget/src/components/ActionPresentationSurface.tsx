@@ -31,10 +31,13 @@ export function ActionPresentationSurface({
   onAttachResult,
   onDetachResult,
 }: ActionPresentationSurfaceProps) {
-  const commands = useMemo(
-    () => buildCommands({ presentation, onAsk, onAttachResult, onDetachResult }),
-    [presentation, onAsk, onAttachResult, onDetachResult],
-  );
+  const commandStateRef = useRef({ presentation, onAsk, onAttachResult, onDetachResult });
+  commandStateRef.current = { presentation, onAsk, onAttachResult, onDetachResult };
+  const commandsRef = useRef<MaxModeActionPresentationCommands>();
+  if (!commandsRef.current) {
+    commandsRef.current = buildCommands(() => commandStateRef.current);
+  }
+  const commands = commandsRef.current;
   const componentProps = useMemo<MaxModeActionPresentationComponentProps>(
     () => ({
       actionName: presentation.actionName,
@@ -49,6 +52,8 @@ export function ActionPresentationSurface({
     [commands, presentation, selectedResultKeys],
   );
 
+  const presentationRevision = presentationFingerprint(componentProps);
+
   useEffect(() => {
     emitEvent("action-presentation:rendered", {
       actionName: presentation.actionName,
@@ -56,7 +61,7 @@ export function ActionPresentationSurface({
       schemaVersion: presentation.schemaVersion,
       resultReferencesCount: presentation.resultReferences.length,
     });
-  }, [presentation]);
+  }, [presentationRevision]);
 
   return (
     <ActionPresentationErrorBoundary
@@ -84,13 +89,22 @@ function CustomElementPresentation({
   props: MaxModeActionPresentationComponentProps;
 }) {
   const elementRef = useRef<PresentationCustomElement | null>(null);
+  const appliedRevisionRef = useRef<string>();
+  const revision = presentationFingerprint(props);
 
   useEffect(() => {
     const element = elementRef.current;
-    if (!element) {
+    if (element) {
+      element.commands = props.commands;
+    }
+  }, [props.commands]);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element || appliedRevisionRef.current === revision) {
       return;
     }
-    element.commands = props.commands;
+    appliedRevisionRef.current = revision;
     element.presentation = {
       actionName: props.actionName,
       rendererId: props.rendererId,
@@ -100,7 +114,7 @@ function CustomElementPresentation({
       selectedResultKeys: props.selectedResultKeys,
       context: props.context,
     };
-  }, [props]);
+  }, [revision]);
 
   return createElement(elementName, {
     ref: (node: PresentationCustomElement | null) => {
@@ -111,24 +125,20 @@ function CustomElementPresentation({
   });
 }
 
-function buildCommands({
-  presentation,
-  onAsk,
-  onAttachResult,
-  onDetachResult,
-}: Omit<ActionPresentationSurfaceProps, "selectedResultKeys" | "fallback">): MaxModeActionPresentationCommands {
-  const references = new Map(presentation.resultReferences.map((reference) => [reference.key, reference]));
-  const resolveReferences = (keys?: string[]) => (keys || [])
-    .map((key) => references.get(key))
-    .filter((reference): reference is MaxModePresentationResultReference => Boolean(reference));
-
+function buildCommands(
+  state: () => Omit<ActionPresentationSurfaceProps, "selectedResultKeys" | "fallback">,
+): MaxModeActionPresentationCommands {
   return Object.freeze({
     async ask({ query, resultReferenceKeys }) {
       const normalizedQuery = typeof query === "string" ? query.trim() : "";
       if (!normalizedQuery) {
         return;
       }
-      const selected = resolveReferences(resultReferenceKeys);
+      const { presentation, onAsk } = state();
+      const references = referenceMap(presentation);
+      const selected = (resultReferenceKeys || [])
+        .map((key) => references.get(key))
+        .filter((reference): reference is MaxModePresentationResultReference => Boolean(reference));
       emitEvent("action-presentation:command", {
         command: "ask",
         actionName: presentation.actionName,
@@ -138,6 +148,8 @@ function buildCommands({
       await onAsk(normalizedQuery, selected);
     },
     attachResult(referenceKey) {
+      const { presentation, onAttachResult } = state();
+      const references = referenceMap(presentation);
       const reference = references.get(referenceKey);
       if (!reference) {
         return;
@@ -150,6 +162,8 @@ function buildCommands({
       onAttachResult(reference);
     },
     detachResult(referenceKey) {
+      const { presentation, onDetachResult } = state();
+      const references = referenceMap(presentation);
       const reference = references.get(referenceKey);
       if (!reference) {
         return;
@@ -162,6 +176,7 @@ function buildCommands({
       onDetachResult(reference);
     },
     navigate({ url, target }) {
+      const { presentation } = state();
       const safeUrl = resolveSafeNavigationUrl(url);
       if (!safeUrl) {
         emitEvent("error", {
@@ -183,6 +198,35 @@ function buildCommands({
       window.location.assign(safeUrl);
     },
   });
+}
+
+function referenceMap(presentation: ResolvedActionPresentation) {
+  return new Map(presentation.resultReferences.map((reference) => [reference.key, reference]));
+}
+
+function presentationFingerprint(props: MaxModeActionPresentationComponentProps): string {
+  return stableSerialize({
+    actionName: props.actionName,
+    rendererId: props.rendererId,
+    schemaVersion: props.schemaVersion,
+    presentationData: props.presentationData,
+    resultReferences: props.resultReferences,
+    selectedResultKeys: props.selectedResultKeys,
+    context: props.context,
+  });
+}
+
+function stableSerialize(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableSerialize).join(",")}]`;
+  }
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, entry]) => `${JSON.stringify(key)}:${stableSerialize(entry)}`)
+    .join(",")}}`;
 }
 
 function resolveSafeNavigationUrl(value: string): string | null {

@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AlertCircle, Ban, Bot, CheckCircle2, HelpCircle, Info, XCircle, Zap } from "lucide-react";
+import {
+  AlertCircle,
+  Ban,
+  Bot,
+  Calendar,
+  CheckCircle2,
+  FileText,
+  GitCompare,
+  HelpCircle,
+  Info,
+  MapPin,
+  Phone,
+  Search,
+  Shield,
+  Sparkles,
+  XCircle,
+  Zap,
+} from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,6 +29,7 @@ import {
   isCartCrudEnabled,
   type MaxModeHostAttachment,
   type MaxModeHostConfig,
+  type MaxModeHostStarterPromptIcon,
   type MaxModeWidgetConfig,
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
@@ -199,6 +217,21 @@ function shellPromptPalette(index: number) {
   return palettes[index % palettes.length];
 }
 
+const HOST_PROMPT_ICONS = {
+  calendar: Calendar,
+  compare: GitCompare,
+  details: FileText,
+  location: MapPin,
+  phone: Phone,
+  search: Search,
+  shield: Shield,
+  sparkles: Sparkles,
+} satisfies Record<MaxModeHostStarterPromptIcon, typeof Zap>;
+
+function hostPromptIcon(icon?: MaxModeHostStarterPromptIcon) {
+  return icon ? HOST_PROMPT_ICONS[icon] : Zap;
+}
+
 function deriveQuickActions(
   hostConfig: MaxModeHostConfig | undefined,
   shellConfig: RuntimeShellConfigSummary | null,
@@ -212,7 +245,7 @@ function deriveQuickActions(
     return hostStarterPrompts.map((prompt, index) => {
       const palette = shellPromptPalette(index);
       return {
-        icon: Zap,
+        icon: hostPromptIcon(prompt.icon),
         label: prompt.label.trim(),
         query: prompt.query.trim(),
         color: palette.color,

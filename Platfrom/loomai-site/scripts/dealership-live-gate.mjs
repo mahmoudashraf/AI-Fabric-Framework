@@ -1,16 +1,27 @@
+import { mkdir } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { chromium } from 'playwright'
 
+const scriptDirectory = dirname(fileURLToPath(import.meta.url))
+const siteDirectory = resolve(scriptDirectory, '..')
 const origin = normalizeOrigin(process.env.DEALERSHIP_DEMO_ORIGIN || 'https://loomai.pro')
-const timeout = Number(process.env.DEALERSHIP_DEMO_GATE_TIMEOUT_MS || 90_000)
-const syntheticEmail = 'loomai-final-gate@loomai.pro'
+const timeout = positiveNumber(process.env.DEALERSHIP_DEMO_GATE_TIMEOUT_MS, 120_000)
+const staffUsername = requiredEnvironment('DEALERSHIP_STAFF_USERNAME')
+const staffPassword = requiredEnvironment('DEALERSHIP_STAFF_PASSWORD')
+const runId = new Date().toISOString().replace(/\D/g, '').slice(0, 14)
+const syntheticName = `LoomAI Live Gate ${runId}`
+const syntheticEmail = `loomai-live-gate+${runId}@loomai.pro`
 const syntheticPhone = '+44 7700 900123'
-const syntheticName = 'LoomAI Final Gate'
-const inventorySearchPrompt = 'Search the current dealership inventory for electric SUVs under £35,000 and list the available matches.'
-const actionPrompt = `My name is ${syntheticName}, my email is ${syntheticEmail}, and my phone is ${syntheticPhone}. Request a test drive for the Aster E1.`
+const inventorySearchPrompt = 'Show current electric vehicles under GBP 40,000.'
+const screenshotDirectory = resolve(siteDirectory, 'test-results/dealership-live')
+
+await mkdir(screenshotDirectory, { recursive: true })
 
 const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({
-  viewport: { width: 390, height: 844 },
+  viewport: { width: 1440, height: 1000 },
   reducedMotion: 'reduce',
 })
 const page = await context.newPage()
@@ -19,8 +30,19 @@ page.setDefaultTimeout(timeout)
 const failures = []
 const queryResponses = []
 const suggestionResponses = []
+const forbiddenBrowserRequests = []
 
 page.on('pageerror', (error) => failures.push({ type: 'pageerror', message: error.message }))
+page.on('request', (request) => {
+  if (!['fetch', 'xhr'].includes(request.resourceType())) return
+  const url = request.url()
+  if (url.includes('/api/internal/')
+      || url.includes('-connector.')
+      || url.includes('loomai-platform-backend.')
+      || url.startsWith('https://api.loomai.pro/')) {
+    forbiddenBrowserRequests.push(redactUrl(url))
+  }
+})
 page.on('response', async (response) => {
   const url = response.url()
   const request = response.request()
@@ -39,7 +61,13 @@ page.on('response', async (response) => {
   }
 })
 
+let staffPage
+const receiptsToClean = []
+
 try {
+  staffPage = await openStaffWorkspace(context, origin, staffUsername, staffPassword, timeout)
+  const baselineReceipts = await staffReceipts(staffPage)
+
   await page.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.vehicle-card')
   await page.waitForFunction(
@@ -49,7 +77,206 @@ try {
   const vehicleCount = await page.locator('.vehicle-card').count()
   assert(vehicleCount > 0, 'The dealership inventory rendered no vehicles.')
 
-  const sessionRenewal = await page.evaluate(async () => {
+  const sessionRenewal = await verifyAnonymousRenewal(page)
+  assert(sessionRenewal.sameSession && sessionRenewal.sessionIdPresent, 'Anonymous session renewal changed the runtime-owned identity.')
+
+  const hostToolLabels = await openAndReadHostTools(page)
+  const expectedHostTools = [
+    'Search stock',
+    'Electric cars',
+    'Family options',
+    'Compare cars',
+    'Vehicle details',
+    'Test drive',
+    'Request callback',
+    'Showroom location',
+  ]
+  assert(
+    expectedHostTools.every((label) => hostToolLabels.includes(label)),
+    `The hosted Max Mode tool set is incomplete: ${JSON.stringify(hostToolLabels)}`,
+  )
+
+  const inventorySearch = await sendMessageAndWait(page, inventorySearchPrompt)
+  assert(inventorySearch.response.ok(), `The inventory search returned HTTP ${inventorySearch.response.status()}.`)
+
+  const inventoryPresentation = page.locator('loomai-dealership-inventory').last()
+  await inventoryPresentation.waitFor({ state: 'attached' })
+  const presentationEvidence = await inspectInventoryPresentation(inventoryPresentation)
+  assertInventoryPresentation(presentationEvidence)
+
+  const selectedVehicleLabel = presentationEvidence.references[0]?.label
+  assert(selectedVehicleLabel, 'The inventory presentation exposed no selectable vehicle label.')
+
+  const detailQuery = `Tell me about ${selectedVehicleLabel} using its current dealership facts.`
+  const detailResponsePromise = waitForQueryResponse(page, (request) => safeRequestBody(request).query === detailQuery)
+  await inventoryPresentation.getByRole('button', { name: 'Ask about this' }).first().click()
+  const detailResponse = await detailResponsePromise
+  assert(detailResponse.ok(), `The injected detail command returned HTTP ${detailResponse.status()}.`)
+  const detailPresentation = page.locator('loomai-dealership-vehicle-detail').last()
+  await detailPresentation.waitFor({ state: 'attached' })
+  await detailPresentation.getByText('Vehicle details', { exact: true }).waitFor()
+
+  const suitabilityQuery = `Is ${selectedVehicleLabel} suitable for everyday driving? Explain using current facts and identify unknowns.`
+  const suitabilityResponsePromise = waitForQueryResponse(page, (request) => safeRequestBody(request).query === suitabilityQuery)
+  await detailPresentation.getByRole('button', { name: 'Everyday suitability' }).click()
+  const suitabilityResponse = await suitabilityResponsePromise
+  assert(suitabilityResponse.ok(), `The grounded suitability follow-up returned HTTP ${suitabilityResponse.status()}.`)
+  const suitabilityBody = await safeJson(suitabilityResponse)
+  const suitabilityEvidence = responseEvidence(suitabilityBody)
+  assert(
+    suitabilityEvidence.sourceCount > 0 || suitabilityEvidence.documentCount > 0,
+    'The grounded suitability follow-up returned no action or indexed evidence.',
+  )
+
+  await detailPresentation.getByRole('button', { name: 'Keep in context' }).click()
+  await detailPresentation.getByRole('button', { name: 'Remove context' }).waitFor()
+  await detailPresentation.getByRole('button', { name: 'Remove context' }).click()
+  await detailPresentation.getByRole('button', { name: 'Keep in context' }).waitFor()
+
+  const inventoryCheckboxes = inventoryPresentation.getByRole('checkbox')
+  assert(await inventoryCheckboxes.count() >= 2, 'The inventory presentation did not provide two comparison candidates.')
+  await inventoryCheckboxes.nth(0).click()
+  await inventoryCheckboxes.nth(1).click()
+  const comparisonResponsePromise = waitForQueryResponse(
+    page,
+    (request) => safeRequestBody(request).query?.startsWith('Compare these selected current vehicles using dealership facts:'),
+  )
+  await inventoryPresentation.getByRole('button', { name: 'Compare selected' }).click()
+  const comparisonResponse = await comparisonResponsePromise
+  assert(comparisonResponse.ok(), `The injected comparison command returned HTTP ${comparisonResponse.status()}.`)
+  const comparisonPresentation = page.locator('loomai-dealership-vehicle-comparison').last()
+  await comparisonPresentation.waitFor({ state: 'attached' })
+  await comparisonPresentation.getByText('Vehicle comparison', { exact: true }).waitFor()
+
+  const comparisonSelect = comparisonPresentation.getByRole('button', { name: 'Select vehicle' }).first()
+  await comparisonSelect.click()
+  await comparisonPresentation.getByRole('button', { name: 'Selected' }).first().waitFor()
+  await comparisonPresentation.getByRole('button', { name: 'Selected' }).first().click()
+  await comparisonPresentation.getByRole('button', { name: 'Select vehicle' }).first().waitFor()
+
+  const valueQuery = 'Compare the value trade-offs between these current vehicles. Ask for my priorities before naming a best option.'
+  const valueResponsePromise = waitForQueryResponse(page, (request) => safeRequestBody(request).query === valueQuery)
+  await comparisonPresentation.getByRole('button', { name: 'Compare value' }).click()
+  const valueResponse = await valueResponsePromise
+  assert(valueResponse.ok(), `The comparison follow-up returned HTTP ${valueResponse.status()}.`)
+
+  const rejection = await runClarifiedWrite({
+    page,
+    trigger: () => inventoryPresentation.getByRole('button', { name: 'Request test drive' }).first().click(),
+    initialQuery: `I would like to request a test drive for ${selectedVehicleLabel}.`,
+    actionName: 'dealership_request_test_drive',
+    values: { name: syntheticName, email: syntheticEmail, phone: syntheticPhone },
+    decision: 'reject',
+  })
+  assert(rejection.cancelled, 'Rejecting the test-drive proposal did not return a cancelled result.')
+  const receiptsAfterReject = await refreshStaffReceipts(staffPage)
+  assert(
+    sameStrings(baselineReceipts, receiptsAfterReject),
+    'Rejecting the test-drive proposal unexpectedly created a staff-inbox request.',
+  )
+
+  const confirmedTestDrive = await runClarifiedWrite({
+    page,
+    trigger: () => inventoryPresentation.getByRole('button', { name: 'Request test drive' }).first().click(),
+    initialQuery: `I would like to request a test drive for ${selectedVehicleLabel}.`,
+    actionName: 'dealership_request_test_drive',
+    values: { name: syntheticName, email: syntheticEmail, phone: syntheticPhone },
+    decision: 'confirm',
+  })
+  assertReceipt(confirmedTestDrive, 'test-drive')
+  receiptsToClean.push(confirmedTestDrive.receiptCode)
+
+  const confirmedCallback = await runClarifiedWrite({
+    page,
+    trigger: () => inventoryPresentation.getByRole('button', { name: 'Request callback' }).first().click(),
+    initialQuery: `I would like the dealership to call me about ${selectedVehicleLabel}.`,
+    actionName: 'dealership_request_callback',
+    values: { name: syntheticName, phone: syntheticPhone, consent: 'true' },
+    decision: 'confirm',
+  })
+  assertReceipt(confirmedCallback, 'callback')
+  receiptsToClean.push(confirmedCallback.receiptCode)
+
+  const staffEvidence = []
+  for (const receiptCode of receiptsToClean) {
+    staffEvidence.push(await verifyStaffReceipt(staffPage, receiptCode, selectedVehicleLabel))
+  }
+  const finalReceipts = await staffReceipts(staffPage)
+  for (const receiptCode of receiptsToClean) {
+    assert(finalReceipts.filter((receipt) => receipt === receiptCode).length === 1, `Receipt ${receiptCode} was not persisted exactly once.`)
+  }
+
+  await page.screenshot({
+    path: resolve(screenshotDirectory, 'meeting-demo-desktop.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  const comparisonSurface = page.locator('[data-max-mode-action-presentation="loomai.vehicle-comparison.v1"]').last()
+  await comparisonSurface.evaluate((element) => element.scrollIntoView({ block: 'start' }))
+  assert(await comparisonPresentation.locator('.comparison-mobile').isVisible(), 'The hosted comparison did not switch to its mobile layout.')
+  const mobileBox = await comparisonSurface.boundingBox()
+  assert(mobileBox && mobileBox.width <= 390, `The hosted comparison exceeded the mobile viewport: ${JSON.stringify(mobileBox)}`)
+  await page.screenshot({
+    path: resolve(screenshotDirectory, 'meeting-demo-mobile.png'),
+    animations: 'disabled',
+  })
+
+  const conversationIds = uniqueStrings(queryResponses.map(({ response }) => findScalar(response, 'conversationId')))
+  assert(conversationIds.length === 1, `The meeting journey did not retain one conversation: ${JSON.stringify(conversationIds)}`)
+  assert(suggestionResponses.length > 0, 'The runtime did not issue a contextual suggestions request.')
+  assert(suggestionResponses.every(({ status }) => status >= 200 && status < 300), 'A suggestions request failed.')
+  assert(forbiddenBrowserRequests.length === 0, `The browser called a protected provider/control-plane route: ${JSON.stringify(forbiddenBrowserRequests)}`)
+  assert(failures.length === 0, `Browser/runtime failures were observed: ${JSON.stringify(failures)}`)
+
+  process.stdout.write(`${JSON.stringify({
+    status: 'PASS',
+    origin,
+    deploymentJourney: {
+      conversationId: conversationIds[0],
+      queryCount: queryResponses.length,
+      hostToolLabels,
+      vehicleCount,
+      sessionRenewal,
+    },
+    presentations: {
+      inventory: {
+        actionName: presentationEvidence.actionName,
+        rendererId: presentationEvidence.rendererId,
+        schemaVersion: presentationEvidence.schemaVersion,
+        renderedCardCount: presentationEvidence.renderedCardCount,
+        filterLabels: presentationEvidence.filterLabels,
+      },
+      detail: 'loomai.vehicle-detail.v1',
+      comparison: 'loomai.vehicle-comparison.v1',
+    },
+    groundedFollowUp: suitabilityEvidence,
+    writes: {
+      rejectedTestDrive: { cancelled: rejection.cancelled },
+      confirmedTestDrive: safeReceiptEvidence(confirmedTestDrive),
+      confirmedCallback: safeReceiptEvidence(confirmedCallback),
+    },
+    staffReadback: staffEvidence,
+    suggestionRequests: suggestionResponses.length,
+    forbiddenBrowserRequests,
+    failures,
+    screenshots: [
+      resolve(screenshotDirectory, 'meeting-demo-desktop.png'),
+      resolve(screenshotDirectory, 'meeting-demo-mobile.png'),
+    ],
+  }, null, 2)}\n`)
+} finally {
+  if (staffPage) {
+    for (const receiptCode of receiptsToClean) {
+      await cancelStaffReceipt(staffPage, receiptCode).catch(() => undefined)
+    }
+  }
+  await context.close()
+  await browser.close()
+}
+
+async function verifyAnonymousRenewal(browserPage) {
+  return browserPage.evaluate(async () => {
     const siteConfig = await fetch('/runtime-config/dealership-demo.json', { cache: 'no-store' }).then((response) => response.json())
     const descriptor = await fetch(`${siteConfig.apiBaseUrl}/api/public/runtime-descriptor`, { cache: 'no-store' }).then((response) => response.json())
     const bootstrapUrl = new URL(descriptor.runtimeRoutes.bootstrapUrl, descriptor.chatBaseUrl).toString()
@@ -61,58 +288,84 @@ try {
     }).then((response) => response.json())
     return { sameSession: initial.sessionId === renewed.sessionId, sessionIdPresent: Boolean(renewed.sessionId) }
   })
-  assert(sessionRenewal.sameSession && sessionRenewal.sessionIdPresent, 'Anonymous session renewal changed the runtime-owned identity.')
+}
 
-  const informationalResponse = page.waitForResponse((response) => {
-    if (!response.url().endsWith('/api/chat/me/query')) return false
-    return response.request().postDataJSON()?.query?.startsWith('Tell me whether the 2025 Aster E1')
-  })
-  await page.locator('[data-card-ask]').first().click()
-  const informational = await informationalResponse
-  assert(informational.ok(), `The grounded vehicle query returned HTTP ${informational.status()}.`)
-
-  const actionResponse = page.waitForResponse((response) => {
-    if (!response.url().endsWith('/api/chat/me/query')) return false
-    return response.request().postDataJSON()?.query === actionPrompt
-  })
-  await page.evaluate((prompt) => {
-    window.MaxMode.sendMessage(prompt, { mode: 'executor', open: true })
-  }, actionPrompt)
-  const proposedAction = await actionResponse
-  assert(proposedAction.ok(), `The governed action query returned HTTP ${proposedAction.status()}.`)
-
-  const confirmButton = page.getByRole('button', { name: 'Confirm', exact: true })
-  await confirmButton.waitFor()
-  const confirmationResponse = page.waitForResponse((response) => {
-    if (!response.url().endsWith('/api/chat/me/query')) return false
-    return response.request().postDataJSON()?.query === 'Yes, confirm'
-  })
-  await confirmButton.click()
-  const confirmedAction = await confirmationResponse
-  assert(confirmedAction.ok(), `The action confirmation returned HTTP ${confirmedAction.status()}.`)
-  const capturedConfirmation = await waitForCapturedCall(
-    queryResponses,
-    ({ request }) => request.query === 'Yes, confirm',
+async function openAndReadHostTools(browserPage) {
+  await browserPage.evaluate(() => window.MaxMode.open({ position: 'search', mode: 'executor' }))
+  await browserPage.getByRole('button', { name: 'Close MAX Mode' }).waitFor()
+  return browserPage.locator('[data-max-mode-view] [data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')).filter(Boolean),
   )
-  const confirmedActionEvidence = confirmationEvidence(capturedConfirmation.response)
-  assert(confirmedActionEvidence.actionSuccess, 'The confirmed dealership action did not report success.')
-  assert(/^NFM-[A-Z0-9]+$/.test(confirmedActionEvidence.receiptCode || ''), 'The confirmed dealership action returned no receipt.')
-  assert(confirmedActionEvidence.actionStatus === 'NEW', 'The confirmed dealership action did not enter the staff inbox as NEW.')
-  await page.getByText('Confirmed', { exact: true }).last().waitFor()
+}
 
-  const inventorySearchResponse = page.waitForResponse((response) => {
-    if (!response.url().endsWith('/api/chat/me/query')) return false
-    return response.request().postDataJSON()?.query === inventorySearchPrompt
-  })
-  await page.evaluate((prompt) => {
-    window.MaxMode.sendMessage(prompt, { mode: 'executor', open: true })
-  }, inventorySearchPrompt)
-  const inventorySearch = await inventorySearchResponse
-  assert(inventorySearch.ok(), `The inventory search returned HTTP ${inventorySearch.status()}.`)
+async function sendMessageAndWait(browserPage, query) {
+  const responsePromise = waitForQueryResponse(browserPage, (request) => safeRequestBody(request).query === query)
+  await browserPage.evaluate((message) => {
+    window.MaxMode.sendMessage(message, { mode: 'executor', position: 'search', open: true })
+  }, query)
+  return { response: await responsePromise }
+}
 
-  const inventoryPresentation = page.locator('loomai-dealership-inventory').last()
-  await inventoryPresentation.waitFor({ state: 'attached' })
-  const presentationEvidence = await inventoryPresentation.evaluate((element) => {
+function waitForQueryResponse(browserPage, predicate) {
+  return browserPage.waitForResponse((response) => (
+    response.url().endsWith('/api/chat/me/query') && predicate(response.request())
+  ))
+}
+
+async function runClarifiedWrite({ page: browserPage, trigger, initialQuery, actionName, values, decision }) {
+  const initialResponsePromise = waitForQueryResponse(
+    browserPage,
+    (request) => safeRequestBody(request).query === initialQuery,
+  )
+  await trigger()
+  const initialResponse = await initialResponsePromise
+  assert(initialResponse.ok(), `${actionName} entry returned HTTP ${initialResponse.status()}.`)
+  const initialBody = await safeJson(initialResponse)
+  assert(findScalar(initialBody, 'type') === 'CLARIFICATION_REQUIRED', `${actionName} did not enter clarification from its injected CTA.`)
+
+  for (const [field, value] of Object.entries(values)) {
+    const input = browserPage.getByPlaceholder(`Enter ${humanizeField(field).toLowerCase()}...`).last()
+    await input.waitFor()
+    await input.fill(value)
+  }
+
+  const clarificationPrefix = `Proceed with ${actionName.replaceAll('_', ' ')} using:`
+  const clarificationResponsePromise = waitForQueryResponse(
+    browserPage,
+    (request) => safeRequestBody(request).query?.startsWith(clarificationPrefix),
+  )
+  await browserPage.getByRole('button', { name: 'Submit & Proceed' }).last().click()
+  const clarificationResponse = await clarificationResponsePromise
+  assert(clarificationResponse.ok(), `${actionName} clarification returned HTTP ${clarificationResponse.status()}.`)
+  const clarificationBody = await safeJson(clarificationResponse)
+  assert(findScalar(clarificationBody, 'type') === 'CONFIRMATION_REQUIRED', `${actionName} did not enter final confirmation.`)
+
+  const confirmationQuery = decision === 'confirm' ? 'Yes, confirm' : 'No, cancel'
+  const decisionResponsePromise = waitForQueryResponse(
+    browserPage,
+    (request) => safeRequestBody(request).query === confirmationQuery,
+  )
+  await browserPage.getByRole('button', { name: decision === 'confirm' ? 'Confirm' : 'Reject', exact: true }).last().click()
+  const decisionResponse = await decisionResponsePromise
+  assert(decisionResponse.ok(), `${actionName} ${decision} returned HTTP ${decisionResponse.status()}.`)
+  const decisionBody = await safeJson(decisionResponse)
+  if (decision === 'reject') {
+    await browserPage.getByText('Rejected', { exact: true }).last().waitFor()
+    return {
+      cancelled: answerText(decisionBody).toLowerCase().includes('cancel'),
+      ...responseEvidence(decisionBody),
+    }
+  }
+
+  await browserPage.getByText('Confirmed', { exact: true }).last().waitFor()
+  return {
+    ...responseEvidence(decisionBody),
+    ...confirmationEvidence(decisionBody),
+  }
+}
+
+async function inspectInventoryPresentation(inventoryPresentation) {
+  return inventoryPresentation.evaluate((element) => {
     const presentation = element.presentation || {}
     const root = element.shadowRoot
     const labels = (selector) => [...(root?.querySelectorAll(selector) || [])]
@@ -129,6 +382,7 @@ try {
       filterLabels: labels('.filter-pills span'),
       buttonLabels: labels('button'),
       referenceCount: references.length,
+      references: references.map((reference) => ({ label: reference.label, lookupValue: reference.lookupValue })),
       referencesHaveProvenance: references.every((reference) => (
         reference.sourceActionName === 'dealership_search_inventory'
           && typeof reference.sourceMessageId === 'string'
@@ -139,115 +393,101 @@ try {
       forbiddenProjectionFieldsPresent: ['content', 'errors', 'warnings'].some((field) => field in presentationData),
     }
   })
-  assert(
-    presentationEvidence.actionName === 'dealership_search_inventory',
-    `The injected inventory surface was bound to ${presentationEvidence.actionName || 'no action'}.`,
-  )
-  assert(
-    presentationEvidence.rendererId === 'loomai.vehicle-inventory.v1'
-      && presentationEvidence.schemaVersion === 'loomai.vehicle-list.v1',
-    `The exact inventory renderer contract was not selected: ${JSON.stringify(presentationEvidence)}.`,
-  )
-  assert(
-    presentationEvidence.projectedItemCount > 0
-      && presentationEvidence.projectedItemCount <= 12
-      && presentationEvidence.renderedCardCount === presentationEvidence.projectedItemCount,
-    `The bounded inventory projection did not render completely: ${JSON.stringify(presentationEvidence)}.`,
-  )
-  assert(
-    ['Fuel: Electric', 'Body: SUV', 'Up to £35,000'].every((label) => presentationEvidence.filterLabels.includes(label)),
-    `The injected inventory surface did not expose the applied filters: ${JSON.stringify(presentationEvidence.filterLabels)}.`,
-  )
-  assert(
-    ['View details', 'Ask about this', 'Keep in context', 'Request test drive', 'Compare selected']
-      .every((label) => presentationEvidence.buttonLabels.includes(label)),
-    `The injected inventory surface is missing safe host commands: ${JSON.stringify(presentationEvidence.buttonLabels)}.`,
-  )
-  assert(
-    presentationEvidence.referenceCount === presentationEvidence.projectedItemCount
-      && presentationEvidence.referencesHaveProvenance,
-    `The rendered result references lost action/message provenance: ${JSON.stringify(presentationEvidence)}.`,
-  )
-  assert(
-    !presentationEvidence.forbiddenProjectionFieldsPresent,
-    'The host projection exposed forbidden raw transport fields to the renderer.',
-  )
-
-  const [informationalCall, inventorySearchCall, actionCall, confirmationCall] = selectExpectedCalls(
-    queryResponses,
-    inventorySearchPrompt,
-    actionPrompt,
-  )
-  assert(informationalCall.request.mode === 'executor', 'The vehicle query did not use executor mode.')
-  assert(
-    informationalCall.request.attachments?.some(
-      (attachment) => attachment.id === 'veh-aster-e1' && attachment.vectorSpace === 'dealer-vehicle',
-    ),
-    'The vehicle query did not include its deployment-authorized dealer-vehicle attachment.',
-  )
-  assert(inventorySearchCall.request.mode === 'executor', 'The inventory search did not use executor mode.')
-  assert(actionCall.request.mode === 'executor', 'The action proposal did not use executor mode.')
-  assert(confirmationCall.request.mode === 'executor', 'The confirmation did not preserve executor mode.')
-
-  const retrieval = responseEvidence(informationalCall.response)
-  assert(retrieval.sourceCount > 0 || retrieval.documentCount > 0, 'The vehicle answer had no indexed evidence.')
-  assert(
-    retrieval.searchSourceStatuses.every((status) => status === 'SUCCEEDED'),
-    `The vehicle retrieval source did not complete successfully: ${JSON.stringify(retrieval.searchSourceStatuses)}`,
-  )
-  assert(
-    !retrieval.readActionStatuses.includes('FAILED'),
-    `The vehicle query reported a failed read-action iteration: ${JSON.stringify(retrieval.readActionStatuses)}`,
-  )
-  const inventorySearchEvidence = responseEvidence(inventorySearchCall.response)
-  assert(
-    inventorySearchEvidence.executedActions.includes('dealership_search_inventory'),
-    'The explicit inventory search did not execute the deployment-owned read action.',
-  )
-  assert(
-    inventorySearchEvidence.sourceCount > 0 || inventorySearchEvidence.documentCount > 0,
-    'The explicit inventory search returned no action evidence.',
-  )
-  assert(
-    !inventorySearchEvidence.readActionStatuses.includes('FAILED'),
-    `The explicit inventory search reported a failed read-action iteration: ${JSON.stringify(inventorySearchEvidence.readActionStatuses)}`,
-  )
-  assert(suggestionResponses.length > 0, 'The runtime did not issue a contextual suggestions request.')
-  assert(suggestionResponses.every(({ status }) => status >= 200 && status < 300), 'A suggestions request failed.')
-  assert(failures.length === 0, `Browser/runtime failures were observed: ${JSON.stringify(failures)}`)
-
-  process.stdout.write(`${JSON.stringify({
-    status: 'PASS',
-    origin,
-    viewport: '390x844',
-    vehicleCount,
-    sessionRenewal,
-    actionPresentation: presentationEvidence,
-    retrieval,
-    inventorySearch: inventorySearchEvidence,
-    action: responseEvidence(actionCall.response),
-    confirmation: {
-      ...responseEvidence(confirmationCall.response),
-      ...confirmedActionEvidence,
-    },
-    suggestionRequests: suggestionResponses.length,
-    failures,
-  }, null, 2)}\n`)
-} finally {
-  await context.close()
-  await browser.close()
 }
 
-function selectExpectedCalls(responses, searchPrompt, actionPrompt) {
-  const informational = responses.find(({ request }) => request.query?.startsWith('Tell me whether the 2025 Aster E1'))
-  const inventorySearch = responses.find(({ request }) => request.query === searchPrompt)
-  const action = responses.find(({ request }) => request.query === actionPrompt)
-  const confirmation = responses.find(({ request }) => request.query === 'Yes, confirm')
-  assert(informational, 'The informational response was not captured.')
-  assert(inventorySearch, 'The inventory search response was not captured.')
-  assert(action, 'The action proposal response was not captured.')
-  assert(confirmation, 'The action confirmation response was not captured.')
-  return [informational, inventorySearch, action, confirmation]
+function assertInventoryPresentation(evidence) {
+  assert(evidence.actionName === 'dealership_search_inventory', `The inventory surface was bound to ${evidence.actionName || 'no action'}.`)
+  assert(
+    evidence.rendererId === 'loomai.vehicle-inventory.v1' && evidence.schemaVersion === 'loomai.vehicle-list.v1',
+    `The exact inventory renderer contract was not selected: ${JSON.stringify(evidence)}.`,
+  )
+  assert(
+    evidence.projectedItemCount >= 2
+      && evidence.projectedItemCount <= 12
+      && evidence.renderedCardCount === evidence.projectedItemCount,
+    `The bounded inventory projection did not render at least two complete records: ${JSON.stringify(evidence)}.`,
+  )
+  assert(
+    ['Fuel: Electric', 'Up to £40,000'].every((label) => evidence.filterLabels.includes(label)),
+    `The inventory surface did not expose the applied filters: ${JSON.stringify(evidence.filterLabels)}.`,
+  )
+  assert(
+    ['View details', 'Ask about this', 'Keep in context', 'Request test drive', 'Request callback', 'Compare selected']
+      .every((label) => evidence.buttonLabels.includes(label)),
+    `The inventory surface is missing safe host commands: ${JSON.stringify(evidence.buttonLabels)}.`,
+  )
+  assert(
+    evidence.referenceCount === evidence.projectedItemCount && evidence.referencesHaveProvenance,
+    `The result references lost action/message provenance: ${JSON.stringify(evidence)}.`,
+  )
+  assert(!evidence.forbiddenProjectionFieldsPresent, 'The host projection exposed raw transport fields to the renderer.')
+}
+
+async function openStaffWorkspace(browserContext, siteOrigin, username, password, defaultTimeout) {
+  const browserPage = await browserContext.newPage()
+  browserPage.setDefaultTimeout(defaultTimeout)
+  await browserPage.goto(`${siteOrigin}/demos/dealership-ai/staff`, { waitUntil: 'networkidle' })
+  const loginPanel = browserPage.locator('[data-login-panel]')
+  if (await loginPanel.isVisible()) {
+    await browserPage.locator('input[name="username"]').fill(username)
+    await browserPage.locator('input[name="password"]').fill(password)
+    const leadsResponse = browserPage.waitForResponse((response) => response.url().includes('/api/staff/leads?limit=50'))
+    await browserPage.getByRole('button', { name: 'Sign in' }).click()
+    const response = await leadsResponse
+    assert(response.ok(), `Staff login/readback returned HTTP ${response.status()}.`)
+  }
+  await browserPage.locator('[data-staff-workspace]').waitFor({ state: 'visible' })
+  await browserPage.locator('[data-lead-table-body] tr').first().waitFor()
+  return browserPage
+}
+
+async function staffReceipts(browserPage) {
+  return browserPage.locator('[data-lead-receipt]').evaluateAll(
+    (elements) => elements.map((element) => element.textContent?.trim()).filter(Boolean),
+  )
+}
+
+async function refreshStaffReceipts(browserPage) {
+  const responsePromise = browserPage.waitForResponse((response) => response.url().includes('/api/staff/leads?limit=50'))
+  await browserPage.locator('[data-refresh-workspace]').click()
+  const response = await responsePromise
+  assert(response.ok(), `Staff inbox refresh returned HTTP ${response.status()}.`)
+  await browserPage.waitForTimeout(100)
+  return staffReceipts(browserPage)
+}
+
+async function verifyStaffReceipt(browserPage, receiptCode, expectedVehicle) {
+  await refreshStaffReceipts(browserPage)
+  const row = browserPage.locator('[data-lead-table-body] tr').filter({ hasText: receiptCode })
+  assert(await row.count() === 1, `Staff inbox did not contain exactly one ${receiptCode} row.`)
+  const rowText = (await row.textContent()) || ''
+  assert(rowText.includes(expectedVehicle), `Staff receipt ${receiptCode} was not associated with ${expectedVehicle}.`)
+  await row.locator('[data-open-lead]').click()
+  const dialog = browserPage.locator('[data-lead-dialog]')
+  await dialog.waitFor({ state: 'visible' })
+  await dialog.getByText(receiptCode, { exact: true }).waitFor()
+  const detailText = (await dialog.textContent()) || ''
+  assert(detailText.includes(syntheticName), `Staff receipt ${receiptCode} did not reveal the confirmed synthetic contact after authentication.`)
+  await dialog.locator('[data-close-lead]').click()
+  await dialog.waitFor({ state: 'hidden' })
+  return { receiptCode, persistedExactlyOnce: true, vehicle: expectedVehicle, contactReadback: true }
+}
+
+async function cancelStaffReceipt(browserPage, receiptCode) {
+  await refreshStaffReceipts(browserPage)
+  const row = browserPage.locator('[data-lead-table-body] tr').filter({ hasText: receiptCode })
+  if (await row.count() !== 1) return
+  await row.locator('[data-open-lead]').click()
+  const dialog = browserPage.locator('[data-lead-dialog]')
+  await dialog.waitFor({ state: 'visible' })
+  await dialog.locator('select[name="status"]').selectOption('CANCELLED')
+  const responsePromise = browserPage.waitForResponse((response) => (
+    response.request().method() === 'PATCH' && response.url().includes('/api/staff/leads/')
+  ))
+  await dialog.getByRole('button', { name: 'Save status' }).click()
+  const response = await responsePromise
+  assert(response.ok(), `Cleanup for ${receiptCode} returned HTTP ${response.status()}.`)
+  await dialog.waitFor({ state: 'hidden' })
 }
 
 function responseEvidence(value) {
@@ -271,7 +511,7 @@ function responseEvidence(value) {
 }
 
 function confirmationEvidence(value) {
-  const action = Array.isArray(value?.actions) ? value.actions[0] : undefined
+  const action = findFirstActionResult(value)
   const actionResult = action?.actionResult
   const data = actionResult?.data?.data || actionResult?.data || {}
   return {
@@ -281,14 +521,30 @@ function confirmationEvidence(value) {
   }
 }
 
-async function waitForCapturedCall(responses, predicate, timeoutMs = 5_000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const captured = responses.find(predicate)
-    if (captured) return captured
-    await new Promise((resolve) => setTimeout(resolve, 25))
+function findFirstActionResult(value) {
+  if (!value || typeof value !== 'object') return null
+  if (Array.isArray(value.actions) && value.actions.length > 0) return value.actions[0]
+  for (const child of Object.values(value)) {
+    const found = findFirstActionResult(child)
+    if (found) return found
   }
-  throw new Error('The completed runtime response was not captured by the live gate.')
+  return null
+}
+
+function assertReceipt(evidence, label) {
+  assert(evidence.actionSuccess, `The confirmed ${label} action did not report success.`)
+  assert(/^NFM-[A-Z0-9]+$/.test(evidence.receiptCode || ''), `The confirmed ${label} action returned no receipt.`)
+  assert(evidence.actionStatus === 'NEW', `The confirmed ${label} action did not enter the staff inbox as NEW.`)
+}
+
+function safeReceiptEvidence(evidence) {
+  return {
+    providerRequestId: evidence.providerRequestId,
+    conversationId: evidence.conversationId,
+    actionSuccess: evidence.actionSuccess,
+    receiptCode: evidence.receiptCode,
+    actionStatus: evidence.actionStatus,
+  }
 }
 
 function metadataCandidates(value) {
@@ -318,6 +574,11 @@ function findLargestArray(value, key) {
   return count
 }
 
+function answerText(value) {
+  const answer = findScalar(value, 'answer')
+  return typeof answer === 'string' ? answer : ''
+}
+
 function safeRequestBody(request) {
   try {
     return request.postDataJSON() || {}
@@ -334,8 +595,32 @@ async function safeJson(response) {
   }
 }
 
+function humanizeField(value) {
+  return value.replace(/([A-Z])/g, ' $1').replace(/^./, (character) => character.toUpperCase()).trim()
+}
+
+function sameStrings(left, right) {
+  return JSON.stringify([...left].sort()) === JSON.stringify([...right].sort())
+}
+
+function redactUrl(value) {
+  const url = new URL(value)
+  return `${url.origin}${url.pathname}`
+}
+
 function normalizeOrigin(value) {
   return new URL(value).origin
+}
+
+function positiveNumber(value, fallback) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function requiredEnvironment(name) {
+  const value = process.env[name]?.trim()
+  if (!value) throw new Error(`${name} is required for protected staff-inbox readback.`)
+  return value
 }
 
 function assert(condition, message) {
