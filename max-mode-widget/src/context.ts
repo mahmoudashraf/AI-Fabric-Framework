@@ -15,6 +15,8 @@ import React from "react";
 export interface SharedAttachment {
   type: string;
   data: any;
+  /** Optional host-owned label for contextual tool scope presentation. */
+  contextLabel?: string;
 }
 
 export interface MaxModeState {

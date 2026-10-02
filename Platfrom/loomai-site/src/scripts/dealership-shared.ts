@@ -80,6 +80,20 @@ type StarterPrompt = {
   icon?: 'calendar' | 'compare' | 'details' | 'location' | 'phone' | 'search' | 'shield' | 'sparkles'
 }
 
+type ToolGroup = {
+  label: string
+  icon?: StarterPrompt['icon']
+  tools: StarterPrompt[]
+  contextLabel?: string
+  availableWithoutAttachments?: boolean
+}
+
+type ToolGroups = {
+  initialScope?: 'default' | 'contextual'
+  default: ToolGroup
+  contextual: ToolGroup
+}
+
 type AssistantOptions = {
   rootSelector: string
   maxChars: number
@@ -87,7 +101,7 @@ type AssistantOptions = {
   welcomeMessage: string
   placeholder: string
   emptyMessage: string
-  starterPrompts: StarterPrompt[]
+  toolGroups: ToolGroups
   starterSuggestions: string[]
   onRuntimeState: (
     state: 'checking' | 'ready' | 'unavailable',
@@ -98,7 +112,7 @@ type AssistantOptions = {
 
 type MaxModeBrowserApi = {
   init: (config: Record<string, unknown>) => void
-  attachItem: (item: { type: string; data: Record<string, unknown> }) => void
+  attachItem: (item: { type: string; data: Record<string, unknown>; contextLabel?: string }) => void
   sendMessage: (message: string, options?: Record<string, unknown>) => void
 }
 
@@ -177,7 +191,7 @@ export async function initializeDealershipAssistant(
     host: {
       assistantLabel: 'Northfield AI',
       welcomeMessage: options.welcomeMessage,
-      starterPrompts: options.starterPrompts,
+      toolGroups: options.toolGroups,
       starterSuggestions: options.starterSuggestions,
       requestContext: {
         dealershipId: 'dealer-demo-001',
@@ -216,14 +230,16 @@ export async function initializeDealershipAssistant(
 }
 
 export function attachDealershipVehicle(vehicle: Vehicle) {
+  const contextLabel = `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}`
   window.MaxMode?.attachItem({
     type: 'vehicle',
+    contextLabel,
     data: {
       id: vehicle.id,
       vectorSpace: 'dealer-vehicle',
       entityType: 'dealer-vehicle',
       stockId: vehicle.stockId,
-      name: `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model}`,
+      name: contextLabel,
       content: `${vehicle.registrationYear} ${vehicle.make} ${vehicle.model} ${vehicle.derivative}. ${vehicle.summary}`,
       derivative: vehicle.derivative,
       priceGbp: vehicle.priceGbp,

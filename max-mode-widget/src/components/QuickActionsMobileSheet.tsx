@@ -4,8 +4,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Package, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import { ToolGroupTabs } from "@/components/ToolGroupTabs";
 
+import type { MaxModeToolScope } from "@/config";
 import type { BrowseProductCategory, QuickAction, SearchCategory } from "@/constants";
+import type { MaxModeResolvedToolGroup } from "@/hooks/useMaxModeController";
 
 export function QuickActionsMobileSheet({
   isOpen,
@@ -17,6 +20,10 @@ export function QuickActionsMobileSheet({
   setIsBrowseProductsOpen,
   searchCategories,
   browseProductCategories,
+  toolGroups,
+  activeToolScope,
+  activeContextLabel,
+  onSelectToolScope,
   onSelectSearchCategory,
   onQuickAction,
 }: {
@@ -29,6 +36,10 @@ export function QuickActionsMobileSheet({
   setIsBrowseProductsOpen: Dispatch<SetStateAction<boolean>>;
   searchCategories: SearchCategory[];
   browseProductCategories: BrowseProductCategory[];
+  toolGroups: MaxModeResolvedToolGroup[];
+  activeToolScope: MaxModeToolScope;
+  activeContextLabel?: string;
+  onSelectToolScope: (scope: MaxModeToolScope) => void;
   onSelectSearchCategory: (categoryLabel: string) => void;
   onQuickAction: (query: string, position?: QuickAction["position"], mode?: QuickAction["mode"]) => void;
 }) {
@@ -59,12 +70,30 @@ export function QuickActionsMobileSheet({
               <h3 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
                 Quick Actions
               </h3>
-              <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsOpen(false)}
+                className="h-8 w-8"
+                aria-label="Close quick actions"
+              >
                 <X className="h-5 w-5" />
               </Button>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(70vh-120px)]">
+              {toolGroups.length > 0 && !isSearchCategoryOpen && !isBrowseProductsOpen && (
+                <div className="mb-5 overflow-x-auto pb-1">
+                  <ToolGroupTabs
+                    groups={toolGroups}
+                    activeScope={activeToolScope}
+                    contextLabel={activeContextLabel}
+                    onSelect={onSelectToolScope}
+                    compact
+                    idPrefix="max-mode-mobile-tools"
+                  />
+                </div>
+              )}
               {isSearchCategoryOpen ? (
                 <div>
                   <button
@@ -138,10 +167,14 @@ export function QuickActionsMobileSheet({
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div
+                  id={`max-mode-mobile-tools-${activeToolScope}`}
+                  role={toolGroups.length > 0 ? "tabpanel" : undefined}
+                  className="grid grid-cols-3 gap-3"
+                >
                   {quickActions.map((action, idx) => (
                     <motion.button
-                      key={idx}
+                      key={`${activeToolScope}-${action.label}`}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.03 }}

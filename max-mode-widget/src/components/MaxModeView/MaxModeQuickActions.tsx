@@ -6,6 +6,10 @@ import type { MaxModeController } from "@/hooks/useMaxModeController";
 export function MaxModeQuickActions({ controller }: { controller: MaxModeController }) {
   const {
     quickActions,
+    toolGroups,
+    activeToolScope,
+    activeContextLabel,
+    selectToolScope,
     searchCategories,
     browseProductCategories,
     isSearchCategoryOpen,
@@ -28,6 +32,10 @@ export function MaxModeQuickActions({ controller }: { controller: MaxModeControl
         setIsBrowseProductsOpen={setIsBrowseProductsOpen}
         searchCategories={searchCategories}
         browseProductCategories={browseProductCategories}
+        toolGroups={toolGroups}
+        activeToolScope={activeToolScope}
+        activeContextLabel={activeContextLabel}
+        onSelectToolScope={selectToolScope}
         onSelectSearchCategory={handleSelectSearchCategory}
         onQuickAction={handleQuickAction}
       />
@@ -42,10 +50,13 @@ export function MaxModeQuickActions({ controller }: { controller: MaxModeControl
         setIsBrowseProductsOpen={setIsBrowseProductsOpen}
         searchCategories={searchCategories}
         browseProductCategories={browseProductCategories}
+        toolGroups={toolGroups}
+        activeToolScope={activeToolScope}
+        activeContextLabel={activeContextLabel}
+        onSelectToolScope={selectToolScope}
         onSelectSearchCategory={handleSelectSearchCategory}
         onQuickAction={handleQuickAction}
       />
     </>
   );
 }
-

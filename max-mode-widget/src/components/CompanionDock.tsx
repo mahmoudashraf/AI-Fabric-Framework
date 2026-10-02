@@ -3,6 +3,7 @@ import { Loader2, MessageCircle, PackageSearch, Search, Send, ShoppingCart, Spar
 
 import { MessageList } from "@/components/Chat/MessageList";
 import { CurrentPageAttachmentControl } from "@/components/Chat/CurrentPageAttachmentControl";
+import { ToolGroupTabs } from "@/components/ToolGroupTabs";
 import type { MaxModeMode } from "@/constants";
 import type { MaxModeController } from "@/hooks/useMaxModeController";
 import { Button } from "@/ui/button";
@@ -50,7 +51,7 @@ export function CompanionDock({
 }) {
   const [expanded, setExpanded] = useState(false);
   const nonAiAttachments = controller.attachedItems.filter((item) => item.type !== "ai-search");
-  const quickActions = useMemo(() => controller.quickActions.slice(0, 3), [controller.quickActions]);
+  const quickActions = useMemo(() => controller.quickActions.slice(0, 8), [controller.quickActions]);
   const hasAiSearch = Boolean(controller.attachedItems.find((item) => item.type === "ai-search"));
   const aiSearchCategory =
     (controller.attachedItems.find((item) => item.type === "ai-search")?.data?.category as string | undefined) || null;
@@ -146,25 +147,44 @@ export function CompanionDock({
             )}
           </div>
 
-          {quickActions.length > 0 && (
-            <div className="flex flex-wrap gap-2 border-t border-gray-100 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
-              {quickActions.map((action, index) => {
-                const Icon = action.icon ?? [Search, ShoppingCart, PackageSearch][index] ?? Sparkles;
-                return (
-                  <button
-                    key={`${action.label}-${index}`}
-                    type="button"
-                    onClick={() => {
-                      setExpanded(true);
-                      controller.handleQuickAction(action.query, action.position, action.mode);
-                    }}
-                    className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 text-sm font-semibold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-950/40"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span>{action.label}</span>
-                  </button>
-                );
-              })}
+          {(controller.toolGroups.length > 0 || quickActions.length > 0) && (
+            <div className="border-t border-gray-100 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+              {controller.toolGroups.length > 0 && (
+                <div className="mb-3 overflow-x-auto pb-1">
+                  <ToolGroupTabs
+                    groups={controller.toolGroups}
+                    activeScope={controller.activeToolScope}
+                    contextLabel={controller.activeContextLabel}
+                    onSelect={controller.selectToolScope}
+                    compact
+                    idPrefix="max-mode-companion-tools"
+                  />
+                </div>
+              )}
+              <div
+                id={`max-mode-companion-tools-${controller.activeToolScope}`}
+                role={controller.toolGroups.length > 0 ? "tabpanel" : undefined}
+                className="flex flex-wrap gap-2"
+              >
+                {quickActions.map((action, index) => {
+                  const Icon = action.icon ?? [Search, ShoppingCart, PackageSearch][index] ?? Sparkles;
+                  return (
+                    <button
+                      key={`${controller.activeToolScope}-${action.label}`}
+                      type="button"
+                      data-max-mode-quick-action={action.label}
+                      onClick={() => {
+                        setExpanded(true);
+                        controller.handleQuickAction(action.query, action.position, action.mode);
+                      }}
+                      className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-950/40"
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{action.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

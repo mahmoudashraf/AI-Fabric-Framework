@@ -136,16 +136,31 @@ async function startDealershipDemo(app: HTMLElement) {
         welcomeMessage: 'I can search and compare Northfield demo inventory using indexed vehicle evidence and current dealership facts.',
         placeholder: 'Ask about a vehicle, feature, budget or comparison...',
         emptyMessage: 'Ask about current vehicles, compare options, or start a confirmed callback or test-drive request.',
-        starterPrompts: [
-          { label: 'Search stock', query: 'Show me the current dealership inventory and help me narrow it down.', position: 'search', mode: 'executor', icon: 'search' },
-          { label: 'Electric cars', query: 'Show me electric cars in current stock.', position: 'search', mode: 'executor', icon: 'sparkles' },
-          { label: 'Family options', query: 'Which current vehicles are practical for a family? Use current dealership evidence.', position: 'search', mode: 'executor', icon: 'shield' },
-          { label: 'Compare cars', query: 'Help me choose two current vehicles and compare their dealership facts.', position: 'search', mode: 'executor', icon: 'compare' },
-          { label: 'Vehicle details', query: 'Ask me which current vehicle I am interested in, then load its current details.', position: 'search', mode: 'executor', icon: 'details' },
-          { label: 'Test drive', query: 'Help me request a test drive for a current vehicle. Ask for the vehicle and only the required details before confirmation.', position: 'search', mode: 'executor', icon: 'calendar' },
-          { label: 'Request callback', query: 'Help me request a dealership callback about a current vehicle. Ask for the vehicle, contact details and consent before confirmation.', position: 'search', mode: 'executor', icon: 'phone' },
-          { label: 'Showroom location', query: 'Which showroom currently holds the vehicle I am considering? Ask me which vehicle if needed.', position: 'search', mode: 'executor', icon: 'location' },
-        ],
+        toolGroups: {
+          initialScope: 'default',
+          default: {
+            label: 'Browse stock',
+            icon: 'search',
+            tools: [
+              { label: 'Search stock', query: 'Show me the current dealership inventory and help me narrow it down.', position: 'search', mode: 'executor', icon: 'search' },
+              { label: 'Electric cars', query: 'Show me electric cars in current stock.', position: 'search', mode: 'executor', icon: 'sparkles' },
+              { label: 'Family options', query: 'Which current vehicles are practical for a family? Use current dealership evidence.', position: 'search', mode: 'executor', icon: 'shield' },
+              { label: 'Compare cars', query: 'Help me choose two current vehicles and compare their dealership facts.', position: 'search', mode: 'executor', icon: 'compare' },
+            ],
+          },
+          contextual: {
+            label: 'This vehicle',
+            icon: 'details',
+            tools: [
+              { label: 'Live details', query: 'Load the authoritative current details for the vehicle in my current context.', position: 'search', mode: 'executor', icon: 'details' },
+              { label: 'Everyday use', query: 'Is the vehicle in my current context suitable for everyday driving? Use current dealership facts.', position: 'search', mode: 'executor', icon: 'shield' },
+              { label: 'Trade-offs', query: 'Explain the important trade-offs for the vehicle in my current context.', position: 'search', mode: 'executor', icon: 'compare' },
+              { label: 'Location', query: 'Which showroom currently holds the vehicle in my current context? Use current dealership facts.', position: 'search', mode: 'executor', icon: 'location' },
+              { label: 'Test drive', query: 'Help me request a test drive for the vehicle in my current context. Ask only for required details before confirmation.', position: 'search', mode: 'executor', icon: 'calendar' },
+              { label: 'Callback', query: 'Help me request a dealership callback about the vehicle in my current context. Ask for contact details and consent before confirmation.', position: 'search', mode: 'executor', icon: 'phone' },
+            ],
+          },
+        },
         starterSuggestions: [
           'Compare electric cars',
           'What is under £30,000?',

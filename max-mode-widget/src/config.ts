@@ -134,6 +134,8 @@ export interface MaxModeThemeConfig {
 export interface MaxModeHostAttachment {
   type: string;
   data: Record<string, any>;
+  /** Optional host-owned label used to identify the active contextual tool scope. */
+  contextLabel?: string;
 }
 
 export interface MaxModeCurrentPageContent {
@@ -193,6 +195,35 @@ export interface MaxModeHostStarterPrompt {
   icon?: MaxModeHostStarterPromptIcon;
 }
 
+export type MaxModeToolScope = "default" | "contextual";
+
+export interface MaxModeHostToolGroup {
+  /** Host-owned visible group label, for example "Browse" or "Current context". */
+  label: string;
+  /** Optional provider-neutral visual semantic for the group selector. */
+  icon?: MaxModeHostStarterPromptIcon;
+  /** Host-owned tools available while this scope is selected. */
+  tools: MaxModeHostStarterPrompt[];
+  /**
+   * Context label used when the host page itself supplies context without an
+   * attachment. Attachment-level context labels take precedence.
+   */
+  contextLabel?: string;
+  /**
+   * Keep the contextual scope available without an attachment. This is useful
+   * on detail pages where the host page is already an authoritative context.
+   * It has no effect on the default scope.
+   */
+  availableWithoutAttachments?: boolean;
+}
+
+export interface MaxModeHostToolGroups {
+  /** Initial scope. Contextual falls back to default when no context is available. */
+  initialScope?: MaxModeToolScope;
+  default: MaxModeHostToolGroup;
+  contextual: MaxModeHostToolGroup;
+}
+
 export interface MaxModeHostCustomerAccountAuthConfig {
   /** Bridge Customer Account OAuth start URL exposed by the Shopify bootstrap */
   startUrl?: string;
@@ -225,6 +256,11 @@ export interface MaxModeHostConfig {
   welcomeMessage?: string;
   /** Optional host-owned starter prompts shown as quick actions */
   starterPrompts?: MaxModeHostStarterPrompt[];
+  /**
+   * Optional two-scope tool contract. The widget understands only `default`
+   * and `contextual`; all labels, icons, and queries remain host-owned.
+   */
+  toolGroups?: MaxModeHostToolGroups;
   /** Optional host-owned starter suggestions shown above the composer */
   starterSuggestions?: string[];
   /** Optional host-owned request payload merged into query and suggestions calls */
@@ -347,6 +383,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     assistantLabel: undefined,
     welcomeMessage: undefined,
     starterPrompts: undefined,
+    toolGroups: undefined,
     starterSuggestions: undefined,
     requestContext: undefined,
     requestContextProvider: undefined,

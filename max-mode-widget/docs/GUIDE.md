@@ -237,6 +237,25 @@ MaxMode.init({
   launcher: true,               // Set false to hide floating button
                                 // (control open/close yourself)
 
+  // ── HOST-OWNED TOOL SCOPES ───────────────────────────────
+  host: {
+    toolGroups: {
+      initialScope: "default",  // "default" | "contextual"
+      default: {
+        label: "Browse",
+        icon: "search",
+        tools: [{ label: "Search", query: "Search current records." }],
+      },
+      contextual: {
+        label: "Current context",
+        icon: "details",
+        contextLabel: "Current record",       // optional page-owned label
+        availableWithoutAttachments: false,    // true when the page supplies context
+        tools: [{ label: "Details", query: "Load current record details." }],
+      },
+    },
+  },
+
   // ── CALLBACKS ─────────────────────────────────────────────
   onEvent: (event) => { },      // Fires on every widget event
   onClose: () => { },           // Fires when widget is closed
@@ -282,6 +301,25 @@ When your host already has route-level integration metadata, prefer wiring those
 | `debug` | `boolean` | `false` | Enable debug inspector panel showing raw API requests/responses. Useful during development. |
 | `conversations` | `boolean` | `true` | Enable conversation history. Users can view, load, and delete past conversations. |
 | `quickActions` | `boolean` | `true` | Show quick action buttons (Search Products, My Cart, Track Order, etc.). |
+
+### `host.toolGroups`
+
+`toolGroups` is an optional provider-neutral replacement for one flat starter
+prompt row. It requires exactly two scopes: `default` and `contextual`. The host
+supplies group labels and tools; widget core contains no business-domain
+selection logic.
+
+The widget always shows both selectors when this contract is configured. A
+context attachment selects `contextual`, while removing the last attachment
+returns to `default`. The user can switch scopes without changing attachments.
+For a detail page that is itself contextual, set
+`availableWithoutAttachments: true` and provide `contextLabel`. A programmatic
+attachment may provide a more specific label through
+`MaxMode.attachItem({ type, contextLabel, data })`.
+
+The same state and tools render in Companion, desktop Max Mode, and the mobile
+quick-actions sheet. Hosts that omit `toolGroups` continue to use
+`host.starterPrompts` or runtime shell prompts unchanged.
 
 ### `theme`
 

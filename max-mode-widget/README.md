@@ -183,6 +183,21 @@ interface MaxModeWidgetConfig {
     darkMode?: boolean | "auto";
   };
   host?: {
+    toolGroups?: {
+      initialScope?: "default" | "contextual";
+      default: {
+        label: string;
+        icon?: "calendar" | "compare" | "details" | "location" | "phone" | "search" | "shield" | "sparkles";
+        tools: MaxModeHostStarterPrompt[];
+      };
+      contextual: {
+        label: string;
+        icon?: "calendar" | "compare" | "details" | "location" | "phone" | "search" | "shield" | "sparkles";
+        tools: MaxModeHostStarterPrompt[];
+        contextLabel?: string;
+        availableWithoutAttachments?: boolean;
+      };
+    };
     actionPresentation?: MaxModeActionPresentationConfig;
     currentPageAttachment?: {
       enabled?: boolean;              // Defaults to true when configured
@@ -219,6 +234,51 @@ Navigation invalidates page attachments by default. A controlled host can set
 `invalidateOnNavigation: false` to retain multiple pages through the widget's
 existing tab-scoped `sessionStorage` state. The collection is cleared with the
 widget conversation state and is not durable across browser tabs.
+
+### Scoped host tools
+
+`host.toolGroups` provides one generic two-scope tool surface across Companion,
+desktop Max Mode, and mobile Max Mode. The widget understands only `default`
+and `contextual`; the host owns every visible label, icon semantic, and query.
+
+```js
+MaxMode.init({
+  apiConfig: { chatBaseUrl: 'https://runtime.example.com/api' },
+  host: {
+    toolGroups: {
+      initialScope: 'default',
+      default: {
+        label: 'Browse',
+        icon: 'search',
+        tools: [
+          { label: 'Search records', query: 'Help me search the current records.', icon: 'search' },
+        ],
+      },
+      contextual: {
+        label: 'Current context',
+        icon: 'details',
+        tools: [
+          { label: 'Live details', query: 'Load authoritative details for my current context.', icon: 'details' },
+        ],
+      },
+    },
+  },
+})
+
+MaxMode.attachItem({
+  type: 'record',
+  contextLabel: 'Case 1842',
+  data: { id: 'case-1842', name: 'Case 1842' },
+})
+```
+
+Both group selectors remain visible. Adding context selects `contextual`;
+users may return to `default` without detaching anything; removing the final
+attachment selects `default` again. Set
+`contextual.availableWithoutAttachments=true` and provide `contextLabel` when
+the host page itself is sufficient context. An attachment's explicit
+`contextLabel` takes precedence. If `toolGroups` is absent, existing flat
+`starterPrompts` behavior remains unchanged.
 
 `crudBaseUrl` is optional for secure chat-only integrations.
 

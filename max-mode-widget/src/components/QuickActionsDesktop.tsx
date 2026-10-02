@@ -3,6 +3,9 @@ import type { Dispatch, SetStateAction } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Package } from "lucide-react";
 
+import { ToolGroupTabs } from "@/components/ToolGroupTabs";
+import type { MaxModeToolScope } from "@/config";
+import type { MaxModeResolvedToolGroup } from "@/hooks/useMaxModeController";
 import type { BrowseProductCategory, QuickAction, SearchCategory } from "@/constants";
 
 export function QuickActionsDesktop({
@@ -13,6 +16,10 @@ export function QuickActionsDesktop({
   setIsBrowseProductsOpen,
   searchCategories,
   browseProductCategories,
+  toolGroups,
+  activeToolScope,
+  activeContextLabel,
+  onSelectToolScope,
   onSelectSearchCategory,
   onQuickAction,
 }: {
@@ -23,15 +30,35 @@ export function QuickActionsDesktop({
   setIsBrowseProductsOpen: Dispatch<SetStateAction<boolean>>;
   searchCategories: SearchCategory[];
   browseProductCategories: BrowseProductCategory[];
+  toolGroups: MaxModeResolvedToolGroup[];
+  activeToolScope: MaxModeToolScope;
+  activeContextLabel?: string;
+  onSelectToolScope: (scope: MaxModeToolScope) => void;
   onSelectSearchCategory: (categoryLabel: string) => void;
   onQuickAction: (query: string, position?: QuickAction["position"], mode?: QuickAction["mode"]) => void;
 }) {
   return (
     <>
-      <div className="hidden md:block absolute top-0 left-0 right-0 z-10 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-950">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="hidden md:block absolute top-0 left-0 right-0 z-10 border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-800 dark:bg-gray-950">
+        {toolGroups.length > 0 && (
+          <div className="mb-2 pr-48">
+            <ToolGroupTabs
+              groups={toolGroups}
+              activeScope={activeToolScope}
+              contextLabel={activeContextLabel}
+              onSelect={onSelectToolScope}
+              compact
+              idPrefix="max-mode-desktop-tools"
+            />
+          </div>
+        )}
+        <div
+          id={`max-mode-desktop-tools-${activeToolScope}`}
+          role={toolGroups.length > 0 ? "tabpanel" : undefined}
+          className="flex gap-2 overflow-x-auto scrollbar-hide"
+        >
           {quickActions.slice(0, 8).map((action, idx) => (
-            <div key={idx}>
+            <div key={`${activeToolScope}-${action.label}`}>
               {action.label === "Search Products" ? (
                 <motion.button
                   initial={{ opacity: 0, y: -10 }}
@@ -39,10 +66,10 @@ export function QuickActionsDesktop({
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => setIsSearchCategoryOpen(!isSearchCategoryOpen)}
                   data-max-mode-quick-action={action.label}
-                  className={`flex flex-col items-center gap-1 p-3 rounded-xl ${action.bg} border ${action.border} hover:scale-105 transition-all min-w-[80px] ${isSearchCategoryOpen ? "ring-2 ring-blue-500" : ""}`}
+                  className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 ${action.bg} border ${action.border} hover:-translate-y-0.5 transition-all min-w-[80px] ${isSearchCategoryOpen ? "ring-2 ring-blue-500" : ""}`}
                 >
-                  <action.icon className={`h-5 w-5 ${action.color}`} />
-                  <span className="text-[10px] font-medium text-foreground whitespace-nowrap">{action.label}</span>
+                  <action.icon className={`h-4 w-4 ${action.color}`} />
+                  <span className="text-xs font-semibold text-foreground whitespace-nowrap">{action.label}</span>
                 </motion.button>
               ) : action.label === "Browse Products" ? (
                 <motion.button
@@ -51,10 +78,10 @@ export function QuickActionsDesktop({
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => setIsBrowseProductsOpen(!isBrowseProductsOpen)}
                   data-max-mode-quick-action={action.label}
-                  className={`flex flex-col items-center gap-1 p-3 rounded-xl ${action.bg} border ${action.border} hover:scale-105 transition-all min-w-[80px] ${isBrowseProductsOpen ? "ring-2 ring-blue-500" : ""}`}
+                  className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 ${action.bg} border ${action.border} hover:-translate-y-0.5 transition-all min-w-[80px] ${isBrowseProductsOpen ? "ring-2 ring-blue-500" : ""}`}
                 >
-                  <action.icon className={`h-5 w-5 ${action.color}`} />
-                  <span className="text-[10px] font-medium text-foreground whitespace-nowrap">{action.label}</span>
+                  <action.icon className={`h-4 w-4 ${action.color}`} />
+                  <span className="text-xs font-semibold text-foreground whitespace-nowrap">{action.label}</span>
                 </motion.button>
               ) : (
                 <motion.button
@@ -63,10 +90,10 @@ export function QuickActionsDesktop({
                   transition={{ delay: idx * 0.05 }}
                   onClick={() => onQuickAction(action.query, action.position, action.mode)}
                   data-max-mode-quick-action={action.label}
-                  className={`flex flex-col items-center gap-1 p-3 rounded-xl ${action.bg} border ${action.border} hover:scale-105 transition-all min-w-[80px]`}
+                  className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 ${action.bg} border ${action.border} hover:-translate-y-0.5 transition-all min-w-[80px]`}
                 >
-                  <action.icon className={`h-5 w-5 ${action.color}`} />
-                  <span className="text-[10px] font-medium text-foreground whitespace-nowrap">{action.label}</span>
+                  <action.icon className={`h-4 w-4 ${action.color}`} />
+                  <span className="text-xs font-semibold text-foreground whitespace-nowrap">{action.label}</span>
                 </motion.button>
               )}
             </div>

@@ -110,6 +110,7 @@ export function isRoutingTargetAttachment(item: AttachedItem): boolean {
 export function toActionResultAttachedItem(reference: MaxModePresentationResultReference): AttachedItem {
   return {
     type: ACTION_RESULT_ATTACHMENT_TYPE,
+    contextLabel: reference.label,
     data: {
       id: presentationReferenceAttachmentId(reference),
       title: reference.label,

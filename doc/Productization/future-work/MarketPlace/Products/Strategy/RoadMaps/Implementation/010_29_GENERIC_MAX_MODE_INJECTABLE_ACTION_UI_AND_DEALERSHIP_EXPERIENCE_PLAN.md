@@ -915,3 +915,31 @@ or Platform-managed `UI_EXTENSION` packaging.
   covers both legacy typed-denial recovery and full document navigation with a
   changed anonymous session, including zero automatic replay and a clean next
   request without the stale conversation ID.
+
+### 17.6 Generic scoped tool navigation (2026-10-02)
+
+- Added the optional `host.toolGroups` contract with exactly two widget-owned
+  scope identities: `default` and `contextual`. Widget core knows no dealership,
+  vehicle, provider, action-name, response-text, or business-field rule. The
+  host owns group labels, icon semantics, prompts, initial scope, page-context
+  availability, and context labels.
+- The same scope state is rendered by Companion, desktop Max Mode, and the
+  mobile quick-actions sheet. Both selectors remain available whenever the
+  host configures the contract. Adding an attachment selects `contextual`;
+  manual selection of `default` preserves all attachments; removing the final
+  attachment returns to `default`.
+- A detail page may keep contextual tools available without an attachment via
+  `availableWithoutAttachments=true`. Explicit attachment labels take
+  precedence over the host page label; the host page label takes precedence
+  over a heuristic attachment title. Existing hosts without `toolGroups`
+  retain the flat `starterPrompts`/runtime-shell behavior.
+- The dealership host now supplies `Browse stock` with Search stock, Electric
+  cars, Family options and Compare cars, plus `This vehicle` with Live details,
+  Everyday use, Trade-offs, Location, Test drive and Callback. These names and
+  queries exist only in the public-site host package.
+- Local release verification is green: widget TypeScript and production builds,
+  Astro diagnostics/build, content/static gates, accessibility, and complete
+  Playwright browser smoke. Browser regressions prove initial disabled context
+  on inventory, auto-selection after attach, Browse switching without detach,
+  detail-page context without attachments, final-detach reset, clear context
+  labeling, and desktop/Companion/mobile rendering.

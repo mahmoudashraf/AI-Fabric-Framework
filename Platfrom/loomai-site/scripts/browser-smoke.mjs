@@ -53,6 +53,22 @@ const mockVehicles = [
   },
 ]
 
+const expectedBrowseTools = [
+  'Search stock',
+  'Electric cars',
+  'Family options',
+  'Compare cars',
+]
+
+const expectedContextualTools = [
+  'Live details',
+  'Everyday use',
+  'Trade-offs',
+  'Location',
+  'Test drive',
+  'Callback',
+]
+
 function writeMockJson(response, status, body) {
   response.writeHead(status, {
     'Access-Control-Allow-Credentials': 'true',
@@ -533,6 +549,37 @@ try {
   if (loadedWidgetSource !== `/vendor/${widgetManifest.file}` || loadedWidgetSha256 !== widgetManifest.sha256) {
     throw new Error('Dealership loaded a stable or mismatched widget bundle instead of the manifest version')
   }
+  await page.evaluate(() => window.MaxMode.open())
+  const listingMaxMode = page.locator('[data-max-mode-view]')
+  await listingMaxMode.waitFor()
+  const initialBrowseScope = listingMaxMode.locator('[data-max-mode-tool-scope="default"]')
+  const initialContextualScope = listingMaxMode.locator('[data-max-mode-tool-scope="contextual"]')
+  await initialBrowseScope.waitFor()
+  if ((await listingMaxMode.locator('[data-max-mode-tool-scope]').count()) !== 2 ||
+      (await initialBrowseScope.getAttribute('aria-selected')) !== 'true' ||
+      !(await initialContextualScope.isDisabled())) {
+    throw new Error('Listing tool groups did not start in Browse stock with unavailable contextual tools')
+  }
+  const initialBrowseTools = await listingMaxMode.locator('[data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if (JSON.stringify(initialBrowseTools) !== JSON.stringify(expectedBrowseTools)) {
+    throw new Error(`Listing did not expose the expected Browse stock tools: ${JSON.stringify(initialBrowseTools)}`)
+  }
+  await page.getByRole('button', { name: 'Close MAX Mode' }).click()
+  const listingCompanion = page.locator('section[aria-label="Northfield AI"]')
+  await listingCompanion.waitFor()
+  await listingCompanion.getByRole('textbox', { name: 'Ask Northfield AI' }).focus()
+  const companionContextualScope = listingCompanion.locator('[data-max-mode-tool-scope="contextual"]')
+  await companionContextualScope.waitFor()
+  const companionBrowseTools = await listingCompanion.locator('[data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if (!(await companionContextualScope.isDisabled()) ||
+      JSON.stringify(companionBrowseTools) !== JSON.stringify(expectedBrowseTools)) {
+    throw new Error('Companion dock did not expose the generic two-group Browse stock state')
+  }
+  await listingCompanion.getByRole('button', { name: 'Minimize assistant' }).click()
   await page.locator('select[name="make"]').selectOption('Aster')
   await page.waitForFunction(() => document.querySelectorAll('.vehicle-card').length === 2)
   await page.locator('[data-clear-filters]').click()
@@ -737,23 +784,37 @@ try {
   if (!cardAskPayload.attachments?.some((attachment) => attachment.vectorSpace === 'dealer-vehicle')) {
     throw new Error('Dealership vehicle question used the wrong attachment vector space')
   }
-  const expectedHostTools = [
-    'Search stock',
-    'Electric cars',
-    'Family options',
-    'Compare cars',
-    'Vehicle details',
-    'Test drive',
-    'Request callback',
-    'Showroom location',
-  ]
+  const maxModeView = page.locator('[data-max-mode-view]')
+  const browseScope = maxModeView.locator('[data-max-mode-tool-scope="default"]')
+  const contextualScope = maxModeView.locator('[data-max-mode-tool-scope="contextual"]')
+  await contextualScope.waitFor()
+  if ((await contextualScope.getAttribute('aria-selected')) !== 'true' || await contextualScope.isDisabled()) {
+    throw new Error('Attaching a vehicle did not automatically open its contextual tool group')
+  }
+  const contextLabel = await maxModeView.locator('[data-max-mode-active-context-label]').getAttribute(
+    'data-max-mode-active-context-label',
+  )
+  if (!contextLabel?.includes('2025 Aster E1')) {
+    throw new Error(`Attached vehicle context label was not clear: ${contextLabel}`)
+  }
   const renderedHostTools = await page.locator('[data-max-mode-view] [data-max-mode-quick-action]').evaluateAll(
     (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
   )
-  if (renderedHostTools.length !== expectedHostTools.length ||
-      expectedHostTools.some((label) => !renderedHostTools.includes(label))) {
-    throw new Error(`Max Mode did not expose the complete host-owned tool set: ${JSON.stringify(renderedHostTools)}`)
+  if (JSON.stringify(renderedHostTools) !== JSON.stringify(expectedContextualTools)) {
+    throw new Error(`Max Mode did not expose the host-owned contextual tools: ${JSON.stringify(renderedHostTools)}`)
   }
+  await browseScope.click()
+  const browseToolsWithContext = await maxModeView.locator('[data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  const retainedVehicleAttachment = await page.evaluate(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return state.attachedItems?.some((item) => item.data?.id === 'veh-aster-e1') === true
+  })
+  if (JSON.stringify(browseToolsWithContext) !== JSON.stringify(expectedBrowseTools) || !retainedVehicleAttachment) {
+    throw new Error('Switching back to Browse stock removed or obscured the attached vehicle context')
+  }
+  await contextualScope.click()
 
   const inventoryPresentationRequest = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false
@@ -870,6 +931,14 @@ try {
   const removeAttachment = page.getByRole('button', { name: /Remove attachment|Remove attached page:/ }).first()
   for (let attempt = 0; attempt < 8 && await removeAttachment.isVisible().catch(() => false); attempt += 1) {
     await removeAttachment.click()
+  }
+  await page.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return !state.attachedItems?.some((item) => item.type !== 'ai-search')
+  })
+  if ((await browseScope.getAttribute('aria-selected')) !== 'true' ||
+      !(await contextualScope.isDisabled())) {
+    throw new Error('Removing the final listing attachment did not return to Browse stock and disable contextual tools')
   }
   const dismissSuggestions = page.getByRole('button', { name: 'Dismiss suggestions' }).last()
   if (await dismissSuggestions.isVisible().catch(() => false)) {
@@ -1028,6 +1097,72 @@ try {
 
   await context.close()
 
+  const detailToolsContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: 'reduce',
+  })
+  const detailToolsPage = await detailToolsContext.newPage()
+  await detailToolsPage.goto(`${origin}/demos/dealership-ai/vehicles/aster-e1-motion`, { waitUntil: 'networkidle' })
+  await detailToolsPage.waitForFunction(
+    () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
+  )
+  await detailToolsPage.evaluate(() => window.MaxMode.open())
+  const detailMaxMode = detailToolsPage.locator('[data-max-mode-view]')
+  const detailBrowseScope = detailMaxMode.locator('[data-max-mode-tool-scope="default"]')
+  const detailContextualScope = detailMaxMode.locator('[data-max-mode-tool-scope="contextual"]')
+  await detailContextualScope.waitFor()
+  if (await detailContextualScope.isDisabled() ||
+      (await detailContextualScope.getAttribute('aria-selected')) !== 'true') {
+    throw new Error('Vehicle detail page did not expose and initially select its page-provided contextual tools')
+  }
+  const detailContextLabel = await detailMaxMode.locator('[data-max-mode-active-context-label]').getAttribute(
+    'data-max-mode-active-context-label',
+  )
+  if (detailContextLabel !== '2025 Aster E1') {
+    throw new Error(`Vehicle detail page exposed the wrong active context label: ${detailContextLabel}`)
+  }
+  const detailContextualTools = await detailMaxMode.locator('[data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if (JSON.stringify(detailContextualTools) !== JSON.stringify(expectedContextualTools)) {
+    throw new Error(`Vehicle detail page exposed the wrong contextual tools: ${JSON.stringify(detailContextualTools)}`)
+  }
+  await detailBrowseScope.click()
+  const detailBrowseTools = await detailMaxMode.locator('[data-max-mode-quick-action]').evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if (JSON.stringify(detailBrowseTools) !== JSON.stringify(expectedBrowseTools) ||
+      await detailContextualScope.isDisabled()) {
+    throw new Error('Vehicle detail page hid Current context or failed to expose Browse stock')
+  }
+  await detailToolsPage.getByRole('button', { name: 'Attach current page' }).click()
+  await detailToolsPage.waitForFunction(() => {
+    const selected = document.querySelector('#max-mode-widget-shadow-host')?.shadowRoot
+      ?.querySelector('[data-max-mode-tool-scope="contextual"]')
+    return selected?.getAttribute('aria-selected') === 'true'
+  })
+  const attachedDetailLabel = await detailMaxMode.locator('[data-max-mode-active-context-label]').getAttribute(
+    'data-max-mode-active-context-label',
+  )
+  if (!attachedDetailLabel?.includes('2025 Aster E1')) {
+    throw new Error(`Detail attachment did not retain a clear context label: ${attachedDetailLabel}`)
+  }
+  await detailToolsPage.getByRole('button', { name: /Remove attached page:/ }).first().click()
+  await detailToolsPage.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    const selected = document.querySelector('#max-mode-widget-shadow-host')?.shadowRoot
+      ?.querySelector('[data-max-mode-tool-scope="default"]')
+    return state.attachedItems?.length === 0 && selected?.getAttribute('aria-selected') === 'true'
+  })
+  if (await detailContextualScope.isDisabled()) {
+    throw new Error('Removing a detail-page attachment incorrectly disabled page-provided contextual tools')
+  }
+  await detailMaxMode.screenshot({
+    path: path.join(screenshotDir, 'dealership-context-tool-groups-desktop.png'),
+    animations: 'disabled',
+  })
+  await detailToolsContext.close()
+
   const mobileConfirmationContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     reducedMotion: 'reduce',
@@ -1044,6 +1179,21 @@ try {
   })
   await mobileConfirmationPage.locator('[data-card-ask]').first().click()
   await mobileVehicleResponse
+  await mobileConfirmationPage.getByRole('button', { name: 'Open quick actions' }).click()
+  const mobileContextualScope = mobileConfirmationPage.locator(
+    '[data-max-mode-tool-scope="contextual"]:visible',
+  )
+  await mobileContextualScope.waitFor()
+  const mobileContextualTools = await mobileConfirmationPage.locator(
+    '[data-max-mode-quick-action]:visible',
+  ).evaluateAll(
+    (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')),
+  )
+  if ((await mobileContextualScope.getAttribute('aria-selected')) !== 'true' ||
+      JSON.stringify(mobileContextualTools) !== JSON.stringify(expectedContextualTools)) {
+    throw new Error(`Mobile Max Mode did not expose the selected contextual tool group: ${JSON.stringify(mobileContextualTools)}`)
+  }
+  await mobileConfirmationPage.getByRole('button', { name: 'Close quick actions' }).click()
   const mobileActionResponse = mobileConfirmationPage.waitForResponse((response) => {
     if (!response.url().endsWith('/api/chat/me/query')) return false
     return response.request().postDataJSON()?.query === 'Request a test drive for the Aster E1'

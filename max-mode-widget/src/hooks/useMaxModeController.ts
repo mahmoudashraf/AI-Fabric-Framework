@@ -29,7 +29,9 @@ import {
   isCartCrudEnabled,
   type MaxModeHostAttachment,
   type MaxModeHostConfig,
+  type MaxModeHostStarterPrompt,
   type MaxModeHostStarterPromptIcon,
+  type MaxModeToolScope,
   type MaxModeWidgetConfig,
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
@@ -235,17 +237,31 @@ function hostPromptIcon(icon?: MaxModeHostStarterPromptIcon) {
   return icon ? HOST_PROMPT_ICONS[icon] : Zap;
 }
 
-function deriveQuickActions(
-  hostConfig: MaxModeHostConfig | undefined,
-  shellConfig: RuntimeShellConfigSummary | null,
+export interface MaxModeResolvedToolGroup {
+  scope: MaxModeToolScope;
+  label: string;
+  icon: QuickAction["icon"];
+  actions: QuickAction[];
+  available: boolean;
+}
+
+type MaxModeToolGroupDefinitions = {
+  initialScope: MaxModeToolScope;
+  default: Omit<MaxModeResolvedToolGroup, "available">;
+  contextual: Omit<MaxModeResolvedToolGroup, "available"> & {
+    contextLabel?: string;
+    availableWithoutAttachments: boolean;
+  };
+};
+
+function deriveHostPromptActions(
+  prompts: MaxModeHostStarterPrompt[] | undefined,
   defaultConversationMode: MaxModeMode,
   allowedConversationModes: MaxModeMode[],
 ): QuickAction[] {
-  const hostStarterPrompts = hostConfig?.starterPrompts?.filter(
-    (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
-  );
-  if (hostStarterPrompts?.length) {
-    return hostStarterPrompts.map((prompt, index) => {
+  return (prompts || [])
+    .filter((prompt) => prompt?.label?.trim() && prompt?.query?.trim())
+    .map((prompt, index) => {
       const palette = shellPromptPalette(index);
       return {
         icon: hostPromptIcon(prompt.icon),
@@ -260,6 +276,61 @@ function deriveQuickActions(
           : defaultConversationMode,
       };
     });
+}
+
+function deriveToolGroupDefinitions(
+  hostConfig: MaxModeHostConfig | undefined,
+  defaultConversationMode: MaxModeMode,
+  allowedConversationModes: MaxModeMode[],
+): MaxModeToolGroupDefinitions | null {
+  const configured = hostConfig?.toolGroups;
+  if (!configured?.default || !configured.contextual) {
+    return null;
+  }
+  const defaultLabel = configured.default.label?.trim() || "Browse/Search";
+  const contextualLabel = configured.contextual.label?.trim() || "Current context";
+  return {
+    initialScope: configured.initialScope === "contextual" ? "contextual" : "default",
+    default: {
+      scope: "default",
+      label: defaultLabel,
+      icon: hostPromptIcon(configured.default.icon ?? "search"),
+      actions: deriveHostPromptActions(
+        configured.default.tools,
+        defaultConversationMode,
+        allowedConversationModes,
+      ),
+    },
+    contextual: {
+      scope: "contextual",
+      label: contextualLabel,
+      icon: hostPromptIcon(configured.contextual.icon ?? "details"),
+      actions: deriveHostPromptActions(
+        configured.contextual.tools,
+        defaultConversationMode,
+        allowedConversationModes,
+      ),
+      contextLabel: configured.contextual.contextLabel?.trim() || undefined,
+      availableWithoutAttachments: configured.contextual.availableWithoutAttachments === true,
+    },
+  };
+}
+
+function deriveQuickActions(
+  hostConfig: MaxModeHostConfig | undefined,
+  shellConfig: RuntimeShellConfigSummary | null,
+  defaultConversationMode: MaxModeMode,
+  allowedConversationModes: MaxModeMode[],
+): QuickAction[] {
+  const hostStarterPrompts = hostConfig?.starterPrompts?.filter(
+    (prompt) => prompt?.label?.trim() && prompt?.query?.trim(),
+  );
+  if (hostStarterPrompts?.length) {
+    return deriveHostPromptActions(
+      hostStarterPrompts,
+      defaultConversationMode,
+      allowedConversationModes,
+    );
   }
 
   const starterPrompts = shellConfig?.starterPrompts?.filter(
@@ -283,6 +354,42 @@ function deriveQuickActions(
         : defaultConversationMode,
     };
   });
+}
+
+function cleanContextLabel(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  return value.replace(/\s+/g, " ").trim().slice(0, 100);
+}
+
+function derivedAttachmentContextLabel(attachment: MaxModeHostAttachment | undefined): string | undefined {
+  if (!attachment) return undefined;
+  const candidates = [
+    attachment.data?.contextLabel,
+    attachment.data?.name,
+    attachment.data?.title,
+    attachment.data?.label,
+  ];
+  const label = candidates.find((value) => typeof value === "string" && value.trim());
+  return cleanContextLabel(label);
+}
+
+function resolveActiveContextLabel(
+  attachments: MaxModeHostAttachment[],
+  fallback?: string,
+): string | undefined {
+  const explicitLabels = attachments
+    .map((attachment) => cleanContextLabel(attachment.contextLabel))
+    .filter((label): label is string => Boolean(label));
+  const derivedLabels = attachments
+    .map(derivedAttachmentContextLabel)
+    .filter((label): label is string => Boolean(label));
+  const label = explicitLabels[explicitLabels.length - 1]
+    || cleanContextLabel(fallback)
+    || derivedLabels[derivedLabels.length - 1];
+  if (label && attachments.length > 1) {
+    return `${label} +${attachments.length - 1}`;
+  }
+  return label;
 }
 
 function deriveWelcomeMessage(hostConfig: MaxModeHostConfig | undefined, shellConfig: RuntimeShellConfigSummary | null) {
@@ -424,6 +531,9 @@ function sanitizeHostAttachments(hostAttachments: MaxModeHostAttachment[] | unde
     .map((attachment) => ({
       type: attachment.type.trim(),
       data: attachment.data,
+      ...(attachment.contextLabel?.trim()
+        ? { contextLabel: attachment.contextLabel.trim().slice(0, 100) }
+        : {}),
     }));
 }
 
@@ -487,7 +597,15 @@ export function useMaxModeController({
   ]);
   const initialPosition = useMemo(() => pageModeGroupToPosition(pageModeGroup), [pageModeGroup]);
 
-  const quickActions = useMemo(
+  const toolGroupDefinitions = useMemo(
+    () => deriveToolGroupDefinitions(
+      hostConfig,
+      defaultConversationMode,
+      allowedConversationModes,
+    ),
+    [allowedConversationModes, defaultConversationMode, hostConfig],
+  );
+  const legacyQuickActions = useMemo(
     () => deriveQuickActions(
       hostConfig,
       runtimeShellConfig,
@@ -504,7 +622,7 @@ export function useMaxModeController({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [attachedItems, setAttachedItems] = useState<Array<{ type: string; data: any }>>([]);
+  const [attachedItems, setAttachedItems] = useState<MaxModeHostAttachment[]>([]);
   const [contextDocuments, setContextDocuments] = useState<Document[]>([]);
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null);
   const [isPanelVisible, setIsPanelVisible] = useState(true);
@@ -522,6 +640,74 @@ export function useMaxModeController({
   // Position state for routing
   const [currentPosition, setCurrentPosition] = useState<MaxModePosition>(initialPosition);
   const [currentMode, setCurrentMode] = useState<MaxModeMode>(effectiveConversationMode);
+  const [activeToolScope, setActiveToolScope] = useState<MaxModeToolScope>(() => (
+    toolGroupDefinitions?.initialScope === "contextual"
+      && toolGroupDefinitions.contextual.availableWithoutAttachments
+      ? "contextual"
+      : "default"
+  ));
+  const contextualAttachments = useMemo(
+    () => attachedItems.filter((item) => item.type !== "ai-search"),
+    [attachedItems],
+  );
+  const contextualToolsAvailable = Boolean(
+    toolGroupDefinitions
+      && (
+        contextualAttachments.length > 0
+        || toolGroupDefinitions.contextual.availableWithoutAttachments
+      ),
+  );
+  const activeContextLabel = useMemo(
+    () => resolveActiveContextLabel(
+      contextualAttachments,
+      toolGroupDefinitions?.contextual.contextLabel,
+    ),
+    [contextualAttachments, toolGroupDefinitions?.contextual.contextLabel],
+  );
+  const previousContextAttachmentCountRef = useRef(contextualAttachments.length);
+
+  useEffect(() => {
+    const previousCount = previousContextAttachmentCountRef.current;
+    const currentCount = contextualAttachments.length;
+    previousContextAttachmentCountRef.current = currentCount;
+
+    if (!toolGroupDefinitions) {
+      setActiveToolScope("default");
+      return;
+    }
+    if (currentCount > previousCount) {
+      setActiveToolScope("contextual");
+      return;
+    }
+    if (previousCount > 0 && currentCount === 0) {
+      setActiveToolScope("default");
+      return;
+    }
+    if (!contextualToolsAvailable) {
+      setActiveToolScope("default");
+    }
+  }, [contextualAttachments.length, contextualToolsAvailable, toolGroupDefinitions]);
+
+  const selectToolScope = useCallback((scope: MaxModeToolScope) => {
+    if (scope === "contextual" && !contextualToolsAvailable) {
+      return;
+    }
+    setActiveToolScope(scope);
+  }, [contextualToolsAvailable]);
+
+  const toolGroups = useMemo<MaxModeResolvedToolGroup[]>(() => {
+    if (!toolGroupDefinitions) return [];
+    return [
+      { ...toolGroupDefinitions.default, available: true },
+      { ...toolGroupDefinitions.contextual, available: contextualToolsAvailable },
+    ];
+  }, [contextualToolsAvailable, toolGroupDefinitions]);
+
+  const quickActions = toolGroupDefinitions
+    ? (activeToolScope === "contextual"
+      ? toolGroupDefinitions.contextual.actions
+      : toolGroupDefinitions.default.actions)
+    : legacyQuickActions;
 
   useEffect(() => {
     setCurrentMode((current) => allowedConversationModes.includes(current) ? current : effectiveConversationMode);
@@ -1035,7 +1221,7 @@ export function useMaxModeController({
 
   useEffect(() => {
     function onAttachItem(event: Event) {
-      const detail = (event as CustomEvent<{ item?: { type: string; data: any } }>).detail;
+      const detail = (event as CustomEvent<{ item?: MaxModeHostAttachment }>).detail;
       if (!detail?.item?.type || !detail.item.data || typeof detail.item.data !== "object") {
         return;
       }
@@ -1308,6 +1494,10 @@ export function useMaxModeController({
     aiSearchButtonRef,
     // derived constants
     quickActions,
+    toolGroups,
+    activeToolScope,
+    activeContextLabel,
+    contextualToolsAvailable,
     searchCategories,
     aiSearchCategories,
     browseProductCategories,
@@ -1326,6 +1516,7 @@ export function useMaxModeController({
     handleDeleteConversation,
     startNewConversation,
     openConversationsPanel,
+    selectToolScope,
     handleQuickAction,
     handleChatQuery,
     handleConfirmation: (messageId: string, confirmed: boolean, _message: ChatMessage) => handleConfirmation(messageId, confirmed),

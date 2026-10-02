@@ -72,7 +72,7 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
   return (
     <div className="h-full relative bg-white dark:bg-gray-950">
       <MessageList
-        containerClassName={`absolute top-0 md:top-[72px] left-0 right-0 bottom-0 overflow-y-auto px-3 md:px-6 py-4 md:py-6 transition-all ${isPanelVisible && contextDocuments.length > 0 ? (selectedProduct || isCartView ? "md:pr-[730px]" : "md:pr-[450px]") : "md:pr-4"} ${debugEnabled && controller.isDebugModalOpen ? "xl:pl-[420px]" : ""}`}
+        containerClassName={`absolute top-0 ${controller.toolGroups.length > 0 ? "md:top-[120px]" : "md:top-[72px]"} left-0 right-0 bottom-0 overflow-y-auto px-3 md:px-6 py-4 md:py-6 transition-all ${isPanelVisible && contextDocuments.length > 0 ? (selectedProduct || isCartView ? "md:pr-[730px]" : "md:pr-[450px]") : "md:pr-4"} ${debugEnabled && controller.isDebugModalOpen ? "xl:pl-[420px]" : ""}`}
         containerStyle={{ paddingBottom: "var(--max-mode-composer-inset, 180px)" }}
         messages={chatMessages}
         latestMessageRef={latestMessageRef}
