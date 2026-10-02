@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "loomai-generic-max-mode-dealership-evidence-v1",
+  "status": "PASS",
+  "claim": "GENERIC_MAX_MODE_FIRST_DELIVERY_LIVE_VERIFIED",
+  "completedAt": "2026-10-02",
+  "deployment": {
+    "deploymentId": "dep-f023c863",
+    "versionId": "ver-1459db9f",
+    "versionLabel": "v21",
+    "releaseId": "rel-58af17bb",
+    "releaseStatus": "APPLIED_VERIFIED",
+    "provisioningStatus": "ACTIVE",
+    "verificationRunId": "vrf-6388d613",
+    "verificationStatus": "PASSED",
+    "verificationSummary": "25 passed, 0 failed, 5 skipped",
+    "aiFabricFrameworkVersion": "0.8.8",
+    "sourceArtifactId": "dsa-454597d0",
+    "productSourceCommit": "80acdad2693f058e938ae5e14141c3bfa8d85cec",
+    "configHash": "38f53d907e7134362bb194d85afe4ba18858745d045c029c94a02b60048c1aa0",
+    "actionCount": 5
+  },
+  "dealershipBackend": {
+    "sourceCommit": "59caeffa3233305d45ab9c1ca0dfd7a0c31f322f",
+    "coolifyDeploymentId": "kosm46d20v41s3pj8as7b2im",
+    "healthStatus": "UP",
+    "fictionalInventoryCount": 6,
+    "csrfCookiePolicy": "Secure; SameSite=None"
+  },
+  "genericContract": {
+    "providerNeutralRegistry": true,
+    "exactActionRendererSchemaDispatch": true,
+    "boundedPresentationProjection": true,
+    "nonAuthoritativeResultReferences": true,
+    "safeDeploymentBackedCommands": true,
+    "genericFallbackAndRendererIsolation": true,
+    "widgetDomainMatching": false,
+    "widgetResponseTextMatching": false,
+    "directProtectedBrowserCalls": false
+  },
+  "liveMeetingGate": {
+    "status": "PASS",
+    "conversationId": "chat-638c0b62-c536-4149-a96a-cbd1e67fb9b9",
+    "queryTurns": 18,
+    "hostToolCount": 8,
+    "anonymousSessionRenewal": "PASS",
+    "contextualSuggestions": "PASS",
+    "inventoryRenderer": "loomai.vehicle-inventory.v1",
+    "inventorySchema": "loomai.vehicle-list.v1",
+    "inventoryRenderedCards": 3,
+    "vehicleDetailRenderer": "PASS",
+    "vehicleComparisonRenderer": "PASS",
+    "groundedFollowUp": {
+      "status": "PASS",
+      "providerRequestId": "rag-1f2343c7-b5f8-4dd5-853b-f8e3b7e84e5f",
+      "action": "dealership_get_vehicle",
+      "sourceCount": 6,
+      "documentCount": 6,
+      "searchSourceStatus": "SUCCEEDED"
+    },
+    "rejectedTestDriveExecutedActions": 0,
+    "confirmedTestDriveReceipt": "NFM-8F0C0502",
+    "confirmedCallbackReceipt": "NFM-9ACAAEA0",
+    "protectedStaffReadback": "PASS",
+    "verifiedRecordCleanupState": "CANCELLED",
+    "currentPageAttachRemove": "PASS",
+    "desktopResponsiveCheck": "PASS",
+    "mobileResponsiveCheck": "PASS",
+    "browserOrTransportFailures": 0
+  },
+  "conversationalQualityGate": {
+    "status": "PASS",
+    "completedAt": "2026-10-02T05:03:34.558Z",
+    "conversationId": "chat-fd2190e0-6233-4cdb-96a9-cc92f6f8a196",
+    "scenarioCount": 7,
+    "passedScenarios": 7,
+    "planningMode": "ITERATIVE",
+    "maxIterations": 2,
+    "ragCooperationMode": "RAG_IF_ACTIONS_INSUFFICIENT",
+    "writeConfirmed": false,
+    "domainWriteCompleted": false
+  },
+  "localVerification": {
+    "dealershipBackendTests": "25 passed",
+    "widgetTypecheckBuildAndContractSmoke": "PASS",
+    "astroDiagnostics": "0 errors, 0 warnings, 0 hints",
+    "publicSiteProductionBuild": "PASS",
+    "staticRoutes": "27 passed",
+    "browserSmoke": "PASS"
+  },
+  "claimBoundaries": [
+    "The dealership and inventory are fictional demonstration data.",
+    "No Auto Trader sandbox or production credential was used.",
+    "No advertiser grant, data right, package certification, endorsement, or partnership is proven.",
+    "Automatic G3/D1 working-set promotion is not claimed.",
+    "Arbitrary-site G9 page authority and Platform-managed UI extension packaging remain deferred."
+  ]
+}

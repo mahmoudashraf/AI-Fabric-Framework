@@ -589,3 +589,16 @@ Current P0 cleanup items:
   live for inventory, while local gates cover inventory, vehicle detail, and
   responsive comparison. Platform-managed UI-extension packaging remains a
   later productization step, not a reason to couple the generic widget now.
+- 2026-10-02 final Max Mode first-delivery verdict: the provider-neutral
+  action-presentation contract is fully live-proven on fictional dealership
+  deployment `dep-f023c863` v21 with AI Fabric `0.8.8`. Generic widget core
+  dispatches only by reviewed action/renderer/schema configuration and bounded
+  projections; all dealership labels, fields and components remain host-owned.
+  Five model-visible actions cover inventory, detail, comparison, test drive
+  and callback, while protected vehicle resolution remains server-owned. The
+  live meeting gate proved all rich UI surfaces plus governed rejection,
+  confirmed writes, protected readback and cleanup. This supersedes the v18
+  canary status, but it does not change the boundaries: data is fictional, no
+  Auto Trader grant or endorsement exists, and G3/D1 automatic working-set,
+  arbitrary-site G9 authority and Platform UI-extension packaging remain
+  deferred.

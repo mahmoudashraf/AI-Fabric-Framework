@@ -91,12 +91,14 @@ obtains its exact public routes from the dealership backend's safe descriptor.
 ## Deployment contracts
 
 - `deployment/runtime/ai-entity-config.yml` registers `dealer-vehicle`.
-- `deployment/runtime/ai-actions.yml` defines four reads and two confirmed writes.
-  The fourth read resolves a buyer-facing vehicle reference to the unique trusted
-  inventory ID used by confirmed writes; the internal ID is never requested from
-  the buyer. Test-drive submission collects name, email and phone, then uses the
-  governed action's final confirmation instead of a second consent checkbox;
-  callback contact consent remains an explicit action parameter.
+- `deployment/runtime/ai-actions.yml` defines three reads and two confirmed
+  writes. Buyer-facing vehicle references are resolved by the trusted backend
+  path to the unique current inventory ID used by detail and write operations;
+  that resolver is deliberately not a model-selectable action and the internal
+  ID is never requested from the buyer. Test-drive submission collects name,
+  email and phone, then uses the governed action's final confirmation instead
+  of a second consent checkbox; callback contact consent remains an explicit
+  action parameter.
 - `deployment/connector/actions-routing.yml` routes those actions and authz checks
   to this service. Inventory and comparison reads preserve canonical `_items`
   and `_count` fields for AI grounding while also returning bounded source,

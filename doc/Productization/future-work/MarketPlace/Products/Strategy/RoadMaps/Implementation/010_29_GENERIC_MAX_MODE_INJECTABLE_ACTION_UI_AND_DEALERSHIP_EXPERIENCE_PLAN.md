@@ -1,12 +1,13 @@
 # 010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan
 
-**Status:** Implemented, deployed, and live verified
+**Status:** First-delivery scope fully implemented, deployed, and live verified;
+explicit follow-ons remain deferred
 **Created:** 2026-10-01
 **Revised:** 2026-10-02
 **Scope:** Generic Max Mode/Companion UI extension mechanics and the first
 dealership-owned component package
-**Related baseline:** Dealership deployment `dep-f023c863`, version `v18` /
-`ver-a46b4386`, release `rel-19452510`
+**Related live baseline:** Dealership deployment `dep-f023c863`, version `v21` /
+`ver-1459db9f`, release `rel-58af17bb`, AI Fabric `0.8.8`
 
 ## 1. Purpose
 
@@ -450,17 +451,24 @@ Visible UI copy does not need to explain this taxonomy.
 
 ## 8. Existing Actions Before New Actions
 
-The first UI increment must use and prove the six existing dealership actions
-before expanding the action catalogue.
+The first UI increment must use and prove the five model-visible dealership
+actions before expanding the action catalogue. Vehicle target resolution is a
+server-owned helper, not another action exposed to the model.
 
 | Existing action | UI behavior |
 | --- | --- |
 | `dealership_search_inventory` | Inventory workspace |
 | `dealership_get_vehicle` | Vehicle detail workspace |
-| `dealership_resolve_vehicle` | No direct UI; trusted target resolution only |
 | `dealership_compare_vehicles` | Comparison workspace |
 | `dealership_request_callback` | Lead form, confirmation and receipt |
 | `dealership_request_test_drive` | Test-drive form, confirmation and receipt |
+
+The backend's lower-level vehicle resolver remains private to the trusted
+connector/action path. It converts a buyer-facing stock reference into the
+current internal target only after scope and lifecycle validation. Publishing
+that helper as a sixth model action would let orchestration stop after a
+technically successful lookup without completing the requested detail or write
+operation.
 
 Questions about features, suitability, warranty, dealership policy, or general
 trade-offs should use grounded generation/RAG. They are not new actions merely
@@ -580,8 +588,8 @@ existing package label.
 
 ### Phase 0: preserve the verified baseline
 
-1. Keep dealership deployment `v15` and its repeated quality reports as the
-   behavior baseline.
+1. Preserve the repeated `v15` quality reports as the pre-presentation behavior
+   baseline; use the current immutable version for all new hosted evidence.
 2. Capture the current generic-card, clarification, confirmation, receipt,
    mobile, and desktop behavior before changing the widget.
 3. Do not change deployment mode/position, prompts, model policy, backend action
@@ -627,7 +635,7 @@ existing package label.
 2. Exercise search, detail, comparison, grounded follow-up, test-drive
    clarification, reject, confirm, receipt, and staff readback in one session.
 3. Repeat the read-only sequence and retain safe request IDs and screenshots.
-4. Compare behavior against the preserved `v15` baseline.
+4. Compare behavior against the preserved pre-presentation baseline.
 5. Release only when generic fallback, anonymous auth, conversations,
    suggestions, current-page attachment, and debug behavior remain green.
 
@@ -789,8 +797,9 @@ framework, Platform, provider, or data-operation work.
   widget core. The host-owned package is implemented in
   `Platfrom/loomai-site/src/scripts/dealership-action-presentations.ts`.
 - Added inventory, vehicle-detail, and desktop/mobile vehicle-comparison
-  presentations using the six-action dealership catalogue already installed on
-  the deployment. Write controls still enter the existing chat,
+  presentations using the five-action dealership catalogue installed on the
+  deployment. Trusted vehicle resolution remains a server-owned helper rather
+  than a model action. Write controls still enter the existing chat,
   clarification, confirmation, and receipt flow.
 - Added normalized `appliedFilters`, result counts, source freshness, and data
   notice fields to the dealership backend/connector result projection. No new
@@ -807,7 +816,9 @@ framework, Platform, provider, or data-operation work.
   allowlisted fields, protected-context exclusion, provenance, unknown action,
   and incompatible-schema fallback.
 - Widget ESM, CJS, declaration, and IIFE production builds: green.
-- Dealership backend: `21` tests, `0` failures, `0` errors.
+- Dealership backend: `25` tests, `0` failures, `0` errors. This includes a
+  real login, CSRF issuance, authenticated staff-state update, and final
+  `CANCELLED` persistence check.
 - Public-site release gate: Astro diagnostics reported `0` errors/warnings;
   production build, `27` static-route checks, content graph, accessibility, and
   Playwright browser smoke all passed.
@@ -818,45 +829,64 @@ framework, Platform, provider, or data-operation work.
 
 ### 17.3 Hosted rollout and evidence
 
-- Source commit `e451ea0f832d48ffb370f2a7a8d6fd4aa30cc0d5` is pushed to
-  `Platform-V11`. Production public-site deployment
-  `vz5vp3sfyje3kxwmpj5lrnz8` and staging dealership-backend deployment
-  `x1wwh6sao32yyziez0yu4ifc` both finished on that exact commit. The public
-  site health route reports `UP` with the same commit, and the dealership API
-  reports its six fictional records.
-- Deployment `dep-f023c863` published immutable version `v18` /
-  `ver-a46b4386` with configuration hash
-  `e10af87929ef598ddd659c8e6f76bda2ead4c642679dbb35b3dbc2e7db4edee5`.
-  Release `rel-19452510` is `APPLIED_VERIFIED`, provisioning is `ACTIVE`, and
-  verification run `vrf-4afd7fe6` is `PASSED`. It uses promoted source
-  artifact `dsa-27e4bcdc`, AI Fabric `0.8.7`, and required no reindex.
-- Two earlier applications of the same immutable version stopped while the
-  Platform polled a Coolify endpoint returning HTTP `429`. After a control-plane
-  cooldown, reapplying the unchanged v18 completed. This remains the existing
-  G1 lifecycle/polling gap from `010.26`; it did not require a config mutation,
-  new version, or unsafe parallel runtime.
-- Final runtime liveness and readiness both returned HTTP `200` / `UP`; the
-  deployment connector health returned `UP`.
-- The mobile live browser gate passed anonymous bootstrap and same-session
-  renewal, indexed vehicle retrieval, explicit inventory action execution,
-  governed test-drive proposal, final confirmation, receipt creation, and
-  contextual suggestions without a browser or transport failure. The final
-  inventory request was `rag-7c0916a5-aa4f-48aa-bd33-b666349c1220` and the
-  confirmed write request was `rag-67463fec-3ec4-4465-a095-a51cc640688a`.
-- The strengthened gate proved the hosted action result selected renderer
-  `loomai.vehicle-inventory.v1` with schema `loomai.vehicle-list.v1`. It
-  rendered the one bounded match, showed the applied fuel/body/budget filters,
-  exposed only reviewed safe commands, retained source action/message
-  provenance for every result reference, and projected no raw
-  `content`/`errors`/`warnings` transport fields.
-- The strict seven-turn live quality matrix passed in one conversation using
-  `executor` / `search`. It covered authoritative stock search, contextual
-  follow-up, comparison, semantic RAG, empty-action-to-RAG cooperation,
-  unsupported-policy honesty, and non-executed governed-write guidance. It
-  confirmed no write and reported no page, transport, or runtime failure.
-- Local browser coverage remains the evidence for all three exact presentation
-  components: inventory, vehicle detail, and desktop/mobile comparison. The
-  hosted gate additionally proves the full registry-to-deployment-to-inventory
-  renderer path. This release still makes no claim of automatic G3/D1 working
-  set promotion, arbitrary-site G9 context authority, real Auto Trader access,
-  or Platform-managed UI-extension packaging.
+- The current runtime product source is
+  `80acdad2693f058e938ae5e14141c3bfa8d85cec`. It contains AI Fabric `0.8.8`,
+  whose generic structured read-action result contract preserves the bounded
+  facts required by host renderers without dealership-specific matching.
+- Deployment `dep-f023c863` published immutable version `v21` /
+  `ver-1459db9f` with configuration hash
+  `38f53d907e7134362bb194d85afe4ba18858745d045c029c94a02b60048c1aa0`.
+  Release `rel-58af17bb` is `APPLIED_VERIFIED`, provisioning is `ACTIVE`, and
+  verification run `vrf-6388d613` is `PASSED` with `25` passed, `0` failed and
+  `5` intentionally skipped checks. It uses promoted source artifact
+  `dsa-454597d0`, AI Fabric `0.8.8`, and required no reindex.
+- Runtime liveness/readiness and connector health return HTTP `200` / `UP`.
+  Runtime readback reports the exact framework version, product source,
+  deployment version, five-action catalogue, entity configuration, and
+  capability-manifest hash expected by the immutable version.
+- Dealership backend commit
+  `59caeffa3233305d45ab9c1ca0dfd7a0c31f322f` is live from staging Coolify
+  deployment `kosm46d20v41s3pj8as7b2im`. Its status route reports `UP`, the
+  exact commit and six fictional inventory records.
+- Cross-site staff writes retain CSRF protection. The CSRF cookie now inherits
+  the configured secure session posture (`Secure; SameSite=None`), allowing
+  the public-site staff client to return the cookie with its CSRF header. A
+  live authenticated status update and readback both returned `CANCELLED`.
+- The final meeting gate used one anonymous conversation for `18` query turns.
+  It proved all eight host tools, contextual suggestions, anonymous renewal,
+  inventory/detail/comparison presentation, a grounded follow-up with indexed
+  evidence,
+  governed rejection and confirmation, protected staff readback, current-page
+  attach/remove, desktop and mobile layouts, and absence of direct protected
+  browser calls.
+- The inventory result selected renderer `loomai.vehicle-inventory.v1` with
+  schema `loomai.vehicle-list.v1`, rendered three bounded cards with electric
+  and GBP 40,000 filters, retained source action/message provenance, and
+  projected no raw `content`, `errors`, or `warnings` transport fields. Detail
+  and comparison renderers were exercised through the same live deployment.
+- Rejecting a test drive created no action. Confirmed test-drive and callback
+  journeys each created exactly one persisted receipt, appeared once in the
+  protected staff inbox with the expected buyer/vehicle details, and were
+  deterministically changed to `CANCELLED` after verification. A repeated CTA
+  may enter confirmation directly when the same conversation already owns all
+  required buyer parameters; this is valid state reuse, not a missing form.
+- The strict seven-scenario quality gate separately passed in one conversation
+  using bounded `ITERATIVE` planning (`maxIterations=2`) and
+  `RAG_IF_ACTIONS_INSUFFICIENT`. It covered action retrieval, semantic RAG,
+  comparison, empty-action RAG fallback, policy honesty and non-executing
+  governed-write intent without confirming a write.
+
+### 17.4 Completion verdict and boundaries
+
+The first-delivery boundary in section 1.1 is fully implemented and live
+verified. The generic widget contains no hardcoded dealership, vehicle, Auto
+Trader, dealership action-name, business-field, query-text, or answer-text
+matching. Domain components and mappings remain in the customer host package
+and communicate only through the generic bounded projection and command
+contracts.
+
+This completion verdict does not include the explicitly deferred items in
+Phase 4. In particular, it is not evidence of real Auto Trader access, rights,
+endorsement or partnership; the live inventory is fictional. It also does not
+claim automatic G3/D1 working-set promotion, arbitrary-site G9 page authority,
+or Platform-managed `UI_EXTENSION` packaging.

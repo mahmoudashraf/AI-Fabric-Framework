@@ -414,6 +414,14 @@ async function verifyContextualSuggestions(browserPage, detailPresentation) {
   await removeContext.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }))
   await removeContext.click()
   await detailPresentation.getByRole('button', { name: 'Keep in context' }).waitFor()
+  const restoredSuggestionsDismiss = browserPage
+    .locator('[data-max-mode-view]')
+    .getByRole('button', { name: 'Dismiss suggestions' })
+    .last()
+  if (await restoredSuggestionsDismiss.isVisible().catch(() => false)) {
+    await restoredSuggestionsDismiss.click()
+    await restoredSuggestionsDismiss.waitFor({ state: 'hidden' })
+  }
   return { count: suggestions.length, status: response.status() }
 }
 
@@ -439,32 +447,39 @@ async function runClarifiedWrite({ page: browserPage, trigger, initialQuery, act
   const initialResponse = await initialResponsePromise
   assert(initialResponse.ok(), `${actionName} entry returned HTTP ${initialResponse.status()}.`)
   const initialBody = await safeJson(initialResponse)
-  assert(findScalar(initialBody, 'type') === 'CLARIFICATION_REQUIRED', `${actionName} did not enter clarification from its injected CTA.`)
-  const providedParameters = findRecord(initialBody, 'providedParameters') || {}
-  await browserPage.getByRole('button', { name: 'Submit & Proceed' }).last().waitFor()
-
-  for (const [field, value] of Object.entries(values)) {
-    const input = browserPage.getByPlaceholder(`Enter ${humanizeField(field).toLowerCase()}...`).last()
-    if (await input.isVisible().catch(() => false)) {
-      await input.fill(value)
-      continue
-    }
-    assert(
-      String(providedParameters[field] ?? '').trim() === String(value).trim(),
-      `${actionName} field ${field} was neither editable nor already provided with the expected value.`,
-    )
-  }
-
-  const clarificationPrefix = `Proceed with ${actionName.replaceAll('_', ' ')} using:`
-  const clarificationResponsePromise = waitForQueryResponse(
-    browserPage,
-    (request) => safeRequestBody(request).query?.startsWith(clarificationPrefix),
+  const entryType = findScalar(initialBody, 'type')
+  assert(
+    ['CLARIFICATION_REQUIRED', 'CONFIRMATION_REQUIRED'].includes(entryType),
+    `${actionName} entered neither clarification nor confirmation from its injected CTA.`,
   )
-  await browserPage.getByRole('button', { name: 'Submit & Proceed' }).last().click()
-  const clarificationResponse = await clarificationResponsePromise
-  assert(clarificationResponse.ok(), `${actionName} clarification returned HTTP ${clarificationResponse.status()}.`)
-  const clarificationBody = await safeJson(clarificationResponse)
-  assert(findScalar(clarificationBody, 'type') === 'CONFIRMATION_REQUIRED', `${actionName} did not enter final confirmation.`)
+
+  if (entryType === 'CLARIFICATION_REQUIRED') {
+    const providedParameters = findRecord(initialBody, 'providedParameters') || {}
+    await browserPage.getByRole('button', { name: 'Submit & Proceed' }).last().waitFor()
+
+    for (const [field, value] of Object.entries(values)) {
+      const input = browserPage.getByPlaceholder(`Enter ${humanizeField(field).toLowerCase()}...`).last()
+      if (await input.isVisible().catch(() => false)) {
+        await input.fill(value)
+        continue
+      }
+      assert(
+        String(providedParameters[field] ?? '').trim() === String(value).trim(),
+        `${actionName} field ${field} was neither editable nor already provided with the expected value.`,
+      )
+    }
+
+    const clarificationPrefix = `Proceed with ${actionName.replaceAll('_', ' ')} using:`
+    const clarificationResponsePromise = waitForQueryResponse(
+      browserPage,
+      (request) => safeRequestBody(request).query?.startsWith(clarificationPrefix),
+    )
+    await browserPage.getByRole('button', { name: 'Submit & Proceed' }).last().click()
+    const clarificationResponse = await clarificationResponsePromise
+    assert(clarificationResponse.ok(), `${actionName} clarification returned HTTP ${clarificationResponse.status()}.`)
+    const clarificationBody = await safeJson(clarificationResponse)
+    assert(findScalar(clarificationBody, 'type') === 'CONFIRMATION_REQUIRED', `${actionName} did not enter final confirmation.`)
+  }
 
   const confirmationQuery = decision === 'confirm' ? 'Yes, confirm' : 'No, cancel'
   const decisionResponsePromise = waitForQueryResponse(
@@ -481,12 +496,14 @@ async function runClarifiedWrite({ page: browserPage, trigger, initialQuery, act
     assert(evidence.executedActions.length === 0, `${actionName} executed after the user rejected it.`)
     return {
       cancelled: true,
+      entryType,
       ...evidence,
     }
   }
 
   await browserPage.getByText('Confirmed', { exact: true }).last().waitFor()
   return {
+    entryType,
     ...responseEvidence(decisionBody),
     ...confirmationEvidence(decisionBody),
   }
@@ -587,11 +604,21 @@ async function refreshStaffReceipts(browserPage) {
 
 async function waitForStaffInboxRender(browserPage, response) {
   const body = await safeJson(response)
-  const expectedReceipts = Array.isArray(body?.items) ? body.items.length : null
-  assert(expectedReceipts !== null, 'Staff inbox response did not contain an items array.')
+  const expectedItems = Array.isArray(body?.items)
+    ? body.items.map((item) => ({ receiptCode: item?.receiptCode, status: item?.status }))
+    : null
+  assert(expectedItems !== null, 'Staff inbox response did not contain an items array.')
   await browserPage.waitForFunction(
-    (expected) => document.querySelectorAll('[data-lead-receipt]').length === expected,
-    expectedReceipts,
+    (expected) => {
+      const rows = [...document.querySelectorAll('[data-lead-table-body] tr')]
+      const receipts = [...document.querySelectorAll('[data-lead-receipt]')]
+      if (receipts.length !== expected.length) return false
+      return expected.every((item) => rows.some((row) => (
+        row.querySelector('[data-lead-receipt]')?.textContent?.trim() === item.receiptCode
+        && row.querySelector('[data-lead-status]')?.getAttribute('data-status') === item.status
+      )))
+    },
+    expectedItems,
   )
 }
 
@@ -623,15 +650,23 @@ async function cancelStaffReceipt(browserPage, receiptCode) {
   const responsePromise = browserPage.waitForResponse((response) => (
     response.request().method() === 'PATCH' && response.url().includes('/api/staff/leads/')
   ))
+  const refreshResponsePromise = browserPage.waitForResponse((response) => (
+    response.request().method() === 'GET' && response.url().includes('/api/staff/leads?limit=50')
+  ))
   await dialog.getByRole('button', { name: 'Save status' }).click()
   const response = await responsePromise
   assert(response.ok(), `Cleanup for ${receiptCode} returned HTTP ${response.status()}.`)
   const body = await safeJson(response)
   assert(findScalar(body, 'status') === 'CANCELLED', `Cleanup for ${receiptCode} did not return CANCELLED.`)
   await dialog.waitFor({ state: 'hidden' })
-  await refreshStaffReceipts(browserPage)
+  const refreshResponse = await refreshResponsePromise
+  assert(refreshResponse.ok(), `Post-cleanup inbox refresh for ${receiptCode} returned HTTP ${refreshResponse.status()}.`)
+  await waitForStaffInboxRender(browserPage, refreshResponse)
   const updated = browserPage.locator('[data-lead-table-body] tr').filter({ hasText: receiptCode })
-  assert(((await updated.textContent()) || '').includes('Cancelled'), `Cleanup for ${receiptCode} was not visible in the staff inbox.`)
+  assert(
+    await updated.locator('[data-lead-status]').getAttribute('data-status') === 'CANCELLED',
+    `Cleanup for ${receiptCode} was not visible in the staff inbox.`,
+  )
   return { receiptCode, status: 'CANCELLED' }
 }
 
@@ -684,6 +719,7 @@ function assertReceipt(evidence, label) {
 
 function safeReceiptEvidence(evidence) {
   return {
+    entryType: evidence.entryType,
     providerRequestId: evidence.providerRequestId,
     conversationId: evidence.conversationId,
     actionSuccess: evidence.actionSuccess,

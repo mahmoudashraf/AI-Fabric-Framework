@@ -3473,3 +3473,38 @@ Critical fixes that made the gate pass:
   Remaining explicit deferrals are G3/D1 automatic action-result working-set
   promotion, G9 arbitrary-site context authority, Marketplace-managed UI
   extension packaging, and real Auto Trader/provider activation.
+
+## 2026-10-02 Generic Max Mode First-Delivery Final Closure
+
+- This entry supersedes the earlier v18/AI Fabric 0.8.7 hosted status.
+  Dealership deployment `dep-f023c863` is active on `v21` /
+  `ver-1459db9f`, config hash
+  `38f53d907e7134362bb194d85afe4ba18858745d045c029c94a02b60048c1aa0`,
+  release `rel-58af17bb`, verification `vrf-6388d613`, artifact
+  `dsa-454597d0`, and AI Fabric `0.8.8`. Release state is
+  `APPLIED_VERIFIED` / `ACTIVE` / `PASSED`; verification reports `25` passed,
+  `0` failed and `5` skipped.
+- AI Fabric `0.8.8` preserves generic structured read-action results for host
+  rendering. It does not add dealership coupling and does not implement the
+  separately deferred automatic G3/D1 action-result working set.
+- The action catalogue has five model-visible actions: inventory search,
+  vehicle detail, comparison, test drive and callback. Vehicle target
+  resolution is a private server-owned helper, not a sixth planner action.
+- Backend commit `59caeffa3233305d45ab9c1ca0dfd7a0c31f322f` is live from
+  staging deployment `kosm46d20v41s3pj8as7b2im`. Its cross-site staff PATCH
+  issue was fixed without disabling CSRF: the CSRF cookie now inherits
+  `Secure; SameSite=None` from the configured session posture. Backend tests
+  pass `25/25`, including authenticated CSRF issuance and status mutation.
+- The final live meeting gate passed one 18-turn anonymous conversation across
+  eight host tools, inventory/detail/comparison renderers, action-plus-RAG,
+  suggestions, session renewal, test-drive rejection, confirmed test drive,
+  confirmed callback, protected staff readback, deterministic `CANCELLED`
+  cleanup, current-page attach/remove, and desktop/mobile checks. No direct
+  protected browser call or browser/transport failure occurred.
+- A strict seven-scenario quality run also passed with bounded `ITERATIVE`
+  planning and `RAG_IF_ACTIONS_INSUFFICIENT`, without confirming a write.
+  Sanitized evidence is in
+  `verification-support/autotrader-dealership-demo/evidence/2026-10-02-generic-max-mode-dealership-live.json`.
+- The first-delivery boundary in `010_29` is complete. Real Auto Trader access,
+  Marketplace-managed UI extension packaging, arbitrary-site G9 authority and
+  G3/D1 automatic working-set promotion remain explicit non-claims/deferrals.
