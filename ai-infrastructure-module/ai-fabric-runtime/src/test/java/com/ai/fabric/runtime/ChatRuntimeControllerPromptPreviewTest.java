@@ -557,6 +557,59 @@ class ChatRuntimeControllerPromptPreviewTest {
     }
 
     @Test
+    void meQueryExposesStructuredReadActionsForGeneratedInformationResponses() {
+        RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
+        Map<String, Object> resultData = Map.of(
+            "record", Map.of("id", "record-001", "name", "Alpha Record", "status", "ready")
+        );
+        Map<String, Object> sanitizedAction = Map.of(
+            "action", "get_record",
+            "actionResult", Map.of(
+                "success", true,
+                "message", "Record loaded.",
+                "data", resultData
+            )
+        );
+        when(orchestrator.orchestrate(eq("Show the selected record"), org.mockito.ArgumentMatchers.<OrchestrationContext>any()))
+            .thenReturn(OrchestrationResult.builder()
+                .type(OrchestrationResultType.INFORMATION_PROVIDED)
+                .success(true)
+                .message("Alpha Record is ready.")
+                .data(Map.of(
+                    "answer", "Alpha Record is ready.",
+                    "actions", List.of(Map.of(
+                        "action", "get_record",
+                        "actionResult", ActionResult.builder()
+                            .success(true)
+                            .message("Record loaded.")
+                            .data(ai.fabric.intent.action.ActionResultContracts.object(resultData))
+                            .build()
+                    ))
+                ))
+                .sanitizedPayload(Map.of(
+                    "safeSummary", "Alpha Record is ready.",
+                    "data", Map.of(
+                        "answer", "Alpha Record is ready.",
+                        "actions", List.of(sanitizedAction)
+                    )
+                ))
+                .build());
+
+        ChatRuntimeController controller = controllerFor(orchestrator, null, strictAuthResolver());
+        ChatQueryRequest request = new ChatQueryRequest();
+        request.setQuery("Show the selected record");
+
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest();
+        addVerifiedAuthHeaders(servletRequest, "platform-user-1", "platform-session-1", BASE_QUERY_SCOPES);
+
+        ChatQueryResponse response = controller.query(request, servletRequest).getBody();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getType()).isEqualTo("INFORMATION_PROVIDED");
+        assertThat(response.getActions()).singleElement().isEqualTo(sanitizedAction);
+    }
+
+    @Test
     void meQueryExposesRawResultDocumentsWhenSanitizedPayloadOmitsSources() {
         RAGOrchestrator orchestrator = mock(RAGOrchestrator.class);
         List<Map<String, Object>> documents = List.of(Map.of(

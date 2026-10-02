@@ -56,7 +56,7 @@ const INITIAL_FORM: ArtifactForm = {
   gitCommitSha: '',
   buildRunId: '',
   sbomRef: '',
-  aiFabricVersion: '0.8.7',
+  aiFabricVersion: '0.8.8',
   supportedBehaviorTypes: [],
   supportedActivationSources: [],
   supportedChannelBindings: [],
