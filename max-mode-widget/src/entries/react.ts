@@ -44,4 +44,19 @@ export type {
 
 export type { SharedAttachment } from "@/context";
 
+export type {
+  MaxModeActionPresentationCommands,
+  MaxModeActionPresentationComponentProps,
+  MaxModeActionPresentationConfig,
+  MaxModeActionPresentationMapping,
+  MaxModeActionPresentationProjection,
+  MaxModeActionRendererRegistration,
+  MaxModePresentationResultReference,
+} from "@/actionPresentation";
+
+export {
+  presentationReferenceAttachmentId,
+  resolveActionPresentation,
+} from "@/actionPresentation";
+
 // Style import path hint (actual import is '@loom-ai-labs/max-mode-widget/styles.css')

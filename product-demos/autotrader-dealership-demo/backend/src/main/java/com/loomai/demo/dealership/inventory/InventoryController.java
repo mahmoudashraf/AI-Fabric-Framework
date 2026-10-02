@@ -70,6 +70,7 @@ public class InventoryController {
             "items", result.items().stream().map(this::publicVehicle).toList(),
             "total", result.total(),
             "facets", facets,
+            "appliedFilters", appliedFilters(q, make, fuelType, bodyType, minPriceGbp, maxPriceGbp, maxMileage, sort),
             "source", sourceSummary(),
             "dataNotice", "Fictional demonstration inventory. No live Auto Trader data is used."
         );
@@ -169,8 +170,41 @@ public class InventoryController {
         return Map.of(
             "success", true,
             "vehicles", vehicles.stream().map(this::publicVehicle).toList(),
+            "count", vehicles.size(),
             "source", sourceSummary()
         );
+    }
+
+    private Map<String, Object> appliedFilters(String q,
+                                               String make,
+                                               String fuelType,
+                                               String bodyType,
+                                               Long minPriceGbp,
+                                               Long maxPriceGbp,
+                                               Integer maxMileage,
+                                               String sort) {
+        Map<String, Object> filters = new LinkedHashMap<>();
+        putTextFilter(filters, "q", q);
+        putTextFilter(filters, "make", make);
+        putTextFilter(filters, "fuelType", fuelType);
+        putTextFilter(filters, "bodyType", bodyType);
+        if (minPriceGbp != null) {
+            filters.put("minPriceGbp", minPriceGbp);
+        }
+        if (maxPriceGbp != null) {
+            filters.put("maxPriceGbp", maxPriceGbp);
+        }
+        if (maxMileage != null) {
+            filters.put("maxMileage", maxMileage);
+        }
+        putTextFilter(filters, "sort", sort);
+        return filters;
+    }
+
+    private void putTextFilter(Map<String, Object> filters, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            filters.put(key, value.trim());
+        }
     }
 
     private Map<String, Object> sourceSummary() {

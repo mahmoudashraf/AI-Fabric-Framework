@@ -98,8 +98,13 @@ export function MaxModeMainContent({ controller }: { controller: MaxModeControll
         onNextStepClick={(query) => {
           void resendChatQuery(query);
         }}
+        onPresentationAsk={controller.handleActionPresentationAsk}
+        onAttachPresentationResult={controller.handleAttachPresentationResult}
+        onDetachPresentationResult={controller.handleDetachPresentationResult}
+        isPresentationResultAttached={controller.isPresentationResultAttached}
         onCustomerAccountConnect={connectCustomerAccount}
         onClarificationSubmit={controller.handleClarificationSubmit}
+        contentClassName="max-w-6xl"
       />
 
       <DesktopContextPanel

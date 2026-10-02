@@ -95,6 +95,11 @@ const mockServer = createServer(async (request, response) => {
         bodyTypes: [{ value: 'SUV', count: 1 }, { value: 'Crossover', count: 1 }, { value: 'Estate', count: 1 }],
       },
       source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
+      appliedFilters: Object.fromEntries(
+        ['make', 'fuelType', 'bodyType', 'maxPriceGbp', 'maxMileage']
+          .map((key) => [key, url.searchParams.get(key)])
+          .filter(([, value]) => value),
+      ),
       dataNotice: 'Fictional demonstration inventory. No live Auto Trader data is used.',
     })
     return
@@ -198,6 +203,69 @@ const mockServer = createServer(async (request, response) => {
 
   if (url.pathname === '/api/chat/me/query' && request.method === 'POST') {
     const payload = await readMockJson(request)
+    if (payload.query === 'Show current electric vehicles under GBP 40,000.') {
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'ACTION_EXECUTED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'I found current electric vehicles under GBP 40,000.',
+        actions: [{
+          action: 'dealership_search_inventory',
+          actionResult: {
+            success: true,
+            data: {
+              _items: mockVehicles.slice(0, 2),
+              _count: 2,
+              total: 2,
+              appliedFilters: { fuelType: 'Electric', maxPriceGbp: 40000, sort: 'recommended' },
+              source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
+              dataNotice: 'Fictional demonstration inventory. No live Auto Trader data is used.',
+            },
+          },
+        }],
+      })
+      return
+    }
+    if (payload.query === 'Tell me about 2025 Aster E1 using its current dealership facts.') {
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'ACTION_EXECUTED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'Current details loaded for the 2025 Aster E1.',
+        actions: [{
+          action: 'dealership_get_vehicle',
+          actionResult: {
+            success: true,
+            data: {
+              vehicle: mockVehicles[0],
+              source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
+              dataNotice: 'Fictional demonstration inventory. Confirm current availability with the dealership.',
+            },
+          },
+        }],
+      })
+      return
+    }
+    if (payload.query?.startsWith('Compare these selected current vehicles using dealership facts:')) {
+      writeMockJson(response, 200, {
+        success: true,
+        type: 'ACTION_EXECUTED',
+        conversationId: 'conversation-browser-smoke',
+        answer: 'I compared the selected current vehicles.',
+        actions: [{
+          action: 'dealership_compare_vehicles',
+          actionResult: {
+            success: true,
+            data: {
+              _items: mockVehicles.slice(0, 2),
+              _count: 2,
+              source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
+            },
+          },
+        }],
+      })
+      return
+    }
     if (payload.query === 'Request a test drive for the Aster E1') {
       writeMockJson(response, 200, {
         success: false,
@@ -614,11 +682,106 @@ try {
     throw new Error('Dealership vehicle question did not use executor mode')
   }
   if (!cardAskPayload.attachments?.some((attachment) => attachment.id === 'veh-aster-e1')) {
-    throw new Error('Dealership vehicle question reached chat without its trusted vehicle attachment')
+    throw new Error('Dealership vehicle question reached chat without its expected vehicle context attachment')
   }
   if (!cardAskPayload.attachments?.some((attachment) => attachment.vectorSpace === 'dealer-vehicle')) {
     throw new Error('Dealership vehicle question used the wrong attachment vector space')
   }
+
+  const inventoryPresentationRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Show current electric vehicles under GBP 40,000.'
+  })
+  await page.evaluate(() => {
+    window.MaxMode.sendMessage('Show current electric vehicles under GBP 40,000.', {
+      mode: 'executor',
+      position: 'search',
+      open: true,
+    })
+  })
+  await inventoryPresentationRequest
+  const inventoryPresentation = page.locator('loomai-dealership-inventory').last()
+  await inventoryPresentation.waitFor()
+  if ((await inventoryPresentation.locator('.vehicle-card').count()) !== 2) {
+    throw new Error('The injected inventory presentation did not render its two bounded vehicle records')
+  }
+  if (!(await inventoryPresentation.getByText('Fuel: Electric', { exact: true }).count()) ||
+      !(await inventoryPresentation.getByText('Up to £40,000', { exact: true }).count())) {
+    throw new Error('The injected inventory presentation did not render applied filters')
+  }
+  const detailPresentationRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Tell me about 2025 Aster E1 using its current dealership facts.'
+  })
+  const askAboutVehicleButton = inventoryPresentation.getByRole('button', { name: 'Ask about this' }).first()
+  if (!(await inventoryPresentation.isVisible()) || !(await askAboutVehicleButton.isVisible())) {
+    throw new Error('The injected inventory workspace or its primary ask control is not visible in Max Mode')
+  }
+  await askAboutVehicleButton.dispatchEvent('click')
+  const detailPresentationPayload = (await detailPresentationRequest).postDataJSON()
+  const selectedDetailAttachments = detailPresentationPayload.attachments?.filter(
+    (attachment) => attachment.source === 'action-result-context',
+  ) || []
+  if (selectedDetailAttachments.length !== 1 ||
+      selectedDetailAttachments[0].vectorSpace !== undefined ||
+      selectedDetailAttachments[0].metadata?.actionEligible !== false ||
+      selectedDetailAttachments[0].metadata?.trust !== 'REQUIRES_SERVER_RESOLUTION' ||
+      selectedDetailAttachments[0].metadata?.sourceActionName !== 'dealership_search_inventory') {
+    throw new Error('Selected result context did not preserve its bounded non-authoritative provenance')
+  }
+  const detailPresentation = page.locator('loomai-dealership-vehicle-detail').last()
+  await detailPresentation.waitFor()
+  await detailPresentation.getByText('Vehicle details', { exact: true }).waitFor()
+
+  await inventoryPresentation.getByRole('checkbox').nth(0).dispatchEvent('click')
+  await inventoryPresentation.getByRole('checkbox').nth(1).dispatchEvent('click')
+  const comparisonPresentationRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query?.startsWith('Compare these selected current vehicles using dealership facts:')
+  })
+  await inventoryPresentation.getByRole('button', { name: 'Compare selected' }).dispatchEvent('click')
+  const comparisonPresentationPayload = (await comparisonPresentationRequest).postDataJSON()
+  const selectedComparisonAttachments = comparisonPresentationPayload.attachments?.filter(
+    (attachment) => attachment.source === 'action-result-context',
+  ) || []
+  if (selectedComparisonAttachments.length !== 2 ||
+      selectedComparisonAttachments.some((attachment) => attachment.vectorSpace !== undefined || attachment.metadata?.actionEligible !== false)) {
+    throw new Error('Comparison did not send exactly two bounded non-action-eligible result references')
+  }
+  const comparisonPresentation = page.locator('loomai-dealership-vehicle-comparison').last()
+  await comparisonPresentation.waitFor()
+  await comparisonPresentation.getByText('Vehicle comparison', { exact: true }).waitFor()
+
+  const removeAttachment = page.getByRole('button', { name: /Remove attachment|Remove attached page:/ }).first()
+  for (let attempt = 0; attempt < 8 && await removeAttachment.isVisible().catch(() => false); attempt += 1) {
+    await removeAttachment.click()
+  }
+  const dismissSuggestions = page.getByRole('button', { name: 'Dismiss suggestions' }).last()
+  if (await dismissSuggestions.isVisible().catch(() => false)) {
+    await dismissSuggestions.click()
+  }
+  const comparisonSurface = page.locator('[data-max-mode-action-presentation="loomai.vehicle-comparison.v1"]').last()
+  await comparisonSurface.evaluate((element) => element.scrollIntoView({ block: 'start' }))
+  await page.screenshot({
+    path: path.join(screenshotDir, 'dealership-injected-comparison-desktop.png'),
+    animations: 'disabled',
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  if (!(await comparisonPresentation.locator('.comparison-mobile').isVisible())) {
+    throw new Error('Injected comparison did not switch to the stacked mobile presentation')
+  }
+  const mobileComparisonBox = await comparisonSurface.boundingBox()
+  if (!mobileComparisonBox || mobileComparisonBox.width > 390) {
+    throw new Error(`Injected comparison exceeded the mobile viewport: ${JSON.stringify(mobileComparisonBox)}`)
+  }
+  await comparisonSurface.evaluate((element) => element.scrollIntoView({ block: 'start' }))
+  await page.screenshot({
+    path: path.join(screenshotDir, 'dealership-injected-comparison-mobile.png'),
+    animations: 'disabled',
+  })
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.getByRole('button', { name: 'Close MAX Mode' }).click()
+  await page.locator('section[aria-label="Northfield AI"]').waitFor()
 
   const actionRequestPromise = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false

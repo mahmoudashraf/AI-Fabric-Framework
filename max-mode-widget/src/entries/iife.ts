@@ -22,6 +22,8 @@ import type { MaxModeMode, MaxModePosition } from "@/constants";
 import { mountWidget, openWidget, closeWidget, toggleWidget, destroyWidget } from "@/mount";
 
 const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
+const PENDING_ATTACHMENTS_KEY = "maxmode_widget_pending_attachments";
+const MAX_QUEUED_PROMPT_ATTACHMENTS = 20;
 
 export interface MaxModeSendMessageOptions {
   open?: boolean;
@@ -37,6 +39,7 @@ export interface MaxModeQueuedPrompt {
   position?: MaxModePosition;
   mode?: MaxModeMode;
   requestContext?: Record<string, any>;
+  attachments?: SharedAttachment[];
 }
 
 export interface MaxModeAPI {
@@ -61,8 +64,6 @@ export interface MaxModeAPI {
   /** Widget version */
   version: string;
 }
-
-const PENDING_ATTACHMENTS_KEY = "maxmode_widget_pending_attachments";
 
 const MaxModeInstance: MaxModeAPI = {
   version: "1.0.0",
@@ -122,6 +123,7 @@ const MaxModeInstance: MaxModeAPI = {
       position: options?.position,
       mode: options?.mode,
       requestContext: options?.requestContext,
+      attachments: readQueuedAttachments(),
     };
     enqueuePrompt(queuedPrompt);
     if (queuedPrompt.open) {
@@ -171,4 +173,19 @@ function queueAttachment(item: SharedAttachment) {
     const next = Array.isArray(existing) ? [...existing, item] : [item];
     sessionStorage.setItem(PENDING_ATTACHMENTS_KEY, JSON.stringify(next));
   } catch {}
+}
+
+function readQueuedAttachments(): SharedAttachment[] | undefined {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(PENDING_ATTACHMENTS_KEY) || "[]");
+    if (!Array.isArray(parsed)) {
+      return undefined;
+    }
+    const attachments = parsed
+      .filter((entry) => entry?.type && entry?.data && typeof entry.data === "object")
+      .slice(-MAX_QUEUED_PROMPT_ATTACHMENTS);
+    return attachments.length > 0 ? attachments : undefined;
+  } catch {
+    return undefined;
+  }
 }

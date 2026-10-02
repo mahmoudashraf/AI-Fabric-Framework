@@ -3,6 +3,7 @@ import type { CSSProperties, RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import type { ChatMessage, CustomerAccountConnectAction, ResultType } from "@/types";
+import type { MaxModePresentationResultReference } from "@/actionPresentation";
 import type { AiStyles } from "./MessageBubble";
 import { MessageBubble } from "./MessageBubble";
 import { AIThinkingAnimation } from "./AIThinkingAnimation";
@@ -30,8 +31,13 @@ export function MessageList({
   isItemAttached,
   onAttachActionResultItem,
   onNextStepClick,
+  onPresentationAsk,
+  onAttachPresentationResult,
+  onDetachPresentationResult,
+  isPresentationResultAttached,
   onCustomerAccountConnect,
   onClarificationSubmit,
+  contentClassName = "max-w-3xl",
 }: {
   containerClassName: string;
   containerStyle?: CSSProperties;
@@ -55,12 +61,17 @@ export function MessageList({
   isItemAttached: (itemId: string) => boolean;
   onAttachActionResultItem: (item: any) => void;
   onNextStepClick: (query: string) => void;
+  onPresentationAsk: (query: string, references: readonly MaxModePresentationResultReference[]) => Promise<void> | void;
+  onAttachPresentationResult: (reference: MaxModePresentationResultReference) => void;
+  onDetachPresentationResult: (reference: MaxModePresentationResultReference) => void;
+  isPresentationResultAttached: (referenceKey: string, sourceMessageId: string) => boolean;
   onCustomerAccountConnect: (action: CustomerAccountConnectAction) => void;
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
+  contentClassName?: string;
 }) {
   return (
     <div className={containerClassName} style={containerStyle}>
-      <div className="max-w-3xl mx-auto space-y-4">
+      <div className={`${contentClassName} mx-auto space-y-4`}>
         <AnimatePresence mode="popLayout">
           {messages.map((message, index) => {
             const aiStyles = message.type === "ai" ? getAiStyles(message.resultType, message.success) : null;
@@ -88,6 +99,10 @@ export function MessageList({
                 isItemAttached={isItemAttached}
                 onAttachActionResultItem={onAttachActionResultItem}
                 onNextStepClick={onNextStepClick}
+                onPresentationAsk={onPresentationAsk}
+                onAttachPresentationResult={onAttachPresentationResult}
+                onDetachPresentationResult={onDetachPresentationResult}
+                isPresentationResultAttached={isPresentationResultAttached}
                 onCustomerAccountConnect={onCustomerAccountConnect}
                 onClarificationSubmit={onClarificationSubmit}
               />

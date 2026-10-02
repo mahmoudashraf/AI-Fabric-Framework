@@ -16,6 +16,9 @@ import {
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
 import { subscribePublicRuntimeSessionInvalidation } from "@/api/client";
+import type { MaxModePresentationResultReference } from "@/actionPresentation";
+import { presentationReferenceAttachmentId } from "@/actionPresentation";
+import { ACTION_RESULT_ATTACHMENT_TYPE, toActionResultAttachedItem } from "@/attachments";
 import { buildCustomerAccountConnectUrl } from "@/chatResult";
 import { useMaxModeContextOptional } from "@/context";
 import type {
@@ -40,6 +43,7 @@ import { useSearchControls } from "./useSearchControls";
 import { useSuggestionsController } from "./useSuggestionsController";
 
 const PENDING_PROMPTS_KEY = "maxmode_widget_pending_prompts";
+const PENDING_ATTACHMENTS_KEY = "maxmode_widget_pending_attachments";
 
 type PendingPrompt = {
   id: string;
@@ -48,6 +52,7 @@ type PendingPrompt = {
   position?: MaxModePosition;
   mode?: MaxModeMode;
   requestContext?: Record<string, any>;
+  attachments?: Array<{ type: string; data: any }>;
 };
 
 const CONVERSATION_MODES: MaxModeMode[] = ["conversational", "navigator", "navigator_deep", "thinker_deep", "cart_assistant", "executor"];
@@ -81,6 +86,40 @@ function removePendingPrompt(promptId: string | undefined) {
   }
   const remaining = loadPendingPrompts().filter((prompt) => prompt.id !== promptId);
   savePendingPrompts(remaining);
+}
+
+function consumePendingAttachments(attachedItems: Array<{ type: string; data: any }>) {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(PENDING_ATTACHMENTS_KEY) || "[]");
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return;
+    }
+    const remaining = parsed.filter((queued) => !attachedItems.some((attached) =>
+      sameAttachment(attached, queued),
+    ));
+    if (remaining.length === 0) {
+      sessionStorage.removeItem(PENDING_ATTACHMENTS_KEY);
+    } else if (remaining.length !== parsed.length) {
+      sessionStorage.setItem(PENDING_ATTACHMENTS_KEY, JSON.stringify(remaining));
+    }
+  } catch {}
+}
+
+function sameAttachment(
+  first: { type?: string; data?: any } | null | undefined,
+  second: { type?: string; data?: any } | null | undefined,
+) {
+  if (!first?.type || first.type !== second?.type) {
+    return false;
+  }
+  const firstId = first.data?.id;
+  const secondId = second.data?.id;
+  if (firstId && secondId) {
+    return firstId === secondId;
+  }
+  const firstSku = first.data?.sku;
+  const secondSku = second.data?.sku;
+  return Boolean(firstSku && secondSku && firstSku === secondSku);
 }
 
 function expectedAuthModeForIntegrationMode(mode: string): string | null {
@@ -586,7 +625,13 @@ export function useMaxModeController({
       if (!prompt?.message?.trim()) {
         return;
       }
-      await handleChatQuery(prompt.message.trim(), prompt.position, prompt.mode, prompt.requestContext);
+      await handleChatQuery(
+        prompt.message.trim(),
+        prompt.position,
+        prompt.mode,
+        prompt.requestContext,
+        prompt.attachments,
+      );
     },
     [handleChatQuery],
   );
@@ -636,6 +681,10 @@ export function useMaxModeController({
       cancelled = true;
     };
   }, [handleProgrammaticPrompt, isOpen]);
+
+  useEffect(() => {
+    consumePendingAttachments(attachedItems);
+  }, [attachedItems]);
 
   useEffect(() => {
     function onProgrammaticPrompt(event: Event) {
@@ -879,11 +928,69 @@ export function useMaxModeController({
     toast,
   });
 
+  const isPresentationResultAttached = useCallback(
+    (referenceKey: string, sourceMessageId: string) => {
+      const id = `action-result:${sourceMessageId}:${referenceKey}`;
+      return attachedItems.some((item) => item.type === ACTION_RESULT_ATTACHMENT_TYPE && item.data?.id === id);
+    },
+    [attachedItems],
+  );
+
+  const handleAttachPresentationResult = useCallback(
+    (reference: MaxModePresentationResultReference) => {
+      const item = toActionResultAttachedItem(reference);
+      setAttachedItems((previous) => {
+        if (previous.some((existing) => existing.type === item.type && existing.data?.id === item.data.id)) {
+          return previous;
+        }
+        return [...previous, item];
+      });
+      toast({
+        title: "Added to chat",
+        description: `${reference.label} is available as selected result context.`,
+      });
+      setTimeout(() => chatInputRef.current?.focus(), 100);
+    },
+    [chatInputRef, setAttachedItems, toast],
+  );
+
+  const handleDetachPresentationResult = useCallback(
+    (reference: MaxModePresentationResultReference) => {
+      const id = presentationReferenceAttachmentId(reference);
+      setAttachedItems((previous) => previous.filter(
+        (item) => item.type !== ACTION_RESULT_ATTACHMENT_TYPE || item.data?.id !== id,
+      ));
+    },
+    [setAttachedItems],
+  );
+
+  const handleActionPresentationAsk = useCallback(
+    async (query: string, references: readonly MaxModePresentationResultReference[]) => {
+      const safeReferences = references.slice(0, 4);
+      const ephemeralAttachments = safeReferences.map(toActionResultAttachedItem);
+      await handleChatQuery(
+        query,
+        undefined,
+        undefined,
+        safeReferences.length > 0
+          ? {
+            uiSelectedResults: safeReferences.map((reference) => ({
+              key: reference.key,
+              label: reference.label,
+              scope: reference.scope,
+              sourceMessageId: reference.sourceMessageId,
+              sourceActionName: reference.sourceActionName,
+            })),
+          }
+          : undefined,
+        ephemeralAttachments,
+      );
+    },
+    [handleChatQuery],
+  );
+
   useEffect(() => {
     function onAttachItem(event: Event) {
-      if (!isOpen) {
-        return;
-      }
       const detail = (event as CustomEvent<{ item?: { type: string; data: any } }>).detail;
       if (!detail?.item?.type || !detail.item.data || typeof detail.item.data !== "object") {
         return;
@@ -895,7 +1002,7 @@ export function useMaxModeController({
     return () => {
       window.removeEventListener("maxmode:attach-item", onAttachItem as EventListener);
     };
-  }, [handleReattachItem, isOpen]);
+  }, [handleReattachItem]);
 
   const { handleAISearchCategory, handleSelectSearchCategory, clearSearchCategory } = useSearchControls({
     aiSearchCategories,
@@ -1165,6 +1272,10 @@ export function useMaxModeController({
     isItemAttached,
     handleReattachItem,
     handleAttachActionResultItem,
+    isPresentationResultAttached,
+    handleAttachPresentationResult,
+    handleDetachPresentationResult,
+    handleActionPresentationAsk,
     clearSearchCategory,
     loadConversations,
     openConversation,

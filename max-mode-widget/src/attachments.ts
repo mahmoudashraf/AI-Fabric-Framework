@@ -1,5 +1,9 @@
 import type { AttachedItem } from "@/types";
+import type { MaxModePresentationResultReference } from "@/actionPresentation";
+import { presentationReferenceAttachmentId } from "@/actionPresentation";
 import { CURRENT_PAGE_ATTACHMENT_TYPE } from "@/pageAttachment";
+
+export const ACTION_RESULT_ATTACHMENT_TYPE = "action-result-context";
 
 export interface RuntimeAttachment {
   id: string;
@@ -20,6 +24,9 @@ export function toRuntimeAttachments(items: AttachedItem[]): RuntimeAttachment[]
 export function toRuntimeAttachment(item: AttachedItem, index: number): RuntimeAttachment {
   if (item.type === CURRENT_PAGE_ATTACHMENT_TYPE) {
     return currentPageRuntimeAttachment(item, index);
+  }
+  if (item.type === ACTION_RESULT_ATTACHMENT_TYPE) {
+    return actionResultRuntimeAttachment(item, index);
   }
 
   const data = item.data || {};
@@ -95,7 +102,30 @@ export function toRuntimeAttachment(item: AttachedItem, index: number): RuntimeA
 
 /** Page context informs generation but must not silently change the host's routing mode. */
 export function isRoutingTargetAttachment(item: AttachedItem): boolean {
-  return item.type !== CURRENT_PAGE_ATTACHMENT_TYPE && item.type !== "ai-search";
+  return item.type !== CURRENT_PAGE_ATTACHMENT_TYPE
+    && item.type !== ACTION_RESULT_ATTACHMENT_TYPE
+    && item.type !== "ai-search";
+}
+
+export function toActionResultAttachedItem(reference: MaxModePresentationResultReference): AttachedItem {
+  return {
+    type: ACTION_RESULT_ATTACHMENT_TYPE,
+    data: {
+      id: presentationReferenceAttachmentId(reference),
+      title: reference.label,
+      content: summarizeSafeData(reference.safeData),
+      metadata: {
+        attachmentKind: "ACTION_RESULT_CONTEXT",
+        trust: "REQUIRES_SERVER_RESOLUTION",
+        actionEligible: false,
+        resultReferenceKey: reference.key,
+        resultScope: reference.scope,
+        sourceMessageId: reference.sourceMessageId,
+        sourceActionName: reference.sourceActionName,
+        lookupValue: reference.lookupValue,
+      },
+    },
+  };
 }
 
 function currentPageRuntimeAttachment(item: AttachedItem, index: number): RuntimeAttachment {
@@ -115,6 +145,41 @@ function currentPageRuntimeAttachment(item: AttachedItem, index: number): Runtim
     source: CURRENT_PAGE_ATTACHMENT_TYPE,
     url: cleanValue(data.url),
   });
+}
+
+function actionResultRuntimeAttachment(item: AttachedItem, index: number): RuntimeAttachment {
+  const data = item.data || {};
+  const title = firstString(data.title) || "Selected result";
+  const content = firstString(data.content) || "";
+  const metadata = removeUndefinedValues({
+    ...(data.metadata || {}),
+    attachmentKind: "ACTION_RESULT_CONTEXT",
+    trust: "REQUIRES_SERVER_RESOLUTION",
+    actionEligible: false,
+    title,
+  });
+  return removeEmptyOptionalFields({
+    id: cleanValue(data.id || `action-result-${index}`),
+    contentText: `Selected result: ${title}\n\n${content}`.trim(),
+    metadata,
+    source: ACTION_RESULT_ATTACHMENT_TYPE,
+  });
+}
+
+function summarizeSafeData(value: Readonly<Record<string, unknown>>): string {
+  return Object.entries(value)
+    .filter(([key, entry]) => key !== "presentationKey" && isDisplayScalar(entry))
+    .slice(0, 24)
+    .map(([key, entry]) => `${formatKey(key)}: ${String(entry)}`)
+    .join(" | ");
+}
+
+function isDisplayScalar(value: unknown): value is string | number | boolean {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+function formatKey(value: string): string {
+  return value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim();
 }
 
 function firstString(...values: unknown[]): string | undefined {

@@ -1394,6 +1394,9 @@ vehicle, Auto Trader, field-name, or answer-text matching. Dealership semantics
 belong in the Marketplace composition, deployment configuration, connector
 mapping, customer application, and bounded prompt overlay.
 
+The detailed implementation contract for G7/D4 is maintained separately in
+[010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md).
+
 ### 21.1 General Reusable Improvements
 
 | Priority | Surface and owner | Improvement | Required behavior and evidence |

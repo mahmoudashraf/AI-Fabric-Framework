@@ -7,7 +7,7 @@ import { isRoutingTargetAttachment, toRuntimeAttachments } from "@/attachments";
 import { emitEvent } from "@/config";
 import type { MaxModeHostRequestContextProvider } from "@/config";
 import type { MaxModeMode } from "@/constants";
-import type { ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
+import type { AttachedItem, ChatMessage, ChatResult, DebugData, Document, ResultType } from "@/types";
 import { hasShopifyRequestContext, normalizeMessageContent, withRequestContext } from "@/utils";
 import { summarizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
 import { canonicalChatResult, extractChatResultMessage, extractCustomerAccountConnectAction } from "@/chatResult";
@@ -136,12 +136,15 @@ export function useChatFlow({
       actionPosition?: "landing" | "catalog" | "search" | "cart",
       actionMode?: MaxModeMode,
       extraRequestContext?: Record<string, any>,
+      ephemeralAttachments?: AttachedItem[],
     ) => {
       const query = presetQuery ?? chatQuery;
       if (!query.trim()) return;
 
+      const effectiveAttachedItems = mergeAttachments(attachedItems, ephemeralAttachments || []);
+
       const currentSearchCategory = searchCategory;
-      const aiSearchAttachment = attachedItems.find((item) => item.type === "ai-search");
+      const aiSearchAttachment = effectiveAttachedItems.find((item) => item.type === "ai-search");
 
       let apiQuery = query;
       if (currentSearchCategory) {
@@ -155,7 +158,7 @@ export function useChatFlow({
         type: "user",
         content: query,
         timestamp: new Date().toISOString(),
-        attachedItems: attachedItems.length > 0 ? [...attachedItems] : undefined,
+        attachedItems: effectiveAttachedItems.length > 0 ? [...effectiveAttachedItems] : undefined,
         searchCategory: currentSearchCategory || undefined,
       };
 
@@ -163,7 +166,7 @@ export function useChatFlow({
       setChatQuery("");
       setIsLoading(true);
 
-      const currentAttachments = attachedItems.filter((item) => item.type !== "ai-search");
+      const currentAttachments = effectiveAttachedItems.filter((item) => item.type !== "ai-search");
       setSuggestions([]);
 
       const hasRoutingTargetAttachments = currentAttachments.some(isRoutingTargetAttachment);
@@ -191,7 +194,7 @@ export function useChatFlow({
         conversationId: currentConversationId,
         position,
         mode,
-        attachmentsCount: attachedItems.length,
+        attachmentsCount: effectiveAttachedItems.length,
       });
 
       setCurrentPosition(position);
@@ -396,4 +399,25 @@ export function useChatFlow({
   );
 
   return { handleChatQuery } as const;
+}
+
+function mergeAttachments(persistent: AttachedItem[], ephemeral: AttachedItem[]): AttachedItem[] {
+  const merged = [...persistent];
+  for (const candidate of ephemeral) {
+    const candidateId = candidate?.data?.id;
+    const candidateSku = candidate?.data?.sku;
+    const exists = merged.some((existing) => {
+      if (existing.type !== candidate.type) {
+        return false;
+      }
+      if (candidateId && existing.data?.id) {
+        return existing.data.id === candidateId;
+      }
+      return Boolean(candidateSku && existing.data?.sku === candidateSku);
+    });
+    if (!exists) {
+      merged.push(candidate);
+    }
+  }
+  return merged;
 }

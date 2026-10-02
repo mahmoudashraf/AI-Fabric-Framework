@@ -8,6 +8,7 @@
 
 import type { RuntimeShellConfigSummary } from "@/types";
 import type { MaxModeMode, MaxModePosition } from "@/constants";
+import type { MaxModeActionPresentationConfig } from "@/actionPresentation";
 
 export interface MaxModeApiConfig {
   /** Base URL for the chat / orchestration API */
@@ -228,6 +229,8 @@ export interface MaxModeHostConfig {
   pageModeMappings?: Record<string, MaxModeMode>;
   /** Optional host-owned initial attachments/context */
   initialAttachments?: MaxModeHostAttachment[];
+  /** Optional reviewed action-result presentation registry and mappings */
+  actionPresentation?: MaxModeActionPresentationConfig;
   /** Opt-in current-page text attachment support */
   currentPageAttachment?: MaxModeCurrentPageAttachmentConfig;
   /** Hide POC-only utility controls when embedding in storefronts */
@@ -279,6 +282,9 @@ export type MaxModeEventType =
   | "widget:closed"
   | "message:sent"
   | "message:received"
+  | "action-presentation:rendered"
+  | "action-presentation:fallback"
+  | "action-presentation:command"
   | "customer-account-auth:start"
   | "cart:add"
   | "cart:remove"
@@ -336,6 +342,7 @@ const DEFAULT_CONFIG: MaxModeWidgetConfig = {
     allowedConversationModes: undefined,
     pageModeMappings: undefined,
     initialAttachments: undefined,
+    actionPresentation: undefined,
     currentPageAttachment: undefined,
     showUtilityPanel: true,
     companionDock: false,

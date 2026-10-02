@@ -4,6 +4,13 @@ import { CheckCircle2, ExternalLink, Paperclip, Search, Sparkles, Star } from "l
 
 import { formatFieldName, formatFieldValue } from "@/utils";
 import { normalizeShopifyMcpCatalogResult } from "@/shopifyMcpResults";
+import {
+  isActionRendererAvailable,
+  resolveActionPresentation,
+  type MaxModePresentationResultReference,
+} from "@/actionPresentation";
+import { getWidgetConfig } from "@/config";
+import { ActionPresentationSurface } from "./ActionPresentationSurface";
 
 type ResultRecord = Record<string, any>;
 
@@ -103,6 +110,12 @@ export const ActionResultRenderer = ({
   onExpand,
   onAttach,
   isAttached,
+  actionName,
+  onPresentationAsk,
+  onAttachPresentationResult,
+  onDetachPresentationResult,
+  isPresentationResultAttached,
+  disableCustomPresentation = false,
 }: {
   data: any;
   messageId: string;
@@ -110,10 +123,60 @@ export const ActionResultRenderer = ({
   onExpand: (count: number) => void;
   onAttach?: (item: any) => void;
   isAttached?: (itemId: string) => boolean;
+  actionName?: string;
+  onPresentationAsk?: (query: string, references: readonly MaxModePresentationResultReference[]) => Promise<void> | void;
+  onAttachPresentationResult?: (reference: MaxModePresentationResultReference) => void;
+  onDetachPresentationResult?: (reference: MaxModePresentationResultReference) => void;
+  isPresentationResultAttached?: (referenceKey: string, sourceMessageId: string) => boolean;
+  disableCustomPresentation?: boolean;
 }) => {
   const displayData = unwrapActionResultData(data);
 
   if (!displayData) return null;
+
+  if (!disableCustomPresentation && actionName) {
+    const presentation = resolveActionPresentation({
+      config: getWidgetConfig().host?.actionPresentation,
+      actionName,
+      actionData: displayData,
+      messageId,
+    });
+    if (
+      presentation
+      && isActionRendererAvailable(presentation.renderer)
+      && onPresentationAsk
+      && onAttachPresentationResult
+      && onDetachPresentationResult
+    ) {
+      const selectedResultKeys = presentation.resultReferences
+        .filter((reference) => isPresentationResultAttached?.(reference.key, reference.sourceMessageId))
+        .map((reference) => reference.key);
+      const genericFallback = (
+        <ActionResultRenderer
+          data={data}
+          messageId={messageId}
+          expandedCount={expandedCount}
+          onExpand={onExpand}
+          onAttach={onAttach}
+          isAttached={isAttached}
+          actionName={actionName}
+          disableCustomPresentation
+        />
+      );
+      return (
+        <div className="mt-3" data-max-mode-action-presentation={presentation.rendererId}>
+          <ActionPresentationSurface
+            presentation={presentation}
+            selectedResultKeys={selectedResultKeys}
+            fallback={genericFallback}
+            onAsk={onPresentationAsk}
+            onAttachResult={onAttachPresentationResult}
+            onDetachResult={onDetachPresentationResult}
+          />
+        </div>
+      );
+    }
+  }
 
   // Render a product card with image
   const renderProductCard = (item: any, idx: number) => {

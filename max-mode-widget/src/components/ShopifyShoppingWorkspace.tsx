@@ -738,6 +738,10 @@ function ShopifyConversationColumn({
           isItemAttached={controller.isItemAttached}
           onAttachActionResultItem={controller.handleAttachActionResultItem}
           onNextStepClick={(query) => void controller.resendChatQuery(query)}
+          onPresentationAsk={controller.handleActionPresentationAsk}
+          onAttachPresentationResult={controller.handleAttachPresentationResult}
+          onDetachPresentationResult={controller.handleDetachPresentationResult}
+          isPresentationResultAttached={controller.isPresentationResultAttached}
           onCustomerAccountConnect={controller.connectCustomerAccount}
           onClarificationSubmit={controller.handleClarificationSubmit}
         />
@@ -1071,6 +1075,10 @@ function ShopifyMobileWorkspace({
             isItemAttached={controller.isItemAttached}
             onAttachActionResultItem={controller.handleAttachActionResultItem}
             onNextStepClick={(query) => void controller.resendChatQuery(query)}
+            onPresentationAsk={controller.handleActionPresentationAsk}
+            onAttachPresentationResult={controller.handleAttachPresentationResult}
+            onDetachPresentationResult={controller.handleDetachPresentationResult}
+            isPresentationResultAttached={controller.isPresentationResultAttached}
             onCustomerAccountConnect={controller.connectCustomerAccount}
             onClarificationSubmit={controller.handleClarificationSubmit}
           />

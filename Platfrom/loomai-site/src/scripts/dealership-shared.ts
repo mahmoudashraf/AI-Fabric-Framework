@@ -137,6 +137,7 @@ export async function initializeDealershipAssistant(
   const chatBaseUrl = normalizeBaseUrl(descriptor.chatBaseUrl)
   await loadWidgetBundle()
   if (!window.MaxMode) throw new Error('The LoomAI chat surface did not load.')
+  registerDealershipActionPresentationElements()
 
   const routes = descriptor.runtimeRoutes
   window.MaxMode.init({
@@ -187,6 +188,7 @@ export async function initializeDealershipAssistant(
       defaultConversationMode: 'executor',
       effectiveConversationMode: 'executor',
       allowedConversationModes: ['executor'],
+      actionPresentation: dealershipActionPresentationConfig(),
       showUtilityPanel: false,
       companionDock: true,
       currentPageAttachment: {
@@ -371,3 +373,7 @@ function absoluteRuntimeTemplateUrl(baseUrl: string, value: string) {
     .replaceAll('%7BconversationId%7D', '{conversationId}')
     .replaceAll('%7bconversationId%7d', '{conversationId}')
 }
+import {
+  dealershipActionPresentationConfig,
+  registerDealershipActionPresentationElements,
+} from './dealership-action-presentations'

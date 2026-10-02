@@ -33,6 +33,7 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/ui/button";
 
 import { getActionIcon, parseActionMessage } from "@/actionMessage";
+import { extractActionName, type MaxModePresentationResultReference } from "@/actionPresentation";
 import type { ChatMessage, CustomerAccountConnectAction, Document } from "@/types";
 import { normalizeMessageContent } from "@/utils";
 import { ActionResultRenderer } from "../ActionResultRenderer";
@@ -67,6 +68,10 @@ export function MessageBubble({
   isItemAttached,
   onAttachActionResultItem,
   onNextStepClick,
+  onPresentationAsk,
+  onAttachPresentationResult,
+  onDetachPresentationResult,
+  isPresentationResultAttached,
   onCustomerAccountConnect,
   onClarificationSubmit,
 }: {
@@ -89,6 +94,10 @@ export function MessageBubble({
   isItemAttached: (itemId: string) => boolean;
   onAttachActionResultItem: (item: any) => void;
   onNextStepClick: (query: string) => void;
+  onPresentationAsk: (query: string, references: readonly MaxModePresentationResultReference[]) => Promise<void> | void;
+  onAttachPresentationResult: (reference: MaxModePresentationResultReference) => void;
+  onDetachPresentationResult: (reference: MaxModePresentationResultReference) => void;
+  isPresentationResultAttached: (referenceKey: string, sourceMessageId: string) => boolean;
   onCustomerAccountConnect: (action: CustomerAccountConnectAction) => void;
   onClarificationSubmit?: (action: string, parameters: Record<string, any>) => void;
 }) {
@@ -98,6 +107,7 @@ export function MessageBubble({
   const [clarificationEditingField, setClarificationEditingField] = useState<string | null>(null);
   const [clarificationSubmitted, setClarificationSubmitted] = useState(false);
   const Icon = message.type === "ai" ? aiStyles?.icon : undefined;
+  const primaryActionName = extractActionName(message.result?.sanitizedPayload?.data);
 
   return (
     <>
@@ -417,6 +427,11 @@ export function MessageBubble({
                 onExpand={(count) => onExpandActionResults(message.id, count)}
                 isAttached={isItemAttached}
                 onAttach={(item) => onAttachActionResultItem(item)}
+                actionName={primaryActionName}
+                onPresentationAsk={onPresentationAsk}
+                onAttachPresentationResult={onAttachPresentationResult}
+                onDetachPresentationResult={onDetachPresentationResult}
+                isPresentationResultAttached={isPresentationResultAttached}
               />
             )}
 
@@ -431,6 +446,11 @@ export function MessageBubble({
                 onExpand={(count) => onExpandActionResults(message.id, count)}
                 isAttached={isItemAttached}
                 onAttach={(item) => onAttachActionResultItem(item)}
+                actionName={primaryActionName}
+                onPresentationAsk={onPresentationAsk}
+                onAttachPresentationResult={onAttachPresentationResult}
+                onDetachPresentationResult={onDetachPresentationResult}
+                isPresentationResultAttached={isPresentationResultAttached}
               />
             )}
 
@@ -652,6 +672,11 @@ export function MessageBubble({
                           onExpand={(count) => onExpandActionResults(message.id, count)}
                           isAttached={isItemAttached}
                           onAttach={(item) => onAttachActionResultItem(item)}
+                          actionName={extractActionName(subResult.data) || extractActionName(subResult)}
+                          onPresentationAsk={onPresentationAsk}
+                          onAttachPresentationResult={onAttachPresentationResult}
+                          onDetachPresentationResult={onDetachPresentationResult}
+                          isPresentationResultAttached={isPresentationResultAttached}
                         />
                       )}
                     </div>

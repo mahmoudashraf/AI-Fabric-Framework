@@ -76,6 +76,9 @@ class DealershipDemoHttpTest {
             .andExpect(jsonPath("$.items[0].priceMinor").doesNotExist())
             .andExpect(jsonPath("$.items[0].sourceLabel").value("Demonstration inventory"))
             .andExpect(jsonPath("$.facets.makes").isArray())
+            .andExpect(jsonPath("$.appliedFilters.fuelType").value("Electric"))
+            .andExpect(jsonPath("$.appliedFilters.maxPriceGbp").value(35000))
+            .andExpect(jsonPath("$.appliedFilters.sort").value("recommended"))
             .andExpect(jsonPath("$.dataNotice").value("Fictional demonstration inventory. No live Auto Trader data is used."));
     }
 
@@ -129,6 +132,7 @@ class DealershipDemoHttpTest {
                 .queryParam("references", "Aster E1, Morrow C2"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.count").value(2))
             .andExpect(jsonPath("$.vehicles.length()").value(2))
             .andExpect(jsonPath("$.vehicles[0].id").value("veh-aster-e1"))
             .andExpect(jsonPath("$.vehicles[0].priceGbp").value(31950.00))

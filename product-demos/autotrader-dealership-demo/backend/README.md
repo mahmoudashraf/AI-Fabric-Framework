@@ -98,7 +98,11 @@ obtains its exact public routes from the dealership backend's safe descriptor.
   governed action's final confirmation instead of a second consent checkbox;
   callback contact consent remains an explicit action parameter.
 - `deployment/connector/actions-routing.yml` routes those actions and authz checks
-  to this service.
+  to this service. Inventory and comparison reads preserve canonical `_items`
+  and `_count` fields for AI grounding while also returning bounded source,
+  filter, and count metadata used by the host-owned Max Mode presentation.
+  These browser projections exclude the internal vehicle ID; any selected
+  buyer-facing stock reference is resolved again by the trusted action path.
 
 The connector must receive `DEALERSHIP_BACKEND_BASE_URL` and the same internal
 key configured here. Runtime customer ingestion must allow upsert, delete, and

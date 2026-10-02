@@ -52,7 +52,13 @@ actions:
         limit: "{{params.limit|12}}"
     response:
       success-http-status: [200]
-      result: "{{body.items}}"
+      result:
+        _items: "{{body.items}}"
+        _count: "{{body.total}}"
+        total: "{{body.total}}"
+        appliedFilters: "{{body.appliedFilters}}"
+        source: "{{body.source}}"
+        dataNotice: "{{body.dataNotice}}"
       message: Inventory search completed.
     authz:
       enabled: true
@@ -94,7 +100,10 @@ actions:
         references: "{{params.vehicleReferences}}"
     response:
       success-http-status: [200]
-      result: "{{body.vehicles}}"
+      result:
+        _items: "{{body.vehicles}}"
+        _count: "{{body.count}}"
+        source: "{{body.source}}"
       message: Current vehicles compared.
     authz:
       enabled: true

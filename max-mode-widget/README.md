@@ -183,6 +183,7 @@ interface MaxModeWidgetConfig {
     darkMode?: boolean | "auto";
   };
   host?: {
+    actionPresentation?: MaxModeActionPresentationConfig;
     currentPageAttachment?: {
       enabled?: boolean;              // Defaults to true when configured
       maxChars?: number;              // Default 1800; client cap 20000
@@ -220,6 +221,62 @@ existing tab-scoped `sessionStorage` state. The collection is cleared with the
 widget conversation state and is not durable across browser tabs.
 
 `crudBaseUrl` is optional for secure chat-only integrations.
+
+### Injected action presentations
+
+Hosts can map an exact reviewed action name to a React component or registered
+custom element. The widget projects only explicitly listed fields before it
+invokes the renderer and keeps the existing generic result renderer as the
+fallback.
+
+```js
+customElements.define('customer-inventory-result', CustomerInventoryResult)
+
+MaxMode.init({
+  apiConfig: { chatBaseUrl: 'https://runtime.example.com/api' },
+  host: {
+    actionPresentation: {
+      renderers: [{
+        id: 'customer.inventory.v1',
+        kind: 'custom-element',
+        elementName: 'customer-inventory-result',
+        schemaVersions: ['customer.inventory-list.v1'],
+      }],
+      mappings: [{
+        actionName: 'customer_search_inventory',
+        rendererId: 'customer.inventory.v1',
+        schemaVersion: 'customer.inventory-list.v1',
+        projection: {
+          fields: [{ sourcePath: '_count', target: 'count' }],
+          collections: [{
+            sourcePath: '_items',
+            target: 'items',
+            includeFields: ['publicReference', 'name', 'price'],
+            maxItems: 12,
+            reference: {
+              lookupField: 'publicReference',
+              labelFields: ['name'],
+              scope: 'customer-item',
+            },
+          }],
+        },
+      }],
+    },
+  },
+})
+```
+
+The custom element receives `presentation` and `commands` properties. Commands
+are limited to deployment-backed `ask`, bounded result attach/detach, and safe
+navigation. A selected result is sent as `action-result-context` with
+`actionEligible=false` and `trust=REQUIRES_SERVER_RESOLUTION`; it is context,
+not authority. Protected targets must still be resolved and authorized by the
+runtime/connector boundary. Renderers receive no generic HTTP client, runtime
+credentials, or unrestricted provider payload.
+
+React consumers can register a `kind: "react"` renderer and import the exported
+action-presentation types. Unknown renderers, incompatible schemas, missing
+configuration, and renderer failures preserve the generic action-result view.
 
 - Chat, auth bootstrap, auth-context, suggestions, and secure `/chat/me/*` conversation routes use `chatBaseUrl`.
 - Business CRUD such as carts still require `crudBaseUrl`.
@@ -269,6 +326,9 @@ Subscribe to widget events via the `onEvent` callback:
 | `widget:closed` | — | Widget closes |
 | `message:sent` | `{ content }` | User sends a message |
 | `message:received` | `{ content, resultType }` | AI responds |
+| `action-presentation:rendered` | renderer/action metadata | A reviewed custom presentation renders |
+| `action-presentation:fallback` | safe failure metadata | A custom renderer fails and generic rendering takes over |
+| `action-presentation:command` | command/renderer metadata | A custom presentation requests a supported widget command |
 | `cart:add` | `{ product }` | Item added to cart |
 | `cart:remove` | `{ product }` | Item removed from cart |
 
