@@ -96,6 +96,13 @@ try {
     `The hosted Max Mode tool set is incomplete: ${JSON.stringify(hostToolLabels)}`,
   )
 
+  const electricQuickAction = await clickHostToolAndWait(
+    page,
+    'Electric cars',
+    'Show me electric cars in current stock.',
+  )
+  assert(electricQuickAction.ok(), `The Electric cars Max Mode tool returned HTTP ${electricQuickAction.status()}.`)
+
   const inventorySearch = await sendMessageAndWait(page, inventorySearchPrompt)
   assert(inventorySearch.response.ok(), `The inventory search returned HTTP ${inventorySearch.response.status()}.`)
 
@@ -127,6 +134,12 @@ try {
     suitabilityEvidence.sourceCount > 0 || suitabilityEvidence.documentCount > 0,
     'The grounded suitability follow-up returned no action or indexed evidence.',
   )
+
+  const tradeoffsQuery = `Explain the important trade-offs for ${selectedVehicleLabel} using current dealership facts.`
+  const tradeoffsResponsePromise = waitForQueryResponse(page, (request) => safeRequestBody(request).query === tradeoffsQuery)
+  await detailPresentation.getByRole('button', { name: 'Explain trade-offs' }).click()
+  const tradeoffsResponse = await tradeoffsResponsePromise
+  assert(tradeoffsResponse.ok(), `The detail trade-offs control returned HTTP ${tradeoffsResponse.status()}.`)
 
   await detailPresentation.getByRole('button', { name: 'Keep in context' }).click()
   await detailPresentation.getByRole('button', { name: 'Remove context' }).waitFor()
@@ -160,6 +173,18 @@ try {
   const valueResponse = await valueResponsePromise
   assert(valueResponse.ok(), `The comparison follow-up returned HTTP ${valueResponse.status()}.`)
 
+  const practicalityQuery = 'Compare the everyday practicality of these current vehicles using only available facts and clearly identify unknowns.'
+  const practicalityResponsePromise = waitForQueryResponse(page, (request) => safeRequestBody(request).query === practicalityQuery)
+  await comparisonPresentation.getByRole('button', { name: 'Compare practicality' }).click()
+  const practicalityResponse = await practicalityResponsePromise
+  assert(practicalityResponse.ok(), `The comparison practicality control returned HTTP ${practicalityResponse.status()}.`)
+
+  const runningCostQuery = 'Explain likely running-cost trade-offs between these vehicles without inventing unavailable efficiency or finance figures.'
+  const runningCostResponsePromise = waitForQueryResponse(page, (request) => safeRequestBody(request).query === runningCostQuery)
+  await comparisonPresentation.getByRole('button', { name: 'Running-cost trade-offs' }).click()
+  const runningCostResponse = await runningCostResponsePromise
+  assert(runningCostResponse.ok(), `The running-cost trade-offs control returned HTTP ${runningCostResponse.status()}.`)
+
   const rejection = await runClarifiedWrite({
     page,
     trigger: () => inventoryPresentation.getByRole('button', { name: 'Request test drive' }).first().click(),
@@ -177,7 +202,7 @@ try {
 
   const confirmedTestDrive = await runClarifiedWrite({
     page,
-    trigger: () => inventoryPresentation.getByRole('button', { name: 'Request test drive' }).first().click(),
+    trigger: () => detailPresentation.getByRole('button', { name: 'Request test drive' }).click(),
     initialQuery: `I would like to request a test drive for ${selectedVehicleLabel}.`,
     actionName: 'dealership_request_test_drive',
     values: { name: syntheticName, email: syntheticEmail, phone: syntheticPhone },
@@ -222,6 +247,9 @@ try {
     animations: 'disabled',
   })
 
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const detailNavigation = await verifyDetailNavigationAndPageAttachment(page, inventoryPresentation, selectedVehicleLabel)
+
   const conversationIds = uniqueStrings(queryResponses.map(({ response }) => findScalar(response, 'conversationId')))
   assert(conversationIds.length === 1, `The meeting journey did not retain one conversation: ${JSON.stringify(conversationIds)}`)
   assert(suggestionResponses.length > 0, 'The runtime did not issue a contextual suggestions request.')
@@ -236,6 +264,7 @@ try {
       conversationId: conversationIds[0],
       queryCount: queryResponses.length,
       hostToolLabels,
+      clickedHostTool: 'Electric cars',
       vehicleCount,
       sessionRenewal,
     },
@@ -258,6 +287,7 @@ try {
     },
     staffReadback: staffEvidence,
     suggestionRequests: suggestionResponses.length,
+    detailNavigation,
     forbiddenBrowserRequests,
     failures,
     screenshots: [
@@ -265,6 +295,21 @@ try {
       resolve(screenshotDirectory, 'meeting-demo-mobile.png'),
     ],
   }, null, 2)}\n`)
+} catch (error) {
+  process.stderr.write(`${JSON.stringify({
+    status: 'FAIL',
+    error: error instanceof Error ? error.message : String(error),
+    observedQueries: queryResponses.map(({ status, request, response }) => ({
+      status,
+      query: request?.query || null,
+      type: findScalar(response, 'type'),
+      providerRequestId: findScalar(response, 'providerRequestId'),
+      ...responseEvidence(response),
+    })),
+    forbiddenBrowserRequests,
+    failures,
+  }, null, 2)}\n`)
+  throw error
 } finally {
   if (staffPage) {
     for (const receiptCode of receiptsToClean) {
@@ -304,6 +349,35 @@ async function sendMessageAndWait(browserPage, query) {
     window.MaxMode.sendMessage(message, { mode: 'executor', position: 'search', open: true })
   }, query)
   return { response: await responsePromise }
+}
+
+async function clickHostToolAndWait(browserPage, label, query) {
+  const responsePromise = waitForQueryResponse(browserPage, (request) => safeRequestBody(request).query === query)
+  await browserPage.locator('[data-max-mode-view]').getByRole('button', { name: label, exact: true }).click()
+  return responsePromise
+}
+
+async function verifyDetailNavigationAndPageAttachment(browserPage, inventoryPresentation, expectedVehicleLabel) {
+  await inventoryPresentation.getByRole('button', { name: 'View details' }).first().click()
+  await browserPage.waitForURL(/\/demos\/dealership-ai\/vehicles\/[^/?#]+$/)
+  await browserPage.waitForFunction(
+    () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
+  )
+  await browserPage.getByRole('heading', { level: 1, name: expectedVehicleLabel, exact: true }).waitFor()
+
+  const attach = browserPage.getByRole('button', { name: 'Attach current page' })
+  await attach.click()
+  const chip = browserPage.locator('[data-max-mode-current-page-chip]').filter({ hasText: expectedVehicleLabel })
+  await chip.waitFor()
+  const remove = browserPage.getByRole('button', { name: new RegExp(`Remove attached page: ${escapeRegex(expectedVehicleLabel)}`, 'i') })
+  await remove.click()
+  await chip.waitFor({ state: 'detached' })
+
+  return {
+    path: new URL(browserPage.url()).pathname,
+    title: expectedVehicleLabel,
+    currentPageAttachRemove: true,
+  }
 }
 
 function waitForQueryResponse(browserPage, predicate) {
@@ -606,6 +680,10 @@ function sameStrings(left, right) {
 function redactUrl(value) {
   const url = new URL(value)
   return `${url.origin}${url.pathname}`
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function normalizeOrigin(value) {

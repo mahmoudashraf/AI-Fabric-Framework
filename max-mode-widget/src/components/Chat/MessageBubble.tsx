@@ -418,22 +418,21 @@ export function MessageBubble({
               </Button>
             )}
 
-          {message.result?.sanitizedPayload?.type === "ACTION_EXECUTED" &&
-            message.result?.sanitizedPayload?.data?.actionResult?.data && (
-              <ActionResultRenderer
-                data={message.result.sanitizedPayload.data.actionResult.data}
-                messageId={message.id}
-                expandedCount={expandedCount}
-                onExpand={(count) => onExpandActionResults(message.id, count)}
-                isAttached={isItemAttached}
-                onAttach={(item) => onAttachActionResultItem(item)}
-                actionName={primaryActionName}
-                onPresentationAsk={onPresentationAsk}
-                onAttachPresentationResult={onAttachPresentationResult}
-                onDetachPresentationResult={onDetachPresentationResult}
-                isPresentationResultAttached={isPresentationResultAttached}
-              />
-            )}
+          {message.result?.sanitizedPayload?.data?.actionResult?.data && (
+            <ActionResultRenderer
+              data={message.result.sanitizedPayload.data.actionResult.data}
+              messageId={message.id}
+              expandedCount={expandedCount}
+              onExpand={(count) => onExpandActionResults(message.id, count)}
+              isAttached={isItemAttached}
+              onAttach={(item) => onAttachActionResultItem(item)}
+              actionName={primaryActionName}
+              onPresentationAsk={onPresentationAsk}
+              onAttachPresentationResult={onAttachPresentationResult}
+              onDetachPresentationResult={onDetachPresentationResult}
+              isPresentationResultAttached={isPresentationResultAttached}
+            />
+          )}
 
           {/* Fallback for ACTION_EXECUTED without actionResult.data (e.g. order creation) */}
           {message.result?.sanitizedPayload?.type === "ACTION_EXECUTED" &&

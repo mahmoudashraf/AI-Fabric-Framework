@@ -229,7 +229,7 @@ const mockServer = createServer(async (request, response) => {
     if (payload.query === 'Tell me about 2025 Aster E1 using its current dealership facts.') {
       writeMockJson(response, 200, {
         success: true,
-        type: 'ACTION_EXECUTED',
+        type: 'INFORMATION_PROVIDED',
         conversationId: 'conversation-browser-smoke',
         answer: 'Current details loaded for the 2025 Aster E1.',
         actions: [{
