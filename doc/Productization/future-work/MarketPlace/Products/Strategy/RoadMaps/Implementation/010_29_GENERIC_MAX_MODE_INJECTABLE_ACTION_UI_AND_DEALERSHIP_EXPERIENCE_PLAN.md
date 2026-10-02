@@ -1,12 +1,12 @@
 # 010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan
 
-**Status:** Implemented and locally verified; hosted rollout evidence pending
+**Status:** Implemented, deployed, and live verified
 **Created:** 2026-10-01
 **Revised:** 2026-10-02
 **Scope:** Generic Max Mode/Companion UI extension mechanics and the first
 dealership-owned component package
-**Related baseline:** Dealership deployment `dep-f023c863`, version `v15` /
-`ver-d8d76d70`, release `rel-f899de18`
+**Related baseline:** Dealership deployment `dep-f023c863`, version `v18` /
+`ver-a46b4386`, release `rel-19452510`
 
 ## 1. Purpose
 
@@ -816,7 +816,47 @@ framework, Platform, provider, or data-operation work.
   context, two-result comparison, responsive stacked mobile comparison, and
   unchanged page-attachment/conversation behavior.
 
-Hosted deployment/release identifiers and live canary evidence will be added
-after the exact committed revision is deployed. Until then this record does not
-claim that the production site, dealership backend, or `dep-f023c863` connector
-is running the new implementation.
+### 17.3 Hosted rollout and evidence
+
+- Source commit `e451ea0f832d48ffb370f2a7a8d6fd4aa30cc0d5` is pushed to
+  `Platform-V11`. Production public-site deployment
+  `vz5vp3sfyje3kxwmpj5lrnz8` and staging dealership-backend deployment
+  `x1wwh6sao32yyziez0yu4ifc` both finished on that exact commit. The public
+  site health route reports `UP` with the same commit, and the dealership API
+  reports its six fictional records.
+- Deployment `dep-f023c863` published immutable version `v18` /
+  `ver-a46b4386` with configuration hash
+  `e10af87929ef598ddd659c8e6f76bda2ead4c642679dbb35b3dbc2e7db4edee5`.
+  Release `rel-19452510` is `APPLIED_VERIFIED`, provisioning is `ACTIVE`, and
+  verification run `vrf-4afd7fe6` is `PASSED`. It uses promoted source
+  artifact `dsa-27e4bcdc`, AI Fabric `0.8.7`, and required no reindex.
+- Two earlier applications of the same immutable version stopped while the
+  Platform polled a Coolify endpoint returning HTTP `429`. After a control-plane
+  cooldown, reapplying the unchanged v18 completed. This remains the existing
+  G1 lifecycle/polling gap from `010.26`; it did not require a config mutation,
+  new version, or unsafe parallel runtime.
+- Final runtime liveness and readiness both returned HTTP `200` / `UP`; the
+  deployment connector health returned `UP`.
+- The mobile live browser gate passed anonymous bootstrap and same-session
+  renewal, indexed vehicle retrieval, explicit inventory action execution,
+  governed test-drive proposal, final confirmation, receipt creation, and
+  contextual suggestions without a browser or transport failure. The final
+  inventory request was `rag-7c0916a5-aa4f-48aa-bd33-b666349c1220` and the
+  confirmed write request was `rag-67463fec-3ec4-4465-a095-a51cc640688a`.
+- The strengthened gate proved the hosted action result selected renderer
+  `loomai.vehicle-inventory.v1` with schema `loomai.vehicle-list.v1`. It
+  rendered the one bounded match, showed the applied fuel/body/budget filters,
+  exposed only reviewed safe commands, retained source action/message
+  provenance for every result reference, and projected no raw
+  `content`/`errors`/`warnings` transport fields.
+- The strict seven-turn live quality matrix passed in one conversation using
+  `executor` / `search`. It covered authoritative stock search, contextual
+  follow-up, comparison, semantic RAG, empty-action-to-RAG cooperation,
+  unsupported-policy honesty, and non-executed governed-write guidance. It
+  confirmed no write and reported no page, transport, or runtime failure.
+- Local browser coverage remains the evidence for all three exact presentation
+  components: inventory, vehicle detail, and desktop/mobile comparison. The
+  hosted gate additionally proves the full registry-to-deployment-to-inventory
+  renderer path. This release still makes no claim of automatic G3/D1 working
+  set promotion, arbitrary-site G9 context authority, real Auto Trader access,
+  or Platform-managed UI-extension packaging.

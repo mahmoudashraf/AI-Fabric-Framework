@@ -110,7 +110,68 @@ try {
   const inventorySearch = await inventorySearchResponse
   assert(inventorySearch.ok(), `The inventory search returned HTTP ${inventorySearch.status()}.`)
 
-  await page.waitForTimeout(1_500)
+  const inventoryPresentation = page.locator('loomai-dealership-inventory').last()
+  await inventoryPresentation.waitFor({ state: 'attached' })
+  const presentationEvidence = await inventoryPresentation.evaluate((element) => {
+    const presentation = element.presentation || {}
+    const root = element.shadowRoot
+    const labels = (selector) => [...(root?.querySelectorAll(selector) || [])]
+      .map((candidate) => candidate.textContent?.trim())
+      .filter(Boolean)
+    const presentationData = presentation.presentationData || {}
+    const references = Array.isArray(presentation.resultReferences) ? presentation.resultReferences : []
+    return {
+      actionName: presentation.actionName,
+      rendererId: presentation.rendererId,
+      schemaVersion: presentation.schemaVersion,
+      projectedItemCount: Array.isArray(presentationData.items) ? presentationData.items.length : 0,
+      renderedCardCount: root?.querySelectorAll('.vehicle-card').length || 0,
+      filterLabels: labels('.filter-pills span'),
+      buttonLabels: labels('button'),
+      referenceCount: references.length,
+      referencesHaveProvenance: references.every((reference) => (
+        reference.sourceActionName === 'dealership_search_inventory'
+          && typeof reference.sourceMessageId === 'string'
+          && reference.sourceMessageId.length > 0
+          && typeof reference.lookupValue === 'string'
+          && reference.lookupValue.length > 0
+      )),
+      forbiddenProjectionFieldsPresent: ['content', 'errors', 'warnings'].some((field) => field in presentationData),
+    }
+  })
+  assert(
+    presentationEvidence.actionName === 'dealership_search_inventory',
+    `The injected inventory surface was bound to ${presentationEvidence.actionName || 'no action'}.`,
+  )
+  assert(
+    presentationEvidence.rendererId === 'loomai.vehicle-inventory.v1'
+      && presentationEvidence.schemaVersion === 'loomai.vehicle-list.v1',
+    `The exact inventory renderer contract was not selected: ${JSON.stringify(presentationEvidence)}.`,
+  )
+  assert(
+    presentationEvidence.projectedItemCount > 0
+      && presentationEvidence.projectedItemCount <= 12
+      && presentationEvidence.renderedCardCount === presentationEvidence.projectedItemCount,
+    `The bounded inventory projection did not render completely: ${JSON.stringify(presentationEvidence)}.`,
+  )
+  assert(
+    ['Fuel: Electric', 'Body: SUV', 'Up to £35,000'].every((label) => presentationEvidence.filterLabels.includes(label)),
+    `The injected inventory surface did not expose the applied filters: ${JSON.stringify(presentationEvidence.filterLabels)}.`,
+  )
+  assert(
+    ['View details', 'Ask about this', 'Keep in context', 'Request test drive', 'Compare selected']
+      .every((label) => presentationEvidence.buttonLabels.includes(label)),
+    `The injected inventory surface is missing safe host commands: ${JSON.stringify(presentationEvidence.buttonLabels)}.`,
+  )
+  assert(
+    presentationEvidence.referenceCount === presentationEvidence.projectedItemCount
+      && presentationEvidence.referencesHaveProvenance,
+    `The rendered result references lost action/message provenance: ${JSON.stringify(presentationEvidence)}.`,
+  )
+  assert(
+    !presentationEvidence.forbiddenProjectionFieldsPresent,
+    'The host projection exposed forbidden raw transport fields to the renderer.',
+  )
 
   const [informationalCall, inventorySearchCall, actionCall, confirmationCall] = selectExpectedCalls(
     queryResponses,
@@ -161,6 +222,7 @@ try {
     viewport: '390x844',
     vehicleCount,
     sessionRenewal,
+    actionPresentation: presentationEvidence,
     retrieval,
     inventorySearch: inventorySearchEvidence,
     action: responseEvidence(actionCall.response),

@@ -1,14 +1,15 @@
 # 010.26 Auto Trader Dealership First Release And Meeting Demo Plan
 
 - **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30. The
-  conversational quality closure passed on 2026-10-01 with deployment
-  `dep-f023c863` version `v15`, AI Fabric `0.8.7`, six indexed fictional
-  vehicles, and two consecutive strict `7/7` browser runs. Released
+  generic injectable-action UI closure passed on 2026-10-02 with deployment
+  `dep-f023c863` version `v18`, AI Fabric `0.8.7`, six indexed fictional
+  vehicles, an exact hosted renderer canary, and a strict `7/7` browser run.
+  Released
   Marketplace packaging and every real Auto Trader
   access/rights/certification gate remain open.
 - **Date:** 2026-09-25
 - **Last architecture review:** 2026-10-01
-- **Last implementation checkpoint:** 2026-10-01
+- **Last implementation checkpoint:** 2026-10-02
 - **Current LoomAI baseline:** AI Fabric `0.8.7`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
@@ -26,6 +27,7 @@ Related plans and evidence:
 - [010.23 LoomAI Deployment Behavior Market Readiness Execution Plan](010_23_LOOMAI_DEPLOYMENT_BEHAVIOR_MARKET_READINESS_EXECUTION_PLAN.md)
 - [010.24 LoomAI File Document Indexing Platform Support Plan](010_24_LOOMAI_FILE_DOCUMENT_INDEXING_PLATFORM_SUPPORT_PLAN.md)
 - [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md)
+- [010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md)
 - [2026-09-30 hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json)
 - [2026-10-01 dealership conversational-quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json)
 
@@ -70,9 +72,9 @@ Implementation references:
 
 | Area | Current state | Evidence / remaining gate |
 | --- | --- | --- |
-| Dealership-owned backend | Hosted and healthy | Spring Boot service under `product-demos/autotrader-dealership-demo/backend`; twelve HTTP and sync-contract tests pass; public status reports six fictional vehicles and the assigned runtime |
+| Dealership-owned backend | Hosted and healthy | Spring Boot service under `product-demos/autotrader-dealership-demo/backend`; 21 focused tests pass; public status reports six fictional vehicles and the assigned runtime |
 | Fictional inventory source | Implemented | Six clearly labelled vehicle records, structured filters/facets, stable IDs, source versions, and real attributed imagery |
-| Customer application UI | Implemented | Native `/demos/dealership-ai` route with responsive inventory, detail, comparison, Companion dock, and Max Mode |
+| Customer application UI | Hosted and verified | Native `/demos/dealership-ai` route with responsive inventory, detail, comparison, Companion dock, Max Mode, and host-injected structured action presentations through the generic widget contract |
 | Staff workspace | Implemented | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes and true server-side logout |
 | Browser runtime integration | Hosted and verified | Direct `public-runtime-anonymous` bootstrap, same-session renewal, `/api/chat/me/*`, Companion and Max Mode passed against `dep-f023c863`; invalid renewal still clears stale state without replay |
 | Inventory Data Sync client | Hosted and verified | Private signed deployment-local sync completed `6/6`; lifecycle canary proved insert/update/delete, stale-version supersession, and return to six vectors |

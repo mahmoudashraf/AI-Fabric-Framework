@@ -576,3 +576,16 @@ Current P0 cleanup items:
   safety. The result needs no further framework change. It remains a bounded
   demo claim and creates no Auto Trader access, data-rights, endorsement,
   partnership, adoption, performance or commercial-outcome claim.
+- 2026-10-02 structured action-presentation decision: Max Mode remains a
+  provider-neutral chat/workspace shell. Customer or Marketplace hosts may
+  inject reviewed domain components only through exact versioned
+  action-to-renderer mappings and bounded allowlisted projections. Widget core
+  must not infer domains from action text, response prose, or business field
+  names. Renderers receive safe deployment-backed ask, result attach/detach,
+  and navigation commands; they do not receive provider credentials or bypass
+  runtime policy, confirmation, or trusted target resolution. Result
+  references are provenance-bearing but non-authoritative until the deployment
+  re-resolves them. The fictional dealership v18 canary proves this contract
+  live for inventory, while local gates cover inventory, vehicle detail, and
+  responsive comparison. Platform-managed UI-extension packaging remains a
+  later productization step, not a reason to couple the generic widget now.

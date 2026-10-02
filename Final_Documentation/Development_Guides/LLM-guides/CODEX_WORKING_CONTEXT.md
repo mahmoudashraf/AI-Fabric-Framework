@@ -3420,3 +3420,56 @@ Critical fixes that made the gate pass:
   passed without confirming or executing a write. Verification-fixture commit
   `03d1e8d43` uses a LoomAI-owned synthetic email and accepts both natural
   word orders when checking that an answer names relaxed constraints.
+
+## 2026-10-02 Generic Max Mode Action Presentation Live Closure
+
+- Source commit `e451ea0f832d48ffb370f2a7a8d6fd4aa30cc0d5` adds the generic
+  Max Mode action-presentation registry and the first host-owned dealership
+  presentation package. Widget core dispatches only by exact configured action,
+  renderer, and schema identities; it contains no dealership action or field
+  matching.
+- Generic projection is allowlisted and bounded. Result references retain
+  source message/action provenance and become non-authoritative
+  `action-result-context` attachments with
+  `trust=REQUIRES_SERVER_RESOLUTION` and `actionEligible=false`. Injected
+  components receive only deployment-backed ask, attach/detach, and safe
+  navigation commands; they never call dealership/provider services directly.
+- The dealership host registers inventory, vehicle-detail, and responsive
+  comparison custom elements. Search and comparison connector results expose
+  normalized item collections, counts, filters, source freshness, and the
+  fictional-data notice needed by those reviewed projections.
+- The generic IIFE host API now preserves a bounded attachment snapshot when a
+  host calls `attachItem()` immediately before `sendMessage()`. State still
+  deduplicates and consumes accepted pending entries through the normal
+  attachment path.
+- Local verification passed widget typecheck, presentation-contract smoke,
+  ESM/CJS/declaration/IIFE builds, dealership backend tests `21/21`, Astro
+  diagnostics/build, 27-route content smoke, accessibility, Playwright, and
+  responsive screenshot checks. Exact inventory/detail/comparison rendering,
+  fallback, provenance, attachment race behavior, and mobile comparison are
+  covered.
+- Production public-site deployment `vz5vp3sfyje3kxwmpj5lrnz8` and staging
+  dealership-backend deployment `x1wwh6sao32yyziez0yu4ifc` finished on the
+  exact source commit. `loomai.pro/health` reports `UP` and that commit.
+- Dealership deployment `dep-f023c863` is active on `v18` /
+  `ver-a46b4386`, config hash
+  `e10af87929ef598ddd659c8e6f76bda2ead4c642679dbb35b3dbc2e7db4edee5`,
+  release `rel-19452510`, and verification run `vrf-4afd7fe6`. The release is
+  `APPLIED_VERIFIED`, provisioning `ACTIVE`, verification `PASSED`, AI Fabric
+  remains `0.8.7`, and no reindex was required.
+- Runtime liveness/readiness and connector health are `UP`. The final hosted
+  browser gate proved renderer `loomai.vehicle-inventory.v1`, schema
+  `loomai.vehicle-list.v1`, bounded cards, applied filters, safe controls,
+  complete provenance, and exclusion of raw transport fields. It also passed
+  anonymous renewal, retrieval, confirmed test-drive receipt, and suggestions.
+  The separate seven-turn one-conversation quality matrix passed all scenarios
+  without confirming or executing a write.
+- Two prior applications of unchanged v18 encountered the known Coolify HTTP
+  `429` polling gap. A cooldown followed by reapplication of the same immutable
+  version succeeded. Do not publish a new version merely to retry this
+  control-plane condition.
+- Canonical implementation and evidence are in
+  `010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md`.
+  Remaining explicit deferrals are G3/D1 automatic action-result working-set
+  promotion, G9 arbitrary-site context authority, Marketplace-managed UI
+  extension packaging, and real Auto Trader/provider activation.
