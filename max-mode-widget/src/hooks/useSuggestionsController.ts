@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getChatSuggestions } from "@/api/chat";
+import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 import { toRuntimeAttachment } from "@/attachments";
 import { withRequestContext } from "@/utils";
 
@@ -78,6 +79,9 @@ export function useSuggestionsController({
           }
         }
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         console.error("Failed to load suggestions:", error);
         const genericSuggestions = [
           "Tell me more about this",

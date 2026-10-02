@@ -751,6 +751,7 @@ The `onEvent` callback fires for every significant widget interaction:
 |------------|------|-------------|
 | `widget:opened` | `null` | Widget was opened |
 | `widget:closed` | `null` | Widget was closed |
+| `conversation:reset` | `{ reason: string, previousSessionId?: string }` | Stale conversation-bound state was cleared without replaying the request |
 | `message:sent` | `{ content: string }` | User sent a chat message |
 | `message:received` | `{ content: string, resultType: string }` | AI responded |
 | `cart:add` | `{ product: Product }` | Item added to cart |
@@ -1157,7 +1158,13 @@ Not currently. Theme is set once at `init()` time and applies globally.
 
 **Q: How does conversation persistence work?**
 
-Conversations are stored in `sessionStorage` (cleared when the browser tab closes). The conversation ID is also sent to the API so server-side history can be retrieved.
+Conversations are stored in `sessionStorage` (cleared when the browser tab
+closes). The conversation ID is also sent to the API so server-side history can
+be retrieved. In anonymous public-runtime mode, the widget stores only the
+non-secret runtime/session binding beside that state, not the bearer token. A
+new runtime identity, token invalidation, or typed conversation access denial
+clears the old conversation and emits `conversation:reset`; the submitted
+request is never replayed automatically.
 
 **Q: Can the widget work offline?**
 

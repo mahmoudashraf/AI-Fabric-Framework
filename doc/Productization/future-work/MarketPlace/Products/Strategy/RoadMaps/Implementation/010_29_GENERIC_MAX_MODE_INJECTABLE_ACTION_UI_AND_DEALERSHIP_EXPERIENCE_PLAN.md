@@ -890,3 +890,28 @@ Phase 4. In particular, it is not evidence of real Auto Trader access, rights,
 endorsement or partnership; the live inventory is fictional. It also does not
 claim automatic G3/D1 working-set promotion, arbitrary-site G9 page authority,
 or Platform-managed `UI_EXTENSION` packaging.
+
+### 17.5 Anonymous conversation ownership recovery (2026-10-02)
+
+- Corrected a generic widget identity-continuity defect found through the live
+  dealership surface. Conversation IDs and messages were persisted in
+  `sessionStorage`, while the short-lived anonymous bearer token intentionally
+  remained memory-only. A document reload could therefore restore a
+  conversation owned by an earlier anonymous runtime identity.
+- The widget now persists a non-secret `{ runtimeKey, sessionId }` binding and
+  compares it with every fresh anonymous bootstrap. A changed runtime or
+  runtime-issued session clears conversation history, attachments, pending
+  prompts, confirmation state, debug state, and the denied conversation handle.
+  Bearer tokens remain memory-only.
+- Canonical chat HTTP 200 responses with `success=false`, `type=ERROR`, an
+  existing request conversation ID, and machine code `ACCESS_DENIED` or
+  `CONVERSATION_ACCESS_DENIED` activate the same recovery boundary. The raw
+  denial is not rendered as an assistant answer, and the submitted request is
+  never replayed automatically.
+- Recovery emits the provider-neutral `conversation:reset` host event instead
+  of an operational `error`, so a host does not mark a healthy deployment
+  unavailable during an expected identity-boundary reset.
+- Local production build and Playwright browser smoke passed. Regression proof
+  covers both legacy typed-denial recovery and full document navigation with a
+  changed anonymous session, including zero automatic replay and a clean next
+  request without the stale conversation ID.

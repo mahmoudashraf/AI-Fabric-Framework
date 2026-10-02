@@ -4,6 +4,7 @@ import type { Conversation } from "@/types";
 import type { ChatMessage } from "@/types";
 
 import { deleteConversation, getConversation, listConversations } from "@/api/conversations";
+import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 
 export function useConversationsController({
   enabled = true,
@@ -46,6 +47,9 @@ export function useConversationsController({
       const data = await listConversations();
       setConversations(data);
     } catch (error) {
+      if (isPublicRuntimeSessionInvalidatedError(error)) {
+        return;
+      }
       console.error("Failed to load conversations:", error);
       toast({
         title: "Error",
@@ -104,6 +108,9 @@ export function useConversationsController({
           description: isLocked ? "This conversation is locked (read-only)" : "You can continue this conversation",
         });
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         console.error("Failed to open conversation:", error);
         toast({
           title: "Error",
@@ -131,6 +138,9 @@ export function useConversationsController({
           description: "Conversation removed",
         });
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         console.error("Failed to delete conversation:", error);
         toast({
           title: "Error",
@@ -199,6 +209,9 @@ export function useConversationsController({
         setIsViewingOldConversation(false);
         setOldConversationLocked(false);
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         console.error("Failed to load recent conversation:", error);
       } finally {
         hasLoadedRecentConversation.current = true;

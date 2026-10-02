@@ -292,6 +292,7 @@ export interface MaxModeWidgetConfig {
 export type MaxModeEventType =
   | "widget:opened"
   | "widget:closed"
+  | "conversation:reset"
   | "message:sent"
   | "message:received"
   | "action-presentation:rendered"

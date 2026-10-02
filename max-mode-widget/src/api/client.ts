@@ -9,6 +9,12 @@ type PublicRuntimeTokenState = {
   runtimeKey?: string;
 };
 
+type PublicRuntimeSessionBinding = {
+  runtimeKey: string;
+  sessionId: string;
+};
+
+const PUBLIC_RUNTIME_SESSION_BINDING_KEY = "maxmode_public_runtime_session_binding_v1";
 const publicRuntimeTokenState: PublicRuntimeTokenState = {};
 const publicRuntimeBootstrapPromises = new Map<string, Promise<string>>();
 const publicRuntimeRenewalPromises = new Map<string, Promise<string>>();
@@ -19,7 +25,9 @@ const publicRuntimeSessionInvalidationListeners = new Set<(
 export type PublicRuntimeSessionInvalidationReason =
   | "expired"
   | "unauthorized"
-  | "runtime-changed";
+  | "runtime-changed"
+  | "identity-changed"
+  | "conversation-access-denied";
 
 export type PublicRuntimeSessionInvalidation = {
   reason: PublicRuntimeSessionInvalidationReason;
@@ -115,6 +123,39 @@ function runtimeCacheKey(baseUrl: string): string {
   return `${baseUrl.trim().replace(/\/$/, "")}|${bootstrapUrl}|${renewUrl}`;
 }
 
+function loadPersistedPublicRuntimeSessionBinding(): PublicRuntimeSessionBinding | undefined {
+  try {
+    const raw = sessionStorage.getItem(PUBLIC_RUNTIME_SESSION_BINDING_KEY);
+    if (!raw) {
+      return undefined;
+    }
+    const parsed = JSON.parse(raw) as Partial<PublicRuntimeSessionBinding>;
+    const persistedRuntimeKey = trimToNull(parsed.runtimeKey);
+    const persistedSessionId = trimToNull(parsed.sessionId);
+    if (!persistedRuntimeKey || !persistedSessionId) {
+      return undefined;
+    }
+    return {
+      runtimeKey: persistedRuntimeKey,
+      sessionId: persistedSessionId,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function persistPublicRuntimeSessionBinding(binding: PublicRuntimeSessionBinding): void {
+  try {
+    sessionStorage.setItem(PUBLIC_RUNTIME_SESSION_BINDING_KEY, JSON.stringify(binding));
+  } catch {}
+}
+
+function clearPersistedPublicRuntimeSessionBinding(): void {
+  try {
+    sessionStorage.removeItem(PUBLIC_RUNTIME_SESSION_BINDING_KEY);
+  } catch {}
+}
+
 type CachedPublicTokenStatus = "missing" | "runtime-changed" | "usable" | "renewable" | "expired";
 
 function cachedPublicTokenStatus(baseUrl: string): CachedPublicTokenStatus {
@@ -145,6 +186,16 @@ function clearCachedPublicRuntimeToken(): void {
   delete publicRuntimeTokenState.runtimeKey;
 }
 
+function notifyPublicRuntimeSessionInvalidation(event: PublicRuntimeSessionInvalidation): void {
+  publicRuntimeSessionInvalidationListeners.forEach((listener) => {
+    try {
+      listener(event);
+    } catch {
+      // One host listener must not prevent the identity boundary from being cleared.
+    }
+  });
+}
+
 function invalidatePublicRuntimeSession(
   reason: PublicRuntimeSessionInvalidationReason,
 ): void {
@@ -155,16 +206,19 @@ function invalidatePublicRuntimeSession(
       || trimToNull(publicRuntimeTokenState.runtimeKey),
   );
   clearCachedPublicRuntimeToken();
+  clearPersistedPublicRuntimeSessionBinding();
   if (!hadRuntimeSession) {
     return;
   }
-  const event = { reason, previousSessionId };
-  publicRuntimeSessionInvalidationListeners.forEach((listener) => {
-    try {
-      listener(event);
-    } catch {
-      // One host listener must not prevent the auth boundary from being cleared.
-    }
+  notifyPublicRuntimeSessionInvalidation({ reason, previousSessionId });
+}
+
+export function invalidateRuntimeConversation(
+  reason: Extract<PublicRuntimeSessionInvalidationReason, "conversation-access-denied">,
+): void {
+  notifyPublicRuntimeSessionInvalidation({
+    reason,
+    previousSessionId: trimToNull(publicRuntimeTokenState.sessionId),
   });
 }
 
@@ -213,10 +267,26 @@ async function performAnonymousRuntimeBootstrap(baseUrl: string, expectedRuntime
   if (runtimeCacheKey(baseUrl) !== expectedRuntimeKey) {
     throw new PublicRuntimeSessionInvalidatedError("runtime-changed");
   }
+  const previousBinding = loadPersistedPublicRuntimeSessionBinding();
+  const sessionId = trimToNull(response?.sessionId);
+  if (!sessionId) {
+    throw new Error("Anonymous runtime bootstrap did not return a session identifier.");
+  }
   publicRuntimeTokenState.token = token;
   publicRuntimeTokenState.expiresAt = trimToNull(response?.expiresAt);
-  publicRuntimeTokenState.sessionId = trimToNull(response?.sessionId);
-  publicRuntimeTokenState.runtimeKey = runtimeCacheKey(baseUrl);
+  publicRuntimeTokenState.sessionId = sessionId;
+  publicRuntimeTokenState.runtimeKey = expectedRuntimeKey;
+  persistPublicRuntimeSessionBinding({ runtimeKey: expectedRuntimeKey, sessionId });
+
+  if (previousBinding && (
+    previousBinding.runtimeKey !== expectedRuntimeKey
+      || previousBinding.sessionId !== sessionId
+  )) {
+    notifyPublicRuntimeSessionInvalidation({
+      reason: previousBinding.runtimeKey === expectedRuntimeKey ? "identity-changed" : "runtime-changed",
+      previousSessionId: previousBinding.sessionId,
+    });
+  }
   return token;
 }
 

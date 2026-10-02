@@ -1,6 +1,11 @@
 import { getWidgetConfig } from "@/config";
 import type { RuntimeAuthContextSummary, RuntimeShellConfigSummary } from "@/types";
-import { apiFetchJson, apiFetchResponse } from "./client";
+import {
+  apiFetchJson,
+  apiFetchResponse,
+  invalidateRuntimeConversation,
+  PublicRuntimeSessionInvalidatedError,
+} from "./client";
 
 export type SuggestionsResponse = {
   success?: boolean;
@@ -96,12 +101,33 @@ export async function postChatQuery(payload: any) {
 
   const data = await response.json().catch(() => null);
 
+  if (isConversationAccessDeniedResponse(payload, data)) {
+    invalidateRuntimeConversation("conversation-access-denied");
+    throw new PublicRuntimeSessionInvalidatedError("conversation-access-denied");
+  }
+
   if (!response.ok) {
     const message = data?.message || data?.error || response.statusText;
     throw new Error(`Chat query failed (${response.status}): ${message}`);
   }
 
   return { data, status: response.status, durationMs };
+}
+
+function isConversationAccessDeniedResponse(payload: any, data: any): boolean {
+  if (!payload?.conversationId || !data || data.success !== false) {
+    return false;
+  }
+  const resultType = String(data.type ?? data.result?.type ?? "").trim().toUpperCase();
+  const errorCode = String(
+    data.fallbackReason
+      ?? data.errorCode
+      ?? data.result?.errorCode
+      ?? data.result?.sanitizedPayload?.errorCode
+      ?? "",
+  ).trim().toUpperCase();
+  return resultType === "ERROR"
+    && (errorCode === "ACCESS_DENIED" || errorCode === "CONVERSATION_ACCESS_DENIED");
 }
 
 export function resolvedChatQueryPath() {

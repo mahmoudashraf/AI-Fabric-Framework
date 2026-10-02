@@ -33,7 +33,10 @@ import {
   type MaxModeWidgetConfig,
 } from "@/config";
 import { fetchRuntimeAuthContext, fetchRuntimeShellConfig } from "@/api/chat";
-import { subscribePublicRuntimeSessionInvalidation } from "@/api/client";
+import {
+  isPublicRuntimeSessionInvalidatedError,
+  subscribePublicRuntimeSessionInvalidation,
+} from "@/api/client";
 import type { MaxModePresentationResultReference } from "@/actionPresentation";
 import { presentationReferenceAttachmentId } from "@/actionPresentation";
 import { ACTION_RESULT_ATTACHMENT_TYPE, toActionResultAttachedItem } from "@/attachments";
@@ -621,13 +624,15 @@ export function useMaxModeController({
       sessionStorage.removeItem(PENDING_PROMPTS_KEY);
     } catch {}
     maxModeContext?.clearPersistedState();
-    emitEvent("error", {
-      code: "public-runtime-session-invalidated",
+    emitEvent("conversation:reset", {
       reason: event.reason,
+      previousSessionId: event.previousSessionId,
     });
     toast({
-      title: "Guest session refreshed",
-      description: "For your security, the previous conversation was cleared. Please send your request again.",
+      title: event.reason === "conversation-access-denied" ? "Conversation refreshed" : "Guest session refreshed",
+      description: event.reason === "conversation-access-denied"
+        ? "That conversation is not available to this session. A new conversation is ready; please send your request again."
+        : "For your security, the previous conversation was cleared. Please send your request again.",
     });
   }), [maxModeContext, startNewConversation, toast]);
 
@@ -828,6 +833,9 @@ export function useMaxModeController({
           });
         }
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         reportProbeError(
           error instanceof Error
             ? error.message
@@ -883,6 +891,9 @@ export function useMaxModeController({
           setRuntimeShellConfig(shellConfig ?? null);
         }
       } catch (error) {
+        if (isPublicRuntimeSessionInvalidatedError(error)) {
+          return;
+        }
         if (!cancelled) {
           emitEvent("error", {
             code: "runtime-shell-config-probe-failed",

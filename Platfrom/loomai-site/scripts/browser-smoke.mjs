@@ -16,6 +16,9 @@ const origin = `http://127.0.0.1:${port}`
 const mockPort = 4388
 const mockOrigin = `http://127.0.0.1:${mockPort}`
 let anonymousRenewalCount = 0
+let anonymousSessionId = 'browser-smoke-session'
+let chatQueryCount = 0
+let staleConversationAccessRequestCount = 0
 
 const mockVehicles = [
   {
@@ -148,7 +151,7 @@ const mockServer = createServer(async (request, response) => {
       tokenType: 'Bearer',
       authMode: 'PUBLIC_RUNTIME_ANONYMOUS',
       subjectType: 'ANONYMOUS_SESSION',
-      sessionId: 'browser-smoke-session',
+      sessionId: anonymousSessionId,
       expiresAt: new Date(Date.now() + 5_000).toISOString(),
     })
     return
@@ -161,7 +164,7 @@ const mockServer = createServer(async (request, response) => {
       tokenType: 'Bearer',
       authMode: 'PUBLIC_RUNTIME_ANONYMOUS',
       subjectType: 'ANONYMOUS_SESSION',
-      sessionId: 'browser-smoke-session',
+      sessionId: anonymousSessionId,
       expiresAt: '2099-01-01T00:00:00Z',
     })
     return
@@ -169,11 +172,11 @@ const mockServer = createServer(async (request, response) => {
 
   if (url.pathname === '/api/chat/me/auth-context') {
     writeMockJson(response, 200, {
-      subjectId: 'browser-smoke-session',
+      subjectId: anonymousSessionId,
       subjectType: 'ANONYMOUS_SESSION',
       authMode: 'PUBLIC_RUNTIME_ANONYMOUS',
       callerType: 'PUBLIC_BROWSER',
-      sessionId: 'browser-smoke-session',
+      sessionId: anonymousSessionId,
       deploymentId: 'dep-dealership-smoke',
       customerId: 'customer-dealership-smoke',
       tenantId: 'tenant-dealership-smoke',
@@ -202,7 +205,22 @@ const mockServer = createServer(async (request, response) => {
   }
 
   if (url.pathname === '/api/chat/me/query' && request.method === 'POST') {
+    chatQueryCount += 1
     const payload = await readMockJson(request)
+    if (payload.query === 'Verify stale conversation recovery without replay.') {
+      staleConversationAccessRequestCount += 1
+      writeMockJson(response, 200, {
+        success: false,
+        type: 'ERROR',
+        conversationId: payload.conversationId,
+        answer: 'Access denied to conversation',
+        safeSummary: 'Access denied to conversation',
+        fallbackReason: 'ACCESS_DENIED',
+        actions: [],
+        sources: [],
+      })
+      return
+    }
     if (payload.query === 'Show current electric vehicles under GBP 40,000.') {
       writeMockJson(response, 200, {
         success: true,
@@ -910,6 +928,103 @@ try {
   if (anonymousRenewalCount < 1) {
     throw new Error('The anonymous browser session did not renew before expiry')
   }
+
+  const staleConversationResponse = page.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/chat/me/query')) return false
+    return response.request().postDataJSON()?.query === 'Verify stale conversation recovery without replay.'
+  })
+  await page.evaluate(() => {
+    window.MaxMode.sendMessage('Verify stale conversation recovery without replay.', {
+      mode: 'executor',
+      position: 'search',
+      open: true,
+    })
+  })
+  await staleConversationResponse
+  await page.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return state.conversationId === null && Array.isArray(state.chatMessages) && state.chatMessages.length === 0
+  })
+  await page.waitForTimeout(150)
+  if (staleConversationAccessRequestCount !== 1) {
+    throw new Error(`Stale conversation request was unexpectedly replayed ${staleConversationAccessRequestCount} times`)
+  }
+  if (await page.getByText('Access denied to conversation', { exact: true }).count()) {
+    throw new Error('Raw conversation access denial was rendered as an assistant answer')
+  }
+
+  const recoveredRequestPromise = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Show current electric vehicles under GBP 40,000.'
+  })
+  await page.evaluate(() => {
+    window.MaxMode.sendMessage('Show current electric vehicles under GBP 40,000.', {
+      mode: 'executor',
+      position: 'search',
+      open: true,
+    })
+  })
+  const recoveredRequest = await recoveredRequestPromise
+  if (recoveredRequest.postDataJSON()?.conversationId) {
+    throw new Error('The first request after stale-conversation recovery reused the denied conversation')
+  }
+  await page.getByText('I found current electric vehicles under GBP 40,000.', { exact: true }).first().waitFor()
+  await page.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return state.conversationId === 'conversation-browser-smoke'
+  })
+
+  const requestsBeforeIdentityRotation = chatQueryCount
+  anonymousSessionId = 'browser-smoke-session-rotated'
+  await page.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
+  await page.waitForFunction(
+    () => ['ready', 'unavailable'].includes(
+      document.querySelector('[data-runtime-state]')?.getAttribute('data-state') || '',
+    ),
+  )
+  const rotatedRuntimeState = await page.locator('[data-runtime-state]').getAttribute('data-state')
+  if (rotatedRuntimeState !== 'ready') {
+    const detail = await page.locator('[data-runtime-state-detail]').textContent()
+    throw new Error(`Dealership assistant did not remain ready after identity rotation: ${detail}`)
+  }
+  await page.evaluate(() => window.MaxMode.open({ position: 'search', mode: 'executor' }))
+  try {
+    await page.waitForFunction(() => {
+      const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+      const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+      return binding.sessionId === 'browser-smoke-session-rotated'
+        && state.conversationId === null
+        && Array.isArray(state.chatMessages)
+        && state.chatMessages.every((message) => message.id === 'welcome')
+    }, undefined, { timeout: 5_000 })
+  } catch {
+    const storageState = await page.evaluate(() => ({
+      binding: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}'),
+      widget: JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}'),
+    }))
+    throw new Error(`Anonymous identity rotation did not clear persisted state: ${JSON.stringify(storageState)}`)
+  }
+  await page.waitForTimeout(150)
+  if (chatQueryCount !== requestsBeforeIdentityRotation) {
+    throw new Error('Anonymous identity rotation replayed a persisted chat request')
+  }
+
+  const rotatedIdentityRequestPromise = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/chat/me/query')) return false
+    return request.postDataJSON()?.query === 'Show current electric vehicles under GBP 40,000.'
+  })
+  await page.evaluate(() => {
+    window.MaxMode.sendMessage('Show current electric vehicles under GBP 40,000.', {
+      mode: 'executor',
+      position: 'search',
+      open: true,
+    })
+  })
+  const rotatedIdentityRequest = await rotatedIdentityRequestPromise
+  if (rotatedIdentityRequest.postDataJSON()?.conversationId) {
+    throw new Error('Anonymous identity rotation retained the previous identity conversation')
+  }
+  await page.getByText('I found current electric vehicles under GBP 40,000.', { exact: true }).first().waitFor()
 
   await context.close()
 

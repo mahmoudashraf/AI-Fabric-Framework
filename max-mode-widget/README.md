@@ -316,10 +316,13 @@ runtime creates `sessionId`; a custom `bootstrapAnonymous` callback receives no
 identity request and should return the runtime-issued token/session response.
 Every fresh anonymous bootstrap may represent a new runtime identity. Do not
 reuse an earlier conversation ID or pending confirmation after identity change;
-the widget now invalidates cached conversation, attachment, prompt, and
-confirmation state on token expiry, runtime change, or HTTP 401, and it does
-not replay the already-built request under a new identity. The user must send
-the request again after the next runtime-issued session is established.
+the widget stores a non-secret runtime/session binding beside its persisted
+conversation state and clears cached conversation, attachment, prompt, and
+confirmation state when that binding changes. It performs the same fail-closed
+reset on token expiry, runtime change, HTTP 401, or a typed conversation
+`ACCESS_DENIED` result returned inside HTTP 200. It never persists the bearer
+token and never replays the already-built request under a new identity. The
+user must send the request again after the runtime-issued session is ready.
 
 ### Events
 
@@ -329,6 +332,7 @@ Subscribe to widget events via the `onEvent` callback:
 |-------|------|------|
 | `widget:opened` | — | Widget opens |
 | `widget:closed` | — | Widget closes |
+| `conversation:reset` | `{ reason, previousSessionId? }` | A stale conversation or runtime identity was cleared without replay |
 | `message:sent` | `{ content }` | User sends a message |
 | `message:received` | `{ content, resultType }` | AI responds |
 | `action-presentation:rendered` | renderer/action metadata | A reviewed custom presentation renders |

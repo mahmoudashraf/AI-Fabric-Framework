@@ -3508,3 +3508,25 @@ Critical fixes that made the gate pass:
 - The first-delivery boundary in `010_29` is complete. Real Auto Trader access,
   Marketplace-managed UI extension packaging, arbitrary-site G9 authority and
   G3/D1 automatic working-set promotion remain explicit non-claims/deferrals.
+
+## 2026-10-02 Anonymous Conversation Ownership Recovery
+
+- A live dealership query returned a typed HTTP 200 failure with
+  `fallbackReason=ACCESS_DENIED` because the browser restored conversation
+  `chat-e353662a-6d14-4862-9dda-e59be764a165` under a different runtime-issued
+  anonymous session. AI Fabric correctly failed closed before intent, action or
+  retrieval handling; the defect was in generic widget identity continuity and
+  response recovery.
+- `max-mode-widget` now persists only a non-secret runtime/session binding beside
+  conversation state. A fresh bootstrap that changes runtime or anonymous
+  `sessionId` clears all conversation-bound state while bearer tokens remain
+  memory-only.
+- A typed chat response with an existing conversation, `success=false`,
+  `type=ERROR`, and machine code `ACCESS_DENIED` or
+  `CONVERSATION_ACCESS_DENIED` clears the denied handle and raises the internal
+  recovery boundary. The raw denial is not rendered and the request is not
+  automatically replayed.
+- Hosts receive `conversation:reset`, not `error`, for this expected recovery.
+  Local widget typecheck/build, static-site production build and the complete
+  Playwright browser smoke passed, including direct typed-denial and anonymous
+  identity-rotation regressions.

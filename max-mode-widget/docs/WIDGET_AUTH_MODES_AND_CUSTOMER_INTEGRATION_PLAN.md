@@ -218,6 +218,10 @@ Widget implementation:
   endpoint while preserving the runtime-issued `sessionId`
 - widget treats anonymous mode as low-privilege
 - invalid renewal clears conversation and pending action state without replay
+- widget binds persisted state to a non-secret runtime/session marker and
+  clears stale state when a fresh bootstrap resolves a different identity
+- a typed conversation `ACCESS_DENIED` result also clears the stale handle;
+  it is not rendered as an assistant answer and is never replayed
 
 Recommended auth posture:
 
@@ -479,6 +483,8 @@ The widget must not:
 8. Update Shopify and generic storefront examples to use secure production patterns by default.
 9. Add regression coverage for:
    - anonymous continuity
+   - anonymous identity rotation across document reload
+   - HTTP 200 typed conversation access denial without replay
    - authenticated continuity
    - split chat/CRUD headers
    - no direct connector dependency for operational reads in secure modes
