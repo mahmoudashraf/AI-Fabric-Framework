@@ -25,7 +25,7 @@
     "build:esm": "vite build",
     "build:iife": "vite build --config vite.config.iife.ts",
     "typecheck": "tsc --noEmit",
-    "smoke:action-presentation": "node --experimental-strip-types scripts/action-presentation-smoke.mts",
+    "smoke:action-presentation": "node scripts/action-presentation-smoke.mjs",
     "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:action-presentation"
   },
   "peerDependencies": {

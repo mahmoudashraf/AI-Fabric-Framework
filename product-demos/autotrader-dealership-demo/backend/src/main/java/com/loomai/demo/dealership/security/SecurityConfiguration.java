@@ -2,6 +2,7 @@ package com.loomai.demo.dealership.security;
 
 import com.loomai.demo.dealership.config.DealershipDemoProperties;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -77,9 +78,19 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             InternalApiKeyFilter internalApiKeyFilter,
-                                            CorsConfigurationSource corsConfigurationSource) throws Exception {
+                                            CorsConfigurationSource corsConfigurationSource,
+                                            ServerProperties serverProperties) throws Exception {
         CookieCsrfTokenRepository csrf = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookiePath("/");
+        var sessionCookie = serverProperties.getServlet().getSession().getCookie();
+        csrf.setCookieCustomizer(cookie -> {
+            if (sessionCookie.getSecure() != null) {
+                cookie.secure(sessionCookie.getSecure());
+            }
+            if (sessionCookie.getSameSite() != null) {
+                cookie.sameSite(sessionCookie.getSameSite().attributeValue());
+            }
+        });
 
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource))

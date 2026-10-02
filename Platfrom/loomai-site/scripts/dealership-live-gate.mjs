@@ -81,6 +81,7 @@ try {
   assert(sessionRenewal.sameSession && sessionRenewal.sessionIdPresent, 'Anonymous session renewal changed the runtime-owned identity.')
 
   const hostToolLabels = await openAndReadHostTools(page)
+  const maxModeView = page.locator('[data-max-mode-view]')
   const expectedHostTools = [
     'Search stock',
     'Electric cars',
@@ -106,7 +107,7 @@ try {
   const inventorySearch = await sendMessageAndWait(page, inventorySearchPrompt)
   assert(inventorySearch.response.ok(), `The inventory search returned HTTP ${inventorySearch.response.status()}.`)
 
-  const inventoryPresentation = page.locator('loomai-dealership-inventory').last()
+  const inventoryPresentation = maxModeView.locator('loomai-dealership-inventory').last()
   await inventoryPresentation.waitFor({ state: 'attached' })
   const presentationEvidence = await inspectInventoryPresentation(inventoryPresentation)
   assertInventoryPresentation(presentationEvidence)
@@ -119,7 +120,7 @@ try {
   await inventoryPresentation.getByRole('button', { name: 'Ask about this' }).first().click()
   const detailResponse = await detailResponsePromise
   assert(detailResponse.ok(), `The injected detail command returned HTTP ${detailResponse.status()}.`)
-  const detailPresentation = page.locator('loomai-dealership-vehicle-detail').last()
+  const detailPresentation = maxModeView.locator('loomai-dealership-vehicle-detail').last()
   await detailPresentation.waitFor({ state: 'attached' })
   await detailPresentation.getByText('Vehicle details', { exact: true }).waitFor()
 
@@ -157,7 +158,7 @@ try {
   await inventoryPresentation.getByRole('button', { name: 'Compare selected' }).click()
   const comparisonResponse = await comparisonResponsePromise
   assert(comparisonResponse.ok(), `The injected comparison command returned HTTP ${comparisonResponse.status()}.`)
-  const comparisonPresentation = page.locator('loomai-dealership-vehicle-comparison').last()
+  const comparisonPresentation = maxModeView.locator('loomai-dealership-vehicle-comparison').last()
   await comparisonPresentation.waitFor({ state: 'attached' })
   await comparisonPresentation.getByText('Vehicle comparison', { exact: true }).waitFor()
 
@@ -231,13 +232,15 @@ try {
     assert(finalReceipts.filter((receipt) => receipt === receiptCode).length === 1, `Receipt ${receiptCode} was not persisted exactly once.`)
   }
 
+  const contextualSuggestions = await verifyContextualSuggestions(page, detailPresentation)
+
   await page.screenshot({
     path: resolve(screenshotDirectory, 'meeting-demo-desktop.png'),
     fullPage: true,
     animations: 'disabled',
   })
   await page.setViewportSize({ width: 390, height: 844 })
-  const comparisonSurface = page.locator('[data-max-mode-action-presentation="loomai.vehicle-comparison.v1"]').last()
+  const comparisonSurface = maxModeView.locator('[data-max-mode-action-presentation="loomai.vehicle-comparison.v1"]').last()
   await comparisonSurface.evaluate((element) => element.scrollIntoView({ block: 'start' }))
   assert(await comparisonPresentation.locator('.comparison-mobile').isVisible(), 'The hosted comparison did not switch to its mobile layout.')
   const mobileBox = await comparisonSurface.boundingBox()
@@ -257,6 +260,12 @@ try {
   assert(forbiddenBrowserRequests.length === 0, `The browser called a protected provider/control-plane route: ${JSON.stringify(forbiddenBrowserRequests)}`)
   assert(failures.length === 0, `Browser/runtime failures were observed: ${JSON.stringify(failures)}`)
 
+  const staffCleanup = []
+  for (const receiptCode of receiptsToClean) {
+    staffCleanup.push(await cancelStaffReceipt(staffPage, receiptCode))
+  }
+  receiptsToClean.length = 0
+
   process.stdout.write(`${JSON.stringify({
     status: 'PASS',
     origin,
@@ -267,6 +276,7 @@ try {
       clickedHostTool: 'Electric cars',
       vehicleCount,
       sessionRenewal,
+      contextualSuggestions,
     },
     presentations: {
       inventory: {
@@ -286,6 +296,7 @@ try {
       confirmedCallback: safeReceiptEvidence(confirmedCallback),
     },
     staffReadback: staffEvidence,
+    staffCleanup,
     suggestionRequests: suggestionResponses.length,
     detailNavigation,
     forbiddenBrowserRequests,
@@ -380,10 +391,43 @@ async function verifyDetailNavigationAndPageAttachment(browserPage, inventoryPre
   }
 }
 
-function waitForQueryResponse(browserPage, predicate) {
-  return browserPage.waitForResponse((response) => (
+async function verifyContextualSuggestions(browserPage, detailPresentation) {
+  const responsePromise = browserPage.waitForResponse((response) => response.url().endsWith('/api/chat/me/suggestions'))
+  await detailPresentation.getByRole('button', { name: 'Keep in context' }).click()
+  await detailPresentation.getByRole('button', { name: 'Remove context' }).waitFor()
+  const response = await responsePromise
+  assert(response.ok(), `Contextual suggestions returned HTTP ${response.status()}.`)
+  const body = await safeJson(response)
+  const suggestions = Array.isArray(body?.suggestions)
+    ? body.suggestions.filter((value) => typeof value === 'string' && value.trim().length > 0)
+    : []
+  assert(suggestions.length > 0, 'The contextual suggestions response contained no usable suggestions.')
+  await browserPage.getByText('Generating smart suggestions...', { exact: true }).waitFor({ state: 'detached' })
+  const dismissSuggestions = browserPage
+    .locator('[data-max-mode-view]')
+    .getByRole('button', { name: 'Dismiss suggestions' })
+    .last()
+  if (await dismissSuggestions.isVisible().catch(() => false)) {
+    await dismissSuggestions.click()
+  }
+  const removeContext = detailPresentation.getByRole('button', { name: 'Remove context' })
+  await removeContext.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }))
+  await removeContext.click()
+  await detailPresentation.getByRole('button', { name: 'Keep in context' }).waitFor()
+  return { count: suggestions.length, status: response.status() }
+}
+
+async function waitForQueryResponse(browserPage, predicate) {
+  const response = await browserPage.waitForResponse((response) => (
     response.url().endsWith('/api/chat/me/query') && predicate(response.request())
   ))
+  await response.finished()
+  await browserPage.waitForTimeout(50)
+  await browserPage
+    .locator('[data-max-mode-view]')
+    .getByText('AI is thinking...', { exact: true })
+    .waitFor({ state: 'detached', timeout })
+  return response
 }
 
 async function runClarifiedWrite({ page: browserPage, trigger, initialQuery, actionName, values, decision }) {
@@ -396,11 +440,19 @@ async function runClarifiedWrite({ page: browserPage, trigger, initialQuery, act
   assert(initialResponse.ok(), `${actionName} entry returned HTTP ${initialResponse.status()}.`)
   const initialBody = await safeJson(initialResponse)
   assert(findScalar(initialBody, 'type') === 'CLARIFICATION_REQUIRED', `${actionName} did not enter clarification from its injected CTA.`)
+  const providedParameters = findRecord(initialBody, 'providedParameters') || {}
+  await browserPage.getByRole('button', { name: 'Submit & Proceed' }).last().waitFor()
 
   for (const [field, value] of Object.entries(values)) {
     const input = browserPage.getByPlaceholder(`Enter ${humanizeField(field).toLowerCase()}...`).last()
-    await input.waitFor()
-    await input.fill(value)
+    if (await input.isVisible().catch(() => false)) {
+      await input.fill(value)
+      continue
+    }
+    assert(
+      String(providedParameters[field] ?? '').trim() === String(value).trim(),
+      `${actionName} field ${field} was neither editable nor already provided with the expected value.`,
+    )
   }
 
   const clarificationPrefix = `Proceed with ${actionName.replaceAll('_', ' ')} using:`
@@ -425,9 +477,11 @@ async function runClarifiedWrite({ page: browserPage, trigger, initialQuery, act
   const decisionBody = await safeJson(decisionResponse)
   if (decision === 'reject') {
     await browserPage.getByText('Rejected', { exact: true }).last().waitFor()
+    const evidence = responseEvidence(decisionBody)
+    assert(evidence.executedActions.length === 0, `${actionName} executed after the user rejected it.`)
     return {
-      cancelled: answerText(decisionBody).toLowerCase().includes('cancel'),
-      ...responseEvidence(decisionBody),
+      cancelled: true,
+      ...evidence,
     }
   }
 
@@ -509,6 +563,7 @@ async function openStaffWorkspace(browserContext, siteOrigin, username, password
     await browserPage.getByRole('button', { name: 'Sign in' }).click()
     const response = await leadsResponse
     assert(response.ok(), `Staff login/readback returned HTTP ${response.status()}.`)
+    await waitForStaffInboxRender(browserPage, response)
   }
   await browserPage.locator('[data-staff-workspace]').waitFor({ state: 'visible' })
   await browserPage.locator('[data-lead-table-body] tr').first().waitFor()
@@ -526,8 +581,18 @@ async function refreshStaffReceipts(browserPage) {
   await browserPage.locator('[data-refresh-workspace]').click()
   const response = await responsePromise
   assert(response.ok(), `Staff inbox refresh returned HTTP ${response.status()}.`)
-  await browserPage.waitForTimeout(100)
+  await waitForStaffInboxRender(browserPage, response)
   return staffReceipts(browserPage)
+}
+
+async function waitForStaffInboxRender(browserPage, response) {
+  const body = await safeJson(response)
+  const expectedReceipts = Array.isArray(body?.items) ? body.items.length : null
+  assert(expectedReceipts !== null, 'Staff inbox response did not contain an items array.')
+  await browserPage.waitForFunction(
+    (expected) => document.querySelectorAll('[data-lead-receipt]').length === expected,
+    expectedReceipts,
+  )
 }
 
 async function verifyStaffReceipt(browserPage, receiptCode, expectedVehicle) {
@@ -550,7 +615,7 @@ async function verifyStaffReceipt(browserPage, receiptCode, expectedVehicle) {
 async function cancelStaffReceipt(browserPage, receiptCode) {
   await refreshStaffReceipts(browserPage)
   const row = browserPage.locator('[data-lead-table-body] tr').filter({ hasText: receiptCode })
-  if (await row.count() !== 1) return
+  assert(await row.count() === 1, `Cleanup could not find exactly one ${receiptCode} row.`)
   await row.locator('[data-open-lead]').click()
   const dialog = browserPage.locator('[data-lead-dialog]')
   await dialog.waitFor({ state: 'visible' })
@@ -561,7 +626,13 @@ async function cancelStaffReceipt(browserPage, receiptCode) {
   await dialog.getByRole('button', { name: 'Save status' }).click()
   const response = await responsePromise
   assert(response.ok(), `Cleanup for ${receiptCode} returned HTTP ${response.status()}.`)
+  const body = await safeJson(response)
+  assert(findScalar(body, 'status') === 'CANCELLED', `Cleanup for ${receiptCode} did not return CANCELLED.`)
   await dialog.waitFor({ state: 'hidden' })
+  await refreshStaffReceipts(browserPage)
+  const updated = browserPage.locator('[data-lead-table-body] tr').filter({ hasText: receiptCode })
+  assert(((await updated.textContent()) || '').includes('Cancelled'), `Cleanup for ${receiptCode} was not visible in the staff inbox.`)
+  return { receiptCode, status: 'CANCELLED' }
 }
 
 function responseEvidence(value) {
@@ -639,6 +710,16 @@ function findScalar(value, key) {
   return null
 }
 
+function findRecord(value, key) {
+  if (!value || typeof value !== 'object') return null
+  if (value[key] && typeof value[key] === 'object' && !Array.isArray(value[key])) return value[key]
+  for (const child of Object.values(value)) {
+    const found = findRecord(child, key)
+    if (found) return found
+  }
+  return null
+}
+
 function findLargestArray(value, key) {
   if (!value || typeof value !== 'object') return 0
   let count = Array.isArray(value[key]) ? value[key].length : 0
@@ -646,11 +727,6 @@ function findLargestArray(value, key) {
     count = Math.max(count, findLargestArray(child, key))
   }
   return count
-}
-
-function answerText(value) {
-  const answer = findScalar(value, 'answer')
-  return typeof answer === 'string' ? answer : ''
 }
 
 function safeRequestBody(request) {

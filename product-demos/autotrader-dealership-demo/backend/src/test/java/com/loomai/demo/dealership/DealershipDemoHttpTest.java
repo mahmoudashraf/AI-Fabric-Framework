@@ -13,6 +13,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,6 +56,8 @@ class DealershipDemoHttpTest {
         registry.add("info.app.version", () -> "test-version");
         registry.add("info.app.commit", () -> "test-commit");
         registry.add("info.app.build-time", () -> "test-build-time");
+        registry.add("server.servlet.session.cookie.secure", () -> "true");
+        registry.add("server.servlet.session.cookie.same-site", () -> "none");
         registry.add("DEALERSHIP_SYNC_RECONCILE_INTERVAL_MS", () -> "3600000");
     }
 
@@ -229,6 +233,58 @@ class DealershipDemoHttpTest {
         mvc.perform(get("/api/staff/session").session(session))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.authenticated").value(true));
+    }
+
+    @Test
+    void crossSiteCsrfCookieUsesTheConfiguredSecureSessionPolicy() throws Exception {
+        MvcResult csrf = mvc.perform(get("/api/public/security/csrf"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
+            .andReturn();
+
+        Cookie csrfCookie = csrf.getResponse().getCookie("XSRF-TOKEN");
+        assertThat(csrfCookie).isNotNull();
+        assertThat(csrf.getResponse().getHeader("Set-Cookie"))
+            .contains("XSRF-TOKEN=")
+            .contains("Path=/")
+            .contains("Secure");
+        assertThat(csrfCookie.getAttribute("SameSite")).isEqualTo("None");
+    }
+
+    @Test
+    void authenticatedStaffCanUpdateALeadWithTheIssuedCsrfContract() throws Exception {
+        String leadId = "lead-csrf-" + UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO dealership_lead_request
+                (id, idempotency_key, action_type, vehicle_id, encrypted_contact, status,
+                 consent_recorded, source_session_id, receipt_code, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, leadId, "csrf-" + UUID.randomUUID(), "dealership_request_test_drive",
+            "veh-aster-e1", "test-encrypted-contact", "NEW", false, "csrf-session",
+            "NFM-CSRF" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
+
+        MvcResult login = mvc.perform(post("/api/staff/session")
+                .contentType("application/json")
+                .content("{\"username\":\"staff\",\"password\":\"test-password\"}"))
+            .andExpect(status().isOk())
+            .andReturn();
+        MockHttpSession session = (MockHttpSession) login.getRequest().getSession(false);
+
+        MvcResult csrf = mvc.perform(get("/api/public/security/csrf").session(session))
+            .andExpect(status().isOk())
+            .andReturn();
+        JsonNode csrfBody = objectMapper.readTree(csrf.getResponse().getContentAsString());
+        Cookie csrfCookie = csrf.getResponse().getCookie("XSRF-TOKEN");
+        assertThat(csrfCookie).isNotNull();
+
+        mvc.perform(patch("/api/staff/leads/{id}/status", leadId)
+                .session(session)
+                .cookie(csrfCookie)
+                .header(csrfBody.path("headerName").asText(), csrfBody.path("token").asText())
+                .contentType("application/json")
+                .content("{\"status\":\"CANCELLED\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.item.status").value("CANCELLED"));
     }
 
     @Test

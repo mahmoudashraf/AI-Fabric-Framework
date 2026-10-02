@@ -1,9 +1,21 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
-import {
+import ts from 'typescript'
+
+const source = readFileSync(new URL('../src/actionPresentation.ts', import.meta.url), 'utf8')
+const compiled = ts.transpileModule(source, {
+  compilerOptions: {
+    module: ts.ModuleKind.ESNext,
+    target: ts.ScriptTarget.ES2022,
+  },
+  fileName: 'actionPresentation.ts',
+}).outputText
+const contract = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
+const {
   presentationReferenceAttachmentId,
   resolveActionPresentation,
-} from '../src/actionPresentation.ts'
+} = contract
 
 const Renderer = () => null
 const config = {
