@@ -58,9 +58,17 @@ public class LeadService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Confirmed action evidence is required.");
         }
         validateBoundary(request.authContext());
-        String vehicleId = require(request.vehicleId(), "vehicleId", 80);
-        Vehicle vehicle = vehicles.findActiveById(vehicleId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "The selected vehicle is no longer active."));
+        String vehicleReference = require(request.vehicleReference(), "vehicleReference", 160);
+        List<Vehicle> vehicleMatches = vehicles.resolveActiveReference(vehicleReference);
+        if (vehicleMatches.size() != 1) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                vehicleMatches.isEmpty()
+                    ? "The selected vehicle is no longer active."
+                    : "The selected vehicle reference is ambiguous."
+            );
+        }
+        Vehicle vehicle = vehicleMatches.getFirst();
         if (CALLBACK_ACTION.equals(request.actionId().trim()) && !request.consent()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contact consent is required.");
         }
@@ -184,7 +192,7 @@ public class LeadService {
                                       String issuer, List<String> grantedScopes) { }
 
     public record ActionExecutionRequest(String actionId, String idempotencyKey, boolean confirmationAccepted,
-                                         String vehicleId, String name, String email, String phone,
+                                         String vehicleReference, String name, String email, String phone,
                                          String preferredDate, String message, boolean consent,
                                          VerifiedAuthContext authContext) { }
 

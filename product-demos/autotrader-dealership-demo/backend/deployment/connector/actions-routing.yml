@@ -67,28 +67,17 @@ actions:
 
   dealership_get_vehicle:
     method: GET
-    path: /api/public/vehicles/{{params.slug}}
+    path: /api/public/vehicles/by-reference
+    request:
+      query:
+        dealershipId: dealer-demo-001
+        reference: "{{params.vehicle}}"
     response:
       success-http-status: [200]
       message: Current vehicle details loaded.
     authz:
       enabled: true
-      resource-id: "{{params.vehicleId}}"
-      operation-type: READ
-
-  dealership_resolve_vehicle:
-    method: GET
-    path: /api/public/vehicles/resolve
-    request:
-      query:
-        dealershipId: dealer-demo-001
-        reference: "{{params.reference}}"
-    response:
-      success-http-status: [200]
-      message: "{{body.message}}"
-    authz:
-      enabled: true
-      resource-id: inventory-search
+      resource-id: "{{params.vehicle}}"
       operation-type: READ
 
   dealership_compare_vehicles:
@@ -120,7 +109,7 @@ actions:
         idempotencyKey: "{{idempotencyKey}}"
         params:
           confirmationAccepted: true
-          vehicleId: "{{params.vehicleId}}"
+          vehicleReference: "{{params.vehicle}}"
           name: "{{params.name}}"
           email: "{{params.email}}"
           phone: "{{params.phone}}"
@@ -135,7 +124,7 @@ actions:
       message: Callback request created.
     authz:
       enabled: true
-      resource-id: "{{params.vehicleId}}"
+      resource-id: "{{params.vehicle}}"
       operation-type: REQUEST_CALLBACK
 
   dealership_request_test_drive:
@@ -148,7 +137,7 @@ actions:
         idempotencyKey: "{{idempotencyKey}}"
         params:
           confirmationAccepted: true
-          vehicleId: "{{params.vehicleId}}"
+          vehicleReference: "{{params.vehicle}}"
           name: "{{params.name}}"
           email: "{{params.email}}"
           phone: "{{params.phone}}"
@@ -163,5 +152,5 @@ actions:
       message: Test-drive request created.
     authz:
       enabled: true
-      resource-id: "{{params.vehicleId}}"
+      resource-id: "{{params.vehicle}}"
       operation-type: REQUEST_TEST_DRIVE

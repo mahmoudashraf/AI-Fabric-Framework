@@ -111,6 +111,19 @@ class DealershipDemoHttpTest {
     }
 
     @Test
+    void loadsAuthoritativeVehicleDetailsFromOneBuyerFacingReference() throws Exception {
+        mvc.perform(get("/api/public/vehicles/by-reference")
+                .queryParam("dealershipId", "dealer-demo-001")
+                .queryParam("reference", "2025 Aster E1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.vehicle.id").value("veh-aster-e1"))
+            .andExpect(jsonPath("$.vehicle.slug").value("aster-e1-motion"))
+            .andExpect(jsonPath("$.vehicle.model").value("E1"))
+            .andExpect(jsonPath("$.vehicle.lifecycleState").value("ACTIVE"));
+    }
+
+    @Test
     void vehicleReferenceResolutionFailsClosedWhenMissingOrAmbiguous() throws Exception {
         mvc.perform(get("/api/public/vehicles/resolve")
                 .queryParam("dealershipId", "dealer-demo-001")
@@ -254,6 +267,30 @@ class DealershipDemoHttpTest {
     }
 
     @Test
+    void internalAuthorizationResolvesBuyerFacingTargetsAndFailsClosedOnAmbiguity() throws Exception {
+        mvc.perform(post("/api/internal/authz/check")
+                .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
+                .contentType("application/json")
+                .content(authzRequest("dep-dealership-demo", "2025 Aster E1", "READ")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.granted").value(true));
+
+        mvc.perform(post("/api/internal/authz/check")
+                .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
+                .contentType("application/json")
+                .content(authzRequest("dep-dealership-demo", "Aster E1", "REQUEST_TEST_DRIVE")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.granted").value(true));
+
+        mvc.perform(post("/api/internal/authz/check")
+                .header("X-DEALERSHIP-INTERNAL-KEY", INTERNAL_KEY)
+                .contentType("application/json")
+                .content(authzRequest("dep-dealership-demo", "Aster", "REQUEST_TEST_DRIVE")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.granted").value(false));
+    }
+
+    @Test
     void confirmedActionPersistsEncryptedPiiAndReplaysIdempotently() throws Exception {
         String idempotencyKey = "lead-test-" + UUID.randomUUID();
         String body = objectMapper.writeValueAsString(Map.of(
@@ -261,7 +298,7 @@ class DealershipDemoHttpTest {
             "idempotencyKey", idempotencyKey,
             "params", Map.of(
                 "confirmationAccepted", true,
-                "vehicleId", "veh-aster-e1",
+                "vehicleReference", "Aster E1",
                 "name", "Avery Buyer",
                 "email", "avery@example.test",
                 "phone", "+44 7700 900123",
@@ -332,7 +369,7 @@ class DealershipDemoHttpTest {
             "idempotencyKey", "test-drive-contact-" + UUID.randomUUID(),
             "params", Map.of(
                 "confirmationAccepted", true,
-                "vehicleId", "veh-aster-e1",
+                "vehicleReference", "Aster E1",
                 "name", "Avery Buyer",
                 "email", "avery@example.test"
             ),
@@ -368,7 +405,7 @@ class DealershipDemoHttpTest {
             "idempotencyKey", "callback-test-" + UUID.randomUUID(),
             "params", Map.of(
                 "confirmationAccepted", true,
-                "vehicleId", "veh-aster-e1",
+                "vehicleReference", "Aster E1",
                 "name", "Avery Buyer",
                 "phone", "+44 7700 900123"
             ),
@@ -398,11 +435,15 @@ class DealershipDemoHttpTest {
     }
 
     private String authzRequest(String deploymentId, String resourceId) throws Exception {
+        return authzRequest(deploymentId, resourceId, "READ");
+    }
+
+    private String authzRequest(String deploymentId, String resourceId, String operationType) throws Exception {
         return objectMapper.writeValueAsString(Map.of(
             "contractVersion", "AUTH_CONTEXT_V1",
             "subjectId", "anonymous-session-1",
             "resourceId", resourceId,
-            "operationType", "READ",
+            "operationType", operationType,
             "authContext", Map.of(
                 "subjectId", "anonymous-session-1",
                 "sessionId", "anonymous-session-1",

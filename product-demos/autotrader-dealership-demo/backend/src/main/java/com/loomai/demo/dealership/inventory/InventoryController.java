@@ -94,12 +94,15 @@ public class InventoryController {
     public Map<String, Object> detail(@PathVariable String slug) {
         Vehicle vehicle = repository.findActiveBySlug(slug)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle was not found or is no longer active."));
-        return Map.of(
-            "success", true,
-            "vehicle", publicVehicle(vehicle),
-            "source", sourceSummary(),
-            "dataNotice", "Fictional demonstration inventory. Confirm current availability with the dealership."
-        );
+        return vehicleDetail(vehicle);
+    }
+
+    @GetMapping("/by-reference")
+    public Map<String, Object> detailByReference(
+        @RequestParam String dealershipId,
+        @RequestParam String reference
+    ) {
+        return vehicleDetail(resolveOneActiveVehicle(dealershipId, reference));
     }
 
     @GetMapping("/resolve")
@@ -107,6 +110,20 @@ public class InventoryController {
         @RequestParam String dealershipId,
         @RequestParam String reference
     ) {
+        Vehicle vehicle = resolveOneActiveVehicle(dealershipId, reference);
+        return Map.of(
+            "success", true,
+            "message", "Vehicle reference resolved to one active dealership vehicle.",
+            "vehicleId", vehicle.id(),
+            "slug", vehicle.slug(),
+            "vehicle", vehicle.displayName(),
+            "dealershipId", properties.getId(),
+            "lifecycleState", vehicle.lifecycleState(),
+            "source", sourceSummary()
+        );
+    }
+
+    private Vehicle resolveOneActiveVehicle(String dealershipId, String reference) {
         if (!properties.getId().equals(dealershipId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dealership inventory was not found.");
         }
@@ -117,16 +134,15 @@ public class InventoryController {
         if (matches.size() > 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The vehicle reference is ambiguous.");
         }
-        Vehicle vehicle = matches.getFirst();
+        return matches.getFirst();
+    }
+
+    private Map<String, Object> vehicleDetail(Vehicle vehicle) {
         return Map.of(
             "success", true,
-            "message", "Vehicle reference resolved to one active dealership vehicle.",
-            "vehicleId", vehicle.id(),
-            "slug", vehicle.slug(),
-            "vehicle", vehicle.displayName(),
-            "dealershipId", properties.getId(),
-            "lifecycleState", vehicle.lifecycleState(),
-            "source", sourceSummary()
+            "vehicle", publicVehicle(vehicle),
+            "source", sourceSummary(),
+            "dataNotice", "Fictional demonstration inventory. Confirm current availability with the dealership."
         );
     }
 

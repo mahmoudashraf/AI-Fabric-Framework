@@ -44,7 +44,7 @@ public class InternalDealershipController {
         boolean supportedOperation = operation != null && List.of(
             "READ", "RETRIEVE", "SEARCH", "EXECUTE_ACTION", "CREATE_LEAD", "REQUEST_TEST_DRIVE", "REQUEST_CALLBACK"
         ).contains(operation.toUpperCase());
-        String vehicleId = normalizeVehicleId(resourceId);
+        String vehicleReference = normalizeVehicleReference(resourceId);
         boolean inventorySearch = "inventory-search".equals(resourceId)
             && operation != null
             && List.of("READ", "RETRIEVE", "SEARCH", "EXECUTE_ACTION").contains(operation.toUpperCase());
@@ -52,7 +52,7 @@ public class InternalDealershipController {
             && "READ".equalsIgnoreCase(operation);
         boolean activeTarget = orchestrationEntry
             || inventorySearch
-            || (StringUtils.hasText(vehicleId) && vehicles.findActiveById(vehicleId).isPresent());
+            || resolvesToOneActiveVehicle(vehicleReference);
         boolean granted = boundary && supportedOperation && activeTarget;
 
         return Map.of(
@@ -69,7 +69,7 @@ public class InternalDealershipController {
         LeadService.VerifiedAuthContext auth = request.trace() == null ? null : request.trace().authContext();
         LeadService.LeadReceipt receipt = leads.execute(new LeadService.ActionExecutionRequest(
             request.actionId(), request.idempotencyKey(), booleanValue(params.get("confirmationAccepted")),
-            string(params.get("vehicleId")), string(params.get("name")), string(params.get("email")),
+            string(params.get("vehicleReference")), string(params.get("name")), string(params.get("email")),
             string(params.get("phone")), string(params.get("preferredDate")), string(params.get("message")),
             booleanValue(params.get("consent")), auth
         ));
@@ -80,7 +80,11 @@ public class InternalDealershipController {
         ));
     }
 
-    private String normalizeVehicleId(String resourceId) {
+    private boolean resolvesToOneActiveVehicle(String reference) {
+        return StringUtils.hasText(reference) && vehicles.resolveActiveReference(reference).size() == 1;
+    }
+
+    private String normalizeVehicleReference(String resourceId) {
         if (!StringUtils.hasText(resourceId)) {
             return null;
         }

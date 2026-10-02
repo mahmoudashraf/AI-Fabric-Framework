@@ -141,7 +141,14 @@ GET /actuator/health/readiness
 GET /actuator/info
 GET /api/public/status
 GET /api/public/vehicles
+GET /api/public/vehicles/by-reference?dealershipId=<id>&reference=<buyer-facing-reference>
 GET /api/public/vehicles/resolve?dealershipId=<id>&reference=<buyer-facing-reference>
 GET /api/public/runtime-descriptor
 GET /api/public/security/csrf
 ```
+
+The deployment action catalogue uses the buyer-facing `by-reference` read and
+lets the dealership backend resolve and authorize the active stock target. The
+lower-level `resolve` route is not published as a model-selectable LoomAI
+action; exposing a helper resolver to the planner can produce a technically
+successful resolution without the requested detail action or presentation.
