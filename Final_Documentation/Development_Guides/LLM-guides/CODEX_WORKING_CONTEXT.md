@@ -3530,3 +3530,32 @@ Critical fixes that made the gate pass:
   Local widget typecheck/build, static-site production build and the complete
   Playwright browser smoke passed, including direct typed-denial and anonymous
   identity-rotation regressions.
+
+## 2026-10-02 Generic Context-Aware Tool Groups Live Closure
+
+- Source commit `849241565e16ac85fe023c87fb169109f8f06a88` adds the
+  provider-neutral `host.toolGroups` contract to `max-mode-widget`. Widget core
+  knows only `default` and `contextual`; all labels, icon semantics, prompts,
+  page-context availability and context labels are host configuration.
+- Companion, desktop Max Mode and mobile Max Mode share one scope state. Both
+  selectors remain visible; attaching context opens `contextual`; users may
+  choose `default` without detaching; removing the final attachment returns to
+  `default`. Detail pages may keep contextual tools available without an
+  attachment. Legacy flat starter prompts remain supported when no groups are
+  configured.
+- The dealership host injects `Browse stock` with four browse tools and `This
+  vehicle` with six contextual tools. Its names, queries and vehicle label are
+  absent from generic widget source.
+- Widget typecheck, action-presentation smoke, ESM/CJS/declaration/IIFE builds,
+  Astro diagnostics/build, 27-route static/content gates, accessibility and
+  complete browser smoke passed. Regression coverage includes Companion,
+  desktop, mobile, attach, switch, final removal and page-owned detail context.
+- Production public-site application `t3r7unm08sh3tfatpadz7qky` completed
+  deployment `s654af5bwdpcechybw528mml` on the exact source commit. Canonical
+  and sslip health routes report `UP` and that commit.
+- A focused hosted Playwright canary passed every scope transition and exact
+  detail label with zero AI queries and zero write actions. No dealership
+  backend, runtime, connector or deployment version changed.
+- Temporary production Coolify access was removed. Hetzner firewalls
+  `10915120` and `10918233` match their pre-deploy rule sets, contain no
+  operator CIDR, and local port `8000` access is again closed.

@@ -80,21 +80,24 @@ try {
   const sessionRenewal = await verifyAnonymousRenewal(page)
   assert(sessionRenewal.sameSession && sessionRenewal.sessionIdPresent, 'Anonymous session renewal changed the runtime-owned identity.')
 
-  const hostToolLabels = await openAndReadHostTools(page)
+  const hostToolState = await openAndReadHostTools(page)
+  const hostToolLabels = hostToolState.activeTools
   const maxModeView = page.locator('[data-max-mode-view]')
   const expectedHostTools = [
     'Search stock',
     'Electric cars',
     'Family options',
     'Compare cars',
-    'Vehicle details',
-    'Test drive',
-    'Request callback',
-    'Showroom location',
   ]
   assert(
-    expectedHostTools.every((label) => hostToolLabels.includes(label)),
-    `The hosted Max Mode tool set is incomplete: ${JSON.stringify(hostToolLabels)}`,
+    sameStrings(expectedHostTools, hostToolLabels),
+    `The hosted Browse stock tool set is incorrect: ${JSON.stringify(hostToolLabels)}`,
+  )
+  assert(
+    sameStrings(hostToolState.groupLabels, ['Browse stock', 'This vehicle'])
+      && hostToolState.activeScope === 'default'
+      && hostToolState.contextualDisabled,
+    `The hosted scoped-tool state is incorrect: ${JSON.stringify(hostToolState)}`,
   )
 
   const electricQuickAction = await clickHostToolAndWait(
@@ -273,6 +276,7 @@ try {
       conversationId: conversationIds[0],
       queryCount: queryResponses.length,
       hostToolLabels,
+      hostToolState,
       clickedHostTool: 'Electric cars',
       vehicleCount,
       sessionRenewal,
@@ -349,9 +353,21 @@ async function verifyAnonymousRenewal(browserPage) {
 async function openAndReadHostTools(browserPage) {
   await browserPage.evaluate(() => window.MaxMode.open({ position: 'search', mode: 'executor' }))
   await browserPage.getByRole('button', { name: 'Close MAX Mode' }).waitFor()
-  return browserPage.locator('[data-max-mode-view] [data-max-mode-quick-action]').evaluateAll(
+  const view = browserPage.locator('[data-max-mode-view]')
+  const groupLabels = await view.locator('[data-max-mode-tool-scope]').evaluateAll(
+    (elements) => elements.map((element) => element.textContent?.trim()).filter(Boolean),
+  )
+  const activeTools = await view.locator('[data-max-mode-quick-action]').evaluateAll(
     (elements) => elements.map((element) => element.getAttribute('data-max-mode-quick-action')).filter(Boolean),
   )
+  const defaultScope = view.locator('[data-max-mode-tool-scope="default"]')
+  const contextualScope = view.locator('[data-max-mode-tool-scope="contextual"]')
+  return {
+    groupLabels,
+    activeTools,
+    activeScope: (await defaultScope.getAttribute('aria-selected')) === 'true' ? 'default' : 'contextual',
+    contextualDisabled: await contextualScope.isDisabled(),
+  }
 }
 
 async function sendMessageAndWait(browserPage, query) {

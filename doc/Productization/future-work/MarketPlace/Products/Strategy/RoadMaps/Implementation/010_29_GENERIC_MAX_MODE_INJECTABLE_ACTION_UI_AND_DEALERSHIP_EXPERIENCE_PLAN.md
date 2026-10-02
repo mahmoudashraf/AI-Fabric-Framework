@@ -943,3 +943,14 @@ or Platform-managed `UI_EXTENSION` packaging.
   on inventory, auto-selection after attach, Browse switching without detach,
   detail-page context without attachments, final-detach reset, clear context
   labeling, and desktop/Companion/mobile rendering.
+- Implementation commit `849241565e16ac85fe023c87fb169109f8f06a88`
+  is live on production public-site Coolify deployment
+  `s654af5bwdpcechybw528mml`. Both `https://loomai.pro/health` and the production
+  sslip health route report `UP` and that exact commit.
+- A focused hosted Playwright canary proved initial `default`, attach-driven
+  `contextual`, manual Browse selection without detach, final-detach reset,
+  detail-page contextual availability, and the exact `2025 Aster E1` page
+  label. The canary issued zero AI queries and zero write actions.
+- Production Coolify access was temporary and IP-scoped. Hetzner firewalls
+  `10915120` and `10918233` were restored to their exact pre-deploy rule sets;
+  the operator CIDR is absent and local Coolify API access again times out.
