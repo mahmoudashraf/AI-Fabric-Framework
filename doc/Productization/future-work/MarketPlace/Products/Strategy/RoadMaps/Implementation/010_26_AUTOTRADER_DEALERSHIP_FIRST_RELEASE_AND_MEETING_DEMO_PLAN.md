@@ -14,6 +14,9 @@
 - **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
+- **Auto Trader write posture:** analysis only; provider writes remain outside
+  the first release and current demo, and none is directly executable by an
+  anonymous buyer
 - **Provider integration refinement:** Auto Trader stock and supported read
   actions belong to the deployment-local connector through dedicated DATA and
   ACTION packages; the dealership website/backend remains independent and owns
@@ -345,6 +348,18 @@ an answer.
 - Claiming production Auto Trader access from sandbox or demo data.
 
 These capabilities remain later independently granted and verified plugin packs.
+
+### 4.4 Deferred Auto Trader write posture
+
+The official Auto Trader write capabilities are analysed in Section 8.5 so the
+meeting can discuss a credible expansion path. That analysis does not change
+the P0 scope. It authorizes no source change, Marketplace package, simulator
+operation, deployment configuration, chat tool, or production claim.
+
+The current demo continues to expose only dealership-owned callback and
+test-drive commands. Provider mutations remain a later dealer-operations
+product that requires separate capability grants, partner sandbox evidence,
+staff authorization, action review, and capability-specific go-live approval.
 
 ## 5. Data Synchronization And Indexing Contract
 
@@ -810,6 +825,157 @@ The action requires:
 The live demo must persist and display the request. A button that only returns a
 success message is not acceptable.
 
+### 8.5 Deferred Auto Trader write-action analysis
+
+**Status:** `ANALYSIS_ONLY`. Reviewed against Auto Trader's public capability
+introductions on 2026-10-03. Nothing in this section is implemented or approved
+for the current meeting deployment.
+
+#### 8.5.1 API and actor classification
+
+All seven capability groups below are API-based Auto Trader Connect operations.
+They are not browser automation, website scraping, or informal chat commands.
+The provider call is always a server-to-server operation made by an approved
+integration for an advertiser that is enabled for the specific capability.
+
+| Capability | Official API operation | Business actor and trusted context | Anonymous buyer in chat |
+| --- | --- | --- | --- |
+| Stock Updates | `POST` and `PATCH` through the Stock API for create/update, advert destinations, and lifecycle | Dealer inventory system or authorized dealership staff; deployment-owned advertiser binding and trusted stock/taxonomy identifiers | Cannot execute. A buyer may ask about stock, but cannot create, publish, sell, delete, or change an advert |
+| Availability Updates | `PATCH` through the Stock API for reservation status, lifecycle, and advert unpublishing | Dealer inventory/reservation workflow or authorized staff; current stock state must be re-read | Cannot execute. A buyer's wish to reserve is an intent or dealership request until an authorized reservation/deal flow accepts it |
+| Price Updates | `PATCH` through the Stock API for supplied/forecourt price, fee override, and VAT status | Authorized pricing staff or an approved dealer system; exact stock ID, current price, and bounded change | Cannot execute or approve a price change |
+| Media Updates | `POST` to the Images API followed by `PATCH` to the Stock API; video/spin updates also use the Stock API | Authorized media/listing operator; owned media, advertiser ID, stock ID, complete ordered image list, and content-protection policy | Cannot execute. A buyer may view approved media only |
+| Deal Updates | `PATCH` through the Deals API to complete/cancel a deal, reserve through a deal, or remove finance/part-exchange components | Existing Auto Trader deal, trusted deal ID and advertiser ID, authorized dealer workflow, and the required consumer agreement. Auto Trader separately requires the consumer to confirm completion in their account | Cannot directly execute. An anonymous chat has neither a trusted deal identity nor authority to act as the advertiser |
+| Message Updates | `PATCH`/`POST` through the Messages API to mark deal messages read or send/reply | Authorized dealership user or workflow acting as the advertiser, tied to an existing trusted deal/messages component | Cannot send a provider message or masquerade as dealership staff. Public chat remains a separate conversation |
+| Part-Exchange Updates | `POST`/`PATCH` through the Part Exchange API to add details or update condition, finance, and offer | Existing Deal Builder deal plus trusted component/advertiser IDs. Consumer supplies or agrees to their vehicle details; dealer staff owns appraisal, condition, and offer decisions | Cannot directly execute. It may collect a dealership-owned enquiry only under an approved PII/consent flow |
+
+The key product conclusion is therefore simple: **none of these Auto Trader
+write APIs is an anonymous buyer action**. Some deal operations incorporate a
+consumer's decision or data, but the API caller is still the authorized partner
+integration acting inside the advertiser/deal boundary.
+
+#### 8.5.2 Three distinct authorization layers
+
+Do not collapse provider authentication, dealership authorization, and buyer
+consent into one idea of "logged in":
+
+1. **Auto Trader integration authentication**
+
+   Server-held API credentials obtain an Auto Trader access token. Public
+   guidance says the token lasts 15 minutes and should be reused for calls made
+   during that period. The token never enters Max Mode, the dealership browser,
+   an LLM prompt, an action result, or a deployment export.
+
+2. **Advertiser and capability authorization**
+
+   The deployment is bound to one server-owned advertiser ID. Auto Trader must
+   permit both that advertiser and the requested capability; a consumer account
+   or a guessed resource ID cannot grant either permission. Marketplace
+   installation must fail closed when the exact capability grant is absent.
+
+3. **Application actor authorization and consent**
+
+   Dealer-operational writes require an authenticated dealership staff role or
+   an explicitly authorized dealer workflow. Deal reservation, completion, and
+   part exchange additionally require the trusted existing deal context and
+   any consumer agreement required by that flow. LoomAI must never ask for or
+   impersonate a buyer's Auto Trader password/session. A future customer-facing
+   flow should use an approved Auto Trader/customer handoff or a dealership-
+   owned authenticated workflow, while the actual provider call remains
+   server-to-server.
+
+For the current anonymous chat product, a buyer can express intent, review
+their own contact details, and confirm a dealership-owned lead request. That is
+not permission to mutate Auto Trader.
+
+#### 8.5.3 LoomAI Marketplace mapping
+
+Auto Trader semantics belong in grant-scoped Marketplace `ACTION` packages,
+not in the generic runtime, chat widget, central Platform traffic path, or a
+standalone bridge. The broad `stock-operations` and `deal-operations` names in
+the portfolio analysis are product groupings, not permission bundles.
+
+Before productization, each official capability must be independently
+installable or independently attested so that one grant never implies another:
+
+- Stock Updates;
+- Availability Updates;
+- Price Updates;
+- Media Updates;
+- Deal Updates;
+- Message Updates; and
+- Part-Exchange Updates.
+
+Stock, availability, price, and media contributions use the provider profile
+and the deployment's advertiser binding. Deal, message, and part-exchange
+contributions additionally depend on restricted Deal Sync/read contracts and
+trusted deal/component identities. Dealership callback, test-drive, CRM, and
+lead commands remain separate customer-application `ACTION` packages with a
+different upstream and receipt model.
+
+The LLM may select or propose a declared action. It never supplies the
+advertiser ID, provider credential, endpoint, unrestricted payload, staff role,
+deal ownership, or hidden target. Those values come from deployment bindings,
+trusted prior reads, and application authorization.
+
+#### 8.5.4 Governed execution shape
+
+A future provider write should follow this sequence:
+
+1. Resolve an authenticated staff actor or an approved deal/customer handoff.
+2. Resolve the exact advertiser, stock/deal/component target, and capability
+   from trusted deployment state and fresh provider reads.
+3. Validate a typed minimal patch; never forward free-form model JSON.
+4. Re-read current state and show the proposed before/after effect.
+5. Apply policy, role checks, explicit confirmation, and durable Human Review
+   for consequential writes. An LLM-drafted message must be reviewed before it
+   is sent. A deterministic staff click to mark a message read may use a
+   narrower policy, but is still authenticated and audited.
+6. Execute once with an idempotency/deduplication strategy appropriate to the
+   exact provider contract and retain a normalized receipt.
+7. Re-read or reconcile through Stock Sync/Deal Sync before reporting final
+   state. Do not treat a model answer or an outbound HTTP success alone as
+   authoritative completion.
+
+Smart Brain or Specialist behavior may recommend a change or create an
+`ACTION_PROPOSAL`; neither receives blanket permission to perform Auto Trader
+writes. Autonomous provider mutations remain excluded until an exact action is
+separately approved with an explicit no-review policy and evidence that the
+business risk warrants it.
+
+#### 8.5.5 Provider failure and release rules
+
+The future action connector must preserve Auto Trader's integration rules:
+
+- `400`: surface invalid input and do not schedule blind retries;
+- `401`: stop provider activity, refresh the server token, then resume only
+  after authentication succeeds;
+- `403`: stop the affected advertiser or capability path and surface the
+  missing advertiser/service grant;
+- `429` and `503`: use bounded provider-aware delay and retry without
+  duplicating a write;
+- ambiguous outcomes: reconcile current provider state before any retry; and
+- failures: retain the provider request evidence required for support,
+  including the documented `CF-Ray-ID`, without exposing secrets or PII.
+
+Each capability requires its own sandbox proof and Auto Trader go-live checks.
+A successful Stock Sync or read-only integration does not approve any write
+capability.
+
+#### 8.5.6 Current demo decision
+
+No Auto Trader write action is added now. In particular:
+
+- no buyer-facing stock, price, availability, media, deal, message, or
+  part-exchange tool is added to Max Mode;
+- the provider simulator's protected staff scenarios remain synchronization
+  test controls, not examples of buyer authorization or Auto Trader writes;
+- `Request test drive` and callback continue to persist only in the independent
+  dealership backend;
+- no provider-write plugin, secret, role, route, prompt, confirmation, or
+  deployment version is created from this analysis; and
+- a later implementation starts only after the exact partner grant, sandbox
+  contract, actor model, and first capability to productize are approved.
+
 ## 9. Meeting Demo Application
 
 ### 9.1 Purpose
@@ -1141,7 +1307,8 @@ implemented:
 - valuations and vehicle/response metrics;
 - event-driven Forecourt Intelligence through Smart Brain;
 - listing-quality recommendations; and
-- reviewed stock, price, media, availability, and deal operations.
+- separately granted and reviewed stock, price, media, availability, deal,
+  message, and part-exchange operations described in Section 8.5.
 
 ## 11. Demo And Product Communication Surfaces
 
@@ -1533,6 +1700,9 @@ item in this gate.
     version.
 11. Pass Auto Trader and LoomAI production gates before making a production
     claim.
+12. Only through a separate approved initiative, add one Auto Trader write
+    capability at a time using Section 8.5 and pass that capability's sandbox,
+    authorization, Human Review, reconciliation, and go-live gates.
 
 ## 18. Decisions To Preserve
 
@@ -1585,6 +1755,13 @@ item in this gate.
 - [Response Metrics](https://help.autotrader.co.uk/hc/en-gb/articles/21871963006237-Introduction-to-Response-Metrics)
 - [Stock Sync](https://help.autotrader.co.uk/hc/en-gb/articles/21846314775453-Introduction-to-Stock-Sync)
 - [Stock Sync Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673947111325-Go-Live-checks-for-Stock-Sync)
+- [Stock Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21847112099101-Introduction-to-Stock-Updates)
+- [Availability Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21846548407069-Introduction-to-Availability-Updates)
+- [Price Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21846785854237-Introduction-to-Price-Updates)
+- [Media Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21846827095325-Introduction-to-Media-Updates)
+- [Deal Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21945536021277-Introduction-to-Deal-Updates)
+- [Message Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21945712571165-Introduction-to-Message-Updates)
+- [Part-Exchange Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21945772657437-Introduction-to-Part-Exchange-Updates)
 - [Search](https://help.autotrader.co.uk/hc/en-gb/articles/21946045692445-Introduction-to-Search)
 - [Search Adverts](https://help.autotrader.co.uk/hc/en-gb/articles/21945940067229-Introduction-to-Search-Adverts)
 - [Vehicle Taxonomy](https://help.autotrader.co.uk/hc/en-gb/articles/21791924757789-Introduction-to-Vehicle-Taxonomy)
