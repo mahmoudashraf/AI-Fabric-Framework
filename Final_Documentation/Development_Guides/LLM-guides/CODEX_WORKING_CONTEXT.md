@@ -3660,3 +3660,12 @@ Critical fixes that made the gate pass:
   Trader credentials, grants, advertiser, sandbox behavior, data rights,
   validation, certification, endorsement, and production approval remain
   externally blocked.
+- Rollout cleanup completed: temporary Coolify token
+  `codex-autotrader-20261003` was revoked and returned `401`; temporary snapshot
+  `438937922` was deleted and returned `404`; the host UFW/operator SSH rule
+  and temporary Hetzner port-22 rule were removed; firewall `10915120` was
+  restored from its pre-run rule snapshot; firewall `10916648` retains only its
+  pre-existing staging Coolify `8000/tcp` rule; production firewall `10918233`
+  has no operator rule and local production Coolify access times out. Local
+  temporary credential, cookie, payload, evidence-copy, and screenshot files
+  were truncated and removed after the private handoff was updated.

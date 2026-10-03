@@ -521,6 +521,12 @@ documentation subset. It does not prove that the real sandbox uses an
 identical contract, that LoomAI has access or data rights, or that Auto Trader
 has reviewed, certified, endorsed, or approved the integration.
 
+Temporary rollout access was removed after verification. The scoped Coolify
+token was revoked, the pre-rollout server snapshot was deleted, temporary SSH
+and firewall allowances were removed or restored to their pre-run state, local
+production Coolify access was closed, and local temporary credentials and
+response artifacts were erased after the ignored private handoff was updated.
+
 ## 5. Target Deployment-Local Architecture
 
 Normal customer and Auto Trader traffic must bypass the central Platform data
