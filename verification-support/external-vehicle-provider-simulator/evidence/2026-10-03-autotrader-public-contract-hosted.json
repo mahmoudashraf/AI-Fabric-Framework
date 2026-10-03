@@ -1,0 +1,313 @@
+{
+  "checks": [
+    {
+      "details": {
+        "httpStatus": 200,
+        "status": "UP"
+      },
+      "name": "runtime_readiness",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "httpStatus": 200,
+        "status": "UP"
+      },
+      "name": "connector_readiness",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "httpStatus": 200,
+        "status": "UP"
+      },
+      "name": "simulator_readiness",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "advertiserPresent": true,
+        "fixtureVersion": "external-vehicle-provider-v1",
+        "httpStatus": 200
+      },
+      "name": "simulator_fixture_scope",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "httpStatus": 401
+      },
+      "name": "authenticate_rejects_invalid_credentials",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "expiryPresent": true,
+        "httpStatus": 200,
+        "responseKeys": [
+          "access_token",
+          "expires_at"
+        ],
+        "tokenPresent": true
+      },
+      "name": "authenticate_exact_public_contract",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "allRecordsBoundToAdvertiser": true,
+        "httpStatus": 200,
+        "pageRecordCount": 2,
+        "responseKeys": [
+          "results",
+          "totalResults"
+        ],
+        "totalResults": 6
+      },
+      "name": "stock_page_exact_public_contract",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deploymentVersionId": "ver-7d7d8a20",
+        "httpStatus": 200,
+        "releaseId": "rel-4db12069",
+        "releaseStatus": "APPLIED_VERIFIED",
+        "sourceArtifactId": "dsa-cf25dc3c",
+        "verificationStatus": "PASSED"
+      },
+      "name": "immutable_deployment_release_verified",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "failedWorkCount": 0,
+        "httpStatus": 200,
+        "indexedCount": 6,
+        "sourceCount": 6,
+        "sourceId": "autotrader-dealership-stock-source",
+        "status": "COMPLETED",
+        "targetedRecordFetchEnabled": true
+      },
+      "name": "deployment_local_provider_source_ready",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "method": "PUT",
+        "publicHost": "dep-f023c863-connector.46.224.145.148.sslip.io",
+        "reconcileDataSourceRef": "autotrader-dealership-stock-source",
+        "reconciliationStrategy": "FETCH_CURRENT_RECORD",
+        "signatureHeader": "AutoTrader-Signature",
+        "sourceId": "autotrader-stock-events"
+      },
+      "name": "deployment_local_notification_contract_ready",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "httpStatus": 200,
+        "requestedStockId": "DEMO-1001",
+        "resultCount": 1
+      },
+      "name": "stock_id_current_record_fetch",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deletedCount": 0,
+        "failedWorkCount": 0,
+        "httpStatus": 200,
+        "indexedCount": 6,
+        "sourceCount": 6,
+        "status": "COMPLETED"
+      },
+      "name": "complete_baseline_reconciliation",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "httpStatus": 200,
+        "operation": "UPSERT"
+      },
+      "name": "simulator_control_upsert",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "controlHttpStatus": 200,
+        "deliveryStatuses": [
+          200
+        ],
+        "eventId": "evt-55a6033c185b51f78a897912c09ad1b2e112e8f881bb25eb1e7bf393560f6984"
+      },
+      "name": "signed_put_notification_accepted",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "attemptCount": 1,
+        "eventId": "evt-55a6033c185b51f78a897912c09ad1b2e112e8f881bb25eb1e7bf393560f6984",
+        "status": "COMPLETED",
+        "targetedRecord": true
+      },
+      "name": "targeted_current_record_reconciliation_completed",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "actual": 7,
+        "baseline": 6
+      },
+      "name": "targeted_upsert_changed_one_vector",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deliveryStatuses": [
+          401
+        ],
+        "expectedStatus": 401
+      },
+      "name": "notification_wrong_signature_rejected",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deliveryStatuses": [
+          400
+        ],
+        "expectedStatus": 400
+      },
+      "name": "notification_malformed_rejected",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deliveryStatuses": [
+          422
+        ],
+        "expectedStatus": 422
+      },
+      "name": "notification_wrong_resource_rejected",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deliveryStatuses": [
+          200,
+          200
+        ],
+        "duplicateCount": 1,
+        "eventId": "evt-cf3cf7b718cd6e1692758e79ba76d4e51b76b816a86c626820e219a240228ed1",
+        "status": "COMPLETED"
+      },
+      "name": "duplicate_notification_is_idempotent",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "eventId": "evt-3aa0a5585873e88736743cfb7ee8283a1082641355e19b70bb840bba34c7e652",
+        "status": "COMPLETED",
+        "targetedRecord": true,
+        "vectorCount": 7
+      },
+      "name": "delayed_notification_fetches_current_record",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "httpStatus": 200,
+        "shellConfigPresent": true,
+        "success": true,
+        "tokenPresent": true
+      },
+      "name": "anonymous_runtime_session_bootstrap",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "actionNames": [
+          "dealership_search_inventory"
+        ],
+        "answerContainsCanary": true,
+        "documentsCount": 1,
+        "httpStatus": 200,
+        "providerRequestId": "rag-3631b8f3-4e6c-4e3c-8a1e-c1078652226c",
+        "sourcesCount": 1,
+        "success": true,
+        "type": "INFORMATION_PROVIDED"
+      },
+      "name": "anonymous_chat_uses_provider_action_and_indexed_evidence",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "httpStatus": 200,
+        "operation": "TOMBSTONE"
+      },
+      "name": "simulator_control_tombstone",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "deliveryStatuses": [
+          200
+        ],
+        "eventId": "evt-4c59a843a0ee51c262e3621444370677c31c6b373478b4fd0fe332983b834211",
+        "status": "COMPLETED"
+      },
+      "name": "signed_delete_notification_completed",
+      "status": "PASSED"
+    },
+    {
+      "details": {
+        "actual": 6,
+        "baseline": 6
+      },
+      "name": "targeted_delete_restored_vector_count",
+      "status": "PASSED"
+    }
+  ],
+  "claim": "PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED",
+  "completedAt": "2026-10-03T04:08:19.789027Z",
+  "counts": {
+    "afterTargetedDelete": 6,
+    "afterTargetedUpsert": 7,
+    "baselineVectors": 6
+  },
+  "error": null,
+  "fixture": {
+    "advertiserId": "990001",
+    "fixtureVersion": "external-vehicle-provider-v1",
+    "resetAt": "2026-10-03T04:07:49.547404Z",
+    "resetId": "15ad0ff4-ed2f-431f-bb4b-c35563edff40"
+  },
+  "nonClaims": [
+    "This is not an official Auto Trader sandbox.",
+    "This is not Auto Trader certification, endorsement, or production approval.",
+    "No real advertiser, vehicle, credential, or customer data was used.",
+    "Partner grants, data rights, sandbox validation, and production go-live evidence remain open."
+  ],
+  "release": {
+    "deploymentVersionId": "ver-7d7d8a20",
+    "imageDigest": "sha256:a37d4241b74d994760512e2279b280b9d6f0ed899ab943b9a8c991c9850ce8d0",
+    "releaseId": "rel-4db12069",
+    "sourceArtifactId": "dsa-cf25dc3c",
+    "sourceGitCommit": "8c5a650e5d58d64e9ead8fa386c4dcda211a46eb",
+    "verificationRunId": "vrf-a069ec0c"
+  },
+  "schemaVersion": "loomai-autotrader-public-contract-hosted-canary-v1",
+  "scope": {
+    "connectorHost": "dep-f023c863-connector.46.224.145.148.sslip.io",
+    "deploymentId": "dep-f023c863",
+    "entityType": "dealer-vehicle",
+    "providerProfile": "autotrader",
+    "runtimeHost": "dep-f023c863.46.224.145.148.sslip.io",
+    "simulatorHost": "external-vehicle-provider-simulator.46.224.145.148.sslip.io",
+    "sourceId": "autotrader-dealership-stock-source",
+    "webhookSourceId": "autotrader-stock-events"
+  },
+  "startedAt": "2026-10-03T04:08:04.814613Z",
+  "status": "PASSED"
+}

@@ -1,15 +1,14 @@
 # 010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan
 
 - **Status:** Generic external-provider substrate is staging-hosted proven as
-  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`, and the separate fictional dealership
-  composition passed `DEALERSHIP_DEMO_READY` on 2026-09-30. The generic
-  targeted-record path, provider-backed action routing, public-contract
-  simulator profile, Marketplace fixtures, and protected demo control are
-  implemented in source on 2026-10-03; their replacement-deployment hosted
-  canary is pending. Every
-  partner-gated Auto Trader sandbox, data-rights, advertiser, package,
-  certification, and production gate remains open. LoomAI is not yet entitled
-  to claim Auto Trader integration readiness.
+  `HOSTED_GENERIC_SUBSTRATE_VERIFIED`, the fictional dealership composition
+  passed `DEALERSHIP_DEMO_READY`, and the replacement provider-backed
+  deployment passed `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` on 2026-10-03.
+  The latter proves the reviewed public wire subset with synthetic records; it
+  is not an Auto Trader sandbox, emulator, certification, endorsement, or
+  production-readiness claim. Every partner-gated Auto Trader sandbox,
+  data-rights, advertiser, package, certification, and production gate remains
+  open. LoomAI is not yet entitled to claim Auto Trader integration readiness.
 - **Date:** 2026-09-25
 - **Last contract review:** 2026-10-03
 - **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04
@@ -34,7 +33,9 @@
 - **Hosted evidence:** generic-substrate verifier source `79b23348f`, runtime
   source `86abb0320c5af2397231cf40077194ba0435efd2`, completed
   `2026-09-28T11:46:36Z`; dealership deployment `dep-f023c863`, runtime image
-  source `9db6bc92bd06814c2b27b221dae2ac2e64dbe85a`, completed 2026-09-30
+  source `8c5a650e5d58d64e9ead8fa386c4dcda211a46eb`, deployment version
+  `ver-7d7d8a20`, source artifact `dsa-cf25dc3c`, and release
+  `rel-4db12069`, verified 2026-10-03
 
 Related plans:
 
@@ -49,9 +50,10 @@ Related plans:
 LoomAI now has a hosted-proven provider-neutral substrate for deployment-local
 external HTTP integrations using complete-source reconciliation. The generic
 targeted current-record refinement and mixed provider/dealership composition
-are implemented and locally verified; replacement-deployment and browser
-evidence are still pending. The Platform is not ready to claim an Auto Trader
-integration.
+are also hosted-proven on the replacement dealership deployment against the
+synthetic public-document contract profile. The Platform is still not ready to
+claim an Auto Trader integration because no partner sandbox or production
+evidence exists.
 
 Implemented foundations now include:
 
@@ -101,11 +103,12 @@ The remaining evidence/product work is material:
    direct-anonymous Max Mode composition now pass hosted indexing, retrieval,
    read-action, confirmation, staff-inbox, restart, and browser gates against
    assigned deployment `dep-f023c863`. This proves only the bounded dealership
-   demonstration, not an Auto Trader connection. Its source is being replaced
-   by the versioned public-contract simulator composition; that replacement is
-   not live-proven yet.
-3. Public-document-informed DATA/ACTION/TEMPLATE fixtures now exercise the
-   reviewed contract subset. Customer-facing Auto Trader package versions
+   demonstration, not an Auto Trader connection. Its deployment-local DATA and
+   provider-read paths now source the six indexed records from the separately
+   hosted synthetic contract simulator; its website backend remains independent
+   and continues to own presentation and lead writes.
+3. Verification-only public-document-informed DATA/ACTION/TEMPLATE versions now
+   exercise the reviewed contract subset. Customer-facing Auto Trader package versions
    cannot be published responsibly until the granted sandbox routes, schemas,
    advertiser, webhook rules, data rights, and validation requirements are
    supplied.
@@ -136,6 +139,7 @@ phrase `Auto Trader ready`.
 | --- | --- | --- |
 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | LoomAI has proven its deployment-local external-provider mechanics against controlled hosted provider contracts | Separate HTTPS simulator, two materially different provider profiles, two isolated deployments, real Platform apply/index/restart/recovery/decommission evidence |
 | `DEALERSHIP_DEMO_READY` | LoomAI can demonstrate dealership inventory indexing, retrieval, direct browser chat, comparison, and a confirmed dealership-owned lead action | Approved demonstration dataset, real LoomAI deployment, direct anonymous Max Mode/Companion proof, real model/embedding/vector providers, complete live demo gate |
+| `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` | One immutable LoomAI deployment passed a synthetic rehearsal of the reviewed public request, response, signature, reconciliation, action, indexing, and chat mechanics | Versioned synthetic fixture with field-level provenance, exact public wire names, immutable release identity, protected operator controls, negative notification cases, current-record fetch, vector convergence, and grounded chat evidence |
 | `AUTOTRADER_SANDBOX_ENABLED` | The exact deployment composition can connect to the granted Auto Trader sandbox | Partner-provisioned sandbox identity, exact grants, authorized test advertiser, generic substrate complete, authentication/preflight succeeds |
 | `AUTOTRADER_SANDBOX_VERIFIED` | The named plugin/template version passed the named Auto Trader sandbox scenarios | Real baseline/read/webhook canaries, isolation, failures, work reconciliation, source evidence, Auto Trader validation evidence |
 | `AUTOTRADER_PRODUCTION_READY` | The exact immutable composition is approved for the named production capabilities and advertiser | Separate production bindings, written rights, applicable go-live checks, production canary, LoomAI staging/production release gates |
@@ -337,28 +341,28 @@ on 2026-10-03.
 | Marketplace plugin types | `TEMPLATE`, `ACTION`, `DATA`, `INFERENCE_PROFILE`, and governed specialist support exist | Reuse; no `AUTOTRADER` plugin type |
 | Plugin secret references | Install forms and install records support `secretRef` values | Reuse, then verify external-provider provisioning and redaction end to end |
 | Connector routes | `RestRoutingConfig.ActionRoute` supports bounded method/path, query/body/header templates, timeout, response projection, and authz preflight | Reuse and harden |
-| Connector upstream auth | Typed deployment-local profiles support API key and bounded form-token exchange, absolute/relative expiry, single-flight refresh, approved token host, and secret references | Implemented locally; exact Auto Trader profile remains package/external evidence |
+| Connector upstream auth | Typed deployment-local profiles support API key and bounded form-token exchange, absolute/relative expiry, single-flight refresh, approved token host, and secret references | Hosted against the synthetic public-contract profile; exact partner credential behavior remains sandbox evidence |
 | Connector state | Sync cursor/source version, record identity/fingerprint, indexing work, webhook dedupe/replay/dead-letter, and provider correlation are JDBC/Flyway-backed | Hosted restart and destructive restore evidence passed for the generic substrate |
 | Connector fair usage | Per-profile concurrency, interval, retry status/backoff, and `429`/`503` pauses are bounded and package-configured | Implemented locally; exact provider policy pending written confirmation |
 | Connector persistence | Deployment PostgreSQL is reused through connector-owned schema/role; every expected standard/preview bootstrap row must be found, deleted, and proven absent before connector restart on its restricted role | Hosted Coolify lifecycle and PostgreSQL backup/restore passed; ownership and ACLs are preserved for restricted roles |
 | Marketplace DATA modes | `EXTERNAL_SYNC_HTTP` with `HTTP_JSON` is validated, compiled, hashed, exported/imported, provisioned, and capability-gated | Implemented locally |
 | HTTP DATA execution | Page/size and cursor sources execute in the deployment connector, validate every record against the protected resource, and push only normalized operations to the colocated runtime | Hosted two-profile/two-deployment isolation, indexing, retrieval, mutation, and failure proof passed |
-| Current dealership demo source | The live evidence still reflects six fictional rows previously pushed from the independent dealership backend. Current source removes that push path, enables provider-backed DATA sync, and keeps the backend independent for presentation and lead writes | Replacement deployment and hosted canary pending; no Auto Trader claim |
+| Current dealership demo source | Deployment `dep-f023c863` v22 indexes six fictional rows through provider-backed DATA sync from the separately hosted simulator. The independent dealership backend no longer pushes those records and remains responsible only for presentation and dealer-owned writes | Hosted replacement passed; no Auto Trader claim |
 | External binding precedent | Document Knowledge Operations now provides target-scoped customer-storage bindings, secret references, safe readback, export/import boundaries, lifecycle cleanup, and operations UI | Reuse/generalize the lifecycle pattern; do not overload the document-storage-specific contract |
 | Runtime Data Sync | Deployment runtime exposes batch/upsert/delete and vector-space contracts | Reuse as the normalized indexing boundary |
 | Index work reconciliation | Runtime admin exposes per-work indexing status and vector overview | Reuse with customer-safe projection |
 | Provider inbound webhook | Deployment connector exposes per-source signed ingress with raw-body verification, replay-window checks, durable dedupe, bounded reconciliation, retry, replay, and dead-letter state | Hosted TLS-originated signature, duplicate, ordering, rejection, replay, and dead-letter proof passed |
-| Webhook reconciliation granularity | `FULL_SOURCE` and `FETCH_CURRENT_RECORD` are manifest-owned strategies. The targeted path extracts a bounded key only after signature/event/resource validation, persists it, fetches current state, reuses the baseline mapper, and submits one upsert/delete | Implemented and focused-test verified; hosted targeted canary pending |
+| Webhook reconciliation granularity | `FULL_SOURCE` and `FETCH_CURRENT_RECORD` are manifest-owned strategies. The targeted path extracts a bounded key only after signature/event/resource validation, persists it, fetches current state, reuses the baseline mapper, and submits one upsert/delete | Hosted add, delete, duplicate, delayed, malformed, wrong-signature, and wrong-resource canaries passed |
 | Existing runtime webhook code | Current runtime webhook tables/admin surface manage outbound action-result delivery | Do not misrepresent as inbound provider webhook support |
 | Assignment endpoint catalog | Internal connector/runtime traffic stays private; templates may opt in to backend-only ingestion batch, work-status, and readiness URLs with exact operation flags | Implemented locally; browser exposure is prohibited |
-| Protected resource binding | Typed immutable profile/resource/grant contracts compile server-owned values into provider requests; records and events must match the same binding | Implemented locally; Auto Trader's one-advertiser rule remains package-owned |
+| Protected resource binding | Typed immutable profile/resource/grant contracts compile server-owned values into provider requests; records and events must match the same binding | Synthetic one-advertiser hosted proof passed; the real advertiser grant remains external |
 | Operations | Runtime proxy, Platform operations API, audit events, and Integrations UI expose bounded source/auth/index/webhook state plus controlled reconcile/replay; source record IDs and payload/resource fingerprints are omitted | Implemented locally |
 | Rejected webhook retention | Invalid/unauthenticated attempts increment durable fixed-cardinality source/error counters without storing attacker-controlled event rows, payloads, identities, or hashes | Hosted rejection, recovery, and restart paths passed |
 | Generated-secret cleanup | Hard delete clears deployment-generated connector service/database credentials after infrastructure cleanup succeeds | Hosted hard-decommission readback passed with no cleanup failures |
 | Auto Trader packages | DRAFT catalog reservations exist, with no executable versions | Correctly blocked pending partner grants and schemas |
-| Provider-backed action routing | Provider-profile routes resolve through `ProviderHttpClient` independently of the application upstream. Protected collection filters remove non-published records before response templates or model facts are built | Implemented and focused-test verified; hosted mixed-owner canary pending |
+| Provider-backed action routing | Provider-profile routes resolve through `ProviderHttpClient` independently of the application upstream. Protected collection filters remove non-published records before response templates or model facts are built | Hosted provider read plus independent dealership-write composition passed |
 | Generic hosted evidence | Independent HTTPS simulator, two isolated deployments, exact immutable runtime artifact, full lifecycle matrix, and cleanup | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` on staging; this is not named-provider evidence |
-| Public-document simulator fidelity | A separate `autotrader` profile mirrors the reviewed public subset: form-encoded `POST /authenticate`, `access_token`/`expires_at`, bearer reuse, `GET /stock`, advertiser/page/pageSize/stockId/lifecycleState, stock envelope, `PUT` notification, `AutoTrader-Signature`, and documented event/response semantics | Implemented with synthetic records and provenance tests; hosted contract canary pending and never a sandbox/certification claim |
+| Public-document simulator fidelity | A separate `autotrader` profile mirrors the reviewed public subset: form-encoded `POST /authenticate`, `access_token`/`expires_at`, bearer reuse, `GET /stock`, advertiser/page/pageSize/stockId/lifecycleState, stock envelope, `PUT` notification, `AutoTrader-Signature`, and documented event/response semantics | Hosted 26-check contract canary passed with synthetic records; never a sandbox/certification claim |
 | Auto Trader hosted evidence | None | Blocking |
 
 ### 4.1 Implementation checkpoint
@@ -455,6 +459,67 @@ Its SHA-256 is
 It contains no credential values or provider payloads. This evidence proves
 only the generic substrate; it does not prove Auto Trader access, schemas,
 rights, certification, sandbox behavior, or production readiness.
+
+### 4.3 Hosted public-document contract checkpoint
+
+The strict replacement-deployment canary completed at
+`2026-10-03T04:08:19Z` with status `PASSED`, 26 passed checks, zero failed
+checks, and claim `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`.
+
+- Platform backend commit `d969838139b76a7b6a77c319a1d110629e23fecd`
+  was healthy while running the verifier and includes current Marketplace
+  connection-profile and canonical knowledge-source release checks.
+- Deployment `dep-f023c863` is active on v22 / `ver-7d7d8a20`, source artifact
+  `dsa-cf25dc3c`, source commit
+  `8c5a650e5d58d64e9ead8fa386c4dcda211a46eb`, image digest
+  `sha256:a37d4241b74d994760512e2279b280b9d6f0ed899ab943b9a8c991c9850ce8d0`,
+  and release `rel-4db12069`. Release verification `vrf-a069ec0c` passed `25`
+  checks, failed `0`, and skipped `5` non-applicable checks.
+- Verification-only Marketplace versions
+  `mkp-data-autotrader-contract-verification@1.0.0`,
+  `mkp-action-autotrader-contract-verification@1.0.0`, and
+  `mkp-template-autotrader-dealership-verification@1.0.0` compile the synthetic
+  public-document profile. They are not customer production packages.
+- The exact hosted wire rehearsal passed invalid authentication, form token
+  exchange, exact token field names, paged stock envelope, publication filter,
+  current-record fetch, immutable release identity, deployment-local source and
+  webhook readiness, and a complete six-record baseline.
+- A synthetic stock mutation delivered a signed `PUT` notification. The
+  connector extracted only the verified `stockId`, fetched current provider
+  state, and changed the deployment vector count from `6` to `7`. Wrong
+  signature, malformed body, and wrong advertiser/resource deliveries failed
+  with `401`, `400`, and `422`; duplicate and delayed events converged without
+  indexing event payloads.
+- Anonymous runtime chat used `dealership_search_inventory` and returned both
+  action facts and indexed evidence for the synthetic canary stock. Tombstoning
+  the record through the same provider path restored the vector count from `7`
+  to `6`.
+- The protected dealership staff adapter independently passed all fixed
+  `add-stock`, `update-price`, `mark-sold`, and `delete-stock` scenarios with
+  HTTP `200`, connector status `COMPLETED`, and one reconciliation attempt.
+  Unauthenticated status access returned `401`; staff session and CSRF
+  protections remained active. The simulator was reset and complete-source
+  reconciliation restored exactly six records afterward.
+- Production public site application `t3r7unm08sh3tfatpadz7qky` completed
+  deployment `puba7hpt7d34wjoi0oidk9h7` on commit
+  `d969838139b76a7b6a77c319a1d110629e23fecd`. A hosted Playwright check signed
+  into the staff workspace, observed all four enabled controls, executed
+  `update-price`, received HTTP `200` and one completed reconciliation attempt,
+  and observed no browser request to simulator control, connector webhook, or
+  internal routes. A final reset and baseline reconcile restored six records.
+
+The repeatable verifier is
+`scripts/verify-autotrader-public-contract-hosted-canary.py`. Bounded evidence
+is committed at
+[2026-10-03-autotrader-public-contract-hosted.json](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json).
+Its SHA-256 is
+`19932b1f909546ba7699a80d800c47dea8eed436f0dc47abf63957edb8527465`.
+It contains no credentials or provider record payloads.
+
+This checkpoint proves implementation fidelity only to the reviewed public
+documentation subset. It does not prove that the real sandbox uses an
+identical contract, that LoomAI has access or data rights, or that Auto Trader
+has reviewed, certified, endorsed, or approved the integration.
 
 ## 5. Target Deployment-Local Architecture
 
@@ -1171,10 +1236,13 @@ The simulator described in Section 3.5 is implemented and deployed with:
   complete matrix, captures bounded evidence, and hard-decommissions temporary
   resources.
 
-The existing implementation satisfies the neutral profile work only. The
-public-document-informed Stock Sync fixture, provenance matrix, and protected
-meeting trigger described in Section 3.6 are planned additions and must not be
-reported as implemented evidence until their contract and hosted tests pass.
+The implementation now satisfies both independent jobs without conflating
+their claims. The neutral two-profile verifier establishes
+`HOSTED_GENERIC_SUBSTRATE_VERIFIED`. The separately versioned
+public-document-informed Stock Sync fixture, provenance matrix, protected
+meeting trigger, and 26-check replacement-deployment canary establish only
+`PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`. Neither fixture is provider access
+or provider approval.
 
 The simulator is disposable verification infrastructure. It must not become a
 runtime dependency of any customer deployment or a compatibility layer once
@@ -1208,15 +1276,15 @@ The source implementation uses the following ownership boundaries.
 | Connector config | `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/.../RestRoutingConfig.java` | Typed connection/auth/rate/data/webhook contracts |
 | Connector validation | `.../RestConnectorStartupValidator.java` | Fail-closed hosts, bindings, secrets, token exchange, pagination, mapping, and webhook policy |
 | Connector execution | `.../RestActionExecutionService.java` | Token service, trusted bindings, classified provider errors, bounded mapping |
-| Provider action route resolution | `RestActionExecutionService.executeOnce(...)` currently resolves the ordinary global upstream before checking `connectionProfileRef` | Resolve provider-profile routes through `ProviderHttpClient` first so mixed provider/dealership packages do not require a fake global upstream |
+| Provider action route resolution | `RestActionExecutionService.executeOnce(...)` resolves provider-profile routes through `ProviderHttpClient` before ordinary application upstream resolution | Mixed provider-read and dealership-write composition is hosted proven without a fake global upstream |
 | Token lifecycle | New provider-neutral connector service | Execute the implemented bounded auth strategies; first release covers API key and form token exchange, including cache, refresh, redaction, and safe posture |
 | Durable integration state | Connector persistence package and `db/migration/integration/V1__integration_connector_state.sql` in schema `integration_connector` | Cursors, source fingerprints, work, events, dedupe, reconciliation, and dead letters; never token/credential values |
 | Connector database provisioning | `RailwayProvisioningPlanService`, `CoolifyDeploymentProvider`, provider secret/resource services | Reuse the deployment PostgreSQL resource; create a restricted connector role/schema, inject JDBC config, verify readback, and include lifecycle cleanup |
 | DATA manifest validation | `Platfrom/backend/.../MarketplaceManifestService.java` | Validates `EXTERNAL_SYNC_HTTP` and typed HTTP connector contribution |
 | DATA compilation | `.../DeploymentMarketplaceDraftCompilerService.java` and `DeploymentConfigCompiler.java` | Compile immutable source, mapping, binding, capability, secret, and webhook refs into V04 artifacts |
 | DATA execution | `HttpDataSyncService` and `RuntimeDataSyncClient` | Pull provider data, normalize it, and push to private local runtime Data Sync |
-| Shared record projection | Mapping and boundary logic currently lives inside `HttpDataSyncService` | Extract one reusable provider-neutral mapper for complete snapshots and targeted record fetches |
-| Targeted event reconciliation | `ProviderWebhookService` currently calls `HttpDataSyncService.reconcileAsync(...)` for the complete source | Add bounded verified-event record-key extraction, durable per-record work/coalescing, current-record fetch, and upsert/delete completion |
+| Shared record projection | Complete snapshots and targeted fetches use the same provider-neutral mapping and boundary service | Hosted baseline and targeted paths produce the same normalized records |
+| Targeted event reconciliation | `ProviderWebhookService` supports manifest-selected `FULL_SOURCE` and `FETCH_CURRENT_RECORD` strategies | Verified record-key extraction, durable dedupe/coalescing, current-record fetch, and upsert/delete completion are hosted proven |
 | Existing Platform dataset sync | `.../MarketplaceDatasetSyncService.java` | Do not route provider data through it; retain current modes only |
 | Draft validation | `Platfrom/backend/.../DeploymentDraftValidationService.java` | Validate immutable protected-resource/capability/connection bindings and package-specific cardinality |
 | Secret/resource lifecycle | Marketplace install, provider secret services, and the document-storage binding lifecycle precedent | Generalize target-scoped reference/readback/rotation/export/decommission patterns without coupling to document storage |
@@ -1224,8 +1292,8 @@ The source implementation uses the following ownership boundaries.
 | Optional assignment response | `PublicCustomerBackendIngestionSummary.java` and `PublicProvisioningApiService.java` | Scoped backend ingestion/work/readiness group only when enabled by immutable dataset contract; never internal connector discovery |
 | Runtime indexing | `RuntimeIntegrationDataSyncController`, `RuntimeIntegrationIndexingController`, and `RuntimeCustomerIngestionController` | Private connector boundary plus opt-in customer-safe projection |
 | Platform operations UI | `DeploymentIntegrationOperationsService`, controller, and `IntegrationsPage.tsx` | Real runtime/connector state, reconcile, webhook events, and controlled replay |
-| Hosted provider fixture | `verification-support/external-vehicle-provider-simulator` outside the deployment and Platform data plane | Deployed and proven with deterministic two-profile HTTPS, event, mutation, and failure contracts without provider branding or data |
-| Verification | Platform backend suites and `scripts/verify-external-http-provider-hosted-canary.py` | Simulator-backed isolation/lifecycle gate passed; real sandbox and production gates remain |
+| Hosted provider fixture | `verification-support/external-vehicle-provider-simulator` outside the deployment and Platform data plane | Deployed with separate neutral and public-document-informed profiles, deterministic HTTPS contracts, events, mutations, failures, synthetic records, and provenance |
+| Verification | Platform backend suites, `scripts/verify-external-http-provider-hosted-canary.py`, and `scripts/verify-autotrader-public-contract-hosted-canary.py` | Generic isolation/lifecycle and synthetic public-contract gates passed; real sandbox and production gates remain |
 
 No provider-specific route or field may be added to AI Fabric framework core,
 generic Platform schema names, or generic connector Java defaults. Auto Trader
@@ -1242,10 +1310,10 @@ Current execution status:
 | 1 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Generic profiles, auth, protected resources, mapping, fair usage, JDBC state, fail-closed bootstrap scrub, generated-secret cleanup, restart, backup/restore, and decommission passed against the hosted neutral simulator |
 | 2 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Marketplace compile/provisioning, private Data Sync, page/cursor handling, tombstones, work reconciliation, indexing, retrieval, and two-deployment isolation passed on staging |
 | 3 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | TLS-originated signed ingress, dedupe, ordering, rejection, replay, retry, dead-letter, and baseline convergence passed on staging |
-| 3A | `LOCAL_IMPLEMENTED_HOSTED_PENDING` | Targeted current-record reconciliation, persisted verified record key, shared mapping, source locking, provider-only action routing, and response filtering are implemented and focused-test verified; focused hosted canary remains |
+| 3A | `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` | Targeted current-record reconciliation, persisted verified record key, shared mapping, source locking, provider-only action routing, response filtering, rejection, duplicate, delayed, upsert, and delete paths passed on the replacement staging deployment |
 | 4 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Scoped operations/discovery, immutable apply/rollback, durable restart, destructive restore, and complete cleanup passed; UI remains source-build verified |
 | 5 | `DEALERSHIP_DEMO_READY` | Approved fictional data, dealership-owned lead boundary, ordinary customer demo app, direct browser chat, indexing, retrieval, confirmation, restart durability, and staff readback passed on staging; the initial closure used AI Fabric `0.8.5` and the latest first-delivery closure uses `0.8.8` |
-| 5A | `LOCAL_IMPLEMENTED_HOSTED_PENDING` | Public-contract simulator profile, Marketplace fixtures, provider-backed deployment profile, and protected staff trigger are implemented; replacement deployment and continuous hosted browser canary remain |
+| 5A | `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` | Public-contract simulator profile, verification-only Marketplace versions, provider-backed deployment v22, protected staff scenarios, exact wire canary, indexing, action facts, RAG evidence, and cleanup passed live |
 | 6 | `BLOCKED_EXTERNAL` | Requires Auto Trader partner sandbox identity, exact grants, advertiser, schemas, events, and validation support |
 | 7 | `BLOCKED_EXTERNAL` | Requires production approval, rights, bindings, go-live validation, and controlled production proof |
 
@@ -1256,27 +1324,25 @@ remaining phases must not be collapsed into a paper pass.
 
 ### Immediate next execution
 
-1. Preserve the passed generic evidence artifact and rerun the affected focused
-   matrix after any change to external-sync, connector persistence, provider
-   lifecycle, or webhook contracts.
-2. Deploy the implemented targeted-reconciliation and provider-route source to
-   staging, replace the dealership deployment from the current immutable
-   profile, and prove add, update, sold/delete, duplicate, delayed event,
-   missed-event baseline repair, restart, and cross-account denial.
-3. Run the provider-backed dealership canary: indexed stock and provider reads
-   come from the simulator; the independent backend continues to own only
-   presentation and lead writes; the protected staff trigger demonstrates the
-   public-contract notification path without exposing controls or credentials.
-4. Complete Auto Trader partner onboarding and obtain the exact sandbox
+1. Preserve both passed hosted evidence artifacts and rerun only the affected
+   focused matrix after any change to external-sync, connector persistence,
+   provider lifecycle, webhook, Marketplace compilation, or provider-action
+   contracts.
+2. Complete Auto Trader partner onboarding and obtain the exact sandbox
    identity, grants, authorized advertiser, schemas, event contract, data
    rights, and validation checklist.
-5. Preserve and rerun the passed dealership demo gate after any change to its
+3. Compare every granted sandbox field, route, authentication rule,
+   notification rule, status transition, rate policy, and error with the
+   provenance matrix. Revise package data and verification fixtures where the
+   granted contract supersedes the public-document rehearsal; do not add
+   provider constants to generic Java code.
+4. Preserve and rerun the passed dealership demo gate after any change to its
    deployment, runtime, browser-auth, inventory-indexing, or lead-action
    contracts.
-6. Once grants exist, author exact Auto Trader DATA/ACTION/TEMPLATE versions
+5. Once grants exist, author exact Auto Trader DATA/ACTION/TEMPLATE versions
    through the existing Marketplace/V04 lifecycle; keep all provider wire
    constants in package data and provider verification.
-7. Run the named sandbox matrix and record
+6. Run the named sandbox matrix and record
    `AUTOTRADER_SANDBOX_VERIFIED` only if the exact immutable composition and
    provider-required evidence pass.
 
@@ -1339,8 +1405,8 @@ Exit: neutral event-fed source passes hosted lifecycle and failure tests.
 
 ### Phase 3A: targeted current-record reconciliation
 
-**Source status:** implemented and focused-test verified on 2026-10-03; hosted
-canary pending.
+**Status:** hosted verified on 2026-10-03 under the bounded
+`PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` claim.
 
 - Add provider-neutral `FULL_SOURCE` and `FETCH_CURRENT_RECORD` strategies.
 - Extract a bounded record key only after signature, event, and resource
@@ -1389,8 +1455,9 @@ Exit: live HTTPS demo with real LoomAI behavior and no false Auto Trader claim.
 
 ### Phase 5A: neutral provider-backed dealership composition
 
-**Source status:** implemented on 2026-10-03; replacement deployment and
-continuous hosted browser evidence pending.
+**Status:** replacement deployment, exact contract canary, protected staff
+scenario API, and production browser control are hosted verified on 2026-10-03.
+This remains synthetic implementation evidence, not an Auto Trader gate.
 
 - Keep the public dealership website/backend implementation and inventory
   presentation unchanged.

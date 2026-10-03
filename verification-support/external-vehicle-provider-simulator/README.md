@@ -107,6 +107,40 @@ The two temporary deployments and every temporary provider resource, backup,
 restore helper, and scoped fixture credential were removed after the pass.
 This evidence is generic and must never be cited as named-provider evidence.
 
+### Public-document contract canary
+
+The separate 2026-10-03 canary passed 26 checks against one immutable
+provider-backed dealership deployment. It covered the synthetic documented
+authentication and stock shapes, targeted signed-event reconciliation,
+negative notifications, duplicate/delayed delivery, `6 -> 7 -> 6` index
+convergence, provider action facts, indexed evidence, and anonymous chat.
+
+Run it only against an approved synthetic staging deployment:
+
+```bash
+PLATFORM_BASE_URL=https://<staging-platform> \
+PLATFORM_API_KEY_FILE=/path/to/platform-api-key \
+RUNTIME_BASE_URL=https://<deployment-runtime> \
+CONNECTOR_BASE_URL=https://<deployment-connector> \
+SIMULATOR_BASE_URL=https://<simulator> \
+SIMULATOR_CONTROL_API_KEY_FILE=/path/to/control-key \
+SIMULATOR_AUTOTRADER_ADVERTISER_ID=<synthetic-advertiser> \
+SIMULATOR_AUTOTRADER_API_KEY_FILE=/path/to/provider-key \
+SIMULATOR_AUTOTRADER_API_SECRET_FILE=/path/to/provider-secret \
+EXPECTED_DEPLOYMENT_VERSION_ID=<version-id> \
+EXPECTED_SOURCE_ARTIFACT_ID=<source-artifact-id> \
+./scripts/verify-autotrader-public-contract-hosted-canary.py \
+  --confirm-mutation
+```
+
+The script always attempts to tombstone its synthetic canary record and restore
+the baseline vector count. `--confirm-mutation` is mandatory to prevent an
+accidental read-only invocation from being misreported as the hosted claim.
+Bounded evidence is committed at
+[`evidence/2026-10-03-autotrader-public-contract-hosted.json`](evidence/2026-10-03-autotrader-public-contract-hosted.json).
+It contains no credentials or stock payloads and proves no real Auto Trader
+access or approval.
+
 ## Hosted LoomAI canary
 
 After deploying the simulator and the current Platform/runtime source to

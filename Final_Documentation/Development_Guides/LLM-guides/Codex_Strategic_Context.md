@@ -621,3 +621,16 @@ Current P0 cleanup items:
   trigger fictional mutation plus signed callback, but all control credentials,
   resource bindings and callback targets remain server-owned and the ordinary
   dealership catalogue remains independent.
+- 2026-10-03 provider-backed closure: dealership deployment `dep-f023c863` v22
+  now replaces backend-pushed chat inventory with deployment-local DATA sync
+  and provider-read ACTION routes against the separately hosted synthetic
+  public-document contract profile. The customer backend stays independent and
+  owns only its website concerns and confirmed dealership writes. A 26-check
+  hosted canary proved exact synthetic authentication/stock envelopes, signed
+  targeted current-record reconciliation, rejection/idempotency/order cases,
+  `6 -> 7 -> 6` vector convergence, and action-plus-indexed-evidence chat. The
+  protected staff adapter and production browser panel also passed all fixed
+  scenarios without exposing provider controls to the browser. The bounded
+  state is `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`, never an Auto Trader
+  sandbox, compatibility, rights, certification, endorsement, or production
+  claim. Partner onboarding and real sandbox evidence are the next gate.

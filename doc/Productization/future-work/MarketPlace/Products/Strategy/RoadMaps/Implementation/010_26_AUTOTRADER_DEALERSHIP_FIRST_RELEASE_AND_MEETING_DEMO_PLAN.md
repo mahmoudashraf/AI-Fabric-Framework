@@ -1,16 +1,15 @@
 # 010.26 Auto Trader Dealership First Release And Meeting Demo Plan
 
 - **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30. The
-  generic Max Mode first-delivery closure passed on 2026-10-02 with deployment
-  `dep-f023c863` version `v21`, AI Fabric `0.8.8`, six indexed fictional
-  vehicles, an 18-turn hosted browser meeting gate, and a strict `7/7` quality
-  run.
-  Released
-  Marketplace packaging and every real Auto Trader
-  access/rights/certification gate remain open.
+  generic Max Mode first-delivery closure passed on 2026-10-02, and the same
+  deployment `dep-f023c863` was replaced by provider-backed v22 on 2026-10-03.
+  Its synthetic public-document contract canary passed `26/26` plus protected
+  staff/browser scenario proof. Released customer Auto Trader Marketplace
+  packaging and every real Auto Trader access/rights/certification gate remain
+  open.
 - **Date:** 2026-09-25
 - **Last architecture review:** 2026-10-03
-- **Last implementation checkpoint:** 2026-10-02
+- **Last implementation checkpoint:** 2026-10-03
 - **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
@@ -35,6 +34,7 @@ Related plans and evidence:
 - [010.29 Generic Max Mode Injectable Action UI And Dealership Experience Plan](010_29_GENERIC_MAX_MODE_INJECTABLE_ACTION_UI_AND_DEALERSHIP_EXPERIENCE_PLAN.md)
 - [2026-09-30 hosted dealership evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-09-30-dealership-demo-live.json)
 - [2026-10-01 dealership conversational-quality evidence](../../../../../../../../verification-support/autotrader-dealership-demo/evidence/2026-10-01-dealership-conversational-quality.json)
+- [2026-10-03 synthetic public-contract hosted evidence](../../../../../../../../verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json)
 
 Quality and verification references in the public framework repository:
 
@@ -80,12 +80,12 @@ Implementation references:
 | Dealership-owned backend | Hosted and healthy | Spring Boot service under `product-demos/autotrader-dealership-demo/backend`; 21 focused tests pass; public status reports six fictional vehicles and the assigned runtime |
 | Fictional inventory source | Implemented | Six clearly labelled vehicle records, structured filters/facets, stable IDs, source versions, and real attributed imagery |
 | Customer application UI | Hosted and verified | Native `/demos/dealership-ai` route with responsive inventory, detail, comparison, Companion dock, Max Mode, and host-injected structured action presentations through the generic widget contract |
-| Staff workspace | Implemented | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes and true server-side logout |
+| Staff workspace | Hosted and verified | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes, true server-side logout, and four fixed server-owned provider simulation scenarios; browser cannot choose account, target, credential, URL, or payload |
 | Browser runtime integration | Hosted and verified | Direct `public-runtime-anonymous` bootstrap, same-session renewal, `/api/chat/me/*`, Companion and Max Mode passed against `dep-f023c863`; invalid renewal still clears stale state without replay |
-| Inventory Data Sync client | Hosted and verified | Private signed deployment-local sync completed `6/6`; lifecycle canary proved insert/update/delete, stale-version supersession, and return to six vectors |
+| Inventory Data Sync client | Superseded by provider-backed DATA composition | Historical backend-push evidence remains valid for its recorded version. Current v22 connector pulls the six synthetic records, performs current-record webhook upsert/delete, and reconciles runtime indexing `6 -> 7 -> 6`; the independent backend no longer pushes chat inventory |
 | Authorization and actions | Hosted and verified | Indexed inventory read action and grounded answer passed; confirmed test-drive action produced receipt `NFM-33B974CC`, persisted once, and appeared as `NEW` in the protected staff inbox |
-| Generic REST Connector routing | Hosted and verified | Deployment connector is healthy, exposes the expected five-action contract, and passed immutable Platform release verification |
-| Public catalogue | Live | Experiment entry, screenshot, sitemap, content/static smoke and responsive accessibility browser coverage pass; production public site serves the 2026-10-01 verification record |
+| Generic REST Connector routing | Hosted and verified | Deployment connector is healthy; provider reads resolve through the provider profile, dealership writes retain their application upstream, and immutable v22 verification passed `25/0` with five non-applicable checks skipped |
+| Public catalogue | Live | Experiment entry, screenshot, sitemap, content/static smoke and responsive accessibility browser coverage pass; production public site commit `d969838139b76a7b6a77c319a1d110629e23fecd` exposes the protected provider-event demonstration panel |
 | Build and supply-chain posture | Implemented locally | Backend/site production images build; status exposes version/commit/build time; site and widget production dependency audits report zero findings; widget package/artifact ownership is LoomAI-labelled and locally bundled |
 | Auto Trader source | Not activated | No credential, advertiser grant, sandbox fixture or production data is claimed; meeting composition remains fictional |
 
@@ -115,6 +115,29 @@ Security review during implementation corrected two staff-session defects before
 hosted use: the initial login route is now the only unauthenticated staff route,
 and logout now sends the required CSRF token so the server session is actually
 invalidated.
+
+### Provider-backed replacement closure: 2026-10-03
+
+Deployment `dep-f023c863` is now v22 / `ver-7d7d8a20`, release
+`rel-4db12069`, source artifact `dsa-cf25dc3c`, on AI Fabric `0.8.8`.
+Verification `vrf-a069ec0c` passed `25`, failed `0`, and skipped `5`
+non-applicable checks. The six indexed chat records now come from the separately
+hosted synthetic provider profile through deployment-local DATA sync; provider
+reads use the provider profile, while confirmed test-drive/callback writes stay
+with the independent dealership backend.
+
+The repeatable exact-contract rehearsal passed 26 checks: documented synthetic
+auth/stock envelopes, current-record fetch, signed `PUT`, wrong-signature,
+malformed and wrong-resource rejection, duplicate/delayed convergence, vector
+count `6 -> 7 -> 6`, and anonymous action-plus-indexed-evidence chat. All four
+fixed staff scenarios also completed, and the production staff UI exercised one
+through the browser without calling provider/internal routes directly. The
+fixture was reset and six records were reconciled after the proof.
+
+This establishes only `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`. The source is
+synthetic and public-document-informed; it is not an Auto Trader sandbox,
+emulator, data grant, compatibility result, certification, endorsement, or
+production approval.
 
 ## 1. Executive Decision
 
@@ -1725,21 +1748,22 @@ provider product.
 
 | Decision | Status | Tracking consequence |
 | --- | --- | --- |
-| Keep the existing `dep-f023c863` evidence recorded as a backend-push fictional demo until replacement proof passes | Preserved evidence; replacement source implemented | Do not rewrite old evidence or claim the simulator supplied it; replace the live deployment only after the provider-backed canary passes |
+| Keep the existing `dep-f023c863` evidence recorded as a backend-push fictional demo until replacement proof passes | Historical evidence preserved; live deployment replaced by v22 | Do not rewrite old v1-v21 evidence or claim the simulator supplied it; current state is separately recorded under the 2026-10-03 hosted evidence |
 | One dealership equals one deployment and one provider advertiser/account scope | Agreed | Credentials, source state, webhooks, index, and actions remain deployment-local |
 | Do not introduce a standalone Auto Trader bridge | Agreed | Extend the existing generic connector and existing Marketplace primitives |
 | Keep dealership website/backend independent from provider integration | Agreed | Do not change its catalogue source; it continues to own presentation and leads |
 | Use dedicated provider DATA and ACTION packages | Pending exact grant | Provider semantics stay declarative and immutable; no new plugin type |
-| Add generic targeted current-record reconciliation | Implemented locally; hosted canary pending | Verified event record ID -> current provider fetch -> shared mapping -> one upsert/delete; periodic baseline repairs drift |
-| Split provider reads from dealership writes | Implemented locally; hosted canary pending | Capability grants choose the owner; no try-and-fallback routing |
-| Prove the final topology against the provider simulator | Source composition ready; hosted canary pending | Only the LoomAI deployment uses the simulator; matching fictional `stockId` values link page context without coupling the website |
-| Add a protected staff provider-change rehearsal | Implemented locally; hosted canary pending | Demo backend invokes fixed simulator mutation/event controls server-side; no key, account, target URL, or raw event control reaches the browser/model |
-| Add a public-document-informed Stock Sync fixture | Implemented locally; hosted canary pending | Mirrors only the reviewed public auth, advertiser, stock, signature/event and lifecycle subset with provenance; neutral profiles remain and no sandbox/emulator claim is made |
+| Add generic targeted current-record reconciliation | Hosted verified | Verified event record ID -> current provider fetch -> shared mapping -> one upsert/delete; periodic baseline repairs drift |
+| Split provider reads from dealership writes | Hosted verified | Capability grants choose the owner; no try-and-fallback routing |
+| Prove the final topology against the provider simulator | Hosted verified under the synthetic claim | Only the LoomAI deployment uses the simulator; matching fictional `stockId` values link page context without coupling the website |
+| Add a protected staff provider-change rehearsal | Hosted API and browser verified | Demo backend invokes fixed simulator mutation/event controls server-side; no key, account, target URL, or raw event control reaches the browser/model |
+| Add a public-document-informed Stock Sync fixture | Hosted `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` | Mirrors only the reviewed public auth, advertiser, stock, signature/event and lifecycle subset with provenance; neutral profiles remain and no sandbox/emulator claim is made |
 | Register each deployment's provider webhook during onboarding | Externally gated | Platform displays callback/status; receiver existence is not subscription evidence |
 | Publish named Auto Trader packages and readiness claims | Blocked externally | Requires sandbox credentials, exact schemas/grants, advertiser, rights, notification contract, and provider validation |
 
-The next implementation slice is the focused hosted replacement canary for the
-implemented targeted-reconciliation, provider-route, simulator-contract, and
-mixed-owner composition. It does not require changing the dealership website's
-catalogue source. Customer-facing Auto Trader package authoring begins only
-after partner-provided contracts replace public-document assumptions.
+The focused hosted replacement canary is complete. The next slice is external:
+obtain the partner sandbox identity, exact grants, authorized advertiser,
+schemas, notification contract, data rights, and validation checklist; compare
+them field by field with the provenance matrix; then author and verify the
+customer-facing packages. Public-document assumptions must never silently
+become production package facts.

@@ -3607,3 +3607,56 @@ Critical fixes that made the gate pass:
   event. The backend owns fixed accounts, targets and secrets; browser/model
   callers cannot choose them. This is operator verification tooling only and
   does not make the dealership catalogue depend on the simulator.
+
+## 2026-10-03 Provider-Backed Dealership And Public-Contract Hosted Closure
+
+- Supersede the earlier statement that deployment `dep-f023c863` is still
+  backend-push. It is active on v22 / `ver-7d7d8a20`, source artifact
+  `dsa-cf25dc3c`, source commit
+  `8c5a650e5d58d64e9ead8fa386c4dcda211a46eb`, image digest
+  `sha256:a37d4241b74d994760512e2279b280b9d6f0ed899ab943b9a8c991c9850ce8d0`,
+  release `rel-4db12069`, and verification `vrf-a069ec0c`. The release is
+  `APPLIED_VERIFIED`; verification passed `25`, failed `0`, and skipped `5`.
+- The deployment's indexed inventory and provider-supported reads now come
+  from the separately hosted synthetic public-document contract profile. The
+  independent dealership backend no longer pushes chat inventory; it remains
+  responsible for its own website presentation, confirmed test-drive/callback
+  writes, staff inbox, and the protected demonstration adapter.
+- Verification-only Marketplace versions are
+  `mkp-data-autotrader-contract-verification@1.0.0`,
+  `mkp-action-autotrader-contract-verification@1.0.0`, and
+  `mkp-template-autotrader-dealership-verification@1.0.0`. Do not present them
+  as customer Auto Trader packages.
+- The repeatable hosted verifier is
+  `scripts/verify-autotrader-public-contract-hosted-canary.py`. Its 26 checks
+  passed exact synthetic authentication/stock envelopes, release identity,
+  source/webhook readiness, baseline reconciliation, targeted current-record
+  upsert/delete, wrong-signature/malformed/wrong-resource rejection,
+  duplicate/delayed convergence, anonymous session bootstrap, and combined
+  action/indexed-evidence chat. Vector count converged `6 -> 7 -> 6`.
+- Bounded evidence is
+  `verification-support/external-vehicle-provider-simulator/evidence/2026-10-03-autotrader-public-contract-hosted.json`,
+  SHA-256
+  `19932b1f909546ba7699a80d800c47dea8eed436f0dc47abf63957edb8527465`.
+  It contains no credentials or provider payloads.
+- Dealership backend source `d969838139b76a7b6a77c319a1d110629e23fecd`
+  is live and healthy. Staff simulator status fails closed with `401`, while an
+  authenticated CSRF-protected session exposes only `add-stock`,
+  `update-price`, `mark-sold`, and `delete-stock`. All four passed with signed
+  delivery HTTP `200` and connector reconciliation `COMPLETED` in one attempt.
+- Production public-site application `t3r7unm08sh3tfatpadz7qky` completed
+  deployment `puba7hpt7d34wjoi0oidk9h7` on that same commit. A hosted browser
+  proof exercised `update-price` through the visible staff panel and observed
+  no direct browser call to simulator control, connector webhook, or internal
+  routes. The simulator was reset and full reconciliation restored six indexed
+  records after testing.
+- Platform staging backend is healthy on
+  `d969838139b76a7b6a77c319a1d110629e23fecd`. That source fixes release
+  verification so Marketplace connection profiles participate in provider
+  routing expectations and canonical current knowledge-source `type` fields
+  are recognized.
+- The honest claim is `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED`. It proves a
+  synthetic rehearsal of the reviewed public wire subset only. Real Auto
+  Trader credentials, grants, advertiser, sandbox behavior, data rights,
+  validation, certification, endorsement, and production approval remain
+  externally blocked.
