@@ -51,10 +51,11 @@ The container listens on port `3000` and exposes `GET /health`.
 - Health path: `/health`
 - Branch: `Platform-V11`
 
-No application secrets are required. Enable Coolify's **Include Source Commit
-in Build** setting so its `SOURCE_COMMIT` build argument is carried into the
-runtime health response. Do not set a manual `APP_BUILD_COMMIT`; it overrides
-that immutable build identity and becomes stale on the next deployment.
+No application secrets are required. Coolify's runtime `SOURCE_COMMIT` is
+surfaced through the health response. Do not set a manual `APP_BUILD_COMMIT`;
+it takes precedence and becomes stale on the next deployment. Coolify's
+**Include Source Commit in Build** setting is needed only when image build
+steps themselves consume `SOURCE_COMMIT`.
 
 External action-result images are denied by CSP unless their HTTPS origins are
 explicitly configured. The dealership demonstration currently requires:
