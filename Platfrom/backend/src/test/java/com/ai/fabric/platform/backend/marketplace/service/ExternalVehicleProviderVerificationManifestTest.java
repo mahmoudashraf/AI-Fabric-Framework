@@ -27,7 +27,10 @@ class ExternalVehicleProviderVerificationManifestTest {
             "profile-a-data.json",
             "profile-b-data.json",
             "profile-a-template.json",
-            "profile-b-template.json"
+            "profile-b-template.json",
+            "autotrader-contract-data.json",
+            "autotrader-contract-actions.json",
+            "autotrader-contract-template.json"
         )) {
             String manifestJson = Files.readString(fixtureRoot.resolve(file))
                 .replace("__SIMULATOR_BASE_URL__", "https://simulator.example.test")

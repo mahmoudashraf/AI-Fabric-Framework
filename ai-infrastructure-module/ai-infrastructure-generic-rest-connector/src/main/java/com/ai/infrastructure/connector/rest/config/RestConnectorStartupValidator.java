@@ -262,6 +262,19 @@ public class RestConnectorStartupValidator {
                     }
                 }
             }
+            if (response != null) {
+                if (!profileRoute && response.getCollectionFilters() != null
+                    && !response.getCollectionFilters().isEmpty()) {
+                    throw new IllegalStateException(
+                        "Action route '" + actionId.trim()
+                            + "': response.collection-filters are supported only for protected provider routes."
+                    );
+                }
+                validateResponseCollectionFilters(
+                    response.getCollectionFilters(),
+                    "actions." + actionId.trim() + ".response.collection-filters"
+                );
+            }
         });
     }
 
@@ -483,6 +496,7 @@ public class RestConnectorStartupValidator {
             );
             validateStaticQuery(source.getQuery(), "data-sources." + sourceId + ".query");
             validateStaticHeaders(source.getHeaders(), "data-sources." + sourceId + ".headers");
+            validateTargetedRecordFetch(sourceId, source, profile);
             RestRoutingConfig.RecordMapping mapping = source.getMapping();
             if (mapping == null || !StringUtils.hasText(mapping.getIdJsonPointer())
                 || mapping.getContentFields() == null || mapping.getContentFields().isEmpty()) {
@@ -502,6 +516,11 @@ public class RestConnectorStartupValidator {
             validateProjectionMap(mapping.getContentFields(), "data-sources." + sourceId + ".mapping.content-fields");
             validateProjectionMap(mapping.getEntityFields(), "data-sources." + sourceId + ".mapping.entity-fields");
             validateProjectionMap(mapping.getMetadataFields(), "data-sources." + sourceId + ".mapping.metadata-fields");
+            validateInclusionConditions(
+                mapping.getInclusionConditions(),
+                "data-sources." + sourceId + ".mapping.inclusion-conditions",
+                false
+            );
             RestRoutingConfig.Pagination pagination = source.getPagination();
             if (pagination == null || pagination.getStrategy() == null) {
                 throw new IllegalStateException("HTTP data source '" + sourceId + "' requires a pagination strategy.");
@@ -566,15 +585,57 @@ public class RestConnectorStartupValidator {
             }
             RestRoutingConfig.WebhookVerification verification = source.getVerification();
             if (verification == null || verification.getStrategy() == null
+                || verification.getTimestampUnit() == null
                 || !validHeaderName(verification.getSignatureHeader())) {
                 throw new IllegalStateException("Webhook source '" + sourceId + "' must declare a verification strategy and signature header.");
             }
             requireResolvedSecret(verification.getSecret(), "webhooks." + sourceId + ".verification.secret");
             requireId(verification.getTimestampComponent(), "webhook timestamp component");
             requireId(verification.getSignatureComponent(), "webhook signature component");
-            requireJsonPointer(source.getEventIdJsonPointer(), "webhooks." + sourceId + ".event-id-json-pointer");
+            boolean hasSingleEventIdentity = StringUtils.hasText(source.getEventIdJsonPointer());
+            boolean hasCompositeEventIdentity = source.getEventIdentityJsonPointers() != null
+                && !source.getEventIdentityJsonPointers().isEmpty();
+            if (hasSingleEventIdentity == hasCompositeEventIdentity) {
+                throw new IllegalStateException(
+                    "Webhook source '" + sourceId
+                        + "' must declare exactly one event identity strategy."
+                );
+            }
+            if (hasSingleEventIdentity) {
+                requireJsonPointer(source.getEventIdJsonPointer(), "webhooks." + sourceId + ".event-id-json-pointer");
+            } else {
+                if (source.getEventIdentityJsonPointers().size() > 8
+                    || source.getEventIdentityJsonPointers().stream().distinct().count()
+                        != source.getEventIdentityJsonPointers().size()) {
+                    throw new IllegalStateException(
+                        "Webhook source '" + sourceId
+                            + "' composite event identity must contain 1 to 8 unique JSON pointers."
+                    );
+                }
+                source.getEventIdentityJsonPointers().forEach(pointer -> requireJsonPointer(
+                    pointer,
+                    "webhooks." + sourceId + ".event-identity-json-pointers"
+                ));
+            }
             requireJsonPointer(source.getEventTypeJsonPointer(), "webhooks." + sourceId + ".event-type-json-pointer");
             requireJsonPointer(source.getResourceJsonPointer(), "webhooks." + sourceId + ".resource-json-pointer");
+            if (source.getReconciliationStrategy() == null) {
+                throw new IllegalStateException("Webhook source '" + sourceId + "' must declare a reconciliation strategy.");
+            }
+            if (source.getReconciliationStrategy()
+                == RestRoutingConfig.WebhookSource.ReconciliationStrategy.FETCH_CURRENT_RECORD) {
+                requireJsonPointer(
+                    source.getRecordKeyJsonPointer(),
+                    "webhooks." + sourceId + ".record-key-json-pointer"
+                );
+                if (dataSource.getTargetedRecordFetch() == null
+                    || !dataSource.getTargetedRecordFetch().isEnabled()) {
+                    throw new IllegalStateException(
+                        "Webhook source '" + sourceId
+                            + "' requires targeted record fetch on its reconciliation source."
+                    );
+                }
+            }
             if (source.getAllowedEventTypes() == null || source.getAllowedEventTypes().isEmpty()) {
                 throw new IllegalStateException("Webhook source '" + sourceId + "' must declare allowed event types.");
             }
@@ -682,6 +743,154 @@ public class RestConnectorStartupValidator {
                 throw new IllegalStateException(path + " contains an invalid or unbounded header.");
             }
         });
+    }
+
+    private void validateTargetedRecordFetch(
+        String sourceId,
+        RestRoutingConfig.HttpDataSource source,
+        RestRoutingConfig.ConnectionProfile profile
+    ) {
+        RestRoutingConfig.TargetedRecordFetch targeted = source.getTargetedRecordFetch();
+        if (targeted == null || !targeted.isEnabled()) {
+            return;
+        }
+        String pathPrefix = "data-sources." + sourceId + ".targeted-record-fetch";
+        String effectivePath = StringUtils.hasText(targeted.getPath())
+            ? targeted.getPath().trim()
+            : source.getPath();
+        requireRelativePath(effectivePath, pathPrefix + ".path");
+        if (!"GET".equalsIgnoreCase(targeted.getMethod())) {
+            throw new IllegalStateException(
+                "HTTP data source '" + sourceId + "' targeted record fetch must use GET."
+            );
+        }
+        validateSuccessStatuses(targeted.getCompleteHttpStatuses(), pathPrefix + ".complete-http-statuses");
+        if (targeted.getAbsentHttpStatuses() == null || targeted.getAbsentHttpStatuses().isEmpty()
+            || targeted.getAbsentHttpStatuses().size() > 10
+            || targeted.getAbsentHttpStatuses().stream().anyMatch(status -> status == null || status < 400 || status > 499)
+            || targeted.getAbsentHttpStatuses().stream().distinct().count() != targeted.getAbsentHttpStatuses().size()) {
+            throw new IllegalStateException(pathPrefix + ".absent-http-statuses must contain unique 4xx statuses.");
+        }
+        validateStaticQuery(targeted.getQuery(), pathPrefix + ".query");
+        validateStaticHeaders(targeted.getHeaders(), pathPrefix + ".headers");
+        RestRoutingConfig.RecordKeyPlacement placement = targeted.getRecordKeyPlacement();
+        if (placement == null || placement.getTarget() == null || !StringUtils.hasText(placement.getField())) {
+            throw new IllegalStateException(pathPrefix + ".record-key-placement is incomplete.");
+        }
+        if (placement.getTarget() == RestRoutingConfig.RecordKeyPlacement.Target.HEADER) {
+            if (!validHeaderName(placement.getField())) {
+                throw new IllegalStateException(pathPrefix + ".record-key-placement contains an invalid header.");
+            }
+            String authHeader = profile.getAuth().getStrategy() == RestRoutingConfig.ProviderAuth.Strategy.API_KEY
+                ? profile.getAuth().getApiKeyHeader()
+                : profile.getAuth().getStrategy() == RestRoutingConfig.ProviderAuth.Strategy.FORM_TOKEN_EXCHANGE
+                    ? profile.getAuth().getAuthorizationHeader()
+                    : null;
+            if (StringUtils.hasText(authHeader) && authHeader.equalsIgnoreCase(placement.getField().trim())) {
+                throw new IllegalStateException(pathPrefix + ".record-key-placement must not target the auth header.");
+            }
+        } else {
+            requireRequestFieldName(placement.getField(), pathPrefix + ".record-key-placement.field");
+        }
+        if (placement.getTarget() == RestRoutingConfig.RecordKeyPlacement.Target.PATH
+            && !effectivePath.contains("{" + placement.getField().trim() + "}")) {
+            throw new IllegalStateException(pathPrefix + ".record-key-placement does not match a path placeholder.");
+        }
+        for (RestRoutingConfig.ResourcePlacement protectedPlacement : source.getTrustedResourcePlacements()) {
+            if (protectedPlacement == null || protectedPlacement.getTarget() == null) {
+                continue;
+            }
+            if (protectedPlacement.getTarget().name().equals(placement.getTarget().name())
+                && protectedPlacement.getField().equalsIgnoreCase(placement.getField())) {
+                throw new IllegalStateException(pathPrefix + ".record-key-placement conflicts with a protected resource placement.");
+            }
+            if (protectedPlacement.getTarget() == RestRoutingConfig.ResourcePlacement.Target.PATH
+                && !effectivePath.contains("{" + protectedPlacement.getField().trim() + "}")) {
+                throw new IllegalStateException(pathPrefix + ".path omits a protected resource placeholder.");
+            }
+        }
+        Matcher placeholders = PATH_PLACEHOLDER.matcher(effectivePath);
+        while (placeholders.find()) {
+            String placeholder = placeholders.group(1);
+            boolean recordKeyPlaceholder = placement.getTarget() == RestRoutingConfig.RecordKeyPlacement.Target.PATH
+                && placeholder.equals(placement.getField().trim());
+            boolean protectedPlaceholder = source.getTrustedResourcePlacements().stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(item -> item.getTarget() == RestRoutingConfig.ResourcePlacement.Target.PATH
+                    && placeholder.equals(item.getField().trim()));
+            if (!recordKeyPlaceholder && !protectedPlaceholder) {
+                throw new IllegalStateException(pathPrefix + ".path contains an unbound placeholder.");
+            }
+        }
+    }
+
+    private void validateResponseCollectionFilters(
+        List<RestRoutingConfig.ResponseCollectionFilter> filters,
+        String path
+    ) {
+        if (filters == null || filters.isEmpty()) {
+            return;
+        }
+        if (filters.size() > 10) {
+            throw new IllegalStateException(path + " supports at most 10 filters.");
+        }
+        for (RestRoutingConfig.ResponseCollectionFilter filter : filters) {
+            if (filter == null) {
+                throw new IllegalStateException(path + " contains an incomplete filter.");
+            }
+            requireNonRootJsonPointer(filter.getCollectionJsonPointer(), path + ".collection-json-pointer");
+            if (StringUtils.hasText(filter.getCountJsonPointer())) {
+                requireNonRootJsonPointer(filter.getCountJsonPointer(), path + ".count-json-pointer");
+            }
+            validateInclusionConditions(filter.getInclusionConditions(), path + ".inclusion-conditions", true);
+        }
+    }
+
+    private void validateInclusionConditions(
+        List<RestRoutingConfig.RecordInclusionCondition> conditions,
+        String path,
+        boolean required
+    ) {
+        if (conditions == null || conditions.isEmpty()) {
+            if (required) {
+                throw new IllegalStateException(path + " must contain at least one condition.");
+            }
+            return;
+        }
+        if (conditions.size() > 20) {
+            throw new IllegalStateException(path + " supports at most 20 conditions.");
+        }
+        for (RestRoutingConfig.RecordInclusionCondition condition : conditions) {
+            if (condition == null) {
+                throw new IllegalStateException(path + " contains an incomplete condition.");
+            }
+            requireJsonPointer(condition.getJsonPointer(), path + ".json-pointer");
+            if (condition.getAllowedValues() == null || condition.getAllowedValues().isEmpty()
+                || condition.getAllowedValues().size() > 50
+                || condition.getAllowedValues().stream().anyMatch(value -> !StringUtils.hasText(value)
+                    || value.length() > 500)
+                || condition.getAllowedValues().stream().distinct().count()
+                    != condition.getAllowedValues().size()) {
+                throw new IllegalStateException(
+                    path + " values must be non-empty, unique, and bounded."
+                );
+            }
+        }
+    }
+
+    private void requireNonRootJsonPointer(String value, String label) {
+        requireJsonPointer(value, label);
+        if ("/".equals(value != null ? value.trim() : null)) {
+            throw new IllegalStateException(label + " must address a named field.");
+        }
+    }
+
+    private void validateSuccessStatuses(List<Integer> statuses, String path) {
+        if (statuses == null || statuses.isEmpty() || statuses.size() > 10
+            || statuses.stream().anyMatch(status -> status == null || status < 200 || status > 299)
+            || statuses.stream().distinct().count() != statuses.size()) {
+            throw new IllegalStateException(path + " must contain unique 2xx statuses.");
+        }
     }
 
     private void validateProjectionMap(Map<String, String> fields, String path) {

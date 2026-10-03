@@ -39,42 +39,74 @@ authz:
 
 actions:
   dealership_search_inventory:
+    connection-profile-ref: autotrader-stock-provider
+    protected-resource-binding-ref: autotrader-dealership-account
+    required-capability-grants: ["stock:read"]
+    trusted-resource-placements:
+      - target: QUERY
+        field: advertiserId
     method: GET
-    path: /api/public/vehicles
+    path: /stock
     request:
       query:
-        dealershipId: dealer-demo-001
-        make: "{{params.make}}"
-        fuelType: "{{params.fuelType}}"
-        bodyType: "{{params.bodyType}}"
-        maxPriceGbp: "{{params.maxPriceGbp}}"
-        maxMileage: "{{params.maxMileage}}"
-        limit: "{{params.limit|12}}"
+        lifecycleState: FORECOURT
+        page: 1
+        pageSize: 200
     response:
       success-http-status: [200]
+      collection-filters:
+        - collection-json-pointer: /results
+          count-json-pointer: /totalResults
+          inclusion-conditions:
+            - json-pointer: /adverts/retailAdverts/advertiserAdvert/status
+              allowed-values: [PUBLISHED]
       result:
-        _items: "{{body.items}}"
-        _count: "{{body.total}}"
-        total: "{{body.total}}"
-        appliedFilters: "{{body.appliedFilters}}"
-        source: "{{body.source}}"
-        dataNotice: "{{body.dataNotice}}"
-      message: Inventory search completed.
+        _items: "{{body.results}}"
+        _count: "{{body.totalResults}}"
+        results: "{{body.results}}"
+        total: "{{body.totalResults}}"
+        source:
+          label: Fictional Auto Trader contract-simulator stock
+        dataNotice: Synthetic demonstration records returned through the documented Auto Trader Stock API response shape.
+      message: Provider stock search completed.
     authz:
       enabled: true
       resource-id: inventory-search
       operation-type: SEARCH
 
   dealership_get_vehicle:
+    connection-profile-ref: autotrader-stock-provider
+    protected-resource-binding-ref: autotrader-dealership-account
+    required-capability-grants: ["stock:read"]
+    trusted-resource-placements:
+      - target: QUERY
+        field: advertiserId
     method: GET
-    path: /api/public/vehicles/by-reference
+    path: /stock
     request:
       query:
-        dealershipId: dealer-demo-001
-        reference: "{{params.vehicle}}"
+        stockId: "{{params.vehicle}}"
+        lifecycleState: FORECOURT
+        page: 1
+        pageSize: 1
     response:
       success-http-status: [200]
-      message: Current vehicle details loaded.
+      collection-filters:
+        - collection-json-pointer: /results
+          count-json-pointer: /totalResults
+          inclusion-conditions:
+            - json-pointer: /adverts/retailAdverts/advertiserAdvert/status
+              allowed-values: [PUBLISHED]
+      result:
+        _items: "{{body.results}}"
+        _count: "{{body.totalResults}}"
+        vehicleRecord: "{{body.results[0]}}"
+        total: "{{body.totalResults}}"
+        source:
+          label: Fictional Auto Trader contract-simulator stock
+          refreshedAt: "{{body.results[0].metadata.lastUpdated}}"
+        dataNotice: Synthetic demonstration record returned through the documented Auto Trader Stock API response shape.
+      message: Current provider stock details loaded.
     authz:
       enabled: true
       resource-id: "{{params.vehicle}}"

@@ -2,6 +2,7 @@ package com.ai.fabric.platform.backend.marketplace.service;
 
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginEntity;
 import com.ai.fabric.platform.backend.marketplace.entity.MarketplacePluginVersionEntity;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
@@ -606,6 +607,43 @@ class MarketplaceManifestServiceTest {
             assertThat(dataset.syncConnector().path("webhook").path("orderingPolicy").asText())
                 .isEqualTo("RECONCILE_LATEST_STATE");
         });
+    }
+
+    @Test
+    void externalHttpDataManifestAcceptsTargetedWebhookReconciliationWithMillisecondSignature() throws Exception {
+        ObjectNode manifest = (ObjectNode) objectMapper.readTree(validHttpDataManifest());
+        ObjectNode connector = (ObjectNode) manifest.path("contributions").path("datasets").get(0)
+            .path("syncConnector");
+        ObjectNode targeted = ((ObjectNode) connector.path("httpSource")).putObject("targetedRecordFetch");
+        targeted.put("enabled", true);
+        targeted.put("path", "/records/{account}");
+        targeted.put("method", "GET");
+        targeted.putArray("completeHttpStatuses").add(200);
+        targeted.putArray("absentHttpStatuses").add(404);
+        targeted.putObject("recordKeyPlacement").put("target", "QUERY").put("field", "recordId");
+        ObjectNode webhook = (ObjectNode) connector.path("webhook");
+        webhook.put("recordKeyJsonPointer", "/data/recordId");
+        webhook.put("reconciliationStrategy", "FETCH_CURRENT_RECORD");
+        ((ObjectNode) webhook.path("verification")).put("timestampUnit", "MILLISECONDS");
+        webhook.putObject("responseStatuses")
+            .put("accepted", 200)
+            .put("duplicate", 200)
+            .put("resourceMismatch", 422);
+
+        MarketplaceManifestService.ParsedMarketplaceManifest parsed = service.parseAndValidate(
+            dataPlugin(),
+            dataVersion(objectMapper.writeValueAsString(manifest))
+        );
+
+        JsonNode parsedConnector = parsed.datasets().getFirst().syncConnector();
+        assertThat(parsedConnector.path("httpSource").path("targetedRecordFetch").path("enabled").asBoolean())
+            .isTrue();
+        assertThat(parsedConnector.path("webhook").path("reconciliationStrategy").asText())
+            .isEqualTo("FETCH_CURRENT_RECORD");
+        assertThat(parsedConnector.path("webhook").path("verification").path("timestampUnit").asText())
+            .isEqualTo("MILLISECONDS");
+        assertThat(parsedConnector.path("webhook").path("responseStatuses").path("resourceMismatch").asInt())
+            .isEqualTo(422);
     }
 
     @Test

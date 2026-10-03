@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-data-autotrader-contract-verification",
+  "version": "1.0.0",
+  "pluginType": "DATA",
+  "displayName": "Internal Auto Trader Contract Verification Source",
+  "description": "Internal-only dealership stock source that exercises the public AT Connect authentication, stock and notification contract against the LoomAI simulator. It is not an Auto Trader service or endorsement.",
+  "compatibility": {
+    "requiredCapabilities": ["knowledgeSources"],
+    "supportedDeploymentTargets": ["custom-start-from-scratch"]
+  },
+  "pricing": {"pricingModel": "FREE"},
+  "installForm": [
+    {"id": "providerKey", "label": "AT Connect API key", "type": "secretref", "required": true},
+    {"id": "providerSecret", "label": "AT Connect API secret", "type": "secretref", "required": true},
+    {"id": "notificationSecret", "label": "AT Connect notification secret", "type": "secretref", "required": true},
+    {"id": "advertiserId", "label": "Advertiser ID", "type": "text", "required": true}
+  ],
+  "permissions": {
+    "contributesKnowledgeSources": true,
+    "requiresSharedDatasetAccess": false,
+    "requiresDeploymentSecrets": true
+  },
+  "contributions": {
+    "entityConfig": {
+      "ai-entities": {
+        "dealer-vehicle": {
+          "indexing": {"enabled": true, "max-characters": 8000},
+          "analysis": {"enabled": false, "after": []},
+          "searchable-fields": [
+            {
+              "name": "content",
+              "destinations": ["SEMANTIC_SEARCH", "RAG_CONTEXT"],
+              "preprocessing": "CLEAN",
+              "max-length": 8000,
+              "priority": 100,
+              "required": true
+            }
+          ],
+          "metadata-fields": [
+            {"name": "tenantId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 100, "required": true, "sanitize-pii": false},
+            {"name": "deploymentId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 100, "required": true, "sanitize-pii": false},
+            {"name": "sourceId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 90, "required": true, "sanitize-pii": false},
+            {"name": "stockId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 90, "required": true, "sanitize-pii": false}
+          ]
+        }
+      }
+    },
+    "datasets": [
+      {
+        "datasetId": "autotrader-dealership-stock",
+        "entityType": "dealer-vehicle",
+        "storageScope": "CUSTOMER_MANAGED",
+        "sharingScope": "DEPLOYMENT_ONLY",
+        "ingestionMode": "EXTERNAL_SYNC_HTTP",
+        "updateStrategy": "UPSERT_BY_ID",
+        "syncConnector": {
+          "connectorType": "HTTP_JSON",
+          "connectionProfile": {
+            "profileId": "autotrader-stock-provider",
+            "environment": "verification",
+            "baseUrl": "__SIMULATOR_BASE_URL__",
+            "allowedHosts": ["__SIMULATOR_HOST__"],
+            "auth": {
+              "strategy": "FORM_TOKEN_EXCHANGE",
+              "tokenBaseUrl": "__SIMULATOR_BASE_URL__",
+              "tokenPath": "/authenticate",
+              "tokenMethod": "POST",
+              "credentialFields": [
+                {"name": "key", "secretRefField": "providerKey"},
+                {"name": "secret", "secretRefField": "providerSecret"}
+              ],
+              "tokenJsonPointer": "/access_token",
+              "absoluteExpiryJsonPointer": "/expires_at",
+              "authorizationHeader": "Authorization",
+              "authorizationScheme": "Bearer",
+              "expirySkewSeconds": 30,
+              "timeoutMs": 5000
+            },
+            "ratePolicy": {
+              "maxConcurrent": 2,
+              "minIntervalMs": 50,
+              "rateLimitedPauseMs": 30000,
+              "unavailablePauseMs": 5000,
+              "maxAttempts": 2,
+              "retryBackoffMs": 250,
+              "retryStatuses": [429, 502, 503, 504]
+            },
+            "errorMappings": [],
+            "capabilityGrants": ["stock:read"],
+            "correlationResponseHeaders": []
+          },
+          "protectedResource": {
+            "bindingId": "autotrader-dealership-account",
+            "environment": "verification",
+            "resourceType": "advertiser",
+            "resourceIdField": "advertiserId",
+            "policyRef": "single-advertiser-deployment",
+            "capabilityGrants": ["stock:read"]
+          },
+          "httpSource": {
+            "sourceId": "autotrader-dealership-stock-source",
+            "enabled": true,
+            "path": "/stock",
+            "method": "GET",
+            "query": {"lifecycleState": "FORECOURT"},
+            "completeHttpStatuses": [200],
+            "trustedResourcePlacements": [
+              {"target": "QUERY", "field": "advertiserId"}
+            ],
+            "requiredCapabilityGrants": ["stock:read"],
+            "pagination": {
+              "strategy": "PAGE_SIZE",
+              "pageQuery": "page",
+              "sizeQuery": "pageSize",
+              "startPage": 1,
+              "pageSize": 200,
+              "maxPages": 100
+            },
+            "mapping": {
+              "recordsJsonPointer": "/results",
+              "idJsonPointer": "/metadata/stockId",
+              "resourceJsonPointer": "/advertiser/advertiserId",
+              "contentFields": {
+                "make": "/vehicle/make",
+                "model": "/vehicle/model",
+                "derivative": "/vehicle/derivative",
+                "registrationYear": "/vehicle/yearOfManufacture",
+                "fuelType": "/vehicle/fuelType",
+                "bodyType": "/vehicle/bodyType",
+                "transmission": "/vehicle/transmissionType",
+                "mileage": "/vehicle/odometerReadingMiles",
+                "priceGbp": "/adverts/retailAdverts/totalPrice/amountGBP",
+                "features": "/features"
+              },
+              "entityFields": {
+                "stockId": "/metadata/stockId",
+                "make": "/vehicle/make",
+                "model": "/vehicle/model",
+                "derivative": "/vehicle/derivative",
+                "year": "/vehicle/yearOfManufacture",
+                "priceGbp": "/adverts/retailAdverts/totalPrice/amountGBP",
+                "mileage": "/vehicle/odometerReadingMiles",
+                "fuelType": "/vehicle/fuelType",
+                "transmission": "/vehicle/transmissionType",
+                "bodyType": "/vehicle/bodyType",
+                "availability": "/metadata/lifecycleState",
+                "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
+                "features": "/features"
+              },
+              "metadataFields": {
+                "stockId": "/metadata/stockId",
+                "searchId": "/metadata/searchId",
+                "lifecycleState": "/metadata/lifecycleState",
+                "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
+                "providerUpdatedAt": "/metadata/lastUpdated",
+                "providerRecordVersion": "/metadata/versionNumber"
+              },
+              "inclusionConditions": [
+                {
+                  "jsonPointer": "/adverts/retailAdverts/advertiserAdvert/status",
+                  "allowedValues": ["PUBLISHED"]
+                }
+              ],
+              "maxRecords": 20000,
+              "maxResponseBytes": 10485760
+            },
+            "tombstonePolicy": {
+              "strategy": "ABSENT_OR_FIELD_VALUE",
+              "operationJsonPointer": "/metadata/lifecycleState",
+              "deleteValues": ["SOLD", "WASTEBIN", "DELETED"]
+            },
+            "targetedRecordFetch": {
+              "enabled": true,
+              "path": "/stock",
+              "method": "GET",
+              "completeHttpStatuses": [200],
+              "absentHttpStatuses": [404],
+              "query": {"page": 1, "pageSize": 1},
+              "recordKeyPlacement": {"target": "QUERY", "field": "stockId"}
+            },
+            "scheduleSeconds": 900
+          },
+          "webhook": {
+            "sourceId": "autotrader-stock-events",
+            "method": "PUT",
+            "allowedContentTypes": ["application/json"],
+            "verification": {
+              "strategy": "HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY",
+              "signatureHeader": "AutoTrader-Signature",
+              "secretRefField": "notificationSecret",
+              "timestampComponent": "t",
+              "signatureComponent": "v1",
+              "timestampUnit": "SECONDS",
+              "replayWindowSeconds": 300
+            },
+            "eventIdentityJsonPointers": ["/id", "/time"],
+            "eventTypeJsonPointer": "/type",
+            "resourceJsonPointer": "/data/advertiser/advertiserId",
+            "recordKeyJsonPointer": "/data/metadata/stockId",
+            "reconciliationStrategy": "FETCH_CURRENT_RECORD",
+            "allowedEventTypes": ["STOCK_UPDATE"],
+            "responseStatuses": {
+              "accepted": 200,
+              "duplicate": 200,
+              "resourceMismatch": 422
+            },
+            "maxBodyBytes": 1048576,
+            "maxReconcileAttempts": 3,
+            "retryDelaySeconds": 10,
+            "registrationExpected": true,
+            "manualReplayEnabled": true,
+            "orderingPolicy": "RECONCILE_LATEST_STATE"
+          }
+        }
+      }
+    ],
+    "knowledgeSources": [
+      {
+        "sourceType": "deployment-private-vector",
+        "sourceKey": "autotrader-dealership-stock",
+        "adapterType": "deployment-private-vector",
+        "datasetRef": "autotrader-dealership-stock",
+        "entityType": "dealer-vehicle",
+        "attributionLabel": "Fictional Auto Trader contract-simulator stock"
+      }
+    ]
+  }
+}

@@ -9,7 +9,11 @@ import com.ai.infrastructure.connector.rest.config.RestRoutingConfig;
 import com.ai.infrastructure.connector.rest.template.TemplateEngine;
 import com.ai.infrastructure.connector.rest.util.TraceContextSupport;
 import com.ai.infrastructure.connector.rest.util.UrlBuilder;
+import com.fasterxml.jackson.core.JsonPointer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -112,15 +116,15 @@ public class RestActionExecutionService {
     }
 
     private ActionResultDto executeOnce(RestRoutingConfig.ActionRoute route, ActionExecuteRequestDto request, long startMs) {
-        ResolvedUpstream resolved = resolveUpstream(route);
-
+        boolean providerRoute = StringUtils.hasText(route.getConnectionProfileRef());
+        ResolvedUpstream resolved = providerRoute ? null : resolveUpstream(route);
         Map<String, Object> ctx = templateEngine.contextFor(request, resolved);
         ActionResultDto authzResult = authorizeAction(route, request, ctx);
         if (authzResult != null) {
             return authzResult;
         }
 
-        if (StringUtils.hasText(route.getConnectionProfileRef())) {
+        if (providerRoute) {
             return executeProviderRoute(route, request, ctx, startMs);
         }
 
@@ -373,6 +377,9 @@ public class RestActionExecutionService {
         boolean success = isSuccessStatus(responseConfig, status);
 
         Object parsedBody = parseJsonLenient(rawBody);
+        if (success) {
+            parsedBody = filterResponseCollections(responseConfig, parsedBody);
+        }
         Map<String, Object> bodyCtx = new LinkedHashMap<>(ctx);
         bodyCtx.put("status", status);
         bodyCtx.put("body", parsedBody);
@@ -451,6 +458,76 @@ public class RestActionExecutionService {
             return RestRoutingConfig.Response.GroundingSufficiency.INSUFFICIENT.name();
         }
         return null;
+    }
+
+    private Object filterResponseCollections(RestRoutingConfig.Response responseConfig, Object parsedBody) {
+        if (responseConfig == null || responseConfig.getCollectionFilters() == null
+            || responseConfig.getCollectionFilters().isEmpty()) {
+            return parsedBody;
+        }
+        JsonNode root = objectMapper.valueToTree(parsedBody);
+        if (!(root instanceof ObjectNode objectRoot)) {
+            throw malformedProviderResponse("Provider response filters require a JSON object response.");
+        }
+        for (RestRoutingConfig.ResponseCollectionFilter filter : responseConfig.getCollectionFilters()) {
+            JsonNode selected = objectRoot.at(filter.getCollectionJsonPointer());
+            if (!(selected instanceof ArrayNode sourceItems)) {
+                throw malformedProviderResponse("Provider response collection filter did not resolve to a list.");
+            }
+            ArrayNode included = objectMapper.createArrayNode();
+            for (JsonNode item : sourceItems) {
+                if (!item.isObject()) {
+                    throw malformedProviderResponse("Provider response collection contains a non-object item.");
+                }
+                if (matchesInclusionConditions(item, filter.getInclusionConditions())) {
+                    included.add(item.deepCopy());
+                }
+            }
+            replaceObjectField(objectRoot, filter.getCollectionJsonPointer(), included);
+            if (StringUtils.hasText(filter.getCountJsonPointer())) {
+                replaceObjectField(
+                    objectRoot,
+                    filter.getCountJsonPointer(),
+                    objectMapper.getNodeFactory().numberNode(included.size())
+                );
+            }
+        }
+        return objectMapper.convertValue(objectRoot, Object.class);
+    }
+
+    private boolean matchesInclusionConditions(
+        JsonNode item,
+        List<RestRoutingConfig.RecordInclusionCondition> conditions
+    ) {
+        return conditions.stream().allMatch(condition -> {
+            JsonNode value = item.at(condition.getJsonPointer());
+            if (!value.isValueNode()) {
+                return false;
+            }
+            String actual = value.asText("").trim();
+            return condition.getAllowedValues().stream()
+                .anyMatch(allowed -> allowed.equalsIgnoreCase(actual));
+        });
+    }
+
+    private void replaceObjectField(ObjectNode root, String pointerValue, JsonNode replacement) {
+        JsonPointer pointer;
+        try {
+            pointer = JsonPointer.compile(pointerValue);
+        } catch (IllegalArgumentException ex) {
+            throw malformedProviderResponse("Provider response filter contains an invalid JSON Pointer.");
+        }
+        JsonPointer leaf = pointer.last();
+        JsonNode parent = root.at(pointer.head());
+        String property = leaf != null ? leaf.getMatchingProperty() : null;
+        if (!(parent instanceof ObjectNode parentObject) || !StringUtils.hasText(property)) {
+            throw malformedProviderResponse("Provider response filter must address an object field.");
+        }
+        parentObject.set(property, replacement);
+    }
+
+    private ProviderCallException malformedProviderResponse(String message) {
+        return new ProviderCallException(ProviderErrorClass.MALFORMED_RESPONSE, 0, message);
     }
 
     private boolean isSuccessStatus(RestRoutingConfig.Response responseConfig, int status) {

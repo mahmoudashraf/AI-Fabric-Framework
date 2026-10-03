@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RestActionExecutionServiceTest {
 
@@ -261,6 +263,150 @@ class RestActionExecutionServiceTest {
 
         assertThat(result.success()).isTrue();
         assertThat(result.groundingSufficiency()).isEqualTo("SUFFICIENT");
+    }
+
+    @Test
+    void providerOnlyRouteDoesNotRequireGlobalUpstream() {
+        RestRoutingConfig config = new RestRoutingConfig();
+        RestRoutingConfig.ConnectionProfile profile = new RestRoutingConfig.ConnectionProfile();
+        profile.setEnvironment("sandbox");
+        profile.setBaseUrl("https://provider.example");
+        profile.setAllowedHosts(List.of("provider.example"));
+        profile.setCapabilityGrants(List.of("stock:read"));
+        config.getConnectionProfiles().put("provider", profile);
+        RestRoutingConfig.ProtectedResourceBinding binding = new RestRoutingConfig.ProtectedResourceBinding();
+        binding.setConnectionProfileRef("provider");
+        binding.setEnvironment("sandbox");
+        binding.setResourceType("advertiser");
+        binding.setResourceId("advertiser-1");
+        binding.setCapabilityGrants(List.of("stock:read"));
+        config.getProtectedResources().put("advertiser", binding);
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        route.setPath("/stock");
+        route.setMethod("GET");
+        route.setConnectionProfileRef("provider");
+        route.setProtectedResourceBindingRef("advertiser");
+        route.setRequiredCapabilityGrants(List.of("stock:read"));
+        RestRoutingConfig.ResourcePlacement placement = new RestRoutingConfig.ResourcePlacement();
+        placement.setTarget(RestRoutingConfig.ResourcePlacement.Target.QUERY);
+        placement.setField("advertiserId");
+        route.setTrustedResourcePlacements(List.of(placement));
+        route.getResponse().setSuccessHttpStatus(List.of(200));
+        route.getResponse().setResult("{{body.results}}");
+        config.getActions().put("provider_stock", route);
+        ProviderHttpClient providerClient = mock(ProviderHttpClient.class);
+        when(providerClient.execute(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new ProviderHttpClient.ProviderResponse(
+                200,
+                "{\"results\":[{\"id\":\"stock-1\"}]}",
+                Map.of()
+            ));
+        TemplateEngine templateEngine = new TemplateEngine();
+        RestActionExecutionService service = new RestActionExecutionService(
+            config,
+            templateEngine,
+            OBJECT_MAPPER,
+            new InMemoryIdempotencyStore(config, Clock.systemUTC()),
+            new RestAuthzProxyService(config),
+            providerClient,
+            new ProtectedResourceService(config, OBJECT_MAPPER)
+        );
+
+        ActionResultDto result = service.execute(new ActionExecuteRequestDto(
+            "provider_stock",
+            Map.of(),
+            null,
+            verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("_count", 1);
+    }
+
+    @Test
+    void providerRouteFiltersNonPublishableRecordsBeforeTemplatingAndGrounding() {
+        RestRoutingConfig config = new RestRoutingConfig();
+        RestRoutingConfig.ConnectionProfile profile = new RestRoutingConfig.ConnectionProfile();
+        profile.setEnvironment("sandbox");
+        profile.setBaseUrl("https://provider.example");
+        profile.setAllowedHosts(List.of("provider.example"));
+        profile.setCapabilityGrants(List.of("stock:read"));
+        config.getConnectionProfiles().put("provider", profile);
+        RestRoutingConfig.ProtectedResourceBinding binding = new RestRoutingConfig.ProtectedResourceBinding();
+        binding.setConnectionProfileRef("provider");
+        binding.setEnvironment("sandbox");
+        binding.setResourceType("advertiser");
+        binding.setResourceId("advertiser-1");
+        binding.setCapabilityGrants(List.of("stock:read"));
+        config.getProtectedResources().put("advertiser", binding);
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        route.setPath("/stock");
+        route.setMethod("GET");
+        route.setConnectionProfileRef("provider");
+        route.setProtectedResourceBindingRef("advertiser");
+        route.setRequiredCapabilityGrants(List.of("stock:read"));
+        RestRoutingConfig.ResourcePlacement placement = new RestRoutingConfig.ResourcePlacement();
+        placement.setTarget(RestRoutingConfig.ResourcePlacement.Target.QUERY);
+        placement.setField("advertiserId");
+        route.setTrustedResourcePlacements(List.of(placement));
+        route.getResponse().setSuccessHttpStatus(List.of(200));
+        RestRoutingConfig.ResponseCollectionFilter filter = new RestRoutingConfig.ResponseCollectionFilter();
+        filter.setCollectionJsonPointer("/results");
+        filter.setCountJsonPointer("/totalResults");
+        RestRoutingConfig.RecordInclusionCondition condition = new RestRoutingConfig.RecordInclusionCondition();
+        condition.setJsonPointer("/adverts/retailAdverts/advertiserAdvert/status");
+        condition.setAllowedValues(List.of("PUBLISHED"));
+        filter.setInclusionConditions(List.of(condition));
+        route.getResponse().setCollectionFilters(List.of(filter));
+        route.getResponse().setResult(Map.of(
+            "_items", "{{body.results}}",
+            "_count", "{{body.totalResults}}"
+        ));
+        config.getActions().put("provider_stock", route);
+        ProviderHttpClient providerClient = mock(ProviderHttpClient.class);
+        when(providerClient.execute(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new ProviderHttpClient.ProviderResponse(
+                200,
+                """
+                    {
+                      "results": [
+                        {
+                          "metadata": {"stockId": "visible"},
+                          "adverts": {"retailAdverts": {"advertiserAdvert": {"status": "PUBLISHED"}}}
+                        },
+                        {
+                          "metadata": {"stockId": "hidden"},
+                          "adverts": {"retailAdverts": {"advertiserAdvert": {"status": "NOT_PUBLISHED"}}}
+                        }
+                      ],
+                      "totalResults": 2
+                    }
+                    """,
+                Map.of()
+            ));
+        RestActionExecutionService service = new RestActionExecutionService(
+            config,
+            new TemplateEngine(),
+            OBJECT_MAPPER,
+            new InMemoryIdempotencyStore(config, Clock.systemUTC()),
+            new RestAuthzProxyService(config),
+            providerClient,
+            new ProtectedResourceService(config, OBJECT_MAPPER)
+        );
+
+        ActionResultDto result = service.execute(new ActionExecuteRequestDto(
+            "provider_stock",
+            Map.of(),
+            null,
+            verifiedTrace()
+        ));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).containsEntry("_count", 1);
+        assertThat((List<?>) result.data().get("_items"))
+            .singleElement()
+            .satisfies(item -> assertThat(OBJECT_MAPPER.valueToTree(item).path("metadata").path("stockId").asText())
+                .isEqualTo("visible"));
     }
 
     private RestActionExecutionService service(RestRoutingConfig config) {

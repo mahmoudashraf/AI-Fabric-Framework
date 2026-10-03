@@ -19,7 +19,8 @@ public record SimulatorProperties(
     @Min(30) @Max(3600) int tokenTtlSeconds,
     @NotEmpty List<@NotBlank String> allowedWebhookHosts,
     @Valid ProfileA profileA,
-    @Valid ProfileB profileB
+    @Valid ProfileB profileB,
+    @Valid AutoTrader autoTrader
 ) {
 
     public record ProfileA(
@@ -34,6 +35,16 @@ public record SimulatorProperties(
         @NotBlank String accountId,
         @NotBlank String apiKey,
         @NotBlank String webhookSecret
+    ) {
+    }
+
+    public record AutoTrader(
+        @NotBlank String advertiserId,
+        @NotBlank String apiKey,
+        @NotBlank String apiSecret,
+        @NotBlank String notificationSecret,
+        @NotBlank String integrationId,
+        @Min(900) @Max(900) int tokenTtlSeconds
     ) {
     }
 }

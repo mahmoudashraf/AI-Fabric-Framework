@@ -15,7 +15,7 @@ Code:
 
 ---
 
-## Status (as of 2026-09-27)
+## Status (as of 2026-10-03)
 
 - **Implemented:**
   - `/actions/execute` connector endpoint (runtime-compatible)
@@ -35,6 +35,11 @@ Code:
     response sizes, and runtime Data Sync/index-work reconciliation
   - Raw-body HMAC provider webhooks with replay-window checks, durable dedupe,
     retry, controlled replay, and dead-letter status
+  - Generic event-to-record reconciliation: extract a bounded record key from
+    a verified event, fetch exactly one current provider record, then upsert or
+    delete it through the same mapper used by the complete baseline
+  - Per-provider webhook response status policy for accepted, duplicate, and
+    protected-resource mismatch responses
   - PostgreSQL/Flyway integration state in a connector-owned schema and
     restricted role
   - Safe integration posture, source/work status, bounded webhook event
@@ -212,10 +217,12 @@ sections:
 - `protected-resources`: immutable resource ID, environment, type, grants, and
   connection-profile ownership;
 - `data-sources`: method/path, server-owned resource placements, pagination,
-  projections, source version, schedule, limits, and tombstone policy;
+  projections, source version, schedule, limits, tombstone policy, and an
+  optional bounded current-record fetch contract;
 - `webhooks`: method/content type, raw-body verifier, resource/event pointers,
-  allowed event types, retry/dead-letter policy, and optional operator replay;
-  and
+  optional record-key pointer, full-source or current-record reconciliation,
+  provider response statuses, allowed event types, retry/dead-letter policy,
+  and optional operator replay; and
 - `runtime-data-sync`: private runtime URL, deployment-scoped API key,
   deployment/tenant identity, and bounded indexing-work polling.
 
@@ -229,6 +236,10 @@ Safety rules:
 - a resource placement cannot target the provider authentication header;
 - every provider record and accepted event must carry the exact protected
   resource ID before it can reach Data Sync;
+- a targeted fetch must return zero or exactly one record whose stable ID is
+  equal to the verified event record key; any other shape fails closed;
+- complete and targeted reconciliation for one source share a fair source lock
+  so they cannot race their provider/index state;
 - cursor state is reused only while the immutable source version is unchanged;
 - absent-record deletion is allowed only for a proven-complete snapshot, never
   an incremental cursor feed; and
@@ -244,6 +255,38 @@ secret-backed form fields, a token JSON Pointer, exactly one absolute or
 relative expiry pointer, an approved token host, and a configured authorization
 header/scheme. Token values are held in memory and are not written to connector
 state or admin responses.
+
+#### Targeted reconciliation contract
+
+`httpSource.targetedRecordFetch` may declare a relative path/method, static
+query/headers, complete and absent status sets, and one record-key placement in
+`QUERY`, `PATH`, or `HEADER`. The request inherits the source's immutable
+protected-resource placement and required grants. The event cannot select the
+provider host, advertiser/account, route, or credentials.
+
+To activate it, the matching webhook declares:
+
+```yaml
+record-key-json-pointer: /data/metadata/stockId
+reconciliation-strategy: FETCH_CURRENT_RECORD
+response-statuses:
+  accepted: 200
+  duplicate: 200
+  resource-mismatch: 422
+```
+
+The response statuses are package policy rather than provider-specific Java
+logic. Accepted and duplicate values must be 2xx; resource mismatch must be
+4xx. Signature failures remain `401`, malformed/missing required event data
+remains `400`, and unsupported method/content type retain their standard HTTP
+statuses.
+
+The verified event is a signal only. The connector stores its bounded event ID,
+type, protected resource, and record key, then fetches current provider state.
+It never indexes the webhook body. Empty/declared-absent current state produces
+a delete; one matching current record uses the normal source projection and
+Data Sync path. Multiple records, a mismatched stable ID/resource, malformed
+JSON, or failed indexing leave explicit retry/dead-letter evidence.
 
 ### 3.5 Durable integration state
 
@@ -263,10 +306,13 @@ restarted and verified with only its restricted operational role.
 
 Durable state contains source cursors/versions/counts, source record IDs and
 fingerprints, indexing work references, provider correlation evidence, and
-webhook lifecycle metadata. It does not contain provider credential or access
-token values. Invalid or unauthenticated webhook attempts are retained only as
-fixed-cardinality counters by source and error class; their payloads, event
-identities, hashes, and resource fingerprints are never persisted.
+webhook lifecycle metadata including the verified bounded record key needed for
+retry. It does not contain provider credential, access token, or provider
+payload values. Admin summaries report only whether targeted reconciliation is
+present, not the record key. Invalid or unauthenticated webhook attempts are
+retained only as fixed-cardinality counters by source and error class; their
+payloads, event identities, hashes, and resource fingerprints are never
+persisted.
 
 Hard deployment deletion removes the connector/database resources and clears
 the deployment-generated connector service credential and restricted database

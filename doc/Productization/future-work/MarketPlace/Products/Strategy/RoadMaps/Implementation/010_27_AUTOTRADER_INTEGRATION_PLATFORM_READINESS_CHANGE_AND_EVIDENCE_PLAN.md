@@ -2,18 +2,33 @@
 
 - **Status:** Generic external-provider substrate is staging-hosted proven as
   `HOSTED_GENERIC_SUBSTRATE_VERIFIED`, and the separate fictional dealership
-  composition passed `DEALERSHIP_DEMO_READY` on 2026-09-30. Every
+  composition passed `DEALERSHIP_DEMO_READY` on 2026-09-30. The generic
+  targeted-record path, provider-backed action routing, public-contract
+  simulator profile, Marketplace fixtures, and protected demo control are
+  implemented in source on 2026-10-03; their replacement-deployment hosted
+  canary is pending. Every
   partner-gated Auto Trader sandbox, data-rights, advertiser, package,
   certification, and production gate remains open. LoomAI is not yet entitled
   to claim Auto Trader integration readiness.
 - **Date:** 2026-09-25
-- **Last contract review:** 2026-09-29
-- **Current LoomAI baseline:** AI Fabric `0.8.5`, Platform `Platform-V11`, V04
+- **Last contract review:** 2026-10-03
+- **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04
   deployment lifecycle
 - **Product boundary:** one dealership, one deployment, one server-owned Auto
   Trader advertiser scope
 - **Architecture decision:** Marketplace plugin-first and deployment-local; no
   standalone Auto Trader bridge and no central Platform data-plane proxy
+- **2026-10-03 design refinement:** the Auto Trader `DATA` package owns provider
+  semantics while the existing deployment-local Generic REST Connector owns
+  reusable baseline, targeted-record reconciliation, webhook, mapping, and
+  runtime Data Sync mechanics. The dealership website/backend remains an
+  independent application and is not made dependent on Auto Trader.
+- **2026-10-03 simulator refinement:** retain the two neutral simulator profiles
+  for generic-substrate evidence, add a separately versioned public-document-
+  informed Stock Sync fixture for contract rehearsal, and expose any meeting
+  mutation control only through a protected demo-operator backend adapter. This
+  fixture is not an Auto Trader sandbox, emulator, certification, or readiness
+  claim.
 - **Compatibility posture:** current-only greenfield contract; no legacy mode or
   parallel integration contract
 - **Hosted evidence:** generic-substrate verifier source `79b23348f`, runtime
@@ -31,9 +46,12 @@ Related plans:
 
 ## 1. Executive Verdict
 
-LoomAI now has a source-complete, provider-neutral substrate for deployment-local
-external HTTP integrations. It is still not ready to claim that the Platform
-supports an Auto Trader integration.
+LoomAI now has a hosted-proven provider-neutral substrate for deployment-local
+external HTTP integrations using complete-source reconciliation. The generic
+targeted current-record refinement and mixed provider/dealership composition
+are implemented and locally verified; replacement-deployment and browser
+evidence are still pending. The Platform is not ready to claim an Auto Trader
+integration.
 
 Implemented foundations now include:
 
@@ -52,9 +70,13 @@ Implemented foundations now include:
 - immutable protected-resource bindings and server-owned path/query/header/body
   injection;
 - Marketplace `EXTERNAL_SYNC_HTTP`/`HTTP_JSON`, durable paged/cursor sync,
-  tombstones, runtime Data Sync, and indexing-work reconciliation;
+  tombstones, bounded current-record fetch, runtime Data Sync, and indexing-work
+  reconciliation;
 - raw-body HMAC webhook verification, deduplication, retry, replay, dead-letter,
-  and baseline convergence;
+  full-source or targeted latest-state convergence, and durable verified record
+  keys;
+- provider-profile action routing with protected-resource injection and
+  fail-closed collection filtering before action results become model facts;
 - connector-owned PostgreSQL schema/Flyway state and a restricted deployment-
   scoped role whose privileged bootstrap credentials are removed after setup;
 - private connector/runtime networking and deployment-scoped service auth;
@@ -79,10 +101,14 @@ The remaining evidence/product work is material:
    direct-anonymous Max Mode composition now pass hosted indexing, retrieval,
    read-action, confirmation, staff-inbox, restart, and browser gates against
    assigned deployment `dep-f023c863`. This proves only the bounded dealership
-   demonstration, not an Auto Trader connection.
-3. Exact Auto Trader DATA/ACTION/TEMPLATE versions cannot be authored or
-   published responsibly until the granted routes, schemas, advertiser,
-   webhook rules, data rights, and validation requirements are supplied.
+   demonstration, not an Auto Trader connection. Its source is being replaced
+   by the versioned public-contract simulator composition; that replacement is
+   not live-proven yet.
+3. Public-document-informed DATA/ACTION/TEMPLATE fixtures now exercise the
+   reviewed contract subset. Customer-facing Auto Trader package versions
+   cannot be published responsibly until the granted sandbox routes, schemas,
+   advertiser, webhook rules, data rights, and validation requirements are
+   supplied.
 4. No real Auto Trader sandbox or production canary has passed.
 5. Public anonymous chat now has a deployment-local same-session renewal
    contract and the generic widget consumes it. Invalid/expired renewal still
@@ -230,10 +256,80 @@ Passing the simulator proves only `HOSTED_GENERIC_SUBSTRATE_VERIFIED`. It does
 not satisfy `AUTOTRADER_SANDBOX_ENABLED`, provider call-log validation, data
 rights, or any production gate.
 
+### 3.6 Public-document contract fidelity and triggerable demo flow
+
+The simulator has two different jobs, and their evidence must remain separate:
+
+1. **Neutral substrate profiles A and B** prove that the connector is generic.
+   Their invented routes and payloads deliberately do not claim provider wire
+   compatibility.
+2. **A versioned public-document-informed Stock Sync fixture** rehearses the
+   provider contract visible in Auto Trader's current public Help Centre and
+   official Partner Starter Collection. It remains synthetic and cannot replace
+   the granted sandbox contract or Auto Trader validation.
+
+The public material reviewed on 2026-10-03 establishes the following contract
+targets. The current neutral profile A is similar in a few mechanics but is not
+wire-compatible:
+
+| Concern | Public Auto Trader contract target | Current neutral profile A | Required fixture treatment |
+| --- | --- | --- | --- |
+| Authentication | Form-encoded `POST /authenticate` with `key` and `secret`; response contains `access_token` and `expires_at`; reuse the short-lived bearer token rather than authenticating for every call | Form-token exchange exists under an invented prefixed route and includes simulator-owned fields | Mirror the published request/response names and token reuse/expiry behavior in an isolated fixture profile |
+| Resource scope | API calls are performed for a server-owned `advertiserId` | Uses an invented query-bound `account` | Bind one synthetic advertiser identifier and deny caller/model override or cross-advertiser reads |
+| Baseline stock | Advertiser-scoped paged Stock API read using `page` and `pageSize` | Paged `/vehicles` response with an invented projection | Mirror the published stock route, selectors, pagination envelope, and bounded fictional stock projection |
+| Current-record reconciliation | Stock identity is the provider `stockId`; a notification is a signal to obtain current state | Generic detail route uses `vehicleId` | Extract one bounded `stockId`, fetch the current synthetic record through the same provider profile, and reuse the baseline mapper |
+| Notification | HTTP `PUT`, `AutoTrader-Signature` containing timestamp/hash components, event type `STOCK_UPDATE`, advertiser identity and `data.metadata.stockId` | HTTP `POST`, `X-Simulator-A-Signature`, event type `vehicle.changed`, and top-level account/vehicle fields | Emit the published method, header grammar and documented bounded identity paths over raw signed bytes |
+| Visibility/lifecycle | Publication and lifecycle state determine whether stock remains buyer-visible | Invented `active`, `reserved`, `sold`, and `deleted` state | Map documented publication/lifecycle examples into normalized active/tombstone behavior without inventing production policy |
+
+Contract provenance is part of the fixture:
+
+- every provider-shaped field, method, header, selector, and mapping records its
+  official source URL, review date, fixture version, and status as `PUBLIC_DOC`
+  or `PARTNER_CONFIRMED`;
+- current Help Centre and non-deprecated Partner Starter Collection material is
+  the preferred public source;
+- any older official example explicitly labelled deprecated may inform a test
+  hypothesis only, must be marked `PROVISIONAL`, and cannot become a package
+  release fact without confirmation from the current collection or Integration
+  Manager;
+- the granted sandbox contract supersedes the documentation-informed fixture;
+  drift is resolved by publishing a new immutable fixture/package version, not
+  by silently changing old evidence; and
+- no real credential, advertiser, registration, VIN, stock, logo, endorsement,
+  or undocumented behavior enters the simulator.
+
+For the meeting, the simulator may also be **triggerable** from a protected
+staff/demo surface. This is operator tooling, not dealership inventory
+integration:
+
+```text
+authenticated demo staff control
+  -> dealership demo backend operator endpoint
+  -> protected simulator upsert/delete control
+  -> protected simulator signed-event control
+  -> deployment-specific connector webhook
+  -> verified record-key extraction
+  -> current-record fetch (or current full-source reconcile until targeted mode exists)
+  -> Data Sync/index work reconciliation
+  -> buyer chat can discover the changed fictional stock
+```
+
+The browser, model, deployment runtime, and connector never receive the
+simulator control key. The backend owns the fixed simulator profile/account,
+allowed scenario IDs, deployment webhook destination, and secrets; request
+input cannot select an arbitrary account, target URL, callback, or credential.
+The endpoint requires staff authentication, CSRF protection, idempotency, rate
+limits, and an explicit demo-only feature flag. It returns a sanitized staged
+receipt for provider mutation, event delivery, connector acknowledgement,
+terminal indexing, and searchability. It is disabled or absent from production
+customer templates. The dealership backend's normal inventory API remains
+independent and does not start sourcing its displayed catalogue from the
+simulator.
+
 ## 4. Current LoomAI Implementation Audit
 
 This audit was refreshed against the implementation and hosted evidence present
-on 2026-09-28.
+on 2026-10-03.
 
 | Area | Current evidence | Verdict for Auto Trader |
 | --- | --- | --- |
@@ -247,10 +343,12 @@ on 2026-09-28.
 | Connector persistence | Deployment PostgreSQL is reused through connector-owned schema/role; every expected standard/preview bootstrap row must be found, deleted, and proven absent before connector restart on its restricted role | Hosted Coolify lifecycle and PostgreSQL backup/restore passed; ownership and ACLs are preserved for restricted roles |
 | Marketplace DATA modes | `EXTERNAL_SYNC_HTTP` with `HTTP_JSON` is validated, compiled, hashed, exported/imported, provisioned, and capability-gated | Implemented locally |
 | HTTP DATA execution | Page/size and cursor sources execute in the deployment connector, validate every record against the protected resource, and push only normalized operations to the colocated runtime | Hosted two-profile/two-deployment isolation, indexing, retrieval, mutation, and failure proof passed |
+| Current dealership demo source | The live evidence still reflects six fictional rows previously pushed from the independent dealership backend. Current source removes that push path, enables provider-backed DATA sync, and keeps the backend independent for presentation and lead writes | Replacement deployment and hosted canary pending; no Auto Trader claim |
 | External binding precedent | Document Knowledge Operations now provides target-scoped customer-storage bindings, secret references, safe readback, export/import boundaries, lifecycle cleanup, and operations UI | Reuse/generalize the lifecycle pattern; do not overload the document-storage-specific contract |
 | Runtime Data Sync | Deployment runtime exposes batch/upsert/delete and vector-space contracts | Reuse as the normalized indexing boundary |
 | Index work reconciliation | Runtime admin exposes per-work indexing status and vector overview | Reuse with customer-safe projection |
 | Provider inbound webhook | Deployment connector exposes per-source signed ingress with raw-body verification, replay-window checks, durable dedupe, bounded reconciliation, retry, replay, and dead-letter state | Hosted TLS-originated signature, duplicate, ordering, rejection, replay, and dead-letter proof passed |
+| Webhook reconciliation granularity | `FULL_SOURCE` and `FETCH_CURRENT_RECORD` are manifest-owned strategies. The targeted path extracts a bounded key only after signature/event/resource validation, persists it, fetches current state, reuses the baseline mapper, and submits one upsert/delete | Implemented and focused-test verified; hosted targeted canary pending |
 | Existing runtime webhook code | Current runtime webhook tables/admin surface manage outbound action-result delivery | Do not misrepresent as inbound provider webhook support |
 | Assignment endpoint catalog | Internal connector/runtime traffic stays private; templates may opt in to backend-only ingestion batch, work-status, and readiness URLs with exact operation flags | Implemented locally; browser exposure is prohibited |
 | Protected resource binding | Typed immutable profile/resource/grant contracts compile server-owned values into provider requests; records and events must match the same binding | Implemented locally; Auto Trader's one-advertiser rule remains package-owned |
@@ -258,7 +356,9 @@ on 2026-09-28.
 | Rejected webhook retention | Invalid/unauthenticated attempts increment durable fixed-cardinality source/error counters without storing attacker-controlled event rows, payloads, identities, or hashes | Hosted rejection, recovery, and restart paths passed |
 | Generated-secret cleanup | Hard delete clears deployment-generated connector service/database credentials after infrastructure cleanup succeeds | Hosted hard-decommission readback passed with no cleanup failures |
 | Auto Trader packages | DRAFT catalog reservations exist, with no executable versions | Correctly blocked pending partner grants and schemas |
+| Provider-backed action routing | Provider-profile routes resolve through `ProviderHttpClient` independently of the application upstream. Protected collection filters remove non-published records before response templates or model facts are built | Implemented and focused-test verified; hosted mixed-owner canary pending |
 | Generic hosted evidence | Independent HTTPS simulator, two isolated deployments, exact immutable runtime artifact, full lifecycle matrix, and cleanup | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` on staging; this is not named-provider evidence |
+| Public-document simulator fidelity | A separate `autotrader` profile mirrors the reviewed public subset: form-encoded `POST /authenticate`, `access_token`/`expires_at`, bearer reuse, `GET /stock`, advertiser/page/pageSize/stockId/lifecycleState, stock envelope, `PUT` notification, `AutoTrader-Signature`, and documented event/response semantics | Implemented with synthetic records and provenance tests; hosted contract canary pending and never a sandbox/certification claim |
 | Auto Trader hosted evidence | None | Blocking |
 
 ### 4.1 Implementation checkpoint
@@ -272,6 +372,12 @@ The implementation checkpoint includes:
 - runtime integration-service auth and opt-in trusted customer-ingestion auth;
 - connector JDBC migration plus real PostgreSQL Testcontainers proof;
 - provider fixture coverage for form-token/page sync and API-key/cursor sync;
+- public-contract simulator coverage for authentication, stock pagination,
+  individual stock fetch, publication/lifecycle behavior, signed notification
+  shape, and absence of simulator-only headers on the provider wire surface;
+- targeted current-record mapping, zero/one/many response handling, persisted
+  record key, duplicate identity, retry/dead-letter, and provider-action
+  collection-filter coverage;
 - boundary tests for host allowlists, capability grants, auth-header collisions,
   protected path placeholders, record/resource mismatch, malformed/oversized
   responses, cursor-version reset, tombstones, retry safety, webhook signatures,
@@ -382,9 +488,11 @@ Auto Trader notification
   -> deployment-specific connector webhook URL
   -> signature/hash verification before parsing
   -> advertiser and event-schema validation
-  -> deduplication and durable reconciliation work
-  -> Auto Trader detail/baseline read when required
-  -> structured projection and Data Sync update/delete
+  -> deduplication plus bounded source-record-ID extraction
+  -> durable targeted reconciliation work
+  -> Auto Trader current-record read for that stock record
+  -> shared mapping and Data Sync upsert/delete
+  -> periodic full baseline remains the convergence fallback
 
 LoomAI Platform
   -> install, compile, release, assign, observe, verify, promote, and retire
@@ -494,8 +602,229 @@ LoomAI Platform -> install/apply/observe/verify/backup/restore/decommission
 
 Provider data still travels directly between each deployment connector and the
 simulator. The central Platform receives only bounded operational evidence.
-The simulator control API is never exposed to a model, browser, deployment
-connector, or customer application.
+The raw simulator control API and control key are never exposed to a model,
+browser, deployment connector, or ordinary customer application. A meeting-only
+dealership backend may implement the bounded operator adapter in Section 3.6;
+that adapter is verification tooling and is not an inventory-source dependency
+or production integration contract.
+
+### 5.3 Canonical source ownership and migration state
+
+The architecture has three deliberately different states. They must not be
+collapsed into one claim.
+
+| State | Inventory used by LoomAI chat | Read-action destination | Dealership website/backend relationship | Permitted claim |
+| --- | --- | --- | --- | --- |
+| Current live meeting demo | Six fictional rows seeded in the dealership backend and pushed by that backend to deployment Data Sync | Dealership backend | Website and backend own their fictional catalogue and lead records | `DEALERSHIP_DEMO_READY` |
+| Next neutral provider-backed canary | External Vehicle Provider Simulator pulled and reconciled by the deployment connector | Simulator for provider-style reads; dealership backend for lead writes | Website/backend remains independent; matching fixture `stockId` values link page context to provider records | Provider-neutral architecture proof only |
+| Auto Trader sandbox/production target | Approved advertiser-scoped Auto Trader stock pulled and reconciled by the deployment connector | Auto Trader for granted provider reads; dealership backend for dealer-owned writes | Website/backend may use its own inventory platform and is not required to consume LoomAI's provider feed | Exact named gate only after sandbox/production evidence |
+
+The currently running immutable version of `dep-f023c863` is therefore not
+silently reclassified as provider-backed. Its applied `EXTERNAL_SYNC_HTTP`
+declaration keeps `httpSource.enabled=false`; the dealership backend performed
+the six-record push. The replacement source profile enables the provider path,
+but it changes this state only after a new immutable version is applied and its
+hosted canary passes.
+The provider simulator used for the hosted generic substrate was exercised by
+separate temporary deployments and is not the source for the dealership demo.
+
+The next canary changes only the LoomAI deployment composition. It must not
+rewrite the dealership website backend to obtain its displayed vehicles from
+the simulator or Auto Trader. This preserves the real customer boundary: a
+dealership may already have its own website, DMS, CRM, and stock presentation,
+while LoomAI independently obtains the provider data it is licensed to use.
+
+### 5.4 Stable identity across independent systems
+
+The provider, LoomAI deployment, and dealership application need a shared
+business reference without sharing databases or authority.
+
+- `providerVehicleId` is the provider's internal immutable identifier and is
+  used only where the provider contract requires it.
+- `stockId` is the dealership-facing stock reference and is the canonical
+  cross-system target carried by approved page context and action results.
+- The normalized LoomAI entity identity remains `advertiserId + stockId` unless
+  the granted contract proves a different stable identity is required.
+- Provider reads resolve the trusted `stockId` to the provider record inside the
+  installed package/connector boundary. The browser or model never supplies an
+  advertiser or connection profile.
+- Dealership-owned writes send the trusted `stockId` to the dealership backend;
+  that backend independently validates that the vehicle is valid for the
+  dealership before storing a callback or test-drive request.
+
+For the neutral meeting canary, simulator records and dealership page fixtures
+must deliberately share the relevant `stockId` values. This is test-fixture
+alignment, not a runtime dependency. If a page target cannot be resolved in the
+provider source, LoomAI fails closed or asks the user to select another vehicle;
+it must not guess from model text.
+
+### 5.5 Baseline plus targeted-record reconciliation
+
+The durable freshness model is:
+
+```text
+install/recovery/schedule
+  -> advertiser-scoped complete baseline
+  -> shared mapper
+  -> batched runtime Data Sync upsert/delete
+  -> reconcile every indexing work item to terminal state
+
+verified provider notification
+  -> extract bounded sourceRecordId from the verified event
+  -> coalesce work by deployment + source + sourceRecordId
+  -> fetch the current provider record using the immutable resource binding
+  -> validate advertiser/resource ownership
+  -> shared mapper
+  -> one runtime Data Sync upsert, or delete when the current provider state
+     and package lifecycle policy require it
+  -> reconcile indexing work to terminal state
+```
+
+The event is a change signal, not the indexing authority. Delayed or
+out-of-order events still fetch current provider state, so an old payload cannot
+overwrite a newer record. Duplicate events are deduplicated, and several events
+for the same record may be coalesced into one current-state read. Raw webhook
+payloads are not retained; retry state stores only bounded internal identifiers,
+event metadata, fingerprints, attempts, and safe error classes.
+
+The generic connector must support two explicit reconciliation strategies:
+
+- `FULL_SOURCE`: the existing complete-source reconcile, retained for providers
+  without a safe record lookup and for controlled recovery; and
+- `FETCH_CURRENT_RECORD`: the preferred stock-notification strategy, using a
+  verified event record ID and a package-declared current-record read.
+
+The proposed provider-neutral package contract is conceptually:
+
+```yaml
+eventReconciliation:
+  strategy: FETCH_CURRENT_RECORD
+  sourceRecordIdJsonPointer: /provider/event/recordId
+  recordFetch:
+    method: GET
+    path: /stock/{sourceRecordId}
+    sourceRecordIdPlacement: PATH
+    recordJsonPointer: ""
+    notFoundPolicy: DELETE
+```
+
+The exact paths and selectors above are illustrative package data. Generic Java
+knows only `sourceRecordId`, placement, mapping, and lifecycle policy. The Auto
+Trader DATA package supplies its actual stock ID selector, path, response shape,
+not-found semantics, and advertiser rules after sandbox confirmation.
+
+Implementation ownership is fixed:
+
+1. `ProviderWebhookService` verifies the request, validates the protected
+   resource, extracts the bounded record key through a configured JSON Pointer,
+   and enqueues durable reconciliation work.
+2. A provider-neutral `HttpRecordReconciliationService` uses the existing
+   `ProviderHttpClient`, trusted-resource binding, capability grants, rate
+   policy, and error classification to fetch current state.
+3. Mapping/identity/boundary logic is extracted from `HttpDataSyncService` into
+   one reusable mapper so baseline and targeted reads cannot produce different
+   entities for the same source record.
+4. `RuntimeDataSyncClient` submits the normalized `UPSERT` or `DELETE` and waits
+   for terminal indexing status.
+5. Periodic full baseline remains enabled as the recovery mechanism for missed
+   notifications, registration gaps, ambiguous provider responses, and drift.
+
+### 5.6 Notification delivery and registration
+
+Each deployment exposes its own callback:
+
+```text
+{deploymentConnectorPublicBaseUrl}/integrations/webhooks/{sourceId}
+```
+
+The Platform compiles and displays that URL and tracks
+`NOT_REGISTERED`, `PENDING_VERIFICATION`, `ACTIVE`, or `DISABLED`. It does not
+receive or proxy notification traffic. For the first Auto Trader release,
+callback registration and notification-secret issuance are onboarding actions
+performed with Auto Trader or the assigned Integration Manager unless a
+documented, granted registration API is later supplied. The Platform must not
+pretend that exposing the receiver automatically subscribes it.
+
+After registration, normal freshness is provider notification delivery plus one
+current-record fetch and indexing completion. No exact freshness SLA is claimed
+until sandbox evidence measures provider delivery and indexing latency. A missed
+event is bounded by the configured periodic baseline interval plus provider and
+indexing time; that interval is package policy constrained by provider fair-use
+rules.
+
+### 5.7 Action ownership and failure behavior
+
+The deployment template installs two separate action packages because the
+systems have different authority.
+
+| Action class | Owner and destination | Examples |
+| --- | --- | --- |
+| Granted provider reads | Auto Trader ACTION package through the deployment connector | current stock detail, search, equipment, taxonomy, approved vehicle facts |
+| Dealership-owned commands | Dealership ACTION package through the same connector process but a distinct protected backend route | callback, test-drive, local CRM/lead request |
+| Model composition | Runtime orchestration over typed read facts | comparison or recommendation when no provider comparison endpoint exists |
+
+Route ownership is selected by the immutable template and capability grants,
+not by trying Auto Trader first and falling back to the dealership on any error.
+A provider read failure may use an indexed snapshot only when deployment policy
+permits it and the answer clearly reports its freshness. A write never silently
+falls back after an ambiguous provider/backend response because that can produce
+duplicate side effects. Every write keeps confirmation, trusted target,
+idempotency, and application validation.
+
+The generic connector must also support a provider-backed action route without
+requiring `connector.upstream.base-url`. A route with `connectionProfileRef`
+resolves through its immutable profile first; the global upstream remains only
+for ordinary application routes such as the dealership backend.
+
+### 5.8 Marketplace package and install contract
+
+No new plugin type is required. The product composition is:
+
+- a dedicated Auto Trader `DATA` plugin for connection profile, secret refs,
+  advertiser binding, baseline, targeted event reconciliation, shared vehicle
+  mapping, lifecycle/deletion, attribution, data rights, and rate policy;
+- a dedicated Auto Trader `ACTION` plugin for only the provider capabilities
+  granted to the integration;
+- a separate dealership `ACTION` plugin for dealer-owned confirmed writes;
+- optional dealership-owned knowledge `DATA` plugins; and
+- one `TEMPLATE` that pins the exact behavior, packages, inference/vector
+  profiles, chat surfaces, install fields, and verification packs.
+
+The decision is therefore **yes to a dedicated Auto Trader DATA plugin, but no
+to arbitrary Auto Trader executable code inside that plugin**. The plugin owns
+the provider contract declaratively; the connector owns execution. This keeps
+credential handling, advertiser enforcement, retries, durable work, redaction,
+mapping, Data Sync, observability, and lifecycle behavior uniform across
+providers. If the granted Auto Trader contract exposes a mechanical shape the
+connector cannot express safely, add the smallest reusable typed connector
+primitive and prove it with a second neutral fixture. Do not hide provider logic
+in a script, custom container, or central bridge.
+
+The template install form requires provider environment, credential secret
+references, notification secret reference, one advertiser/account binding,
+dealership backend URL/key for dealer-owned actions, allowed website origins,
+inference/vector profiles, full-baseline schedule, and lifecycle/retention
+policy. A clean install must compile these values into one immutable deployment
+version without manual JSON or environment repair.
+
+The simulator uses separate neutral verification package fixtures. Those
+fixtures prove generic mechanics and the target composition while access is
+blocked, but they are never published or labelled as Auto Trader packages.
+
+### 5.9 Alternatives considered and final verdict
+
+| Considered option | Verdict | Reason |
+| --- | --- | --- |
+| Central standalone Auto Trader bridge | Rejected | Creates a shared data-plane bottleneck and failure/security boundary outside each self-contained deployment |
+| Make the dealership backend consume Auto Trader/simulator stock | Rejected | Couples LoomAI adoption to rewriting an existing customer application and gives the backend provider credentials it does not need |
+| Keep dealership backend push as the production provider source | Demo only | Valid for the current fictional proof, but it does not prove deployment-local provider sync or notification freshness |
+| Dedicated Auto Trader DATA plugin with custom executable code | Rejected | Duplicates auth, persistence, redaction, retry, mapping, Data Sync and operations mechanics per provider |
+| Dedicated declarative Auto Trader DATA plugin executed by the generic connector | Selected | Preserves provider-specific semantics while reusing governed deployment-local mechanics and existing Marketplace lifecycle |
+| Reconcile the full stock source after every notification | Supported fallback | Correct and already proven, but inefficient as the primary stock-update path |
+| Fetch current state for the verified changed record | Selected primary | Efficient, robust to sparse/delayed events, and still converges through periodic full baseline |
+| Index webhook payload directly | Rejected | Event payload may be partial, stale, out of order, or intended only as a notification signal |
+| Add a new Marketplace plugin type | Rejected | Existing `DATA`, `ACTION`, `TEMPLATE`, and profile primitives express the product boundary |
+| Automatically register callbacks without a documented provider API | Rejected assumption | The Platform exposes and tracks the deployment callback; registration remains an onboarding step until a granted API proves otherwise |
 
 ## 6. Platform And Product Change Contract
 
@@ -626,6 +955,8 @@ The deployment-local sync engine must:
 - persist cursor, source fingerprint/version, last-success time, and failure
   state in the connector-owned PostgreSQL schema;
 - normalize records into the plugin-declared entity contract;
+- use one reusable record mapper and boundary validator for both complete-source
+  and single-record fetches;
 - call the same deployment's runtime Data Sync API through the private scoped
   service channel;
 - reconcile every returned work ID to a terminal state;
@@ -664,6 +995,9 @@ Required contract:
 - replay-window and ordering policy;
 - quick provider-appropriate acknowledgement;
 - durable reconciliation work and retry/dead-letter state;
+- an explicit `FULL_SOURCE` or `FETCH_CURRENT_RECORD` strategy;
+- for targeted mode, a bounded source-record selector, immutable current-record
+  request, and declared not-found/delete policy;
 - safe operational status and manual replay where provider rules allow; and
 - optional canonical CloudEvent forwarding only after validation.
 
@@ -674,12 +1008,19 @@ readiness claim until a signed canary reaches the exact deployment URL. URL or
 secret rotation requires drain, re-registration, verification, and rollback
 evidence.
 
+The currently implemented generic webhook path performs a complete-source
+reconcile after every accepted event. That remains valid as `FULL_SOURCE`, but
+it is not the selected Auto Trader stock-update design. Before publishing the
+Auto Trader DATA package, add `FETCH_CURRENT_RECORD` so an accepted event can
+extract one bounded internal source-record key, retrieve current provider state,
+and upsert/delete only that entity while the scheduled baseline remains the
+recovery path.
+
 The Auto Trader package declares HTTP `PUT`, `AutoTrader-Signature`, its `t` and
 `v1` parser, timestamp plus `.` plus raw-body HMAC-SHA256 construction,
-resource extraction, event types, and response mapping. A notification may be
-a change signal rather than a complete record, so that package also declares
-whether to perform a detail read or baseline reconciliation before changing the
-projection/index.
+resource extraction, event types, record-key selector, current-record fetch,
+not-found/delete policy, and response mapping. A notification is treated as a
+change signal rather than trusted complete record content.
 
 ### 6.6 Workstream F: bounded mapping and fair usage
 
@@ -760,8 +1101,8 @@ and data rights exist, publish exact packages:
 
 | Proposed package | Type | Responsibility |
 | --- | --- | --- |
-| `mkp-data-autotrader-dealership-stock-v1` | `DATA` | Advertiser-scoped baseline, mapping, event reconciliation, normalized vehicle entity, indexing/freshness/delete policy |
-| `mkp-action-autotrader-dealership-discovery-v1` | `ACTION` | Advertiser preflight, live stock search/detail, and only the granted evidence reads |
+| `mkp-data-autotrader-dealership-stock-v1` | `DATA` | Advertiser-scoped baseline, targeted current-record reconciliation, shared mapping, normalized vehicle entity, indexing/freshness/delete policy |
+| `mkp-action-autotrader-dealership-discovery-v1` | `ACTION` | Advertiser preflight, live stock search/detail, and only the granted evidence reads routed directly through the provider connection profile |
 | `mkp-data-dealership-knowledge-v1` | `DATA` | Dealer-owned warranty, delivery, support, and location knowledge with distinct attribution |
 | `mkp-action-dealership-lead-v1` | `ACTION` | Confirmed callback/test-drive command to the dealership-owned backend |
 | `mkp-template-autotrader-dealership-concierge-v1` | `TEMPLATE` | Exact behavior, plugins, provider/vector profiles, bindings, endpoints, UI modules, and verification packs |
@@ -773,6 +1114,12 @@ Connection profiles, protected-resource bindings, route mappings, webhook
 profiles, and provider labels are contributions inside these existing package
 types. They do not introduce a `CONNECTION`, `WEBHOOK`, or `AUTOTRADER`
 Marketplace plugin type.
+
+The dealership website/backend is not a dependency of the Auto Trader DATA
+plugin and does not receive provider credentials. It participates only through
+its independently owned page targets and dealer-command routes. The only shared
+business reference is the validated `stockId` contract described in Section
+5.4.
 
 ### 6.10 Workstream J: dealership demo application
 
@@ -824,6 +1171,11 @@ The simulator described in Section 3.5 is implemented and deployed with:
   complete matrix, captures bounded evidence, and hard-decommissions temporary
   resources.
 
+The existing implementation satisfies the neutral profile work only. The
+public-document-informed Stock Sync fixture, provenance matrix, and protected
+meeting trigger described in Section 3.6 are planned additions and must not be
+reported as implemented evidence until their contract and hosted tests pass.
+
 The simulator is disposable verification infrastructure. It must not become a
 runtime dependency of any customer deployment or a compatibility layer once
 real provider access exists.
@@ -856,12 +1208,15 @@ The source implementation uses the following ownership boundaries.
 | Connector config | `ai-infrastructure-module/ai-infrastructure-generic-rest-connector/.../RestRoutingConfig.java` | Typed connection/auth/rate/data/webhook contracts |
 | Connector validation | `.../RestConnectorStartupValidator.java` | Fail-closed hosts, bindings, secrets, token exchange, pagination, mapping, and webhook policy |
 | Connector execution | `.../RestActionExecutionService.java` | Token service, trusted bindings, classified provider errors, bounded mapping |
+| Provider action route resolution | `RestActionExecutionService.executeOnce(...)` currently resolves the ordinary global upstream before checking `connectionProfileRef` | Resolve provider-profile routes through `ProviderHttpClient` first so mixed provider/dealership packages do not require a fake global upstream |
 | Token lifecycle | New provider-neutral connector service | Execute the implemented bounded auth strategies; first release covers API key and form token exchange, including cache, refresh, redaction, and safe posture |
 | Durable integration state | Connector persistence package and `db/migration/integration/V1__integration_connector_state.sql` in schema `integration_connector` | Cursors, source fingerprints, work, events, dedupe, reconciliation, and dead letters; never token/credential values |
 | Connector database provisioning | `RailwayProvisioningPlanService`, `CoolifyDeploymentProvider`, provider secret/resource services | Reuse the deployment PostgreSQL resource; create a restricted connector role/schema, inject JDBC config, verify readback, and include lifecycle cleanup |
 | DATA manifest validation | `Platfrom/backend/.../MarketplaceManifestService.java` | Validates `EXTERNAL_SYNC_HTTP` and typed HTTP connector contribution |
 | DATA compilation | `.../DeploymentMarketplaceDraftCompilerService.java` and `DeploymentConfigCompiler.java` | Compile immutable source, mapping, binding, capability, secret, and webhook refs into V04 artifacts |
 | DATA execution | `HttpDataSyncService` and `RuntimeDataSyncClient` | Pull provider data, normalize it, and push to private local runtime Data Sync |
+| Shared record projection | Mapping and boundary logic currently lives inside `HttpDataSyncService` | Extract one reusable provider-neutral mapper for complete snapshots and targeted record fetches |
+| Targeted event reconciliation | `ProviderWebhookService` currently calls `HttpDataSyncService.reconcileAsync(...)` for the complete source | Add bounded verified-event record-key extraction, durable per-record work/coalescing, current-record fetch, and upsert/delete completion |
 | Existing Platform dataset sync | `.../MarketplaceDatasetSyncService.java` | Do not route provider data through it; retain current modes only |
 | Draft validation | `Platfrom/backend/.../DeploymentDraftValidationService.java` | Validate immutable protected-resource/capability/connection bindings and package-specific cardinality |
 | Secret/resource lifecycle | Marketplace install, provider secret services, and the document-storage binding lifecycle precedent | Generalize target-scoped reference/readback/rotation/export/decommission patterns without coupling to document storage |
@@ -887,8 +1242,10 @@ Current execution status:
 | 1 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Generic profiles, auth, protected resources, mapping, fair usage, JDBC state, fail-closed bootstrap scrub, generated-secret cleanup, restart, backup/restore, and decommission passed against the hosted neutral simulator |
 | 2 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Marketplace compile/provisioning, private Data Sync, page/cursor handling, tombstones, work reconciliation, indexing, retrieval, and two-deployment isolation passed on staging |
 | 3 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | TLS-originated signed ingress, dedupe, ordering, rejection, replay, retry, dead-letter, and baseline convergence passed on staging |
+| 3A | `LOCAL_IMPLEMENTED_HOSTED_PENDING` | Targeted current-record reconciliation, persisted verified record key, shared mapping, source locking, provider-only action routing, and response filtering are implemented and focused-test verified; focused hosted canary remains |
 | 4 | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` | Scoped operations/discovery, immutable apply/rollback, durable restart, destructive restore, and complete cleanup passed; UI remains source-build verified |
-| 5 | `DEALERSHIP_DEMO_READY` | Approved fictional data, dealership-owned lead boundary, ordinary customer demo app, assigned AI Fabric `0.8.5` deployment, direct browser chat, indexing, retrieval, confirmation, restart durability, and staff readback passed on staging |
+| 5 | `DEALERSHIP_DEMO_READY` | Approved fictional data, dealership-owned lead boundary, ordinary customer demo app, direct browser chat, indexing, retrieval, confirmation, restart durability, and staff readback passed on staging; the initial closure used AI Fabric `0.8.5` and the latest first-delivery closure uses `0.8.8` |
+| 5A | `LOCAL_IMPLEMENTED_HOSTED_PENDING` | Public-contract simulator profile, Marketplace fixtures, provider-backed deployment profile, and protected staff trigger are implemented; replacement deployment and continuous hosted browser canary remain |
 | 6 | `BLOCKED_EXTERNAL` | Requires Auto Trader partner sandbox identity, exact grants, advertiser, schemas, events, and validation support |
 | 7 | `BLOCKED_EXTERNAL` | Requires production approval, rights, bindings, go-live validation, and controlled production proof |
 
@@ -899,19 +1256,27 @@ remaining phases must not be collapsed into a paper pass.
 
 ### Immediate next execution
 
-1. Preserve the passed generic evidence artifact and rerun it after any change
-   to external-sync, connector persistence, provider lifecycle, or webhook
-   contracts.
-2. Complete Auto Trader partner onboarding and obtain the exact sandbox
+1. Preserve the passed generic evidence artifact and rerun the affected focused
+   matrix after any change to external-sync, connector persistence, provider
+   lifecycle, or webhook contracts.
+2. Deploy the implemented targeted-reconciliation and provider-route source to
+   staging, replace the dealership deployment from the current immutable
+   profile, and prove add, update, sold/delete, duplicate, delayed event,
+   missed-event baseline repair, restart, and cross-account denial.
+3. Run the provider-backed dealership canary: indexed stock and provider reads
+   come from the simulator; the independent backend continues to own only
+   presentation and lead writes; the protected staff trigger demonstrates the
+   public-contract notification path without exposing controls or credentials.
+4. Complete Auto Trader partner onboarding and obtain the exact sandbox
    identity, grants, authorized advertiser, schemas, event contract, data
    rights, and validation checklist.
-3. Preserve and rerun the passed dealership demo gate after any change to its
+5. Preserve and rerun the passed dealership demo gate after any change to its
    deployment, runtime, browser-auth, inventory-indexing, or lead-action
    contracts.
-4. Once grants exist, author exact Auto Trader DATA/ACTION/TEMPLATE versions
+6. Once grants exist, author exact Auto Trader DATA/ACTION/TEMPLATE versions
    through the existing Marketplace/V04 lifecycle; keep all provider wire
    constants in package data and provider verification.
-5. Run the named sandbox matrix and record
+7. Run the named sandbox matrix and record
    `AUTOTRADER_SANDBOX_VERIFIED` only if the exact immutable composition and
    provider-required evidence pass.
 
@@ -972,6 +1337,30 @@ Exit: neutral HTTP DATA plugin passes complete hosted indexing lifecycle.
 
 Exit: neutral event-fed source passes hosted lifecycle and failure tests.
 
+### Phase 3A: targeted current-record reconciliation
+
+**Source status:** implemented and focused-test verified on 2026-10-03; hosted
+canary pending.
+
+- Add provider-neutral `FULL_SOURCE` and `FETCH_CURRENT_RECORD` strategies.
+- Extract a bounded record key only after signature, event, and resource
+  validation; retain no raw provider payload.
+- Fetch current record state with the source connection profile, trusted
+  resource, capability grants, and provider rate/error policy.
+- Reuse the exact baseline mapper and boundary validator.
+- Coalesce duplicate work by deployment/source/record while preserving durable
+  attempts and dead-letter recovery.
+- Submit one runtime upsert/delete and reconcile its indexing work to terminal.
+- Make provider-backed action routes independent of the ordinary global
+  application upstream.
+- Prove targeted add/update/delete, delayed/out-of-order convergence, restart,
+  baseline repair, and two-account isolation against the hosted simulator.
+
+Exit: the generic substrate supports efficient event-driven record freshness
+without provider-domain code. The existing `HOSTED_GENERIC_SUBSTRATE_VERIFIED`
+claim remains valid for its recorded full-source scope; new evidence must name
+the targeted extension explicitly.
+
 ### Phase 4: discovery and operator UX
 
 - Add opt-in backend-only ingestion endpoint discovery for templates that need
@@ -997,6 +1386,33 @@ manual JSON or environment repair.
 - Pass the `DEALERSHIP_DEMO_READY` gate.
 
 Exit: live HTTPS demo with real LoomAI behavior and no false Auto Trader claim.
+
+### Phase 5A: neutral provider-backed dealership composition
+
+**Source status:** implemented on 2026-10-03; replacement deployment and
+continuous hosted browser evidence pending.
+
+- Keep the public dealership website/backend implementation and inventory
+  presentation unchanged.
+- Replace only the LoomAI deployment's demo backend-push DATA/read-action
+  packages with neutral simulator-backed package fixtures.
+- Align fictional `stockId` values only where page context must select the same
+  provider record.
+- Route simulator-supported reads to the simulator and confirmed callback/test-
+  drive writes to the dealership backend with no blind fallback.
+- Add an authenticated, demo-only staff scenario control that performs a
+  server-owned simulator mutation followed by signed event delivery. Do not
+  expose the simulator control key, account, webhook target, or arbitrary
+  payload/URL selection to the browser.
+- Display bounded progress through provider mutation, event acknowledgement,
+  connector reconciliation, terminal indexing work, and buyer-search
+  visibility. Keep the dealership website catalogue source unchanged.
+- Prove initial baseline, targeted event freshness, semantic retrieval, live
+  detail, comparison, confirmation, lead persistence, restart, and baseline
+  recovery in one continuous browser/session scenario.
+
+Exit: the intended provider/dealership split is live-proven without claiming
+Auto Trader compatibility or changing the independent customer application.
 
 ### Phase 6: Auto Trader sandbox packages
 
@@ -1035,6 +1451,8 @@ Exit: owner-approved exact immutable composition marked
   rate-limited, unavailable, timeout, and malformed-response classification;
 - configured correlation-header capture without leaking response headers; and
 - provider/service concurrency and pause recovery;
+- provider-backed action execution succeeds with only its declared connection
+  profile and does not require the ordinary connector global upstream;
 - two neutral package fixtures with different auth, pagination, protected-value
   placement, and error mappings compile and run without Java changes; and
 - a source scan finds no Auto Trader names or wire constants outside package
@@ -1047,11 +1465,15 @@ different profiles. In-process mocks alone do not satisfy the hosted exit.
 
 - baseline pagination terminates and count reconciliation passes;
 - repeated baseline is idempotent;
+- baseline and targeted fetch map the same source record to byte-equivalent
+  entity/content/metadata projections;
 - update replaces searchable content;
 - configured tombstone/absence policy removes retrieval exactly;
 - every accepted Data Sync work ID reaches and records terminal status;
 - restart resumes from durable state without duplicate source records;
 - scheduled reconciliation repairs a deliberately missed event;
+- one targeted create/update/sold/delete event changes only its identified
+  source record and reaches terminal indexing status;
 - vector metadata preserves tenant/deployment and opaque protected-binding
   identity; and
 - a second deployment/resource binding cannot read or mutate the first.
@@ -1062,6 +1484,10 @@ different profiles. In-process mocks alone do not satisfy the hosted exit.
 - missing/invalid authentication rejected before JSON parsing;
 - oversized, malformed, unknown, old, duplicate, and out-of-order events handled
   deterministically;
+- a verified event extracts only the configured bounded record key, while a
+  missing/oversized key fails closed and no raw event payload is retained;
+- duplicate events for one record are deduplicated or coalesced and delayed
+  events fetch current provider state rather than replaying stale payload data;
 - response acknowledgement meets provider timing;
 - retry and dead-letter state survive restart;
 - replay cannot duplicate indexing or business effects; and
@@ -1071,6 +1497,31 @@ The hosted simulator must originate the signed requests over HTTPS. Calling
 the connector service directly from an in-process test does not prove ingress,
 TLS routing, deployment URL isolation, or provider acknowledgement behavior.
 
+The documentation-informed fixture additionally proves the published Stock Sync
+shape: `PUT`, the `AutoTrader-Signature` timestamp/hash grammar, `STOCK_UPDATE`,
+advertiser binding, bounded `data.metadata.stockId` extraction, and current-
+record fetch. These checks prove only fixture conformance to reviewed public
+documentation, not access to or acceptance by Auto Trader.
+
+### 10.3.1 Protected meeting trigger
+
+- an unauthenticated buyer, anonymous chat session, model-selected action, and
+  non-staff browser cannot call the operator endpoint;
+- the browser never receives the simulator control key, provider credential,
+  notification secret, deployment service token, or webhook destination;
+- only allowlisted deterministic scenario IDs and validated fictional vehicle
+  input are accepted;
+- caller-supplied profile, advertiser/account, target URL, callback URL, secret,
+  or arbitrary event body is rejected;
+- repeated submission with the same idempotency key cannot create duplicate
+  fixture records or business effects;
+- the result reports sanitized mutation, event, acknowledgement, reconciliation,
+  indexing-work, and searchability stages without returning provider payloads;
+- add, update, sold/unpublished, and delete scenarios converge, while a missed
+  event is repaired by periodic baseline; and
+- disabling the demo feature removes the route or fails closed, while the
+  public dealership catalogue and buyer experience remain healthy.
+
 ### 10.4 Auto Trader conversation and actions
 
 - live/structured search facts and semantic evidence remain distinguishable;
@@ -1078,6 +1529,9 @@ TLS routing, deployment URL isolation, or provider acknowledgement behavior.
 - unsupported fields are not invented;
 - follow-up targets remain inside the conversation and deployment;
 - post-action generation uses normalized facts;
+- provider-supported reads route only through the provider ACTION package,
+  dealership-owned writes route only through the dealership ACTION package, and
+  unsupported capabilities fail explicitly without blind cross-system fallback;
 - generation failure returns a bounded deterministic summary, not raw JSON;
 - dealership-owned lead action requires confirmation and returns one receipt;
   and
@@ -1147,7 +1601,8 @@ This claim contains no Auto Trader name or implication.
 
 ### 11.3 `AUTOTRADER_SANDBOX_VERIFIED`
 
-- every Phase 0 through Phase 6 exit criterion passes;
+- every required Phase 0 through Phase 6 exit criterion, including Phase 3A and
+  the provider/dealership split proven in Phase 5A, passes;
 - exact credential/grant/advertiser metadata is recorded safely;
 - sandbox data limitations are reflected in assertions;
 - Auto Trader-required demonstration/call-log checks pass or are explicitly
@@ -1175,6 +1630,10 @@ This claim contains no Auto Trader name or implication.
 - No public ingestion endpoint merely to let the colocated connector reach its
   runtime.
 - No website scraping.
+- No requirement that a dealership website/backend replace its own stock source
+  with Auto Trader or the LoomAI simulator.
+- No direct indexing of an inbound notification payload when the event is only a
+  change signal; current provider state is fetched first.
 - No public claim that the neutral simulator is Auto Trader, an Auto Trader
   sandbox, or evidence of provider compatibility/certification.
 - No simulator dependency in production customer deployments.
@@ -1198,12 +1657,17 @@ LoomAI may claim production Auto Trader integration readiness only when:
 6. provider traffic, state, indexing, and events remain deployment-local;
 7. connector state is isolated in its owned schema and its private runtime
    scopes deny cross-deployment or broader admin access;
-8. baseline, webhook, update, delete, restart, and reconciliation pass;
-9. grounded conversation and confirmed dealership action pass;
-10. data rights, attribution, retention, and offboarding are enforced;
-11. Auto Trader capability-specific go-live checks pass;
-12. LoomAI staging and production release gates pass; and
-13. the exact evidence-backed claim is published without implying ungranted
+8. baseline, targeted record fetch, webhook, update, delete, restart, missed-
+   event repair, and indexing-work reconciliation pass;
+9. the independent dealership website can attach a trusted `stockId` without
+   receiving provider credentials or becoming the provider-data source;
+10. provider reads and dealership writes route to their declared owners without
+    blind fallback, and grounded conversation plus confirmed dealership action
+    pass;
+11. data rights, attribution, retention, and offboarding are enforced;
+12. Auto Trader capability-specific go-live checks pass;
+13. LoomAI staging and production release gates pass; and
+14. the exact evidence-backed claim is published without implying ungranted
     capabilities.
 
 Until then, the correct status is:
@@ -1220,6 +1684,7 @@ package, certification, and production evidence remain separate open gates.
 
 - [Auto Trader Connect Developer API](https://developers.autotrader.co.uk/api)
 - [Auto Trader Connect Capabilities Collection](https://www.postman.com/auto-trader-tam/partner-starter-collections/documentation/60cnu90/new-at-connect-capabilities-collection)
+- [Auto Trader Partner Starter Collections](https://www.postman.com/auto-trader-tam/partner-starter-collections/overview)
 - [Integration Fundamentals](https://help.autotrader.co.uk/hc/en-gb/articles/21791620456221-Integration-Fundamentals)
 - [Integration Fundamentals Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22645899163933-Go-Live-checks-for-Integration-Fundamentals)
 - [Vehicle Check Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22676578750237-Go-Live-checks-for-Vehicle-Check)

@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ProviderWebhookServiceTest {
@@ -138,6 +139,60 @@ class ProviderWebhookServiceTest {
     }
 
     @Test
+    void millisecondSignedWebhookPersistsRecordKeyAndRunsTargetedReconciliation() throws Exception {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.HttpDataSource dataSource = config.getDataSources().get("neutral-source");
+        dataSource.getTargetedRecordFetch().setEnabled(true);
+        dataSource.getTargetedRecordFetch().getRecordKeyPlacement().setTarget(
+            RestRoutingConfig.RecordKeyPlacement.Target.QUERY
+        );
+        dataSource.getTargetedRecordFetch().getRecordKeyPlacement().setField("recordId");
+        RestRoutingConfig.WebhookSource webhook = config.getWebhooks().get("neutral-hook");
+        webhook.setReconciliationStrategy(
+            RestRoutingConfig.WebhookSource.ReconciliationStrategy.FETCH_CURRENT_RECORD
+        );
+        webhook.setRecordKeyJsonPointer("/recordId");
+        webhook.getVerification().setTimestampUnit(
+            RestRoutingConfig.WebhookVerification.TimestampUnit.MILLISECONDS
+        );
+        InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
+        HttpDataSyncService syncService = mock(HttpDataSyncService.class);
+        when(syncService.reconcileRecordAsync("neutral-source", "record-42"))
+            .thenReturn(CompletableFuture.completedFuture(new HttpDataSyncService.RecordReconcileResult(
+                "neutral-source", "record-42", "COMPLETED", 1, 0, 0, null
+            )));
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        ProviderWebhookService service = new ProviderWebhookService(
+            config,
+            new WebhookVerificationService(clock),
+            new ProtectedResourceService(config, OBJECT_MAPPER),
+            repository,
+            syncService,
+            OBJECT_MAPPER,
+            clock
+        );
+        byte[] body = "{\"eventId\":\"event-targeted\",\"eventType\":\"record.changed\",\"scope\":\"scope-9\",\"recordId\":\"record-42\"}"
+            .getBytes(StandardCharsets.UTF_8);
+        long timestampMillis = NOW.toEpochMilli();
+
+        ProviderWebhookService.WebhookReceipt receipt = service.accept(
+            "neutral-hook",
+            "POST",
+            "application/json",
+            signature("fixture-webhook-secret", timestampMillis, body),
+            body
+        );
+
+        assertThat(receipt.accepted()).isTrue();
+        IntegrationStateRepository.WebhookEvent event = repository
+            .event("neutral-hook", "event-targeted")
+            .orElseThrow();
+        assertThat(event.recordKey()).isEqualTo("record-42");
+        assertThat(event.status()).isEqualTo("COMPLETED");
+        verify(syncService).reconcileRecordAsync("neutral-source", "record-42");
+    }
+
+    @Test
     void rejectsOversizedEventIdentityBeforePersistenceAndHonorsReplayPolicy() throws Exception {
         RestRoutingConfig config = config();
         InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
@@ -188,6 +243,59 @@ class ProviderWebhookServiceTest {
     }
 
     @Test
+    void compositeIdentityDeduplicatesRetriesButAcceptsLaterUpdatesForTheSameResource() throws Exception {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.WebhookSource webhook = config.getWebhooks().get("neutral-hook");
+        webhook.setEventIdJsonPointer(null);
+        webhook.setEventIdentityJsonPointers(List.of("/recordId", "/occurredAt"));
+        InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
+        HttpDataSyncService syncService = mock(HttpDataSyncService.class);
+        IntegrationStateRepository.SyncState completed = new IntegrationStateRepository.SyncState(
+            "neutral-source", "COMPLETED", null, "fixture-v1", null, null,
+            new IntegrationStateRepository.SyncCounts(1, 1, 1, 0, 1, 1, 0),
+            NOW, NOW, null, null, null, NOW
+        );
+        when(syncService.reconcileAsync("neutral-source"))
+            .thenReturn(CompletableFuture.completedFuture(completed));
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        ProviderWebhookService service = new ProviderWebhookService(
+            config,
+            new WebhookVerificationService(clock),
+            new ProtectedResourceService(config, OBJECT_MAPPER),
+            repository,
+            syncService,
+            OBJECT_MAPPER,
+            clock
+        );
+        byte[] firstBody = "{\"recordId\":\"record-7\",\"occurredAt\":\"2026-09-27T00:59:00Z\",\"eventType\":\"record.changed\",\"scope\":\"scope-9\"}"
+            .getBytes(StandardCharsets.UTF_8);
+        byte[] laterBody = "{\"recordId\":\"record-7\",\"occurredAt\":\"2026-09-27T01:00:00Z\",\"eventType\":\"record.changed\",\"scope\":\"scope-9\"}"
+            .getBytes(StandardCharsets.UTF_8);
+
+        ProviderWebhookService.WebhookReceipt first = service.accept(
+            "neutral-hook", "POST", "application/json",
+            signature("fixture-webhook-secret", NOW.getEpochSecond(), firstBody), firstBody
+        );
+        ProviderWebhookService.WebhookReceipt duplicate = service.accept(
+            "neutral-hook", "POST", "application/json",
+            signature("fixture-webhook-secret", NOW.getEpochSecond(), firstBody), firstBody
+        );
+        ProviderWebhookService.WebhookReceipt later = service.accept(
+            "neutral-hook", "POST", "application/json",
+            signature("fixture-webhook-secret", NOW.getEpochSecond(), laterBody), laterBody
+        );
+
+        assertThat(first.accepted()).isTrue();
+        assertThat(first.eventId()).startsWith("evt-").hasSize(68);
+        assertThat(duplicate.duplicate()).isTrue();
+        assertThat(duplicate.eventId()).isEqualTo(first.eventId());
+        assertThat(later.accepted()).isTrue();
+        assertThat(later.duplicate()).isFalse();
+        assertThat(later.eventId()).isNotEqualTo(first.eventId());
+        assertThat(repository.recentEvents("neutral-hook", 20)).hasSize(2);
+    }
+
+    @Test
     void retryTickRecoversAcceptedEventLeftBehindByRestart() {
         RestRoutingConfig config = config();
         InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
@@ -195,6 +303,7 @@ class ProviderWebhookServiceTest {
             "neutral-hook",
             "event-after-restart",
             "record.changed",
+            null,
             "resource-fingerprint",
             "payload-hash",
             "ACCEPTED",

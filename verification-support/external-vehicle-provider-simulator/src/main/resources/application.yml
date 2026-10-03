@@ -51,3 +51,10 @@ simulator:
     account-id: ${SIMULATOR_PROFILE_B_ACCOUNT_ID:}
     api-key: ${SIMULATOR_PROFILE_B_API_KEY:}
     webhook-secret: ${SIMULATOR_PROFILE_B_WEBHOOK_SECRET:}
+  auto-trader:
+    advertiser-id: ${SIMULATOR_AUTOTRADER_ADVERTISER_ID:}
+    api-key: ${SIMULATOR_AUTOTRADER_API_KEY:}
+    api-secret: ${SIMULATOR_AUTOTRADER_API_SECRET:}
+    notification-secret: ${SIMULATOR_AUTOTRADER_NOTIFICATION_SECRET:}
+    integration-id: ${SIMULATOR_AUTOTRADER_INTEGRATION_ID:}
+    token-ttl-seconds: ${SIMULATOR_AUTOTRADER_TOKEN_TTL_SECONDS:900}

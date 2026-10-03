@@ -179,12 +179,12 @@ public class JdbcIntegrationStateRepository implements IntegrationStateRepositor
         try {
             return jdbc.update("""
                 INSERT INTO integration_webhook_event
-                    (source_id, event_id, event_type, resource_fingerprint, payload_sha256,
+                    (source_id, event_id, event_type, record_key, resource_fingerprint, payload_sha256,
                      status, attempt_count, duplicate_count, replay_count, error_class, received_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (source_id, event_id) DO NOTHING
                 """,
-                event.sourceId(), event.eventId(), event.eventType(), event.resourceFingerprint(),
+                event.sourceId(), event.eventId(), event.eventType(), event.recordKey(), event.resourceFingerprint(),
                 event.payloadSha256(), event.status(), event.attemptCount(), event.duplicateCount(),
                 event.replayCount(), event.errorClass(),
                 Timestamp.from(event.receivedAt()), Timestamp.from(event.updatedAt())
@@ -305,7 +305,7 @@ public class JdbcIntegrationStateRepository implements IntegrationStateRepositor
     private WebhookEvent mapEvent(ResultSet rs) throws SQLException {
         return new WebhookEvent(
             rs.getString("source_id"), rs.getString("event_id"), rs.getString("event_type"),
-            rs.getString("resource_fingerprint"), rs.getString("payload_sha256"), rs.getString("status"),
+            rs.getString("record_key"), rs.getString("resource_fingerprint"), rs.getString("payload_sha256"), rs.getString("status"),
             rs.getInt("attempt_count"), rs.getInt("duplicate_count"), rs.getInt("replay_count"),
             rs.getString("error_class"), instant(rs, "received_at"),
             instant(rs, "updated_at")

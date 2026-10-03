@@ -359,6 +359,75 @@ class ProviderIntegrationFoundationTest {
     }
 
     @Test
+    void targetedRecordFetchUsesAuthenticatedRecordKeyAndConvergesUpsertThenDelete() throws Exception {
+        AtomicReference<String> publicationStatus = new AtomicReference<>("PUBLISHED");
+        AtomicReference<Map<String, String>> observedQuery = new AtomicReference<>();
+        List<JsonNode> indexedOperations = java.util.Collections.synchronizedList(new ArrayList<>());
+        startServer();
+        server.createContext("/targeted-stock", exchange -> {
+            observedQuery.set(query(exchange.getRequestURI()));
+            assertThat(exchange.getRequestHeaders().getFirst("X-Provider-Key")).isEqualTo("fixture-api-key");
+            String response = "{\"records\":[{\"id\":\"stock-42\",\"scope\":\"scope-8\",\"name\":\"Current vehicle\",\"state\":\"active\",\"publicationStatus\":\""
+                + publicationStatus.get() + "\"}]}";
+            respond(exchange, 200, response);
+        });
+        server.createContext("/api/internal/integrations/data-sync/batch", exchange ->
+            respondToDataSync(exchange, indexedOperations, false)
+        );
+
+        RestRoutingConfig config = baseConfig();
+        config.getConnectionProfiles().put("targeted-profile", apiKeyProfile(baseUrl()));
+        config.getProtectedResources().put("scope-binding", binding("targeted-profile", "tenant", "scope-8"));
+        RestRoutingConfig.HttpDataSource source = source(
+            "targeted-profile", "scope-binding", "/targeted-stock", "targeted-entry"
+        );
+        source.setRequiredCapabilityGrants(List.of("documents:read"));
+        source.getTrustedResourcePlacements().add(
+            placement(RestRoutingConfig.ResourcePlacement.Target.QUERY, "scope")
+        );
+        source.getMapping().setRecordsJsonPointer("/records");
+        source.getMapping().setResourceJsonPointer("/scope");
+        RestRoutingConfig.RecordInclusionCondition inclusion = new RestRoutingConfig.RecordInclusionCondition();
+        inclusion.setJsonPointer("/publicationStatus");
+        inclusion.setAllowedValues(List.of("PUBLISHED"));
+        source.getMapping().setInclusionConditions(List.of(inclusion));
+        source.getTombstonePolicy().setStrategy(RestRoutingConfig.TombstonePolicy.Strategy.FIELD_VALUE);
+        source.getTombstonePolicy().setOperationJsonPointer("/state");
+        source.getTombstonePolicy().setDeleteValues(List.of("deleted"));
+        source.getTargetedRecordFetch().setEnabled(true);
+        source.getTargetedRecordFetch().getRecordKeyPlacement().setTarget(
+            RestRoutingConfig.RecordKeyPlacement.Target.QUERY
+        );
+        source.getTargetedRecordFetch().getRecordKeyPlacement().setField("stockId");
+        config.getDataSources().put("targeted-source", source);
+        InMemoryIntegrationStateRepository repository = new InMemoryIntegrationStateRepository();
+        Services services = services(config, repository);
+
+        HttpDataSyncService.RecordReconcileResult upsert = services.syncService()
+            .reconcileRecord("targeted-source", "stock-42");
+
+        assertThat(upsert.completedUpserts()).isEqualTo(1);
+        assertThat(observedQuery.get()).containsEntry("scope", "scope-8").containsEntry("stockId", "stock-42");
+        assertThat(repository.activeRecordIds("targeted-source")).containsExactly("stock-42");
+        assertThat(indexedOperations).singleElement().satisfies(operation -> {
+            assertThat(operation.path("type").asText()).isEqualTo("UPSERT");
+            assertThat(operation.path("id").asText()).isEqualTo("stock-42");
+        });
+
+        publicationStatus.set("NOT_PUBLISHED");
+        indexedOperations.clear();
+        HttpDataSyncService.RecordReconcileResult delete = services.syncService()
+            .reconcileRecord("targeted-source", "stock-42");
+
+        assertThat(delete.completedDeletes()).isEqualTo(1);
+        assertThat(repository.activeRecordIds("targeted-source")).isEmpty();
+        assertThat(indexedOperations).singleElement().satisfies(operation -> {
+            assertThat(operation.path("type").asText()).isEqualTo("DELETE");
+            assertThat(operation.path("id").asText()).isEqualTo("stock-42");
+        });
+    }
+
+    @Test
     void undeclaredPartialSuccessFailsBeforeApplyingSnapshotChanges() throws Exception {
         AtomicBoolean partial = new AtomicBoolean(false);
         List<JsonNode> indexedOperations = java.util.Collections.synchronizedList(new ArrayList<>());

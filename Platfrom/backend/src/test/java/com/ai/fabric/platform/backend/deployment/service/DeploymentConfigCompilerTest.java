@@ -151,12 +151,21 @@ class DeploymentConfigCompilerTest {
                         "mapping": {
                           "recordsJsonPointer": "/records",
                           "idJsonPointer": "/id",
-                          "contentFields": {"title": "/title"}
+                          "contentFields": {"title": "/title"},
+                          "inclusionConditions": [{
+                            "jsonPointer": "/publicationStatus",
+                            "allowedValues": ["PUBLISHED"]
+                          }]
                         },
                         "tombstonePolicy": {
                           "strategy": "FIELD_VALUE",
                           "operationJsonPointer": "/state",
                           "deleteValues": ["deleted"]
+                        },
+                        "targetedRecordFetch": {
+                          "enabled": true,
+                          "path": "/scopes/{scope}/records",
+                          "recordKeyPlacement": {"target": "QUERY", "field": "recordId"}
                         },
                         "vectorSpace": "neutral-record",
                         "entityType": "neutral-record"
@@ -170,10 +179,17 @@ class DeploymentConfigCompilerTest {
                           "signatureHeader": "X-Fixture-Signature",
                           "secret": "${FIXTURE_WEBHOOK_SECRET}"
                         },
-                        "eventIdJsonPointer": "/eventId",
+                        "eventIdentityJsonPointers": ["/recordId", "/occurredAt"],
                         "eventTypeJsonPointer": "/eventType",
                         "resourceJsonPointer": "/scope",
+                        "recordKeyJsonPointer": "/recordId",
+                        "reconciliationStrategy": "FETCH_CURRENT_RECORD",
                         "allowedEventTypes": ["record.changed"],
+                        "responseStatuses": {
+                          "accepted": 200,
+                          "duplicate": 200,
+                          "resourceMismatch": 422
+                        },
                         "registrationExpected": true,
                         "manualReplayEnabled": true,
                         "reconcileDataSourceRef": "neutral-source"
@@ -213,12 +229,23 @@ class DeploymentConfigCompilerTest {
             .path("operation-json-pointer").asText()).isEqualTo("/state");
         assertThat(routing.path("data-sources").path("neutral-source").path("tombstone-policy")
             .path("delete-values").get(0).asText()).isEqualTo("deleted");
+        assertThat(routing.path("data-sources").path("neutral-source").path("targeted-record-fetch")
+            .path("record-key-placement").path("field").asText()).isEqualTo("recordId");
+        assertThat(routing.path("data-sources").path("neutral-source").path("mapping")
+            .path("inclusion-conditions").get(0).path("allowed-values").get(0).asText())
+            .isEqualTo("PUBLISHED");
         assertThat(routing.path("webhooks").path("neutral-events").path("reconcile-data-source-ref").asText())
             .isEqualTo("neutral-source");
         assertThat(routing.path("webhooks").path("neutral-events").path("registration-expected").asBoolean())
             .isTrue();
         assertThat(routing.path("webhooks").path("neutral-events").path("manual-replay-enabled").asBoolean())
             .isTrue();
+        assertThat(routing.path("webhooks").path("neutral-events").path("reconciliation-strategy").asText())
+            .isEqualTo("FETCH_CURRENT_RECORD");
+        assertThat(routing.path("webhooks").path("neutral-events").path("event-identity-json-pointers")
+            .get(1).asText()).isEqualTo("/occurredAt");
+        assertThat(routing.path("webhooks").path("neutral-events").path("response-statuses")
+            .path("resource-mismatch").asInt()).isEqualTo(422);
         assertThat(routing.path("runtime-data-sync").path("enabled").asBoolean()).isTrue();
         assertThat(routing.path("runtime-data-sync").path("deployment-id").asText()).isEqualTo("dep-1");
         assertThat(routing.path("runtime-data-sync").path("tenant-id").asText()).isEqualTo("tenant-neutral");

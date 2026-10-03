@@ -58,8 +58,10 @@ public class SimulatorService {
             properties.fixtureVersion(),
             properties.profileA().accountId(),
             properties.profileB().accountId(),
+            properties.autoTrader().advertiserId(),
             profileAVehicles(),
-            profileBVehicles()
+            profileBVehicles(),
+            autoTraderVehicles()
         );
     }
 
@@ -80,7 +82,7 @@ public class SimulatorService {
             throw new ProviderApiException(401, "INVALID_CREDENTIALS", "Provider credentials were rejected.");
         }
         Instant expiresAt = Instant.now().plusSeconds(properties.tokenTtlSeconds());
-        String token = issueToken(properties.profileA().accountId(), expiresAt);
+        String token = issueToken(Profile.PROFILE_A, properties.profileA().accountId(), expiresAt);
         return objectMapper.createObjectNode()
             .put("access_token", token)
             .put("token_type", "Bearer")
@@ -90,7 +92,27 @@ public class SimulatorService {
             .put("fixture_version", properties.fixtureVersion());
     }
 
+    public ObjectNode authenticateAutoTrader(String key, String secret) {
+        if (!constantTime(properties.autoTrader().apiKey(), key)
+            || !constantTime(properties.autoTrader().apiSecret(), secret)) {
+            throw new ProviderApiException(401, "INVALID_CREDENTIALS", "Provider credentials were rejected.");
+        }
+        Instant expiresAt = Instant.now().plusSeconds(properties.autoTrader().tokenTtlSeconds());
+        String token = issueToken(Profile.AUTOTRADER, properties.autoTrader().advertiserId(), expiresAt);
+        return objectMapper.createObjectNode()
+            .put("access_token", token)
+            .put("expires_at", expiresAt.toString());
+    }
+
     public String requireProfileAToken(String authorization) {
+        return requireToken(Profile.PROFILE_A, properties.profileA().accountId(), authorization);
+    }
+
+    public String requireAutoTraderToken(String authorization) {
+        return requireToken(Profile.AUTOTRADER, properties.autoTrader().advertiserId(), authorization);
+    }
+
+    private String requireToken(Profile expectedProfile, String expectedAccountId, String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new ProviderApiException(401, "AUTHENTICATION_REQUIRED", "A bearer token is required.");
         }
@@ -104,8 +126,8 @@ public class SimulatorService {
             String profile = payload.path("profile").asText();
             String accountId = payload.path("accountId").asText();
             long expiresAt = payload.path("expiresAt").asLong(0);
-            if (!Profile.PROFILE_A.value().equals(profile)
-                || !properties.profileA().accountId().equals(accountId)
+            if (!expectedProfile.value().equals(profile)
+                || !expectedAccountId.equals(accountId)
                 || expiresAt <= Instant.now().getEpochSecond()) {
                 throw new ProviderApiException(401, "TOKEN_INVALID", "The bearer token is invalid or expired.");
             }
@@ -142,6 +164,11 @@ public class SimulatorService {
             .orElseThrow(() -> new ProviderApiException(404, "VEHICLE_NOT_FOUND", "The vehicle was not found."));
     }
 
+    public Optional<VehicleRecord> findVehicle(Profile profile, String accountId, String vehicleId) {
+        requireKnownAccount(profile, accountId);
+        return repository.vehicle(profile, accountId, vehicleId);
+    }
+
     public long sourceVersion(Profile profile, String accountId) {
         requireKnownAccount(profile, accountId);
         return repository.sourceVersion(profile, accountId);
@@ -175,24 +202,32 @@ public class SimulatorService {
     }
 
     public String accountId(Profile profile) {
-        return profile == Profile.PROFILE_A
-            ? properties.profileA().accountId()
-            : properties.profileB().accountId();
+        return switch (profile) {
+            case PROFILE_A -> properties.profileA().accountId();
+            case PROFILE_B -> properties.profileB().accountId();
+            case AUTOTRADER -> properties.autoTrader().advertiserId();
+        };
     }
 
     public String webhookSecret(Profile profile) {
-        return profile == Profile.PROFILE_A
-            ? properties.profileA().webhookSecret()
-            : properties.profileB().webhookSecret();
+        return switch (profile) {
+            case PROFILE_A -> properties.profileA().webhookSecret();
+            case PROFILE_B -> properties.profileB().webhookSecret();
+            case AUTOTRADER -> properties.autoTrader().notificationSecret();
+        };
+    }
+
+    public String autoTraderIntegrationId() {
+        return properties.autoTrader().integrationId();
     }
 
     public String newRequestId() {
         return "sim-" + UUID.randomUUID();
     }
 
-    private String issueToken(String accountId, Instant expiresAt) {
+    private String issueToken(Profile profile, String accountId, Instant expiresAt) {
         ObjectNode payload = objectMapper.createObjectNode()
-            .put("profile", Profile.PROFILE_A.value())
+            .put("profile", profile.value())
             .put("accountId", accountId)
             .put("expiresAt", expiresAt.getEpochSecond())
             .put("nonce", UUID.randomUUID().toString());
@@ -248,6 +283,17 @@ public class SimulatorService {
             new VehicleInput("veh-b-2002", "Aster", "Pulse", "Touring", 2024, 3650000, "GBP", "electric", "estate", "automatic", 7100, "active"),
             new VehicleInput("veh-b-2003", "Morrow", "City", "Comfort", 2023, 1695000, "GBP", "hybrid", "hatchback", "automatic", 14100, "active"),
             new VehicleInput("veh-b-2004", "Morrow", "Venture", "Seven Seat", 2022, 2325000, "GBP", "diesel", "suv", "automatic", 29800, "sold")
+        );
+    }
+
+    private static List<VehicleInput> autoTraderVehicles() {
+        return List.of(
+            new VehicleInput("DEMO-1001", "Aster", "E1", "Motion Long Range", 2025, 31_950_00L, "GBP", "Electric", "SUV", "Automatic", 4850, "active"),
+            new VehicleInput("DEMO-1002", "Northstar", "S4", "Touring Hybrid", 2024, 27_400_00L, "GBP", "Hybrid", "Estate", "Automatic", 8920, "active"),
+            new VehicleInput("DEMO-1003", "Morrow", "C2", "City Electric", 2025, 22_750_00L, "GBP", "Electric", "Hatchback", "Automatic", 1980, "active"),
+            new VehicleInput("DEMO-1004", "Caldera", "X6", "Adventure AWD", 2023, 29_800_00L, "GBP", "Petrol", "SUV", "Automatic", 17420, "active"),
+            new VehicleInput("DEMO-1005", "Arden", "V3", "Executive Plug-in Hybrid", 2024, 34_600_00L, "GBP", "Plug-in hybrid", "Saloon", "Automatic", 6310, "reserved"),
+            new VehicleInput("DEMO-1006", "Aster", "E2", "Sport Dual Motor", 2025, 39_250_00L, "GBP", "Electric", "Crossover", "Automatic", 3760, "active")
         );
     }
 }

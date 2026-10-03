@@ -94,6 +94,7 @@ public interface IntegrationStateRepository {
         String sourceId,
         String eventId,
         String eventType,
+        String recordKey,
         String resourceFingerprint,
         String payloadSha256,
         String status,
@@ -109,6 +110,7 @@ public interface IntegrationStateRepository {
                 sourceId,
                 eventId,
                 eventType,
+                recordKey,
                 resourceFingerprint,
                 payloadSha256,
                 nextStatus,
@@ -126,6 +128,7 @@ public interface IntegrationStateRepository {
                 sourceId,
                 eventId,
                 eventType,
+                recordKey,
                 resourceFingerprint,
                 payloadSha256,
                 nextStatus,
@@ -140,14 +143,14 @@ public interface IntegrationStateRepository {
 
         public WebhookEvent withDuplicate() {
             return new WebhookEvent(
-                sourceId, eventId, eventType, resourceFingerprint, payloadSha256, status,
+                sourceId, eventId, eventType, recordKey, resourceFingerprint, payloadSha256, status,
                 attemptCount, duplicateCount + 1, replayCount, errorClass, receivedAt, Instant.now()
             );
         }
 
         public WebhookEvent withReplay() {
             return new WebhookEvent(
-                sourceId, eventId, eventType, resourceFingerprint, payloadSha256, status,
+                sourceId, eventId, eventType, recordKey, resourceFingerprint, payloadSha256, status,
                 attemptCount, duplicateCount, replayCount + 1, errorClass, receivedAt, Instant.now()
             );
         }

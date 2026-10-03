@@ -138,6 +138,8 @@ public class IntegrationOperationsController {
         out.put("vectorSpace", source.getVectorSpace());
         out.put("entityType", source.getEntityType());
         out.put("scheduleSeconds", source.getScheduleSeconds());
+        out.put("targetedRecordFetchEnabled", source.getTargetedRecordFetch() != null
+            && source.getTargetedRecordFetch().isEnabled());
         out.put("state", state);
         Long lagSeconds = state.lastSuccessAt() != null
             ? Math.max(0, Duration.between(state.lastSuccessAt(), Instant.now()).getSeconds())
@@ -177,6 +179,7 @@ public class IntegrationOperationsController {
         out.put("signatureHeader", source.getVerification() != null ? source.getVerification().getSignatureHeader() : null);
         out.put("verificationConfigured", source.getVerification() != null && StringUtils.hasText(source.getVerification().getSecret()));
         out.put("reconcileDataSourceRef", source.getReconcileDataSourceRef());
+        out.put("reconciliationStrategy", source.getReconciliationStrategy());
         long validEvents = events.stream().filter(event -> !"REJECTED".equalsIgnoreCase(event.status())).count();
         long duplicates = events.stream().mapToLong(IntegrationStateRepository.WebhookEvent::duplicateCount).sum();
         long replays = events.stream().mapToLong(IntegrationStateRepository.WebhookEvent::replayCount).sum();
@@ -211,6 +214,7 @@ public class IntegrationOperationsController {
         out.put("sourceId", event.sourceId());
         out.put("eventId", event.eventId());
         out.put("eventType", event.eventType());
+        out.put("targetedRecord", StringUtils.hasText(event.recordKey()));
         out.put("status", event.status());
         out.put("attemptCount", event.attemptCount());
         out.put("duplicateCount", event.duplicateCount());

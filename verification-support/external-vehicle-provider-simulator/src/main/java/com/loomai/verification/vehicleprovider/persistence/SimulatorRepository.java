@@ -52,8 +52,13 @@ public class SimulatorRepository {
     }
 
     @Transactional
-    public FixtureRun reset(String fixtureVersion, String accountA, String accountB,
-                            List<VehicleInput> vehiclesA, List<VehicleInput> vehiclesB) {
+    public FixtureRun reset(String fixtureVersion,
+                            String accountA,
+                            String accountB,
+                            String autoTraderAdvertiserId,
+                            List<VehicleInput> vehiclesA,
+                            List<VehicleInput> vehiclesB,
+                            List<VehicleInput> autoTraderVehicles) {
         jdbc.update("delete from simulator_fault");
         jdbc.update("delete from simulator_vehicle");
         jdbc.update("delete from simulator_account_state");
@@ -67,8 +72,10 @@ public class SimulatorRepository {
         );
         insertAccount(Profile.PROFILE_A, accountA, now);
         insertAccount(Profile.PROFILE_B, accountB, now);
+        insertAccount(Profile.AUTOTRADER, autoTraderAdvertiserId, now);
         vehiclesA.forEach(vehicle -> insertVehicle(Profile.PROFILE_A, accountA, vehicle, 1, now));
         vehiclesB.forEach(vehicle -> insertVehicle(Profile.PROFILE_B, accountB, vehicle, 1, now));
+        autoTraderVehicles.forEach(vehicle -> insertVehicle(Profile.AUTOTRADER, autoTraderAdvertiserId, vehicle, 1, now));
         return run;
     }
 

@@ -40,7 +40,7 @@ class JdbcIntegrationStateRepositoryTest {
             repository.recordWork("work-1", "neutral-source", "record-1", "UPSERT", "ACCEPTED");
             repository.updateWork("work-1", "COMPLETED", null);
             assertThat(repository.registerEvent(new IntegrationStateRepository.WebhookEvent(
-                "neutral-hook", "event-1", "record.changed", "resource-fingerprint", "payload-hash",
+                "neutral-hook", "event-1", "record.changed", null, "resource-fingerprint", "payload-hash",
                 "COMPLETED", 1, 0, 0, null, now, now
             ))).isTrue();
             repository.recordEventRejection("neutral-hook", "WEBHOOK_SIGNATURE_INVALID");

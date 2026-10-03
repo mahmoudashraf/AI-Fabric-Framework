@@ -28,6 +28,7 @@ class IntegrationOperationsControllerTest {
                 "neutral-hook",
                 "event-1",
                 "record.changed",
+                null,
                 "protected-resource-fingerprint",
                 "payload-sha256",
                 "COMPLETED",

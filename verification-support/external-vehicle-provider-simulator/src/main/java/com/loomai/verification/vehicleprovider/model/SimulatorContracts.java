@@ -17,7 +17,8 @@ public final class SimulatorContracts {
 
     public enum Profile {
         PROFILE_A("profile-a"),
-        PROFILE_B("profile-b");
+        PROFILE_B("profile-b"),
+        AUTOTRADER("autotrader");
 
         private final String value;
 
@@ -125,6 +126,7 @@ public final class SimulatorContracts {
 
     public record EventDelivery(
         String eventId,
+        String providerEventId,
         EventVariant variant,
         String profile,
         String accountId,

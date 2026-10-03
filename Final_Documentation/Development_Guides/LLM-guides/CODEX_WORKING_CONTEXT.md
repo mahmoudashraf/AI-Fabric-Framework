@@ -3559,3 +3559,51 @@ Critical fixes that made the gate pass:
 - Temporary production Coolify access was removed. Hetzner firewalls
   `10915120` and `10918233` match their pre-deploy rule sets, contain no
   operator CIDR, and local port `8000` access is again closed.
+
+## 2026-10-03 Auto Trader Provider Integration Architecture Decision
+
+- The current live dealership deployment `dep-f023c863` v21 remains a
+  fictional backend-push demo. `DemoInventorySeeder` supplies six dealership
+  rows, the backend pushes them through Data Sync, and its compiled HTTP source
+  is disabled. The separately hosted provider simulator is not its data source.
+- The product target remains one dealership, one self-contained LoomAI
+  deployment and one approved Auto Trader advertiser/account scope. Routine
+  provider data, events, actions and chat bypass the central Platform data
+  plane; no standalone Auto Trader bridge or new plugin type is introduced.
+- Use a dedicated declarative Auto Trader DATA plugin for provider routes,
+  credentials, advertiser binding, baseline, notification selectors, current-
+  record fetch, mapping, lifecycle, rights and rate policy. Reusable execution
+  stays in the existing deployment-local Generic REST Connector; do not place
+  arbitrary executable code in the plugin.
+- The dealership website/backend stays independent and need not consume Auto
+  Trader or the simulator. It owns its own catalogue presentation and dealer-
+  side callback/test-drive commands. A validated `stockId` is the shared target;
+  provider-internal identity remains inside the provider connector boundary.
+- Provider-supported reads use the provider ACTION package. Dealer-owned writes
+  use a separate dealership ACTION package with confirmation, trusted target,
+  idempotency and backend validation. Route ownership is immutable package
+  configuration; there is no blind cross-system fallback.
+- Add provider-neutral `FETCH_CURRENT_RECORD` webhook reconciliation alongside
+  existing `FULL_SOURCE`: verify event/resource, extract one bounded record key,
+  fetch current provider state, reuse the baseline mapper, upsert/delete one
+  entity and reconcile indexing work. Notification bodies are signals, not
+  index documents. Periodic full baseline remains drift/missed-event recovery.
+- Before named provider work, run a neutral canary where only the LoomAI
+  deployment reads/indexes simulator stock and the unchanged dealership backend
+  still owns leads. Matching fictional `stockId` values connect page context to
+  provider records without making the website depend on the simulator.
+- Auto Trader sandbox/package/production claims remain externally blocked on
+  credentials, exact grants/routes/schemas, advertiser, notification contract,
+  data rights and provider validation. Canonical tracking is in `010.26` Section
+  22 and `010.27` Sections 5.3-5.9, Phase 3A and Phase 5A.
+- The provider simulator's current profiles A/B remain neutral generic evidence;
+  they are not exact Auto Trader wire contracts. Add a separately versioned
+  public-document-informed Stock Sync fixture with provenance for auth,
+  advertiser scope, baseline stock, `stockId`, signed `STOCK_UPDATE` delivery,
+  and lifecycle mappings. Public-document fidelity does not satisfy sandbox or
+  provider-validation gates.
+- The meeting may expose a staff-authenticated demo scenario that asks the
+  dealership backend to mutate fictional simulator stock and emit a signed
+  event. The backend owns fixed accounts, targets and secrets; browser/model
+  callers cannot choose them. This is operator verification tooling only and
+  does not make the dealership catalogue depend on the simulator.

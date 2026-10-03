@@ -45,7 +45,13 @@ import static org.assertj.core.api.Assertions.assertThat;
         "simulator.profile-a.webhook-secret=profile-a-webhook-secret",
         "simulator.profile-b.account-id=account-bravo",
         "simulator.profile-b.api-key=profile-b-api-key",
-        "simulator.profile-b.webhook-secret=profile-b-webhook-secret"
+        "simulator.profile-b.webhook-secret=profile-b-webhook-secret",
+        "simulator.auto-trader.advertiser-id=10020030",
+        "simulator.auto-trader.api-key=autotrader-api-key",
+        "simulator.auto-trader.api-secret=autotrader-api-secret",
+        "simulator.auto-trader.notification-secret=autotrader-notification-secret",
+        "simulator.auto-trader.integration-id=loomai-contract-fixture",
+        "simulator.auto-trader.token-ttl-seconds=900"
     }
 )
 class VehicleProviderSimulatorHttpTest {
@@ -185,6 +191,108 @@ class VehicleProviderSimulatorHttpTest {
     }
 
     @Test
+    void autoTraderProfileMatchesThePublishedAuthenticationAndStockContract() throws Exception {
+        String token = autoTraderToken();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        ResponseEntity<String> first = exchange(
+            HttpMethod.GET,
+            "/stock?advertiserId=10020030&page=1&pageSize=2",
+            new HttpEntity<>(headers)
+        );
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(first.getHeaders()).doesNotContainKey("X-Simulator-Request");
+        JsonNode body = objectMapper.readTree(first.getBody());
+        assertThat(body.path("results").size()).isEqualTo(2);
+        assertThat(body.path("totalResults").asInt()).isEqualTo(6);
+        JsonNode record = body.path("results").get(0);
+        assertThat(record.path("advertiser").path("advertiserId").asText()).isEqualTo("10020030");
+        assertThat(record.path("metadata").path("stockId").asText()).isNotBlank();
+        assertThat(record.path("metadata").path("lifecycleState").asText()).isEqualTo("FORECOURT");
+        assertThat(record.path("adverts").path("retailAdverts").path("advertiserAdvert").path("status").asText())
+            .isEqualTo("PUBLISHED");
+        assertThat(record.path("adverts").path("reservationStatus").isNull()).isTrue();
+        assertThat(record.path("vehicle").path("ownershipCondition").asText()).isEqualTo("Used");
+
+        String stockId = record.path("metadata").path("stockId").asText();
+        ResponseEntity<String> targeted = exchange(
+            HttpMethod.GET,
+            "/stock?advertiserId=10020030&stockId=" + stockId + "&page=1&pageSize=1",
+            new HttpEntity<>(headers)
+        );
+        JsonNode targetedBody = objectMapper.readTree(targeted.getBody());
+        assertThat(targetedBody.path("results").size()).isEqualTo(1);
+        assertThat(targetedBody.path("results").get(0).path("metadata").path("stockId").asText())
+            .isEqualTo(stockId);
+
+        ResponseEntity<String> reserved = exchange(
+            HttpMethod.PUT,
+            "/internal/control/accounts/autotrader/10020030/vehicles/DEMO-1001",
+            controlEntity("""
+                {
+                  "id":"DEMO-1001",
+                  "make":"Aster",
+                  "model":"E1",
+                  "derivative":"Motion Long Range",
+                  "year":2025,
+                  "priceMinor":3195000,
+                  "currency":"GBP",
+                  "fuelType":"Electric",
+                  "bodyStyle":"SUV",
+                  "transmission":"Automatic",
+                  "mileage":4850,
+                  "state":"reserved"
+                }
+                """)
+        );
+        assertThat(reserved.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ResponseEntity<String> reservedStock = exchange(
+            HttpMethod.GET,
+            "/stock?advertiserId=10020030&stockId=DEMO-1001&page=1&pageSize=1",
+            new HttpEntity<>(headers)
+        );
+        assertThat(objectMapper.readTree(reservedStock.getBody())
+            .path("results").get(0).path("adverts").path("reservationStatus").asText())
+            .isEqualTo("Reserved");
+
+        ResponseEntity<String> sold = exchange(
+            HttpMethod.PUT,
+            "/internal/control/accounts/autotrader/10020030/vehicles/DEMO-1001",
+            controlEntity("""
+                {
+                  "id":"DEMO-1001",
+                  "make":"Aster",
+                  "model":"E1",
+                  "derivative":"Motion Long Range",
+                  "year":2025,
+                  "priceMinor":3195000,
+                  "currency":"GBP",
+                  "fuelType":"Electric",
+                  "bodyStyle":"SUV",
+                  "transmission":"Automatic",
+                  "mileage":4850,
+                  "state":"sold"
+                }
+                """)
+        );
+        assertThat(sold.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ResponseEntity<String> activeOnly = exchange(
+            HttpMethod.GET,
+            "/stock?advertiserId=10020030&stockId=DEMO-1001&lifecycleState=FORECOURT&page=1&pageSize=1",
+            new HttpEntity<>(headers)
+        );
+        assertThat(objectMapper.readTree(activeOnly.getBody()).path("results")).isEmpty();
+
+        ResponseEntity<String> denied = exchange(
+            HttpMethod.GET,
+            "/stock?advertiserId=99999999&page=1&pageSize=20",
+            new HttpEntity<>(headers)
+        );
+        assertThat(denied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void controlMutationFaultAndResetAreDeterministicAndProtected() throws Exception {
         ResponseEntity<String> anonymous = exchange(
             HttpMethod.GET,
@@ -260,6 +368,7 @@ class VehicleProviderSimulatorHttpTest {
             captured.add(new CapturedRequest(
                 exchange.getRequestMethod(),
                 exchange.getRequestHeaders().getFirst("X-Simulator-A-Signature"),
+                exchange.getRequestHeaders().getFirst("X-Simulator-Event"),
                 body
             ));
             exchange.sendResponseHeaders(202, -1);
@@ -291,11 +400,65 @@ class VehicleProviderSimulatorHttpTest {
         assertThat(first).isNotNull();
         assertThat(second).isNotNull();
         assertThat(first.method()).isEqualTo("POST");
+        assertThat(first.simulatorMarker()).isEqualTo("true");
         assertThat(first.body()).isEqualTo(second.body());
         assertThat(signatureValid("profile-a-webhook-secret", first.signature(), first.body())).isTrue();
         JsonNode event = objectMapper.readTree(first.body());
         assertThat(event.path("accountId").asText()).isEqualTo("account-alpha");
         assertThat(event.path("eventType").asText()).isEqualTo("vehicle.changed");
+    }
+
+    @Test
+    void autoTraderNotificationUsesPublishedPutPayloadAndEpochSecondSignatureContract() throws Exception {
+        LinkedBlockingQueue<CapturedRequest> captured = new LinkedBlockingQueue<>();
+        webhookServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        webhookServer.createContext("/autotrader-hook", exchange -> {
+            byte[] body = exchange.getRequestBody().readAllBytes();
+            captured.add(new CapturedRequest(
+                exchange.getRequestMethod(),
+                exchange.getRequestHeaders().getFirst("AutoTrader-Signature"),
+                exchange.getRequestHeaders().getFirst("X-Simulator-Event"),
+                body
+            ));
+            exchange.sendResponseHeaders(202, -1);
+            exchange.close();
+        });
+        webhookServer.start();
+
+        int webhookPort = webhookServer.getAddress().getPort();
+        String eventPayload = """
+            {
+              "variant":"VALID",
+              "targetUrl":"http://127.0.0.1:%d/autotrader-hook",
+              "vehicleId":"DEMO-1001"
+            }
+            """.formatted(webhookPort);
+        ResponseEntity<String> response = exchange(
+            HttpMethod.POST,
+            "/internal/control/accounts/autotrader/10020030/events",
+            controlEntity(eventPayload)
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        CapturedRequest request = captured.poll(3, TimeUnit.SECONDS);
+        assertThat(request).isNotNull();
+        assertThat(request.method()).isEqualTo("PUT");
+        assertThat(request.simulatorMarker()).isNull();
+        assertThat(signatureValid(
+            "autotrader-notification-secret",
+            request.signature(),
+            request.body()
+        )).isTrue();
+        String rawBody = new String(request.body(), StandardCharsets.UTF_8);
+        assertThat(rawBody).doesNotContain("\n", "  ");
+        JsonNode event = objectMapper.readTree(request.body());
+        assertThat(event.path("id").asText()).isEqualTo("DEMO-1001");
+        assertThat(event.path("type").asText()).isEqualTo("STOCK_UPDATE");
+        assertThat(event.path("integrationId").asText()).isEqualTo("loomai-contract-fixture");
+        assertThat(event.path("stockEventSource").asText()).isEqualTo("AT_CONNECT");
+        assertThat(event.path("data").path("advertiser").path("advertiserId").asText()).isEqualTo("10020030");
+        assertThat(event.path("data").path("metadata").path("stockId").asText()).isEqualTo("DEMO-1001");
+        assertThat(event.path("changedFields")).isNotEmpty();
     }
 
     private String profileAToken() throws Exception {
@@ -311,6 +474,26 @@ class VehicleProviderSimulatorHttpTest {
         );
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         return objectMapper.readTree(response.getBody()).path("access_token").asText();
+    }
+
+    private String autoTraderToken() throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("key", "autotrader-api-key");
+        form.add("secret", "autotrader-api-secret");
+        ResponseEntity<String> response = exchange(
+            HttpMethod.POST,
+            "/authenticate",
+            new HttpEntity<>(form, headers)
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = objectMapper.readTree(response.getBody());
+        assertThat(body.size()).isEqualTo(2);
+        assertThat(body.has("access_token")).isTrue();
+        assertThat(body.has("expires_at")).isTrue();
+        assertThat(Instant.parse(body.path("expires_at").asText())).isAfter(Instant.now().plusSeconds(850));
+        return body.path("access_token").asText();
     }
 
     private HttpEntity<String> controlEntity(String body) {
@@ -337,6 +520,6 @@ class VehicleProviderSimulatorHttpTest {
         return expected.equals(actual) && Math.abs(Instant.now().getEpochSecond() - timestamp) < 30;
     }
 
-    private record CapturedRequest(String method, String signature, byte[] body) {
+    private record CapturedRequest(String method, String signature, String simulatorMarker, byte[] body) {
     }
 }

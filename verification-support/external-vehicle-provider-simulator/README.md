@@ -1,17 +1,23 @@
 # External Vehicle Provider Simulator
 
 This is a hosted verification dependency for LoomAI's provider-neutral,
-deployment-local integration substrate. It is not an Auto Trader emulator,
-customer product, Marketplace integration, Platform data-plane service, or
-production dependency.
+deployment-local integration substrate. It is not an official Auto Trader
+sandbox, a complete provider emulator, a customer product, a Platform
+data-plane service, or a production dependency.
 
-It provides two deliberately different contracts:
+It provides three isolated profiles:
 
 - `profile-a`: form token exchange, bearer auth, page/size pagination, and a
   query-bound account;
-- `profile-b`: API-key auth, cursor pagination, and a path-bound account.
+- `profile-b`: API-key auth, cursor pagination, and a path-bound account;
+- `autotrader`: synthetic records behind the current publicly documented Auto
+  Trader Connect wire shape used by the first dealership canary. It reproduces
+  the documented `/authenticate`, `/stock`, bearer-token, pagination, stock
+  envelope, notification envelope, `AutoTrader-Signature`, epoch-second
+  timestamp, and raw-body HMAC contract. It does not imply sandbox access,
+  certification, endorsement, or rights to production data.
 
-Both profiles expose deterministic fictitious inventory. The protected control
+All profiles expose deterministic fictitious inventory. The protected control
 API can reset fixtures, mutate records, create tombstones, inject bounded
 failures, and send signed provider events. State is stored in a persistent H2
 file so restart tests exercise durable provider state.
@@ -45,7 +51,18 @@ GET  /api/profile-a/vehicles/{vehicleId}?account=...
 
 GET  /api/profile-b/accounts/{ownerRef}/vehicles?cursor=...&limit=...
 GET  /api/profile-b/accounts/{ownerRef}/vehicles/{vehicleId}
+
+POST /authenticate
+GET  /stock?advertiserId=...&lifecycleState=FORECOURT&page=1&pageSize=...
+GET  /stock?advertiserId=...&stockId=...&page=1&pageSize=1
 ```
+
+The Auto Trader profile is derived only from the current
+[Auto Trader Connect developer documentation](https://developers.autotrader.co.uk/api),
+[Stock Sync introduction](https://help.autotrader.co.uk/hc/en-gb/articles/21846314775453-Introduction-to-Stock-Sync),
+and [Stock Sync go-live checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673947111325-Go-Live-checks-for-Stock-Sync).
+Its fixture is versioned so later public-contract changes are deliberate and
+reviewable.
 
 ## Protected verification controls
 
@@ -68,6 +85,11 @@ Supported one-shot or bounded fault modes are `UNAUTHORIZED`, `FORBIDDEN`,
 Passing this simulator permits only the
 `HOSTED_GENERIC_SUBSTRATE_VERIFIED` claim. Real provider sandbox and production
 gates remain independent.
+
+The Auto Trader profile additionally permits a narrowly worded
+`PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` engineering claim after its hosted
+canary passes. It never permits `AUTOTRADER_SANDBOX_VERIFIED` or
+`AUTOTRADER_PRODUCTION_READY`.
 
 ## Current hosted evidence
 

@@ -123,13 +123,27 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
           ],
           collections: [
             {
-              sourcePath: '_items',
+              sourcePath: 'results',
               target: 'items',
-              includeFields: VEHICLE_FIELDS,
+              includeFields: [
+                'metadata.stockId',
+                'metadata.lifecycleState',
+                'metadata.lastUpdated',
+                'vehicle.make',
+                'vehicle.model',
+                'vehicle.derivative',
+                'vehicle.yearOfManufacture',
+                'vehicle.odometerReadingMiles',
+                'vehicle.fuelType',
+                'vehicle.transmissionType',
+                'vehicle.bodyType',
+                'adverts.retailAdverts.totalPrice.amountGBP',
+                'features',
+              ],
               maxItems: 12,
               reference: {
                 lookupField: 'stockId',
-                labelFields: ['registrationYear', 'make', 'model'],
+                labelFields: ['yearOfManufacture', 'make', 'model'],
                 scope: 'dealer-vehicle',
               },
             },
@@ -145,12 +159,26 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
           fields: [{ sourcePath: 'dataNotice' }],
           objects: [
             {
-              sourcePath: 'vehicle',
+              sourcePath: 'vehicleRecord',
               target: 'vehicle',
-              includeFields: VEHICLE_FIELDS,
+              includeFields: [
+                'metadata.stockId',
+                'metadata.lifecycleState',
+                'metadata.lastUpdated',
+                'vehicle.make',
+                'vehicle.model',
+                'vehicle.derivative',
+                'vehicle.yearOfManufacture',
+                'vehicle.odometerReadingMiles',
+                'vehicle.fuelType',
+                'vehicle.transmissionType',
+                'vehicle.bodyType',
+                'adverts.retailAdverts.totalPrice.amountGBP',
+                'features',
+              ],
               reference: {
                 lookupField: 'stockId',
-                labelFields: ['registrationYear', 'make', 'model'],
+                labelFields: ['yearOfManufacture', 'make', 'model'],
                 scope: 'dealer-vehicle',
               },
             },
@@ -283,7 +311,7 @@ abstract class DealershipPresentationElement extends HTMLElement {
 class DealershipInventoryPresentation extends DealershipPresentationElement {
   protected renderContent(container: HTMLElement) {
     const data = this.input?.presentationData || {}
-    const items = recordArray(data.items)
+    const items = recordArray(data.items).map(normalizeVehicle)
     const heading = createHeader(
       'Current inventory',
       `${numberValue(data.total) ?? numberValue(data.count) ?? items.length} matching vehicle${items.length === 1 ? '' : 's'}`,
@@ -411,7 +439,8 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
 class DealershipVehicleDetailPresentation extends DealershipPresentationElement {
   protected renderContent(container: HTMLElement) {
     const data = this.input?.presentationData || {}
-    const vehicle = recordValue(data.vehicle)
+    const rawVehicle = recordValue(data.vehicle)
+    const vehicle = rawVehicle ? normalizeVehicle(rawVehicle) : undefined
     if (!vehicle) {
       container.append(createEmptyState('Vehicle details are unavailable.', 'The generic action result remains available.'))
       return
@@ -486,7 +515,7 @@ class DealershipVehicleDetailPresentation extends DealershipPresentationElement 
 class DealershipVehicleComparisonPresentation extends DealershipPresentationElement {
   protected renderContent(container: HTMLElement) {
     const data = this.input?.presentationData || {}
-    const vehicles = recordArray(data.vehicles)
+    const vehicles = recordArray(data.vehicles).map(normalizeVehicle)
     container.append(createHeader(
       'Vehicle comparison',
       `${vehicles.length} current vehicles`,
@@ -667,7 +696,7 @@ function createEmptyState(titleText: string, detailText: string) {
 }
 
 function vehicleImage(vehicle: SafeRecord) {
-  const path = textValue(vehicle.imagePath)
+  const path = textValue(vehicle.imagePath) || demoImageForStock(textValue(vehicle.stockId))
   if (!path || !/^\/assets\/demos\/dealership\/vehicle-[0-9]{2}\.webp$/.test(path)) return null
   const image = document.createElement('img')
   image.className = 'vehicle-image'
@@ -720,7 +749,40 @@ function sourceLine(data: Readonly<SafeRecord>, vehicle?: SafeRecord) {
   const source = recordValue(data.source)
   const label = textValue(source?.label) || textValue(vehicle?.sourceLabel) || 'Dealership source'
   const updatedAt = source?.refreshedAt || vehicle?.sourceUpdatedAt
-  return `${label} · refreshed ${formatDate(updatedAt)}`
+  return updatedAt ? `${label} · refreshed ${formatDate(updatedAt)}` : label
+}
+
+function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
+  return {
+    ...vehicle,
+    registrationYear: vehicle.registrationYear ?? vehicle.yearOfManufacture,
+    priceGbp: vehicle.priceGbp ?? vehicle.amountGBP,
+    mileage: vehicle.mileage ?? vehicle.odometerReadingMiles,
+    transmission: vehicle.transmission ?? vehicle.transmissionType,
+    sourceUpdatedAt: vehicle.sourceUpdatedAt ?? vehicle.lastUpdated,
+    slug: vehicle.slug ?? vehicle.stockId,
+    features: featureNames(vehicle.features),
+  }
+}
+
+function featureNames(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => typeof item === 'string' ? item : textValue(recordValue(item)?.name))
+    .filter(Boolean)
+}
+
+function demoImageForStock(stockId: string) {
+  const images: Record<string, string> = {
+    'DEMO-1001': '/assets/demos/dealership/vehicle-01.webp',
+    'DEMO-1002': '/assets/demos/dealership/vehicle-02.webp',
+    'DEMO-1003': '/assets/demos/dealership/vehicle-03.webp',
+    'DEMO-1004': '/assets/demos/dealership/vehicle-04.webp',
+    'DEMO-1005': '/assets/demos/dealership/vehicle-05.webp',
+    'DEMO-1006': '/assets/demos/dealership/vehicle-04.webp',
+    'DEMO-1099': '/assets/demos/dealership/vehicle-03.webp',
+  }
+  return images[stockId] || ''
 }
 
 function filterLabels(filters?: SafeRecord) {

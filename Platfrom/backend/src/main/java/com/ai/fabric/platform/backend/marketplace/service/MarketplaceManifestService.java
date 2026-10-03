@@ -116,13 +116,28 @@ public class MarketplaceManifestService {
     );
     private static final Set<String> HTTP_SOURCE_FIELDS = Set.of(
         "sourceId", "enabled", "path", "method", "query", "headers", "trustedResourcePlacements",
-        "requiredCapabilityGrants", "completeHttpStatuses", "pagination", "mapping", "tombstonePolicy", "scheduleSeconds"
+        "requiredCapabilityGrants", "completeHttpStatuses", "pagination", "mapping", "tombstonePolicy",
+        "targetedRecordFetch", "scheduleSeconds"
+    );
+    private static final Set<String> HTTP_TARGETED_RECORD_FETCH_FIELDS = Set.of(
+        "enabled", "path", "method", "completeHttpStatuses", "absentHttpStatuses", "query", "headers",
+        "recordKeyPlacement"
+    );
+    private static final Set<String> HTTP_RECORD_KEY_PLACEMENT_FIELDS = Set.of("target", "field");
+    private static final Set<String> PROVIDER_ACTION_COLLECTION_FILTER_FIELDS = Set.of(
+        "collection-json-pointer", "count-json-pointer", "inclusion-conditions"
+    );
+    private static final Set<String> PROVIDER_ACTION_INCLUSION_CONDITION_FIELDS = Set.of(
+        "json-pointer", "allowed-values"
     );
     private static final Set<String> HTTP_WEBHOOK_FIELDS = Set.of(
-        "sourceId", "method", "verification", "eventIdJsonPointer", "eventTypeJsonPointer",
-        "resourceJsonPointer", "allowedEventTypes", "allowedContentTypes", "maxBodyBytes",
+        "sourceId", "method", "verification", "eventIdJsonPointer", "eventIdentityJsonPointers", "eventTypeJsonPointer",
+        "resourceJsonPointer", "recordKeyJsonPointer", "reconciliationStrategy", "allowedEventTypes", "allowedContentTypes", "maxBodyBytes",
         "maxReconcileAttempts", "retryDelaySeconds", "orderingPolicy", "registrationExpected",
-        "manualReplayEnabled"
+        "manualReplayEnabled", "responseStatuses"
+    );
+    private static final Set<String> HTTP_WEBHOOK_RESPONSE_STATUS_FIELDS = Set.of(
+        "accepted", "duplicate", "resourceMismatch"
     );
     private static final Set<String> HTTP_RATE_POLICY_FIELDS = Set.of(
         "maxConcurrent", "minIntervalMs", "rateLimitedPauseMs", "unavailablePauseMs",
@@ -636,6 +651,97 @@ public class MarketplaceManifestService {
                 throw invalid(plugin, version, prefix + "request must be an object.");
             }
             validateStaticQuery(plugin, version, request.path("query"), prefix + "request.query");
+        }
+        validateProviderActionResponseFilters(plugin, version, route.path("response"), prefix + "response");
+    }
+
+    private void validateProviderActionResponseFilters(MarketplacePluginEntity plugin,
+                                                       MarketplacePluginVersionEntity version,
+                                                       JsonNode response,
+                                                       String prefix) {
+        if (response.isMissingNode() || response.isNull()) {
+            return;
+        }
+        if (!response.isObject()) {
+            throw invalid(plugin, version, prefix + " must be an object.");
+        }
+        JsonNode filters = response.path("collection-filters");
+        if (filters.isMissingNode() || filters.isNull()) {
+            return;
+        }
+        if (!filters.isArray() || filters.isEmpty() || filters.size() > 10) {
+            throw invalid(plugin, version, prefix + ".collection-filters must contain 1 to 10 filters.");
+        }
+        for (JsonNode filter : filters) {
+            if (!filter.isObject()) {
+                throw invalid(plugin, version, prefix + ".collection-filters entries must be objects.");
+            }
+            rejectUnknownFields(
+                plugin,
+                version,
+                filter,
+                PROVIDER_ACTION_COLLECTION_FILTER_FIELDS,
+                prefix + ".collection-filters"
+            );
+            requireJsonPointer(
+                plugin,
+                version,
+                filter.path("collection-json-pointer").asText(""),
+                prefix + ".collection-filters.collection-json-pointer"
+            );
+            if (StringUtils.hasText(filter.path("count-json-pointer").asText(""))) {
+                requireJsonPointer(
+                    plugin,
+                    version,
+                    filter.path("count-json-pointer").asText(""),
+                    prefix + ".collection-filters.count-json-pointer"
+                );
+            }
+            JsonNode conditions = filter.path("inclusion-conditions");
+            if (!conditions.isArray() || conditions.isEmpty() || conditions.size() > 20) {
+                throw invalid(
+                    plugin,
+                    version,
+                    prefix + ".collection-filters.inclusion-conditions must contain 1 to 20 conditions."
+                );
+            }
+            for (JsonNode condition : conditions) {
+                if (!condition.isObject()) {
+                    throw invalid(plugin, version, prefix + ".collection-filters inclusion condition must be an object.");
+                }
+                rejectUnknownFields(
+                    plugin,
+                    version,
+                    condition,
+                    PROVIDER_ACTION_INCLUSION_CONDITION_FIELDS,
+                    prefix + ".collection-filters.inclusion-conditions"
+                );
+                requireJsonPointer(
+                    plugin,
+                    version,
+                    condition.path("json-pointer").asText(""),
+                    prefix + ".collection-filters.inclusion-conditions.json-pointer"
+                );
+                JsonNode allowedValues = condition.path("allowed-values");
+                if (!allowedValues.isArray() || allowedValues.isEmpty() || allowedValues.size() > 50) {
+                    throw invalid(
+                        plugin,
+                        version,
+                        prefix + ".collection-filters.inclusion-conditions.allowed-values must contain 1 to 50 values."
+                    );
+                }
+                Set<String> unique = new LinkedHashSet<>();
+                for (JsonNode allowed : allowedValues) {
+                    String value = allowed.isValueNode() ? allowed.asText("").trim() : "";
+                    if (!StringUtils.hasText(value) || value.length() > 500 || !unique.add(value)) {
+                        throw invalid(
+                            plugin,
+                            version,
+                            prefix + ".collection-filters inclusion values must be non-empty, unique, and bounded."
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -2013,6 +2119,93 @@ public class MarketplaceManifestService {
         );
         validateStaticQuery(plugin, version, source.path("query"), prefix + "httpSource.query");
         validateStaticHeaders(plugin, version, source.path("headers"), prefix + "httpSource.headers");
+        JsonNode targetedRecordFetch = source.path("targetedRecordFetch");
+        boolean targetedRecordFetchEnabled = false;
+        if (!targetedRecordFetch.isMissingNode() && !targetedRecordFetch.isNull()) {
+            if (!targetedRecordFetch.isObject()) {
+                throw invalid(plugin, version, prefix + "httpSource.targetedRecordFetch must be an object.");
+            }
+            rejectUnknownFields(
+                plugin,
+                version,
+                targetedRecordFetch,
+                HTTP_TARGETED_RECORD_FETCH_FIELDS,
+                prefix + "httpSource.targetedRecordFetch"
+            );
+            validateOptionalBoolean(plugin, version, targetedRecordFetch, "enabled", prefix + "httpSource.targetedRecordFetch.");
+            targetedRecordFetchEnabled = targetedRecordFetch.path("enabled").asBoolean(false);
+            if (targetedRecordFetchEnabled) {
+                String targetedPath = targetedRecordFetch.path("path").asText(source.path("path").asText(""));
+                requireRelativePath(plugin, version, targetedPath, prefix + "httpSource.targetedRecordFetch.path");
+                if (!"GET".equalsIgnoreCase(targetedRecordFetch.path("method").asText("GET"))) {
+                    throw invalid(plugin, version, prefix + "httpSource.targetedRecordFetch.method must be GET.");
+                }
+                validateHttpStatusArray(
+                    plugin,
+                    version,
+                    targetedRecordFetch.path("completeHttpStatuses"),
+                    200,
+                    299,
+                    prefix + "httpSource.targetedRecordFetch.completeHttpStatuses",
+                    false
+                );
+                validateHttpStatusArray(
+                    plugin,
+                    version,
+                    targetedRecordFetch.path("absentHttpStatuses"),
+                    400,
+                    499,
+                    prefix + "httpSource.targetedRecordFetch.absentHttpStatuses",
+                    false
+                );
+                validateStaticQuery(
+                    plugin,
+                    version,
+                    targetedRecordFetch.path("query"),
+                    prefix + "httpSource.targetedRecordFetch.query"
+                );
+                validateStaticHeaders(
+                    plugin,
+                    version,
+                    targetedRecordFetch.path("headers"),
+                    prefix + "httpSource.targetedRecordFetch.headers"
+                );
+                JsonNode keyPlacement = targetedRecordFetch.path("recordKeyPlacement");
+                if (!keyPlacement.isObject()) {
+                    throw invalid(plugin, version, prefix + "httpSource.targetedRecordFetch.recordKeyPlacement is required.");
+                }
+                rejectUnknownFields(
+                    plugin,
+                    version,
+                    keyPlacement,
+                    HTTP_RECORD_KEY_PLACEMENT_FIELDS,
+                    prefix + "httpSource.targetedRecordFetch.recordKeyPlacement"
+                );
+                String keyTarget = normalizeUppercaseValue(keyPlacement.path("target").asText(""));
+                if (!Set.of("QUERY", "PATH", "HEADER").contains(keyTarget)) {
+                    throw invalid(plugin, version, prefix + "httpSource.targetedRecordFetch.recordKeyPlacement.target is unsupported.");
+                }
+                String keyField = keyPlacement.path("field").asText("");
+                if ("HEADER".equals(keyTarget)) {
+                    requireHttpHeaderName(
+                        plugin,
+                        version,
+                        keyField,
+                        prefix + "httpSource.targetedRecordFetch.recordKeyPlacement.field"
+                    );
+                } else {
+                    requireRequestFieldName(
+                        plugin,
+                        version,
+                        keyField,
+                        prefix + "httpSource.targetedRecordFetch.recordKeyPlacement.field"
+                    );
+                }
+                if ("PATH".equals(keyTarget) && !targetedPath.contains("{" + keyField.trim() + "}")) {
+                    throw invalid(plugin, version, prefix + "httpSource.targetedRecordFetch PATH key is not present in the path.");
+                }
+            }
+        }
         JsonNode pagination = source.path("pagination");
         if (!pagination.isObject()) {
             throw invalid(plugin, version, prefix + "httpSource.pagination is required.");
@@ -2058,7 +2251,7 @@ public class MarketplaceManifestService {
         }
         rejectUnknownFields(
             plugin, version, mapping,
-            Set.of("recordsJsonPointer", "idJsonPointer", "resourceJsonPointer", "contentFields", "entityFields", "metadataFields", "maxRecords", "maxResponseBytes"),
+            Set.of("recordsJsonPointer", "idJsonPointer", "resourceJsonPointer", "contentFields", "entityFields", "metadataFields", "inclusionConditions", "maxRecords", "maxResponseBytes"),
             prefix + "mapping"
         );
         requireJsonPointer(plugin, version, mapping.path("idJsonPointer").asText(""), prefix + "mapping.idJsonPointer");
@@ -2077,6 +2270,41 @@ public class MarketplaceManifestService {
         validatePointerMap(plugin, version, mapping.path("contentFields"), prefix + "mapping.contentFields");
         validatePointerMap(plugin, version, mapping.path("entityFields"), prefix + "mapping.entityFields");
         validatePointerMap(plugin, version, mapping.path("metadataFields"), prefix + "mapping.metadataFields");
+        JsonNode inclusionConditions = mapping.path("inclusionConditions");
+        if (!inclusionConditions.isMissingNode() && !inclusionConditions.isNull()) {
+            if (!inclusionConditions.isArray() || inclusionConditions.size() > 20) {
+                throw invalid(plugin, version, prefix + "mapping.inclusionConditions must contain at most 20 entries.");
+            }
+            for (JsonNode condition : inclusionConditions) {
+                if (!condition.isObject()) {
+                    throw invalid(plugin, version, prefix + "mapping.inclusionConditions entries must be objects.");
+                }
+                rejectUnknownFields(
+                    plugin,
+                    version,
+                    condition,
+                    Set.of("jsonPointer", "allowedValues"),
+                    prefix + "mapping.inclusionConditions"
+                );
+                requireJsonPointer(
+                    plugin,
+                    version,
+                    condition.path("jsonPointer").asText(""),
+                    prefix + "mapping.inclusionConditions.jsonPointer"
+                );
+                JsonNode allowedValues = condition.path("allowedValues");
+                if (!allowedValues.isArray() || allowedValues.isEmpty() || allowedValues.size() > 50) {
+                    throw invalid(plugin, version, prefix + "mapping.inclusionConditions.allowedValues must contain 1 to 50 scalar values.");
+                }
+                Set<String> uniqueValues = new LinkedHashSet<>();
+                for (JsonNode allowedValue : allowedValues) {
+                    String value = allowedValue.isValueNode() ? allowedValue.asText("").trim() : "";
+                    if (!StringUtils.hasText(value) || value.length() > 500 || !uniqueValues.add(value)) {
+                        throw invalid(plugin, version, prefix + "mapping.inclusionConditions.allowedValues must be non-empty, unique, and bounded.");
+                    }
+                }
+            }
+        }
         validateOptionalIntegerRange(plugin, version, mapping, "maxRecords", 1, 100_000, prefix + "mapping.");
         validateOptionalIntegerRange(
             plugin,
@@ -2145,7 +2373,7 @@ public class MarketplaceManifestService {
             }
             rejectUnknownFields(
                 plugin, version, verification,
-                Set.of("strategy", "signatureHeader", "secretRefField", "timestampComponent", "signatureComponent", "replayWindowSeconds"),
+                Set.of("strategy", "signatureHeader", "secretRefField", "timestampComponent", "signatureComponent", "timestampUnit", "replayWindowSeconds"),
                 prefix + "webhook.verification"
             );
             if (!"HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY".equals(normalizeUppercaseValue(verification.path("strategy").asText("")))) {
@@ -2175,6 +2403,10 @@ public class MarketplaceManifestService {
                 verification.path("signatureComponent").asText("v1"),
                 prefix + "webhook.verification.signatureComponent"
             );
+            String timestampUnit = normalizeUppercaseValue(verification.path("timestampUnit").asText("SECONDS"));
+            if (!Set.of("SECONDS", "MILLISECONDS").contains(timestampUnit)) {
+                throw invalid(plugin, version, prefix + "webhook.verification.timestampUnit is unsupported.");
+            }
             validateOptionalIntegerRange(
                 plugin,
                 version,
@@ -2184,9 +2416,47 @@ public class MarketplaceManifestService {
                 86_400,
                 prefix + "webhook.verification."
             );
-            requireJsonPointer(plugin, version, webhook.path("eventIdJsonPointer").asText(""), prefix + "webhook.eventIdJsonPointer");
+            boolean hasSingleEventIdentity = StringUtils.hasText(webhook.path("eventIdJsonPointer").asText(""));
+            JsonNode compositeEventIdentity = webhook.path("eventIdentityJsonPointers");
+            boolean hasCompositeEventIdentity = compositeEventIdentity.isArray()
+                && !compositeEventIdentity.isEmpty();
+            if (hasSingleEventIdentity == hasCompositeEventIdentity) {
+                throw invalid(plugin, version, prefix + "webhook must declare exactly one event identity strategy.");
+            }
+            if (hasSingleEventIdentity) {
+                requireJsonPointer(plugin, version, webhook.path("eventIdJsonPointer").asText(""), prefix + "webhook.eventIdJsonPointer");
+            } else {
+                if (compositeEventIdentity.size() > 8) {
+                    throw invalid(plugin, version, prefix + "webhook.eventIdentityJsonPointers supports at most 8 entries.");
+                }
+                Set<String> uniquePointers = new LinkedHashSet<>();
+                for (JsonNode pointerNode : compositeEventIdentity) {
+                    String pointer = pointerNode.asText("");
+                    requireJsonPointer(plugin, version, pointer, prefix + "webhook.eventIdentityJsonPointers");
+                    if (!uniquePointers.add(pointer)) {
+                        throw invalid(plugin, version, prefix + "webhook.eventIdentityJsonPointers contains a duplicate pointer.");
+                    }
+                }
+            }
             requireJsonPointer(plugin, version, webhook.path("eventTypeJsonPointer").asText(""), prefix + "webhook.eventTypeJsonPointer");
             requireJsonPointer(plugin, version, webhook.path("resourceJsonPointer").asText(""), prefix + "webhook.resourceJsonPointer");
+            String reconciliationStrategy = normalizeUppercaseValue(
+                webhook.path("reconciliationStrategy").asText("FULL_SOURCE")
+            );
+            if (!Set.of("FULL_SOURCE", "FETCH_CURRENT_RECORD").contains(reconciliationStrategy)) {
+                throw invalid(plugin, version, prefix + "webhook.reconciliationStrategy is unsupported.");
+            }
+            if ("FETCH_CURRENT_RECORD".equals(reconciliationStrategy)) {
+                if (!targetedRecordFetchEnabled) {
+                    throw invalid(plugin, version, prefix + "webhook targeted reconciliation requires httpSource.targetedRecordFetch.enabled=true.");
+                }
+                requireJsonPointer(
+                    plugin,
+                    version,
+                    webhook.path("recordKeyJsonPointer").asText(""),
+                    prefix + "webhook.recordKeyJsonPointer"
+                );
+            }
             if (!webhook.path("allowedEventTypes").isArray() || webhook.path("allowedEventTypes").isEmpty()) {
                 throw invalid(plugin, version, prefix + "webhook.allowedEventTypes must be non-empty.");
             }
@@ -2205,6 +2475,31 @@ public class MarketplaceManifestService {
                 if (!value.matches("[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+")) {
                     throw invalid(plugin, version, prefix + "webhook.allowedContentTypes contains an invalid media type.");
                 }
+            }
+            JsonNode responseStatuses = webhook.path("responseStatuses");
+            if (!responseStatuses.isMissingNode() && !responseStatuses.isNull()) {
+                if (!responseStatuses.isObject()) {
+                    throw invalid(plugin, version, prefix + "webhook.responseStatuses must be an object.");
+                }
+                rejectUnknownFields(
+                    plugin,
+                    version,
+                    responseStatuses,
+                    HTTP_WEBHOOK_RESPONSE_STATUS_FIELDS,
+                    prefix + "webhook.responseStatuses"
+                );
+                validateOptionalIntegerRange(
+                    plugin, version, responseStatuses, "accepted", 200, 299,
+                    prefix + "webhook.responseStatuses."
+                );
+                validateOptionalIntegerRange(
+                    plugin, version, responseStatuses, "duplicate", 200, 299,
+                    prefix + "webhook.responseStatuses."
+                );
+                validateOptionalIntegerRange(
+                    plugin, version, responseStatuses, "resourceMismatch", 400, 499,
+                    prefix + "webhook.responseStatuses."
+                );
             }
             validateOptionalIntegerRange(plugin, version, webhook, "maxBodyBytes", 1024, 10 * 1024 * 1024, prefix);
             validateOptionalIntegerRange(plugin, version, webhook, "maxReconcileAttempts", 1, 20, prefix);
@@ -2226,6 +2521,33 @@ public class MarketplaceManifestService {
         JsonNode value = parent.path(field);
         if (!value.isMissingNode() && !value.isNull() && !value.isBoolean()) {
             throw invalid(plugin, version, prefix + field + " must be a boolean.");
+        }
+    }
+
+    private void validateHttpStatusArray(MarketplacePluginEntity plugin,
+                                         MarketplacePluginVersionEntity version,
+                                         JsonNode statuses,
+                                         int minimum,
+                                         int maximum,
+                                         String path,
+                                         boolean required) {
+        if (statuses.isMissingNode() || statuses.isNull()) {
+            if (required) {
+                throw invalid(plugin, version, path + " is required.");
+            }
+            return;
+        }
+        if (!statuses.isArray() || statuses.isEmpty() || statuses.size() > 10) {
+            throw invalid(plugin, version, path + " must contain between 1 and 10 HTTP statuses.");
+        }
+        Set<Integer> seen = new LinkedHashSet<>();
+        for (JsonNode status : statuses) {
+            if (!status.canConvertToInt() || status.asInt() < minimum || status.asInt() > maximum) {
+                throw invalid(plugin, version, path + " contains an unsupported HTTP status.");
+            }
+            if (!seen.add(status.asInt())) {
+                throw invalid(plugin, version, path + " contains a duplicate HTTP status.");
+            }
         }
     }
 

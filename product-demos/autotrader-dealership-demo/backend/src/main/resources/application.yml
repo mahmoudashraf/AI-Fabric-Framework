@@ -64,6 +64,12 @@ dealership:
   privacy:
     encryption-key-base64: ${APP_PII_ENCRYPTION_KEY_BASE64:}
     lead-retention: ${APP_LEAD_RETENTION:P30D}
+  provider-simulator:
+    enabled: ${PROVIDER_SIMULATOR_ENABLED:false}
+    base-url: ${PROVIDER_SIMULATOR_BASE_URL:}
+    control-api-key: ${PROVIDER_SIMULATOR_CONTROL_API_KEY:}
+    advertiser-id: ${PROVIDER_SIMULATOR_ADVERTISER_ID:}
+    webhook-target-url: ${PROVIDER_SIMULATOR_WEBHOOK_TARGET_URL:}
   runtime:
     enabled: ${LOOMAI_RUNTIME_ENABLED:false}
     base-url: ${LOOMAI_RUNTIME_BASE_URL:}
@@ -75,6 +81,8 @@ dealership:
     conversations-path: ${LOOMAI_RUNTIME_CONVERSATIONS_PATH:/api/chat/me/conversations}
     conversation-item-path-template: ${LOOMAI_RUNTIME_CONVERSATION_ITEM_PATH_TEMPLATE:/api/chat/me/conversations/{conversationId}}
     vector-space: ${LOOMAI_RUNTIME_VECTOR_SPACE:dealer-vehicle}
+    integration-source-id: ${LOOMAI_RUNTIME_INTEGRATION_SOURCE_ID:}
+    integration-webhook-source-id: ${LOOMAI_RUNTIME_INTEGRATION_WEBHOOK_SOURCE_ID:}
     assertion-ttl: ${LOOMAI_RUNTIME_ASSERTION_TTL:PT2M}
     private-access:
       trusted-api-key-header: ${LOOMAI_RUNTIME_TRUSTED_API_KEY_HEADER:X-AIFABRIC-RUNTIME-API-KEY}

@@ -52,6 +52,15 @@ public class ApiExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<?> invalidRequest(IllegalArgumentException exception) {
+        return ResponseEntity.badRequest().body(Map.of(
+            "success", false,
+            "errorCode", "INVALID_REQUEST",
+            "message", exception.getMessage() == null ? "The request is invalid." : exception.getMessage()
+        ));
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     ResponseEntity<?> notFound(NoResourceFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(

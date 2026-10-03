@@ -1,18 +1,23 @@
 # 010.26 Auto Trader Dealership First Release And Meeting Demo Plan
 
 - **Status:** `DEALERSHIP_DEMO_READY` passed on staging on 2026-09-30. The
-  generic injectable-action UI closure passed on 2026-10-02 with deployment
-  `dep-f023c863` version `v18`, AI Fabric `0.8.7`, six indexed fictional
-  vehicles, an exact hosted renderer canary, and a strict `7/7` browser run.
+  generic Max Mode first-delivery closure passed on 2026-10-02 with deployment
+  `dep-f023c863` version `v21`, AI Fabric `0.8.8`, six indexed fictional
+  vehicles, an 18-turn hosted browser meeting gate, and a strict `7/7` quality
+  run.
   Released
   Marketplace packaging and every real Auto Trader
   access/rights/certification gate remain open.
 - **Date:** 2026-09-25
-- **Last architecture review:** 2026-10-01
+- **Last architecture review:** 2026-10-03
 - **Last implementation checkpoint:** 2026-10-02
-- **Current LoomAI baseline:** AI Fabric `0.8.7`, Platform `Platform-V11`, V04 deployment lifecycle
+- **Current LoomAI baseline:** AI Fabric `0.8.8`, Platform `Platform-V11`, V04 deployment lifecycle
 - **Deployment boundary:** one dealership, one LoomAI deployment, one Auto Trader advertiser scope
 - **Integration posture:** Marketplace plugin-first; no standalone Auto Trader bridge
+- **Provider integration refinement:** Auto Trader stock and supported read
+  actions belong to the deployment-local connector through dedicated DATA and
+  ACTION packages; the dealership website/backend remains independent and owns
+  only its own presentation and dealer-side commands
 - **Demo posture:** ordinary customer application using its assigned LoomAI
   deployment directly for public chat; no AI Fabric dependency, no central
   chat proxy, and no false claim of Auto Trader connectivity
@@ -320,16 +325,25 @@ Auto Trader advertiser-scoped stock baseline
 
 Auto Trader stock notification
   -> deployment-specific generic webhook endpoint
-  -> hash verification
+  -> raw-body hash/signature verification
   -> advertiser boundary validation
-  -> create/update/sold/unpublish/delete projection transition
-  -> matching upsert/delete indexing work
+  -> bounded stock-record identity extraction
+  -> fetch current Auto Trader stock record
+  -> shared baseline/target mapping
+  -> matching upsert/delete indexing work for that record
   -> reconciliation status
 ```
 
 A periodic advertiser-scoped baseline or reconciliation job repairs missed or
 ambiguous notifications. Webhooks improve freshness but are not the only
-recovery mechanism.
+recovery mechanism. Notification payloads are change signals, not trusted index
+documents; delayed or out-of-order events always cause a current-state read.
+
+The current meeting deployment does not yet use this flow. It indexes six
+fictional records seeded in the dealership backend and pushed through the
+deployment Data Sync API. The provider-neutral simulator was verified through
+separate temporary deployments and is not currently connected to
+`dep-f023c863`. This distinction must remain visible in demo and release claims.
 
 ### 5.2 Structured and semantic indexes have different jobs
 
@@ -439,8 +453,8 @@ The IDs below are proposed first-release IDs, not currently published plugins.
 | Package | Type | First-release responsibility |
 | --- | --- | --- |
 | `mkp-template-autotrader-dealership-concierge-v1` | `TEMPLATE` | Select `CONVERSATIONAL`, required plugins, inference/vector profiles, shell surfaces, generic connector capabilities, and verification packs. |
-| `mkp-data-autotrader-dealership-stock-v1` | `DATA` | Exact advertiser-scoped baseline, webhook mapping, normalized vehicle entity, Data Sync/indexing policy, freshness and deletion behavior. |
-| `mkp-action-autotrader-dealership-discovery-v1` | `ACTION` | Advertiser preflight, live stock search/detail, taxonomy/equipment, and approved MOT/history reads. |
+| `mkp-data-autotrader-dealership-stock-v1` | `DATA` | Exact advertiser-scoped baseline, targeted current-record reconciliation, shared vehicle mapping, Data Sync/indexing policy, freshness and deletion behavior. |
+| `mkp-action-autotrader-dealership-discovery-v1` | `ACTION` | Advertiser preflight, live stock search/detail, taxonomy/equipment, and approved evidence reads routed through the provider connection profile. |
 | `mkp-data-dealership-knowledge-v1` | `DATA` | Dealership-owned warranty, delivery, location, and support knowledge. |
 | `mkp-action-dealership-lead-v1` | `ACTION` | Application-owned callback/test-drive request with confirmation and receipt. |
 | Existing approved provider profile | `INFERENCE_PROFILE` | Real generation and embeddings with explicit model and dimensions. |
@@ -465,6 +479,13 @@ Marketplace plugins define the Auto Trader relationship. The Generic REST
 Connector provides reusable deployment-local transport and must contain no
 hard-coded Auto Trader behavior.
 
+The DATA plugin is configuration and policy, not a separately deployed custom
+service. It declares provider routes, selectors, mappings, credentials,
+advertiser binding, notification verification, record-fetch behavior, and
+lifecycle rules. Generic connector code executes those declarations. Separate
+neutral fixture packages target the provider simulator during engineering; they
+must not be named, marketed, or published as Auto Trader packages.
+
 ## 7. Runtime And Customer Architecture
 
 ```text
@@ -478,7 +499,8 @@ Dealership website browser
 
 Dealership demo/customer backend
   -> dealership application database (inventory presentation + leads)
-  -> deployment-local Data Sync/indexing and work-status URLs
+  -> deployment-local Data Sync/indexing and work-status URLs in fictional
+     backend-push demo mode only
   -> deployment safe-readiness URL for the authenticated staff screen
   -> protected authorization and lead/test-drive command endpoints
 
@@ -489,12 +511,14 @@ Assigned LoomAI dealership deployment
   -> deployment-local structured/vector evidence
   -> installed DATA/ACTION plugins
   -> Generic REST Connector
-     -> Auto Trader APIs when sandbox/production access is configured
+     -> Auto Trader stock baseline, current-record reads, and approved read
+        actions when sandbox/production access is configured
      -> dealership backend action URL for callback/test-drive persistence
 
 Auto Trader notifications
   -> deployment-specific generic webhook endpoint
-  -> normalized projection/index update
+  -> verified target fetch
+  -> normalized projection/index update for the current provider record
 
 LoomAI Platform
   -> creates, configures, releases, assigns, verifies, and operates deployment
@@ -508,9 +532,12 @@ origin and issues its own short-lived anonymous session identity; the browser
 does not choose a session, user, dealership, tenant, deployment, or advertiser
 identity.
 
-The dealership backend remains authoritative for inventory presentation,
-server-side assignment resolution when needed, ingestion, readiness, remote
-authorization decisions, and dealership-owned writes. It is not a chat proxy.
+The dealership backend remains authoritative for its own inventory presentation,
+server-side assignment resolution when needed, readiness, remote authorization
+decisions, and dealership-owned writes. In the current fictional demo it also
+pushes demo inventory for indexing. In the provider-integrated product it is not
+the Auto Trader ingestion path: the deployment connector pulls and reconciles
+provider data directly. The backend is never a chat proxy.
 
 ### 7.1 Hard application/deployment boundary
 
@@ -521,7 +548,7 @@ Fabric or recreate LoomAI behavior locally.
 | --- | --- |
 | Native `loomai-site` demo route and Max Mode host configuration | Runtime-issued anonymous chat identity and token validation |
 | Dealer inventory presentation/API | Data Sync acceptance and indexing work |
-| Dealer-owned inventory source rows in demo mode | Structured retrieval projection and vector index |
+| Dealer-owned inventory source rows and backend-push ingestion in current demo mode only | Structured retrieval projection and vector index |
 | Comparison UI state | Semantic retrieval and grounded generation |
 | Lead/test-drive database and staff inbox | Conversation state and trusted working targets |
 | Backend HTTP clients for ingestion/readiness plus protected authz/write endpoints | Plugin execution, confirmation, and normalized action results |
@@ -610,6 +637,49 @@ and must return the same runtime-issued session ID. If renewal cannot occur,
 the widget clears the old conversation, pending confirmation, and persisted
 anonymous state before starting a new runtime-issued session. It never replays
 an old conversation ID under a new anonymous identity.
+
+### 7.4 Provider/dealership ownership refinement: 2026-10-03
+
+The dealership website does not need to use Auto Trader as its own inventory
+backend. LoomAI's integration is deployment-local and independently licensed.
+The target composition is:
+
+```text
+dealership website/backend
+  -> owns its catalogue presentation, page routes, authorization, CRM/leads,
+     callback and test-drive commands
+  -> supplies a trusted dealership stock reference when the user selects a page
+
+LoomAI deployment DATA plugin + Generic REST Connector
+  -> owns provider credentials and one advertiser binding
+  -> pulls the initial and periodic stock baseline
+  -> receives provider notifications at the deployment-specific webhook
+  -> fetches and reconciles the changed current stock record
+  -> updates deployment-local structured/vector evidence
+
+LoomAI deployment ACTION plugins
+  -> provider-supported reads call the provider
+  -> dealer-owned writes call the dealership backend
+  -> no blind cross-system fallback
+```
+
+`stockId` is the shared buyer-facing reference. Provider-internal vehicle IDs
+remain inside the provider package/connector boundary. The website may attach
+an approved `stockId`; the deployment validates it against its advertiser-bound
+provider data, and the dealership backend independently validates the same
+reference before accepting a write. A missing mapping fails closed rather than
+being inferred from page text.
+
+The neutral provider-backed canary must preserve the existing website/backend
+implementation. Only the LoomAI deployment source and provider-read routes are
+swapped from backend-push fixtures to the External Vehicle Provider Simulator.
+Simulator fixture stock IDs may match the fictional page stock IDs for the
+test, but the website never calls the simulator. This proves the intended
+topology without claiming Auto Trader connectivity.
+
+The canonical generic reconciliation, package ownership, registration, and
+acceptance contract is maintained in
+[010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md#53-canonical-source-ownership-and-migration-state).
 
 ## 8. Buyer Experience Contract
 
@@ -915,6 +985,51 @@ as proof of Auto Trader transport or production readiness.
   provider, source, projection, vector, and runtime state.
 - No static prewritten response may satisfy a live AI scenario.
 
+### 9.7 Protected provider-change rehearsal
+
+For the provider-backed meeting rehearsal, add a staff-only control that can
+create, update, sell/unpublish, or delete one fictional simulator vehicle and
+then ask the simulator to deliver the corresponding signed event to the exact
+deployment webhook. This is separate from Mode B and does not turn the
+dealership backend into the chat deployment's stock source.
+
+```text
+staff demo UI
+  -> authenticated dealership demo backend scenario endpoint
+  -> simulator protected mutation API
+  -> simulator protected event-emission API
+  -> deployment connector webhook
+  -> current provider read and Data Sync/index update
+  -> buyer search/chat observes the change
+```
+
+The route is demo-operator tooling with these boundaries:
+
+- only authenticated staff may invoke it; anonymous buyer chat and the LLM may
+  not;
+- the browser submits an allowlisted scenario and fictional vehicle fields, not
+  a profile, account/advertiser, target URL, webhook body, or secret;
+- the backend owns the simulator control key, fixed synthetic account,
+  deployment webhook URL, idempotency key, and timeout/retry policy;
+- the normal dealership catalogue remains independent and is not rewritten to
+  read from the simulator;
+- the UI shows sanitized stages: provider mutation, event delivery, connector
+  acknowledgement, reconciliation/indexing completion, and search visibility;
+- while only `FULL_SOURCE` reconciliation exists, the event may trigger a
+  complete provider reread; after generic `FETCH_CURRENT_RECORD` lands, the same
+  scenario fetches and changes only the referenced `stockId`; and
+- the route is disabled outside the meeting/verification profile and is never
+  included as a customer production capability.
+
+The provider-shaped fixture used by this rehearsal must be versioned against
+the official public contract matrix in `010.27` Section 3.6. Today the two
+neutral simulator profiles prove generic mechanics but do not exactly emulate
+Auto Trader. A public-document-informed fixture can mirror documented auth,
+advertiser-scoped stock, notification method/signature grammar, `STOCK_UPDATE`,
+and `stockId` identity without claiming sandbox compatibility. Exact sandbox
+contracts and Auto Trader validation remain mandatory for a named readiness
+claim.
+
 ## 10. Meeting Demonstration Script
 
 Target duration: 10 to 15 minutes.
@@ -948,7 +1063,9 @@ Target duration: 10 to 15 minutes.
 1. Show the deployment's exact installed TEMPLATE, DATA, ACTION, and inference
    profile versions.
 2. Show source/projection/vector counts and one current vector record safely.
-3. Update one demonstration record or use an approved sandbox update.
+3. Update one demonstration record, run the protected fictional provider-change
+   rehearsal, or use an approved sandbox update. State the active source mode
+   before triggering it.
 4. Show durable indexing work completion and the replacement version in search.
 5. Remove or unpublish one record and show that it disappears from retrieval.
 6. Explain the production swap from the labelled demo DATA plugin to the Auto
@@ -984,7 +1101,7 @@ equivalents:
 | Browser -> LoomAI deployment | Direct Max Mode chat | Secure `/api/chat/me/*` routes for query, suggestions, conversations, shell config, evidence, actions, and confirmation |
 | Dealership backend, browser-facing | Public runtime descriptor | Exact deployment chat/bootstrap URLs and non-secret shell options only; no assignment or service credential |
 | `loomai-site` plus dealership backend | Compare UI/API | Stable selected stock IDs and typed fields, with AI explanation obtained from the deployment |
-| Dealership backend, deployment-facing | Inventory sync worker | Normalized upsert/delete batches sent to the deployment-local Data Sync URL with work reconciliation |
+| Dealership backend, deployment-facing (current fictional demo only) | Inventory sync worker | Normalized upsert/delete batches sent to the deployment-local Data Sync URL with work reconciliation; provider-backed compositions replace this with connector pull/reconciliation |
 | Dealership backend, called by deployment | Authorization decision | Fail-closed decision for anonymous public dealership reads; no browser access |
 | Dealership backend, called by deployment | Lead command | Protected, idempotent create after confirmed deployment action; stable receipt returned |
 | Dealership backend, staff-facing | Staff inbox | Authenticated dealership-scoped lead list/detail/status |
@@ -1040,6 +1157,10 @@ Debug or admin APIs must not be exposed as public browser controls.
 - Provider/service rate and pause policy.
 - Paged HTTP DATA synchronization.
 - Generic hash-authenticated webhook ingress.
+- Generic `FULL_SOURCE` and `FETCH_CURRENT_RECORD` webhook reconciliation,
+  using one shared mapper for baseline and targeted record reads.
+- Provider-profile action routing that does not require an unrelated global
+  application upstream.
 - Schema-bound webhook-to-CloudEvent mapping.
 - V04 capability validation and source attestation.
 - Runtime-backed connector/sync/webhook operational readback.
@@ -1052,6 +1173,10 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Add install forms for secret/resource references and advertiser binding.
 - Add capability/grant prerequisites.
 - Add stable normalized vehicle and action-result contracts.
+- Put provider stock selectors, current-record route, notification record-key
+  extraction, advertiser checks, and lifecycle policy in the Auto Trader DATA
+  package rather than generic Java.
+- Keep provider reads and dealership-owned writes in separate ACTION packages.
 - Add source/freshness/attribution metadata.
 - Add verification-pack references.
 - Publish exact versions only after source tests pass.
@@ -1085,9 +1210,16 @@ These changes must contain no hard-coded Auto Trader domain behavior.
   origin and approved preview origin.
 - Use the implemented proactive same-session token renewal and preserve the
   fail-closed clear-before-new-identity fallback.
-- Add backend-only HTTP clients for assignment discovery when needed, Data Sync
-  work, and safe-readiness URLs.
-- Add application-to-deployment inventory sync and work reconciliation.
+- Add backend-only HTTP clients for assignment discovery when needed, current
+  demo Data Sync work, and safe-readiness URLs.
+- Add an explicitly enabled, authenticated staff-only provider-scenario adapter
+  for the neutral provider rehearsal. It holds simulator credentials and fixed
+  routing server-side, exposes only allowlisted synthetic scenarios, and is not
+  part of normal buyer or production customer APIs.
+- Add staged status/readback for simulator mutation, signed event delivery,
+  connector reconciliation, terminal index work, and search visibility.
+- Add application-to-deployment inventory sync and work reconciliation for the
+  current fictional demo only.
 - Add the fail-closed remote authorization endpoint for anonymous public
   dealership reads; do not add a buyer-chat facade.
 - Add protected, idempotent dealership action command endpoints.
@@ -1123,6 +1255,16 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 
 ### Workstream E: Auto Trader activation
 
+- First prove the final source/action split with neutral simulator packages:
+  provider-backed indexing and read actions inside the deployment, unchanged
+  dealership website/backend, and dealership-owned confirmed writes.
+- Preserve neutral profiles A/B for genericity and add a separately versioned
+  public-document-informed Stock Sync fixture. Track every provider-shaped
+  method, field, selector, header, and lifecycle mapping to an official source
+  URL/review date; mark deprecated examples provisional until partner-confirmed.
+- Use the protected staff scenario adapter to mutate one fictional provider
+  record and emit the signed callback, without exposing simulator controls to
+  the browser, model, runtime, or connector.
 - Complete partner onboarding and obtain separate sandbox endpoint,
   credential, capability, advertiser, stock-fixture, and webhook-test details.
 - Replace the meeting DATA source only after the exact sandbox grant.
@@ -1130,6 +1272,8 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Run advertiser preflight.
 - Run baseline and reconcile counts.
 - Register and verify the deployment-specific webhook URL when granted.
+- Prove targeted current-record add/update/sold/delete plus missed-event baseline
+  repair; do not index notification payloads directly.
 - Execute the applicable Auto Trader go-live checks.
 - Obtain separate production credentials, advertiser membership, rights, and
   approval before replacing the sandbox bindings or making a production claim.
@@ -1146,8 +1290,9 @@ These changes must contain no hard-coded Auto Trader domain behavior.
   The reviewed LoomAI `max-mode-widget` UI dependency/bundle is expected and is
   not an AI Fabric runtime dependency.
 - The separate LoomAI deployment image is independently verified to contain the
-  current released AI Fabric `0.8.5` artifacts and no locally substituted
-  framework build.
+  required released AI Fabric artifacts (`0.8.8` at the 2026-10-03 checkpoint)
+  and no locally substituted framework build. Historical evidence continues to
+  name the exact older artifact it actually exercised.
 - Backend tests pass without skips.
 - `Platfrom/loomai-site` check, build, content/static smoke, and browser smoke
   pass with the native demo route included.
@@ -1169,6 +1314,11 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Vector metadata contains deployment/dealership scope.
 - A second deployment cannot retrieve the first deployment's vehicles.
 - Dealership documents remain distinct from vehicle records.
+- In the neutral provider rehearsal, one protected add/update/sold/delete
+  scenario progresses from simulator mutation through signed event,
+  reconciliation, terminal index work, and buyer-search visibility.
+- The same scenario does not alter the independent dealership application's
+  displayed catalogue unless that application is changed separately.
 
 ### 14.3 Retrieval and conversation
 
@@ -1208,6 +1358,11 @@ These changes must contain no hard-coded Auto Trader domain behavior.
 - Repeated confirm with the same idempotency key does not duplicate it.
 - Staff inbox sees the request only inside the dealership scope.
 - Unauthenticated staff access fails.
+- Anonymous buyers, chat actions, and model-selected tools cannot invoke the
+  provider-scenario operator route.
+- The scenario request cannot override provider profile/account, advertiser,
+  webhook target, event body, or any credential; secrets are absent from the
+  browser and sanitized receipts.
 
 ### 14.5 UI
 
@@ -1312,9 +1467,14 @@ item in this gate.
 6. Polish and rehearse the meeting script.
 7. Use the working demo to agree Auto Trader capability scope and integration
    requirements.
-8. Implement the Auto Trader DATA/ACTION plugins against sandbox.
-9. Replace only the source/action packages in a new immutable deployment version.
-10. Pass Auto Trader and LoomAI production gates before making a production
+8. Add the generic targeted-record reconciliation and provider-only action-route
+   support, a public-document-informed fixture, and the protected staff scenario
+   adapter; then prove the final provider/dealership split with the neutral
+   simulator while leaving the website/backend catalogue unchanged.
+9. Implement the Auto Trader DATA/ACTION plugins against the granted sandbox.
+10. Replace only the source/action packages in a new immutable deployment
+    version.
+11. Pass Auto Trader and LoomAI production gates before making a production
     claim.
 
 ## 18. Decisions To Preserve
@@ -1326,6 +1486,9 @@ item in this gate.
 - Current price and availability require live validation when available.
 - Auto Trader semantics live in Marketplace plugins.
 - Generic deployment services contain reusable mechanics only.
+- Provider notifications trigger a verified current-record read; their payloads
+  are not indexed as authoritative stock records.
+- Periodic full baseline remains the recovery and drift-convergence mechanism.
 - The central Platform is the control plane, not the buyer-traffic proxy.
 - The meeting UI is a native full-screen route in `Platfrom/loomai-site`; there
   is no iframe, second frontend service, or separate frontend domain.
@@ -1337,16 +1500,27 @@ item in this gate.
 - The dealership browser uses the assigned deployment's explicit public chat
   surface directly through the existing generic Max Mode/Companion shell.
 - The dealership backend is not a buyer-chat proxy; it owns application data,
-  ingestion/readiness integration, remote authorization, and confirmed writes.
+  presentation, remote authorization, and confirmed writes. Backend-push
+  inventory ingestion is specific to the current fictional demo and is replaced
+  by deployment-local provider sync in the integrated product.
+- The website/backend does not need to consume Auto Trader or the provider
+  simulator. A validated `stockId` is the shared cross-system reference.
+- Provider reads and dealership writes use separate action packages and never
+  silently fall back across owners.
 - The dealership app contains no AI Fabric runtime or local AI implementation.
 - The meeting app demonstrates real LoomAI behavior without faking Auto Trader
   access.
+- The meeting-only provider-change control is authenticated operator tooling;
+  it never exposes raw simulator controls or makes the dealership catalogue
+  depend on the simulator.
 - The first external write is dealership-owned and confirmed.
 - Later Auto Trader capabilities are separate granted and verified plugin packs.
 
 ## 19. Official Auto Trader References
 
 - [Auto Trader Connect Developer API](https://developers.autotrader.co.uk/api#introduction)
+- [Auto Trader Connect Capabilities Collection](https://www.postman.com/auto-trader-tam/partner-starter-collections/documentation/60cnu90/new-at-connect-capabilities-collection)
+- [Auto Trader Partner Starter Collections](https://www.postman.com/auto-trader-tam/partner-starter-collections/overview)
 - [Integration Fundamentals](https://help.autotrader.co.uk/hc/en-gb/articles/21791620456221-Integration-Fundamentals)
 - [Integration Fundamentals Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22645899163933-Go-Live-checks-for-Integration-Fundamentals)
 - [Vehicle Check Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22676578750237-Go-Live-checks-for-Vehicle-Check)
@@ -1386,9 +1560,10 @@ Max Mode/Companion application.
 
 This section records improvements discovered after the 2026-10-01 live quality
 closure. They are not unresolved blockers for the current fictional demo.
-Deployment `dep-f023c863` version `v15` / `ver-d8d76d70`, release
-`rel-f899de18`, remains the immutable known-good baseline while these items are
-implemented and canaried separately.
+Version `v15` / `ver-d8d76d70`, release `rel-f899de18`, remains a historical
+quality comparison baseline. The later first-delivery closure superseded its
+live status with deployment `dep-f023c863` version `v21` / `ver-1459db9f`,
+release `rel-58af17bb`, verification `vrf-6388d613`, on AI Fabric `0.8.8`.
 
 The two lists below deliberately separate reusable LoomAI or AI Fabric
 mechanics from dealership behavior. Generic code must not contain dealership,
@@ -1538,3 +1713,33 @@ run again reports explicit insufficient action evidence as usable grounding or
 skips the configured fallback. Do not weaken confirmation, trusted target
 resolution, tenant isolation, source attribution, or application-owned writes
 to improve demo fluency.
+
+## 22. Provider Integration Architecture Refinement
+
+- **Decision date:** 2026-10-03
+- **Canonical contract:** [010.27 Auto Trader Integration Platform Readiness Change And Evidence Plan](010_27_AUTOTRADER_INTEGRATION_PLATFORM_READINESS_CHANGE_AND_EVIDENCE_PLAN.md#53-canonical-source-ownership-and-migration-state)
+
+This decision was made after tracing where the current indexed data actually
+comes from and separating the already-proven meeting demo from the intended
+provider product.
+
+| Decision | Status | Tracking consequence |
+| --- | --- | --- |
+| Keep the existing `dep-f023c863` evidence recorded as a backend-push fictional demo until replacement proof passes | Preserved evidence; replacement source implemented | Do not rewrite old evidence or claim the simulator supplied it; replace the live deployment only after the provider-backed canary passes |
+| One dealership equals one deployment and one provider advertiser/account scope | Agreed | Credentials, source state, webhooks, index, and actions remain deployment-local |
+| Do not introduce a standalone Auto Trader bridge | Agreed | Extend the existing generic connector and existing Marketplace primitives |
+| Keep dealership website/backend independent from provider integration | Agreed | Do not change its catalogue source; it continues to own presentation and leads |
+| Use dedicated provider DATA and ACTION packages | Pending exact grant | Provider semantics stay declarative and immutable; no new plugin type |
+| Add generic targeted current-record reconciliation | Implemented locally; hosted canary pending | Verified event record ID -> current provider fetch -> shared mapping -> one upsert/delete; periodic baseline repairs drift |
+| Split provider reads from dealership writes | Implemented locally; hosted canary pending | Capability grants choose the owner; no try-and-fallback routing |
+| Prove the final topology against the provider simulator | Source composition ready; hosted canary pending | Only the LoomAI deployment uses the simulator; matching fictional `stockId` values link page context without coupling the website |
+| Add a protected staff provider-change rehearsal | Implemented locally; hosted canary pending | Demo backend invokes fixed simulator mutation/event controls server-side; no key, account, target URL, or raw event control reaches the browser/model |
+| Add a public-document-informed Stock Sync fixture | Implemented locally; hosted canary pending | Mirrors only the reviewed public auth, advertiser, stock, signature/event and lifecycle subset with provenance; neutral profiles remain and no sandbox/emulator claim is made |
+| Register each deployment's provider webhook during onboarding | Externally gated | Platform displays callback/status; receiver existence is not subscription evidence |
+| Publish named Auto Trader packages and readiness claims | Blocked externally | Requires sandbox credentials, exact schemas/grants, advertiser, rights, notification contract, and provider validation |
+
+The next implementation slice is the focused hosted replacement canary for the
+implemented targeted-reconciliation, provider-route, simulator-contract, and
+mixed-owner composition. It does not require changing the dealership website's
+catalogue source. Customer-facing Auto Trader package authoring begins only
+after partner-provided contracts replace public-document assumptions.

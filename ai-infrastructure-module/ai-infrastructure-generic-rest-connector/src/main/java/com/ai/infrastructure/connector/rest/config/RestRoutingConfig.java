@@ -267,6 +267,12 @@ public class RestRoutingConfig {
         private Object pinnedTargets;
 
         /**
+         * Optional fail-closed filters applied to provider collections before response templates are resolved.
+         */
+        @Valid
+        private List<ResponseCollectionFilter> collectionFilters = new ArrayList<>();
+
+        /**
          * Optional authoritative override for whether a successful action result can ground an answer.
          * Canonical empty list results default to {@code INSUFFICIENT} when no override is configured.
          */
@@ -276,6 +282,14 @@ public class RestRoutingConfig {
             SUFFICIENT,
             INSUFFICIENT
         }
+    }
+
+    @Data
+    public static class ResponseCollectionFilter {
+        private String collectionJsonPointer;
+        private String countJsonPointer;
+        @Valid
+        private List<RecordInclusionCondition> inclusionConditions = new ArrayList<>();
     }
 
     @Data
@@ -416,11 +430,38 @@ public class RestRoutingConfig {
         private RecordMapping mapping = new RecordMapping();
         @Valid
         private TombstonePolicy tombstonePolicy = new TombstonePolicy();
+        @Valid
+        private TargetedRecordFetch targetedRecordFetch = new TargetedRecordFetch();
         private String vectorSpace;
         private String entityType;
         @Min(10)
         @Max(86_400)
         private int scheduleSeconds = 900;
+    }
+
+    @Data
+    public static class TargetedRecordFetch {
+        private boolean enabled = false;
+        private String path;
+        private String method = "GET";
+        private List<Integer> completeHttpStatuses = new ArrayList<>(List.of(200));
+        private List<Integer> absentHttpStatuses = new ArrayList<>(List.of(404));
+        private Map<String, Object> query = new LinkedHashMap<>();
+        private Map<String, String> headers = new LinkedHashMap<>();
+        @Valid
+        private RecordKeyPlacement recordKeyPlacement = new RecordKeyPlacement();
+    }
+
+    @Data
+    public static class RecordKeyPlacement {
+        private Target target;
+        private String field;
+
+        public enum Target {
+            QUERY,
+            PATH,
+            HEADER
+        }
     }
 
     @Data
@@ -455,12 +496,20 @@ public class RestRoutingConfig {
         private Map<String, String> contentFields = new LinkedHashMap<>();
         private Map<String, String> entityFields = new LinkedHashMap<>();
         private Map<String, String> metadataFields = new LinkedHashMap<>();
+        @Valid
+        private List<RecordInclusionCondition> inclusionConditions = new ArrayList<>();
         @Min(1)
         @Max(100_000)
         private int maxRecords = 10_000;
         @Min(1024)
         @Max(50 * 1024 * 1024)
         private int maxResponseBytes = 5 * 1024 * 1024;
+    }
+
+    @Data
+    public static class RecordInclusionCondition {
+        private String jsonPointer;
+        private List<String> allowedValues = new ArrayList<>();
     }
 
     @Data
@@ -507,10 +556,15 @@ public class RestRoutingConfig {
         @Valid
         private WebhookVerification verification = new WebhookVerification();
         private String eventIdJsonPointer;
+        private List<String> eventIdentityJsonPointers = new ArrayList<>();
         private String eventTypeJsonPointer;
         private String resourceJsonPointer;
+        private String recordKeyJsonPointer;
         private List<String> allowedEventTypes = new ArrayList<>();
         private String reconcileDataSourceRef;
+        private ReconciliationStrategy reconciliationStrategy = ReconciliationStrategy.FULL_SOURCE;
+        @Valid
+        private WebhookResponseStatuses responseStatuses = new WebhookResponseStatuses();
         @Min(1024)
         @Max(10 * 1024 * 1024)
         private int maxBodyBytes = 1024 * 1024;
@@ -525,6 +579,24 @@ public class RestRoutingConfig {
         public enum OrderingPolicy {
             RECONCILE_LATEST_STATE
         }
+
+        public enum ReconciliationStrategy {
+            FULL_SOURCE,
+            FETCH_CURRENT_RECORD
+        }
+    }
+
+    @Data
+    public static class WebhookResponseStatuses {
+        @Min(200)
+        @Max(299)
+        private int accepted = 202;
+        @Min(200)
+        @Max(299)
+        private int duplicate = 200;
+        @Min(400)
+        @Max(499)
+        private int resourceMismatch = 403;
     }
 
     @Data
@@ -534,12 +606,18 @@ public class RestRoutingConfig {
         private String secret;
         private String timestampComponent = "t";
         private String signatureComponent = "v1";
+        private TimestampUnit timestampUnit = TimestampUnit.SECONDS;
         @Min(0)
         @Max(86_400)
         private int replayWindowSeconds = 300;
 
         public enum Strategy {
             HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY
+        }
+
+        public enum TimestampUnit {
+            SECONDS,
+            MILLISECONDS
         }
     }
 }

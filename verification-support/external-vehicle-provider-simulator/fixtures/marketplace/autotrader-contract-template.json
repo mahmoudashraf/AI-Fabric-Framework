@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "mkp-template-autotrader-dealership-verification",
+  "version": "1.0.0",
+  "pluginType": "TEMPLATE",
+  "displayName": "Auto Trader Dealership Assistant Verification",
+  "description": "Internal meeting-demo template for one deployment, one advertiser account and deployment-local indexed stock through the AT Connect contract simulator.",
+  "compatibility": {
+    "requiredCapabilities": ["templates"],
+    "supportedDeploymentTargets": ["custom-start-from-scratch"]
+  },
+  "pricing": {"pricingModel": "FREE"},
+  "permissions": {"contributesTemplate": true, "contributesShellPresentation": true},
+  "contributions": {
+    "template": {
+      "templateId": "custom-start-from-scratch",
+      "deploymentBehavior": {
+        "type": "CONVERSATIONAL",
+        "contractVersion": 1,
+        "requiredRuntimeCapabilityIds": ["ai-fabric-core", "ai-fabric-chat-session"],
+        "allowedExecutionExtensions": ["GOVERNED_RESOLVER"],
+        "allowedChannelBindings": ["BACKEND_API", "DOCKED_COMPOSER", "MAX_MODE", "QUERY_ONCE"],
+        "verificationPackIds": ["conversational-behavior-v1"]
+      },
+      "security": {"authzMode": "ALLOW_VERIFIED"},
+      "requiredPluginRefs": [
+        "mkp-data-autotrader-contract-verification@1.0.0",
+        "mkp-action-autotrader-contract-verification@1.0.0"
+      ],
+      "shell": {
+        "greeting": {
+          "title": "Ask Northfield",
+          "message": "Tell me what matters to you and I will search the current fictional demonstration stock."
+        },
+        "starterPrompts": [
+          {"id": "electric-family-suv", "label": "Electric family SUV", "query": "Show me an electric family SUV under GBP 35,000"},
+          {"id": "compare-stock", "label": "Compare current stock", "query": "Help me compare two suitable cars from the current stock"}
+        ],
+        "defaultConversationMode": "executor"
+      }
+    }
+  }
+}

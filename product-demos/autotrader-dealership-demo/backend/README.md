@@ -1,17 +1,26 @@
 # LoomAI Dealership Demo Backend
 
-This service is the customer-owned application boundary for the public dealership
-demo. It is intentionally separate from the LoomAI runtime:
+This service is the customer-owned application boundary for the public
+dealership demo. It is intentionally independent from both the provider and
+the LoomAI deployment:
 
-- the dealership database owns stock, exact filters, current availability and leads;
-- a LoomAI deployment owns chat, retrieval and governed action orchestration;
-- the browser talks directly to the deployment through anonymous runtime bootstrap;
-- the backend pushes approved inventory projections to the deployment-local index;
-- the deployment connector calls the backend's protected authorization and action APIs.
+- the dealership database owns the website catalogue, exact filters, current
+  dealership availability, and buyer leads;
+- the deployment-local LoomAI connector authenticates to the configured stock
+  provider, indexes its approved projection, receives signed notifications,
+  and exposes governed provider read actions;
+- the LoomAI runtime owns chat, retrieval, and action orchestration;
+- the browser talks to the runtime through anonymous session bootstrap; and
+- the deployment connector calls this backend only for dealer-owned reads,
+  authorization, and confirmed lead actions that the provider does not own.
 
-The included inventory is fictional and is labelled `Demonstration inventory`.
-It is not an Auto Trader emulator and proves no Auto Trader sandbox or production
-access.
+The website catalogue and provider fixture share stable `stockId` values for
+the demo, but neither is populated from the other. Replacing the provider does
+not require replacing the dealership website.
+
+All included vehicles are fictional. The provider canary uses a synthetic
+public-document contract fixture; it is not an official Auto Trader sandbox,
+certification, endorsement, or proof of production access.
 
 ## Local run
 
@@ -60,10 +69,16 @@ LOOMAI_RUNTIME_ASSERTION_AUDIENCE=<deployment-audience>
 LOOMAI_RUNTIME_DEPLOYMENT_ID=<deployment-id>
 LOOMAI_RUNTIME_CUSTOMER_ID=<customer-id>
 LOOMAI_RUNTIME_TENANT_ID=<tenant-id>
+LOOMAI_RUNTIME_INTEGRATION_SOURCE_ID=autotrader-dealership-stock-source
+LOOMAI_RUNTIME_INTEGRATION_WEBHOOK_SOURCE_ID=autotrader-stock-events
 ```
 
-Optional route overrides are available when a deployment publishes different
-public paths:
+The runtime credentials stay backend-only. They authorize only the exact
+private scopes needed for source status, source reconciliation, and webhook
+event evidence. The browser receives only the safe runtime descriptor.
+
+Optional route overrides remain available for deployments that publish
+different public chat paths:
 
 ```text
 LOOMAI_RUNTIME_PUBLIC_BOOTSTRAP_PATH=/api/public/chat/session
@@ -75,8 +90,19 @@ LOOMAI_RUNTIME_CONVERSATIONS_PATH=/api/chat/me/conversations
 LOOMAI_RUNTIME_CONVERSATION_ITEM_PATH_TEMPLATE=/api/chat/me/conversations/{conversationId}
 ```
 
-Keep every value in the second block backend-only. The public runtime descriptor
-returns only the public runtime base URL and route paths.
+The protected meeting-demo simulator controls additionally require:
+
+```text
+PROVIDER_SIMULATOR_ENABLED=true
+PROVIDER_SIMULATOR_BASE_URL=https://<provider-simulator>
+PROVIDER_SIMULATOR_CONTROL_API_KEY=<operator-only simulator key>
+PROVIDER_SIMULATOR_ADVERTISER_ID=<fixed synthetic advertiser ID>
+PROVIDER_SIMULATOR_WEBHOOK_TARGET_URL=https://<deployment-connector>/integrations/webhooks/autotrader-stock-events
+```
+
+These values are fixed by the backend. The browser may choose only one of the
+allowlisted scenario codes; it cannot supply an advertiser, stock payload,
+webhook destination, or control credential.
 
 The public-site container receives only:
 
@@ -85,42 +111,45 @@ DEALERSHIP_DEMO_API_BASE_URL=https://<dealership-backend>
 DEALERSHIP_DEMO_RUNTIME_BASE_URL=https://<assigned-runtime>
 ```
 
-The runtime URL is used to extend the site Content Security Policy. The browser
-obtains its exact public routes from the dealership backend's safe descriptor.
-
 ## Deployment contracts
 
 - `deployment/runtime/ai-entity-config.yml` registers `dealer-vehicle`.
-- `deployment/runtime/ai-actions.yml` defines three reads and two confirmed
-  writes. Buyer-facing vehicle references are resolved by the trusted backend
-  path to the unique current inventory ID used by detail and write operations;
-  that resolver is deliberately not a model-selectable action and the internal
-  ID is never requested from the buyer. Test-drive submission collects name,
-  email and phone, then uses the governed action's final confirmation instead
-  of a second consent checkbox; callback contact consent remains an explicit
-  action parameter.
-- `deployment/connector/actions-routing.yml` routes those actions and authz checks
-  to this service. Inventory and comparison reads preserve canonical `_items`
-  and `_count` fields for AI grounding while also returning bounded source,
-  filter, and count metadata used by the host-owned Max Mode presentation.
-  These browser projections exclude the internal vehicle ID; any selected
-  buyer-facing stock reference is resolved again by the trusted action path.
+- `deployment/runtime/ai-actions.yml` defines provider inventory reads, the
+  dealer-owned comparison read, and two confirmed dealer-owned lead writes.
+- `deployment/connector/actions-routing.yml` routes stock search/detail through
+  the deployment's provider connection profile and immutable advertiser
+  binding. Comparison, callback, and test-drive routes remain on this backend.
+- `deployment/platform/staging-profile.json` composes the provider profile,
+  protected resource, complete baseline, targeted current-record fetch,
+  signed notification ingress, indexing mapping, and runtime source identity.
 
-The connector must receive `DEALERSHIP_BACKEND_BASE_URL` and the same internal
-key configured here. Runtime customer ingestion must allow upsert, delete, and
-work-status queries for `dealer-vehicle`:
+The provider baseline requests only `lifecycleState=FORECOURT`, uses
+`advertiserId`, `page`, and `pageSize`, and stores stable stock/search IDs.
+Signed `STOCK_UPDATE` events are treated only as change signals. After raw-body
+HMAC and advertiser checks, the connector extracts the bounded `stockId`,
+fetches that one current provider record, and then upserts or deletes it through
+runtime Data Sync. A periodic full baseline remains the missed-event repair
+path. Event bodies are never indexed directly.
+
+Provider search/detail actions and indexing share the same deployment-local
+connection profile and advertiser authority. The model, browser, and action
+parameters cannot choose an advertiser or provider host.
+
+## Staff verification surfaces
+
+Authenticated staff can inspect and exercise the deployment without receiving
+provider secrets:
 
 ```text
-AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_UPSERT_ENTITY_TYPES=dealer-vehicle
-AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_DELETE_ENTITY_TYPES=dealer-vehicle
-AI_FABRIC_RUNTIME_AUTH_INGRESS_CUSTOMER_INGESTION_ALLOWED_WORK_STATUS_ENTITY_TYPES=dealer-vehicle
+GET  /api/staff/integration/status
+POST /api/staff/integration/reconcile
+GET  /api/staff/provider-simulator/status
+POST /api/staff/provider-simulator/scenarios/{scenario}
 ```
 
-Active records produce `UPSERT`; sold, unpublished, or otherwise inactive
-records produce `DELETE` using the same stable record/chunk identity. Every
-upsert carries the server-owned tenant and deployment IDs required by the
-runtime entity projection. Those values come only from the backend's private
-runtime configuration, never from the browser or source record.
+The bounded simulator scenarios are `add-stock`, `update-price`, `mark-sold`,
+and `delete-stock`. A scenario response includes notification delivery status
+and the deployment connector's terminal `COMPLETED` or `DEAD_LETTER` evidence.
 
 ## Verification
 
@@ -132,11 +161,7 @@ docker build \
   .
 ```
 
-An accepted ingestion response is not considered indexed proof. The service
-persists each `metadata.indexingWorkId` and reconciles it through the runtime
-work-status endpoint.
-
-Useful local surfaces:
+Useful public surfaces:
 
 ```text
 GET /actuator/health/readiness
@@ -149,8 +174,6 @@ GET /api/public/runtime-descriptor
 GET /api/public/security/csrf
 ```
 
-The deployment action catalogue uses the buyer-facing `by-reference` read and
-lets the dealership backend resolve and authorize the active stock target. The
-lower-level `resolve` route is not published as a model-selectable LoomAI
-action; exposing a helper resolver to the planner can produce a technically
-successful resolution without the requested detail action or presentation.
+The lower-level vehicle resolver is not model-selectable. Buyer-facing stock
+references are resolved again inside trusted dealer-owned action paths before a
+lead can be written.

@@ -13,9 +13,11 @@ import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -84,12 +86,13 @@ public class ProviderWebhookService {
         } catch (Exception ex) {
             return reject(sourceId, "WEBHOOK_BODY_MALFORMED");
         }
-        String eventId = scalar(root, source.getEventIdJsonPointer());
+        EventIdentity identity = eventIdentity(root, source);
+        String eventId = identity.value();
         String eventType = scalar(root, source.getEventTypeJsonPointer());
         if (!StringUtils.hasText(eventId) || !StringUtils.hasText(eventType)) {
             return reject(sourceId, "WEBHOOK_EVENT_IDENTITY_MISSING");
         }
-        if (eventId.length() > 240 || eventType.length() > 160) {
+        if (!identity.valid() || eventId.length() > 240 || eventType.length() > 160) {
             return reject(sourceId, "WEBHOOK_EVENT_IDENTITY_INVALID");
         }
         if (source.getAllowedEventTypes() == null || !source.getAllowedEventTypes().contains(eventType)) {
@@ -103,10 +106,21 @@ public class ProviderWebhookService {
         if (!binding.getResourceId().equals(resource)) {
             return reject(sourceId, "WEBHOOK_RESOURCE_MISMATCH");
         }
+        String recordKey = null;
+        if (source.getReconciliationStrategy() == RestRoutingConfig.WebhookSource.ReconciliationStrategy.FETCH_CURRENT_RECORD) {
+            recordKey = scalar(root, source.getRecordKeyJsonPointer());
+            if (!StringUtils.hasText(recordKey)) {
+                return reject(sourceId, "WEBHOOK_RECORD_KEY_MISSING");
+            }
+            if (recordKey.length() > 500 || recordKey.chars().anyMatch(Character::isISOControl)) {
+                return reject(sourceId, "WEBHOOK_RECORD_KEY_INVALID");
+            }
+        }
         IntegrationStateRepository.WebhookEvent event = new IntegrationStateRepository.WebhookEvent(
             sourceId,
             eventId,
             eventType,
+            recordKey,
             protectedResources.fingerprint(binding),
             Hashing.sha256Hex(rawBody),
             "ACCEPTED",
@@ -121,6 +135,7 @@ public class ProviderWebhookService {
             IntegrationStateRepository.WebhookEvent existing = repository.event(sourceId, eventId).orElse(null);
             if (existing == null
                 || !eventType.equals(existing.eventType())
+                || !java.util.Objects.equals(recordKey, existing.recordKey())
                 || !event.resourceFingerprint().equals(existing.resourceFingerprint())
                 || !event.payloadSha256().equals(existing.payloadSha256())) {
                 return reject(sourceId, "WEBHOOK_EVENT_ID_CONFLICT");
@@ -182,10 +197,27 @@ public class ProviderWebhookService {
             return;
         }
         repository.beginEventAttempt(sourceId, eventId, "RECONCILIATION_QUEUED");
-        syncService.reconcileAsync(source.getReconcileDataSourceRef()).whenComplete((state, failure) -> {
+        IntegrationStateRepository.WebhookEvent event = repository.event(sourceId, eventId).orElse(null);
+        if (event == null) {
+            runningEvents.remove(eventKey);
+            return;
+        }
+        CompletableFuture<ReconciliationAttempt> reconciliation = source.getReconciliationStrategy()
+            == RestRoutingConfig.WebhookSource.ReconciliationStrategy.FETCH_CURRENT_RECORD
+            ? syncService.reconcileRecordAsync(source.getReconcileDataSourceRef(), event.recordKey())
+                .thenApply(result -> new ReconciliationAttempt(
+                    result != null && result.failedWorkCount() == 0 && "COMPLETED".equals(result.status()),
+                    result != null ? result.errorClass() : ProviderErrorClass.SERVICE_UNAVAILABLE.name()
+                ))
+            : syncService.reconcileAsync(source.getReconcileDataSourceRef())
+                .thenApply(state -> new ReconciliationAttempt(
+                    state != null && state.counts().failedWorkCount() == 0
+                        && !"FAILED".equals(state.status()) && !"PARTIAL".equals(state.status()),
+                    state != null ? state.errorClass() : ProviderErrorClass.SERVICE_UNAVAILABLE.name()
+                ));
+        reconciliation.whenComplete((attempt, failure) -> {
             try {
-                if (failure == null && state != null && state.counts().failedWorkCount() == 0
-                    && !"FAILED".equals(state.status()) && !"PARTIAL".equals(state.status())) {
+                if (failure == null && attempt != null && attempt.successful()) {
                     repository.updateEvent(sourceId, eventId, "COMPLETED", null);
                     return;
                 }
@@ -195,7 +227,7 @@ public class ProviderWebhookService {
                     sourceId,
                     eventId,
                     exhausted ? "DEAD_LETTER" : "FAILED_RETRYABLE",
-                    reconciliationErrorClass(state, failure)
+                    reconciliationErrorClass(attempt, failure)
                 );
             } finally {
                 runningEvents.remove(eventKey);
@@ -204,7 +236,7 @@ public class ProviderWebhookService {
     }
 
     private String reconciliationErrorClass(
-        IntegrationStateRepository.SyncState state,
+        ReconciliationAttempt attempt,
         Throwable failure
     ) {
         Throwable cause = failure;
@@ -214,8 +246,8 @@ public class ProviderWebhookService {
         if (cause instanceof ProviderCallException providerFailure) {
             return providerFailure.errorClass().name();
         }
-        if (state != null && StringUtils.hasText(state.errorClass())) {
-            return state.errorClass();
+        if (attempt != null && StringUtils.hasText(attempt.errorClass())) {
+            return attempt.errorClass();
         }
         return ProviderErrorClass.SERVICE_UNAVAILABLE.name();
     }
@@ -256,6 +288,32 @@ public class ProviderWebhookService {
         return node.isValueNode() ? node.asText("").trim() : "";
     }
 
+    private EventIdentity eventIdentity(JsonNode root, RestRoutingConfig.WebhookSource source) {
+        if (source.getEventIdentityJsonPointers() == null
+            || source.getEventIdentityJsonPointers().isEmpty()) {
+            return new EventIdentity(scalar(root, source.getEventIdJsonPointer()), true);
+        }
+        List<String> components = new ArrayList<>();
+        for (String pointer : source.getEventIdentityJsonPointers()) {
+            String component = scalar(root, pointer);
+            if (!StringUtils.hasText(component)) {
+                return new EventIdentity("", true);
+            }
+            if (component.length() > 500 || component.chars().anyMatch(Character::isISOControl)) {
+                return new EventIdentity("invalid", false);
+            }
+            components.add(component);
+        }
+        try {
+            return new EventIdentity(
+                "evt-" + Hashing.sha256Hex(objectMapper.writeValueAsBytes(components)),
+                true
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to derive provider webhook identity.", ex);
+        }
+    }
+
     public record WebhookReceipt(
         boolean accepted,
         boolean duplicate,
@@ -266,5 +324,11 @@ public class ProviderWebhookService {
         private static WebhookReceipt rejected(String errorClass) {
             return new WebhookReceipt(false, false, "REJECTED", null, errorClass);
         }
+    }
+
+    private record ReconciliationAttempt(boolean successful, String errorClass) {
+    }
+
+    private record EventIdentity(String value, boolean valid) {
     }
 }

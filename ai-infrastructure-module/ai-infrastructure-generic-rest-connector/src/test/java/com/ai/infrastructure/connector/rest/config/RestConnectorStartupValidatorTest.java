@@ -18,6 +18,44 @@ class RestConnectorStartupValidatorTest {
     }
 
     @Test
+    void acceptsFailClosedCollectionFilteringOnProtectedProviderActions() {
+        RestRoutingConfig config = config();
+        RestRoutingConfig.ActionRoute route = providerActionRoute();
+        RestRoutingConfig.ResponseCollectionFilter filter = new RestRoutingConfig.ResponseCollectionFilter();
+        filter.setCollectionJsonPointer("/results");
+        filter.setCountJsonPointer("/totalResults");
+        RestRoutingConfig.RecordInclusionCondition condition = new RestRoutingConfig.RecordInclusionCondition();
+        condition.setJsonPointer("/publication/status");
+        condition.setAllowedValues(List.of("PUBLISHED"));
+        filter.setInclusionConditions(List.of(condition));
+        route.getResponse().setCollectionFilters(List.of(filter));
+        config.setActions(Map.of("provider_search", route));
+
+        assertThatCode(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsCollectionFilteringOnOrdinaryApplicationActions() {
+        RestRoutingConfig config = config();
+        config.getConnector().getUpstream().setBaseUrl("https://application.fixture.invalid");
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        route.setPath("/api/search");
+        RestRoutingConfig.ResponseCollectionFilter filter = new RestRoutingConfig.ResponseCollectionFilter();
+        filter.setCollectionJsonPointer("/results");
+        RestRoutingConfig.RecordInclusionCondition condition = new RestRoutingConfig.RecordInclusionCondition();
+        condition.setJsonPointer("/publication/status");
+        condition.setAllowedValues(List.of("PUBLISHED"));
+        filter.setInclusionConditions(List.of(condition));
+        route.getResponse().setCollectionFilters(List.of(filter));
+        config.setActions(Map.of("application_search", route));
+
+        assertThatThrownBy(() -> new RestConnectorStartupValidator(config, null, persistence()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("supported only for protected provider routes");
+    }
+
+    @Test
     void rejectsNonHttpsProviderEndpoint() {
         RestRoutingConfig config = config();
         config.getConnectionProfiles().get("neutral-provider").setBaseUrl("http://provider.fixture.invalid");
@@ -177,6 +215,19 @@ class RestConnectorStartupValidatorTest {
         config.getRuntimeDataSync().setDeploymentId("dep-1");
         config.getRuntimeDataSync().setTenantId("tenant-1");
         return config;
+    }
+
+    private RestRoutingConfig.ActionRoute providerActionRoute() {
+        RestRoutingConfig.ActionRoute route = new RestRoutingConfig.ActionRoute();
+        route.setConnectionProfileRef("neutral-provider");
+        route.setProtectedResourceBindingRef("neutral-scope");
+        route.setRequiredCapabilityGrants(List.of("records:read"));
+        route.setPath("/records");
+        RestRoutingConfig.ResourcePlacement placement = new RestRoutingConfig.ResourcePlacement();
+        placement.setTarget(RestRoutingConfig.ResourcePlacement.Target.QUERY);
+        placement.setField("scopeId");
+        route.setTrustedResourcePlacements(List.of(placement));
+        return route;
     }
 
     private RestConnectorServiceProperties persistence() {

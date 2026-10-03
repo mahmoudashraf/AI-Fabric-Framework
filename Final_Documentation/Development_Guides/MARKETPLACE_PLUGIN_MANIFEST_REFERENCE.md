@@ -509,7 +509,10 @@ The HTTP source declares:
 - record, identity, protected-resource, content, entity, and metadata JSON
   Pointer mappings;
 - record/response/page bounds and schedule; and
-- optional field/snapshot tombstone policy.
+- optional field/snapshot tombstone policy; and
+- optional `targetedRecordFetch` with a relative path/method, complete and
+  absent status sets, static query/headers, and one `recordKeyPlacement` in
+  `QUERY`, `PATH`, or `HEADER`.
 
 Every protected path placeholder must have a matching server-owned `PATH`
 placement. Header placement cannot overwrite the provider auth header. Every
@@ -518,11 +521,19 @@ closed before indexing.
 
 Optional provider webhooks support only the reviewed raw-body
 `HMAC_SHA256_TIMESTAMP_DOT_RAW_BODY` verifier in this release. They declare a
-signature secret-reference field, event/resource JSON Pointers, allowed event
-and content types, replay window, reconciliation attempts, retry delay,
-registration expectation, and optional operator replay. Webhook processing
-always reconciles the latest provider state; event payloads are not treated as
-authoritative records.
+signature secret-reference field, `SECONDS` or `MILLISECONDS` timestamp unit,
+event/resource JSON Pointers, allowed event and content types, replay window,
+reconciliation attempts, retry delay, registration expectation, and optional
+operator replay. `responseStatuses` may set bounded `accepted`, `duplicate`,
+and `resourceMismatch` codes so provider wire semantics remain manifest-owned.
+
+`reconciliationStrategy=FULL_SOURCE` reruns the complete baseline.
+`FETCH_CURRENT_RECORD` additionally requires `recordKeyJsonPointer` and an
+enabled `httpSource.targetedRecordFetch`. After signature, replay, event type,
+and protected-resource validation, the connector extracts the bounded record
+key and fetches current provider state. It requires zero or exactly one record,
+and a returned record must match both the event key and protected resource.
+Webhook payloads are never treated as authoritative index records.
 
 `customerBackendIngestion`, when explicitly enabled by the immutable dataset,
 may grant only these operations:

@@ -9,6 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -22,6 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class HttpDataSyncService {
@@ -33,7 +36,7 @@ public class HttpDataSyncService {
     private final IntegrationStateRepository repository;
     private final ObjectMapper objectMapper;
     private final Clock clock;
-    private final Set<String> running = ConcurrentHashMap.newKeySet();
+    private final Map<String, ReentrantLock> sourceLocks = new ConcurrentHashMap<>();
 
     public HttpDataSyncService(
         RestRoutingConfig config,
@@ -55,9 +58,8 @@ public class HttpDataSyncService {
 
     public IntegrationStateRepository.SyncState reconcile(String sourceId) {
         RestRoutingConfig.HttpDataSource source = requireSource(sourceId);
-        if (!running.add(sourceId)) {
-            return repository.syncState(sourceId).orElseThrow();
-        }
+        ReentrantLock sourceLock = sourceLock(sourceId);
+        sourceLock.lock();
         String runId = UUID.randomUUID().toString();
         IntegrationStateRepository.SyncState previousState = repository.syncState(sourceId).orElse(null);
         String previousCursor = previousState != null
@@ -123,7 +125,7 @@ public class HttpDataSyncService {
             );
             throw ex;
         } finally {
-            running.remove(sourceId);
+            sourceLock.unlock();
         }
     }
 
@@ -131,11 +133,72 @@ public class HttpDataSyncService {
         return CompletableFuture.supplyAsync(() -> reconcile(sourceId));
     }
 
+    public RecordReconcileResult reconcileRecord(String sourceId, String recordKey) {
+        RestRoutingConfig.HttpDataSource source = requireSource(sourceId);
+        RestRoutingConfig.TargetedRecordFetch targeted = source.getTargetedRecordFetch();
+        if (targeted == null || !targeted.isEnabled()) {
+            throw new ProviderCallException(
+                ProviderErrorClass.BAD_REQUEST,
+                0,
+                "Targeted record reconciliation is not configured for this data source."
+            );
+        }
+        String safeRecordKey = boundedRecordKey(recordKey);
+        ReentrantLock sourceLock = sourceLock(sourceId);
+        sourceLock.lock();
+        try {
+            TargetedFetchResult fetched = fetchRecord(sourceId, source, targeted, safeRecordKey);
+            List<RuntimeDataSyncClient.SyncRecord> upserts = fetched.record() != null
+                ? List.of(fetched.record())
+                : List.of();
+            List<String> deletes = fetched.delete() ? List.of(safeRecordKey) : List.of();
+            RuntimeDataSyncClient.SyncOutcome outcome = runtimeClient.submit(
+                sourceId,
+                upserts,
+                deletes,
+                source.getVectorSpace()
+            );
+            if (outcome.failed() > 0) {
+                throw new ProviderCallException(
+                    ProviderErrorClass.SERVICE_UNAVAILABLE,
+                    0,
+                    "Runtime indexing did not complete the targeted provider operation."
+                );
+            }
+            String runId = "record-" + UUID.randomUUID();
+            if (fetched.record() != null) {
+                repository.markRecordSeen(
+                    sourceId,
+                    fetched.record().id(),
+                    fetched.record().fingerprint(),
+                    runId
+                );
+            } else if (fetched.delete()) {
+                repository.markRecordDeleted(sourceId, safeRecordKey);
+            }
+            return new RecordReconcileResult(
+                sourceId,
+                safeRecordKey,
+                "COMPLETED",
+                outcome.completedUpserts(),
+                outcome.completedDeletes(),
+                outcome.failed(),
+                null
+            );
+        } finally {
+            sourceLock.unlock();
+        }
+    }
+
+    public CompletableFuture<RecordReconcileResult> reconcileRecordAsync(String sourceId, String recordKey) {
+        return CompletableFuture.supplyAsync(() -> reconcileRecord(sourceId, recordKey));
+    }
+
     @Scheduled(fixedDelayString = "${REST_CONNECTOR_SCHEDULER_TICK_MS:10000}")
     public void scheduledReconciliation() {
         Instant now = clock.instant();
         config.getDataSources().forEach((sourceId, source) -> {
-            if (source == null || !source.isEnabled() || running.contains(sourceId)) {
+            if (source == null || !source.isEnabled() || sourceBusy(sourceId)) {
                 return;
             }
             Instant lastStarted = repository.syncState(sourceId).map(IntegrationStateRepository.SyncState::lastStartedAt).orElse(null);
@@ -161,6 +224,151 @@ public class HttpDataSyncService {
             new IntegrationStateRepository.SyncCounts(0, 0, 0, 0, 0, 0, 0),
             null, null, null, null, null, null
         ));
+    }
+
+    private TargetedFetchResult fetchRecord(
+        String sourceId,
+        RestRoutingConfig.HttpDataSource source,
+        RestRoutingConfig.TargetedRecordFetch targeted,
+        String recordKey
+    ) {
+        String requestPath = StringUtils.hasText(targeted.getPath())
+            ? targeted.getPath().trim()
+            : source.getPath();
+        Map<String, Object> query = new LinkedHashMap<>(source.getQuery());
+        query.putAll(targeted.getQuery());
+        Map<String, String> headers = new LinkedHashMap<>(source.getHeaders());
+        headers.putAll(targeted.getHeaders());
+        ProtectedResourceService.BoundRequest bound = protectedResources.apply(
+            source.getProtectedResourceBindingRef(),
+            source.getConnectionProfileRef(),
+            source.getRequiredCapabilityGrants(),
+            source.getTrustedResourcePlacements(),
+            requestPath,
+            query,
+            headers,
+            null,
+            Map.of()
+        );
+        TargetedRequest targetedRequest = placeRecordKey(
+            bound.path(),
+            bound.query(),
+            bound.headers(),
+            targeted.getRecordKeyPlacement(),
+            recordKey
+        );
+        ProviderHttpClient.ProviderResponse response = providerClient.execute(new ProviderHttpClient.ProviderRequest(
+            source.getConnectionProfileRef(),
+            targeted.getMethod(),
+            targetedRequest.path(),
+            targetedRequest.query(),
+            targetedRequest.headers(),
+            null,
+            config.getRuntimeDataSync().getTimeoutMs(),
+            source.getMapping().getMaxResponseBytes(),
+            true
+        ));
+        if (targeted.getAbsentHttpStatuses().contains(response.status())) {
+            return new TargetedFetchResult(null, true);
+        }
+        if (!response.successful()) {
+            throw new ProviderCallException(
+                providerClient.classify(source.getConnectionProfileRef(), response.status(), response.body()),
+                response.status(),
+                "Provider targeted record request failed."
+            );
+        }
+        if (!targeted.getCompleteHttpStatuses().contains(response.status())) {
+            throw new ProviderCallException(
+                ProviderErrorClass.MALFORMED_RESPONSE,
+                response.status(),
+                "Provider targeted record request returned an undeclared successful HTTP status."
+            );
+        }
+        response.correlationHeaders().entrySet().stream().findFirst().ifPresent(entry ->
+            repository.recordProviderCorrelation(sourceId, entry.getKey(), entry.getValue())
+        );
+        JsonNode root = readJson(response.body());
+        JsonNode recordNode = at(root, source.getMapping().getRecordsJsonPointer());
+        if (!recordNode.isArray()) {
+            throw new ProviderCallException(
+                ProviderErrorClass.MALFORMED_RESPONSE,
+                response.status(),
+                "Provider targeted record selector did not resolve to a list."
+            );
+        }
+        if (recordNode.isEmpty()) {
+            return new TargetedFetchResult(null, true);
+        }
+        if (recordNode.size() != 1) {
+            throw new ProviderCallException(
+                ProviderErrorClass.MALFORMED_RESPONSE,
+                response.status(),
+                "Provider targeted record request did not resolve to exactly one current record."
+            );
+        }
+        JsonNode record = recordNode.get(0);
+        String providerRecordId = validateRecordBoundary(source, bound.binding(), record);
+        if (!recordKey.equals(providerRecordId)) {
+            throw new ProviderCallException(
+                ProviderErrorClass.RESOURCE_ACCESS_DENIED,
+                response.status(),
+                "Provider targeted record identity did not match the authenticated event key."
+            );
+        }
+        if (isExplicitTombstone(source.getTombstonePolicy(), record)) {
+            return new TargetedFetchResult(null, true);
+        }
+        if (!isIncludedRecord(source.getMapping(), record)) {
+            return new TargetedFetchResult(null, true);
+        }
+        return new TargetedFetchResult(
+            mapRecord(sourceId, source, bound.binding(), providerRecordId, record),
+            false
+        );
+    }
+
+    private TargetedRequest placeRecordKey(
+        String path,
+        Map<String, Object> query,
+        Map<String, String> headers,
+        RestRoutingConfig.RecordKeyPlacement placement,
+        String recordKey
+    ) {
+        Map<String, Object> safeQuery = new LinkedHashMap<>(query);
+        Map<String, String> safeHeaders = new LinkedHashMap<>(headers);
+        String safePath = path;
+        switch (placement.getTarget()) {
+            case QUERY -> safeQuery.put(placement.getField(), recordKey);
+            case HEADER -> safeHeaders.put(placement.getField(), recordKey);
+            case PATH -> safePath = safePath.replace(
+                "{" + placement.getField() + "}",
+                URLEncoder.encode(recordKey, StandardCharsets.UTF_8).replace("+", "%20")
+            );
+        }
+        return new TargetedRequest(safePath, Map.copyOf(safeQuery), Map.copyOf(safeHeaders));
+    }
+
+    private String boundedRecordKey(String recordKey) {
+        String normalized = StringUtils.hasText(recordKey) ? recordKey.trim() : "";
+        if (!StringUtils.hasText(normalized) || normalized.length() > 500
+            || normalized.chars().anyMatch(Character::isISOControl)) {
+            throw new ProviderCallException(
+                ProviderErrorClass.BAD_REQUEST,
+                0,
+                "Targeted provider record key is missing or outside the supported boundary."
+            );
+        }
+        return normalized;
+    }
+
+    private ReentrantLock sourceLock(String sourceId) {
+        return sourceLocks.computeIfAbsent(sourceId, ignored -> new ReentrantLock(true));
+    }
+
+    private boolean sourceBusy(String sourceId) {
+        ReentrantLock lock = sourceLocks.get(sourceId);
+        return lock != null && (lock.isLocked() || lock.hasQueuedThreads());
     }
 
     private FetchResult fetchAll(
@@ -237,6 +445,11 @@ public class HttpDataSyncService {
                 pageRecordCount++;
                 String recordId = validateRecordBoundary(source, bound.binding(), record);
                 if (isExplicitTombstone(source.getTombstonePolicy(), record)) {
+                    if (records.containsKey(recordId)) {
+                        throw conflictingRecordOperation(recordId);
+                    }
+                    explicitDeleteIds.add(recordId);
+                } else if (!isIncludedRecord(source.getMapping(), record)) {
                     if (records.containsKey(recordId)) {
                         throw conflictingRecordOperation(recordId);
                     }
@@ -332,6 +545,18 @@ public class HttpDataSyncService {
         return policy.getDeleteValues().stream().anyMatch(value -> value.equalsIgnoreCase(operation));
     }
 
+    private boolean isIncludedRecord(RestRoutingConfig.RecordMapping mapping, JsonNode record) {
+        if (mapping == null || mapping.getInclusionConditions() == null
+            || mapping.getInclusionConditions().isEmpty()) {
+            return true;
+        }
+        return mapping.getInclusionConditions().stream().allMatch(condition -> {
+            String value = scalar(record, condition.getJsonPointer());
+            return condition.getAllowedValues().stream()
+                .anyMatch(allowed -> allowed.equalsIgnoreCase(value));
+        });
+    }
+
     private boolean deletesAbsent(RestRoutingConfig.TombstonePolicy policy) {
         RestRoutingConfig.TombstonePolicy.Strategy strategy = tombstoneStrategy(policy);
         return strategy == RestRoutingConfig.TombstonePolicy.Strategy.ABSENT_FROM_SNAPSHOT
@@ -423,6 +648,30 @@ public class HttpDataSyncService {
         Set<String> explicitDeleteIds,
         int sourceCount,
         String cursor
+    ) {
+    }
+
+    private record TargetedFetchResult(
+        RuntimeDataSyncClient.SyncRecord record,
+        boolean delete
+    ) {
+    }
+
+    private record TargetedRequest(
+        String path,
+        Map<String, Object> query,
+        Map<String, String> headers
+    ) {
+    }
+
+    public record RecordReconcileResult(
+        String sourceId,
+        String recordKey,
+        String status,
+        int completedUpserts,
+        int completedDeletes,
+        int failedWorkCount,
+        String errorClass
     ) {
     }
 }

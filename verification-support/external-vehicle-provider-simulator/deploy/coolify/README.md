@@ -23,6 +23,11 @@ SIMULATOR_PROFILE_A_WEBHOOK_SECRET=<profile-a event secret>
 SIMULATOR_PROFILE_B_ACCOUNT_ID=<different opaque fixture account>
 SIMULATOR_PROFILE_B_API_KEY=<profile-b API key>
 SIMULATOR_PROFILE_B_WEBHOOK_SECRET=<profile-b event secret>
+SIMULATOR_AUTOTRADER_ADVERTISER_ID=<synthetic numeric advertiser ID>
+SIMULATOR_AUTOTRADER_API_KEY=<synthetic API key>
+SIMULATOR_AUTOTRADER_API_SECRET=<synthetic API secret>
+SIMULATOR_AUTOTRADER_NOTIFICATION_SECRET=<independent synthetic notification secret>
+SIMULATOR_AUTOTRADER_INTEGRATION_ID=<synthetic integration identifier>
 SIMULATOR_ALLOWED_WEBHOOK_HOSTS=<comma-separated exact hosts or *.suffix patterns>
 SIMULATOR_DATA_PATH=/app/data/vehicle-provider
 JAVA_OPTS=-Xms128m -Xmx384m
@@ -30,5 +35,6 @@ JAVA_OPTS=-Xms128m -Xmx384m
 
 Do not expose `SIMULATOR_CONTROL_API_KEY` to a deployment, browser, model, or
 customer application. Provider-profile credentials and webhook secrets are
-bound only to their corresponding temporary canary deployment. Do not reuse
-Auto Trader names, credentials, advertiser IDs, schemas, or data.
+bound only to their corresponding temporary canary deployment. Auto Trader
+profile values must be synthetic and must never reuse sandbox/production
+credentials, advertiser IDs, inventory, or notification secrets.

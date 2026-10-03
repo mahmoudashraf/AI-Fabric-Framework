@@ -602,3 +602,22 @@ Current P0 cleanup items:
   Auto Trader grant or endorsement exists, and G3/D1 automatic working-set,
   arbitrary-site G9 authority and Platform UI-extension packaging remain
   deferred.
+- 2026-10-03 Auto Trader integration design: preserve the live dealership as an
+  honest fictional backend-push demo, then prove the provider topology in a
+  separate neutral canary. The production design uses one deployment and one
+  advertiser/account, a dedicated declarative provider DATA plugin, separate
+  provider-read and dealership-write ACTION plugins, and the existing generic
+  deployment connector. The dealership website/backend remains independent;
+  `stockId` is the validated cross-system target. Verified notifications trigger
+  a generic current-record fetch and one Data Sync upsert/delete, while periodic
+  full baseline repairs missed events and drift. No central bridge, new plugin
+  type, raw-event indexing or blind action fallback is allowed. Named Auto
+  Trader claims remain blocked until exact partner contracts and evidence pass.
+- 2026-10-03 simulator-contract refinement: generic profiles A/B continue to
+  prove provider neutrality, while a separate immutable fixture may rehearse
+  only the wire mechanics visible in current official Auto Trader material.
+  Every provider-shaped value needs source provenance and partner confirmation
+  before becoming a released package fact. A staff-only meeting adapter may
+  trigger fictional mutation plus signed callback, but all control credentials,
+  resource bindings and callback targets remain server-owned and the ordinary
+  dealership catalogue remains independent.

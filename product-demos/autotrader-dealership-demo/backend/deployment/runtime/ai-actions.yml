@@ -1,6 +1,6 @@
 actions:
   - name: dealership_search_inventory
-    description: Search the dealership's currently active vehicle inventory. Preserve every explicit buyer filter in the matching typed parameter; never replace a filtered request with an unfiltered inventory read.
+    description: Read the dealership account's current provider stock through the Auto Trader stock contract, then apply every buyer preference to the returned facts.
     category: dealership_inventory
     accessMode: READ
     anonymousAllowed: true
@@ -9,32 +9,15 @@ actions:
     readActionResolutionEligible: true
     llmFacts:
       lists:
-        - sourcePath: _items
+        - sourcePath: results
           target: items
-          maxItems: 12
+          maxItems: 24
           includeFields:
-            - id
-            - stockId
-            - slug
-            - make
-            - model
-            - derivative
-            - registrationYear
-            - priceGbp
-            - priceFormatted
-            - mileage
-            - fuelType
-            - transmission
-            - bodyType
-            - exteriorColour
-            - seats
-            - electricRangeMiles
-            - location
-            - lifecycleState
-            - summary
+            - vehicle
+            - advertiser
+            - adverts
+            - metadata
             - features
-            - sourceLabel
-            - sourceUpdatedAt
     params:
       - name: make
         description: Exact make filter when the buyer specified one.
@@ -64,7 +47,7 @@ actions:
         max: 24
 
   - name: dealership_get_vehicle
-    description: Load authoritative current details for one buyer-named active dealership vehicle after trusted target resolution.
+    description: Load one authoritative current provider stock record by the trusted Auto Trader stock ID resolved from attached context or a prior stock result.
     category: dealership_inventory
     accessMode: READ
     anonymousAllowed: true
@@ -73,34 +56,17 @@ actions:
     readActionResolutionEligible: true
     llmFacts:
       objects:
-        - sourcePath: vehicle
+        - sourcePath: vehicleRecord
           target: vehicle
           includeFields:
-            - id
-            - stockId
-            - slug
-            - make
-            - model
-            - derivative
-            - registrationYear
-            - priceGbp
-            - priceFormatted
-            - mileage
-            - fuelType
-            - transmission
-            - bodyType
-            - exteriorColour
-            - seats
-            - electricRangeMiles
-            - location
-            - lifecycleState
-            - summary
+            - vehicle
+            - advertiser
+            - adverts
+            - metadata
             - features
-            - sourceLabel
-            - sourceUpdatedAt
     params:
       - name: vehicle
-        description: Buyer-facing vehicle make and model, stock id or URL slug.
+        description: Exact Auto Trader stock ID from trusted attached vehicle context or a prior provider stock result. Do not ask the buyer for this internal lookup value.
         type: STRING
         required: true
 

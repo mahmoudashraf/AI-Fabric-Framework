@@ -18,6 +18,7 @@ public class DealershipDemoProperties {
     private final Internal internal = new Internal();
     private final Privacy privacy = new Privacy();
     private final Runtime runtime = new Runtime();
+    private final ProviderSimulator providerSimulator = new ProviderSimulator();
 
     public boolean isProductionGuardsEnabled() { return productionGuardsEnabled; }
     public void setProductionGuardsEnabled(boolean productionGuardsEnabled) { this.productionGuardsEnabled = productionGuardsEnabled; }
@@ -33,6 +34,7 @@ public class DealershipDemoProperties {
     public Internal getInternal() { return internal; }
     public Privacy getPrivacy() { return privacy; }
     public Runtime getRuntime() { return runtime; }
+    public ProviderSimulator getProviderSimulator() { return providerSimulator; }
 
     public static class Staff {
         private String username;
@@ -61,6 +63,25 @@ public class DealershipDemoProperties {
         public void setLeadRetention(Duration leadRetention) { this.leadRetention = leadRetention; }
     }
 
+    public static class ProviderSimulator {
+        private boolean enabled;
+        private String baseUrl;
+        private String controlApiKey;
+        private String advertiserId;
+        private String webhookTargetUrl;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getControlApiKey() { return controlApiKey; }
+        public void setControlApiKey(String controlApiKey) { this.controlApiKey = controlApiKey; }
+        public String getAdvertiserId() { return advertiserId; }
+        public void setAdvertiserId(String advertiserId) { this.advertiserId = advertiserId; }
+        public String getWebhookTargetUrl() { return webhookTargetUrl; }
+        public void setWebhookTargetUrl(String webhookTargetUrl) { this.webhookTargetUrl = webhookTargetUrl; }
+    }
+
     public static class Runtime {
         private boolean enabled;
         private String baseUrl;
@@ -73,6 +94,8 @@ public class DealershipDemoProperties {
         private String conversationsPath = "/api/chat/me/conversations";
         private String conversationItemPathTemplate = "/api/chat/me/conversations/{conversationId}";
         private String vectorSpace = "dealer-vehicle";
+        private String integrationSourceId;
+        private String integrationWebhookSourceId;
         private Duration assertionTtl = Duration.ofMinutes(2);
         private final PrivateAccess privateAccess = new PrivateAccess();
 
@@ -98,6 +121,10 @@ public class DealershipDemoProperties {
         public void setConversationItemPathTemplate(String conversationItemPathTemplate) { this.conversationItemPathTemplate = conversationItemPathTemplate; }
         public String getVectorSpace() { return vectorSpace; }
         public void setVectorSpace(String vectorSpace) { this.vectorSpace = vectorSpace; }
+        public String getIntegrationSourceId() { return integrationSourceId; }
+        public void setIntegrationSourceId(String integrationSourceId) { this.integrationSourceId = integrationSourceId; }
+        public String getIntegrationWebhookSourceId() { return integrationWebhookSourceId; }
+        public void setIntegrationWebhookSourceId(String integrationWebhookSourceId) { this.integrationWebhookSourceId = integrationWebhookSourceId; }
         public Duration getAssertionTtl() { return assertionTtl; }
         public void setAssertionTtl(Duration assertionTtl) { this.assertionTtl = assertionTtl; }
         public PrivateAccess getPrivateAccess() { return privateAccess; }

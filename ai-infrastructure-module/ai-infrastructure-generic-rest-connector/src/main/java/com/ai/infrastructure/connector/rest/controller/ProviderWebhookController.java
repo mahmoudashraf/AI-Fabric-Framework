@@ -47,12 +47,13 @@ public class ProviderWebhookController {
             rawBody
         );
         if (!receipt.accepted()) {
-            return ResponseEntity.status(rejectionStatus(receipt.errorClass())).body(receipt);
+            return ResponseEntity.status(rejectionStatus(source, receipt.errorClass())).body(receipt);
         }
-        return ResponseEntity.status(receipt.duplicate() ? HttpStatus.OK : HttpStatus.ACCEPTED).body(receipt);
+        RestRoutingConfig.WebhookResponseStatuses statuses = responseStatuses(source);
+        return ResponseEntity.status(receipt.duplicate() ? statuses.getDuplicate() : statuses.getAccepted()).body(receipt);
     }
 
-    static HttpStatus rejectionStatus(String errorClass) {
+    static HttpStatus rejectionStatus(RestRoutingConfig.WebhookSource source, String errorClass) {
         if ("WEBHOOK_METHOD_NOT_ALLOWED".equals(errorClass)) {
             return HttpStatus.METHOD_NOT_ALLOWED;
         }
@@ -63,14 +64,26 @@ public class ProviderWebhookController {
             return HttpStatus.PAYLOAD_TOO_LARGE;
         }
         if ("WEBHOOK_RESOURCE_MISMATCH".equals(errorClass)) {
-            return HttpStatus.FORBIDDEN;
+            return HttpStatus.valueOf(responseStatuses(source).getResourceMismatch());
+        }
+        if ("WEBHOOK_EVENT_ID_CONFLICT".equals(errorClass)) {
+            return HttpStatus.CONFLICT;
         }
         if ("WEBHOOK_BODY_MALFORMED".equals(errorClass)
             || "WEBHOOK_EVENT_IDENTITY_MISSING".equals(errorClass)
             || "WEBHOOK_EVENT_IDENTITY_INVALID".equals(errorClass)
+            || "WEBHOOK_RECORD_KEY_MISSING".equals(errorClass)
+            || "WEBHOOK_RECORD_KEY_INVALID".equals(errorClass)
             || "WEBHOOK_EVENT_TYPE_NOT_ALLOWED".equals(errorClass)) {
             return HttpStatus.BAD_REQUEST;
         }
         return HttpStatus.UNAUTHORIZED;
+    }
+
+    private static RestRoutingConfig.WebhookResponseStatuses responseStatuses(RestRoutingConfig.WebhookSource source) {
+        if (source == null || source.getResponseStatuses() == null) {
+            return new RestRoutingConfig.WebhookResponseStatuses();
+        }
+        return source.getResponseStatuses();
     }
 }

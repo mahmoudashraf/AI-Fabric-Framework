@@ -37,12 +37,15 @@ public class WebhookVerificationService {
         if (!StringUtils.hasText(timestamp) || !StringUtils.hasText(signature)) {
             return VerificationResult.rejected("WEBHOOK_SIGNATURE_MALFORMED");
         }
-        long epochSeconds;
+        long rawTimestamp;
         try {
-            epochSeconds = Long.parseLong(timestamp);
+            rawTimestamp = Long.parseLong(timestamp);
         } catch (NumberFormatException ex) {
             return VerificationResult.rejected("WEBHOOK_TIMESTAMP_INVALID");
         }
+        long epochSeconds = config.getTimestampUnit() == RestRoutingConfig.WebhookVerification.TimestampUnit.MILLISECONDS
+            ? Math.floorDiv(rawTimestamp, 1000L)
+            : rawTimestamp;
         long now = clock.instant().getEpochSecond();
         long replayWindow = Math.max(0, config.getReplayWindowSeconds());
         if (epochSeconds < now - replayWindow || epochSeconds > now + replayWindow) {
@@ -57,7 +60,7 @@ public class WebhookVerificationService {
         if (!constantTimeEquals(expected, signature.trim())) {
             return VerificationResult.rejected("WEBHOOK_SIGNATURE_INVALID");
         }
-        return new VerificationResult(true, null, epochSeconds);
+        return new VerificationResult(true, null, rawTimestamp);
     }
 
     private Map<String, String> components(String header) {

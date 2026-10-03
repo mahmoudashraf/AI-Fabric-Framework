@@ -23,19 +23,47 @@ type LeadDetail = {
 type IntegrationStatus = {
   runtimeConfigured?: boolean
   vectorSpace?: string
-  latestRun?: {
+  sourceId?: string
+  available?: boolean
+  message?: string
+  source?: {
+    sourceId?: string
+    enabled?: boolean
+    freshnessState?: string
+    lagSeconds?: number
+    targetedRecordFetchEnabled?: boolean
+    state?: {
     status?: string
-    total?: number
-    succeeded?: number
-    failed?: number
-    completedAt?: string | null
-    failureMessage?: string | null
-  } | null
-  runtimeReadiness?: {
-    success?: boolean
-    status?: string
-    message?: string
+      lastSuccessAt?: string | null
+      errorMessage?: string | null
+      counts?: {
+        sourceCount?: number
+        normalizedCount?: number
+        indexedCount?: number
+        deletedCount?: number
+        failedWorkCount?: number
+      }
+    }
   }
+}
+
+type ProviderSimulatorStatus = {
+  enabled: boolean
+  providerContract: string
+  availableScenarios: string[]
+  fixtureResetAt?: string | null
+}
+
+type ProviderScenarioReceipt = {
+  scenario: string
+  stockId: string
+  mutationOperation: string
+  eventId: string
+  eventSequence: number
+  deliveryStatus: number
+  reconciliationStatus: string
+  reconciliationAttempts: number
+  reconciliationErrorClass?: string | null
 }
 
 const root = document.querySelector<HTMLElement>('[data-dealership-staff]')
@@ -118,13 +146,13 @@ async function startStaffWorkspace(app: HTMLElement) {
     })
   })
 
-  app.querySelector('[data-run-sync]')?.addEventListener('click', async (event) => {
+  app.querySelector('[data-run-reconcile]')?.addEventListener('click', async (event) => {
     const button = event.currentTarget as HTMLButtonElement
     button.disabled = true
     clearAlert(app)
     try {
       const csrf = await csrfHeaders(apiBaseUrl)
-      await fetchApi(apiBaseUrl, '/api/staff/integration/sync', { method: 'POST', headers: csrf })
+      await fetchApi(apiBaseUrl, '/api/staff/integration/reconcile', { method: 'POST', headers: csrf })
       await refreshWorkspace(app, apiBaseUrl, (id) => {
         activeLeadId = id
         void openLead(app, apiBaseUrl, id)
@@ -134,6 +162,39 @@ async function startStaffWorkspace(app: HTMLElement) {
     } finally {
       button.disabled = false
     }
+  })
+
+  app.querySelectorAll<HTMLButtonElement>('[data-provider-scenario]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const scenario = button.dataset.providerScenario
+      if (!scenario) return
+      setScenarioButtonsDisabled(app, true)
+      clearAlert(app)
+      setText(app, '[data-provider-simulator-receipt]', 'Changing provider stock and delivering the signed notification...')
+      try {
+        const csrf = await csrfHeaders(apiBaseUrl)
+        const response = await fetchApi<{ receipt: ProviderScenarioReceipt }>(
+          apiBaseUrl,
+          `/api/staff/provider-simulator/scenarios/${encodeURIComponent(scenario)}`,
+          { method: 'POST', headers: csrf },
+        )
+        const receipt = response.receipt
+        setText(
+          app,
+          '[data-provider-simulator-receipt]',
+          `${titleCase(receipt.scenario.replaceAll('-', ' '))}: ${receipt.stockId} · ${receipt.mutationOperation.toLowerCase()} · notification HTTP ${receipt.deliveryStatus} · reconciliation ${receipt.reconciliationStatus.toLowerCase()} (${receipt.reconciliationAttempts} attempt${receipt.reconciliationAttempts === 1 ? '' : 's'}) · event ${receipt.eventId}`,
+        )
+        await refreshWorkspace(app, apiBaseUrl, (id) => {
+          activeLeadId = id
+          void openLead(app, apiBaseUrl, id)
+        }, false)
+      } catch (error) {
+        showAlert(app, messageOf(error))
+        setText(app, '[data-provider-simulator-receipt]', 'The provider scenario did not complete.')
+      } finally {
+        setScenarioButtonsDisabled(app, false)
+      }
+    })
   })
 
   app.querySelector('[data-logout]')?.addEventListener('click', async () => {
@@ -184,13 +245,19 @@ async function startStaffWorkspace(app: HTMLElement) {
   })
 }
 
-async function refreshWorkspace(app: HTMLElement, apiBaseUrl: string, onOpenLead: (id: string) => void) {
+async function refreshWorkspace(
+  app: HTMLElement,
+  apiBaseUrl: string,
+  onOpenLead: (id: string) => void,
+  refreshSimulatorReceipt = true,
+) {
   clearAlert(app)
   try {
-    const [publicStatus, integrationResponse, leadResponse] = await Promise.all([
+    const [publicStatus, integrationResponse, leadResponse, simulatorResponse] = await Promise.all([
       fetchApi<{ inventoryCount: number; runtimeConfigured: boolean }>(apiBaseUrl, '/api/public/status', { method: 'GET' }),
       fetchApi<{ integration: IntegrationStatus }>(apiBaseUrl, '/api/staff/integration/status', { method: 'GET' }),
       fetchApi<{ items: LeadSummary[] }>(apiBaseUrl, '/api/staff/leads?limit=50', { method: 'GET' }),
+      fetchApi<{ simulator: ProviderSimulatorStatus }>(apiBaseUrl, '/api/staff/provider-simulator/status', { method: 'GET' }),
     ])
 
     setText(app, '[data-staff-inventory-count]', String(publicStatus.inventoryCount ?? 0))
@@ -202,16 +269,23 @@ async function refreshWorkspace(app: HTMLElement, apiBaseUrl: string, onOpenLead
     )
 
     const integration = integrationResponse.integration || {}
-    const run = integration.latestRun
-    setText(app, '[data-staff-sync-status]', run?.status || 'Not run')
+    const source = integration.source
+    const state = source?.state
+    const counts = state?.counts
+    setText(
+      app,
+      '[data-staff-sync-status]',
+      integration.available ? (source?.freshnessState || state?.status || 'Ready') : 'Unavailable',
+    )
     setText(
       app,
       '[data-staff-sync-detail]',
-      run
-        ? `${run.succeeded || 0}/${run.total || 0} accepted · ${run.failed || 0} failed`
-        : `vector space: ${integration.vectorSpace || 'not configured'}`,
+      integration.available
+        ? `${counts?.indexedCount || 0} indexed · ${counts?.deletedCount || 0} deleted · targeted ${source?.targetedRecordFetchEnabled ? 'on' : 'off'}`
+        : (integration.message || `source: ${integration.sourceId || 'not configured'}`),
     )
     renderLeads(app, leadResponse.items || [], onOpenLead)
+    renderProviderSimulator(app, simulatorResponse.simulator, refreshSimulatorReceipt)
   } catch (error) {
     showAlert(app, messageOf(error))
     if (isUnauthorized(error)) {
@@ -219,6 +293,32 @@ async function refreshWorkspace(app: HTMLElement, apiBaseUrl: string, onOpenLead
       required<HTMLElement>(app, '[data-login-panel]').hidden = false
     }
   }
+}
+
+function renderProviderSimulator(app: HTMLElement, status: ProviderSimulatorStatus, refreshReceipt: boolean) {
+  const panel = required<HTMLElement>(app, '[data-provider-simulator-panel]')
+  panel.hidden = !status.enabled
+  if (!status.enabled) return
+  setText(app, '[data-provider-simulator-status]', 'Contract fixture ready')
+  const allowed = new Set(status.availableScenarios || [])
+  app.querySelectorAll<HTMLButtonElement>('[data-provider-scenario]').forEach((button) => {
+    button.disabled = !button.dataset.providerScenario || !allowed.has(button.dataset.providerScenario)
+  })
+  if (refreshReceipt) {
+    setText(
+      app,
+      '[data-provider-simulator-receipt]',
+      status.fixtureResetAt
+        ? `Simulator fixture active since ${formatDateTime(status.fixtureResetAt)}.`
+        : 'The provider simulator is ready.',
+    )
+  }
+}
+
+function setScenarioButtonsDisabled(app: HTMLElement, disabled: boolean) {
+  app.querySelectorAll<HTMLButtonElement>('[data-provider-scenario]').forEach((button) => {
+    button.disabled = disabled
+  })
 }
 
 function renderLeads(app: HTMLElement, leads: LeadSummary[], onOpenLead: (id: string) => void) {
