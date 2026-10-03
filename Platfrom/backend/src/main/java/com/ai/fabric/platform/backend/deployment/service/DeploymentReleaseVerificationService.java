@@ -1086,7 +1086,7 @@ public class DeploymentReleaseVerificationService {
         }
 
         Set<String> expectedKnowledgeSourceIds = textSet(knowledgeSourceConfig.path("sources"), "id");
-        Set<String> expectedKnowledgeSourceTypes = textSet(knowledgeSourceConfig.path("sources"), "sourceType");
+        Set<String> expectedKnowledgeSourceTypes = knowledgeSourceTypes(knowledgeSourceConfig.path("sources"));
         Set<String> expectedKnowledgeSourceAdapterTypes = textSet(knowledgeSourceConfig.path("sources"), "adapterType");
         Set<String> expectedMarketplaceDatasetIds = textSet(marketplaceDatasetConfig.path("datasets"), "datasetId");
         Set<String> expectedMarketplaceDatasetHandleRefs = textSet(marketplaceDatasetConfig.path("datasets"), "handleRef");
@@ -3137,6 +3137,26 @@ public class DeploymentReleaseVerificationService {
         }
         for (JsonNode item : node) {
             String value = item.path(field).asText("").trim();
+            if (hasText(value)) {
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
+    private Set<String> knowledgeSourceTypes(JsonNode sources) {
+        Set<String> values = new LinkedHashSet<>();
+        if (sources == null || !sources.isArray()) {
+            return values;
+        }
+        for (JsonNode source : sources) {
+            String value = source.path("type").asText("").trim();
+            if (!hasText(value)) {
+                value = source.path("sourceType").asText("").trim();
+            }
+            if (!hasText(value)) {
+                value = source.path("adapterType").asText("").trim();
+            }
             if (hasText(value)) {
                 values.add(value);
             }

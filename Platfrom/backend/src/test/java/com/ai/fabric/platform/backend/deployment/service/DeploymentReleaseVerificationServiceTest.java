@@ -3447,7 +3447,7 @@ class DeploymentReleaseVerificationServiceTest {
               "sources": [
                 {
                   "id": "shared-policies",
-                  "sourceType": "policy",
+                  "type": "policy",
                   "adapterType": "shared-index"
                 }
               ]
