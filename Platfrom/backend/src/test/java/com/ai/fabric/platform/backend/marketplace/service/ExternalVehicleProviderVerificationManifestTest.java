@@ -43,6 +43,31 @@ class ExternalVehicleProviderVerificationManifestTest {
                 version(pluginId, manifest.path("version").asText(), manifestJson)
             );
             assertThat(parsed.pluginType()).isEqualTo(pluginType);
+
+            if ("mkp-data-autotrader-contract-verification".equals(pluginId)) {
+                JsonNode mapping = manifest.path("contributions").path("datasets").path(0)
+                    .path("syncConnector").path("httpSource").path("mapping");
+                assertThat(manifest.path("version").asText()).isEqualTo("1.1.0");
+                assertThat(mapping.path("entityFields").path("imageId").asText())
+                    .isEqualTo("/media/images/0/imageId");
+                assertThat(mapping.path("entityFields").path("imageUrl").asText())
+                    .isEqualTo("/media/images/0/href");
+                assertThat(mapping.path("metadataFields").path("imageUrl").asText())
+                    .isEqualTo("/media/images/0/href");
+            }
+            if ("mkp-action-autotrader-contract-verification".equals(pluginId)) {
+                assertThat(manifest.path("version").asText()).isEqualTo("1.1.0");
+                JsonNode actions = manifest.path("contributions").path("actions");
+                assertThat(actions.path(0).path("llmFacts").path("lists").path(0)
+                    .path("includeFields")).anyMatch(field -> "media".equals(field.asText()));
+                assertThat(actions.path(1).path("llmFacts").path("objects").path(0)
+                    .path("includeFields")).anyMatch(field -> "media".equals(field.asText()));
+            }
+            if ("mkp-template-autotrader-dealership-verification".equals(pluginId)) {
+                assertThat(manifest.path("version").asText()).isEqualTo("1.1.0");
+                assertThat(manifest.path("contributions").path("template").path("requiredPluginRefs"))
+                    .anyMatch(ref -> ref.asText().endsWith("@1.1.0"));
+            }
         }
     }
 

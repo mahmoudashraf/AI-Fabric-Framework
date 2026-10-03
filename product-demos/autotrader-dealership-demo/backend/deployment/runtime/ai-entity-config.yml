@@ -54,3 +54,11 @@ ai-entities:
         data-type: STRING
         destinations: [VECTOR_METADATA, API_RESPONSE]
         priority: 70
+      - name: imageId
+        data-type: ID
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 60
+      - name: imageUrl
+        data-type: STRING
+        destinations: [VECTOR_METADATA, API_RESPONSE]
+        priority: 60

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "mkp-data-autotrader-contract-verification",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "pluginType": "DATA",
   "displayName": "Internal Auto Trader Contract Verification Source",
   "description": "Internal-only dealership stock source that exercises the public AT Connect authentication, stock and notification contract against the LoomAI simulator. It is not an Auto Trader service or endorsement.",
@@ -41,7 +41,9 @@
             {"name": "tenantId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 100, "required": true, "sanitize-pii": false},
             {"name": "deploymentId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 100, "required": true, "sanitize-pii": false},
             {"name": "sourceId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 90, "required": true, "sanitize-pii": false},
-            {"name": "stockId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 90, "required": true, "sanitize-pii": false}
+            {"name": "stockId", "data-type": "ID", "destinations": ["VECTOR_METADATA"], "priority": 90, "required": true, "sanitize-pii": false},
+            {"name": "imageId", "data-type": "ID", "destinations": ["VECTOR_METADATA", "API_RESPONSE"], "priority": 60, "required": false, "sanitize-pii": false},
+            {"name": "imageUrl", "data-type": "STRING", "destinations": ["VECTOR_METADATA", "API_RESPONSE"], "priority": 60, "required": false, "sanitize-pii": false}
           ]
         }
       }
@@ -146,7 +148,9 @@
                 "bodyType": "/vehicle/bodyType",
                 "availability": "/metadata/lifecycleState",
                 "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
-                "features": "/features"
+                "features": "/features",
+                "imageId": "/media/images/0/imageId",
+                "imageUrl": "/media/images/0/href"
               },
               "metadataFields": {
                 "stockId": "/metadata/stockId",
@@ -154,7 +158,9 @@
                 "lifecycleState": "/metadata/lifecycleState",
                 "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
                 "providerUpdatedAt": "/metadata/lastUpdated",
-                "providerRecordVersion": "/metadata/versionNumber"
+                "providerRecordVersion": "/metadata/versionNumber",
+                "imageId": "/media/images/0/imageId",
+                "imageUrl": "/media/images/0/href"
               },
               "inclusionConditions": [
                 {
