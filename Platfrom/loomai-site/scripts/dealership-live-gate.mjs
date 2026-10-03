@@ -385,8 +385,12 @@ async function clickHostToolAndWait(browserPage, label, query) {
 }
 
 async function verifyDetailNavigationAndPageAttachment(browserPage, inventoryPresentation, expectedVehicleLabel) {
+  const detailNavigation = browserPage.waitForURL(
+    /\/demos\/dealership-ai\/vehicles\/[^/?#]+$/,
+    { waitUntil: 'domcontentloaded' },
+  )
   await inventoryPresentation.getByRole('button', { name: 'View details' }).first().click()
-  await browserPage.waitForURL(/\/demos\/dealership-ai\/vehicles\/[^/?#]+$/)
+  await detailNavigation
   await browserPage.waitForFunction(
     () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
   )
@@ -474,11 +478,26 @@ async function runClarifiedWrite({ page: browserPage, trigger, initialQuery, act
     await browserPage.getByRole('button', { name: 'Submit & Proceed' }).last().waitFor()
 
     for (const [field, value] of Object.entries(values)) {
-      const input = browserPage.getByPlaceholder(`Enter ${humanizeField(field).toLowerCase()}...`).last()
+      const placeholder = `Enter ${humanizeField(field).toLowerCase()}...`
+      let input = browserPage.getByPlaceholder(placeholder).last()
       if (await input.isVisible().catch(() => false)) {
         await input.fill(value)
         continue
       }
+
+      const fieldLabel = browserPage
+        .locator('label')
+        .filter({ hasText: new RegExp(`^${escapeRegex(humanizeField(field))}$`, 'i') })
+        .last()
+      const edit = fieldLabel.locator('..').getByRole('button', { name: 'Edit', exact: true })
+      if (await edit.isVisible().catch(() => false)) {
+        await edit.click()
+        input = browserPage.getByPlaceholder(placeholder).last()
+        await input.waitFor({ state: 'visible' })
+        await input.fill(value)
+        continue
+      }
+
       assert(
         String(providedParameters[field] ?? '').trim() === String(value).trim(),
         `${actionName} field ${field} was neither editable nor already provided with the expected value.`,

@@ -796,6 +796,7 @@ function sourceLine(data: Readonly<SafeRecord>, vehicle?: SafeRecord) {
 }
 
 function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
+  const stockId = textValue(vehicle.stockId)
   return {
     ...vehicle,
     registrationYear: vehicle.registrationYear ?? vehicle.yearOfManufacture,
@@ -803,7 +804,7 @@ function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
     mileage: vehicle.mileage ?? vehicle.odometerReadingMiles,
     transmission: vehicle.transmission ?? vehicle.transmissionType,
     sourceUpdatedAt: vehicle.sourceUpdatedAt ?? vehicle.lastUpdated,
-    slug: vehicle.slug ?? vehicle.stockId,
+    slug: vehicle.slug ?? demoSlugForStock(stockId),
     features: featureNames(vehicle.features),
     imageUrl: vehicle.imageUrl ?? primaryImageHref(vehicle.images),
   }
@@ -827,6 +828,18 @@ function demoImageForStock(stockId: string) {
     'DEMO-1099': '/assets/demos/dealership/vehicle-03.webp',
   }
   return images[stockId] || ''
+}
+
+function demoSlugForStock(stockId: string) {
+  const slugs: Record<string, string> = {
+    'DEMO-1001': 'aster-e1-motion',
+    'DEMO-1002': 'northstar-s4-touring',
+    'DEMO-1003': 'morrow-c2-city',
+    'DEMO-1004': 'caldera-x6-adventure',
+    'DEMO-1005': 'arden-v3-executive',
+    'DEMO-1006': 'aster-e2-sport',
+  }
+  return slugs[stockId] || ''
 }
 
 function filterLabels(filters?: SafeRecord) {
