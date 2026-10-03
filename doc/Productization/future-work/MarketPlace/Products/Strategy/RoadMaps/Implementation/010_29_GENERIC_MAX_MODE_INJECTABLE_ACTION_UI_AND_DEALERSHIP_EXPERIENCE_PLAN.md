@@ -1002,3 +1002,17 @@ or Platform-managed `UI_EXTENSION` packaging.
   browser suite are green.
 - This is a widget/public-site correction only. It requires no AI Fabric,
   deployment runtime, connector, action, prompt, or dealership-backend change.
+- Final implementation commit
+  `ef4d2d42b3001203f58033ee483a6f5121f933e3` is live through production
+  public-site Coolify deployment `lov2u1kzown3itugpbyzynfn`.
+  `https://loomai.pro/health` and the sslip health route both report `UP` on
+  that exact commit.
+- The hosted read-only canary retained the exact three-message sequence, one
+  current-page attachment, one generic non-page result attachment, conversation
+  ID, anonymous runtime session, and `executor` / `search` routing while moving
+  from inventory to `/demos/dealership-ai/vehicles/aster-e1-motion`. Navigation
+  caused zero new anonymous bootstraps and zero recent-conversation reloads.
+- Temporary production access was closed after proof. Hetzner firewalls
+  `10915120` and `10918233` exactly match their pre-deploy rule snapshots, the
+  operator CIDR has zero matches, and local Coolify port `8000` again times out
+  with HTTP `000`.

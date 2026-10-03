@@ -3764,3 +3764,14 @@ Critical fixes that made the gate pass:
   public-site Node 22 Playwright browser suite are green. No runtime,
   connector, framework, prompt, action, or dealership-backend change is
   required.
+- Final commit `ef4d2d42b3001203f58033ee483a6f5121f933e3` is live through
+  production public-site Coolify deployment `lov2u1kzown3itugpbyzynfn`.
+  Canonical and sslip `/health` both report `UP` on that exact commit.
+- Hosted proof retained the exact three-message sequence, page attachment,
+  generic non-page result attachment, conversation ID, anonymous session, and
+  `executor` / `search` routing from inventory to the Aster E1 detail document.
+  It observed zero extra anonymous bootstraps and zero recent-conversation
+  loads during navigation.
+- Production access cleanup is complete: firewalls `10915120` and `10918233`
+  exactly match their pre-deploy snapshots, the current operator CIDR has zero
+  matches, and direct local Coolify access is closed with timeout/HTTP `000`.
