@@ -768,6 +768,22 @@ export function useMaxModeController({
     setIsPanelVisible,
   });
 
+  const isPersistenceHydrated = useMaxModePersistence({
+    chatMessages,
+    setChatMessages,
+    attachedItems,
+    setAttachedItems,
+    currentPosition,
+    setCurrentPosition,
+    currentMode,
+    setCurrentMode,
+    currentConversationId,
+    setCurrentConversationId,
+    contextDocuments,
+    setContextDocuments,
+    hostInitialAttachments,
+  });
+
   const {
     isConversationsOpen,
     setIsConversationsOpen,
@@ -782,6 +798,7 @@ export function useMaxModeController({
     openConversationsPanel,
   } = useConversationsController({
     enabled: conversationsEnabled,
+    isPersistenceHydrated,
     isOpen,
     chatMessagesLength: chatMessages.length,
     currentConversationId,
@@ -1103,22 +1120,6 @@ export function useMaxModeController({
     widgetConfig.apiConfig.probeShellConfigOnOpen,
     widgetConfig.apiConfig.runtimeRoutes?.shellConfigUrl,
   ]);
-
-  const isPersistenceHydrated = useMaxModePersistence({
-    chatMessages,
-    setChatMessages,
-    attachedItems,
-    setAttachedItems,
-    currentPosition,
-    setCurrentPosition,
-    currentMode,
-    setCurrentMode,
-    currentConversationId,
-    setCurrentConversationId,
-    contextDocuments,
-    setContextDocuments,
-    hostInitialAttachments,
-  });
 
   useMaxModeViewSync({
     isOpen,

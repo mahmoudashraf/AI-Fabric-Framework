@@ -972,6 +972,11 @@ or Platform-managed `UI_EXTENSION` packaging.
   React state or creates a destination-page welcome message. This removes two
   independent overwrite races that could erase restored messages or
   attachments even when runtime identity was preserved.
+- Automatic recent-conversation recovery now also waits for local persistence
+  hydration. When restored messages exist, it does not fetch and reconstruct
+  the same server transcript, so local welcome state, message identities,
+  attachments, and in-progress UI state remain intact. Server recovery still
+  runs when the tab has no restored conversation.
 - Normal same-tab navigation preserves the conversation ID, complete message
   history, confirmation state, page attachments, ordinary/result attachments,
   current mode and position, and safe local context. A real runtime change,
@@ -987,8 +992,11 @@ or Platform-managed `UI_EXTENSION` packaging.
   snapshot and one domain-neutral non-page result reference, performs a real
   inventory-to-detail document navigation, and verifies that the session,
   conversation, messages, both attachments, mode, and position survive without
-  another bootstrap. A separate forced credential-loss/identity-rotation case
-  proves complete fail-closed clearing and zero automatic replay.
+  another bootstrap or recent-conversation reload. The mock server deliberately
+  exposes a reconstructable recent transcript on the destination page, and the
+  exact local message and attachment sequences must remain unchanged. A
+  separate forced credential-loss/identity-rotation case proves complete
+  fail-closed clearing and zero automatic replay.
 - Local widget typecheck/build/action-presentation smoke, site production
   build, Astro diagnostics, content/static gates and the complete Playwright
   browser suite are green.

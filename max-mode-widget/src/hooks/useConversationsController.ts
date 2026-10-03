@@ -8,6 +8,7 @@ import { isPublicRuntimeSessionInvalidatedError } from "@/api/client";
 
 export function useConversationsController({
   enabled = true,
+  isPersistenceHydrated,
   isOpen,
   chatMessagesLength,
   currentConversationId,
@@ -20,6 +21,7 @@ export function useConversationsController({
   toast,
 }: {
   enabled?: boolean;
+  isPersistenceHydrated: boolean;
   isOpen: boolean;
   chatMessagesLength: number;
   currentConversationId: string | null;
@@ -163,6 +165,7 @@ export function useConversationsController({
 
   const hasLoadedRecentConversation = useRef(false);
   useEffect(() => {
+    if (!isPersistenceHydrated) return;
     if (!enabled) {
       hasLoadedRecentConversation.current = true;
       return;
@@ -219,7 +222,7 @@ export function useConversationsController({
     };
 
     void loadRecentConversation();
-  }, [chatMessagesLength, enabled, isOpen, setChatMessages, setCurrentConversationId]);
+  }, [chatMessagesLength, enabled, isOpen, isPersistenceHydrated, setChatMessages, setCurrentConversationId]);
 
   return {
     isConversationsOpen,

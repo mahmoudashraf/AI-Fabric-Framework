@@ -3735,15 +3735,20 @@ Critical fixes that made the gate pass:
   runtime identity, conversation ID, messages, confirmations, all attachment
   classes, safe local context, mode, and position. Navigation is not an
   identity change.
-- Root cause had three layers: the anonymous token was memory-only while chat
+- Root cause had four layers: the anonymous token was memory-only while chat
   state was tab-persisted; the persistence hook loaded saved state and then
   overwrote it with empty initial React state; and destination-page welcome
   initialization could win the same mount race and replace restored messages.
+  After those were corrected, automatic recent-conversation recovery could
+  still reconstruct the server transcript before local hydration settled,
+  replacing local message IDs and the welcome entry.
 - Generic widget code now stores only the runtime-issued short-lived anonymous
   credential in tab-scoped `sessionStorage`, restores/renews the same
   runtime-owned session after navigation, gates persistence writes until
-  hydration completes, and gates welcome creation on that same lifecycle.
-  Host-provided authenticated tokens and static credentials are not persisted.
+  hydration completes, and gates welcome creation and recent-conversation
+  recovery on that same lifecycle. A restored local transcript wins; server
+  recovery remains available when no local transcript exists. Host-provided
+  authenticated tokens and static credentials are not persisted.
 - Security boundaries remain fail closed. Runtime change, expiry, HTTP
   `401`/`403`, renewal-session mismatch, a genuinely changed fresh-bootstrap
   session, or typed conversation access denial clears all conversation-bound
@@ -3751,8 +3756,10 @@ Critical fixes that made the gate pass:
 - Dedicated browser regression creates a conversation, page attachment, and
   domain-neutral non-page result attachment, navigates from inventory to a
   detail document, and proves no additional bootstrap plus full state
-  continuity. A separate forced credential-loss/identity-rotation regression
-  proves complete clearing and zero replay.
+  continuity. The destination mock exposes a recent server transcript and the
+  test proves it is not fetched over restored local state. A separate forced
+  credential-loss/identity-rotation regression proves complete clearing and
+  zero replay.
 - Local widget typecheck/build/action-presentation smoke and the complete
   public-site Node 22 Playwright browser suite are green. No runtime,
   connector, framework, prompt, action, or dealership-backend change is

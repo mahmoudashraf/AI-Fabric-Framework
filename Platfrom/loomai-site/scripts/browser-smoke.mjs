@@ -21,6 +21,8 @@ let anonymousBootstrapCount = 0
 let anonymousSessionId = 'browser-smoke-session'
 let chatQueryCount = 0
 let staleConversationAccessRequestCount = 0
+let exposeRecentConversationForNavigation = false
+let recentConversationListCount = 0
 
 const mockVehicles = [
   {
@@ -404,7 +406,32 @@ const mockServer = createServer(async (request, response) => {
   }
 
   if (url.pathname === '/api/chat/me/conversations' && request.method === 'GET') {
-    writeMockJson(response, 200, [])
+    recentConversationListCount += 1
+    writeMockJson(response, 200, exposeRecentConversationForNavigation ? [{
+      id: 'conversation-browser-smoke',
+      title: 'Recent conversation',
+      status: 'ACTIVE',
+      createdAt: '2026-10-03T12:00:00Z',
+      lastInteractionAt: '2026-10-03T12:01:00Z',
+      turnsCount: 1,
+    }] : [])
+    return
+  }
+
+  if (url.pathname === '/api/chat/me/conversations/conversation-browser-smoke' && request.method === 'GET') {
+    writeMockJson(response, 200, {
+      id: 'conversation-browser-smoke',
+      title: 'Recent conversation',
+      status: 'ACTIVE',
+      createdAt: '2026-10-03T12:00:00Z',
+      lastInteractionAt: '2026-10-03T12:01:00Z',
+      turnsCount: 1,
+      turns: [{
+        timestamp: '2026-10-03T12:01:00Z',
+        userQuery: 'Show current electric vehicles under GBP 40,000.',
+        aiResponse: 'I found current electric vehicles under GBP 40,000.',
+      }],
+    })
     return
   }
 
@@ -1285,14 +1312,24 @@ try {
     return state.conversationId === 'conversation-browser-smoke'
       && state.chatMessages?.some((message) => message.content === 'I found current electric vehicles under GBP 40,000.') === true
   })
-  const navigationContinuityBefore = await navigationContinuityPage.evaluate(() => ({
-    sessionId: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
-    detailUrl: document.querySelector('[data-card-details]')?.getAttribute('href'),
-  }))
+  const navigationContinuityBefore = await navigationContinuityPage.evaluate(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return {
+      conversationId: state.conversationId,
+      messages: state.chatMessages?.map(({ id, type, content }) => ({ id, type, content })),
+      attachments: state.attachedItems?.map((item) => ({ type: item.type, id: item.data?.id, title: item.data?.title })),
+      currentMode: state.currentMode,
+      currentPosition: state.currentPosition,
+      sessionId: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
+      detailUrl: document.querySelector('[data-card-details]')?.getAttribute('href'),
+    }
+  })
   if (!navigationContinuityBefore.sessionId || !navigationContinuityBefore.detailUrl) {
     throw new Error('Navigation continuity setup did not expose a runtime session and vehicle detail route')
   }
   const continuityBootstrapsBeforeNavigation = anonymousBootstrapCount
+  const recentConversationListsBeforeNavigation = recentConversationListCount
+  exposeRecentConversationForNavigation = true
   await navigationContinuityPage.goto(`${origin}${navigationContinuityBefore.detailUrl}`, { waitUntil: 'networkidle' })
   await navigationContinuityPage.waitForFunction(
     () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
@@ -1321,12 +1358,37 @@ try {
   const navigationContinuitySessionAfter = await navigationContinuityPage.evaluate(
     () => JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
   )
+  const navigationContinuityAfter = await navigationContinuityPage.evaluate(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return {
+      conversationId: state.conversationId,
+      messages: state.chatMessages?.map(({ id, type, content }) => ({ id, type, content })),
+      attachments: state.attachedItems?.map((item) => ({ type: item.type, id: item.data?.id, title: item.data?.title })),
+      currentMode: state.currentMode,
+      currentPosition: state.currentPosition,
+    }
+  })
   if (navigationContinuitySessionAfter !== navigationContinuityBefore.sessionId) {
     throw new Error('Full-page navigation changed the runtime-owned anonymous session')
+  }
+  for (const key of ['conversationId', 'currentMode', 'currentPosition']) {
+    if (navigationContinuityAfter[key] !== navigationContinuityBefore[key]) {
+      throw new Error(`Full-page navigation changed persisted ${key}`)
+    }
+  }
+  if (JSON.stringify(navigationContinuityAfter.messages) !== JSON.stringify(navigationContinuityBefore.messages)) {
+    throw new Error('Full-page navigation changed the persisted message sequence')
+  }
+  if (JSON.stringify(navigationContinuityAfter.attachments) !== JSON.stringify(navigationContinuityBefore.attachments)) {
+    throw new Error('Full-page navigation changed the persisted attachment sequence')
   }
   if (anonymousBootstrapCount !== continuityBootstrapsBeforeNavigation) {
     throw new Error('Full-page navigation bootstrapped a new anonymous runtime identity')
   }
+  if (recentConversationListCount !== recentConversationListsBeforeNavigation) {
+    throw new Error('Full-page navigation replaced local state through an unnecessary recent-conversation load')
+  }
+  exposeRecentConversationForNavigation = false
   await navigationContinuityContext.close()
 
   const detailToolsContext = await browser.newContext({
