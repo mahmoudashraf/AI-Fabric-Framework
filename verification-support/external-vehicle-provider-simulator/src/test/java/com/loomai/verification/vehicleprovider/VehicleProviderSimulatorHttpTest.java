@@ -22,6 +22,7 @@ import org.springframework.util.MultiValueMap;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -35,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     properties = {
         "spring.datasource.url=jdbc:h2:mem:vehicle-provider-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
         "simulator.fixture-version=contract-fixture-v1",
+        "simulator.public-base-url=https://simulator.example",
         "simulator.control-api-key=control-test-key-0123456789",
         "simulator.token-signing-secret=token-signing-test-secret-0123456789",
         "simulator.token-ttl-seconds=300",
@@ -214,6 +216,31 @@ class VehicleProviderSimulatorHttpTest {
             .isEqualTo("PUBLISHED");
         assertThat(record.path("adverts").path("reservationStatus").isNull()).isTrue();
         assertThat(record.path("vehicle").path("ownershipCondition").asText()).isEqualTo("Used");
+        JsonNode primaryImage = record.path("media").path("images").get(0);
+        assertThat(primaryImage.path("imageId").asText()).matches("simulator-vehicle-0[1-5]");
+        assertThat(primaryImage.path("href").asText())
+            .startsWith("https://simulator.example/media/w720h540/")
+            .endsWith(".webp");
+
+        String mediaPath = URI.create(primaryImage.path("href").asText()).getPath();
+        ResponseEntity<byte[]> image = http.exchange(
+            "http://127.0.0.1:" + port + mediaPath,
+            HttpMethod.GET,
+            HttpEntity.EMPTY,
+            byte[].class
+        );
+        assertThat(image.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(image.getHeaders().getContentType()).isEqualTo(MediaType.parseMediaType("image/webp"));
+        assertThat(image.getHeaders().getFirst("Cache-Control")).contains("public", "immutable");
+        assertThat(image.getBody()).isNotNull().isNotEmpty();
+
+        ResponseEntity<byte[]> unknownImage = http.exchange(
+            "http://127.0.0.1:" + port + "/media/w720h540/simulator-vehicle-99.webp",
+            HttpMethod.GET,
+            HttpEntity.EMPTY,
+            byte[].class
+        );
+        assertThat(unknownImage.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
         String stockId = record.path("metadata").path("stockId").asText();
         ResponseEntity<String> targeted = exchange(

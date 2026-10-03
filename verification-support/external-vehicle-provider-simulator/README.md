@@ -13,9 +13,11 @@ It provides three isolated profiles:
 - `autotrader`: synthetic records behind the current publicly documented Auto
   Trader Connect wire shape used by the first dealership canary. It reproduces
   the documented `/authenticate`, `/stock`, bearer-token, pagination, stock
-  envelope, notification envelope, `AutoTrader-Signature`, epoch-second
-  timestamp, and raw-body HMAC contract. It does not imply sandbox access,
-  certification, endorsement, or rights to production data.
+  envelope, ordered stock-media identity/reference shape, notification
+  envelope, `AutoTrader-Signature`, epoch-second timestamp, and raw-body HMAC
+  contract. Synthetic image bytes are hosted by this simulator; they are not
+  Auto Trader assets. It does not imply sandbox access, certification,
+  endorsement, or rights to production data.
 
 All profiles expose deterministic fictitious inventory. The protected control
 API can reset fixtures, mutate records, create tombstones, inject bounded
@@ -55,12 +57,21 @@ GET  /api/profile-b/accounts/{ownerRef}/vehicles/{vehicleId}
 POST /authenticate
 GET  /stock?advertiserId=...&lifecycleState=FORECOURT&page=1&pageSize=...
 GET  /stock?advertiserId=...&stockId=...&page=1&pageSize=1
+GET  /media/{size}/{imageId}.webp
 ```
+
+The stock response's ordered `media.images` collection uses `imageId` and
+`href`. Supported synthetic delivery sizes are `w300h225`, `w720h540`, and
+`w1024h768`. Media delivery is public and immutable-cacheable, while stock
+metadata remains protected by the provider bearer-token contract. This route
+simulates already-attached stock media only; no Media Updates upload or attach
+API is claimed.
 
 The Auto Trader profile is derived only from the current
 [Auto Trader Connect developer documentation](https://developers.autotrader.co.uk/api),
 [Stock Sync introduction](https://help.autotrader.co.uk/hc/en-gb/articles/21846314775453-Introduction-to-Stock-Sync),
-and [Stock Sync go-live checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673947111325-Go-Live-checks-for-Stock-Sync).
+[Stock Sync go-live checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673947111325-Go-Live-checks-for-Stock-Sync),
+and [Media Updates introduction](https://help.autotrader.co.uk/hc/en-gb/articles/21846827095325-Introduction-to-Media-Updates).
 Its fixture is versioned so later public-contract changes are deliberate and
 reviewable.
 
@@ -90,6 +101,11 @@ The Auto Trader profile additionally permits a narrowly worded
 `PUBLIC_DOCUMENT_CONTRACT_CANARY_VERIFIED` engineering claim after its hosted
 canary passes. It never permits `AUTOTRADER_SANDBOX_VERIFIED` or
 `AUTOTRADER_PRODUCTION_READY`.
+
+The source fixture is now `external-vehicle-provider-v2-media`. Its stock-media
+contract is locally verified, but it does not inherit the older hosted evidence.
+A fresh hosted simulator deployment, dealership apply/reindex, and action/RAG
+browser proof are required before recording hosted evidence for this extension.
 
 ## Current hosted evidence
 

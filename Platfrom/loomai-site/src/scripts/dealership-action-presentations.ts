@@ -46,6 +46,10 @@ type ActionPresentationConfig = {
 const INVENTORY_ELEMENT = 'loomai-dealership-inventory'
 const DETAIL_ELEMENT = 'loomai-dealership-vehicle-detail'
 const COMPARISON_ELEMENT = 'loomai-dealership-vehicle-comparison'
+const DEALERSHIP_RENDERER_CONTEXT = {
+  detailBasePath: '/demos/dealership-ai/vehicles/',
+  imageHostAllowlist: 'external-vehicle-provider-simulator.46.224.145.148.sslip.io,m.atcdn.co.uk',
+}
 const VEHICLE_FIELDS = [
   'stockId',
   'slug',
@@ -139,6 +143,7 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
                 'vehicle.bodyType',
                 'adverts.retailAdverts.totalPrice.amountGBP',
                 'features',
+                'media.images',
               ],
               maxItems: 12,
               reference: {
@@ -149,7 +154,7 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
             },
           ],
         },
-        rendererContext: { detailBasePath: '/demos/dealership-ai/vehicles/' },
+        rendererContext: DEALERSHIP_RENDERER_CONTEXT,
       },
       {
         actionName: 'dealership_get_vehicle',
@@ -175,6 +180,7 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
                 'vehicle.bodyType',
                 'adverts.retailAdverts.totalPrice.amountGBP',
                 'features',
+                'media.images',
               ],
               reference: {
                 lookupField: 'stockId',
@@ -185,7 +191,7 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
             { sourcePath: 'source', target: 'source', includeFields: ['label', 'refreshedAt'] },
           ],
         },
-        rendererContext: { detailBasePath: '/demos/dealership-ai/vehicles/' },
+        rendererContext: DEALERSHIP_RENDERER_CONTEXT,
       },
       {
         actionName: 'dealership_compare_vehicles',
@@ -210,7 +216,7 @@ export function dealershipActionPresentationConfig(): ActionPresentationConfig {
             },
           ],
         },
-        rendererContext: { detailBasePath: '/demos/dealership-ai/vehicles/' },
+        rendererContext: DEALERSHIP_RENDERER_CONTEXT,
       },
     ],
   }
@@ -356,7 +362,7 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
   private vehicleCard(vehicle: SafeRecord, reference?: PresentationReference) {
     const card = document.createElement('article')
     card.className = 'vehicle-card'
-    const image = vehicleImage(vehicle)
+    const image = vehicleImage(vehicle, this.input?.context)
     if (image) card.append(image)
 
     const content = document.createElement('div')
@@ -452,7 +458,7 @@ class DealershipVehicleDetailPresentation extends DealershipPresentationElement 
     layout.className = 'detail-layout'
     const media = document.createElement('div')
     media.className = 'detail-media'
-    const image = vehicleImage(vehicle)
+    const image = vehicleImage(vehicle, this.input?.context)
     if (image) media.append(image)
     const price = document.createElement('strong')
     price.className = 'detail-price'
@@ -539,7 +545,7 @@ class DealershipVehicleComparisonPresentation extends DealershipPresentationElem
     for (const vehicle of vehicles) {
       const cell = document.createElement('th')
       cell.scope = 'col'
-      const image = vehicleImage(vehicle)
+      const image = vehicleImage(vehicle, this.input?.context)
       if (image) cell.append(image)
       const name = document.createElement('strong')
       name.textContent = vehicleLabel(vehicle)
@@ -585,7 +591,7 @@ class DealershipVehicleComparisonPresentation extends DealershipPresentationElem
     for (const vehicle of vehicles) {
       const card = document.createElement('article')
       card.className = 'comparison-mobile__card'
-      const image = vehicleImage(vehicle)
+      const image = vehicleImage(vehicle, this.input?.context)
       if (image) card.append(image)
       const title = document.createElement('h3')
       title.textContent = vehicleLabel(vehicle)
@@ -695,16 +701,53 @@ function createEmptyState(titleText: string, detailText: string) {
   return empty
 }
 
-function vehicleImage(vehicle: SafeRecord) {
-  const path = textValue(vehicle.imagePath) || demoImageForStock(textValue(vehicle.stockId))
-  if (!path || !/^\/assets\/demos\/dealership\/vehicle-[0-9]{2}\.webp$/.test(path)) return null
+function vehicleImage(
+  vehicle: SafeRecord,
+  context?: Readonly<Record<string, string | number | boolean>>,
+) {
+  const path = safeVehicleImageUrl(vehicle, context)
+  if (!path) return null
   const image = document.createElement('img')
   image.className = 'vehicle-image'
   image.src = path
   image.alt = ''
   image.loading = 'lazy'
   image.decoding = 'async'
+  image.referrerPolicy = 'no-referrer'
   return image
+}
+
+function safeVehicleImageUrl(
+  vehicle: SafeRecord,
+  context?: Readonly<Record<string, string | number | boolean>>,
+) {
+  const providerUrl = textValue(vehicle.imageUrl) || primaryImageHref(vehicle.images)
+  if (providerUrl) {
+    try {
+      const parsed = new URL(providerUrl)
+      const allowedHosts = textValue(context?.imageHostAllowlist)
+        .split(',')
+        .map((host) => host.trim().toLowerCase())
+        .filter(Boolean)
+      if (parsed.protocol === 'https:' && allowedHosts.includes(parsed.hostname.toLowerCase())) {
+        return parsed.toString()
+      }
+    } catch {
+      // A malformed provider URL is ignored in favor of the bounded local demo image.
+    }
+  }
+
+  const localPath = textValue(vehicle.imagePath) || demoImageForStock(textValue(vehicle.stockId))
+  return /^\/assets\/demos\/dealership\/vehicle-[0-9]{2}\.webp$/.test(localPath) ? localPath : ''
+}
+
+function primaryImageHref(value: unknown) {
+  if (!Array.isArray(value)) return ''
+  for (const image of value) {
+    const href = textValue(recordValue(image)?.href)
+    if (href) return href
+  }
+  return ''
 }
 
 function vehicleLabel(vehicle: SafeRecord) {
@@ -762,6 +805,7 @@ function normalizeVehicle(vehicle: SafeRecord): SafeRecord {
     sourceUpdatedAt: vehicle.sourceUpdatedAt ?? vehicle.lastUpdated,
     slug: vehicle.slug ?? vehicle.stockId,
     features: featureNames(vehicle.features),
+    imageUrl: vehicle.imageUrl ?? primaryImageHref(vehicle.images),
   }
 }
 

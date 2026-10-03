@@ -67,7 +67,7 @@ public class AutoTraderController {
         if (fault == FaultMode.PARTIAL_PAGE && to > from) {
             to = from + 1;
         }
-        ArrayNode results = JsonProjection.autoTrader(eligible.subList(from, to));
+        ArrayNode results = JsonProjection.autoTrader(eligible.subList(from, to), simulator.publicBaseUrl());
         ObjectNode response = JsonProjection.object();
         response.set("results", results);
         response.put("totalResults", eligible.size());

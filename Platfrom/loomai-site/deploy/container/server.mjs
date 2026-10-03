@@ -18,6 +18,7 @@ const buildCommit = (
 const buildTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || 'unknown').trim()
 const dealershipDemoApiBaseUrl = normalizeHttpUrl(process.env.DEALERSHIP_DEMO_API_BASE_URL)
 const dealershipDemoRuntimeBaseUrl = normalizeHttpUrl(process.env.DEALERSHIP_DEMO_RUNTIME_BASE_URL)
+const publicImageOrigins = normalizeHttpsOrigins(process.env.PUBLIC_IMAGE_ORIGINS)
 
 function normalizeHttpUrl(value) {
   const candidate = value?.trim()
@@ -31,6 +32,19 @@ function normalizeHttpUrl(value) {
   }
 }
 
+function normalizeHttpsOrigins(value) {
+  const origins = new Set()
+  for (const candidate of (value || '').split(',')) {
+    try {
+      const parsed = new URL(candidate.trim())
+      if (parsed.protocol === 'https:') origins.add(parsed.origin)
+    } catch {
+      // Invalid or non-HTTPS entries remain outside the CSP allowlist.
+    }
+  }
+  return [...origins]
+}
+
 function configuredConnectSources() {
   const sources = new Set(["'self'"])
   for (const candidate of [dealershipDemoApiBaseUrl, dealershipDemoRuntimeBaseUrl]) {
@@ -42,6 +56,10 @@ function configuredConnectSources() {
     }
   }
   return [...sources].join(' ')
+}
+
+function configuredImageSources() {
+  return ["'self'", 'data:', ...publicImageOrigins].join(' ')
 }
 
 const contentTypes = new Map([
@@ -72,7 +90,7 @@ function securityHeaders(isStaticAsset = false) {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
+      `img-src ${configuredImageSources()}`,
       "font-src 'self' data:",
       `connect-src ${configuredConnectSources()}`,
       "frame-ancestors 'none'",

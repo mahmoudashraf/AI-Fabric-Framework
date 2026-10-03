@@ -205,7 +205,9 @@
                 "bodyType": "/vehicle/bodyType",
                 "availability": "/metadata/lifecycleState",
                 "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
-                "features": "/features"
+                "features": "/features",
+                "imageId": "/media/images/0/imageId",
+                "imageUrl": "/media/images/0/href"
               },
               "metadataFields": {
                 "stockId": "/metadata/stockId",
@@ -213,7 +215,9 @@
                 "lifecycleState": "/metadata/lifecycleState",
                 "advertStatus": "/adverts/retailAdverts/advertiserAdvert/status",
                 "providerUpdatedAt": "/metadata/lastUpdated",
-                "providerRecordVersion": "/metadata/versionNumber"
+                "providerRecordVersion": "/metadata/versionNumber",
+                "imageId": "/media/images/0/imageId",
+                "imageUrl": "/media/images/0/href"
               },
               "inclusionConditions": [
                 {

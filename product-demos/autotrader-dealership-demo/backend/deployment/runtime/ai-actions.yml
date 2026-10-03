@@ -18,6 +18,7 @@ actions:
             - adverts
             - metadata
             - features
+            - media
     params:
       - name: make
         description: Exact make filter when the buyer specified one.
@@ -64,6 +65,7 @@ actions:
             - adverts
             - metadata
             - features
+            - media
     params:
       - name: vehicle
         description: Exact Auto Trader stock ID from trusted attached vehicle context or a prior provider stock result. Do not ask the buyer for this internal lookup value.

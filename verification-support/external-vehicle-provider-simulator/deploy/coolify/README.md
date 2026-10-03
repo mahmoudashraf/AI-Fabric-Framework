@@ -14,6 +14,7 @@ Required runtime-only environment variables:
 
 ```text
 PORT=8110
+SIMULATOR_PUBLIC_BASE_URL=https://<simulator-public-host>
 SIMULATOR_CONTROL_API_KEY=<strong operator-only value>
 SIMULATOR_TOKEN_SIGNING_SECRET=<strong independent signing value>
 SIMULATOR_PROFILE_A_ACCOUNT_ID=<opaque fixture account>

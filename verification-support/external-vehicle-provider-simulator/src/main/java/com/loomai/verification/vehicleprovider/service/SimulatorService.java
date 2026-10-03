@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -36,6 +37,7 @@ public class SimulatorService {
     private final SimulatorProperties properties;
     private final SimulatorRepository repository;
     private final ObjectMapper objectMapper;
+    private final String publicBaseUrl;
 
     public SimulatorService(SimulatorProperties properties,
                             SimulatorRepository repository,
@@ -43,6 +45,7 @@ public class SimulatorService {
         this.properties = properties;
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.publicBaseUrl = validatePublicBaseUrl(properties.publicBaseUrl());
     }
 
     @PostConstruct
@@ -221,6 +224,10 @@ public class SimulatorService {
         return properties.autoTrader().integrationId();
     }
 
+    public String publicBaseUrl() {
+        return publicBaseUrl;
+    }
+
     public String newRequestId() {
         return "sim-" + UUID.randomUUID();
     }
@@ -266,6 +273,29 @@ public class SimulatorService {
             expected.getBytes(StandardCharsets.UTF_8),
             actual.getBytes(StandardCharsets.UTF_8)
         );
+    }
+
+    private static String validatePublicBaseUrl(String configured) {
+        URI uri;
+        try {
+            uri = URI.create(configured.trim());
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("simulator.public-base-url must be a valid absolute URL.", ex);
+        }
+        boolean loopbackHttp = "http".equalsIgnoreCase(uri.getScheme())
+            && ("localhost".equalsIgnoreCase(uri.getHost()) || "127.0.0.1".equals(uri.getHost()));
+        boolean validPath = uri.getPath() == null || uri.getPath().isBlank() || "/".equals(uri.getPath());
+        if (!("https".equalsIgnoreCase(uri.getScheme()) || loopbackHttp)
+            || uri.getHost() == null
+            || uri.getUserInfo() != null
+            || uri.getQuery() != null
+            || uri.getFragment() != null
+            || !validPath) {
+            throw new IllegalArgumentException(
+                "simulator.public-base-url must be an HTTPS origin; loopback HTTP is allowed only for local use."
+            );
+        }
+        return configured.trim().replaceAll("/+$", "");
     }
 
     private static List<VehicleInput> profileAVehicles() {

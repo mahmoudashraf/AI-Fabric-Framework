@@ -78,7 +78,7 @@ Implementation references:
 | Area | Current state | Evidence / remaining gate |
 | --- | --- | --- |
 | Dealership-owned backend | Hosted and healthy | Spring Boot service under `product-demos/autotrader-dealership-demo/backend`; 21 focused tests pass; public status reports six fictional vehicles and the assigned runtime |
-| Fictional inventory source | Implemented | Six clearly labelled vehicle records, structured filters/facets, stable IDs, source versions, and real attributed imagery |
+| Fictional inventory source | Provider-backed; media extension locally verified | Six clearly labelled synthetic stock records are read from the separate provider simulator. The current source change adds provider-shaped ordered `media.images` entries and public synthetic media delivery; hosted replacement and reindex evidence remain to be recorded before calling image rendering live-proven |
 | Customer application UI | Hosted and verified | Native `/demos/dealership-ai` route with responsive inventory, detail, comparison, Companion dock, Max Mode, and host-injected structured action presentations through the generic widget contract |
 | Staff workspace | Hosted and verified | Protected session login, sync posture, lead inbox/detail/status, CSRF-protected writes, true server-side logout, and four fixed server-owned provider simulation scenarios; browser cannot choose account, target, credential, URL, or payload |
 | Browser runtime integration | Hosted and verified | Direct `public-runtime-anonymous` bootstrap, same-session renewal, `/api/chat/me/*`, Companion and Max Mode passed against `dep-f023c863`; invalid renewal still clears stale state without replay |
@@ -294,7 +294,7 @@ The deployment must reject or quarantine:
 | Dealership binding and preflight | Guarantees the deployment sees only its dealership | Deployment resource binding plus plugin-defined advertiser validation action | Wrong advertiser fails; exact advertiser succeeds |
 | Stock baseline synchronization | Loads the dealership's current inventory | Auto Trader stock `DATA` plugin using generic paged HTTP sync | Source count, normalized count, and accepted count reconcile |
 | Stock-change synchronization | Keeps local inventory aligned | Plugin-configured hash-authenticated webhook plus periodic reconciliation | Create, update, sold, unpublished, and delete converge |
-| Structured inventory projection | Supports exact filtering, state, and operations | Deployment-local PostgreSQL projection | Stable IDs, versions, timestamps, filters, and deletion state verified |
+| Structured inventory projection | Supports exact filtering, state, media, and operations | Deployment-local PostgreSQL projection | Stable IDs, versions, timestamps, primary image identity/URL, filters, and deletion state verified |
 | Semantic inventory indexing | Supports natural-language discovery | AI Fabric Data Sync/indexing into deployment-scoped vector storage | Nonzero vector count, metadata isolation, update replacement, exact deletion |
 | Dealership knowledge indexing | Grounds warranty, delivery, location, and support answers | Customer-owned document/data source through a separate DATA plugin | Source/version evidence and exact delete verified |
 | Natural-language vehicle search | Lets buyers describe needs instead of filling every filter | Conversational runtime plus semantic retrieval and typed Auto Trader read actions | Relevant dealer-only results with current evidence |
@@ -362,11 +362,33 @@ ambiguous notifications. Webhooks improve freshness but are not the only
 recovery mechanism. Notification payloads are change signals, not trusted index
 documents; delayed or out-of-order events always cause a current-state read.
 
-The current meeting deployment does not yet use this flow. It indexes six
-fictional records seeded in the dealership backend and pushed through the
-deployment Data Sync API. The provider-neutral simulator was verified through
-separate temporary deployments and is not currently connected to
-`dep-f023c863`. This distinction must remain visible in demo and release claims.
+The current meeting deployment uses this flow against the simulator's separate
+synthetic public-document profile. It no longer indexes dealership-backend
+seed records. This remains a contract rehearsal rather than real Auto Trader
+access, and the independent dealership backend still owns only its website
+catalogue presentation and dealership-side confirmed writes.
+
+### 5.1.1 Stock media read contract
+
+The first release consumes images already attached to stock; it does not upload,
+reorder, attach, or delete Auto Trader media. The provider stock projection
+preserves the ordered `media.images` collection and, for bounded first-release
+surfaces, maps its first item as `imageId` and `imageUrl` into deployment-owned
+entity and index metadata. Action facts may retain the bounded provider media
+object so a reviewed host renderer can show the same current provider image.
+
+The synthetic simulator follows the public contract vocabulary by returning an
+ordered image object with `imageId` and `href`. Its `href` points to a public,
+cacheable simulator WebP route and never to an invented Auto Trader CDN asset.
+The dealership host accepts only reviewed HTTPS media hosts; the generic chat
+widget remains provider- and vehicle-neutral. Missing or rejected media must
+leave a text result, never fail inventory retrieval or cause an unapproved host
+fetch.
+
+Auto Trader documents image upload and stock attachment as a separate Media
+Updates capability. That write capability remains outside P0 and requires its
+own grant, package contract, ordering semantics, and provider validation before
+productization.
 
 ### 5.2 Structured and semantic indexes have different jobs
 

@@ -158,7 +158,7 @@ public class WebhookEmitter {
             .put("integrationId", simulator.autoTraderIntegrationId())
             .put("stockEventSource", "AT_CONNECT");
         ObjectNode data = simulator.findVehicle(Profile.AUTOTRADER, simulator.accountId(Profile.AUTOTRADER), stockId)
-            .map(JsonProjection::autoTrader)
+            .map(record -> JsonProjection.autoTrader(record, simulator.publicBaseUrl()))
             .orElseGet(() -> {
                 ObjectNode deleted = objectMapper.createObjectNode();
                 deleted.set("advertiser", objectMapper.createObjectNode().put("advertiserId", advertiserId));

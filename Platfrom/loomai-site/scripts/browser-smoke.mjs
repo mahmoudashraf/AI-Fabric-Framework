@@ -15,6 +15,7 @@ const port = 4387
 const origin = `http://127.0.0.1:${port}`
 const mockPort = 4388
 const mockOrigin = `http://127.0.0.1:${mockPort}`
+const simulatorMediaOrigin = 'https://external-vehicle-provider-simulator.46.224.145.148.sslip.io'
 let anonymousRenewalCount = 0
 let anonymousSessionId = 'browser-smoke-session'
 let chatQueryCount = 0
@@ -52,6 +53,36 @@ const mockVehicles = [
     sourceUpdatedAt: '2026-09-29T19:26:00Z', sourceVersion: 1,
   },
 ]
+
+const mockAutoTraderVehicles = mockVehicles.map((vehicle, index) => ({
+  metadata: {
+    stockId: vehicle.stockId,
+    lifecycleState: 'FORECOURT',
+    lastUpdated: vehicle.sourceUpdatedAt,
+  },
+  vehicle: {
+    make: vehicle.make,
+    model: vehicle.model,
+    derivative: vehicle.derivative,
+    yearOfManufacture: String(vehicle.registrationYear),
+    odometerReadingMiles: vehicle.mileage,
+    fuelType: vehicle.fuelType,
+    transmissionType: vehicle.transmission,
+    bodyType: vehicle.bodyType,
+  },
+  adverts: {
+    retailAdverts: {
+      totalPrice: { amountGBP: vehicle.priceGbp },
+    },
+  },
+  features: vehicle.features.map((name) => ({ name, type: 'Standard' })),
+  media: {
+    images: [{
+      imageId: `simulator-vehicle-0${index + 1}`,
+      href: `${simulatorMediaOrigin}/media/w720h540/simulator-vehicle-0${index + 1}.webp`,
+    }],
+  },
+}))
 
 const expectedBrowseTools = [
   'Search stock',
@@ -248,8 +279,9 @@ const mockServer = createServer(async (request, response) => {
           actionResult: {
             success: true,
             data: {
-              _items: mockVehicles.slice(0, 2),
+              _items: mockAutoTraderVehicles.slice(0, 2),
               _count: 2,
+              results: mockAutoTraderVehicles.slice(0, 2),
               total: 2,
               appliedFilters: { fuelType: 'Electric', maxPriceGbp: 40000, sort: 'recommended' },
               source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
@@ -271,7 +303,7 @@ const mockServer = createServer(async (request, response) => {
           actionResult: {
             success: true,
             data: {
-              vehicle: mockVehicles[0],
+              vehicleRecord: mockAutoTraderVehicles[0],
               source: { label: 'Demonstration inventory', refreshedAt: '2026-09-29T19:30:00Z' },
               dataNotice: 'Fictional demonstration inventory. Confirm current availability with the dealership.',
             },
@@ -403,6 +435,7 @@ const server = spawn(process.execPath, ['deploy/container/server.mjs'], {
     LOOMAI_SITE_DIST_DIR: path.join(root, 'dist'),
     DEALERSHIP_DEMO_API_BASE_URL: mockOrigin,
     DEALERSHIP_DEMO_RUNTIME_BASE_URL: mockOrigin,
+    PUBLIC_IMAGE_ORIGINS: simulatorMediaOrigin,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
@@ -417,9 +450,12 @@ server.stderr.on('data', (chunk) => {
 
 const waitForServer = async () => {
   for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (server.exitCode !== null) {
+      throw new Error(`Static server exited before becoming ready.\n${serverOutput}`)
+    }
     try {
       const response = await fetch(`${origin}/health`)
-      if (response.ok) return
+      if (response.ok && serverOutput.includes(`public site listening on port ${port}`)) return
     } catch {
       // Server is still starting.
     }
@@ -483,6 +519,33 @@ try {
     reducedMotion: 'reduce',
   })
   const page = await context.newPage()
+  const mediaNetworkEvents = []
+  page.on('response', (response) => {
+    if (!response.url().startsWith(`${simulatorMediaOrigin}/media/`)) return
+    mediaNetworkEvents.push({
+      type: 'response',
+      url: response.url(),
+      status: response.status(),
+      contentType: response.headers()['content-type'] || '',
+    })
+  })
+  page.on('requestfailed', (request) => {
+    if (!request.url().startsWith(`${simulatorMediaOrigin}/media/`)) return
+    mediaNetworkEvents.push({
+      type: 'requestfailed',
+      url: request.url(),
+      error: request.failure()?.errorText || 'unknown',
+    })
+  })
+  await page.route(`${simulatorMediaOrigin}/media/**`, async (route) => {
+    const match = route.request().url().match(/simulator-vehicle-(0[1-5])\.webp$/)
+    const image = match?.[1] || '01'
+    await route.fulfill({
+      path: path.join(root, 'public', 'assets', 'demos', 'dealership', `vehicle-${image}.webp`),
+      contentType: 'image/webp',
+      headers: { 'Cache-Control': 'public, max-age=31536000, immutable' },
+    })
+  })
 
   for (const route of routes) {
     const response = await page.goto(`${origin}${route}`, { waitUntil: 'networkidle' })
@@ -833,6 +896,40 @@ try {
   if ((await inventoryPresentation.locator('.vehicle-card').count()) !== 2) {
     throw new Error('The injected inventory presentation did not render its two bounded vehicle records')
   }
+  const inventoryImages = inventoryPresentation.locator('.vehicle-image')
+  if ((await inventoryImages.count()) !== 2) {
+    throw new Error('The injected inventory presentation did not render provider media for every vehicle')
+  }
+  for (let index = 0; index < await inventoryImages.count(); index += 1) {
+    const image = inventoryImages.nth(index)
+    await image.scrollIntoViewIfNeeded()
+    const rendered = await image.evaluate(async (element) => {
+      try {
+        await element.decode()
+        return {
+          src: element.src,
+          width: element.naturalWidth,
+          height: element.naturalHeight,
+          error: '',
+        }
+      } catch (error) {
+        return {
+          src: element.src,
+          width: element.naturalWidth,
+          height: element.naturalHeight,
+          error: String(error),
+        }
+      }
+    })
+    if (rendered.error) {
+      throw new Error(
+        `Provider media could not be decoded: ${JSON.stringify({ rendered, mediaNetworkEvents })}`,
+      )
+    }
+    if (!rendered.src.startsWith(`${simulatorMediaOrigin}/media/`) || rendered.width < 1 || rendered.height < 1) {
+      throw new Error(`Provider media did not render in the inventory presentation: ${JSON.stringify(rendered)}`)
+    }
+  }
   if (!(await inventoryPresentation.getByText('Fuel: Electric', { exact: true }).count()) ||
       !(await inventoryPresentation.getByText('Up to £40,000', { exact: true }).count())) {
     throw new Error('The injected inventory presentation did not render applied filters')
@@ -860,6 +957,23 @@ try {
   const detailPresentation = page.locator('loomai-dealership-vehicle-detail').last()
   await detailPresentation.waitFor()
   await detailPresentation.getByText('Vehicle details', { exact: true }).waitFor()
+  const detailImage = detailPresentation.locator('.vehicle-image')
+  await detailImage.scrollIntoViewIfNeeded()
+  const detailImageDecodeError = await detailImage.evaluate(async (element) => {
+    try {
+      await element.decode()
+      return ''
+    } catch (error) {
+      return String(error)
+    }
+  })
+  if (detailImageDecodeError) {
+    throw new Error(`Provider detail media could not be decoded: ${detailImageDecodeError}`)
+  }
+  if (!(await detailImage.getAttribute('src'))?.startsWith(`${simulatorMediaOrigin}/media/`) ||
+      await detailImage.evaluate((element) => element.naturalWidth) < 1) {
+    throw new Error('The injected vehicle detail presentation did not render provider media')
+  }
   const detailSuitabilityQuery = 'Is 2025 Aster E1 suitable for everyday driving? Explain using current facts and identify unknowns.'
   const detailSuitabilityRequest = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/chat/me/query')) return false

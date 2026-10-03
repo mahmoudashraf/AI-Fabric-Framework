@@ -49,13 +49,13 @@ public final class JsonProjection {
         return result;
     }
 
-    public static ArrayNode autoTrader(List<VehicleRecord> records) {
+    public static ArrayNode autoTrader(List<VehicleRecord> records, String publicBaseUrl) {
         ArrayNode result = MAPPER.createArrayNode();
-        records.forEach(record -> result.add(autoTrader(record)));
+        records.forEach(record -> result.add(autoTrader(record, publicBaseUrl)));
         return result;
     }
 
-    public static ObjectNode autoTrader(VehicleRecord record) {
+    public static ObjectNode autoTrader(VehicleRecord record, String publicBaseUrl) {
         ObjectNode result = object();
         ObjectNode vehicle = object()
             .put("ownershipCondition", "Used")
@@ -115,7 +115,10 @@ public final class JsonProjection {
         features.add(object().put("name", record.transmission() + " transmission").put("type", "Standard"));
         result.set("features", features);
         ObjectNode media = object();
-        media.set("images", MAPPER.createArrayNode());
+        String imageId = mediaImageId(record);
+        media.set("images", MAPPER.createArrayNode().add(object()
+            .put("imageId", imageId)
+            .put("href", publicBaseUrl + "/media/w720h540/" + imageId + ".webp")));
         media.set("video", object().putNull("href"));
         media.set("spin", object().putNull("href"));
         result.set("media", media);
@@ -153,6 +156,11 @@ public final class JsonProjection {
     private static String compactId(String value) {
         String compact = value == null ? "STOCK" : value.replaceAll("[^A-Za-z0-9]", "");
         return compact.length() <= 20 ? compact : compact.substring(compact.length() - 20);
+    }
+
+    private static String mediaImageId(VehicleRecord record) {
+        int imageNumber = Math.floorMod(record.id().hashCode(), 5) + 1;
+        return "simulator-vehicle-%02d".formatted(imageNumber);
     }
 
     private static ObjectNode common(VehicleRecord record) {

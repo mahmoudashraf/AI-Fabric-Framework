@@ -250,6 +250,26 @@ class HostedCanary:
                 "allRecordsBoundToAdvertiser": valid_records,
             },
         )
+        primary_image = value(records[0], "media", "images") if records else None
+        primary_image = primary_image[0] if isinstance(primary_image, list) and primary_image else {}
+        image_href = str(primary_image.get("href") or "") if isinstance(primary_image, dict) else ""
+        media = self.http.request("GET", image_href) if image_href else Response(0, {}, None)
+        self.expect(
+            "stock_primary_media_public_delivery",
+            bool(image_href)
+            and host(image_href) == host(self.args.simulator_base_url)
+            and media.status == 200
+            and media.headers.get("content-type") == "image/webp"
+            and "public" in media.headers.get("cache-control", "")
+            and "immutable" in media.headers.get("cache-control", ""),
+            {
+                "imageIdPresent": bool(primary_image.get("imageId")) if isinstance(primary_image, dict) else False,
+                "mediaHost": host(image_href),
+                "httpStatus": media.status,
+                "contentType": media.headers.get("content-type"),
+                "cacheControl": media.headers.get("cache-control"),
+            },
+        )
         return token
 
     def verify_platform_release(self) -> None:
@@ -583,6 +603,8 @@ class HostedCanary:
             return False
         metadata = record.get("metadata", {})
         adverts = value(record, "adverts", "retailAdverts", "advertiserAdvert") or {}
+        images = value(record, "media", "images") or []
+        primary_image = images[0] if isinstance(images, list) and images else {}
         return (
             set(record) == {"advertiser", "metadata", "vehicle", "adverts", "features", "media"}
             and value(record, "advertiser", "advertiserId") == self.args.advertiser_id
@@ -590,6 +612,9 @@ class HostedCanary:
             and bool(metadata.get("searchId"))
             and metadata.get("lifecycleState") == "FORECOURT"
             and adverts.get("status") == "PUBLISHED"
+            and isinstance(primary_image, dict)
+            and bool(primary_image.get("imageId"))
+            and host(str(primary_image.get("href") or "")) == host(self.args.simulator_base_url)
         )
 
     def reconcile_source(self) -> None:

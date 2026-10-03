@@ -28,6 +28,12 @@
   mutation control only through a protected demo-operator backend adapter. This
   fixture is not an Auto Trader sandbox, emulator, certification, or readiness
   claim.
+- **2026-10-03 media refinement:** consume already-attached stock media through
+  the provider stock read. The simulator now emits ordered synthetic
+  `media.images` items using the public `imageId`/`href` vocabulary and serves
+  those assets itself. Data Sync maps only the primary image into indexed
+  metadata and the dealership host renderer applies an explicit HTTPS host
+  allowlist. Media upload/update remains a separate, ungranted capability.
 - **Compatibility posture:** current-only greenfield contract; no legacy mode or
   parallel integration contract
 - **Hosted evidence:** generic-substrate verifier source `79b23348f`, runtime
@@ -362,7 +368,7 @@ on 2026-10-03.
 | Auto Trader packages | DRAFT catalog reservations exist, with no executable versions | Correctly blocked pending partner grants and schemas |
 | Provider-backed action routing | Provider-profile routes resolve through `ProviderHttpClient` independently of the application upstream. Protected collection filters remove non-published records before response templates or model facts are built | Hosted provider read plus independent dealership-write composition passed |
 | Generic hosted evidence | Independent HTTPS simulator, two isolated deployments, exact immutable runtime artifact, full lifecycle matrix, and cleanup | `HOSTED_GENERIC_SUBSTRATE_VERIFIED` on staging; this is not named-provider evidence |
-| Public-document simulator fidelity | A separate `autotrader` profile mirrors the reviewed public subset: form-encoded `POST /authenticate`, `access_token`/`expires_at`, bearer reuse, `GET /stock`, advertiser/page/pageSize/stockId/lifecycleState, stock envelope, `PUT` notification, `AutoTrader-Signature`, and documented event/response semantics | Hosted 26-check contract canary passed with synthetic records; never a sandbox/certification claim |
+| Public-document simulator fidelity | A separate `autotrader` profile mirrors the reviewed public subset: form-encoded `POST /authenticate`, `access_token`/`expires_at`, bearer reuse, `GET /stock`, advertiser/page/pageSize/stockId/lifecycleState, stock envelope, ordered synthetic `media.images` references, public simulator media delivery, `PUT` notification, `AutoTrader-Signature`, and documented event/response semantics | The original hosted 26-check contract canary passed before the media extension. The media contract and delivery tests pass locally; hosted simulator replacement, deployment apply/reindex, action/RAG image readback, and browser proof remain required before the media extension is called hosted-proven |
 | Auto Trader hosted evidence | None | Blocking |
 
 ### 4.1 Implementation checkpoint
@@ -377,8 +383,9 @@ The implementation checkpoint includes:
 - connector JDBC migration plus real PostgreSQL Testcontainers proof;
 - provider fixture coverage for form-token/page sync and API-key/cursor sync;
 - public-contract simulator coverage for authentication, stock pagination,
-  individual stock fetch, publication/lifecycle behavior, signed notification
-  shape, and absence of simulator-only headers on the provider wire surface;
+  individual stock fetch, publication/lifecycle behavior, ordered image
+  identity/href, cacheable public image delivery, signed notification shape,
+  and absence of simulator-only headers on the provider wire surface;
 - targeted current-record mapping, zero/one/many response handling, persisted
   record key, duplicate identity, retry/dead-letter, and provider-action
   collection-filter coverage;
@@ -394,7 +401,7 @@ Neither checkpoint is dealership-demo or Auto Trader evidence.
 
 Final clean source gate on 2026-09-28:
 
-- standalone external-provider simulator: `4` tests, zero failures/errors;
+- standalone external-provider simulator: `6` tests, zero failures/errors;
 - Generic REST Connector: `37` tests, zero failures/errors;
 - AI Fabric Runtime: `221` tests across `53` suites, zero failures/errors;
 - Platform backend: `857` tests, zero failures/errors;
@@ -1765,4 +1772,5 @@ package, certification, and production evidence remain separate open gates.
 - [Response Metrics](https://help.autotrader.co.uk/hc/en-gb/articles/21871963006237-Introduction-to-Response-Metrics)
 - [Stock Sync](https://help.autotrader.co.uk/hc/en-gb/articles/21846314775453-Introduction-to-Stock-Sync)
 - [Stock Sync Go-Live Checks](https://help.autotrader.co.uk/hc/en-gb/articles/22673947111325-Go-Live-checks-for-Stock-Sync)
+- [Media Updates](https://help.autotrader.co.uk/hc/en-gb/articles/21846827095325-Introduction-to-Media-Updates)
 - [Auto Trader Connect Terms](https://www.autotrader.co.uk/partners/retailer/terms-and-conditions/auto-trader-connect)

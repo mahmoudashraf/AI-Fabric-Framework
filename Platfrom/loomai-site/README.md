@@ -49,10 +49,21 @@ The container listens on port `3000` and exposes `GET /health`.
 - Dockerfile location: `/Platfrom/loomai-site/Dockerfile`
 - Exposed port: `3000`
 - Health path: `/health`
-- Branch: `Platform-V10`
+- Branch: `Platform-V11`
 
 No application secrets are required. `SOURCE_COMMIT`, when enabled by Coolify,
 is surfaced through the health response.
+
+External action-result images are denied by CSP unless their HTTPS origins are
+explicitly configured. The dealership demonstration currently requires:
+
+```text
+PUBLIC_IMAGE_ORIGINS=https://external-vehicle-provider-simulator.46.224.145.148.sslip.io,https://m.atcdn.co.uk
+```
+
+This is a public origin allowlist, not a credential. Keep it aligned with the
+host-injected renderer allowlist; adding an origin to CSP alone does not make a
+provider response trusted.
 
 Production resource:
 

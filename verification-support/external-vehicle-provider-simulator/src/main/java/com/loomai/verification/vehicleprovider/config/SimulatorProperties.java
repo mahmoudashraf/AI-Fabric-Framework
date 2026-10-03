@@ -14,6 +14,7 @@ import java.util.List;
 @ConfigurationProperties(prefix = "simulator")
 public record SimulatorProperties(
     @NotBlank String fixtureVersion,
+    @NotBlank String publicBaseUrl,
     @NotBlank String controlApiKey,
     @NotBlank String tokenSigningSecret,
     @Min(30) @Max(3600) int tokenTtlSeconds,
