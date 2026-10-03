@@ -1198,11 +1198,17 @@ Not currently. Theme is set once at `init()` time and applies globally.
 
 Conversations are stored in `sessionStorage` (cleared when the browser tab
 closes). The conversation ID is also sent to the API so server-side history can
-be retrieved. In anonymous public-runtime mode, the widget stores only the
-non-secret runtime/session binding beside that state, not the bearer token. A
-new runtime identity, token invalidation, or typed conversation access denial
-clears the old conversation and emits `conversation:reset`; the submitted
-request is never replayed automatically.
+be retrieved. In anonymous public-runtime mode, the widget stores the
+runtime-issued short-lived credential and a non-secret runtime/session binding
+in that same tab scope. This preserves the conversation, messages,
+confirmations, and attachments through full page navigation without letting
+the browser choose its identity. Host-provided authenticated tokens are not
+persisted by the widget.
+
+A new runtime identity, credential expiry or invalidation, mismatched renewal,
+or typed conversation access denial clears all conversation-bound state and
+emits `conversation:reset`; the submitted request is never replayed
+automatically.
 
 **Q: Can the widget work offline?**
 

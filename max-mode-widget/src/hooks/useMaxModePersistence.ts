@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { useMaxModeContextOptional } from "@/context";
@@ -37,19 +37,24 @@ export function useMaxModePersistence({
 }) {
   const maxModeContext = useMaxModeContextOptional();
   const hasLoadedPersistedState = useRef(false);
+  const [hasHydratedPersistedState, setHasHydratedPersistedState] = useState(false);
 
   useEffect(() => {
-    if (!maxModeContext || hasLoadedPersistedState.current) return;
+    if (hasLoadedPersistedState.current) return;
     hasLoadedPersistedState.current = true;
+    if (!maxModeContext) {
+      setHasHydratedPersistedState(true);
+      return;
+    }
 
     const persistedState = maxModeContext.loadPersistedState();
     if (persistedState) {
-      if (persistedState.chatMessages.length > 0) setChatMessages(persistedState.chatMessages);
-      if (persistedState.attachedItems.length > 0) setAttachedItems(persistedState.attachedItems);
-      if (persistedState.currentPosition) setCurrentPosition(persistedState.currentPosition as MaxModePosition);
-      if (persistedState.currentMode) setCurrentMode(persistedState.currentMode as MaxModeMode);
-      if (persistedState.conversationId) setCurrentConversationId(persistedState.conversationId);
-      if (persistedState.contextDocuments && persistedState.contextDocuments.length > 0) setContextDocuments(persistedState.contextDocuments);
+      setChatMessages(persistedState.chatMessages);
+      setAttachedItems(persistedState.attachedItems);
+      setCurrentPosition(persistedState.currentPosition as MaxModePosition);
+      setCurrentMode(persistedState.currentMode as MaxModeMode);
+      setCurrentConversationId(persistedState.conversationId);
+      setContextDocuments(persistedState.contextDocuments || []);
     }
     if (!persistedState && hostInitialAttachments.length > 0) {
       setAttachedItems((prev) => {
@@ -79,6 +84,7 @@ export function useMaxModePersistence({
       });
       maxModeContext.clearPendingAttachments();
     }
+    setHasHydratedPersistedState(true);
   }, [
     maxModeContext,
     setAttachedItems,
@@ -91,7 +97,7 @@ export function useMaxModePersistence({
   ]);
 
   useEffect(() => {
-    if (!maxModeContext) return;
+    if (!maxModeContext || !hasHydratedPersistedState) return;
 
     maxModeContext.updateMaxModeState({
       chatMessages,
@@ -101,5 +107,16 @@ export function useMaxModePersistence({
       conversationId: currentConversationId,
       contextDocuments,
     });
-  }, [attachedItems, chatMessages, contextDocuments, currentConversationId, currentMode, currentPosition, maxModeContext]);
+  }, [
+    attachedItems,
+    chatMessages,
+    contextDocuments,
+    currentConversationId,
+    currentMode,
+    currentPosition,
+    hasHydratedPersistedState,
+    maxModeContext,
+  ]);
+
+  return hasHydratedPersistedState;
 }

@@ -22,6 +22,7 @@ export function useMaxModeViewSync({
   setIsNewDocsPreviewOpen,
   setViewedDocumentIds,
   welcomeContent,
+  isPersistenceHydrated,
 }: {
   isOpen: boolean;
   chatMessages: ChatMessage[];
@@ -41,6 +42,7 @@ export function useMaxModeViewSync({
   setIsNewDocsPreviewOpen: (open: boolean) => void;
   setViewedDocumentIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   welcomeContent: string;
+  isPersistenceHydrated: boolean;
 }) {
   useEffect(() => {
     if (latestMessageRef.current && chatMessages.length > 0) {
@@ -160,7 +162,7 @@ export function useMaxModeViewSync({
   }, [chatMessages, contextPanelRef, setFocusedMessageId]);
 
   useEffect(() => {
-    if (!isOpen || chatMessages.length !== 0) return;
+    if (!isPersistenceHydrated || !isOpen || chatMessages.length !== 0) return;
 
     const welcomeMessage: ChatMessage = {
       id: "welcome",
@@ -170,5 +172,5 @@ export function useMaxModeViewSync({
       resultType: "INFORMATION_PROVIDED",
     };
     setChatMessages([welcomeMessage]);
-  }, [isOpen, chatMessages.length, setChatMessages, welcomeContent]);
+  }, [isOpen, chatMessages.length, isPersistenceHydrated, setChatMessages, welcomeContent]);
 }

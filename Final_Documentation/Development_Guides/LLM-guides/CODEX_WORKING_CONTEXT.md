@@ -3727,3 +3727,33 @@ Critical fixes that made the gate pass:
 - Temporary production Coolify access was closed after proof. Firewalls
   `10915120` and `10918233` report zero current operator IPv4/IPv6 entries, and
   the direct local port-8000 probe returns timeout/HTTP `000`.
+
+## 2026-10-03 Complete Widget Navigation Continuity Correction
+
+- This entry supersedes the page-only retention behavior recorded immediately
+  above. Normal full-page navigation must keep the whole active chat session:
+  runtime identity, conversation ID, messages, confirmations, all attachment
+  classes, safe local context, mode, and position. Navigation is not an
+  identity change.
+- Root cause had three layers: the anonymous token was memory-only while chat
+  state was tab-persisted; the persistence hook loaded saved state and then
+  overwrote it with empty initial React state; and destination-page welcome
+  initialization could win the same mount race and replace restored messages.
+- Generic widget code now stores only the runtime-issued short-lived anonymous
+  credential in tab-scoped `sessionStorage`, restores/renews the same
+  runtime-owned session after navigation, gates persistence writes until
+  hydration completes, and gates welcome creation on that same lifecycle.
+  Host-provided authenticated tokens and static credentials are not persisted.
+- Security boundaries remain fail closed. Runtime change, expiry, HTTP
+  `401`/`403`, renewal-session mismatch, a genuinely changed fresh-bootstrap
+  session, or typed conversation access denial clears all conversation-bound
+  state and never replays the denied/in-flight request.
+- Dedicated browser regression creates a conversation, page attachment, and
+  domain-neutral non-page result attachment, navigates from inventory to a
+  detail document, and proves no additional bootstrap plus full state
+  continuity. A separate forced credential-loss/identity-rotation regression
+  proves complete clearing and zero replay.
+- Local widget typecheck/build/action-presentation smoke and the complete
+  public-site Node 22 Playwright browser suite are green. No runtime,
+  connector, framework, prompt, action, or dealership-backend change is
+  required.

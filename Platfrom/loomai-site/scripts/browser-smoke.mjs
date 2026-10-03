@@ -17,6 +17,7 @@ const mockPort = 4388
 const mockOrigin = `http://127.0.0.1:${mockPort}`
 const simulatorMediaOrigin = 'https://external-vehicle-provider-simulator.46.224.145.148.sslip.io'
 let anonymousRenewalCount = 0
+let anonymousBootstrapCount = 0
 let anonymousSessionId = 'browser-smoke-session'
 let chatQueryCount = 0
 let staleConversationAccessRequestCount = 0
@@ -193,6 +194,7 @@ const mockServer = createServer(async (request, response) => {
   }
 
   if (url.pathname === '/api/public/chat/session' && request.method === 'POST') {
+    anonymousBootstrapCount += 1
     writeMockJson(response, 200, {
       token: 'browser-smoke-token',
       tokenType: 'Bearer',
@@ -671,17 +673,35 @@ try {
   if ((await currentPageChips.count()) !== 1) {
     throw new Error('Inventory page attachment did not create exactly one page entry')
   }
+  const navigationSessionBefore = await page.evaluate(() => {
+    const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+    return binding.sessionId
+  })
+  const bootstrapsBeforeNavigation = anonymousBootstrapCount
 
   const firstVehicleDetailUrl = await page.locator('[data-card-details]').first().getAttribute('href')
   if (!firstVehicleDetailUrl) {
     throw new Error('Dealership vehicle card did not expose its detail route')
   }
-  anonymousSessionId = 'browser-smoke-navigation-session'
   await page.goto(`${origin}${firstVehicleDetailUrl}`, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => document.querySelector('[data-vehicle-evidence]')?.getAttribute('aria-busy') === 'false')
   await page.waitForFunction(() => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready')
   if ((await page.getByRole('heading', { level: 1 }).textContent()) !== '2025 Aster E1') {
     throw new Error('Dealership vehicle detail route did not render the live-backed vehicle title')
+  }
+  await page.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return state.attachedItems?.some((item) => item.type === 'current-page') === true
+  })
+  const navigationSessionAfter = await page.evaluate(() => {
+    const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+    return binding.sessionId
+  })
+  if (navigationSessionAfter !== navigationSessionBefore) {
+    throw new Error('Full-page navigation changed the runtime-owned anonymous session')
+  }
+  if (anonymousBootstrapCount !== bootstrapsBeforeNavigation) {
+    throw new Error('Full-page navigation bootstrapped a new anonymous runtime identity')
   }
 
   const attachCurrentPageButton = page.getByRole('button', { name: 'Attach current page' })
@@ -694,7 +714,7 @@ try {
   await currentPageChips.first().waitFor()
   if ((await currentPageChips.count()) !== 1 ||
       !(await currentPageChips.getByText('Northfield Motor House demo', { exact: false }).count())) {
-    throw new Error('Navigation-persistent page attachment disappeared after anonymous identity rotation')
+    throw new Error('Navigation-persistent page attachment disappeared during full-page navigation')
   }
   await attachCurrentPageButton.click()
   await currentPageChips.nth(1).waitFor()
@@ -817,7 +837,7 @@ try {
     throw new Error('Multi-page attachments did not retain distinct page identities')
   }
   if (pageContextPayload.mode !== 'executor' || pageContextPayload.position !== 'landing') {
-    throw new Error('Current-page attachment unexpectedly changed chat routing')
+    throw new Error(`Full-page navigation or current-page attachment changed the preserved chat routing: ${JSON.stringify({ mode: pageContextPayload.mode, position: pageContextPayload.position })}`)
   }
   await page.getByText(
     'The selected Aster is electric, has low mileage and is shown with current fictional dealership facts.',
@@ -903,6 +923,7 @@ try {
     throw new Error('The injected inventory presentation did not render its two bounded vehicle records')
   }
   const inventoryImages = inventoryPresentation.locator('.vehicle-image')
+  await inventoryImages.nth(1).waitFor()
   if ((await inventoryImages.count()) !== 2) {
     throw new Error('The injected inventory presentation did not render provider media for every vehicle')
   }
@@ -1165,6 +1186,9 @@ try {
 
   const requestsBeforeIdentityRotation = chatQueryCount
   anonymousSessionId = 'browser-smoke-session-rotated'
+  await page.evaluate(() => {
+    sessionStorage.removeItem('maxmode_public_runtime_session_credential_v2')
+  })
   await page.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
   await page.waitForFunction(
     () => ['ready', 'unavailable'].includes(
@@ -1181,21 +1205,19 @@ try {
     await page.waitForFunction(() => {
       const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
       const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
-      const retainedSessionAttachments = Array.isArray(state.attachedItems)
-        ? state.attachedItems.filter((item) => item?.type !== 'current-page')
-        : []
       return binding.sessionId === 'browser-smoke-session-rotated'
         && state.conversationId === null
         && Array.isArray(state.chatMessages)
         && state.chatMessages.every((message) => message.id === 'welcome')
-        && retainedSessionAttachments.length === 0
+        && Array.isArray(state.attachedItems)
+        && state.attachedItems.length === 0
     }, undefined, { timeout: 5_000 })
   } catch {
     const storageState = await page.evaluate(() => ({
       binding: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}'),
       widget: JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}'),
     }))
-    throw new Error(`Anonymous identity rotation did not reset session state while retaining opted-in page context: ${JSON.stringify(storageState)}`)
+    throw new Error(`Anonymous identity rotation did not reset all conversation-bound state: ${JSON.stringify(storageState)}`)
   }
   await page.waitForTimeout(150)
   if (chatQueryCount !== requestsBeforeIdentityRotation) {
@@ -1220,6 +1242,92 @@ try {
   await page.getByText('I found current electric vehicles under GBP 40,000.', { exact: true }).first().waitFor()
 
   await context.close()
+
+  const navigationContinuityContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: 'reduce',
+  })
+  const navigationContinuityPage = await navigationContinuityContext.newPage()
+  await navigationContinuityPage.goto(`${origin}/demos/dealership-ai`, { waitUntil: 'networkidle' })
+  await navigationContinuityPage.waitForFunction(
+    () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
+  )
+  await navigationContinuityPage.getByRole('button', { name: 'Attach current page' }).click()
+  await navigationContinuityPage.evaluate(() => {
+    window.MaxMode.attachItem({
+      type: 'action-result-context',
+      data: {
+        id: 'navigation-reference',
+        title: 'Saved comparison context',
+        content: 'A bounded non-page result reference.',
+      },
+    })
+  })
+  await navigationContinuityPage.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return state.attachedItems?.some((item) => item.type === 'current-page') === true
+      && state.attachedItems?.some((item) => item.data?.id === 'navigation-reference') === true
+  })
+  const navigationContinuityResponse = navigationContinuityPage.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/chat/me/query')) return false
+    return response.request().postDataJSON()?.query === 'Show current electric vehicles under GBP 40,000.'
+  })
+  await navigationContinuityPage.evaluate(() => {
+    window.MaxMode.sendMessage('Show current electric vehicles under GBP 40,000.', {
+      mode: 'executor',
+      position: 'search',
+      open: true,
+    })
+  })
+  await navigationContinuityResponse
+  await navigationContinuityPage.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return state.conversationId === 'conversation-browser-smoke'
+      && state.chatMessages?.some((message) => message.content === 'I found current electric vehicles under GBP 40,000.') === true
+  })
+  const navigationContinuityBefore = await navigationContinuityPage.evaluate(() => ({
+    sessionId: JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
+    detailUrl: document.querySelector('[data-card-details]')?.getAttribute('href'),
+  }))
+  if (!navigationContinuityBefore.sessionId || !navigationContinuityBefore.detailUrl) {
+    throw new Error('Navigation continuity setup did not expose a runtime session and vehicle detail route')
+  }
+  const continuityBootstrapsBeforeNavigation = anonymousBootstrapCount
+  await navigationContinuityPage.goto(`${origin}${navigationContinuityBefore.detailUrl}`, { waitUntil: 'networkidle' })
+  await navigationContinuityPage.waitForFunction(
+    () => document.querySelector('[data-runtime-state]')?.getAttribute('data-state') === 'ready',
+  )
+  try {
+    await navigationContinuityPage.waitForFunction(() => {
+      const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+      return state.conversationId === 'conversation-browser-smoke'
+        && state.chatMessages?.some((message) => message.content === 'I found current electric vehicles under GBP 40,000.') === true
+        && state.attachedItems?.some((item) => item.type === 'current-page') === true
+        && state.attachedItems?.some((item) => item.data?.id === 'navigation-reference') === true
+    })
+  } catch {
+    const state = await navigationContinuityPage.evaluate(() => {
+      const widget = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+      const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
+      return {
+        conversationId: widget.conversationId,
+        messages: widget.chatMessages?.map((message) => ({ type: message.type, content: message.content })),
+        attachments: widget.attachedItems?.map((item) => ({ type: item.type, id: item.data?.id })),
+        sessionId: binding.sessionId,
+      }
+    })
+    throw new Error(`Full-page navigation did not preserve conversation state: ${JSON.stringify(state)}`)
+  }
+  const navigationContinuitySessionAfter = await navigationContinuityPage.evaluate(
+    () => JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}').sessionId,
+  )
+  if (navigationContinuitySessionAfter !== navigationContinuityBefore.sessionId) {
+    throw new Error('Full-page navigation changed the runtime-owned anonymous session')
+  }
+  if (anonymousBootstrapCount !== continuityBootstrapsBeforeNavigation) {
+    throw new Error('Full-page navigation bootstrapped a new anonymous runtime identity')
+  }
+  await navigationContinuityContext.close()
 
   const detailToolsContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 },

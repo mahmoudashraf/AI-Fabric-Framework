@@ -895,14 +895,14 @@ or Platform-managed `UI_EXTENSION` packaging.
 
 - Corrected a generic widget identity-continuity defect found through the live
   dealership surface. Conversation IDs and messages were persisted in
-  `sessionStorage`, while the short-lived anonymous bearer token intentionally
-  remained memory-only. A document reload could therefore restore a
-  conversation owned by an earlier anonymous runtime identity.
-- The widget now persists a non-secret `{ runtimeKey, sessionId }` binding and
-  compares it with every fresh anonymous bootstrap. A changed runtime or
-  runtime-issued session clears conversation history, attachments, pending
-  prompts, confirmation state, debug state, and the denied conversation handle.
-  Bearer tokens remain memory-only.
+  `sessionStorage`, while the anonymous bearer token was originally
+  memory-only. A document reload could therefore restore a conversation owned
+  by an earlier anonymous runtime identity. Section 17.7 supersedes the first
+  page-only workaround with complete same-tab session continuity.
+- The widget retains a non-secret `{ runtimeKey, sessionId }` binding to detect
+  a genuinely different fresh bootstrap. A changed runtime or runtime-issued
+  session clears conversation history, all attachments, pending prompts,
+  confirmation state, debug state, and the denied conversation handle.
 - Canonical chat HTTP 200 responses with `success=false`, `type=ERROR`, an
   existing request conversation ID, and machine code `ACCESS_DENIED` or
   `CONVERSATION_ACCESS_DENIED` activate the same recovery boundary. The raw
@@ -911,10 +911,9 @@ or Platform-managed `UI_EXTENSION` packaging.
 - Recovery emits the provider-neutral `conversation:reset` host event instead
   of an operational `error`, so a host does not mark a healthy deployment
   unavailable during an expected identity-boundary reset.
-- Local production build and Playwright browser smoke passed. Regression proof
-  covers both legacy typed-denial recovery and full document navigation with a
-  changed anonymous session, including zero automatic replay and a clean next
-  request without the stale conversation ID.
+- Regression proof covers typed-denial recovery and an explicitly forced
+  anonymous identity replacement, including zero automatic replay and a clean
+  next request without the stale conversation ID.
 
 ### 17.6 Generic scoped tool navigation (2026-10-02)
 
@@ -955,40 +954,43 @@ or Platform-managed `UI_EXTENSION` packaging.
   `10915120` and `10918233` were restored to their exact pre-deploy rule sets;
   the operator CIDR is absent and local Coolify API access again times out.
 
-### 17.7 Navigation-persistent page attachment correction (2026-10-03)
+### 17.7 Complete same-tab navigation continuity (2026-10-03)
 
 - The dealership host was already using the generic, documented
   `currentPageAttachment.invalidateOnNavigation=false` contract. The defect was
   in widget core: a full document navigation discarded the memory-only public
   runtime token, a fresh anonymous bootstrap returned a new session identity,
-  and the secure conversation reset also removed the opted-in local page
-  snapshots.
-- The generic session-reset boundary now retains only `current-page`
-  attachments when the host explicitly disables navigation invalidation and
-  the reset reason is same-runtime anonymous identity rotation or a stale
-  conversation handle. The previous conversation ID, messages, confirmations,
-  pending prompts, result/product attachments, debug state and server-owned
-  context still reset. A runtime change, expiry or authorization failure still
-  clears everything.
-- Bearer tokens remain memory-only. The correction does not weaken anonymous
-  runtime isolation, persist credentials, replay a denied request, or add any
-  dealership/vehicle rule to the widget.
-- Regression coverage now rotates the mock anonymous identity during a real
-  inventory-to-detail document navigation and asserts that the original page
-  chip remains visible before the destination page is attached. It also proves
-  multi-page limits and payloads, non-page attachment clearing, stale
-  conversation recovery, scoped tools, responsive layout and accessibility.
+  and the first correction retained only page attachments while clearing chat
+  and every other conversation-bound value. That page-only behavior was
+  incomplete and is superseded by this section.
+- `public-runtime-anonymous` now stores its runtime-issued, short-lived token,
+  expiry, runtime key, and session ID in tab-scoped `sessionStorage`. A normal
+  full document navigation restores that exact credential and renews it only
+  through the deployment-local same-session renewal endpoint. The browser
+  still cannot choose or resume an arbitrary session identity.
+- The widget persistence lifecycle now finishes hydration before it writes
+  React state or creates a destination-page welcome message. This removes two
+  independent overwrite races that could erase restored messages or
+  attachments even when runtime identity was preserved.
+- Normal same-tab navigation preserves the conversation ID, complete message
+  history, confirmation state, page attachments, ordinary/result attachments,
+  current mode and position, and safe local context. A real runtime change,
+  expiry, HTTP 401/403, mismatched renewal, changed fresh-bootstrap identity, or
+  typed conversation access denial still clears all conversation-bound state.
+  A denied request is never replayed automatically.
+- The credential is tab- and origin-scoped, removed when the tab closes, and
+  limited to the already browser-visible anonymous runtime capability. The
+  widget does not persist host-provided authenticated tokens or static
+  credentials. No dealership, vehicle, provider, label, action, or field rule
+  was added to generic widget code.
+- A dedicated Playwright context now creates a conversation, attaches one page
+  snapshot and one domain-neutral non-page result reference, performs a real
+  inventory-to-detail document navigation, and verifies that the session,
+  conversation, messages, both attachments, mode, and position survive without
+  another bootstrap. A separate forced credential-loss/identity-rotation case
+  proves complete fail-closed clearing and zero automatic replay.
 - Local widget typecheck/build/action-presentation smoke, site production
   build, Astro diagnostics, content/static gates and the complete Playwright
   browser suite are green.
-- Commit `a500211720d38b2cb168b94225c7ad9ef44c1781` is live on production
-  public-site Coolify deployment `kv6qmlaigg8yuhfbkmoctghm`.
-  `https://loomai.pro/health` reports `UP` on that exact commit.
-- A fresh hosted browser context attached the inventory page, performed a full
-  document navigation to `2025 Aster E1`, observed the inventory page chip
-  still present, and then added the vehicle detail as a second page
-  attachment. The canary issued no chat query or write action.
-- Temporary production control-plane access was removed after verification.
-  Hetzner firewalls `10915120` and `10918233` contain zero entries for the
-  operator IPv4/IPv6 CIDRs, and local Coolify port `8000` again returns HTTP
-  `000` by timeout.
+- This is a widget/public-site correction only. It requires no AI Fabric,
+  deployment runtime, connector, action, prompt, or dealership-backend change.

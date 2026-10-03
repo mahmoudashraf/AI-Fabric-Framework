@@ -14,7 +14,13 @@ type PublicRuntimeSessionBinding = {
   sessionId: string;
 };
 
+type PublicRuntimeSessionCredential = PublicRuntimeSessionBinding & {
+  token: string;
+  expiresAt: string;
+};
+
 const PUBLIC_RUNTIME_SESSION_BINDING_KEY = "maxmode_public_runtime_session_binding_v1";
+const PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY = "maxmode_public_runtime_session_credential_v2";
 const publicRuntimeTokenState: PublicRuntimeTokenState = {};
 const publicRuntimeBootstrapPromises = new Map<string, Promise<string>>();
 const publicRuntimeRenewalPromises = new Map<string, Promise<string>>();
@@ -150,6 +156,51 @@ function persistPublicRuntimeSessionBinding(binding: PublicRuntimeSessionBinding
   } catch {}
 }
 
+function loadPersistedPublicRuntimeSessionCredential(): PublicRuntimeSessionCredential | undefined {
+  try {
+    const raw = sessionStorage.getItem(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY);
+    if (!raw) {
+      return undefined;
+    }
+    const parsed = JSON.parse(raw) as Partial<PublicRuntimeSessionCredential>;
+    const runtimeKey = trimToNull(parsed.runtimeKey);
+    const sessionId = trimToNull(parsed.sessionId);
+    const token = trimToNull(parsed.token);
+    const expiresAt = trimToNull(parsed.expiresAt);
+    if (!runtimeKey || !sessionId || !token || !expiresAt || Number.isNaN(Date.parse(expiresAt))) {
+      return undefined;
+    }
+    return { runtimeKey, sessionId, token, expiresAt };
+  } catch {
+    return undefined;
+  }
+}
+
+function persistPublicRuntimeSessionCredential(credential: PublicRuntimeTokenState): void {
+  const runtimeKey = trimToNull(credential.runtimeKey);
+  const sessionId = trimToNull(credential.sessionId);
+  const token = trimToNull(credential.token);
+  const expiresAt = trimToNull(credential.expiresAt);
+  if (!runtimeKey || !sessionId || !token || !expiresAt || Number.isNaN(Date.parse(expiresAt))) {
+    clearPersistedPublicRuntimeSessionCredential();
+    return;
+  }
+  try {
+    sessionStorage.setItem(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY, JSON.stringify({
+      runtimeKey,
+      sessionId,
+      token,
+      expiresAt,
+    } satisfies PublicRuntimeSessionCredential));
+  } catch {}
+}
+
+function clearPersistedPublicRuntimeSessionCredential(): void {
+  try {
+    sessionStorage.removeItem(PUBLIC_RUNTIME_SESSION_CREDENTIAL_KEY);
+  } catch {}
+}
+
 function clearPersistedPublicRuntimeSessionBinding(): void {
   try {
     sessionStorage.removeItem(PUBLIC_RUNTIME_SESSION_BINDING_KEY);
@@ -179,6 +230,20 @@ function cachedPublicTokenStatus(baseUrl: string): CachedPublicTokenStatus {
   return expiresMs > Date.now() + 15_000 ? "usable" : "renewable";
 }
 
+function restorePersistedPublicRuntimeToken(): void {
+  if (trimToNull(publicRuntimeTokenState.token)) {
+    return;
+  }
+  const persisted = loadPersistedPublicRuntimeSessionCredential();
+  if (!persisted) {
+    return;
+  }
+  publicRuntimeTokenState.token = persisted.token;
+  publicRuntimeTokenState.expiresAt = persisted.expiresAt;
+  publicRuntimeTokenState.sessionId = persisted.sessionId;
+  publicRuntimeTokenState.runtimeKey = persisted.runtimeKey;
+}
+
 function clearCachedPublicRuntimeToken(): void {
   delete publicRuntimeTokenState.token;
   delete publicRuntimeTokenState.expiresAt;
@@ -199,13 +264,18 @@ function notifyPublicRuntimeSessionInvalidation(event: PublicRuntimeSessionInval
 function invalidatePublicRuntimeSession(
   reason: PublicRuntimeSessionInvalidationReason,
 ): void {
-  const previousSessionId = trimToNull(publicRuntimeTokenState.sessionId);
+  const persistedCredential = loadPersistedPublicRuntimeSessionCredential();
+  const persistedBinding = loadPersistedPublicRuntimeSessionBinding();
+  const previousSessionId = trimToNull(publicRuntimeTokenState.sessionId)
+    ?? persistedCredential?.sessionId
+    ?? persistedBinding?.sessionId;
   const hadRuntimeSession = Boolean(
     trimToNull(publicRuntimeTokenState.token)
       || previousSessionId
       || trimToNull(publicRuntimeTokenState.runtimeKey),
   );
   clearCachedPublicRuntimeToken();
+  clearPersistedPublicRuntimeSessionCredential();
   clearPersistedPublicRuntimeSessionBinding();
   if (!hadRuntimeSession) {
     return;
@@ -277,6 +347,7 @@ async function performAnonymousRuntimeBootstrap(baseUrl: string, expectedRuntime
   publicRuntimeTokenState.sessionId = sessionId;
   publicRuntimeTokenState.runtimeKey = expectedRuntimeKey;
   persistPublicRuntimeSessionBinding({ runtimeKey: expectedRuntimeKey, sessionId });
+  persistPublicRuntimeSessionCredential(publicRuntimeTokenState);
 
   if (previousBinding && (
     previousBinding.runtimeKey !== expectedRuntimeKey
@@ -349,6 +420,11 @@ async function performAnonymousRuntimeRenewal(baseUrl: string, expectedRuntimeKe
   publicRuntimeTokenState.expiresAt = trimToNull(renewed.expiresAt);
   publicRuntimeTokenState.sessionId = sessionId;
   publicRuntimeTokenState.runtimeKey = runtimeCacheKey(baseUrl);
+  persistPublicRuntimeSessionBinding({
+    runtimeKey: publicRuntimeTokenState.runtimeKey,
+    sessionId,
+  });
+  persistPublicRuntimeSessionCredential(publicRuntimeTokenState);
   return token;
 }
 
@@ -381,6 +457,7 @@ async function resolveSecureRuntimeHeaders(
     return headers;
   }
 
+  restorePersistedPublicRuntimeToken();
   const tokenStatus = cachedPublicTokenStatus(baseUrl);
   if (tokenStatus === "runtime-changed" || tokenStatus === "expired") {
     const reason = tokenStatus === "runtime-changed" ? "runtime-changed" : "expired";

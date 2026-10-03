@@ -70,7 +70,8 @@ Immediate corrections from this pass:
 - workflow path fixed to `max-mode-widget/**`
 - GitHub Pages script URL updated to this repo path
 - widget identity now derives from verified runtime or backend auth context
-- anonymous public mode stores only runtime-issued identity, renews its token
+- anonymous public mode stores only the runtime-issued short-lived credential
+  in tab-scoped session storage, restores it through page navigation, renews it
   against the runtime, and rejects renewal if the returned `sessionId` changes
 - shared headers now apply to both chat and CRUD requests, with optional `chatHeaders` and `crudHeaders`
 

@@ -194,12 +194,21 @@ token expires, the browser may renew that same runtime-owned identity through
 bearer token. A successful renewal must return the same `sessionId`; a client
 must reject a changed or missing session ID.
 
+The LoomAI widget keeps this short-lived anonymous credential in tab-scoped
+`sessionStorage` so a normal full document navigation restores the same
+runtime-owned identity and conversation. The credential is origin-scoped,
+removed when the tab closes, and used only for `public-runtime-anonymous`;
+host-provided authenticated tokens are not persisted by the widget. Anonymous
+bootstrap and renewal responses therefore need both `sessionId` and a valid
+`expiresAt` for navigation continuity.
+
 The caller never sends `sessionId` in either request body. A caller-provided
 session ID is not a renewal mechanism. Expired/invalid credentials, runtime
 change, HTTP `401`/`403`, or a mismatched renewal response must clear the old
 conversation, prompt, attachment, and pending-confirmation state and must not
 replay the in-flight request under a new identity. The current LoomAI Max Mode
-widget implements both same-session renewal and this fail-closed fallback.
+widget implements same-tab restoration, same-session renewal, and this
+fail-closed fallback.
 
 If the platform public provisioning API exposes:
 
