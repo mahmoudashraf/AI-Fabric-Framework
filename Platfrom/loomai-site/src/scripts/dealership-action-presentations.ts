@@ -417,7 +417,7 @@ class DealershipInventoryPresentation extends DealershipPresentationElement {
     actions.append(details)
     if (reference) {
       const ask = createButton('Ask about this', 'secondary')
-      ask.addEventListener('click', () => this.ask(`Tell me about ${reference.label} using its current dealership facts.`, [reference.key]))
+      ask.addEventListener('click', () => this.ask(`Load the current live stock record for ${reference.label}, then summarize its dealership facts.`, [reference.key]))
       const attach = createButton(this.isAttached(reference.key) ? 'Remove context' : 'Keep in context', 'quiet')
       attach.setAttribute('aria-pressed', String(this.isAttached(reference.key)))
       attach.addEventListener('click', () => this.toggleAttachment(reference))

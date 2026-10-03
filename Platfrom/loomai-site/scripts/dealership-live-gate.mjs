@@ -110,21 +110,23 @@ try {
   const inventorySearch = await sendMessageAndWait(page, inventorySearchPrompt)
   assert(inventorySearch.response.ok(), `The inventory search returned HTTP ${inventorySearch.response.status()}.`)
 
-  const inventoryPresentation = maxModeView.locator('loomai-dealership-inventory').last()
-  await inventoryPresentation.waitFor({ state: 'attached' })
+  const inventoryPresentations = maxModeView.locator('loomai-dealership-inventory')
+  await inventoryPresentations.last().waitFor({ state: 'attached' })
+  const inventoryPresentation = inventoryPresentations.nth((await inventoryPresentations.count()) - 1)
   const presentationEvidence = await inspectInventoryPresentation(inventoryPresentation)
   assertInventoryPresentation(presentationEvidence)
 
   const selectedVehicleLabel = presentationEvidence.references[0]?.label
   assert(selectedVehicleLabel, 'The inventory presentation exposed no selectable vehicle label.')
 
-  const detailQuery = `Tell me about ${selectedVehicleLabel} using its current dealership facts.`
+  const detailQuery = `Load the current live stock record for ${selectedVehicleLabel}, then summarize its dealership facts.`
   const detailResponsePromise = waitForQueryResponse(page, (request) => safeRequestBody(request).query === detailQuery)
   await inventoryPresentation.getByRole('button', { name: 'Ask about this' }).first().click()
   const detailResponse = await detailResponsePromise
   assert(detailResponse.ok(), `The injected detail command returned HTTP ${detailResponse.status()}.`)
-  const detailPresentation = maxModeView.locator('loomai-dealership-vehicle-detail').last()
-  await detailPresentation.waitFor({ state: 'attached' })
+  const detailPresentations = maxModeView.locator('loomai-dealership-vehicle-detail')
+  await detailPresentations.last().waitFor({ state: 'attached' })
+  const detailPresentation = detailPresentations.nth((await detailPresentations.count()) - 1)
   await detailPresentation.getByText('Vehicle details', { exact: true }).waitFor()
 
   const suitabilityQuery = `Is ${selectedVehicleLabel} suitable for everyday driving? Explain using current facts and identify unknowns.`
@@ -161,8 +163,9 @@ try {
   await inventoryPresentation.getByRole('button', { name: 'Compare selected' }).click()
   const comparisonResponse = await comparisonResponsePromise
   assert(comparisonResponse.ok(), `The injected comparison command returned HTTP ${comparisonResponse.status()}.`)
-  const comparisonPresentation = maxModeView.locator('loomai-dealership-vehicle-comparison').last()
-  await comparisonPresentation.waitFor({ state: 'attached' })
+  const comparisonPresentations = maxModeView.locator('loomai-dealership-vehicle-comparison')
+  await comparisonPresentations.last().waitFor({ state: 'attached' })
+  const comparisonPresentation = comparisonPresentations.nth((await comparisonPresentations.count()) - 1)
   await comparisonPresentation.getByText('Vehicle comparison', { exact: true }).waitFor()
 
   const comparisonSelect = comparisonPresentation.getByRole('button', { name: 'Select vehicle' }).first()
@@ -287,8 +290,13 @@ try {
         actionName: presentationEvidence.actionName,
         rendererId: presentationEvidence.rendererId,
         schemaVersion: presentationEvidence.schemaVersion,
+        projectedItemCount: presentationEvidence.projectedItemCount,
         renderedCardCount: presentationEvidence.renderedCardCount,
         filterLabels: presentationEvidence.filterLabels,
+        imageCount: presentationEvidence.imageCount,
+        loadedImageCount: presentationEvidence.loadedImageCount,
+        providerImageCount: presentationEvidence.providerImageCount,
+        imageHosts: presentationEvidence.imageHosts,
       },
       detail: 'loomai.vehicle-detail.v1',
       comparison: 'loomai.vehicle-comparison.v1',
