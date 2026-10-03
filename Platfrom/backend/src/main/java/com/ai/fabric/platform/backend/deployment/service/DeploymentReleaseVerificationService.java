@@ -229,7 +229,7 @@ public class DeploymentReleaseVerificationService {
         if ("PRE_APPLY".equalsIgnoreCase(verificationType)) {
             verifyPreApply(checks, deployment, version, release, artifacts);
         } else {
-            VerificationExpectations expectations = buildExpectations(version, release, artifacts);
+            VerificationExpectations expectations = buildExpectations(deployment, version, release, artifacts);
             boolean connectorVerificationRequired = connectorVerificationRequired(release, expectations);
             addBooleanCheck(
                 checks,
@@ -1018,12 +1018,12 @@ public class DeploymentReleaseVerificationService {
         return Set.copyOf(values);
     }
 
-    private VerificationExpectations buildExpectations(DeploymentVersionEntity version,
+    private VerificationExpectations buildExpectations(DeploymentEntity deployment,
+                                                       DeploymentVersionEntity version,
                                                        DeploymentReleaseEntity release,
                                                        DeploymentArtifactBundleSummary artifacts) {
         JsonNode actionsConfig = readJson(version.getActionsConfigJson());
         JsonNode entityConfig = readJson(version.getEntityConfigJson());
-        JsonNode rawRoutingConfig = readJson(version.getRoutingConfigJson());
         JsonNode providerConfig = effectiveProviderConfig(version, release);
         JsonNode securityConfig = readJson(version.getSecurityConfigJson());
         JsonNode knowledgeSourceConfig = readJson(version.getKnowledgeSourceConfigJson());
@@ -1032,7 +1032,7 @@ public class DeploymentReleaseVerificationService {
         JsonNode behaviorConfig = readJson(version.getBehaviorConfigJson());
         JsonNode compositionProvenance = readJson(version.getCompositionProvenanceJson());
         JsonNode provisioningDetails = readJson(release.getProvisioningDetailsJson());
-        JsonNode routingConfig = deploymentConfigCompiler.compileRoutingConfig(actionsConfig, rawRoutingConfig, securityConfig);
+        JsonNode routingConfig = compileRoutingExpectations(deployment, version);
 
         Set<String> expectedActionNames = new LinkedHashSet<>();
         JsonNode actions = actionsConfig.path("actions");
@@ -1209,6 +1209,17 @@ public class DeploymentReleaseVerificationService {
             csvSet(ManagedDeploymentProfileCatalog.publicRuntimeAcceptedAudiences(securityConfig)),
             ManagedDeploymentProfileCatalog.publicRuntimeDefaultAudience(securityConfig),
             expectedPublicTokenValidationConfigured && ManagedDeploymentProfileCatalog.publicRuntimeBootstrapEnabled(securityConfig)
+        );
+    }
+
+    JsonNode compileRoutingExpectations(DeploymentEntity deployment, DeploymentVersionEntity version) {
+        return deploymentConfigCompiler.compileRoutingConfig(
+            readJson(version.getActionsConfigJson()),
+            readJson(version.getRoutingConfigJson()),
+            readJson(version.getSecurityConfigJson()),
+            readJson(version.getMarketplaceDatasetConfigJson()),
+            deployment.getId(),
+            deployment.getTenantId()
         );
     }
 

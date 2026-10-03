@@ -101,6 +101,83 @@ class DeploymentReleaseVerificationServiceTest {
     }
 
     @Test
+    void postDeployRoutingExpectationsIncludeMarketplaceHttpAuthority() throws Exception {
+        DeploymentArtifactService artifactService = mock(DeploymentArtifactService.class);
+        DeploymentReleaseVerificationService service = releaseVerificationService(
+            runtimePrivateSecrets(),
+            artifactService
+        );
+        DeploymentEntity deployment = deployment("https://runtime.example", "https://connector.example");
+        deployment.setTenantId("ten-123");
+        DeploymentVersionEntity version = version();
+        version.setActionsConfigJson("""
+            {
+              "actions": [{
+                "name": "provider_search",
+                "accessMode": "READ",
+                "route": {
+                  "connectionProfileRef": "provider-profile",
+                  "protectedResourceBindingRef": "provider-account",
+                  "requiredCapabilityGrants": ["records:read"],
+                  "trustedResourcePlacements": [{"target":"QUERY","field":"accountId"}],
+                  "method": "GET",
+                  "path": "/records"
+                }
+              }]
+            }
+            """);
+        version.setRoutingConfigJson("""
+            {"connector":{"inbound-auth":{"allow-unauthenticated":false}},"actions":{}}
+            """);
+        version.setMarketplaceDatasetConfigJson("""
+            {
+              "contractVersion": "MARKETPLACE_DATASET_CONFIG_V1",
+              "datasets": [{
+                "datasetId": "provider-records",
+                "entityType": "provider-record",
+                "ingestionMode": "EXTERNAL_SYNC_HTTP",
+                "handleRef": "plugin/provider-records",
+                "datasetHash": "dataset-hash",
+                "syncConnector": {
+                  "connectionProfile": {
+                    "profileId": "provider-profile",
+                    "baseUrl": "https://provider.example",
+                    "capabilityGrants": ["records:read"]
+                  },
+                  "protectedResource": {
+                    "bindingId": "provider-account",
+                    "connectionProfileRef": "provider-profile",
+                    "resourceId": "account-123",
+                    "capabilityGrants": ["records:read"]
+                  },
+                  "httpSource": {
+                    "sourceId": "provider-record-source",
+                    "connectionProfileRef": "provider-profile",
+                    "protectedResourceBindingRef": "provider-account",
+                    "path": "/records",
+                    "trustedResourcePlacements": [{"target":"QUERY","field":"accountId"}],
+                    "mapping": {"recordsJsonPointer":"/results","idJsonPointer":"/id"},
+                    "vectorSpace": "provider-record",
+                    "entityType": "provider-record"
+                  }
+                }
+              }]
+            }
+            """);
+
+        JsonNode routing = service.compileRoutingExpectations(deployment, version);
+
+        assertThat(routing.path("connection-profiles").has("provider-profile")).isTrue();
+        assertThat(routing.path("protected-resources").has("provider-account")).isTrue();
+        assertThat(routing.path("actions").path("provider_search")
+            .path("connection-profile-ref").asText()).isEqualTo("provider-profile");
+        assertThat(routing.path("runtime-data-sync").path("deployment-id").asText())
+            .isEqualTo("dep-123");
+        assertThat(routing.path("runtime-data-sync").path("tenant-id").asText())
+            .isEqualTo("ten-123");
+    }
+
+    @Test
     void verifyChecksRuntimeAndConnectorAdminStateAgainstPublishedVersion() throws Exception {
         HttpServer runtimeServer = HttpServer.create(new InetSocketAddress(0), 0);
         HttpServer connectorServer = HttpServer.create(new InetSocketAddress(0), 0);
