@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 import type { MaxModeCurrentPageAttachmentConfig, MaxModeHostAttachment } from "@/config";
 import {
@@ -18,13 +18,11 @@ export function useCurrentPageAttachment({
   config,
   attachedItems,
   setAttachedItems,
-  chatInputRef,
   toast,
 }: {
   config?: MaxModeCurrentPageAttachmentConfig;
   attachedItems: MaxModeHostAttachment[];
   setAttachedItems: Dispatch<SetStateAction<MaxModeHostAttachment[]>>;
-  chatInputRef: RefObject<HTMLTextAreaElement>;
   toast: ToastFn;
 }) {
   const enabled = Boolean(config && config.enabled !== false);
@@ -97,7 +95,6 @@ export function useCurrentPageAttachment({
         title: existing ? "Page refreshed" : "Page attached",
         description: `${nextPageCount} of ${currentPageAttachmentMaxPages} pages ready (${nextTotalCharacters} total characters).`,
       });
-      setTimeout(() => chatInputRef.current?.focus(), 50);
     } catch (error) {
       toast({
         title: "Page could not be attached",
@@ -108,7 +105,6 @@ export function useCurrentPageAttachment({
       setIsCapturingCurrentPage(false);
     }
   }, [
-    chatInputRef,
     config,
     currentPageAttachmentMaxPages,
     currentPageAttachmentMaxTotalChars,

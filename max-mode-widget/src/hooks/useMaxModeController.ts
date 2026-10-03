@@ -966,7 +966,6 @@ export function useMaxModeController({
     config: hostConfig?.currentPageAttachment,
     attachedItems,
     setAttachedItems,
-    chatInputRef,
     toast,
   });
 

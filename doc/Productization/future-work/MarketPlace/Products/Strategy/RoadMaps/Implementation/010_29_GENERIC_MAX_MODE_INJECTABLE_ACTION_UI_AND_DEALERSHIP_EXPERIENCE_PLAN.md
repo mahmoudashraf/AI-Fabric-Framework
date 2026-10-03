@@ -1016,3 +1016,20 @@ or Platform-managed `UI_EXTENSION` packaging.
   `10915120` and `10918233` exactly match their pre-deploy rule snapshots, the
   operator CIDR has zero matches, and local Coolify port `8000` again times out
   with HTTP `000`.
+
+### 17.8 Silent page collection and Max Mode control boundary (2026-10-03)
+
+- Current-page capture is a Companion-toolbar collection action. Completing or
+  refreshing a capture must not focus the chat textarea or expand the Companion
+  transcript. This lets a user attach one page, navigate, and attach additional
+  pages without repeatedly closing chat.
+- Max Mode does not render an attach/refresh-page action. It consumes and shows
+  pages already collected by the Companion as ordinary removable context chips.
+  This avoids a duplicate control while keeping attached evidence transparent.
+- The behavior is generic widget policy. It contains no dealership, vehicle,
+  provider, route, action, or field coupling.
+- The widget typecheck, ESM/CJS/IIFE production builds, action-presentation
+  smoke, Astro diagnostics, public-site build, content/static gates, and full
+  Playwright browser smoke are green. Browser coverage proves silent capture on
+  listing and detail pages, no page-capture action in Max Mode, retained context
+  chips in Max Mode, and multi-page navigation continuity.

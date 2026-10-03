@@ -3775,3 +3775,16 @@ Critical fixes that made the gate pass:
 - Production access cleanup is complete: firewalls `10915120` and `10918233`
   exactly match their pre-deploy snapshots, the current operator CIDR has zero
   matches, and direct local Coolify access is closed with timeout/HTTP `000`.
+
+## 2026-10-03 Silent Page Collection and Max Mode Control Boundary
+
+- Attaching or refreshing the current page no longer focuses the Companion
+  textarea, so it does not open the transcript. Users can collect multiple pages
+  through navigation without closing chat after every capture.
+- The generic Max Mode composer no longer accepts or renders the current-page
+  attach/refresh control. Existing page attachments remain visible and removable
+  as context chips inside Max Mode.
+- This is a widget/public-site UX correction only, with no framework, runtime,
+  connector, action, prompt, or dealership-backend change.
+- Widget typecheck/build/action-presentation smoke and the complete public-site
+  Node 22 verification suite, including Playwright, are green.

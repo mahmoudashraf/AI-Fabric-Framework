@@ -218,10 +218,14 @@ interface MaxModeWidgetConfig {
 ```
 
 When enabled, the attach/refresh control is rendered in a separate utility rail
-above the Companion or Max Mode input shell. Each captured page remains a
-separate removable chip. Reattaching the same page refreshes that entry without
-duplicating it; a new page appends until `maxPages` or `maxTotalChars` is
-reached. The control never silently evicts an attached page.
+above the collapsed Companion input shell. Capturing or refreshing a page does
+not focus the input or expand the conversation, so the user can navigate and
+collect multiple pages without repeatedly closing chat. Max Mode does not show
+the attach/refresh control; it shows already attached pages as removable context
+chips. Each captured page remains a separate removable chip. Reattaching the
+same page refreshes that entry without duplicating it; a new page appends until
+`maxPages` or `maxTotalChars` is reached. The control never silently evicts an
+attached page.
 
 Current-page capture is user initiated. The widget excludes scripts, styles,
 navigation, footers, forms, hidden content, and its own host element; normalizes

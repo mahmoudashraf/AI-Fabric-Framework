@@ -700,6 +700,9 @@ try {
   if ((await currentPageChips.count()) !== 1) {
     throw new Error('Inventory page attachment did not create exactly one page entry')
   }
+  if ((await listingCompanion.getByRole('button', { name: 'Minimize assistant' }).count()) !== 0) {
+    throw new Error('Attaching the inventory page unexpectedly opened the Companion chat')
+  }
   const navigationSessionBefore = await page.evaluate(() => {
     const binding = JSON.parse(sessionStorage.getItem('maxmode_public_runtime_session_binding_v1') || '{}')
     return binding.sessionId
@@ -748,6 +751,9 @@ try {
   if (!(await currentPageChips.getByText('2025 Aster E1', { exact: false }).count())) {
     throw new Error('Current-page attachment did not expose the page title')
   }
+  if ((await page.locator('section[aria-label="Northfield AI"]').getByRole('button', { name: 'Minimize assistant' }).count()) !== 0) {
+    throw new Error('Attaching a vehicle page unexpectedly opened the Companion chat')
+  }
   await page.getByRole('button', { name: 'Refresh current page' }).click()
   if ((await currentPageChips.count()) !== 2) {
     throw new Error('Refreshing the current page created a duplicate attachment')
@@ -760,13 +766,11 @@ try {
   await page.getByTitle('Open Max Mode').click()
   const maxModeInputShell = page.locator('[data-max-mode-composer-input-shell]')
   await maxModeInputShell.waitFor()
-  const maxModeAttachButton = page.getByRole('button', { name: 'Refresh current page' })
-  await maxModeAttachButton.waitFor()
-  const attachInsideMaxModeInputShell = await maxModeAttachButton.evaluate((element) =>
-    Boolean(element.closest('[data-max-mode-composer-input-shell]')),
-  )
-  if (attachInsideMaxModeInputShell) {
-    throw new Error('Attach-current-page control is still inside the Max Mode input shell')
+  if ((await page.locator('[data-max-mode-view] [data-max-mode-current-page-action]').count()) !== 0) {
+    throw new Error('Attach-current-page control is visible in Max Mode')
+  }
+  if ((await page.locator('[data-max-mode-view] [data-max-mode-current-page-chip]').count()) !== 2) {
+    throw new Error('Max Mode did not retain the attached page context after hiding its attach control')
   }
   await page.getByRole('button', { name: 'Close MAX Mode' }).click()
   await page.locator('section[aria-label="Northfield AI"]').waitFor()
@@ -1429,7 +1433,18 @@ try {
       await detailContextualScope.isDisabled()) {
     throw new Error('Vehicle detail page hid Current context or failed to expose Browse stock')
   }
-  await detailToolsPage.getByRole('button', { name: 'Attach current page' }).click()
+  await detailToolsPage.getByRole('button', { name: 'Close MAX Mode' }).click()
+  const detailCompanion = detailToolsPage.locator('section[aria-label="Northfield AI"]')
+  await detailCompanion.getByRole('button', { name: 'Attach current page' }).click()
+  await detailToolsPage.waitForFunction(() => {
+    const state = JSON.parse(sessionStorage.getItem('maxmode_widget_state') || '{}')
+    return state.attachedItems?.some((item) => item.type === 'current-page') === true
+  })
+  if ((await detailCompanion.getByRole('button', { name: 'Minimize assistant' }).count()) !== 0) {
+    throw new Error('Attaching detail context unexpectedly opened the Companion chat')
+  }
+  await detailToolsPage.getByTitle('Open Max Mode').click()
+  await detailMaxMode.waitFor()
   await detailToolsPage.waitForFunction(() => {
     const selected = document.querySelector('#max-mode-widget-shadow-host')?.shadowRoot
       ?.querySelector('[data-max-mode-tool-scope="contextual"]')

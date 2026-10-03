@@ -7,7 +7,6 @@ import { LockedConversationBanner } from "./Composer/LockedConversationBanner";
 import { AttachmentsRow } from "./Composer/AttachmentsRow";
 import { ComposerInputRow } from "./Composer/ComposerInputRow";
 import { SuggestionsPanel } from "./Composer/SuggestionsPanel";
-import { CurrentPageAttachmentControl } from "./CurrentPageAttachmentControl";
 import type { AttachedItem } from "./types";
 
 export type { AttachedItem } from "./types";
@@ -41,17 +40,6 @@ export function Composer({
   conversationsEnabled,
   onOpenDebug,
   onSubmit,
-  currentPageAttachmentEnabled,
-  currentPageAttachments,
-  currentPageAttachment,
-  currentPageAttachmentMaxChars,
-  currentPageAttachmentMaxPages,
-  currentPageAttachmentMaxTotalChars,
-  currentPageAttachmentTotalChars,
-  canAttachCurrentPage,
-  isCapturingCurrentPage,
-  onAttachCurrentPage,
-  onRemoveCurrentPage,
 }: {
   attachedItems: AttachedItem[];
   onRemoveAttachment: (filteredIndex: number) => void;
@@ -81,17 +69,6 @@ export function Composer({
   conversationsEnabled: boolean;
   onOpenDebug: () => void;
   onSubmit: () => void;
-  currentPageAttachmentEnabled: boolean;
-  currentPageAttachments: AttachedItem[];
-  currentPageAttachment?: AttachedItem;
-  currentPageAttachmentMaxChars: number;
-  currentPageAttachmentMaxPages: number;
-  currentPageAttachmentMaxTotalChars: number;
-  currentPageAttachmentTotalChars: number;
-  canAttachCurrentPage: boolean;
-  isCapturingCurrentPage: boolean;
-  onAttachCurrentPage: () => void;
-  onRemoveCurrentPage: (attachmentId: string) => void;
 }) {
   const [showAttachments, setShowAttachments] = useState(true);
   const composerStackRef = useRef<HTMLDivElement>(null);
@@ -141,27 +118,6 @@ export function Composer({
             onShowSuggestions={onShowSuggestions}
             onSuggestionSelect={onSuggestionSelect}
           />
-
-          {currentPageAttachmentEnabled && (
-            <div
-              className="pointer-events-auto mb-2 flex justify-end"
-              data-max-mode-current-page-toolbar
-            >
-              <CurrentPageAttachmentControl
-                attachments={currentPageAttachments}
-                attachment={currentPageAttachment}
-                isCapturing={isCapturingCurrentPage}
-                maxChars={currentPageAttachmentMaxChars}
-                maxPages={currentPageAttachmentMaxPages}
-                maxTotalChars={currentPageAttachmentMaxTotalChars}
-                totalChars={currentPageAttachmentTotalChars}
-                canAttach={canAttachCurrentPage}
-                onAttach={onAttachCurrentPage}
-                onRemove={onRemoveCurrentPage}
-                showAttachmentChip={false}
-              />
-            </div>
-          )}
         </div>
       </div>
 
